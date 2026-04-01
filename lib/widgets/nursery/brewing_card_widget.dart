@@ -35,31 +35,13 @@ class NurseryBrewingCard extends StatefulWidget {
   State<NurseryBrewingCard> createState() => _NurseryBrewingCardState();
 }
 
-class _NurseryBrewingCardState extends State<NurseryBrewingCard>
-    with SingleTickerProviderStateMixin {
+class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
   List<String>? _parentTypes;
-  late AnimationController _glowController;
-  late Animation<double> _glowAnimation;
 
   @override
   void initState() {
     super.initState();
     _extractParticleTypes();
-
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
-
-    _glowAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _glowController.dispose();
-    super.dispose();
   }
 
   @override
@@ -136,79 +118,70 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
     return RepaintBoundary(
       child: GestureDetector(
         onTap: widget.onTap,
-        child: AnimatedBuilder(
-          animation: _glowAnimation,
-          builder: (context, child) {
-            return Container(
-              decoration: BoxDecoration(
-                color: theme!.brightness == Brightness.light
-                    ? Colors.white
-                    : Colors.black,
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(
-                  color: widget.isReady
-                      ? const Color(0xFFFFD700)
-                      : theme.text.withValues(alpha: 0.5),
-                  width: widget.isReady ? 1.0 : 0.5,
-                ),
-                boxShadow: widget.isReady
-                    ? [
-                        BoxShadow(
-                          color: const Color(
-                            0xFFFFD700,
-                          ).withValues(alpha: 0.5 * _glowAnimation.value),
-                          blurRadius: 1 * _glowAnimation.value,
-                          spreadRadius: 2 * _glowAnimation.value,
-                        ),
-                        BoxShadow(
-                          color: const Color(
-                            0xFFFFD700,
-                          ).withValues(alpha: 0.3 * _glowAnimation.value),
-                          blurRadius: 20 * _glowAnimation.value,
-                          spreadRadius: 4 * _glowAnimation.value,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Stack(
-                  children: [
-                    if (showParticles &&
-                        _parentTypes != null &&
-                        _parentTypes!.isNotEmpty)
-                      Positioned.fill(
-                        child: AlchemyBrewingParticleSystem(
-                          parentATypeId: _parentTypes![0],
-                          parentBTypeId: _parentTypes!.length > 1
-                              ? _parentTypes![1]
-                              : null,
-                          particleCount: particleCount,
-                          speedMultiplier: _speedFromProgress,
-                          fusion: widget.isReady,
-                          useSimpleFusion: widget.useSimpleFusion,
-                          theme: widget.theme,
-                        ),
-                      ),
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: Alignment.center,
-                            radius: 1.0,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.1),
-                            ],
-                          ),
-                        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme!.brightness == Brightness.light
+                ? Colors.white
+                : Colors.black,
+            borderRadius: BorderRadius.circular(5),
+            border: Border.all(
+              color: widget.isReady
+                  ? const Color(0xFFFFD700)
+                  : theme.text.withValues(alpha: 0.5),
+              width: widget.isReady ? 1.0 : 0.5,
+            ),
+            boxShadow: widget.isReady
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFFFD700).withValues(alpha: 0.18),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFFFFD700).withValues(alpha: 0.08),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              children: [
+                if (showParticles &&
+                    _parentTypes != null &&
+                    _parentTypes!.isNotEmpty)
+                  Positioned.fill(
+                    child: AlchemyBrewingParticleSystem(
+                      parentATypeId: _parentTypes![0],
+                      parentBTypeId: _parentTypes!.length > 1
+                          ? _parentTypes![1]
+                          : null,
+                      particleCount: particleCount,
+                      speedMultiplier: _speedFromProgress,
+                      fusion: widget.isReady,
+                      useSimpleFusion: widget.useSimpleFusion,
+                      theme: widget.theme,
+                    ),
+                  ),
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.center,
+                        radius: 1.0,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.1),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            );
-          },
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -169,25 +169,30 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
         children: [
           // ── Particle background ───────────────────────────────────────────
           IgnorePointer(
-            child: AlchemicalParticleBackground(
-              opacity: 0.55,
-              backgroundColor: Colors.transparent,
+            child: RepaintBoundary(
+              child: AlchemicalParticleBackground(
+                opacity: 0.55,
+                backgroundColor: Colors.transparent,
+                densityMultiplier: 0.45,
+              ),
             ),
           ),
 
           // ── Animated portal ───────────────────────────────────────────────
           Center(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                return CustomPaint(
-                  size: const Size(320, 320),
-                  painter: _PortalPainter(
-                    faction: widget.faction,
-                    time: _controller.value * pi * 2 * 4,
-                  ),
-                );
-              },
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  return CustomPaint(
+                    size: const Size(320, 320),
+                    painter: _PortalPainter(
+                      faction: widget.faction,
+                      time: _controller.value * pi * 2 * 4,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
 
@@ -317,11 +322,13 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
           // ── Portal entry flash (plays once on first load) ─────────────────
           if (!_entryDone)
             IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _entryCtrl,
-                builder: (context, _) => _PortalEntryFlash(
-                  faction: widget.faction,
-                  progress: _entryCtrl.value,
+              child: RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _entryCtrl,
+                  builder: (context, _) => _PortalEntryFlash(
+                    faction: widget.faction,
+                    progress: _entryCtrl.value,
+                  ),
                 ),
               ),
             ),

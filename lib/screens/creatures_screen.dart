@@ -355,6 +355,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
             if (!_showCatalogView) {
               return AllSpecimensPage(
                 theme: theme,
+                instancePrefsScopeKey: 'creatures_all_specimens',
                 showFloatingCloseButton: false,
                 leadingIcon: Icons.category_rounded,
                 leadingTooltip: 'Species Catalog',
@@ -677,6 +678,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
         child: InstancesSheet(
           species: species,
           theme: theme,
+          prefsScopeKey: 'creatures_species_instances',
           onTap: (inst) {
             Navigator.of(context).pop();
             _openDetailsForInstance(species, inst);

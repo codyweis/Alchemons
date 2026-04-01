@@ -17,12 +17,14 @@ class NurseryTab extends StatefulWidget {
   final DateTime? maxSeenNowUtc;
   final VoidCallback onHatchComplete;
   final VoidCallback onRequestAddEgg;
+  final VoidCallback onRequestFusion;
 
   const NurseryTab({
     super.key,
     this.maxSeenNowUtc,
     required this.onHatchComplete,
     required this.onRequestAddEgg,
+    required this.onRequestFusion,
   });
 
   @override
@@ -30,11 +32,17 @@ class NurseryTab extends StatefulWidget {
 }
 
 class _NurseryTabState extends State<NurseryTab> {
+  static const double _fusionSwipeTriggerDistance = 72;
+  static const double _fusionSwipeDominanceRatio = 1.25;
+
   final Map<String, bool> _undiscoveredCache = {};
+  final GlobalKey _storageSectionKey = GlobalKey();
   final CinematicQualityService _qualityService = CinematicQualityService();
   bool _suspendNurseryAnimations = false;
   int _animationPauseHolds = 0;
   CinematicQuality _cinematicQuality = CinematicQuality.high;
+  Offset? _swipeStartGlobalPosition;
+  bool _fusionSwipeTriggered = false;
 
   /// One-shot timer that fires exactly when the soonest incubating egg
   /// is due to complete.  We reschedule it after every rebuild so we
@@ -131,7 +139,7 @@ class _NurseryTabState extends State<NurseryTab> {
     final qty = await db.inventoryDao.getItemQty(InvKeys.instantHatch);
     if (qty <= 0) {
       _showToast(
-        'No Instant Hatch items',
+        'No Instant Fuse items',
         icon: Icons.flash_off_rounded,
         color: Colors.red.shade600,
       );
@@ -140,8 +148,8 @@ class _NurseryTabState extends State<NurseryTab> {
 
     // (Optional) confirm use
     final confirm = await _showConfirmDialog(
-      'Use Instant Hatch',
-      'Consume 1 Instant Hatch to complete this specimen immediately?',
+      'Use Instant Fuse',
+      'Consume 1 Instant Fuse to complete this specimen immediately?',
     );
     if (!mounted || !confirm) return;
 
@@ -152,7 +160,7 @@ class _NurseryTabState extends State<NurseryTab> {
     );
     if (!consumed) {
       _showToast(
-        'Instant Hatch unavailable',
+        'Instant Fuse unavailable',
         icon: Icons.error_outline_rounded,
         color: Colors.red.shade600,
       );
@@ -186,7 +194,7 @@ class _NurseryTabState extends State<NurseryTab> {
 
     if (!mounted) return;
     _showToast(
-      'Instant hatch complete!',
+      'Instant fuse complete!',
       icon: Icons.flash_on_rounded,
       color: Colors.green.shade600,
     );
@@ -229,36 +237,90 @@ class _NurseryTabState extends State<NurseryTab> {
 
         return TickerMode(
           enabled: !_suspendNurseryAnimations,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionHeader(
-                  'ACTIVE CULTIVATION',
-                  Icons.science_rounded,
-                  theme.text,
-                ),
-                const SizedBox(height: 12),
-                _buildActiveGridWithPlaceholders(
-                  activeSlots: activeSlots,
-                  placeholders: unlockedEmptySlots.length,
-                  primaryColor: theme.text,
-                  theme: theme,
-                ),
-                const SizedBox(height: 24),
-                StorageSection(
-                  primaryColor: theme.text,
-                  buildSectionHeader: _buildSectionHeader,
-                  quality: _cinematicQuality,
-                ),
-              ],
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: _handlePointerDown,
+            onPointerMove: _handlePointerMove,
+            onPointerUp: _resetSwipeTracking,
+            onPointerCancel: _resetSwipeTracking,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionHeader(
+                    'ACTIVE CULTIVATION',
+                    Icons.science_rounded,
+                    theme.text,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActiveGridWithPlaceholders(
+                    activeSlots: activeSlots,
+                    placeholders: unlockedEmptySlots.length,
+                    primaryColor: theme.text,
+                    theme: theme,
+                  ),
+                  const SizedBox(height: 24),
+                  KeyedSubtree(
+                    key: _storageSectionKey,
+                    child: StorageSection(
+                      primaryColor: theme.text,
+                      buildSectionHeader: _buildSectionHeader,
+                      quality: _cinematicQuality,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
     );
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    _fusionSwipeTriggered = false;
+    _swipeStartGlobalPosition = _isInStorageSection(event.position)
+        ? null
+        : event.position;
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    final start = _swipeStartGlobalPosition;
+    if (start == null || _fusionSwipeTriggered) return;
+
+    final delta = event.position - start;
+    final leftwardDistance = -delta.dx;
+    if (leftwardDistance < _fusionSwipeTriggerDistance) return;
+
+    final verticalDistance = delta.dy.abs();
+    if (leftwardDistance <= verticalDistance * _fusionSwipeDominanceRatio) {
+      return;
+    }
+
+    _fusionSwipeTriggered = true;
+    _swipeStartGlobalPosition = null;
+    widget.onRequestFusion();
+  }
+
+  void _resetSwipeTracking(PointerEvent _) {
+    _swipeStartGlobalPosition = null;
+    _fusionSwipeTriggered = false;
+  }
+
+  bool _isInStorageSection(Offset globalPosition) {
+    final storageContext = _storageSectionKey.currentContext;
+    if (storageContext == null) return false;
+
+    final renderObject = storageContext.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return false;
+
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    return localPosition.dx >= 0 &&
+        localPosition.dy >= 0 &&
+        localPosition.dx <= renderObject.size.width &&
+        localPosition.dy <= renderObject.size.height;
   }
 
   void _preloadUndiscoveredStatus(List<IncubatorSlot> slots) {

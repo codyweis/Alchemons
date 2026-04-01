@@ -4,6 +4,7 @@ import 'dart:async' as async;
 import 'dart:math';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/services/encounter_service.dart';
+import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -65,6 +66,11 @@ class WildernessSpawnService extends ChangeNotifier {
   bool isSceneActive(String sceneId) => _activeScenes.contains(sceneId);
 
   Future<bool> _isSceneEligible(String sceneId) async {
+    final openingAllowed = await OpeningWildernessService.isSceneAllowed(
+      _db.settingsDao,
+      sceneId,
+    );
+    if (!openingAllowed) return false;
     if (_coreSceneIds.contains(sceneId)) return true;
     if (sceneId == 'arcane') {
       return (await _db.settingsDao.getSetting('arcane_portal_unlocked')) ==
@@ -103,10 +109,7 @@ class WildernessSpawnService extends ChangeNotifier {
         .toList();
     for (final sceneId in staleScheduleSceneIds) {
       changed = true;
-      _nextDueUtcMs.remove(sceneId);
-      await (_db.delete(
-        _db.spawnSchedule,
-      )..where((t) => t.sceneId.equals(sceneId))).go();
+      await _clearScheduledSpawnTime(sceneId);
       debugPrint('🧹 Removed stale spawn schedule for scene $sceneId');
     }
 
@@ -121,6 +124,71 @@ class WildernessSpawnService extends ChangeNotifier {
 
   Future<void> _clearLegacyScheduledNotifications() async {
     await _pushNotifications.cancelLegacyWildernessSpawnNotifications();
+  }
+
+  Future<void> _clearScheduledSpawnTime(String sceneId) async {
+    _nextDueUtcMs.remove(sceneId);
+    await (_db.delete(
+      _db.spawnSchedule,
+    )..where((t) => t.sceneId.equals(sceneId))).go();
+  }
+
+  Future<void> _syncScheduledWildernessNotification() async {
+    if (hasAnyActiveSpawns) {
+      await _pushNotifications.cancelWildernessSpawnNotification();
+      return;
+    }
+
+    final eligibleSceneIds = await _eligibleSceneIds(_nextDueUtcMs.keys);
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    String? nextSceneId;
+    int? nextDueUtcMs;
+
+    for (final entry in _nextDueUtcMs.entries) {
+      final sceneId = entry.key;
+      final dueUtcMs = entry.value;
+
+      if (!eligibleSceneIds.contains(sceneId) ||
+          _activeScenes.contains(sceneId)) {
+        continue;
+      }
+      if (dueUtcMs <= now) {
+        continue;
+      }
+
+      if (nextDueUtcMs == null || dueUtcMs < nextDueUtcMs) {
+        nextSceneId = sceneId;
+        nextDueUtcMs = dueUtcMs;
+      }
+    }
+
+    if (nextSceneId == null || nextDueUtcMs == null) {
+      await _pushNotifications.cancelWildernessSpawnNotification();
+      return;
+    }
+
+    await _pushNotifications.scheduleWildernessSpawnNotification(
+      spawnTime: DateTime.fromMillisecondsSinceEpoch(nextDueUtcMs, isUtc: true),
+      sceneId: nextSceneId,
+    );
+  }
+
+  Future<void> _scheduleNextSpawnIfSceneIsEmpty(String sceneId) async {
+    if (_activeScenes.contains(sceneId)) {
+      await _syncScheduledWildernessNotification();
+      return;
+    }
+    if (hasAnySpawnsInScene(sceneId) || _nextDueUtcMs.containsKey(sceneId)) {
+      await _syncScheduledWildernessNotification();
+      return;
+    }
+    if (!await _isSceneEligible(sceneId)) {
+      await _clearScheduledSpawnTime(sceneId);
+      await _syncScheduledWildernessNotification();
+      return;
+    }
+
+    await scheduleNextSpawnTime(sceneId);
   }
 
   // ------------------------------------------------------------
@@ -203,15 +271,13 @@ class WildernessSpawnService extends ChangeNotifier {
         .where((sceneId) => !eligibleSceneIds.contains(sceneId))
         .toList();
     for (final sceneId in stale) {
-      _nextDueUtcMs.remove(sceneId);
-      await (_db.delete(
-        _db.spawnSchedule,
-      )..where((t) => t.sceneId.equals(sceneId))).go();
+      await _clearScheduledSpawnTime(sceneId);
     }
 
     for (final sceneId in eligibleSceneIds) {
       await scheduleNextSpawnTime(sceneId);
     }
+    await _syncScheduledWildernessNotification();
     notifyListeners();
   }
 
@@ -305,6 +371,7 @@ class WildernessSpawnService extends ChangeNotifier {
       suppressSummaryNotifications: suppressSummaryNotifications,
     );
 
+    await _syncScheduledWildernessNotification();
     notifyListeners();
   }
 
@@ -318,10 +385,8 @@ class WildernessSpawnService extends ChangeNotifier {
     bool force = false,
   }) async {
     if (!await _isSceneEligible(sceneId)) {
-      _nextDueUtcMs.remove(sceneId);
-      await (_db.delete(
-        _db.spawnSchedule,
-      )..where((t) => t.sceneId.equals(sceneId))).go();
+      await _clearScheduledSpawnTime(sceneId);
+      await _syncScheduledWildernessNotification();
       return;
     }
 
@@ -334,6 +399,7 @@ class WildernessSpawnService extends ChangeNotifier {
       debugPrint(
         '⏱ Keeping existing spawn for $sceneId at ${DateTime.fromMillisecondsSinceEpoch(existing, isUtc: true)}',
       );
+      await _syncScheduledWildernessNotification();
       return;
     }
 
@@ -358,6 +424,7 @@ class WildernessSpawnService extends ChangeNotifier {
         .insertOnConflictUpdate(
           SpawnScheduleCompanion.insert(sceneId: sceneId, dueAtUtcMs: dueAt),
         );
+    await _syncScheduledWildernessNotification();
   }
 
   // ------------------------------------------------------------
@@ -428,16 +495,19 @@ class WildernessSpawnService extends ChangeNotifier {
         suppressAlert: suppressSummaryNotifications,
       );
     }
+    await _syncScheduledWildernessNotification();
   }
 
   void markSceneActive(String sceneId) {
     _activeScenes.add(sceneId);
     debugPrint('🎯 Scene $sceneId marked ACTIVE - spawning disabled');
+    async.unawaited(_syncScheduledWildernessNotification());
   }
 
   void markSceneInactive(String sceneId) {
     _activeScenes.remove(sceneId);
     debugPrint('🎯 Scene $sceneId marked INACTIVE');
+    async.unawaited(_scheduleNextSpawnIfSceneIsEmpty(sceneId));
   }
 
   /// Immediately generate spawns for [sceneId] if it has none.
@@ -458,13 +528,18 @@ class WildernessSpawnService extends ChangeNotifier {
     // Temporarily remove "active" flag so _spawnBatchAtRandomFreePoints works
     final wasActive = _activeScenes.remove(sceneId);
 
-    await _spawnBatchAtRandomFreePoints(
+    final spawned = await _spawnBatchAtRandomFreePoints(
       sceneId,
       config.scene,
       config.sceneWide,
       config.perSpawn,
       emitSummaryNotification: false,
     );
+
+    if (spawned) {
+      await _clearScheduledSpawnTime(sceneId);
+      await _syncScheduledWildernessNotification();
+    }
 
     // Re-mark active if it was before
     if (wasActive) _activeScenes.add(sceneId);
@@ -567,6 +642,7 @@ class WildernessSpawnService extends ChangeNotifier {
       );
     }
 
+    await _syncScheduledWildernessNotification();
     notifyListeners();
     return true;
   }
@@ -640,6 +716,15 @@ class WildernessSpawnService extends ChangeNotifier {
       return;
     }
 
+    if (suppressAlert) {
+      await _pushNotifications.cancelWildernessSummaryNotification();
+      await _db.settingsDao.setNotificationSummaryState(
+        _wildernessNotificationStateType,
+        stateKey,
+      );
+      return;
+    }
+
     await _pushNotifications.showWildernessSpawnNotification(
       spawnCount: totalSpawns,
       locationCount: scenesWithSpawns,
@@ -686,6 +771,10 @@ class WildernessSpawnService extends ChangeNotifier {
     await (_db.delete(_db.activeSpawns)..where((t) => t.id.equals(id))).go();
     debugPrint('❌ Removed spawn: $sceneId/$spawnPointId');
 
+    if (!hasAnySpawnsInScene(sceneId) && !isSceneActive(sceneId)) {
+      await scheduleNextSpawnTime(sceneId);
+    }
+
     if (!hasAnySpawnsInScene(sceneId)) {
       // Cancel notification if no spawns anywhere
       if (!hasAnyActiveSpawns) {
@@ -701,6 +790,7 @@ class WildernessSpawnService extends ChangeNotifier {
       await _acknowledgeActiveWildernessState();
     }
 
+    await _syncScheduledWildernessNotification();
     notifyListeners();
   }
 
@@ -716,10 +806,7 @@ class WildernessSpawnService extends ChangeNotifier {
     if (!isSceneActive(sceneId) && await _isSceneEligible(sceneId)) {
       await scheduleNextSpawnTime(sceneId);
     } else {
-      _nextDueUtcMs.remove(sceneId);
-      await (_db.delete(
-        _db.spawnSchedule,
-      )..where((t) => t.sceneId.equals(sceneId))).go();
+      await _clearScheduledSpawnTime(sceneId);
     }
     if (!hasAnyActiveSpawns) {
       await _pushNotifications.cancelWildernessSummaryNotification();
@@ -730,6 +817,7 @@ class WildernessSpawnService extends ChangeNotifier {
     } else {
       await _acknowledgeActiveWildernessState();
     }
+    await _syncScheduledWildernessNotification();
     notifyListeners();
   }
 
@@ -792,16 +880,40 @@ class WildernessSpawnService extends ChangeNotifier {
       rarity = EncounterRarity.common;
     }
 
-    final speciesList = pool.speciesByRarity[rarity] ?? [];
-    final speciesId = speciesList.isEmpty
+    final now = DateTime.now();
+    final rarityEntries = pool.entries
+        .where((entry) => entry.rarity == rarity)
+        .where((entry) => entry.effectiveWeight(now) > 0)
+        .toList();
+
+    final speciesId = rarityEntries.isEmpty
         ? 'fallback_creature'
-        : speciesList[_rng.nextInt(speciesList.length)];
+        : _pickSpeciesForRarity(rarityEntries);
 
     return EncounterRoll(
       speciesId: speciesId,
       rarity: rarity,
       spawnId: spawnId,
     );
+  }
+
+  String _pickSpeciesForRarity(List<EncounterEntry> entries) {
+    final now = DateTime.now();
+    final totalWeight = entries.fold<double>(
+      0,
+      (sum, entry) => sum + entry.effectiveWeight(now),
+    );
+
+    if (totalWeight <= 0) {
+      return entries[_rng.nextInt(entries.length)].speciesId;
+    }
+
+    var roll = _rng.nextDouble() * totalWeight;
+    for (final entry in entries) {
+      roll -= entry.effectiveWeight(now);
+      if (roll <= 0) return entry.speciesId;
+    }
+    return entries.last.speciesId;
   }
 
   // ============================================================

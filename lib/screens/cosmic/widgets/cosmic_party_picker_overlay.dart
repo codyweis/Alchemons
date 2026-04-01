@@ -203,30 +203,38 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 if (_assigningSlot < 0)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: List.generate(widget.maxSlots, (i) {
-                        final locked = i >= widget.slotsUnlocked;
-                        final member = i < widget.partyMembers.length
-                            ? widget.partyMembers[i]
-                            : null;
-                        final isActive = widget.activeSlot == i;
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        const crossAxisCount = 3;
+                        const gap = 8.0;
+                        final cardWidth =
+                            (constraints.maxWidth -
+                                gap * (crossAxisCount - 1)) /
+                            crossAxisCount;
 
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: i == 0 ? 0 : 4,
-                              right: i == widget.maxSlots - 1 ? 0 : 4,
-                            ),
-                            child: _buildPartySlotCard(
-                              i,
-                              locked,
-                              member,
-                              isActive,
-                              theme,
-                            ),
-                          ),
+                        return Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: List.generate(widget.maxSlots, (i) {
+                            final locked = i >= widget.slotsUnlocked;
+                            final member = i < widget.partyMembers.length
+                                ? widget.partyMembers[i]
+                                : null;
+                            final isActive = widget.activeSlot == i;
+
+                            return SizedBox(
+                              width: cardWidth,
+                              child: _buildPartySlotCard(
+                                i,
+                                locked,
+                                member,
+                                isActive,
+                                theme,
+                              ),
+                            );
+                          }),
                         );
-                      }),
+                      },
                     ),
                   ),
 

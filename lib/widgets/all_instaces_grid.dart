@@ -23,6 +23,10 @@ import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 
+String _normalizeAllInstancesPrefsScope(String value) {
+  return value.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');
+}
+
 class AllCreatureInstances extends StatefulWidget {
   final FactionTheme theme;
   final List<String> selectedInstanceIds;
@@ -42,6 +46,7 @@ class AllCreatureInstances extends StatefulWidget {
   final ValueChanged<bool>? onResettableStateChanged;
   final List<String> allowedPrimaryTypes;
   final ValueChanged<List<CreatureInstance>>? onSelectionChanged;
+  final String? prefsScopeKey;
 
   const AllCreatureInstances({
     super.key,
@@ -59,6 +64,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.onResettableStateChanged,
     this.allowedPrimaryTypes = const [],
     this.onSelectionChanged,
+    this.prefsScopeKey,
   });
 
   @override
@@ -126,7 +132,11 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   async.Timer? _searchDebounce;
   bool? _lastReportedResettableState;
 
-  String get _prefsKey => 'all_instances_filters';
+  String get _prefsKey {
+    final scope = widget.prefsScopeKey;
+    if (scope == null || scope.isEmpty) return 'all_instances_filters';
+    return 'all_instances_filters_${_normalizeAllInstancesPrefsScope(scope)}';
+  }
 
   Map<String, dynamic> _toPrefs() => {
     'sortBy': _sortBy.name,
@@ -166,10 +176,10 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     );
     _detailMode = InstanceDetailMode.values.firstWhere(
       (e) => e.name == (p['detailMode'] ?? _detailMode.name),
-      orElse: () => InstanceDetailMode.stats,
+      orElse: () => InstanceDetailMode.genetics,
     );
     if (_detailMode == InstanceDetailMode.info) {
-      _detailMode = InstanceDetailMode.stats;
+      _detailMode = InstanceDetailMode.genetics;
     }
   }
 
@@ -190,7 +200,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   @override
   void initState() {
     super.initState();
-    _detailMode = InstanceDetailMode.stats;
+    _detailMode = InstanceDetailMode.genetics;
     _searchController = TextEditingController();
     if (widget.searchTextOverride != null) {
       _searchController.text = widget.searchTextOverride!;

@@ -46,6 +46,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     with TickerProviderStateMixin {
   late final Ticker _ticker;
   double _tSeconds = 0.0;
+  DateTime? _lastTapBoostAt;
 
   late final AnimationController _tapFxCtrl;
   Offset? _tapLocal;
@@ -235,14 +236,22 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
   void _handleTapBoost(BiomeFarmState farm) {
     if (!farm.hasActive || farm.completed) return;
+    final now = DateTime.now();
+    final lastBoost = _lastTapBoostAt;
+    if (lastBoost != null &&
+        now.difference(lastBoost) < HarvestService.tapBoostThrottle) {
+      return;
+    }
+    _lastTapBoostAt = now;
 
     final totalMs = farm.activeJob!.durationMs;
+    final boostMs = HarvestService.tapBoostStep.inMilliseconds;
     final currentMs = (1.0 - _jobCtrl.value) * totalMs;
-    final newMs = (currentMs - 1000).clamp(0, totalMs).toDouble();
+    final newMs = (currentMs - boostMs).clamp(0, totalMs).toDouble();
     _jobCtrl.value = 1.0 - (newMs / totalMs);
 
     // no need to await, nudge can be fire-and-forget
-    widget.service.nudge(widget.biome);
+    widget.service.nudge(widget.biome, by: HarvestService.tapBoostStep);
   }
 
   Future<void> _handlePickAndStart(
@@ -263,6 +272,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
         reverseTransitionDuration: const Duration(milliseconds: 220),
         pageBuilder: (context, animation, secondaryAnimation) => AllSpecimensPage(
           theme: theme,
+          instancePrefsScopeKey: 'harvest_biome_${widget.biome.id}',
           popOnSelect: true,
           searchHint: 'SELECT SPECIMEN',
           allowedPrimaryTypes: widget.biome.elementTypes,
@@ -763,7 +773,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                                       effectiveFill: vm.effectiveFill,
                                       creatureWidget: _creatureWidget,
                                       onTapDown: (details, inner) {
-                                        _handleTapBoost(farm);
                                         final lp = details.localPosition;
                                         final clamped = Offset(
                                           lp.dx.clamp(
@@ -814,6 +823,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                                       theme: theme,
                                       farm: farm,
                                       biome: widget.biome,
+                                      remaining: vm.remaining,
                                       onCollect: farm.completed
                                           ? () => _handleCollect(farm)
                                           : null,
@@ -901,6 +911,7 @@ class _ActivePanel extends StatelessWidget {
     required this.theme,
     required this.farm,
     required this.biome,
+    required this.remaining,
     required this.onCollect,
     required this.onCancel,
   });
@@ -909,11 +920,13 @@ class _ActivePanel extends StatelessWidget {
   final FactionTheme theme;
   final BiomeFarmState farm;
   final Biome biome;
+  final Duration? remaining;
   final VoidCallback? onCollect;
   final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     final j = farm.activeJob!;
     final duration = Duration(milliseconds: j.durationMs);
     final rate = j.ratePerMinute;
@@ -921,6 +934,17 @@ class _ActivePanel extends StatelessWidget {
 
     return Column(
       children: [
+        Text(
+          farm.completed
+              ? 'Ready to collect'
+              : 'Time left: ${_fmtHarvestRemaining(remaining)}',
+          style: TextStyle(
+            color: farm.completed ? t.success : color,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
         Text(
           'Rate: $rate / min',
           style: TextStyle(
@@ -965,6 +989,16 @@ class _ActivePanel extends StatelessWidget {
       ],
     );
   }
+}
+
+String _fmtHarvestRemaining(Duration? d) {
+  if (d == null) return '—';
+  final h = d.inHours;
+  final m = d.inMinutes.remainder(60);
+  final s = d.inSeconds.remainder(60);
+  if (h > 0) return '${h}h ${m}m';
+  if (m > 0) return '${m}m ${s}s';
+  return '${s}s';
 }
 
 class _LockedPanel extends StatelessWidget {

@@ -38,6 +38,7 @@ class ShipMenuOverlay extends StatefulWidget {
     required this.onCraftMissiles,
     required this.onCraftSentinels,
     required this.onUpgradeCargo,
+    this.tutorialBuildHomeMode = false,
     this.hasParty = false,
     this.onParty,
     this.joystickEnabled = false,
@@ -76,6 +77,7 @@ class ShipMenuOverlay extends StatefulWidget {
   final VoidCallback onCraftMissiles;
   final VoidCallback onCraftSentinels;
   final VoidCallback onUpgradeCargo;
+  final bool tutorialBuildHomeMode;
   final VoidCallback? onParty;
   final bool joystickEnabled;
   final ValueChanged<bool>? onToggleJoystick;
@@ -208,7 +210,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
       color: Colors.transparent,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onClose,
+        onTap: widget.tutorialBuildHomeMode ? null : widget.onClose,
         child: Container(
           color: CosmicScreenStyles.bg0.withValues(alpha: 0.92),
           child: Center(
@@ -703,6 +705,41 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
 
                                 // ── Build Home (only when none exists) ──
                                 if (!widget.hasHomePlanet) ...[
+                                  if (widget.tutorialBuildHomeMode) ...[
+                                    Container(
+                                      width: double.infinity,
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: CosmicScreenStyles.bg3,
+                                        borderRadius: BorderRadius.circular(3),
+                                        border: Border.all(
+                                          color: const Color(
+                                            0xFF00E5FF,
+                                          ).withValues(alpha: 0.55),
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(
+                                              0xFF00E5FF,
+                                            ).withValues(alpha: 0.16),
+                                            blurRadius: 14,
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Text(
+                                        'Build your home base here to unlock ship and planet upgrades.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: CosmicScreenStyles.textPrimary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                   _forgeAction(
                                     icon: Icons.add_location_alt_rounded,
                                     label: 'BUILD HOME',
@@ -734,9 +771,11 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                 _forgeAction(
                                   icon: Icons.inventory_rounded,
                                   label: 'INVENTORY',
-                                  onTap: () => setState(
-                                    () => _showInventoryOverlay = true,
-                                  ),
+                                  onTap: widget.tutorialBuildHomeMode
+                                      ? () {}
+                                      : () => setState(
+                                          () => _showInventoryOverlay = true,
+                                        ),
                                 ),
                                 const SizedBox(height: 12),
 
@@ -757,32 +796,34 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                 const SizedBox(height: 16),
 
                                 // ── Close ──
-                                GestureDetector(
-                                  onTap: widget.onClose,
-                                  child: Container(
-                                    width: double.infinity,
-                                    height: 42,
-                                    decoration: BoxDecoration(
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.circular(3),
-                                      border: Border.all(
-                                        color: CosmicScreenStyles.borderAccent
-                                            .withValues(alpha: 0.6),
+                                if (!widget.tutorialBuildHomeMode)
+                                  GestureDetector(
+                                    onTap: widget.onClose,
+                                    child: Container(
+                                      width: double.infinity,
+                                      height: 42,
+                                      decoration: BoxDecoration(
+                                        color: Colors.transparent,
+                                        borderRadius: BorderRadius.circular(3),
+                                        border: Border.all(
+                                          color: CosmicScreenStyles.borderAccent
+                                              .withValues(alpha: 0.6),
+                                        ),
                                       ),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: const Text(
-                                      'CLOSE',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: CosmicScreenStyles.textSecondary,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 1.8,
+                                      alignment: Alignment.center,
+                                      child: const Text(
+                                        'CLOSE',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color:
+                                              CosmicScreenStyles.textSecondary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.8,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
@@ -846,7 +887,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           ),
           const SizedBox(width: 10),
           GestureDetector(
-            onTap: widget.onClose,
+            onTap: widget.tutorialBuildHomeMode ? null : widget.onClose,
             child: Container(
               width: 34,
               height: 34,

@@ -621,6 +621,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
         pageBuilder: (context, animation, secondaryAnimation) =>
             AllSpecimensPage(
               theme: theme,
+              instancePrefsScopeKey: 'alchemon_exchange_specimens',
               searchHint: 'SELECT SPECIMENS',
               selectionMode: true,
               closeReturnsSelection: true,
@@ -1440,11 +1441,7 @@ class _VialPreviewCard extends StatelessWidget {
       width: width,
       height: height,
       child: IgnorePointer(
-        child: ExtractionVialCard(
-          vial: vial,
-          compact: true,
-          showTags: false,
-        ),
+        child: ExtractionVialCard(vial: vial, compact: true, showTags: false),
       ),
     );
   }

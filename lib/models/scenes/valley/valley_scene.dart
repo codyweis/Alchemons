@@ -107,5 +107,13 @@ final valleySceneCorrected = SceneDefinition(
       size: Vector2(70, 70),
       battlePos: _nextTo(const Offset(0.45, 0.65)), // -> (0.75, 0.65)
     ),
+    // center cloud shelf for aerial/floating creatures
+    SpawnPoint(
+      id: 'SP_valley_08',
+      normalizedPos: const Offset(0.62, 0.34),
+      anchor: SceneLayer.layer2,
+      size: Vector2(60, 60),
+      battlePos: const Offset(0.34, 0.34),
+    ),
   ],
 );

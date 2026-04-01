@@ -66,7 +66,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 35;
+  int get schemaVersion => 36;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -217,6 +217,15 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
       }
       if (from < 33) {
         await m.createTable(survivalHighScore);
+      }
+      if (from < 36) {
+        await (delete(settings)..where(
+              (t) => t.key.isIn(const [
+                'instances_filters',
+                'all_instances_filters',
+              ]),
+            ))
+            .go();
       }
       if (from < 34) {
         await m.addColumn(creatureInstances, creatureInstances.isFavorite);

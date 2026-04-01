@@ -46,6 +46,10 @@ class _T {
   );
 }
 
+String _normalizeInstancesPrefsScope(String value) {
+  return value.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // WIDGET
 // ──────────────────────────────────────────────────────────────────────────────
@@ -60,6 +64,7 @@ class InstancesSheet extends StatefulWidget {
   final Duration? harvestDuration;
   final List<String>? busyInstanceIds;
   final bool requireStamina;
+  final String? prefsScopeKey;
 
   const InstancesSheet({
     super.key,
@@ -68,10 +73,11 @@ class InstancesSheet extends StatefulWidget {
     required this.onTap,
     this.selectedInstanceIds = const [],
     this.selectionMode = false,
-    this.initialDetailMode = InstanceDetailMode.stats,
+    this.initialDetailMode = InstanceDetailMode.genetics,
     this.harvestDuration,
     this.busyInstanceIds,
     this.requireStamina = false,
+    this.prefsScopeKey,
   });
 
   @override
@@ -123,7 +129,11 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
   late SettingsDao _settings;
   async.Timer? _saveTimer;
-  String get _prefsKey => 'instances_filters';
+  String get _prefsKey {
+    final scope = widget.prefsScopeKey;
+    if (scope == null || scope.isEmpty) return 'instances_filters';
+    return 'instances_filters_${_normalizeInstancesPrefsScope(scope)}';
+  }
 
   Map<String, dynamic> _toPrefs() => {
     'sortBy': _sortBy.name,
@@ -156,10 +166,10 @@ class _InstancesSheetState extends State<InstancesSheet> {
     );
     _detailMode = InstanceDetailMode.values.firstWhere(
       (e) => e.name == (p['detailMode'] ?? _detailMode.name),
-      orElse: () => InstanceDetailMode.stats,
+      orElse: () => InstanceDetailMode.genetics,
     );
     if (_detailMode == InstanceDetailMode.info) {
-      _detailMode = InstanceDetailMode.stats;
+      _detailMode = InstanceDetailMode.genetics;
     }
   }
 

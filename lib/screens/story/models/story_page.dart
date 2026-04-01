@@ -6,19 +6,11 @@ import 'package:flutter/material.dart';
 
 enum StoryPageType {
   quote, // Text-heavy philosophical quotes
-  narrative, // Standard narrative text
-  creatureReveal, // Show a creature with text
-  elementIntro, // Introduce an element/faction concept
+  elementIntro, // Short chapter-card style text
   loading, // Loading screen with progress bar
 }
 
-enum StoryEvent {
-  firstBoot,
-  firstWilderness,
-  firstBreeding,
-  firstCreatureCaught,
-  periodicWhisper, // fire occasionally
-}
+enum StoryEvent { firstBreeding }
 
 class StoryManager extends ChangeNotifier {
   final StoryPersistence _persist;
@@ -49,30 +41,8 @@ class StoryManager extends ChangeNotifier {
     _saveSeen(); // fire-and-forget is okay; no await needed here
 
     switch (e) {
-      case StoryEvent.firstBoot:
-        _queue.addAll(AlchemonsStory.darkPrelude);
-        _queue.addAll(AlchemonsStory.labBoot);
-        break;
-      case StoryEvent.firstWilderness:
-        _queue.addAll(AlchemonsStory.wildernessIntro);
-        break;
       case StoryEvent.firstBreeding:
         _queue.addAll(AlchemonsStory.breedingIntro);
-        break;
-      case StoryEvent.firstCreatureCaught:
-        _queue.addAll(AlchemonsStory.firstCreatureReveal);
-        break;
-      case StoryEvent.periodicWhisper:
-        _queue.add(
-          StoryPage(
-            type: StoryPageType.narrative,
-            mainText: (AlchemonsStory.unknownWhispers..shuffle()).first,
-            backgroundColor: const Color(0xFF0A0A0A),
-            textColor: const Color(0xFFE8E8E8),
-            autoAdvanceDuration: const Duration(milliseconds: 1200),
-            useTypewriterEffect: true,
-          ),
-        );
         break;
     }
 
@@ -89,30 +59,24 @@ class StoryManager extends ChangeNotifier {
 class StoryPage {
   final StoryPageType type;
   final String mainText;
-  final String? attribution; // For quotes
   final String? subtitle;
   final Color? textColor;
   final Color? backgroundColor;
-  final String? creatureId; // For creature reveals
   final String? backgroundImagePath; // For loading screen
-  final Duration autoAdvanceDuration; // 0 = manual only
   final bool useTypewriterEffect;
 
   const StoryPage({
     required this.type,
     required this.mainText,
-    this.attribution,
     this.subtitle,
     this.textColor,
     this.backgroundColor,
-    this.creatureId,
     this.backgroundImagePath,
-    this.autoAdvanceDuration = Duration.zero,
     this.useTypewriterEffect = false,
   });
 }
 
-// Story content definition
+// Story content currently wired into the game.
 class AlchemonsStory {
   static List<StoryPage> get darkPrelude => [
     // Slide 1: Natural History
@@ -185,71 +149,6 @@ class AlchemonsStory {
     ),
   ];
 
-  static List<StoryPage> get labBoot => [
-    StoryPage(
-      type: StoryPageType.loading,
-      mainText: 'INITIALIZING LABORATORY SYSTEMS [ v3.7 ]',
-      backgroundColor: Colors.black,
-    ),
-    const StoryPage(
-      type: StoryPageType.narrative,
-      mainText: 'Signal acquired.\nRole: Creator?  Confidence: 51%.',
-      subtitle: 'If you are not the Creator, please remain still.',
-      backgroundColor: Color(0xFF0A0A0A),
-      textColor: Color(0xFFE8E8E8),
-      useTypewriterEffect: true,
-    ),
-    const StoryPage(
-      type: StoryPageType.narrative,
-      mainText:
-          'We kept your name somewhere safe. We just can’t open the door.',
-      backgroundColor: Color(0xFF0A0A0A),
-      textColor: Color(0xFFE8E8E8),
-      useTypewriterEffect: true,
-    ),
-  ];
-
-  static List<StoryPage> get wildernessIntro => [
-    const StoryPage(
-      type: StoryPageType.elementIntro,
-      mainText: 'THE WILDERNESS',
-      subtitle: 'Unmapped. Unsterilized. Unfinished.',
-      backgroundColor: Color(0xFF030E07),
-      textColor: Color(0xFFE8FFE8),
-      useTypewriterEffect: true,
-    ),
-    const StoryPage(
-      type: StoryPageType.narrative,
-      mainText:
-          'Air tastes like memory. Grass repeats your footsteps one second late.',
-      backgroundColor: Color(0xFF030E07),
-      textColor: Color(0xFFE8FFE8),
-    ),
-    const StoryPage(
-      type: StoryPageType.quote,
-      mainText: '"Did you make this place, or did it practice you first?"',
-      backgroundColor: Color(0xFF030E07),
-      textColor: Color(0xFFA7FFC8),
-    ),
-  ];
-
-  static List<StoryPage> get firstCreatureReveal => [
-    const StoryPage(
-      type: StoryPageType.creatureReveal,
-      mainText: 'It notices you noticing it.',
-      creatureId: 'sproutling', // your internal id
-      backgroundColor: Color(0xFF0D0E10),
-      textColor: Color(0xFFE8E8E8),
-      useTypewriterEffect: true,
-    ),
-    const StoryPage(
-      type: StoryPageType.quote,
-      mainText: '"Names are leashes that feel like crowns."',
-      backgroundColor: Color(0xFF0D0E10),
-      textColor: Color(0xFFE8E8E8),
-    ),
-  ];
-
   static List<StoryPage> get breedingIntro => [
     const StoryPage(
       type: StoryPageType.elementIntro,
@@ -261,18 +160,8 @@ class AlchemonsStory {
     ),
   ];
 
-  static const unknownWhispers = [
-    'Creator? Or echo?',
-    'If you wake, who sleeps?',
-    'Seven years is long enough to borrow a name.',
-    'We remember you differently each time.',
-  ];
-
   static List<StoryPage> get allPages => [
     ...darkPrelude,
-    // ...elementalIntroduction,
-
-    // Final loading screen
     const StoryPage(
       type: StoryPageType.loading,
       mainText: 'INITIALIZING LABORATORY SYSTEMS',

@@ -6,6 +6,7 @@ import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -830,112 +831,56 @@ class EggDetailsModal extends StatelessWidget {
                     const SizedBox(height: 12),
                     _buildParentsSection(parents, t),
                   ],
-
-                  const SizedBox(height: 20),
-
-                  // Action buttons
-                  Row(
-                    children: [
-                      // DELETE
-                      GestureDetector(
-                        onTap: () => _confirmDelete(context, t),
-                        child: Container(
-                          height: 44,
-                          width: 52,
-                          decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(2),
-                            border: Border.all(
-                              color: t.danger.withValues(alpha: 0.5),
-                              width: 1,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Icon(
-                            Icons.delete_outline_rounded,
-                            color: t.danger,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      if (isReady) ...[
-                        Flexible(
-                          flex: 3,
-                          child: GestureDetector(
-                            onTap: () => _extractFromStorage(context, t),
-                            child: Container(
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFFFFD700,
-                                ).withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(2),
-                                border: Border.all(
-                                  color: const Color(0xFFFFD700),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFFFFD700,
-                                    ).withValues(alpha: 0.18),
-                                    blurRadius: 12,
-                                  ),
-                                ],
-                              ),
-                              alignment: Alignment.center,
-                              child: const Text(
-                                'EXTRACT',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: Color(0xFFFFD700),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.4,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                      ],
-                      Flexible(
-                        flex: isReady ? 2 : 3,
-                        child: GestureDetector(
-                          onTap: () => _addToIncubator(context, t),
-                          child: Container(
-                            height: isReady ? 38 : 44,
-                            decoration: BoxDecoration(
-                              color: t.amberDim.withValues(alpha: 0.35),
-                              borderRadius: BorderRadius.circular(2),
-                              border: Border.all(color: t.amber, width: 1),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: t.amber.withValues(alpha: 0.15),
-                                  blurRadius: 12,
-                                ),
-                              ],
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              'ADD TO CHAMBER',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.amberBright,
-                                fontSize: isReady ? 10 : 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: isReady ? 1.1 : 1.4,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
+          ),
+          CultivationDialogActionArea(
+            tokens: t,
+            children: [
+              if (isReady) ...[
+                CultivationDialogButton(
+                  tokens: t,
+                  label: 'EXTRACT SPECIMEN',
+                  icon: Icons.biotech_rounded,
+                  accentColor: t.amberBright,
+                  emphasis: CultivationDialogButtonEmphasis.primary,
+                  useSolidBackground: true,
+                  foregroundColor: Colors.white,
+                  onTap: () => _extractFromStorage(context, t),
+                ),
+                const SizedBox(height: 10),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: CultivationDialogButton(
+                      tokens: t,
+                      label: 'DELETE',
+                      icon: Icons.delete_outline_rounded,
+                      accentColor: t.danger,
+                      emphasis: CultivationDialogButtonEmphasis.danger,
+                      onTap: () => _confirmDelete(context, t),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: CultivationDialogButton(
+                      tokens: t,
+                      label: 'ADD TO CHAMBER',
+                      icon: Icons.inventory_2_rounded,
+                      accentColor: t.amberBright,
+                      emphasis: isReady
+                          ? CultivationDialogButtonEmphasis.secondary
+                          : CultivationDialogButtonEmphasis.primary,
+                      useSolidBackground: !isReady,
+                      foregroundColor: !isReady ? Colors.white : null,
+                      onTap: () => _addToIncubator(context, t),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),

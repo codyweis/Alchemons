@@ -169,6 +169,7 @@ class CatchService {
   Future<bool> attemptCatch({
     required CatchDeviceType device,
     required Creature target,
+    bool forceSuccess = false,
   }) async {
     // Check if player has the device
     if (!await hasDevice(device)) {
@@ -188,6 +189,14 @@ class CatchService {
 
     if (!consumed) {
       throw Exception('Failed to consume ${device.label}');
+    }
+
+    if (forceSuccess) {
+      debugPrint(
+        '🎯 Catch attempt: ${device.label} on ${target.name} '
+        '(${target.rarity}) - TUTORIAL SUCCESS',
+      );
+      return true;
     }
 
     // Guaranteed device always succeeds, even before constellation logic

@@ -431,47 +431,14 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     final hasSeen = await db.settingsDao.hasSeenBossGauntletStoryIntro();
     if (hasSeen || !mounted) return;
 
-    final acceptedFirst = await LandscapeDialog.show(
+    await LandscapeDialog.show(
       context,
-      title: 'Not Admired',
-      icon: Icons.auto_awesome_rounded,
-      typewriter: true,
-      message:
-          'They were not placed here to be admired.\n\n'
-          'Each one keeps watch over a relic, and each relic is less an object than a sealed instruction living inside bone, hide, ash, and light.',
-    );
-    if (acceptedFirst != true || !mounted) return;
-
-    final acceptedSecond = await LandscapeDialog.show(
-      context,
-      title: 'Take Shape',
+      title: 'Alchemy is Power?',
       icon: Icons.science_rounded,
       typewriter: true,
       message:
-          'Ordinary extraction only skims the surface.\n\n'
-          'To break a warden is to see how an element was persuaded to take shape, how force became pattern, and how pattern learned to remain alive.',
-    );
-    if (acceptedSecond != true || !mounted) return;
-
-    final acceptedThird = await LandscapeDialog.show(
-      context,
-      title: 'Forget What They Were',
-      icon: Icons.precision_manufacturing_rounded,
-      typewriter: true,
-      message:
-          'So you do not enter for conquest alone.\n\n'
-          'You enter to harvest what remains when a guardian fails, and to carry those fragments back into creation before they forget what they were.',
-    );
-    if (acceptedThird != true || !mounted) return;
-
-    await LandscapeDialog.show(
-      context,
-      title: 'Stand In Front Of It',
-      icon: Icons.visibility_outlined,
-      typewriter: true,
-      message:
-          'Perhaps you are seeking power.\nPerhaps proof.\nPerhaps the memory of the hands that built this place.\n\n'
-          'Whatever answer waits here, the wardens were made to stand in front of it.',
+          'Power does not wait for morality to agree.\n\n'
+          'Break a warden, take the relic, and you begin to see the question beneath all of this: were these created to reveal reality, or to keep reality...real?',
     );
 
     if (!mounted) return;
@@ -496,15 +463,24 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     return 17;
   }
 
+  FactionTheme get _bossFactionTheme => FactionTheme.scorchForge();
+
+  ThemeData get _bossThemeData => _bossFactionTheme
+      .toMaterialTheme(ThemeData.dark().textTheme)
+      .copyWith(scaffoldBackgroundColor: _C.bg0);
+
   @override
   Widget build(BuildContext context) {
     final progress = context.watch<BossProgressNotifier>();
     final party = context.watch<SelectedPartyNotifier>();
 
     if (!progress.isLoaded) {
-      return const Scaffold(
-        backgroundColor: _C.bg0,
-        body: Center(child: CircularProgressIndicator(color: _C.amber)),
+      return Theme(
+        data: _bossThemeData,
+        child: const Scaffold(
+          backgroundColor: _C.bg0,
+          body: Center(child: CircularProgressIndicator(color: _C.amber)),
+        ),
       );
     }
 
@@ -515,12 +491,15 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     final pageIndex = _bossPage.round().clamp(0, bosses.length - 1);
     final currentBoss = bosses.isNotEmpty ? bosses[pageIndex] : null;
     if (currentBoss == null) {
-      return const Scaffold(
-        backgroundColor: _C.bg0,
-        body: Center(
-          child: Text(
-            'Boss not found',
-            style: TextStyle(color: _C.textSecondary),
+      return Theme(
+        data: _bossThemeData,
+        child: const Scaffold(
+          backgroundColor: _C.bg0,
+          body: Center(
+            child: Text(
+              'Boss not found',
+              style: TextStyle(color: _C.textSecondary),
+            ),
           ),
         ),
       );
@@ -538,32 +517,35 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       }
     });
 
-    return Scaffold(
-      backgroundColor: _C.bg0,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(progress),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 12),
-                    _buildBossCarousel(progress),
-                    const SizedBox(height: 20),
-                    _buildBossDetails(currentBoss, progress),
-                    const SizedBox(height: 16),
-                    _buildPartySection(party),
-                    const SizedBox(height: 16),
-                    _buildActionButtons(currentBoss, party, progress),
-                    const SizedBox(height: 28),
-                  ],
+    return Theme(
+      data: _bossThemeData,
+      child: Scaffold(
+        backgroundColor: _C.bg0,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(progress),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 12),
+                      _buildBossCarousel(progress),
+                      const SizedBox(height: 20),
+                      _buildBossDetails(currentBoss, progress),
+                      const SizedBox(height: 16),
+                      _buildPartySection(party),
+                      const SizedBox(height: 16),
+                      _buildActionButtons(currentBoss, party, progress),
+                      const SizedBox(height: 28),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1600,6 +1582,11 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     if (victory == true && mounted) {
       await progress.defeatBoss(bossKey, boss.order);
 
+      final shouldShowBloodUnlockStory =
+          !wasAlreadyDefeated && boss.order == 16;
+      final shouldShowBloodVictoryStory =
+          !wasAlreadyDefeated && boss.order == 17;
+
       // Advance the carousel to the newly unlocked boss when it's a first defeat.
       if (!wasAlreadyDefeated && _bossPageController.hasClients) {
         final nextPage = boss.order; // page index = order - 1 + 1 = order
@@ -1632,6 +1619,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 itemIcon: meta?.traitIcon ?? Icons.vpn_key_rounded,
                 elementColor: boss.elementColor,
                 itemImagePath: boss.relicImagePath,
+                theme: _bossFactionTheme,
               );
             }
           }
@@ -1685,7 +1673,19 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             ),
         ];
         if (!mounted) return;
-        await showLootOpeningDialog(context: context, entries: popupEntries);
+        await showLootOpeningDialog(
+          context: context,
+          entries: popupEntries,
+          theme: _bossFactionTheme,
+        );
+      }
+
+      if (shouldShowBloodUnlockStory && mounted) {
+        await _showBloodBossUnlockStory();
+      }
+
+      if (shouldShowBloodVictoryStory && mounted) {
+        await _showBloodBossVictoryStory();
       }
 
       _showToast(
@@ -1699,6 +1699,30 @@ class _BossBattleScreenState extends State<BossBattleScreen>
 
   Future<void> _showBloodBossLockedPopup(Boss boss) async {
     if (!mounted) return;
+    await LandscapeDialog.show(
+      context,
+      title: 'Summon From The Stars',
+      message: 'The constellations still bar the entrance to the ${boss.name}.',
+      typewriter: true,
+      showIcon: false,
+    );
+  }
+
+  Future<void> _showBloodBossUnlockStory() async {
+    if (!mounted) return;
+    await LandscapeDialog.show(
+      context,
+      title: 'Summon From The Stars',
+      message:
+          'The constellations do not guide the way to Sanguorath. They bar it.\n\n'
+          'Only a summons drawn from the stars can open the entrance.',
+      typewriter: true,
+      showIcon: false,
+    );
+  }
+
+  Future<void> _showBloodBossVictoryStory() async {
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) {
@@ -1709,7 +1733,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             side: const BorderSide(color: _C.borderDim),
           ),
           title: const Text(
-            'BLOOD BOSS',
+            'THE LAST WARDEN?',
             style: TextStyle(
               fontFamily: 'monospace',
               color: _C.textPrimary,
@@ -1718,9 +1742,9 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               letterSpacing: 1.1,
             ),
           ),
-          content: Text(
-            '${boss.name} is not here.',
-            style: const TextStyle(
+          content: const Text(
+            'This was never an ending. Only the final guard.\n\nBlood was not the secret, only the cost. Take the relic back. What waits at the altar is not resurrection, but the proof that a form can be made to continue.',
+            style: TextStyle(
               fontFamily: 'monospace',
               color: _C.textSecondary,
               fontSize: 12,

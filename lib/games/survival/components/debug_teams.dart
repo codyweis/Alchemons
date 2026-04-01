@@ -593,7 +593,7 @@ class DebugTeams {
       PartyMember(
         combatant: _makeCreature(
           id: 't3_plant_let',
-          name: 'Leaflet',
+          name: 'Plantlet',
           types: ['Plant'],
           family: 'Let',
           level: 10,

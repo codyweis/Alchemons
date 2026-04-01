@@ -30,23 +30,89 @@ valleyEncounterPools(SceneDefinition scene) {
   final perSpawn = <String, EncounterPool>{
     'SP_valley_05': EncounterPool(
       entries: [
-        EncounterEntry(speciesId: 'WNG01', rarity: EncounterRarity.legendary),
-        //add let
-        EncounterEntry(speciesId: 'LET04', rarity: EncounterRarity.common),
+        EncounterEntry(
+          speciesId: 'WNG01',
+          rarity: EncounterRarity.legendary,
+          weightMul: 0.08,
+        ),
+        EncounterEntry(
+          speciesId: 'LET03',
+          rarity: EncounterRarity.common,
+          weightMul: 0.75,
+        ),
+        EncounterEntry(
+          speciesId: 'LET04',
+          rarity: EncounterRarity.rare,
+          weightMul: 0.18,
+        ),
       ],
     ),
     'SP_valley_04': EncounterPool(
       entries: [
-        EncounterEntry(speciesId: 'WNG02', rarity: EncounterRarity.legendary),
-        EncounterEntry(speciesId: 'LET04', rarity: EncounterRarity.common),
+        EncounterEntry(
+          speciesId: 'LET03',
+          rarity: EncounterRarity.common,
+          weightMul: 0.85,
+        ),
+        EncounterEntry(
+          speciesId: 'MAN03',
+          rarity: EncounterRarity.uncommon,
+          weightMul: 0.35,
+        ),
+        EncounterEntry(
+          speciesId: 'HOR03',
+          rarity: EncounterRarity.rare,
+          weightMul: 0.16,
+        ),
       ],
     ),
     'SP_valley_01': EncounterPool(
       entries: [
         // This spawn point can spawn two different exclusive creatures
-        EncounterEntry(speciesId: 'WNG03', rarity: EncounterRarity.rare),
-        EncounterEntry(speciesId: 'WNG04', rarity: EncounterRarity.legendary),
-        EncounterEntry(speciesId: 'LET04', rarity: EncounterRarity.common),
+        EncounterEntry(
+          speciesId: 'WNG03',
+          rarity: EncounterRarity.rare,
+          weightMul: 0.12,
+        ),
+        EncounterEntry(
+          speciesId: 'WNG04',
+          rarity: EncounterRarity.legendary,
+          weightMul: 0.08,
+        ),
+        EncounterEntry(
+          speciesId: 'LET03',
+          rarity: EncounterRarity.common,
+          weightMul: 0.75,
+        ),
+        EncounterEntry(
+          speciesId: 'LET04',
+          rarity: EncounterRarity.rare,
+          weightMul: 0.18,
+        ),
+      ],
+    ),
+    'SP_valley_08': EncounterPool(
+      entries: [
+        EncounterEntry(
+          speciesId: 'WNG02',
+          rarity: EncounterRarity.legendary,
+          weightMul: 0.08,
+        ),
+        EncounterEntry(
+          speciesId: 'WNG03',
+          rarity: EncounterRarity.rare,
+          weightMul: 0.14,
+        ),
+        EncounterEntry(
+          speciesId: 'LET03',
+          rarity: EncounterRarity.common,
+          weightMul: 0.72,
+        ),
+        EncounterEntry(
+          speciesId: 'LET04',
+          rarity: EncounterRarity.rare,
+          weightMul: 0.18,
+        ),
       ],
     ),
   };
@@ -56,6 +122,7 @@ valleyEncounterPools(SceneDefinition scene) {
   final exclusiveSpecies = perSpawn.values
       .expand((pool) => pool.entries) // Get all entries from all override pools
       .map((entry) => entry.speciesId) // Get their speciesId
+      .where((speciesId) => speciesId != 'LET03')
       .toSet(); // Use a Set for fast filtering
 
   // 3. === DEFINE BASE SCENE-WIDE POOL ===
@@ -66,23 +133,67 @@ valleyEncounterPools(SceneDefinition scene) {
           // Exclusive (will be filtered out)
 
           // Regular scene-wide
-          EncounterEntry(speciesId: 'LET03', rarity: EncounterRarity.common),
-          EncounterEntry(speciesId: 'LET15', rarity: EncounterRarity.rare),
-          EncounterEntry(speciesId: 'MAN03', rarity: EncounterRarity.uncommon),
-          EncounterEntry(speciesId: 'KIN03', rarity: EncounterRarity.legendary),
+          EncounterEntry(
+            speciesId: 'LET03',
+            rarity: EncounterRarity.common,
+            weightMul: 0.55,
+          ),
+          EncounterEntry(
+            speciesId: 'LET15',
+            rarity: EncounterRarity.rare,
+            weightMul: 0.12,
+          ),
+          EncounterEntry(
+            speciesId: 'MAN03',
+            rarity: EncounterRarity.uncommon,
+            weightMul: 0.35,
+          ),
+          EncounterEntry(
+            speciesId: 'KIN03',
+            rarity: EncounterRarity.legendary,
+            weightMul: 0.08,
+          ),
         ]
       : [
           // --- Day Spawns ---
           // Exclusive (will be filtered out)
 
           // Regular scene-wide
-          EncounterEntry(speciesId: 'LET03', rarity: EncounterRarity.common),
-          EncounterEntry(speciesId: 'MAN12', rarity: EncounterRarity.rare),
-          EncounterEntry(speciesId: 'LET16', rarity: EncounterRarity.rare),
-          EncounterEntry(speciesId: 'MAN03', rarity: EncounterRarity.uncommon),
-          EncounterEntry(speciesId: 'HOR03', rarity: EncounterRarity.rare),
-          EncounterEntry(speciesId: 'WNG04', rarity: EncounterRarity.legendary),
-          EncounterEntry(speciesId: 'WNG03', rarity: EncounterRarity.rare),
+          EncounterEntry(
+            speciesId: 'LET03',
+            rarity: EncounterRarity.common,
+            weightMul: 0.75,
+          ),
+          EncounterEntry(
+            speciesId: 'MAN12',
+            rarity: EncounterRarity.rare,
+            weightMul: 0.15,
+          ),
+          EncounterEntry(
+            speciesId: 'LET16',
+            rarity: EncounterRarity.rare,
+            weightMul: 0.12,
+          ),
+          EncounterEntry(
+            speciesId: 'MAN03',
+            rarity: EncounterRarity.uncommon,
+            weightMul: 0.35,
+          ),
+          EncounterEntry(
+            speciesId: 'HOR03',
+            rarity: EncounterRarity.rare,
+            weightMul: 0.18,
+          ),
+          EncounterEntry(
+            speciesId: 'WNG04',
+            rarity: EncounterRarity.legendary,
+            weightMul: 0.08,
+          ),
+          EncounterEntry(
+            speciesId: 'WNG03',
+            rarity: EncounterRarity.rare,
+            weightMul: 0.12,
+          ),
         ];
 
   // 4. === FILTER THE SCENE-WIDE POOL ===

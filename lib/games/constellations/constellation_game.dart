@@ -12,22 +12,17 @@ import 'package:google_fonts/google_fonts.dart';
 
 const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
   ConstellationTree.breeder: [
-    'Before there were labs, there was only warmth and watching.',
-    'A single egg floated in the dark, dreaming of feathers and teeth.',
-    'Hands you do not remember cupped it like a fragile star.',
-    'Tiny hearts answered from inside, beating out a secret code.',
-    'The shell learned your scent, the way dust learns to fall.',
-    'You whispered a promise you had no power to keep.',
-    'In reply, the egg shifted closer to your voice.',
-    'Old instincts woke: nest-building, danger-smelling, name-weaving.',
-    'You braided straw, data, and starlight into a cradle.',
-    'The hatchery accepted you as one of its own.',
-    'Cracks formed, not from weakness, but from arrival.',
-    'When the shell finally broke, the world gained a new axis.',
-    'The newborn blinked once, as if approving the architecture.',
-    'Every future bond began in that first uncertain touch.',
-    'Care stopped being optional and became infrastructure.',
-    'From then on, nothing truly alone stayed that way for long.',
+    'In the hush before barter,',
+    'The first heartbeat',
+    'or waking breath,',
+    'the moment marking',
+    'flesh and life,',
+    'a flicker in the night,',
+    'the light grows,',
+    'the light flickers,',
+    'then fades,',
+    'can you remember',
+    'the glow?',
   ],
   ConstellationTree.combat: [
     'They built the arena in a place sound refused to cross.',
@@ -48,17 +43,17 @@ const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
     'The arena stayed silent, but the sky learned your name.',
   ],
   ConstellationTree.extraction: [
-    'In the hush before barter,',
-    'The first heartbeat',
-    'or waking breath,',
-    'the moment marking',
-    'flesh and life,',
-    'a flicker in the night,',
-    'the light grows,',
-    'the light flickers,',
-    'then fades,',
-    'can you remember',
-    'the glow?',
+    'The loneliness',
+    'of the night',
+    'stands before me,',
+    'silence is the only thing',
+    'to be heard.',
+    'My thoughts are released',
+    'and now are set free.',
+    'But silence',
+    'is still present,',
+    'for thoughts',
+    'are not words.',
   ],
 };
 
@@ -69,6 +64,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   final Function(ConstellationSkill) onSkillTapped;
   final Color primaryColor;
   final Color secondaryColor;
+  bool tutorialLocked;
 
   final Map<String, SkillNode> _nodes = {};
   final Map<String, ConnectionLine> _connections = {};
@@ -86,6 +82,8 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   bool _isTransitioning = false;
   ConstellationTree? _queuedTree;
   Vector2? _lastFocalPoint;
+  String? _pendingFocusSkillId;
+  double? _pendingFocusZoom;
 
   bool _finaleTriggered = false;
   bool _isPlayingFinale = false;
@@ -105,6 +103,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     required this.onSkillTapped,
     required this.primaryColor,
     required this.secondaryColor,
+    this.tutorialLocked = false,
   }) : _unlockedSkills = Set<String>.from(unlockedSkills),
        _visibleTrees = Set<ConstellationTree>.from(visibleTrees);
 
@@ -121,7 +120,11 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     await world.add(starfield);
 
     await _buildAllSkillTrees();
-    camera.viewfinder.position = _treePositions[selectedTree]!;
+    if (_pendingFocusSkillId != null) {
+      _applyPendingFocus();
+    } else {
+      camera.viewfinder.position = _treePositions[selectedTree]!;
+    }
   }
 
   @override
@@ -342,6 +345,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   }
 
   Future<void> transitionToTree(ConstellationTree tree) async {
+    if (tutorialLocked) return;
     if (!_visibleTrees.contains(tree)) return;
     if (_isTransitioning) {
       _queuedTree = tree;
@@ -372,16 +376,40 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     }
   }
 
+  void focusOnSkill(String skillId, {double? zoom}) {
+    final node = _nodes[skillId];
+    if (node == null) {
+      _pendingFocusSkillId = skillId;
+      _pendingFocusZoom = zoom;
+      return;
+    }
+
+    selectedTree = node.tree;
+    camera.viewfinder.position = node.position.clone();
+    if (zoom != null) {
+      camera.viewfinder.zoom = zoom.clamp(_minScale, _maxScale);
+    }
+
+    _pendingFocusSkillId = null;
+    _pendingFocusZoom = null;
+  }
+
+  void _applyPendingFocus() {
+    final skillId = _pendingFocusSkillId;
+    if (skillId == null) return;
+    focusOnSkill(skillId, zoom: _pendingFocusZoom);
+  }
+
   @override
   void onScaleStart(ScaleStartInfo info) {
-    if (_isTransitioning || _isPlayingFinale) return;
+    if (_isTransitioning || _isPlayingFinale || tutorialLocked) return;
     _baseScaleForGesture = camera.viewfinder.zoom;
     _lastFocalPoint = info.eventPosition.global;
   }
 
   @override
   void onScaleUpdate(ScaleUpdateInfo info) {
-    if (_isTransitioning || _isPlayingFinale) return;
+    if (_isTransitioning || _isPlayingFinale || tutorialLocked) return;
 
     final currentFocalPoint = info.eventPosition.global;
 
@@ -406,6 +434,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
   @override
   void onScaleEnd(ScaleEndInfo info) {
+    if (tutorialLocked) return;
     _lastFocalPoint = null;
   }
 
@@ -435,6 +464,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           }
         }
       }
+    }
+
+    if (_pendingFocusSkillId != null) {
+      _applyPendingFocus();
     }
   }
 
@@ -629,9 +662,8 @@ class SkillNode extends PositionComponent with TapCallbacks {
   bool canUnlock;
   bool isTreeVisible;
 
-  late CircleComponent _outerRing;
-  late CircleComponent _innerCore;
-  late TextComponent _costText;
+  late String _costLabel;
+  TextPaint? _costTextPaint;
 
   // Improved particle system - persistent particles with pooling
   final List<_NodeParticle> _particles = [];
@@ -661,36 +693,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-
-    _outerRing = CircleComponent(
-      radius: 35,
-      position: size / 2,
-      anchor: Anchor.center,
-      paint: Paint()..color = Colors.transparent,
-    );
-    await add(_outerRing);
-
-    _innerCore = CircleComponent(
-      radius: 28,
-      position: size / 2,
-      anchor: Anchor.center,
-      paint: Paint()..color = Colors.transparent,
-    );
-    await add(_innerCore);
-
-    _costText = TextComponent(
-      text: isUnlocked ? '' : '${skill.pointsCost}',
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: primaryColor,
-          fontSize: 18,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-      anchor: Anchor.center,
-      position: size / 2,
-    );
-    await add(_costText);
+    _syncCostLabel();
 
     // Initialize particle pool
     if (isUnlocked) {
@@ -740,6 +743,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
     final center = size / 2;
     final ringColor = _getRingColor();
     final coreColor = _getCoreColor();
+    final availableColor = _getAvailableAccentColor();
 
     final hexPath = _createHexagon(center.toOffset(), 35);
 
@@ -763,11 +767,17 @@ class SkillNode extends PositionComponent with TapCallbacks {
     // Outer glow for unlocked nodes
     if (isUnlocked) {
       final glowPaint = Paint()
-        ..color = primaryColor.withValues(alpha: 0.6)
+        ..color = Colors.white.withValues(alpha: 0.36)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+        ..strokeWidth = 5.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12.0);
       canvas.drawPath(hexPath, glowPaint);
+
+      final auraPaint = Paint()
+        ..color = primaryColor.withValues(alpha: 0.18)
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16.0);
+      canvas.drawPath(_createHexagon(center.toOffset(), 42), auraPaint);
     }
 
     // Main hexagon border
@@ -789,16 +799,31 @@ class SkillNode extends PositionComponent with TapCallbacks {
         center.toOffset(),
         28,
         [
-          coreColor.withValues(alpha: 0.6),
-          coreColor.withValues(alpha: 0.2),
-          coreColor.withValues(alpha: 0.35),
+          coreColor.withValues(alpha: isUnlocked ? 0.82 : 0.52),
+          coreColor.withValues(alpha: isUnlocked ? 0.38 : 0.18),
+          (canUnlock ? availableColor : coreColor).withValues(
+            alpha: isUnlocked ? 0.44 : 0.26,
+          ),
         ],
         [0.0, 0.5, 1.0],
       )
       ..style = PaintingStyle.fill;
 
-    if (isUnlocked) {
+    if (isUnlocked || canUnlock) {
       canvas.drawPath(coreHexPath, corePaint);
+    }
+
+    if (canUnlock && !isUnlocked) {
+      final readyPaint = Paint()
+        ..color = availableColor.withValues(alpha: 0.22)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+      canvas.drawPath(coreHexPath, readyPaint);
+    }
+
+    if (_costLabel.isNotEmpty && _costTextPaint != null) {
+      _costTextPaint!.render(canvas, _costLabel, center, anchor: Anchor.center);
     }
 
     // Alchemical accents for unlocked nodes
@@ -886,35 +911,55 @@ class SkillNode extends PositionComponent with TapCallbacks {
   }
 
   Color _getRingColor() {
-    if (isUnlocked) return primaryColor;
-    if (canUnlock) return primaryColor.withValues(alpha: 0.8);
-    return primaryColor.withValues(alpha: 0.3);
+    if (isUnlocked) {
+      return Color.lerp(primaryColor, Colors.white, 0.18) ?? primaryColor;
+    }
+    if (canUnlock) {
+      return _getAvailableAccentColor().withValues(alpha: 0.95);
+    }
+    return primaryColor.withValues(alpha: 0.24);
   }
 
   Color _getCoreColor() {
-    if (isUnlocked) return primaryColor.withValues(alpha: 0.4);
-    if (canUnlock) return primaryColor.withValues(alpha: 0.15);
+    if (isUnlocked) {
+      return Color.lerp(primaryColor, Colors.white, 0.08) ?? primaryColor;
+    }
+    if (canUnlock) return _getAvailableAccentColor().withValues(alpha: 0.34);
     return Colors.black.withValues(alpha: 0.6);
+  }
+
+  Color _getAvailableAccentColor() {
+    return Color.lerp(primaryColor, secondaryColor, 0.35) ?? primaryColor;
   }
 
   void updateState({required bool isUnlocked, required bool canUnlock}) {
     final wasLocked = !this.isUnlocked;
     this.isUnlocked = isUnlocked;
     this.canUnlock = canUnlock;
-
-    _costText.text = isUnlocked ? '' : '${skill.pointsCost}';
-    _costText.textRenderer = TextPaint(
-      style: TextStyle(
-        color: primaryColor,
-        fontSize: 18,
-        fontWeight: FontWeight.w900,
-      ),
-    );
+    _syncCostLabel();
 
     // Add particles if newly unlocked
     if (isUnlocked && wasLocked && _particles.isEmpty) {
       _initializeParticles();
     }
+  }
+
+  void _syncCostLabel() {
+    _costLabel = isUnlocked ? '' : '${skill.pointsCost}';
+    _costTextPaint = TextPaint(
+      style: TextStyle(
+        color: isUnlocked
+            ? Colors.transparent
+            : canUnlock
+            ? Colors.white
+            : primaryColor.withValues(alpha: 0.7),
+        fontSize: 18,
+        fontWeight: FontWeight.w900,
+        shadows: canUnlock
+            ? const [Shadow(color: Colors.black87, blurRadius: 12)]
+            : null,
+      ),
+    );
   }
 
   void setTreeVisible(bool visible) {

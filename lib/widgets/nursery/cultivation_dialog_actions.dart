@@ -40,6 +40,8 @@ class CultivationDialogButton extends StatelessWidget {
     required this.accentColor,
     required this.onTap,
     this.emphasis = CultivationDialogButtonEmphasis.secondary,
+    this.useSolidBackground = false,
+    this.foregroundColor,
   });
 
   final ForgeTokens tokens;
@@ -48,21 +50,32 @@ class CultivationDialogButton extends StatelessWidget {
   final Color accentColor;
   final VoidCallback onTap;
   final CultivationDialogButtonEmphasis emphasis;
+  final bool useSolidBackground;
+  final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) {
     final highlighted = emphasis == CultivationDialogButtonEmphasis.primary;
     final destructive = emphasis == CultivationDialogButtonEmphasis.danger;
     final baseColor = destructive ? tokens.danger : accentColor;
-    final backgroundColor = highlighted
+    final filled = useSolidBackground && !destructive;
+    final backgroundColor = filled
+        ? baseColor
+        : highlighted
         ? baseColor.withValues(alpha: tokens.isDark ? 0.14 : 0.10)
         : tokens.bg1;
-    final borderColor = baseColor.withValues(alpha: highlighted ? 0.55 : 0.35);
-    final foregroundColor = destructive
-        ? tokens.danger
-        : highlighted
+    final borderColor = filled
         ? baseColor
-        : accentColor;
+        : baseColor.withValues(alpha: highlighted ? 0.55 : 0.35);
+    final resolvedForegroundColor =
+        foregroundColor ??
+        (destructive
+            ? tokens.danger
+            : filled
+            ? Colors.white
+            : highlighted
+            ? baseColor
+            : accentColor);
 
     return Material(
       color: Colors.transparent,
@@ -70,8 +83,12 @@ class CultivationDialogButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(3),
         onTap: onTap,
-        splashColor: baseColor.withValues(alpha: 0.12),
-        highlightColor: baseColor.withValues(alpha: 0.06),
+        splashColor: (filled ? Colors.white : baseColor).withValues(
+          alpha: 0.12,
+        ),
+        highlightColor: (filled ? Colors.white : baseColor).withValues(
+          alpha: 0.06,
+        ),
         child: Ink(
           height: 46,
           decoration: BoxDecoration(
@@ -81,7 +98,7 @@ class CultivationDialogButton extends StatelessWidget {
             boxShadow: highlighted
                 ? [
                     BoxShadow(
-                      color: baseColor.withValues(alpha: 0.16),
+                      color: baseColor.withValues(alpha: filled ? 0.28 : 0.16),
                       blurRadius: 14,
                       offset: const Offset(0, 4),
                     ),
@@ -91,7 +108,7 @@ class CultivationDialogButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16, color: foregroundColor),
+              Icon(icon, size: 16, color: resolvedForegroundColor),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -100,7 +117,7 @@ class CultivationDialogButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: foregroundColor,
+                    color: resolvedForegroundColor,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,

@@ -56,6 +56,7 @@ class EncounterOverlay extends StatefulWidget {
   final Creature hydratedWildCreature;
   final bool highlightPartyHUD; // 🆕 Tutorial highlighting
   final bool isTutorial; // 🆕 Tutorial mode flag
+  final bool isCaptureTutorial;
   final bool warnOnRun; // show a confirmation before running away
   final bool showFusionAction;
 
@@ -69,6 +70,7 @@ class EncounterOverlay extends StatefulWidget {
     required this.hydratedWildCreature,
     this.highlightPartyHUD = false, // 🆕 Default to false
     this.isTutorial = false, // 🆕 Default to false
+    this.isCaptureTutorial = false,
     this.warnOnRun = false,
     this.showFusionAction = true,
   });
@@ -99,7 +101,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   @override
   void initState() {
     super.initState();
-    _status = _supportsFusion
+    _status = widget.isCaptureTutorial
+        ? 'Use a harvester to capture this wild Alchemon.'
+        : _supportsFusion
         ? 'Select a party member to act'
         : 'Choose an action.';
     // Auto-show on mount
@@ -109,7 +113,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   }
 
   bool get _supportsFusion =>
-      widget.showFusionAction && widget.party.isNotEmpty;
+      widget.showFusionAction &&
+      !widget.isCaptureTutorial &&
+      widget.party.isNotEmpty;
 
   String _familyKeyForCreature(Creature c) {
     if (c.mutationFamily != null && c.mutationFamily!.isNotEmpty) {
@@ -118,6 +124,21 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final match = RegExp(r'^[A-Za-z]+').firstMatch(c.id);
     final letters = match?.group(0) ?? c.id;
     return letters.toUpperCase();
+  }
+
+  BreedingServiceV2 _buildBreedingService(BuildContext ctx) {
+    final db = ctx.read<AlchemonsDatabase>();
+    final repo = ctx.read<CreatureCatalog>();
+
+    return BreedingServiceV2(
+      gameData: ctx.read<GameDataService>(),
+      db: db,
+      engine: ctx.read<BreedingEngine>(),
+      payloadFactory: EggPayloadFactory(repo),
+      wildRandomizer: WildCreatureRandomizer(),
+      constellation: ctx.read<ConstellationEffectsService>(),
+      factions: ctx.read<FactionService>(),
+    );
   }
 
   double _computeWildBreedChance(
@@ -329,6 +350,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     status: _status,
                     canAct: !_busy,
                     isTutorial: widget.isTutorial, // 🆕 Pass tutorial flag
+                    isCaptureTutorial: widget.isCaptureTutorial,
                     onBreed: !_busy
                         ? () => _handleBreed(context, wildCreature)
                         : null,
@@ -425,6 +447,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     try {
       final db = ctx.read<AlchemonsDatabase>();
       final repo = ctx.read<CreatureCatalog>();
+      final breedingService = _buildBreedingService(ctx);
       final wilderness = WildernessService(db, ctx.read<StaminaService>());
 
       final instance = await db.creatureDao.getInstance(_chosenInstanceId!);
@@ -455,6 +478,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         setState(() {
           _status = 'Further research required for cross-species fusion.';
         });
+        return;
+      }
+
+      final placementFailure = await breedingService
+          .getEggPlacementFailureMessage(requireStorageCapacity: false);
+      if (placementFailure != null) {
+        setState(() => _status = placementFailure);
         return;
       }
       // --------------------------------------------------------------
@@ -505,7 +535,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
         // 🆕 Show cinematic FIRST, then hide overlay
         if (!ctx.mounted) return;
-        await showAlchemyFusionCinematic<void>(
+        final didBreed = await showAlchemyFusionCinematic<bool>(
           context: ctx,
           leftSprite: partySprite(),
           rightSprite: wildSprite(),
@@ -513,12 +543,12 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           rightColor: colorB,
           minDuration: const Duration(milliseconds: 1800),
           task: () async {
-            await _breedWithWild(ctx, instance, speciesB);
+            return _breedWithWild(ctx, instance, speciesB, breedingService);
           },
         );
 
+        if (didBreed != true) return;
         if (!mounted) return;
-        setState(() => _status = 'Successfully fused.');
 
         // 🆕 Hide AFTER cinematic completes
         _hide(true);
@@ -572,6 +602,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           return await catchService.attemptCatch(
             device: selectedDevice,
             target: wildCreature,
+            forceSuccess: widget.isCaptureTutorial,
           );
         },
       );
@@ -604,34 +635,21 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   }
 
   /// Breed owned instance with wild creature using BreedingServiceV2
-  Future<void> _breedWithWild(
+  Future<bool> _breedWithWild(
     BuildContext ctx,
     db.CreatureInstance ownedParent,
     Creature? wildCreature,
+    BreedingServiceV2 breedingService,
   ) async {
-    if (wildCreature == null) return;
-
-    final db = ctx.read<AlchemonsDatabase>();
-    final repo = ctx.read<CreatureCatalog>();
-    final randomizer = WildCreatureRandomizer();
-
-    final engine = ctx.read<BreedingEngine>();
-    final payloadFactory = EggPayloadFactory(repo);
-
-    final breedingService = BreedingServiceV2(
-      gameData: ctx.read<GameDataService>(),
-      db: db,
-      engine: engine,
-      payloadFactory: payloadFactory,
-      wildRandomizer: randomizer,
-      constellation: ctx.read<ConstellationEffectsService>(),
-      factions: ctx.read<FactionService>(),
-    );
+    if (wildCreature == null) return false;
 
     // Single call: service will randomize wild, breed, and compute analysis.
     final result = await breedingService.breedWithWild(
       ownedParent,
       wildCreature,
+      customHatchDuration: widget.isTutorial
+          ? const Duration(seconds: 30)
+          : null,
       forcePrismatic: widget.encounter.voidBred,
       sourceOverride: widget.encounter.source,
     );
@@ -640,12 +658,18 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       if (mounted) {
         setState(() => _status = 'Breeding failed: ${result.message}');
       }
-      return;
+      return false;
     }
 
     if (mounted) {
-      setState(() => _status = 'Specimen sent to Cultivations for extraction');
+      setState(
+        () => _status = result.placement == EggPlacement.storage
+            ? 'Incubator full — specimen transferred to cold storage'
+            : 'Specimen sent to Cultivations for extraction',
+      );
     }
+
+    return true;
   }
 
   Future<void> _placeWildEgg(
@@ -657,7 +681,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
     final rarityKey = capturedCreature.rarity.toLowerCase();
     final baseHatchDelay =
-        BreedConstants.rarityHatchTimes[rarityKey] ??
+        (widget.isCaptureTutorial
+            ? const Duration(seconds: 30)
+            : BreedConstants.rarityHatchTimes[rarityKey]) ??
         const Duration(minutes: 10);
 
     // 👇 apply nature + constellation
@@ -673,9 +699,11 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final hatchAtUtc = DateTime.now().toUtc().add(adjustedDelay);
 
     final factory = EggPayloadFactory(repo);
+    final arcaneBoostUnlocked = await db.settingsDao.isArcanePortalUnlocked();
     final payload = factory.createWildCapturePayload(
       capturedCreature,
       sourceOverride: widget.encounter.source,
+      arcaneBoostUnlocked: arcaneBoostUnlocked,
     );
     final payloadJson = payload.toJsonString();
 
@@ -937,7 +965,7 @@ class _PartyHUD extends StatelessWidget {
   }
 }
 
-class _PartyMemberCard extends StatefulWidget {
+class _PartyMemberCard extends StatelessWidget {
   final PartyMember member;
   final bool selected;
   final VoidCallback onTap;
@@ -949,49 +977,17 @@ class _PartyMemberCard extends StatefulWidget {
   });
 
   @override
-  State<_PartyMemberCard> createState() => _PartyMemberCardState();
-}
-
-class _PartyMemberCardState extends State<_PartyMemberCard> {
-  Future<CreatureInstance?>? _instanceFuture;
-  String? _futureForInstanceId;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _ensureInstanceFuture();
-  }
-
-  @override
-  void didUpdateWidget(covariant _PartyMemberCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.member.instanceId != widget.member.instanceId) {
-      _ensureInstanceFuture(force: true);
-    }
-  }
-
-  void _ensureInstanceFuture({bool force = false}) {
-    if (!force &&
-        _instanceFuture != null &&
-        _futureForInstanceId == widget.member.instanceId) {
-      return;
-    }
-    _futureForInstanceId = widget.member.instanceId;
-    _instanceFuture = context.read<AlchemonsDatabase>().creatureDao.getInstance(
-      widget.member.instanceId,
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    _ensureInstanceFuture();
     final repo = context.read<CreatureCatalog>();
     final stamina = context.read<StaminaService>();
-
     final t = ForgeTokens(context.read<FactionTheme>());
+    final instanceStream = context
+        .read<AlchemonsDatabase>()
+        .creatureDao
+        .watchInstanceById(member.instanceId);
 
-    return FutureBuilder<CreatureInstance?>(
-      future: _instanceFuture,
+    return StreamBuilder<CreatureInstance?>(
+      stream: instanceStream,
       builder: (context, snap) {
         final inst = snap.data;
         final base = inst == null ? null : repo.getCreatureById(inst.baseId);
@@ -1000,19 +996,19 @@ class _PartyMemberCardState extends State<_PartyMemberCard> {
             : null;
 
         return GestureDetector(
-          onTap: widget.onTap,
+          onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             width: 56,
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: widget.selected ? t.amber.withValues(alpha: 0.12) : t.bg2,
+              color: selected ? t.amber.withValues(alpha: 0.12) : t.bg2,
               borderRadius: BorderRadius.circular(3),
               border: Border.all(
-                color: widget.selected ? t.amber : t.borderDim,
-                width: widget.selected ? 1.5 : 1,
+                color: selected ? t.amber : t.borderDim,
+                width: selected ? 1.5 : 1,
               ),
-              boxShadow: widget.selected
+              boxShadow: selected
                   ? [
                       BoxShadow(
                         color: t.amber.withValues(alpha: 0.28),
@@ -1061,6 +1057,7 @@ class _ActionPanel extends StatelessWidget {
   final double? breedChance; // 👈 NEW
   final bool isPartySelected;
   final bool isTutorial; // 🆕 Tutorial mode flag
+  final bool isCaptureTutorial;
   final bool showFusionAction;
 
   const _ActionPanel({
@@ -1072,6 +1069,7 @@ class _ActionPanel extends StatelessWidget {
     required this.isPartySelected,
     this.breedChance,
     this.isTutorial = false, // 🆕 Default to false
+    this.isCaptureTutorial = false,
     this.showFusionAction = true,
   });
 
@@ -1106,7 +1104,7 @@ class _ActionPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            if (showFusionAction)
+            if (showFusionAction && !isCaptureTutorial)
               _ActionButton(
                 disabled: !isPartySelected,
                 label: 'FUSION',
@@ -1115,21 +1113,27 @@ class _ActionPanel extends StatelessWidget {
                 accentColor: t.success,
                 onPressed: canAct ? onBreed : null,
               ),
-            if (showFusionAction) const SizedBox(width: 8),
-            if (!isTutorial)
-              _ActionButton(
-                label: 'HARVEST',
-                sublabel: 'PROTOCOL',
-                accentColor: t.danger,
-                onPressed: canAct ? onCapture : null,
+            if (showFusionAction && !isCaptureTutorial)
+              const SizedBox(width: 8),
+            if (!isTutorial || isCaptureTutorial)
+              TutorialHighlight(
+                enabled: isCaptureTutorial,
+                label: 'Use your harvester',
+                child: _ActionButton(
+                  label: 'HARVEST',
+                  sublabel: 'PROTOCOL',
+                  accentColor: t.danger,
+                  onPressed: canAct ? onCapture : null,
+                ),
               ),
-            if (!isTutorial) const SizedBox(width: 8),
-            _ActionButton(
-              label: 'MAP',
-              sublabel: 'RETURN',
-              accentColor: t.teal,
-              onPressed: onRun,
-            ),
+            if (!isTutorial && !isCaptureTutorial) const SizedBox(width: 8),
+            if (!isCaptureTutorial)
+              _ActionButton(
+                label: 'MAP',
+                sublabel: 'RETURN',
+                accentColor: t.teal,
+                onPressed: onRun,
+              ),
           ],
         ),
       ],

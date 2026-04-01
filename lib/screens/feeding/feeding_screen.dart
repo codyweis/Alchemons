@@ -185,6 +185,7 @@ class _FeedingScreenState extends State<FeedingScreen>
       _targetSpeciesId != null && _targetInstanceId == null;
   bool get _isPickingFodder =>
       _targetSpeciesId != null && _targetInstanceId != null;
+  bool get _canLeaveScreen => _currentStage == 'species';
 
   @override
   Widget build(BuildContext context) {
@@ -192,91 +193,99 @@ class _FeedingScreenState extends State<FeedingScreen>
     final t = ForgeTokens(theme);
     final db = context.watch<AlchemonsDatabase>();
 
-    return Scaffold(
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: _currentStage == 'species'
-          ? FloatingCloseButton(
-              size: 50,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.of(context).maybePop();
-              },
-              theme: theme,
-            )
-          : null,
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [t.bg1, t.bg0],
+    return PopScope(
+      canPop: _canLeaveScreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !mounted || _canLeaveScreen) return;
+        HapticFeedback.lightImpact();
+        _handleBack();
+      },
+      child: Scaffold(
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: _currentStage == 'species'
+            ? FloatingCloseButton(
+                size: 50,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.of(context).maybePop();
+                },
+                theme: theme,
+              )
+            : null,
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [t.bg1, t.bg0],
+                ),
               ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                children: [
-                  StageHeader(
-                    theme: theme,
-                    stage: _currentStage,
-                    selectedCount: _selectedFodder.length,
-                    onBack: _handleBack,
-                    onOpenAllInstances: () {
-                      HapticFeedback.lightImpact();
-                      setState(() {
-                        _showAllInstances = true;
-                        _targetSpeciesId = null;
-                        _targetInstanceId = null;
-                        _searchController.clear();
-                        _searchQuery = '';
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: StreamBuilder<List<CreatureInstance>>(
-                      stream: db.creatureDao.watchAllInstances(),
-                      builder: (context, snap) {
-                        final instances = snap.data ?? [];
-                        return _buildStageContent(theme, instances);
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    StageHeader(
+                      theme: theme,
+                      stage: _currentStage,
+                      selectedCount: _selectedFodder.length,
+                      onBack: _handleBack,
+                      onOpenAllInstances: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _showAllInstances = true;
+                          _targetSpeciesId = null;
+                          _targetInstanceId = null;
+                          _searchController.clear();
+                          _searchQuery = '';
+                        });
                       },
                     ),
-                  ),
-                  if (_isPickingFodder)
-                    StreamBuilder<CreatureInstance?>(
-                      stream: context
-                          .read<AlchemonsDatabase>()
-                          .creatureDao
-                          .watchInstanceById(_targetInstanceId!),
-                      builder: (context, snapshot) {
-                        final targetInstance = snapshot.data;
-                        final repo = context.read<CreatureCatalog>();
-                        final targetCreature = targetInstance == null
-                            ? null
-                            : repo.getCreatureById(targetInstance.baseId);
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: StreamBuilder<List<CreatureInstance>>(
+                        stream: db.creatureDao.watchAllInstances(),
+                        builder: (context, snap) {
+                          final instances = snap.data ?? [];
+                          return _buildStageContent(theme, instances);
+                        },
+                      ),
+                    ),
+                    if (_isPickingFodder)
+                      StreamBuilder<CreatureInstance?>(
+                        stream: context
+                            .read<AlchemonsDatabase>()
+                            .creatureDao
+                            .watchInstanceById(_targetInstanceId!),
+                        builder: (context, snapshot) {
+                          final targetInstance = snapshot.data;
+                          final repo = context.read<CreatureCatalog>();
+                          final targetCreature = targetInstance == null
+                              ? null
+                              : repo.getCreatureById(targetInstance.baseId);
 
-                        return FeedFooter(
-                          theme: theme,
-                          targetInstance: targetInstance,
-                          targetCreature: targetCreature,
-                          preview: _preview,
-                          busy: _busy,
-                          selectedCount: _selectedFodder.length,
-                          onEnhance: _doFeed,
-                          shouldAnimate: _shouldAnimateEnhancement,
-                          preFeedLevel: _preFeedLevel,
-                          preFeedXp: _preFeedXp,
-                        );
-                      },
-                    ),
-                ],
+                          return FeedFooter(
+                            theme: theme,
+                            targetInstance: targetInstance,
+                            targetCreature: targetCreature,
+                            preview: _preview,
+                            busy: _busy,
+                            selectedCount: _selectedFodder.length,
+                            onEnhance: _doFeed,
+                            shouldAnimate: _shouldAnimateEnhancement,
+                            preFeedLevel: _preFeedLevel,
+                            preFeedXp: _preFeedXp,
+                          );
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

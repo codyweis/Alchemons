@@ -48,11 +48,13 @@ class MiniMapOverlay extends StatefulWidget {
 
 class MiniMapOverlayState extends State<MiniMapOverlay> {
   final TransformationController _transformCtrl = TransformationController();
+  final ScrollController _planetScrollCtrl = ScrollController();
   int _selectedColor = 0;
   bool _markerMode = false;
   bool _showMarkerColors = false;
   int _planetIndex = 0;
-  // Sorted + filtered once per build, cached here to avoid repeated sorts.
+  bool _didPrimeMapTransform = false;
+  _MiniMapTravelPromptData? _travelPrompt;
   late List<CosmicPlanet> _discoveredPlanets;
 
   void _refreshPlanets() {
@@ -84,15 +86,51 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
 
   @override
   void dispose() {
+    _planetScrollCtrl.dispose();
     _transformCtrl.dispose();
     super.dispose();
   }
 
+  Offset _worldFromViewport(Offset viewportPosition, double scale) {
+    final scenePosition = _transformCtrl.toScene(viewportPosition);
+    return Offset(scenePosition.dx / scale, scenePosition.dy / scale);
+  }
+
+  void _primeMapTransform({
+    required double viewportSize,
+    required double scale,
+  }) {
+    if (_didPrimeMapTransform || viewportSize <= 0 || scale <= 0) return;
+    _didPrimeMapTransform = true;
+
+    const initialZoom = 1.25;
+    final shipScene = widget.game.ship.pos * scale;
+    final minTranslate = viewportSize - (viewportSize * initialZoom);
+    final tx = (viewportSize / 2 - shipScene.dx * initialZoom).clamp(
+      minTranslate,
+      0.0,
+    );
+    final ty = (viewportSize / 2 - shipScene.dy * initialZoom).clamp(
+      minTranslate,
+      0.0,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _transformCtrl.value = Matrix4.identity()
+        ..translate(tx, ty)
+        ..scale(initialZoom);
+    });
+  }
+
   void _handleTapUp(TapUpDetails details, double scale) {
-    final wx = details.localPosition.dx / scale;
-    final wy = details.localPosition.dy / scale;
+    final tapWorld = _worldFromViewport(details.localPosition, scale);
+    final wx = tapWorld.dx;
+    final wy = tapWorld.dy;
 
     if (_markerMode) {
+      HapticFeedback.selectionClick();
+      setState(() => _travelPrompt = null);
       widget.onMarkersChanged([
         ...widget.markers,
         MapMarker(worldPos: Offset(wx, wy), colorIndex: _selectedColor),
@@ -101,25 +139,62 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     }
 
     final tapPos = Offset(wx, wy);
-    Offset? bestPos;
+    final bestTarget = _bestTravelPromptAt(tapPos);
+    setState(() => _travelPrompt = bestTarget);
+  }
+
+  void _handleTapDown(TapDownDetails details, double scale) {
+    if (_markerMode) return;
+    final tapWorld = _worldFromViewport(details.localPosition, scale);
+    if (_bestTravelPromptAt(tapWorld) != null) {
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  _MiniMapTravelPromptData? _bestTravelPromptAt(Offset tapPos) {
+    _MiniMapTravelPromptData? bestTarget;
     double bestDist = double.infinity;
 
-    void tryUpdate(Offset pos, double dist) {
+    void tryUpdate(_MiniMapTravelPromptData target, double dist) {
       if (dist < bestDist) {
         bestDist = dist;
-        bestPos = pos;
+        bestTarget = target;
       }
     }
 
     for (final p in widget.world.planets) {
       if (!p.discovered) continue;
       final d = (p.position - tapPos).distance;
-      if (d < p.radius * 7) tryUpdate(p.position, d);
+      final hitRadius = max(p.radius * 9.0, 980.0);
+      if (d < hitRadius) {
+        tryUpdate(
+          _MiniMapTravelPromptData(
+            title: 'TRAVEL TO ${planetName(p.element).toUpperCase()}',
+            subtitle: 'Planet route',
+            accent: p.color,
+            icon: Icons.public_rounded,
+            onConfirm: () => _runAfterBuild(() => widget.onNavigatePlanet(p)),
+          ),
+          d,
+        );
+      }
     }
 
     if (widget.game.homePlanet case final hp?) {
       final d = (hp.position - tapPos).distance;
-      if (d < hp.visualRadius * 7) tryUpdate(hp.position, d);
+      final hitRadius = max(hp.visualRadius * 9.0, 1080.0);
+      if (d < hitRadius) {
+        tryUpdate(
+          _MiniMapTravelPromptData(
+            title: 'TRAVEL TO HOME BASE',
+            subtitle: 'Return home',
+            accent: hp.blendedColor,
+            icon: Icons.home_rounded,
+            onConfirm: () => _runAfterBuild(widget.onGoHome),
+          ),
+          d,
+        );
+      }
     }
 
     for (final poi in widget.game.spacePOIs) {
@@ -130,7 +205,19 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
         continue;
       }
       final d = (poi.position - tapPos).distance;
-      if (d < 620) tryUpdate(poi.position, d);
+      if (d < 920) {
+        tryUpdate(
+          _MiniMapTravelPromptData(
+            title: 'TRAVEL TO ${_poiLabel(poi.type)}',
+            subtitle: 'Space destination',
+            accent: _poiColor(poi.type),
+            icon: Icons.storefront_rounded,
+            onConfirm: () =>
+                _runAfterBuild(() => widget.onTeleport(poi.position)),
+          ),
+          d,
+        );
+      }
     }
 
     if (widget.debugEnableContestArenaTeleport) {
@@ -139,21 +226,27 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
           continue;
         }
         final d = (arena.position - tapPos).distance;
-        if (d < 760) tryUpdate(arena.position, d);
+        if (d < 1080) {
+          tryUpdate(
+            _MiniMapTravelPromptData(
+              title: 'TRAVEL TO ${arena.trait.arenaLabel.toUpperCase()}',
+              subtitle: 'Contest arena',
+              accent: arena.trait.color,
+              icon: Icons.emoji_events_rounded,
+              onConfirm: () =>
+                  _runAfterBuild(() => widget.onTeleport(arena.position)),
+            ),
+            d,
+          );
+        }
       }
     }
 
-    if (bestPos != null) {
-      final target = bestPos!;
-      _runAfterBuild(() => widget.onTeleport(target));
-    }
+    return bestTarget;
   }
 
   void _handleLongPress(LongPressStartDetails details, double scale) {
-    final tapWorld = Offset(
-      details.localPosition.dx / scale,
-      details.localPosition.dy / scale,
-    );
+    final tapWorld = _worldFromViewport(details.localPosition, scale);
 
     var closestDist = double.infinity;
     var closestIdx = -1;
@@ -183,6 +276,24 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     _runAfterBuild(() => widget.onNavigatePlanet(target));
   }
 
+  static String _poiLabel(POIType type) => switch (type) {
+    POIType.harvesterMarket => 'HARVESTER SHOP',
+    POIType.riftKeyMarket => 'RIFT KEY SHOP',
+    POIType.cosmicMarket => 'COSMIC MARKET',
+    POIType.stardustScanner => 'STAR DUST SCANNER',
+    POIType.planetScanner => 'PLANET SCANNER',
+    _ => 'DESTINATION',
+  };
+
+  static Color _poiColor(POIType type) => switch (type) {
+    POIType.harvesterMarket => const Color(0xFFFFD54F),
+    POIType.riftKeyMarket => const Color(0xFF80DEEA),
+    POIType.cosmicMarket => const Color(0xFFCE93D8),
+    POIType.stardustScanner => const Color(0xFFA5D6A7),
+    POIType.planetScanner => const Color(0xFF90CAF9),
+    _ => const Color(0xFF90CAF9),
+  };
+
   @override
   Widget build(BuildContext context) {
     _refreshPlanets();
@@ -193,75 +304,268 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     }
 
     return Material(
-      color: Colors.black87,
-      child: SafeArea(
+      color: Colors.transparent,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF08091A), Color(0xFF060B18)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _Header(
+                hasHomePlanet: widget.hasHomePlanet,
+                discoveredCount: _discoveredPlanets.length,
+                markerCount: widget.markers.length,
+                onGoHome: () => _runAfterBuild(widget.onGoHome),
+                onClose: widget.onClose,
+              ),
+              _MarkerToolbar(
+                markerMode: _markerMode,
+                showMarkerColors: _showMarkerColors,
+                selectedColor: _selectedColor,
+                hasMarkers: widget.markers.isNotEmpty,
+                onToggleMode: () => setState(() {
+                  final nextOpen = !_showMarkerColors;
+                  _showMarkerColors = nextOpen;
+                  if (!nextOpen) _markerMode = false;
+                }),
+                onSelectColor: (i) => setState(() {
+                  _selectedColor = i;
+                  _showMarkerColors = true;
+                  _markerMode = true;
+                }),
+                onClearAll: () => widget.onMarkersChanged([]),
+              ),
+              // ── Carousel + Navigate button ─────────────────────────────────
+              if (_discoveredPlanets.isNotEmpty) ...[
+                SizedBox(
+                  height: 136,
+                  child: _PlanetCarousel(
+                    planets: _discoveredPlanets,
+                    selectedIndex: _planetIndex,
+                    scrollController: _planetScrollCtrl,
+                    onChanged: (i) {
+                      setState(() => _planetIndex = i);
+                      HapticFeedback.selectionClick();
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _NavigateButton(
+                  planet:
+                      _discoveredPlanets[_planetIndex.clamp(
+                        0,
+                        _discoveredPlanets.length - 1,
+                      )],
+                  onTap: _navigateToSelected,
+                ),
+                const SizedBox(height: 8),
+              ],
+              // ── Map takes all remaining space ───────────────────────────────
+              Expanded(
+                child: _MapView(
+                  world: widget.world,
+                  game: widget.game,
+                  markers: widget.markers,
+                  transformCtrl: _transformCtrl,
+                  onTapDown: _handleTapDown,
+                  onTapUp: _handleTapUp,
+                  onLongPress: _handleLongPress,
+                  onViewportReady: _primeMapTransform,
+                  showAllContestArenas: widget.debugShowAllContestArenasOnMap,
+                ),
+              ),
+              if (_travelPrompt != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                  child: _TravelPromptCard(
+                    prompt: _travelPrompt!,
+                    onDismiss: () => setState(() => _travelPrompt = null),
+                    onConfirm: () {
+                      final prompt = _travelPrompt;
+                      setState(() => _travelPrompt = null);
+                      prompt?.onConfirm();
+                    },
+                  ),
+                ),
+              _Legend(
+                markerMode: _markerMode,
+                showContestTip: widget.debugEnableContestArenaTeleport,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniMapTravelPromptData {
+  const _MiniMapTravelPromptData({
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.icon,
+    required this.onConfirm,
+  });
+
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final IconData icon;
+  final VoidCallback onConfirm;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HEADER  (redesigned)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.hasHomePlanet,
+    required this.discoveredCount,
+    required this.markerCount,
+    required this.onGoHome,
+    required this.onClose,
+  });
+
+  final bool hasHomePlanet;
+  final int discoveredCount;
+  final int markerCount;
+  final VoidCallback onGoHome;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: const Color(0xFF1E3A5F).withValues(alpha: 0.6),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Header(
-              hasHomePlanet: widget.hasHomePlanet,
-              onGoHome: () => _runAfterBuild(widget.onGoHome),
-              onClose: widget.onClose,
-            ),
-            _MarkerToolbar(
-              markerMode: _markerMode,
-              showMarkerColors: _showMarkerColors,
-              selectedColor: _selectedColor,
-              hasMarkers: widget.markers.isNotEmpty,
-              onToggleMode: () => setState(() {
-                final nextOpen = !_showMarkerColors;
-                _showMarkerColors = nextOpen;
-                if (!nextOpen) {
-                  _markerMode = false;
-                }
-              }),
-              onSelectColor: (i) => setState(() {
-                _selectedColor = i;
-                _showMarkerColors = true;
-                _markerMode = true;
-              }),
-              onClearAll: () => widget.onMarkersChanged([]),
-            ),
-            Expanded(
-              child: Column(
-                children: [
-                  if (_discoveredPlanets.isNotEmpty)
-                    SizedBox(
-                      height: 146,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        child: _PlanetCarousel(
-                          planets: _discoveredPlanets,
-                          selectedIndex: _planetIndex,
-                          onChanged: (i) {
-                            setState(() => _planetIndex = i);
-                            HapticFeedback.selectionClick();
-                          },
-                          onNavigate: _navigateToSelected,
+            // ── Top row: home | title block | close ──────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Home button
+                if (hasHomePlanet)
+                  _IconBtn(
+                    icon: Icons.home_rounded,
+                    onTap: onGoHome,
+                    accent: const Color(0xFFF6D55C),
+                    tooltip: 'Home',
+                  )
+                else
+                  const SizedBox(width: 42),
+
+                const SizedBox(width: 12),
+
+                // Title + subtitle
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Decorative top rule
+                      Row(
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 1,
+                            color: const Color(
+                              0xFF00C6FF,
+                            ).withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'COSMIC NAVIGATION',
+                            style: TextStyle(
+                              color: const Color(
+                                0xFF00C6FF,
+                              ).withValues(alpha: 0.55),
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 2.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      // Main title with gradient-ish layering
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Color(0xFFE8F4FF), Color(0xFF8DB8D8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        child: const Text(
+                          'STAR MAP',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 3.5,
+                            height: 1.0,
+                          ),
                         ),
                       ),
-                    ),
-                  Expanded(
-                    flex: 2,
-                    child: _MapView(
-                      world: widget.world,
-                      game: widget.game,
-                      markers: widget.markers,
-                      transformCtrl: _transformCtrl,
-                      onTapUp: _handleTapUp,
-                      onLongPress: _handleLongPress,
-                      showAllContestArenas:
-                          widget.debugShowAllContestArenasOnMap,
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // Close button
+                _IconBtn(
+                  icon: Icons.close_rounded,
+                  onTap: onClose,
+                  accent: Colors.white,
+                  tooltip: 'Close',
+                ),
+              ],
             ),
-            _Legend(
-              markerMode: _markerMode,
-              showContestTip: widget.debugEnableContestArenaTeleport,
+
+            const SizedBox(height: 10),
+
+            // ── Stats row ────────────────────────────────────────────────────
+            Row(
+              children: [
+                _StatChip(
+                  icon: Icons.public_rounded,
+                  label: '$discoveredCount PLANETS',
+                  color: const Color(0xFF4FC3F7),
+                ),
+                const SizedBox(width: 8),
+                _StatChip(
+                  icon: Icons.push_pin_rounded,
+                  label: '$markerCount MARKERS',
+                  color: const Color(0xFFA5D6A7),
+                ),
+                const Spacer(),
+                // Tiny coordinate-style decoration
+                Text(
+                  '${DateTime.now().millisecondsSinceEpoch % 9999 + 1000} LY',
+                  style: TextStyle(
+                    color: const Color(0xFF00C6FF).withValues(alpha: 0.3),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.4,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -270,82 +574,76 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HEADER
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.hasHomePlanet,
-    required this.onGoHome,
-    required this.onClose,
-  });
-
-  final bool hasHomePlanet;
-  final VoidCallback onGoHome;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          if (hasHomePlanet)
-            _MapHeaderButton(
-              icon: Icons.home_rounded,
-              onTap: onGoHome,
-              accent: const Color(0xFFF6D55C),
-            )
-          else
-            const SizedBox(width: 48),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'STAR MAP',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-          _MapHeaderButton(
-            icon: Icons.close_rounded,
-            onTap: onClose,
-            accent: Colors.white,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MapHeaderButton extends StatelessWidget {
-  const _MapHeaderButton({
+class _IconBtn extends StatelessWidget {
+  const _IconBtn({
     required this.icon,
     required this.onTap,
     required this.accent,
+    required this.tooltip,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final Color accent;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       child: Container(
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: const Color(0xFF121A24).withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: accent.withValues(alpha: 0.34), width: 1.2),
+          color: accent.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: accent.withValues(alpha: 0.28), width: 1.0),
         ),
-        child: Icon(icon, color: accent.withValues(alpha: 0.92), size: 24),
+        child: Icon(icon, color: accent.withValues(alpha: 0.88), size: 22),
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1.0),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color.withValues(alpha: 0.7), size: 11),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color.withValues(alpha: 0.75),
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -377,14 +675,18 @@ class _MarkerToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       child: Row(
         children: [
           GestureDetector(
-            onTap: onToggleMode,
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onToggleMode();
+            },
             child: Container(
-              width: 34,
-              height: 34,
+              width: 38,
+              height: 38,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: markerMode ? Colors.white24 : Colors.white10,
@@ -400,8 +702,8 @@ class _MarkerToolbar extends StatelessWidget {
                 Icons.push_pin,
                 color: markerMode
                     ? MapMarker.colors[selectedColor]
-                    : Colors.white54,
-                size: 16,
+                    : Colors.white38,
+                size: 15,
               ),
             ),
           ),
@@ -409,10 +711,14 @@ class _MarkerToolbar extends StatelessWidget {
             const SizedBox(width: 8),
             for (var i = 0; i < 3; i++) ...[
               GestureDetector(
-                onTap: () => onSelectColor(i),
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onSelectColor(i);
+                },
                 child: Container(
-                  width: 28,
-                  height: 28,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: MapMarker.colors[i].withValues(
                       alpha: selectedColor == i && markerMode ? 0.9 : 0.35,
@@ -430,15 +736,19 @@ class _MarkerToolbar extends StatelessWidget {
           const Spacer(),
           if (hasMarkers)
             GestureDetector(
-              onTap: onClearAll,
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                onClearAll();
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
+                  horizontal: 11,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(7),
                 ),
                 child: const Text(
                   'CLEAR ALL',
@@ -458,298 +768,169 @@ class _MarkerToolbar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PLANET CAROUSEL
+// PLANET CAROUSEL  (flat horizontal scroll — one row, bigger planets)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PlanetCarousel extends StatefulWidget {
   const _PlanetCarousel({
     required this.planets,
     required this.selectedIndex,
+    required this.scrollController,
     required this.onChanged,
-    required this.onNavigate,
   });
 
   final List<CosmicPlanet> planets;
   final int selectedIndex;
+  final ScrollController scrollController;
   final ValueChanged<int> onChanged;
-  final VoidCallback onNavigate;
 
   @override
   State<_PlanetCarousel> createState() => _PlanetCarouselState();
 }
 
 class _PlanetCarouselState extends State<_PlanetCarousel> {
-  late final PageController _ctrl;
-
-  static const double _centerSize = 78.0;
-  static const double _sideSize = 32.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = PageController(
-      initialPage: widget.selectedIndex,
-      viewportFraction: 0.34,
-    );
-  }
+  static const double _cardW = 112.0;
+  static const double _cardGap = 12.0;
+  static const double _cardExtent = _cardW + _cardGap; // 90
+  bool _didPrimeScroll = false;
 
   @override
   void didUpdateWidget(_PlanetCarousel old) {
     super.didUpdateWidget(old);
-    if (old.selectedIndex != widget.selectedIndex && _ctrl.hasClients) {
-      _ctrl.animateToPage(
-        widget.selectedIndex,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
+    if (old.selectedIndex != widget.selectedIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToSelected();
+      });
     }
   }
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  // With sidePad on both ends the scroll offset that centres card[i] is:
+  //   i * _cardExtent   (sidePad cancels out — card 0 starts at scrollOffset 0)
+  void _scrollToSelected() {
+    if (!widget.scrollController.hasClients) return;
+    final pos = widget.scrollController.position;
+    final target = (widget.selectedIndex * _cardExtent).clamp(
+      pos.minScrollExtent,
+      pos.maxScrollExtent,
+    );
+    widget.scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final planets = widget.planets;
     if (planets.isEmpty) return const SizedBox.shrink();
-    final selected = planets[widget.selectedIndex];
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Expanded(
-          child: AnimatedBuilder(
-            animation: _ctrl,
-            builder: (context, child) {
-              final currentPage = _ctrl.hasClients
-                  ? (_ctrl.page ?? widget.selectedIndex.toDouble())
-                  : widget.selectedIndex.toDouble();
+    if (!_didPrimeScroll) {
+      _didPrimeScroll = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !widget.scrollController.hasClients) return;
+        final pos = widget.scrollController.position;
+        final target = (widget.selectedIndex * _cardExtent).clamp(
+          pos.minScrollExtent,
+          pos.maxScrollExtent,
+        );
+        widget.scrollController.jumpTo(target);
+      });
+    }
 
-              return Column(
-                children: [
-                  Expanded(
-                    child: RepaintBoundary(
-                      child: PageView.builder(
-                        controller: _ctrl,
-                        itemCount: planets.length,
-                        onPageChanged: widget.onChanged,
-                        itemBuilder: (context, index) {
-                          final rawDist = (currentPage - index).abs().clamp(
-                            0.0,
-                            1.0,
-                          );
-                          final eased = Curves.easeOutCubic.transform(
-                            1.0 - rawDist,
-                          );
-                          final isCenter = index == currentPage.round();
-
-                          final size =
-                              _sideSize + (_centerSize - _sideSize) * eased;
-                          final vertLift = (1.0 - eased) * 8.0;
-                          final alpha = 0.28 + eased * 0.72;
-
-                          return _PlanetCarouselCard(
-                            planet: planets[index],
-                            size: size,
-                            alpha: alpha,
-                            isCenter: isCenter,
-                            verticalLift: vertLift,
-                            onTap: () => isCenter
-                                ? widget.onNavigate()
-                                : _ctrl.animateToPage(
-                                    index,
-                                    duration: const Duration(milliseconds: 260),
-                                    curve: Curves.easeOutCubic,
-                                  ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  _PipRow(
-                    count: planets.length,
-                    page: currentPage,
-                    color: selected.color,
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 4),
-        GestureDetector(
-          onTap: widget.onNavigate,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            height: 26,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: selected.color.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: selected.color.withValues(alpha: 0.5),
-                width: 1.0,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // sidePad centres card[0] in the viewport; gap is baked into each item
+        final sidePad = (constraints.maxWidth - _cardW) / 2;
+        return ListView.builder(
+          controller: widget.scrollController,
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          // padding adds sidePad on left; right side handled by last item margin
+          padding: EdgeInsets.only(left: sidePad),
+          itemCount: planets.length,
+          itemBuilder: (context, index) {
+            final planet = planets[index];
+            final isSelected = index == widget.selectedIndex;
+            // Every card except the last gets a right margin equal to _cardGap
+            final isLast = index == planets.length - 1;
+            return Padding(
+              padding: EdgeInsets.only(right: isLast ? sidePad : _cardGap),
+              child: _PlanetCard(
+                planet: planet,
+                isSelected: isSelected,
+                onTap: () => widget.onChanged(index),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.navigation_rounded, color: selected.color, size: 11),
-                const SizedBox(width: 5),
-                Text(
-                  'NAVIGATE TO PLANET',
-                  style: TextStyle(
-                    color: selected.color,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.7,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+            );
+          },
+        );
+      },
     );
   }
 }
 
-class _PlanetCarouselCard extends StatelessWidget {
-  const _PlanetCarouselCard({
+// ── Single planet card ────────────────────────────────────────────────────────
+
+class _PlanetCard extends StatelessWidget {
+  const _PlanetCard({
     required this.planet,
-    required this.size,
-    required this.alpha,
-    required this.isCenter,
-    required this.verticalLift,
+    required this.isSelected,
     required this.onTap,
   });
 
   final CosmicPlanet planet;
-  final double size;
-  final double alpha;
-  final bool isCenter;
-  final double verticalLift;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final textColor = isCenter
-        ? Colors.white.withValues(alpha: alpha)
-        : Colors.white.withValues(alpha: 0.38 * alpha);
-    final showDetailedPreview = isCenter || size >= 70;
+    const globeSize = 82.0;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Center(
-        child: Transform.translate(
-          offset: Offset(0, verticalLift),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RepaintBoundary(
-                child: SizedBox(
-                  width: size,
-                  height: size,
-                  child: showDetailedPreview
-                      ? CustomPaint(
-                          painter: _PlanetPreviewPainter(
-                            planet: planet,
-                            spin: 0,
-                            highlighted: isCenter,
-                            explicitRadius: size * 0.38,
-                            alpha: alpha,
-                          ),
-                        )
-                      : _PlanetPreviewDisc(
-                          color: planet.color,
-                          size: size,
-                          alpha: alpha,
-                        ),
-                ),
-              ),
-              const SizedBox(height: 2),
-              SizedBox(
-                width: size + 12,
-                child: Text(
-                  planetName(planet.element).toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: isCenter ? 8.5 : 6.8,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: isCenter ? 0.8 : 0.55,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: SizedBox(
+        width: 112,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Globe
+            RepaintBoundary(
+              child: SizedBox(
+                width: globeSize,
+                height: globeSize,
+                child: CustomPaint(
+                  isComplex: true,
+                  painter: _PlanetPreviewPainter(
+                    planet: planet,
+                    spin: 0,
+                    highlighted: isSelected,
+                    explicitRadius: 31,
+                    alpha: isSelected ? 1.0 : 0.5,
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlanetPreviewDisc extends StatelessWidget {
-  const _PlanetPreviewDisc({
-    required this.color,
-    required this.size,
-    required this.alpha,
-  });
-
-  final Color color;
-  final double size;
-  final double alpha;
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = size * 0.38;
-    return Center(
-      child: SizedBox(
-        width: radius * 2.8,
-        height: radius * 2.8,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: radius * 2.5,
-              height: radius * 2.5,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: color.withValues(alpha: 0.10 * alpha),
-                  width: radius * 0.22,
-                ),
-              ),
             ),
-            Container(
-              width: radius * 2,
-              height: radius * 2,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Color.lerp(
-                      color,
-                      Colors.white,
-                      0.32,
-                    )!.withValues(alpha: alpha),
-                    color.withValues(alpha: alpha),
-                    Color.lerp(
-                      color,
-                      Colors.black,
-                      0.45,
-                    )!.withValues(alpha: alpha),
-                  ],
-                  stops: const [0.0, 0.58, 1.0],
-                  center: const Alignment(-0.35, -0.35),
-                  radius: 1.05,
+            const SizedBox(height: 8),
+            // Name
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                planetName(planet.element).toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.92)
+                      : Colors.white.withValues(alpha: 0.3),
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.7,
                 ),
               ),
             ),
@@ -760,42 +941,178 @@ class _PlanetPreviewDisc extends StatelessWidget {
   }
 }
 
-// ─── Pip row ──────────────────────────────────────────────────────────────────
+// ── Navigate button (single, below carousel) ──────────────────────────────────
 
-class _PipRow extends StatelessWidget {
-  const _PipRow({required this.count, required this.page, required this.color});
+class _NavigateButton extends StatelessWidget {
+  const _NavigateButton({required this.planet, required this.onTap});
 
-  final int count;
-  final double page;
-  final Color color;
+  final CosmicPlanet planet;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    if (count > 17) {
-      return Text(
-        'Planet ${page.round() + 1} of $count',
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.45),
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(count, (i) {
-        final t = (1.0 - (page - i).abs()).clamp(0.0, 1.0);
-        return Container(
-          width: 6.0 + t * 16.0,
-          height: 5,
-          margin: const EdgeInsets.symmetric(horizontal: 2.5),
+    final col = planet.color;
+    return Center(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.28 + t * 0.72),
-            borderRadius: BorderRadius.circular(3),
+            color: col.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: col.withValues(alpha: 0.4), width: 1.0),
           ),
-        );
-      }),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.navigation_rounded, color: col, size: 12),
+              const SizedBox(width: 6),
+              Text(
+                'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
+                style: TextStyle(
+                  color: col,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TravelPromptCard extends StatelessWidget {
+  const _TravelPromptCard({
+    required this.prompt,
+    required this.onDismiss,
+    required this.onConfirm,
+  });
+
+  final _MiniMapTravelPromptData prompt;
+  final VoidCallback onDismiss;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = prompt.accent;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1122).withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.4), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+              border: Border.all(color: accent.withValues(alpha: 0.32)),
+            ),
+            child: Icon(prompt.icon, color: accent, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  prompt.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.9,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  prompt.subtitle.toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onDismiss();
+            },
+            child: Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.close_rounded,
+                color: Colors.white.withValues(alpha: 0.45),
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              onConfirm();
+            },
+            child: Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: accent.withValues(alpha: 0.55)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.navigation_rounded, color: accent, size: 13),
+                  const SizedBox(width: 6),
+                  Text(
+                    'TRAVEL',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.9,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -810,8 +1127,10 @@ class _MapView extends StatelessWidget {
     required this.game,
     required this.markers,
     required this.transformCtrl,
+    required this.onTapDown,
     required this.onTapUp,
     required this.onLongPress,
+    required this.onViewportReady,
     required this.showAllContestArenas,
   });
 
@@ -819,47 +1138,58 @@ class _MapView extends StatelessWidget {
   final CosmicGame game;
   final List<MapMarker> markers;
   final TransformationController transformCtrl;
+  final void Function(TapDownDetails, double) onTapDown;
   final void Function(TapUpDetails, double) onTapUp;
   final void Function(LongPressStartDetails, double) onLongPress;
+  final void Function({required double viewportSize, required double scale})
+  onViewportReady;
   final bool showAllContestArenas;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final fitSize = min(constraints.maxWidth, constraints.maxHeight);
           final scale =
               fitSize / max(world.worldSize.width, world.worldSize.height);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            onViewportReady(viewportSize: fitSize, scale: scale);
+          });
 
           return Center(
             child: SizedBox(
               width: fitSize,
               height: fitSize,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: InteractiveViewer(
-                  transformationController: transformCtrl,
-                  minScale: 1.0,
-                  maxScale: 8.0,
-                  boundaryMargin: EdgeInsets.zero,
-                  child: GestureDetector(
-                    onTapUp: (d) => onTapUp(d, scale),
-                    onLongPressStart: (d) => onLongPress(d, scale),
-                    child: CustomPaint(
-                      size: Size(fitSize, fitSize),
-                      painter: _MiniMapPainter(
-                        world: world,
-                        game: game,
-                        scale: scale,
-                        shipPos: game.ship.pos,
-                        revealedCellCount: game.revealedCells.length,
-                        discoveredPlanetCount: world.planets
-                            .where((p) => p.discovered)
-                            .length,
-                        showAllContestArenasOnMap: showAllContestArenas,
-                        markers: markers,
+                borderRadius: BorderRadius.circular(14),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (d) => onTapDown(d, scale),
+                  onTapUp: (d) => onTapUp(d, scale),
+                  onLongPressStart: (d) => onLongPress(d, scale),
+                  child: InteractiveViewer(
+                    transformationController: transformCtrl,
+                    minScale: 1.0,
+                    maxScale: 8.0,
+                    boundaryMargin: EdgeInsets.zero,
+                    child: RepaintBoundary(
+                      child: CustomPaint(
+                        isComplex: true,
+                        size: Size(fitSize, fitSize),
+                        painter: _MiniMapPainter(
+                          world: world,
+                          game: game,
+                          scale: scale,
+                          shipPos: game.ship.pos,
+                          revealedCellCount: game.revealedCells.length,
+                          discoveredPlanetCount: world.planets
+                              .where((p) => p.discovered)
+                              .length,
+                          showAllContestArenasOnMap: showAllContestArenas,
+                          markers: markers,
+                        ),
                       ),
                     ),
                   ),
@@ -887,10 +1217,18 @@ class _Legend extends StatelessWidget {
     final hint = markerMode
         ? 'Tap to place marker  •  Long-press to remove'
         : showContestTip
-        ? 'Tap planet/market/contest to teleport  •  Pinch to zoom  •  Drag to pan'
-        : 'Tap planet/market to teleport  •  Pinch to zoom  •  Drag to pan';
+        ? 'Tap destination, then travel  •  Pinch to zoom'
+        : 'Tap destination, then travel  •  Pinch to zoom  •  Drag to pan';
 
-    return Padding(
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: const Color(0xFF1E3A5F).withValues(alpha: 0.5),
+            width: 1,
+          ),
+        ),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -898,17 +1236,18 @@ class _Legend extends StatelessWidget {
           Text(
             hint,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.4),
-              fontSize: 11,
+              color: Colors.white.withValues(alpha: 0.35),
+              fontSize: 10,
               fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
-            'Tip: Long-press the map icon (or mini-map) to toggle it.',
+            'Tip: Long-press the map icon to toggle it.',
             style: TextStyle(
-              color: Colors.amber.withValues(alpha: 0.75),
-              fontSize: 10,
+              color: Colors.amber.withValues(alpha: 0.65),
+              fontSize: 9.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -937,7 +1276,6 @@ class _PlanetPreviewPainter extends CustomPainter {
   final double? explicitRadius;
   final double alpha;
 
-  // Shared helper — draws a sphere with radial gradient shading.
   static void _drawSphere(
     Canvas c,
     Offset p,
@@ -973,7 +1311,6 @@ class _PlanetPreviewPainter extends CustomPainter {
     final glowA = highlighted ? 0.13 : 0.07;
     final showDetail = highlighted || r >= 30;
 
-    // Soft halo without blur to avoid expensive offscreen rasterization.
     canvas.drawCircle(
       c,
       r * (highlighted ? 1.55 : 1.3),
@@ -1445,8 +1782,6 @@ class _MiniMapPainter extends CustomPainter {
   final bool showAllContestArenasOnMap;
   final List<MapMarker> markers;
 
-  // ── helpers ────────────────────────────────────────────────────────────────
-
   static TextPainter _tp(
     String text,
     TextStyle style, {
@@ -1495,11 +1830,10 @@ class _MiniMapPainter extends CustomPainter {
     for (int i = 0; i < 6; i++) {
       final a = pi / 3 * i - pi / 6;
       final pt = Offset(pos.dx + 5.0 * cos(a), pos.dy + 5.0 * sin(a));
-      if (i == 0) {
+      if (i == 0)
         hexPath.moveTo(pt.dx, pt.dy);
-      } else {
+      else
         hexPath.lineTo(pt.dx, pt.dy);
-      }
     }
     hexPath.close();
     canvas
@@ -1513,32 +1847,33 @@ class _MiniMapPainter extends CustomPainter {
       );
   }
 
-  // ── paint ──────────────────────────────────────────────────────────────────
-
   @override
   void paint(Canvas canvas, Size size) {
     // Background
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = const Color(0xFF060820),
+      Paint()..color = const Color(0xFF040613),
     );
 
     // Revealed fog cells
     final fogCellScaled = CosmicGame.fogCellSize * scale;
     final gridW = (world.worldSize.width / CosmicGame.fogCellSize).ceil();
-    final revealPaint = Paint()..color = const Color(0xFF0C1030);
+    final revealPaint = Paint()..color = const Color(0xFF141C46);
+    final revealEdgePaint = Paint()
+      ..color = const Color(0x331E2D70)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
     for (final key in game.revealedCells) {
       final gx = key % gridW;
       final gy = key ~/ gridW;
-      canvas.drawRect(
-        Rect.fromLTWH(
-          gx * fogCellScaled,
-          gy * fogCellScaled,
-          fogCellScaled,
-          fogCellScaled,
-        ),
-        revealPaint,
+      final rect = Rect.fromLTWH(
+        gx * fogCellScaled,
+        gy * fogCellScaled,
+        fogCellScaled,
+        fogCellScaled,
       );
+      canvas.drawRect(rect, revealPaint);
+      canvas.drawRect(rect.deflate(0.2), revealEdgePaint);
     }
 
     // Planets
@@ -1634,7 +1969,6 @@ class _MiniMapPainter extends CustomPainter {
         );
       }
       canvas.drawCircle(wPos, 2, Paint()..color = wColor);
-
       _paintLabel(
         canvas,
         'Lv${whirl.level} ${whirl.hordeTypeName}',
@@ -1700,9 +2034,8 @@ class _MiniMapPainter extends CustomPainter {
 
     // Space POIs
     for (final poi in game.spacePOIs) {
-      if (poi.type == POIType.comet || poi.type == POIType.stardustScanner) {
+      if (poi.type == POIType.comet || poi.type == POIType.stardustScanner)
         continue;
-      }
 
       final isMarket =
           poi.type == POIType.harvesterMarket ||
@@ -1894,11 +2227,10 @@ class _MiniMapPainter extends CustomPainter {
       for (var i = 0; i < 8; i++) {
         final a = i * pi / 4 - pi / 8;
         final pt = Offset(brPos.dx + cos(a) * 8, brPos.dy + sin(a) * 8);
-        if (i == 0) {
+        if (i == 0)
           octPath.moveTo(pt.dx, pt.dy);
-        } else {
+        else
           octPath.lineTo(pt.dx, pt.dy);
-        }
       }
       octPath.close();
       canvas

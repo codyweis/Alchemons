@@ -23,6 +23,7 @@ class AllSpecimensPage extends StatefulWidget {
   final bool showFloatingCloseButton;
   final List<String> allowedPrimaryTypes;
   final bool closeReturnsSelection;
+  final String? instancePrefsScopeKey;
 
   const AllSpecimensPage({
     super.key,
@@ -41,6 +42,7 @@ class AllSpecimensPage extends StatefulWidget {
     this.showFloatingCloseButton = true,
     this.allowedPrimaryTypes = const [],
     this.closeReturnsSelection = false,
+    this.instancePrefsScopeKey,
   });
 
   @override
@@ -211,6 +213,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage>
         body: SafeArea(
           child: AllCreatureInstances(
             theme: theme,
+            prefsScopeKey: widget.instancePrefsScopeKey,
             selectedInstanceIds: widget.selectedInstanceIds,
             allowedPrimaryTypes: widget.allowedPrimaryTypes,
             searchTextOverride: _searchText,

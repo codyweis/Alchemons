@@ -98,6 +98,7 @@ class CosmicGame extends FlameGame with PanDetector {
   SpacePOI? nearMarket;
   int? _starDustScannerTargetIndex;
   int? _scannerCompletedDustIndex;
+  int? _planetScannerTargetIndex;
 
   late ShipComponent ship;
   // Loaded effect prototypes from assets
@@ -472,6 +473,7 @@ class CosmicGame extends FlameGame with PanDetector {
       planets: world_.planets,
     );
     syncStarDustScannerAvailability();
+    syncPlanetScannerAvailability();
 
     // Generate initial boss lairs (3-4 spread around the world)
     final lairRng = Random(world_.planets.first.element.hashCode ^ 0xCC33);
@@ -550,8 +552,15 @@ class CosmicGame extends FlameGame with PanDetector {
     joystickDirection = null;
   }
 
+  /// Clear any live steering input so movement does not continue after jumps.
+  void clearSteeringInput() {
+    _dragTarget = null;
+    joystickDirection = null;
+  }
+
   /// Teleport ship directly (for mini-map clicks).
   void teleportTo(Offset worldPos) {
+    clearSteeringInput();
     ship.pos = worldPos;
     _revealAround(ship.pos, 300);
   }
@@ -931,16 +940,24 @@ class CosmicGame extends FlameGame with PanDetector {
     _revealAround(ship.pos, 280);
 
     // ── discover planets ──
+    var discoveredPlanetThisFrame = false;
     for (var i = 0; i < world_.planets.length; i++) {
       final p = world_.planets[i];
       if (!p.discovered) {
         final dist = (p.position - ship.pos).distance;
         if (dist < p.radius + 200) {
           p.discovered = true;
+          discoveredPlanetThisFrame = true;
+          if (_planetScannerTargetIndex == i) {
+            _planetScannerTargetIndex = null;
+          }
           // Guarantee a boss on first discovery
           _spawnDiscoveryBoss(p);
         }
       }
+    }
+    if (discoveredPlanetThisFrame) {
+      syncPlanetScannerAvailability();
     }
 
     // ── detect nearest planet for recipe HUD ──
@@ -972,7 +989,8 @@ class CosmicGame extends FlameGame with PanDetector {
       if (poi.type != POIType.harvesterMarket &&
           poi.type != POIType.riftKeyMarket &&
           poi.type != POIType.cosmicMarket &&
-          poi.type != POIType.stardustScanner) {
+          poi.type != POIType.stardustScanner &&
+          poi.type != POIType.planetScanner) {
         continue;
       }
       var mdx = poi.position.dx - ship.pos.dx;
@@ -1306,16 +1324,16 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
       // Check collision with enemies
-      final missileMult = HomeCustomizationState.damageMultiplier(
-        missileUpgradeLevel,
-      );
       bool missileHit = false;
       for (final e in enemies) {
         if (e.dead) continue;
         final edx = m.position.dx - e.position.dx;
         final edy = m.position.dy - e.position.dy;
         if (edx * edx + edy * edy < (e.radius + 6) * (e.radius + 6)) {
-          e.health -= 3.8 * missileMult;
+          e.health -= HomeCustomizationState.missileHitDamage(
+            level: missileUpgradeLevel,
+            vsBoss: false,
+          );
           _spawnHitSpark(m.position, const Color(0xFFFF6F00));
           if (!e.provoked &&
               (e.behavior == EnemyBehavior.feeding ||
@@ -1339,14 +1357,20 @@ class CosmicGame extends FlameGame with PanDetector {
         final bdy = m.position.dy - boss.position.dy;
         if (bdx * bdx + bdy * bdy < (boss.radius + 6) * (boss.radius + 6)) {
           if (boss.shieldUp && boss.type == BossType.gunner) {
-            boss.shieldHealth -= 3.8 * missileMult;
+            boss.shieldHealth -= HomeCustomizationState.missileHitDamage(
+              level: missileUpgradeLevel,
+              vsBoss: true,
+            );
             _spawnHitSpark(m.position, Colors.cyanAccent);
             if (boss.shieldHealth <= 0) {
               boss.shieldUp = false;
               boss.shieldTimer = CosmicBoss.shieldCooldown;
             }
           } else {
-            boss.health -= 3.8 * missileMult;
+            boss.health -= HomeCustomizationState.missileHitDamage(
+              level: missileUpgradeLevel,
+              vsBoss: true,
+            );
             _spawnHitSpark(m.position, const Color(0xFFFF6F00));
             if (boss.health <= 0) {
               _handleBossKill(boss);
@@ -1437,11 +1461,11 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // ── projectile vs asteroid collision ──
-      final ammoMult = HomeCustomizationState.damageMultiplier(
-        ammoUpgradeLevel,
+      final isMachineGun = activeWeaponId == 'equip_machinegun';
+      final projDmg = HomeCustomizationState.shipProjectileAsteroidDamage(
+        level: ammoUpgradeLevel,
+        machineGun: isMachineGun,
       );
-      final projDmg =
-          (activeWeaponId == 'equip_machinegun' ? 0.12 : 0.28) * ammoMult;
       for (final rock in asteroidBelt.asteroids) {
         if (rock.destroyed) continue;
         final rdx = p.position.dx - rock.position.dx;
@@ -1484,10 +1508,10 @@ class CosmicGame extends FlameGame with PanDetector {
           final hitR = enemy.radius + Projectile.radius;
           if (edx * edx + edy * edy < hitR * hitR) {
             // Machine gun: lower damage per shot but rapid fire
-            final eDmg =
-                ((activeWeaponId == 'equip_machinegun' ? 0.28 : 0.8) *
-                    HomeCustomizationState.damageMultiplier(ammoUpgradeLevel)) *
-                kDamageScale;
+            final eDmg = HomeCustomizationState.shipProjectileHitDamage(
+              level: ammoUpgradeLevel,
+              machineGun: isMachineGun,
+            );
             enemy.health -= eDmg;
             // Hit spark
             _spawnHitSpark(p.position, elementColor(enemy.element));
@@ -1531,10 +1555,10 @@ class CosmicGame extends FlameGame with PanDetector {
           final rdy = p.position.dy - rm.position.dy;
           final rHitR = rm.radius + Projectile.radius;
           if (rdx * rdx + rdy * rdy < rHitR * rHitR) {
-            final projDmg =
-                ((activeWeaponId == 'equip_machinegun' ? 0.28 : 0.8) *
-                    HomeCustomizationState.damageMultiplier(ammoUpgradeLevel)) *
-                kDamageScale;
+            final projDmg = HomeCustomizationState.shipProjectileHitDamage(
+              level: ammoUpgradeLevel,
+              machineGun: isMachineGun,
+            );
             rm.health -= projDmg;
             _spawnHitSpark(p.position, elementColor(rm.element));
             projectiles.removeAt(i);
@@ -1580,10 +1604,10 @@ class CosmicGame extends FlameGame with PanDetector {
         final bHitR = boss.radius + Projectile.radius;
         if (bdx * bdx + bdy * bdy < bHitR * bHitR) {
           // Gunner shield absorbs damage
-          final projBossDmg =
-              (0.8 *
-                  HomeCustomizationState.damageMultiplier(ammoUpgradeLevel)) *
-              kDamageScale;
+          final projBossDmg = HomeCustomizationState.shipProjectileHitDamage(
+            level: ammoUpgradeLevel,
+            machineGun: isMachineGun,
+          );
           if (boss.shieldUp && boss.type == BossType.gunner) {
             boss.shieldHealth -= projBossDmg;
             _spawnHitSpark(p.position, Colors.cyanAccent);
@@ -2174,6 +2198,9 @@ class CosmicGame extends FlameGame with PanDetector {
               radiusMultiplier: 1.5,
               piercing: true,
               visualScale: 1.0,
+              visualStyle: p.visualStyle == ProjectileVisualStyle.letShard
+                  ? ProjectileVisualStyle.letShard
+                  : ProjectileVisualStyle.standard,
             ),
           );
         }
@@ -2407,6 +2434,9 @@ class CosmicGame extends FlameGame with PanDetector {
                 radiusMultiplier: 1.5,
                 piercing: true,
                 visualScale: 1.0,
+                visualStyle: p.visualStyle == ProjectileVisualStyle.letShard
+                    ? ProjectileVisualStyle.letShard
+                    : ProjectileVisualStyle.standard,
               ),
             );
           }
@@ -2688,8 +2718,11 @@ class CosmicGame extends FlameGame with PanDetector {
           }
         }
 
-        if (nearestEnemy != null ||
-            (activeBoss != null && nearestDist < acquireRange)) {
+        final hasCombatTarget =
+            nearestEnemy != null ||
+            (activeBoss != null && nearestDist < acquireRange);
+
+        if (hasCombatTarget) {
           // ── Chase & attack ──
           final targetPos = nearestEnemy?.position ?? activeBoss!.position;
           final toTarget = targetPos - g.position;
@@ -2764,10 +2797,28 @@ class CosmicGame extends FlameGame with PanDetector {
           );
           final toW = wanderTarget - g.position;
           final wDist = toW.distance;
+          final fromCenterNow = g.position - hpCenter;
+          final radialDist = fromCenterNow.distance;
+          final laneBandMin = max(hp.visualRadius + 20.0, g.guardRadius - 18.0);
+          final laneBandMax = g.guardRadius + 18.0;
+          final needsLaneRecovery =
+              radialDist < laneBandMin || radialDist > laneBandMax;
           if (wDist > 1.0) {
-            final step = (_GarrisonCreature.wanderSpeed * 1.4) * dt;
+            final step =
+                (needsLaneRecovery
+                    ? 220.0
+                    : _GarrisonCreature.wanderSpeed * 1.4) *
+                dt;
             g.position += (toW / wDist) * min(step, wDist);
             g.faceAngle = atan2(toW.dy, toW.dx);
+          }
+          final correctedFromCenter = g.position - hpCenter;
+          final correctedDist = correctedFromCenter.distance;
+          if (correctedDist < laneBandMin) {
+            final laneDir = correctedDist > 0.001
+                ? correctedFromCenter / correctedDist
+                : Offset(cos(orbitAngle), sin(orbitAngle));
+            g.position = hpCenter + laneDir * laneBandMin;
           }
           g.wanderAngle = orbitAngle + pi / 2;
         }
@@ -3544,7 +3595,8 @@ class CosmicGame extends FlameGame with PanDetector {
       if (poi.type == POIType.harvesterMarket ||
           poi.type == POIType.riftKeyMarket ||
           poi.type == POIType.cosmicMarket ||
-          poi.type == POIType.stardustScanner) {
+          poi.type == POIType.stardustScanner ||
+          poi.type == POIType.planetScanner) {
         continue;
       }
 
@@ -3583,6 +3635,7 @@ class CosmicGame extends FlameGame with PanDetector {
           case POIType.riftKeyMarket:
           case POIType.cosmicMarket:
           case POIType.stardustScanner:
+          case POIType.planetScanner:
             // Markets are handled via nearMarket proximity, not one-shot.
             break;
           case POIType.warpAnomaly:
@@ -4691,13 +4744,16 @@ class CosmicGame extends FlameGame with PanDetector {
         case POIType.riftKeyMarket:
         case POIType.cosmicMarket:
         case POIType.stardustScanner:
+        case POIType.planetScanner:
           final mColor = poi.type == POIType.harvesterMarket
               ? const Color(0xFFFFB300) // amber/gold
               : poi.type == POIType.riftKeyMarket
               ? const Color(0xFF7C4DFF) // purple
               : poi.type == POIType.cosmicMarket
               ? const Color(0xFF00E5FF) // cyan/teal for cosmic
-              : const Color(0xFF9CCC65); // green for scanner
+              : poi.type == POIType.stardustScanner
+              ? const Color(0xFF9CCC65) // green for stardust
+              : const Color(0xFF64B5F6); // blue for planet scanner
           // Rotating hexagonal station
           canvas.save();
           canvas.translate(pp.dx, pp.dy);
@@ -4763,7 +4819,9 @@ class CosmicGame extends FlameGame with PanDetector {
               ? 'RIFT KEY SHOP'
               : poi.type == POIType.cosmicMarket
               ? 'COSMIC MARKET'
-              : 'STAR DUST SCANNER';
+              : poi.type == POIType.stardustScanner
+              ? 'STAR DUST SCANNER'
+              : 'PLANET SCANNER';
           final mTp = TextPainter(
             text: TextSpan(
               text: marketLabel,
@@ -4802,7 +4860,7 @@ class CosmicGame extends FlameGame with PanDetector {
         );
         // Dark void core
         canvas.drawCircle(rp, 28, Paint()..color = core);
-        // Pulsing rings (faction-coloured)
+        // Pulsing rings (faction-colored)
         for (var i = 0; i < 3; i++) {
           final ringR = 30.0 + i * 12 + 4 * sin(_riftPulse * 2 + i);
           canvas.drawCircle(
@@ -5317,6 +5375,7 @@ class CosmicGame extends FlameGame with PanDetector {
       final r = chamber.radius;
       final col = chamber.color;
       final pulse = 1.0 + sin(chamber.life * 1.5 + chamber.seed) * 0.15;
+      final chamberVisuals = chamber.spriteVisuals;
 
       // 1. Outer aura (pulsing glow)
       canvas.drawCircle(
@@ -5326,6 +5385,18 @@ class CosmicGame extends FlameGame with PanDetector {
           ..color = col.withValues(alpha: 0.18)
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 1.5),
       );
+
+      if (chamberVisuals?.alchemyEffect != null) {
+        _drawAlchemyEffectCanvas(
+          canvas: canvas,
+          effect: chamberVisuals!.alchemyEffect!,
+          spriteScale: (r * 1.7) / 40.0,
+          baseSpriteSize: 40.0,
+          variantFaction: chamberVisuals.variantFaction,
+          elapsed: _elapsed + chamber.seed,
+          opacity: 0.9,
+        );
+      }
 
       // 2. Glass orb body — radial gradient sphere
       final bodyPaint = Paint()
@@ -5345,6 +5416,16 @@ class CosmicGame extends FlameGame with PanDetector {
       if (chamber.imagePath != null &&
           _chamberSpriteCache.containsKey(chamber.imagePath)) {
         final img = _chamberSpriteCache[chamber.imagePath]!;
+        final paint = Paint()..filterQuality = ui.FilterQuality.high;
+        if (chamberVisuals != null) {
+          final isAlbino =
+              chamberVisuals.brightness == 1.45 && !chamberVisuals.isPrismatic;
+          if (isAlbino) {
+            paint.colorFilter = _albinoColorFilter(chamberVisuals.brightness);
+          } else {
+            paint.colorFilter = _geneticsColorFilter(chamberVisuals);
+          }
+        }
         canvas.save();
         final clipPath = Path()
           ..addOval(Rect.fromCircle(center: cp, radius: r * 0.85));
@@ -5362,19 +5443,11 @@ class CosmicGame extends FlameGame with PanDetector {
           width: imgSize,
           height: imgSize,
         );
-        canvas.drawImageRect(img, srcRect, dstRect, Paint());
+        canvas.drawImageRect(img, srcRect, dstRect, paint);
         canvas.restore();
       }
 
-      // 3. Inner core sparkle
-      final coreAlpha = 0.5 + 0.3 * sin(chamber.life * 3.0 + chamber.seed * 2);
-      canvas.drawCircle(
-        cp,
-        r * 0.25,
-        Paint()..color = Colors.white.withValues(alpha: coreAlpha),
-      );
-
-      // 5. Orbit ring indicator (faint) when near home planet
+      // 3. Orbit ring indicator (faint) when near home planet
       if (homePlanet != null) {
         final distToHome = (cp - homePlanet!.position).distance;
         if (distToHome < chamber.orbitDistance * 2) {
@@ -5395,7 +5468,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── asteroids ──
-    // Rock colour palettes (indexed by shape for variety)
+    // Rock color palettes (indexed by shape for variety)
     const rockBaseColors = [
       Color(0xFF5D4037), // warm brown
       Color(0xFF616161), // grey
@@ -5620,7 +5693,7 @@ class CosmicGame extends FlameGame with PanDetector {
           );
           break;
         case LootType.elementParticle:
-          // Element orb — coloured glow
+          // Element orb — colored glow
           final pulse =
               0.8 + 0.2 * sin(drop.life * 4.5 + drop.position.dy * 0.02);
           canvas.drawCircle(
@@ -6696,6 +6769,103 @@ class CosmicGame extends FlameGame with PanDetector {
           totemR * 0.2,
           Paint()..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.8)!,
         );
+      } else if (style == ProjectileVisualStyle.sigil) {
+        final pulse = 0.7 + 0.3 * sin(cp.life * 5.0);
+        final spin = cp.life * 1.7;
+        final runeR = 5.8 * vs;
+        final auraR = cp.stationary ? runeR * 2.4 : runeR * 1.7;
+
+        if (!cp.stationary) {
+          final tailLen = 10.0 * vs;
+          final tail = Offset(
+            cpp.dx - cos(cp.angle) * tailLen,
+            cpp.dy - sin(cp.angle) * tailLen,
+          );
+          canvas.drawLine(
+            tail,
+            cpp,
+            Paint()
+              ..color = projColor.withValues(alpha: 0.16)
+              ..strokeWidth = 3.4 * vs
+              ..strokeCap = StrokeCap.round
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+          );
+        }
+
+        canvas.drawCircle(
+          cpp,
+          auraR,
+          Paint()
+            ..color = projColor.withValues(
+              alpha: (cp.stationary ? 0.12 : 0.08) * pulse,
+            )
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, runeR),
+        );
+
+        final outer = Path();
+        for (var j = 0; j < 6; j++) {
+          final a = spin + j * (pi / 3);
+          final point = Offset(
+            cpp.dx + cos(a) * runeR,
+            cpp.dy + sin(a) * runeR,
+          );
+          if (j == 0) {
+            outer.moveTo(point.dx, point.dy);
+          } else {
+            outer.lineTo(point.dx, point.dy);
+          }
+        }
+        outer.close();
+        canvas.drawPath(
+          outer,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2 * vs
+            ..color = projColor.withValues(alpha: 0.82),
+        );
+
+        canvas.drawCircle(
+          cpp,
+          runeR * 0.62,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0 * vs
+            ..color = Color.lerp(
+              projColor,
+              const Color(0xFFFFFFFF),
+              0.28,
+            )!.withValues(alpha: 0.78),
+        );
+
+        final crossPaint = Paint()
+          ..color = Color.lerp(
+            projColor,
+            const Color(0xFFFFFFFF),
+            0.35,
+          )!.withValues(alpha: 0.66)
+          ..strokeWidth = 1.0 * vs
+          ..strokeCap = StrokeCap.round;
+        canvas.drawLine(
+          Offset(cpp.dx - runeR * 0.7, cpp.dy),
+          Offset(cpp.dx + runeR * 0.7, cpp.dy),
+          crossPaint,
+        );
+        canvas.drawLine(
+          Offset(cpp.dx, cpp.dy - runeR * 0.7),
+          Offset(cpp.dx, cpp.dy + runeR * 0.7),
+          crossPaint,
+        );
+
+        canvas.drawCircle(
+          cpp,
+          2.6 * vs,
+          Paint()..color = projColor.withValues(alpha: 0.9),
+        );
+        canvas.drawCircle(
+          cpp,
+          1.2 * vs,
+          Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.88),
+        );
       } else if (style == ProjectileVisualStyle.meteor) {
         final tailLen = 22.0 * vs;
         final tailStart = Offset(
@@ -6741,6 +6911,70 @@ class CosmicGame extends FlameGame with PanDetector {
           ),
           1.7 * vs,
           Paint()..color = const Color(0xFFFFF2D6).withValues(alpha: 0.85),
+        );
+      } else if (style == ProjectileVisualStyle.letShard) {
+        final dir = Offset(cos(cp.angle), sin(cp.angle));
+        final perp = Offset(-dir.dy, dir.dx);
+        final tailLen = 30.0 * vs;
+        final tail = cpp - dir * tailLen;
+
+        canvas.drawLine(
+          tail,
+          cpp,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tail,
+              cpp,
+              [
+                projColor.withValues(alpha: 0.0),
+                projColor.withValues(alpha: 0.16),
+                Color.lerp(projColor, const Color(0xFFFFFFFF), 0.18)!,
+              ],
+              const [0.0, 0.58, 1.0],
+            )
+            ..strokeWidth = 5.4 * vs
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+        );
+
+        final shard = Path()
+          ..moveTo(cpp.dx + dir.dx * (8.5 * vs), cpp.dy + dir.dy * (8.5 * vs))
+          ..lineTo(cpp.dx + perp.dx * (4.2 * vs), cpp.dy + perp.dy * (4.2 * vs))
+          ..lineTo(cpp.dx - dir.dx * (6.0 * vs), cpp.dy - dir.dy * (6.0 * vs))
+          ..lineTo(cpp.dx - perp.dx * (4.2 * vs), cpp.dy - perp.dy * (4.2 * vs))
+          ..close();
+
+        canvas.drawPath(
+          shard,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tail,
+              cpp + dir * (10.0 * vs),
+              [
+                Color.lerp(projColor, const Color(0xFF1A1014), 0.42)!,
+                projColor,
+                Color.lerp(projColor, const Color(0xFFFFFFFF), 0.55)!,
+              ],
+              const [0.0, 0.62, 1.0],
+            ),
+        );
+
+        canvas.drawPath(
+          shard,
+          Paint()
+            ..color = Color.lerp(
+              projColor,
+              const Color(0xFFFFFFFF),
+              0.42,
+            )!.withValues(alpha: 0.8)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1 * vs,
+        );
+
+        canvas.drawCircle(
+          cpp - dir * (1.2 * vs),
+          2.4 * vs,
+          Paint()..color = const Color(0xFFFFF4DC).withValues(alpha: 0.85),
         );
       } else if (style == ProjectileVisualStyle.slash) {
         final tailLen = 18.0 * vs;

@@ -18,7 +18,7 @@
 //   Shards → 5x
 //
 // Random ±20 % multiplier on every price.
-// Daily bonus: one random creature gets a 30 % price boost.
+// Daily bonus: one random creature gets a 50 % price boost.
 // Player picks currency (silver or shards).
 
 import 'dart:math';
@@ -41,6 +41,7 @@ import 'package:provider/provider.dart';
 const _kCyan = Color(0xFF00E5FF);
 const _kBg = Color(0xFF0A0E1A);
 const _kCard = Color(0xFF121828);
+const _kCosmicSellRewardMultiplier = 5;
 
 /// Base gold value by rarity.
 int _baseGoldForRarity(String rarity) {
@@ -175,10 +176,10 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       final multiplier = 0.8 + rng.nextDouble() * 0.4;
       var price = (raw * multiplier).round().clamp(1, 999);
 
-      // Daily 30 % bonus
+      // Daily 50 % bonus
       final isDailyBonus = inst.baseId == _dailyBonusBaseId;
       if (isDailyBonus) {
-        price = (price * 1.3).round();
+        price = (price * 1.5).round();
       }
 
       list.add(
@@ -229,8 +230,13 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       (item.basePrice / 12).ceil().clamp(1, 6);
 
   int _displayPriceFor(_SellableCreature item) {
-    if (_usesGoldPayout(item)) return _goldPayoutFor(item);
-    return item.displayPrice(_currency);
+    final basePayout = _usesGoldPayout(item)
+        ? _goldPayoutFor(item)
+        : item.displayPrice(_currency);
+    if (_usesGoldPayout(item) || _currency == _SaleCurrency.silver) {
+      return basePayout * _kCosmicSellRewardMultiplier;
+    }
+    return basePayout;
   }
 
   String _currencyLabelFor(_SellableCreature item) =>

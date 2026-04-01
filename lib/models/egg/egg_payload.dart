@@ -7,6 +7,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/wilderness_stat_ranges.dart';
 import 'package:alchemons/services/creature_repository.dart';
 
 class EggPayload {
@@ -236,9 +237,14 @@ class EggPayloadFactory {
   EggPayload createWildCapturePayload(
     Creature creature, {
     String? sourceOverride,
+    bool arcaneBoostUnlocked = false,
   }) {
     final rng = _random;
-    final statRange = _getStatRangeForRarity(creature.rarity);
+    final statRange = wildernessStatRangeForRarity(
+      creature.rarity,
+      arcaneBoostUnlocked: arcaneBoostUnlocked,
+    );
+    final rolledStats = _rollStatBlock(rng, statRange);
     final primaryElement = creature.types.isNotEmpty
         ? creature.types.first
         : null;
@@ -262,12 +268,7 @@ class EggPayloadFactory {
               strength: creature.stats!.strength,
               beauty: creature.stats!.beauty,
             )
-          : CreatureStats(
-              speed: _rollInRange(rng, statRange.min, statRange.max),
-              intelligence: _rollInRange(rng, statRange.min, statRange.max),
-              strength: _rollInRange(rng, statRange.min, statRange.max),
-              beauty: _rollInRange(rng, statRange.min, statRange.max),
-            ),
+          : rolledStats.stats,
       potentials: hasFixedStats
           ? CreatureStatPotentials(
               speed: creature.stats!.speedPotential,
@@ -275,16 +276,7 @@ class EggPayloadFactory {
               strength: creature.stats!.strengthPotential,
               beauty: creature.stats!.beautyPotential,
             )
-          : CreatureStatPotentials(
-              speed: _rollInRange(rng, statRange.potMin, statRange.potMax),
-              intelligence: _rollInRange(
-                rng,
-                statRange.potMin,
-                statRange.potMax,
-              ),
-              strength: _rollInRange(rng, statRange.potMin, statRange.potMax),
-              beauty: _rollInRange(rng, statRange.potMin, statRange.potMax),
-            ),
+          : rolledStats.potentials,
       parentage: null,
       lineage: LineageData(
         generationDepth: 0,
@@ -449,7 +441,8 @@ class EggPayloadFactory {
     final nature = NatureCatalogWeighted.weightedRandom(rng);
 
     // Stats based on rarity
-    final statRange = _getStatRangeForRarity(creature.rarity);
+    final statRange = _getVialStatRangeForRarity(creature.rarity);
+    final rolledStats = _rollStatBlock(rng, statRange);
 
     return EggPayload(
       baseId: creature.id,
@@ -459,19 +452,9 @@ class EggPayloadFactory {
       natureId: nature.id,
       isPrismaticSkin: false,
       genetics: creature.genetics?.variants ?? {},
-      stats: CreatureStats(
-        speed: _rollInRange(rng, statRange.min, statRange.max),
-        intelligence: _rollInRange(rng, statRange.min, statRange.max),
-        strength: _rollInRange(rng, statRange.min, statRange.max),
-        beauty: _rollInRange(rng, statRange.min, statRange.max),
-      ),
+      stats: rolledStats.stats,
       parentage: null,
-      potentials: CreatureStatPotentials(
-        speed: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        intelligence: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        strength: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        beauty: _rollInRange(rng, statRange.potMin, statRange.potMax),
-      ),
+      potentials: rolledStats.potentials,
       lineage: LineageData(
         generationDepth: 0, // Vials are Gen 0
         nativeFaction: nativeFaction,
@@ -489,7 +472,7 @@ class EggPayloadFactory {
 
   // Helper for stat ranges by rarity
   ({double min, double max, double potMin, double potMax})
-  _getStatRangeForRarity(String rarity) {
+  _getVialStatRangeForRarity(String rarity) {
     switch (rarity.toLowerCase()) {
       case 'common':
         return (min: 0.0, max: 1.0, potMin: 1.0, potMax: 2.0);
@@ -498,10 +481,44 @@ class EggPayloadFactory {
       case 'rare':
         return (min: 1.0, max: 1.5, potMin: 1.5, potMax: 3.0);
       case 'legendary':
-        return (min: 1.5, max: 1.5, potMin: 1.5, potMax: 3.5);
+        return (min: 1.5, max: 3.5, potMin: 1.5, potMax: 3.5);
       default:
         return (min: 0.0, max: 1.0, potMin: 1.0, potMax: 2.0);
     }
+  }
+
+  ({CreatureStats stats, CreatureStatPotentials potentials}) _rollStatBlock(
+    Random rng,
+    WildernessStatRange range,
+  ) {
+    final speed = _rollStatPair(rng, range);
+    final intelligence = _rollStatPair(rng, range);
+    final strength = _rollStatPair(rng, range);
+    final beauty = _rollStatPair(rng, range);
+
+    return (
+      stats: CreatureStats(
+        speed: speed.stat,
+        intelligence: intelligence.stat,
+        strength: strength.stat,
+        beauty: beauty.stat,
+      ),
+      potentials: CreatureStatPotentials(
+        speed: speed.potential,
+        intelligence: intelligence.potential,
+        strength: strength.potential,
+        beauty: beauty.potential,
+      ),
+    );
+  }
+
+  ({double stat, double potential}) _rollStatPair(
+    Random rng,
+    WildernessStatRange range,
+  ) {
+    final potential = _rollInRange(rng, range.potMin, range.potMax);
+    final statMax = min(range.max, potential);
+    return (stat: _rollInRange(rng, range.min, statMax), potential: potential);
   }
 
   double _rollInRange(Random rng, double min, double max) {

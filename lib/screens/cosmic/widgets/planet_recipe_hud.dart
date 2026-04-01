@@ -28,6 +28,9 @@ class PlanetRecipeHud extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = planet.color;
+    final recipeLabel = recipe.level == 3
+        ? '${planetName(planet.element).toUpperCase()} FINAL RECIPE'
+        : '${planetName(planet.element).toUpperCase()} RECIPE  LV.${recipe.level}';
     final score = recipe.matchScore(meter.breakdown, meter.total);
     final scoreColor = score >= 0.7
         ? Colors.greenAccent
@@ -73,7 +76,7 @@ class PlanetRecipeHud extends StatelessWidget {
               Text(
                 hideLevel
                     ? '${planetName(planet.element).toUpperCase()} PATHWAY'
-                    : '${planetName(planet.element).toUpperCase()} RECIPE  LV.${recipe.level}',
+                    : recipeLabel,
                 style: TextStyle(
                   color: color,
                   fontSize: 12,
@@ -127,10 +130,10 @@ class PlanetRecipeHud extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: scoreColor.withValues(alpha: 0.15),
+                    color: scoreColor.withValues(alpha: 0.22),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: scoreColor.withValues(alpha: 0.4),
+                      color: scoreColor.withValues(alpha: 0.62),
                     ),
                   ),
                   child: Text(
@@ -139,6 +142,9 @@ class PlanetRecipeHud extends StatelessWidget {
                       color: scoreColor,
                       fontSize: 9,
                       fontWeight: FontWeight.w800,
+                      shadows: const [
+                        Shadow(color: Colors.black87, blurRadius: 6),
+                      ],
                     ),
                   ),
                 ),
@@ -174,29 +180,35 @@ class PlanetRecipeHud extends StatelessWidget {
                     child: Text(
                       e.key,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
+                        color: Colors.white.withValues(alpha: 0.94),
                         fontSize: 9,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
+                        shadows: const [
+                          Shadow(color: Colors.black87, blurRadius: 5),
+                        ],
                       ),
                     ),
                   ),
                   SizedBox(
-                    width: 28,
+                    width: 34,
                     child: Text(
                       '${targetPct.toStringAsFixed(0)}%',
                       style: TextStyle(
-                        color: elemColor.withValues(alpha: 0.9),
+                        color: elemColor.withValues(alpha: 0.98),
                         fontSize: 9,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
+                        shadows: const [
+                          Shadow(color: Colors.black87, blurRadius: 6),
+                        ],
                       ),
                     ),
                   ),
                   Expanded(
                     child: Container(
-                      height: 4,
+                      height: 5,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(3),
-                        color: Colors.white10,
+                        color: Colors.white.withValues(alpha: 0.18),
                       ),
                       child: FractionallySizedBox(
                         alignment: Alignment.centerLeft,
@@ -214,15 +226,18 @@ class PlanetRecipeHud extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   SizedBox(
-                    width: 28,
+                    width: 34,
                     child: Text(
                       '${actualPct.toStringAsFixed(0)}%',
                       style: TextStyle(
                         color: good
-                            ? Colors.white70
-                            : Colors.red.withValues(alpha: 0.7),
+                            ? Colors.white.withValues(alpha: 0.96)
+                            : const Color(0xFFFF8A80),
                         fontSize: 9,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w800,
+                        shadows: const [
+                          Shadow(color: Colors.black87, blurRadius: 6),
+                        ],
                       ),
                     ),
                   ),
@@ -249,9 +264,12 @@ class PlanetRecipeHud extends StatelessWidget {
                   Text(
                     'Any  ${recipe.randomPct.toStringAsFixed(0)}%',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.4),
+                      color: Colors.white.withValues(alpha: 0.8),
                       fontSize: 10,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                      shadows: const [
+                        Shadow(color: Colors.black87, blurRadius: 5),
+                      ],
                     ),
                   ),
                 ],

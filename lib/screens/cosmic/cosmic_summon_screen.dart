@@ -16,7 +16,7 @@ import 'package:provider/provider.dart';
 
 /// A portal-encounter screen launched from Cosmic mode when a meter summon
 /// completes.  Identical UX to [RiftPortalScreen] but uses the element's
-/// colour for all portal / background visuals instead of a rift faction.
+/// color for all portal / background visuals instead of a rift faction.
 class CosmicSummonScreen extends StatefulWidget {
   /// The species that was rolled by the meter recipe.
   final String speciesId;
@@ -27,7 +27,7 @@ class CosmicSummonScreen extends StatefulWidget {
   /// Element name (Fire, Water, etc.) — used for header text.
   final String elementName;
 
-  /// Primary accent colour derived from the planet element.
+  /// Primary accent color derived from the planet element.
   final Color portalColor;
 
   const CosmicSummonScreen({
@@ -135,7 +135,7 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
     super.dispose();
   }
 
-  // ── Derived dark-core colour from the portal colour ───────────────────────
+  // ── Derived dark-core color from the portal color ─────────────────────────
   Color get _coreColor {
     final hsl = HSLColor.fromColor(widget.portalColor);
     return hsl.withLightness(0.04).withSaturation(0.9).toColor();
@@ -356,7 +356,7 @@ class _SummonSprite extends StatelessWidget {
   }
 }
 
-// ── Portal painter (colour-based, no faction) ────────────────────────────────
+// ── Portal painter (color-based, no faction) ─────────────────────────────────
 
 class _SummonPortalPainter extends CustomPainter {
   final Color color;

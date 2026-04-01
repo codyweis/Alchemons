@@ -149,7 +149,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its blazing horn burns with unyielding flame, and its temper flares just as hot.",
+      "description": "Its horn burns like a held flame, and the heat in its stance feels deliberate rather than wild.",
       "image": "creatures/rare/HOR01_firehorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -167,7 +167,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its smooth crest gleams with droplets, and its calm nature flows like a steady stream.",
+      "description": "Its smooth crest holds a wet shine, and its stillness feels more like depth than calm.",
       "image": "creatures/rare/HOR02_waterhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -185,7 +185,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its rocky horn juts like a mountain peak, and its stance is unshakable.",
+      "description": "A stone-like horn rises from its crown, and its weight settles into the ground as if it belongs there.",
       "image": "creatures/rare/HOR03_earthhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -203,7 +203,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its crest curves like a swift gale, and it moves with sudden bursts of speed, unusual for its large body. An unusual symbol swirls on its chest.",
+      "description": "Its pale crest curls like a moving current, and the mark at its center makes it look as though the wind had marked it.",
       "image": "creatures/rare/HOR04_airhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -221,7 +221,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Vapor hisses from its horn, masking its form in clouds of heat.",
+      "description": "A warm vapor leaks from its crest, blurring its shape as though heat itself is holding it together.",
       "image": "creatures/rare/HOR05_steamhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -239,7 +239,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Molten cracks glow across its body, and its horn drips sparks of fire and stone.",
+      "description": "Molten seams glow through its body, and its horn looks cast from fire before it had time to cool.",
       "image": "creatures/rare/HOR06_lavahorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -257,7 +257,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Electric arcs crackle across its crest, and its steps resound like thunderclaps.",
+      "description": "A bright charge gathers along its crest, and each movement feels one breath away from striking.",
       "image": "creatures/rare/HOR07_lightninghorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -275,7 +275,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its horn is caked with hardened clay, giving it a rugged, stubborn strength.",
+      "description": "Its horn is thick with dried clay, giving it the look of something shaped by pressure and left to harden.",
       "image": "creatures/rare/HOR08_mudhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -293,7 +293,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "A crest of frozen crystal crowns its head, radiating a chilling calm.",
+      "description": "A frozen crest crowns its head, and the cold around it feels orderly, almost ceremonial.",
       "image": "creatures/rare/HOR09_icehorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -311,7 +311,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its horn sheds faint grains, as if carved from ancient ruins.",
+      "description": "Fine grains fall from its pale horn, as if time has already begun wearing it down.",
       "image": "creatures/rare/HOR10_dusthorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -329,7 +329,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Glittering facets crown its brow, refracting light in dazzling hues.",
+      "description": "Faceted crystal rises from its crown, breaking the light into hard, shifting planes.",
       "image": "creatures/rare/HOR11_crystalhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -347,7 +347,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Leafy horns sprout from its crown, swaying as if alive with the wind.",
+      "description": "Leaf-shaped horns rise from its crown, giving it the look of growth sharpened into defense.",
       "image": "creatures/rare/HOR12_planthorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -365,7 +365,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Venom drips from grooves in its horn, seeping a noxious haze.",
+      "description": "Dark venom gathers in the grooves of its horn, staining the air around it with a warning haze.",
       "image": "creatures/rare/HOR13_poisonhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -383,7 +383,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its translucent crest flickers, as though caught between worlds.",
+      "description": "Its pale crest seems only partly fixed in this world, wavering at the edges like a bad memory.",
       "image": "creatures/rare/HOR14_spirithorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -401,7 +401,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its jagged crest swallows light, and its eyes burn with quiet defiance.",
+      "description": "Its dark crest eats the light around it, leaving only a hard stare and a shape that refuses softness.",
       "image": "creatures/rare/HOR15_darkhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -419,7 +419,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its radiant spikes glow softly, guiding allies through the dark.",
+      "description": "Light gathers along its crown in clean pale spikes, giving it the still authority of a living beacon.",
       "image": "creatures/rare/HOR16_lighthorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -437,7 +437,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its crimson horn pulses with life’s rhythm, echoing the beat of a primal heart.",
+      "description": "Its crimson horn carries a steady pulse, as if some older life is still beating through it.",
       "image": "creatures/rare/HOR17_bloodhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -452,7 +452,7 @@
       "name": "Firekin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Coal-black hide veined with ember light; its mane burns without smoke and leaves courage—or chaos—in its wake.",
+      "description": "Its ember core burns openly through a narrow body, making it feel less alive than continuously kindled.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -470,7 +470,7 @@
       "name": "Waterkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Glass-smooth and tidal, it moves with the hush of deep rivers; puddles form where its hooves pause to listen.",
+      "description": "Its dark form carries a single blue center like deep water held in perfect stillness.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -488,7 +488,7 @@
       "name": "Earthkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Barked and mossed, it treads patiently; seedlings rise in its footsteps like vows kept by the soil.",
+      "description": "Leaf and bark gather around its frame until it looks less grown than assembled by the ground itself.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -506,7 +506,7 @@
       "name": "Airkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Weightless and whorled, it drifts on currents unseen; distant voices hitch a ride in its trailing breeze.",
+      "description": "Pale and light-footed, it seems held together by air and the decision to remain visible.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -524,7 +524,7 @@
       "name": "Steamkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "A warm mist cloaks it, beading into shining drops; it appears at bathhouses and geysers to bless the breath.",
+      "description": "Soft vapor builds around its bright center, blurring the body into something warm and unfinished.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -542,7 +542,7 @@
       "name": "Lavakin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Cracked with molten seams that pulse like a volcano’s heart; stones soften where it passes.",
+      "description": "Its dark frame is split with lava-bright seams, as if the shape was forced to contain more heat than it should.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -560,7 +560,7 @@
       "name": "Lightningkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "A living thunderbolt—arcs stutter from its crown and its gaze flashes like a storm breaking.",
+      "description": "Jagged light rises through its upper form in sharp bursts, giving it the tense stillness of a strike not yet released.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -578,7 +578,7 @@
       "name": "Mudkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Clay-clotted and cheerful, it splashes through lowlands; marsh flowers bloom from the spatters.",
+      "description": "Its heavy mud-colored body looks dragged from wet earth and left standing before it could settle.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -596,7 +596,7 @@
       "name": "Icekin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Cut from winter’s glare, it leaves lacework frost behind; its quiet is a cathedral of cold.",
+      "description": "Its ice-bladed crest gives it the clean severity of something preserved instead of born.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -614,7 +614,7 @@
       "name": "Dustkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Desert-pale and wind-carved, it writes new dunes with every step and keeps old roads secret.",
+      "description": "Dust gathers around its frame in pale loose shapes, as though the body is always close to coming apart.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -632,7 +632,7 @@
       "name": "Crystalkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Prisms sprout like antlers; light refracts in hushed colors, showing paths not yet taken.",
+      "description": "Crystal rises through its form in hard vertical points, making the whole shape feel precise, cold, and chosen.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -650,7 +650,7 @@
       "name": "Plantkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Sap-bright and leaf-crowned, it smells of rain and loam; weary fields green at its passing.",
+      "description": "Leaves and blossoms overtake its small frame until it looks like growth taught to stand upright.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -668,7 +668,7 @@
       "name": "Poisonkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Hums with a sweet, forbidden perfume; its shadow stains leaves violet where it lingers.",
+      "description": "Its green fire and violet body carry the look of something poisonous made almost ceremonial.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -686,7 +686,7 @@
       "name": "Spiritkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Half here, half remembered; bells no one hung seem to ring when it turns its luminous eye.",
+      "description": "Its pale body and smoke-like crest make it seem only partly present, like a witness refusing full return.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -704,7 +704,7 @@
       "name": "Darkkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "A candle-swallowing silhouette with a glowing pupil; fears grow quiet, then speak truths near it.",
+      "description": "Its dark form absorbs detail until only a pale center remains, fixed and bright against the refusal of light.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -722,7 +722,7 @@
       "name": "Lightkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Glimmering like a newborn dawn, it reveals hidden doors and forgives old footprints.",
+      "description": "Its gold-bright body is almost reduced to light alone, as though form has become secondary to radiance.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -740,7 +740,7 @@
       "name": "Bloodkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "Red as myth, its pulse is audible; hunters lower spears when that rhythm enters their bones.",
+      "description": "Its red glow feels less like color than circulation, a living pulse held inside a body that should not contain it.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -761,7 +761,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Crackling with ember-bright energy, its fiery plume flickers in rhythm with mischievous laughter.",
+      "description": "Its bright flame-plume lifts and gutters with every small movement, giving its body the look of a living ember.",
       "image": "creatures/uncommon/MAN01_firemane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -780,7 +780,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Graceful and calm, it leaves rippling puddles where it dances near rivers and lakes.",
+      "description": "Its crest curls like a small wave, and its movements leave the feeling of water just settling.",
       "image": "creatures/uncommon/MAN02_watermane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -798,7 +798,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Sturdy and mossy, its steps echo like pebbles tumbling down ancient paths.",
+      "description": "A rough stone crest rises from its crown, giving it the quiet, weathered look of something shaped by old ground.",
       "image": "creatures/uncommon/MAN03_earthmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -816,7 +816,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Light and restless, its crest flutters like a playful breeze through tall grass.",
+      "description": "Its pale crest coils upward like stirred air, and it never seems entirely at rest.",
       "image": "creatures/uncommon/MAN04_airmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -834,7 +834,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Shifting and elusive, mist trails behind it as if it were half-dream.",
+      "description": "Its plume thins into vapor at the edges, making it look half formed and hard to hold in focus.",
       "image": "creatures/uncommon/MAN05_steammane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -852,7 +852,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Molten veins glow beneath its surface, each step leaving a faint sear on stone.",
+      "description": "A molten glow moves under its skin, and its crest burns like fire learning how to take shape.",
       "image": "creatures/uncommon/MAN06_lavamane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -870,7 +870,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Its movements spark with sudden flashes, laughter echoing like thunderclaps.",
+      "description": "Its bright crest forks like a bolt, and a nervous charge seems to gather ahead of every quick movement.",
       "image": "creatures/uncommon/MAN07_lightningmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -888,7 +888,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Clumsy but endearing, it splashes muck with every joyful bound.",
+      "description": "Its soft clay-colored crest droops heavily, and damp soil clings to it as though it belongs there.",
       "image": "creatures/uncommon/MAN08_mudmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -906,7 +906,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Crowned with frozen crystals, it trails frost in its playful steps.",
+      "description": "A block-like frozen crest sits above its face, giving it the still, neat cold of preserved water.",
       "image": "creatures/uncommon/MAN09_icemane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -924,7 +924,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Ancient grit swirls around it, carrying whispers of forgotten ruins.",
+      "description": "Its pale dusty crest looks as if it might crumble at the edges, shedding the feeling of loosened earth.",
       "image": "creatures/uncommon/MAN10_dustmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -942,7 +942,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Its body shimmers with faceted brilliance, scattering light wherever it prances.",
+      "description": "A cluster of violet crystal rises through its form, catching light in sharp, deliberate facets.",
       "image": "creatures/uncommon/MAN11_crystalmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -961,7 +961,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Gentle and curious, its leafy crest always reaches toward the sun as it nurtures life.",
+      "description": "Its leaf-like crest leans upward as though always seeking light, making the whole body feel quietly alive.",
       "image": "creatures/uncommon/MAN12_plantmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -979,7 +979,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Its touch carries a faint sting, and its eyes gleam with mischievous venom.",
+      "description": "A dim poisonous tint clings to its crest and skin, soft in shape but not in warning.",
       "image": "creatures/uncommon/MAN13_poisonmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -997,7 +997,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Ethereal and faintly glowing, it drifts as though half tethered to another realm.",
+      "description": "Its dim blue flame-crest gives it the look of a small spirit briefly choosing to remain visible.",
       "image": "creatures/uncommon/MAN14_spiritmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1015,7 +1015,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its crimson eyes gleam from the shadows, a playful silhouette in the night.",
+      "description": "Its form almost disappears into shadow, leaving only pale points and a dark flame-shape to mark where it stands.",
       "image": "creatures/rare/MAN15_darkmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1033,7 +1033,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Radiant and pure, it illuminates the paths it wanders with gentle warmth.",
+      "description": "Its pale golden crest burns with a clean brightness, like a small light refusing to dim.",
       "image": "creatures/rare/MAN16_lightmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1051,7 +1051,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its form pulses with a crimson rhythm, echoing the primal heartbeat of life itself.",
+      "description": "Its red crest rises like a living pulse, giving the whole creature the look of blood made briefly visible.",
       "image": "creatures/rare/MAN17_bloodmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1066,7 +1066,7 @@
       "name": "Firemask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Flames lick the edges of its mask, the cracks glowing like molten veins.",
+      "description": "Its mask holds fire in deliberate cracks, giving the impression of a sealed face lit from within.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1084,7 +1084,7 @@
       "name": "Watermask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Veins of flowing blue light shimmer across its mask, rippling like waves on the surface of a deep sea.",
+      "description": "Blue lines move across its mask like contained water, calm in shape but deep in feeling.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1102,7 +1102,7 @@
       "name": "Earthmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Its heavy mask is carved like stone, streaked with glowing green lines that pulse like roots underground.",
+      "description": "Its heavy green-marked mask feels carved from old ground, as though the face beneath it was buried on purpose.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1120,7 +1120,7 @@
       "name": "Airmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Whorls of wind etch across its mask, shifting as though carved from moving air.",
+      "description": "Its pale mask is crowned with soft vapor and shifting marks, like a face the wind keeps redrawing.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1138,7 +1138,7 @@
       "name": "Steammask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Its mask exhales wisps of vapor, the surface clouding and clearing like fogged glass.",
+      "description": "Warm mist gathers around its mask, clouding its features until it looks more hidden than seen.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1156,7 +1156,7 @@
       "name": "Lavamask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Crimson fissures split its mask, glowing with molten fury beneath hardened crust.",
+      "description": "Fire leaks through the splits in its dark mask, as if something hotter was forced to remain inside.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1174,7 +1174,7 @@
       "name": "Lightningmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Bolts spark from jagged runes etched in its mask, eyes flaring with restless stormlight.",
+      "description": "Jagged gold angles give its mask the look of a warning sign moments before the strike.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1192,7 +1192,7 @@
       "name": "Mudmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Its mask appears caked with dried clay, faint cracks weeping with damp glow.",
+      "description": "Its clay-dark mask sags with damp weight, as though it was shaped by hand and never fully dried.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1210,7 +1210,7 @@
       "name": "Icemask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Cold breath seeps from the cracks of its frozen mask, sharp and crystalline as winter’s edge.",
+      "description": "Its frozen crest rises in clean pale blades, giving its mask the ceremonial cold of something preserved.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1228,7 +1228,7 @@
       "name": "Dustmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Its mask looks ancient and eroded, glowing lines cutting through like forgotten ruins.",
+      "description": "Its eroded mask carries the abrasion of age, as though time has been scraping at the face for years.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1246,7 +1246,7 @@
       "name": "Crystalmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Facets gleam across its mask, scattering light into spectral shards.",
+      "description": "Crystal points crown its mask in hard blue facets, turning its still gaze into something cut rather than born.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1264,7 +1264,7 @@
       "name": "Plantmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Vines curl across its mask, glowing with verdant veins that shift like living roots.",
+      "description": "Leaf and blossom gather around its mask, making the whole face look grown into place instead of worn.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1282,7 +1282,7 @@
       "name": "Poisonmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Its mask oozes faint, sickly vapors, and the cracks drip with venomous glow.",
+      "description": "Its mask is stained with a sour green cast, and the expression it holds never feels accidental.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1300,7 +1300,7 @@
       "name": "Spiritmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Its mask flickers translucently, as though etched from another world.",
+      "description": "Pale and smoke-crowned, its mask looks briefly present, like a face remembering how to remain visible.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1318,7 +1318,7 @@
       "name": "Darkmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "A shroud of shadows leaks from its mask, and its eyes burn violet with hidden malice.",
+      "description": "Its black mask swallows detail until only the violet marks remain, sharp as intent.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1336,7 +1336,7 @@
       "name": "Lightmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Radiant glyphs blaze across its mask, glowing brighter when it draws near.",
+      "description": "Its golden mask is almost featureless in its brightness, as though light itself has taken on the duty of a face.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1354,7 +1354,7 @@
       "name": "Bloodmask",
       "mutationFamily": "Mask",
       "rarity": "Rare",
-      "description": "Runnels of crimson light trace its mask, dripping like fresh wounds that never heal.",
+      "description": "Crimson lines pulse across its mask like a living seal, steady enough to feel deliberate.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1372,7 +1372,7 @@
       "name": "Bloodmask",
       "mutationFamily": "Mask",
       "rarity": "Legendary",
-      "description": "An alternate version of a Bloodmask, its rigid mask pulsing. Rumors of its existence circulate among collectors, few lucky enough to have seen it.",
+      "description": "A rarer blood-bound form, its red mask glows with the still certainty of something chosen to endure after the rest has failed.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -1393,7 +1393,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Its scales glow like embers, and sparks dance whenever it flicks its tail.",
+      "description": "An ember-red surface holds a steady heat, and the air around its trailing edge trembles with small sparks.",
       "image": "creatures/uncommon/PIP01_firepip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1411,7 +1411,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Smooth and playful, it splashes with every step, leaving droplets that shimmer like pearls.",
+      "description": "Smooth and river-bright, it leaves a thin wet shine wherever it passes.",
       "image": "creatures/uncommon/PIP02_waterpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1429,7 +1429,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Covered in pebbly scales, it stomps about with surprising strength for its size.",
+      "description": "A pebbled surface and low, stubborn shape make it feel heavier than its small form should allow.",
       "image": "creatures/uncommon/PIP03_earthpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1447,7 +1447,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "It darts about weightlessly, its frills fluttering like wings on the wind.",
+      "description": "Its pale edges ripple like loose cloth in a current, even when the air seems still.",
       "image": "creatures/uncommon/PIP04_airpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1465,7 +1465,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Warm mist hisses from its back, wrapping it in shifting vapor trails.",
+      "description": "Warm mist rises from its upper form in quiet curls, softening its outline into vapor.",
       "image": "creatures/uncommon/PIP05_steampip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1483,7 +1483,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Its body pulses with molten light, and each step leaves a faint scorch.",
+      "description": "Molten light moves in narrow seams beneath its skin, and the ground remembers where it stepped.",
       "image": "creatures/uncommon/PIP06_lavapip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1501,7 +1501,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Crackling arcs leap between its scales, and its eyes flash with restless energy.",
+      "description": "A restless charge skips across its surface, brightening its center before the sparks fade.",
       "image": "creatures/uncommon/PIP07_lightningpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1519,7 +1519,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "It leaves muddy prints behind, gleefully splashing in every puddle it finds.",
+      "description": "Clay-dark and low to the ground, it leaves damp prints that harden into rough little shapes.",
       "image": "creatures/uncommon/PIP08_mudpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1537,7 +1537,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Its scales shimmer with frost, and a chilly aura clings to its playful leaps.",
+      "description": "Frost gathers along its surface in pale ridges, and a quiet cold follows close behind it.",
       "image": "creatures/uncommon/PIP09_icepip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1555,7 +1555,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Its hide carries a dry, powdery coat, and a swirl of grit follows wherever it scurries.",
+      "description": "Its surface is coated in fine dust, and a faint grit haze trails it like loosened earth.",
       "image": "creatures/uncommon/PIP10_dustpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1573,7 +1573,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Shards of glittering crystal crown its head and spine, gleaming with inner light.",
+      "description": "Crystal points rise through its form, catching light in hard violet flashes.",
       "image": "creatures/uncommon/PIP11_crystalpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1591,7 +1591,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Green frills sprout from its back, and flowers bloom where it rests.",
+      "description": "Green growth lifts through its form like new leaves, giving it the look of motion caught mid-bloom.",
       "image": "creatures/uncommon/PIP12_plantpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1609,7 +1609,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "A faint haze seeps from its breath, and its playful grin hides a toxic sting.",
+      "description": "A thin toxic haze escapes its breath, and its still little smile never feels entirely safe.",
       "image": "creatures/uncommon/PIP13_poisonpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1627,7 +1627,7 @@
       ],
       "variant": [],
       "rarity": "Uncommon",
-      "description": "Translucent and ghostly, it flickers in and out of sight like a phantom flame.",
+      "description": "Pale and translucent, it seems to thin at the edges as though it is only partly here.",
       "image": "creatures/uncommon/PIP14_spiritpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1645,7 +1645,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its eyes glow faintly crimson, and shadows coil tightly around its scales.",
+      "description": "Its dark surface drinks in the light around it, leaving only dim crimson points to hold your focus.",
       "image": "creatures/rare/PIP15_darkpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1663,7 +1663,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Radiant patterns gleam across its body, shining brightest when it plays.",
+      "description": "Clean bands of light glow across its body, as if brightness has settled there and chosen to stay.",
       "image": "creatures/rare/PIP16_lightpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1681,7 +1681,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its scales glisten with a crimson sheen, and a primal rhythm beats in its chest.",
+      "description": "A deep crimson sheen clings to its surface, and something at its center keeps an older rhythm.",
       "image": "creatures/rare/PIP17_bloodpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1701,7 +1701,7 @@
         "lightning"
       ],
       "rarity": "Legendary",
-      "description": "Born of furnace winds, it streaks the sky in ember arcs—villages light bonfires when a Firewing is sighted.",
+      "description": "Its sharp orange frame carries fire as if flight itself were enough to keep it burning.",
       "image": "creatures/legendary/WNG01_firewing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1720,7 +1720,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Its pinions skim waves like silver oars; storms calm when it folds its wings and dives beneath the swell.",
+      "description": "Its blue body cuts a clean silhouette, all smooth motion and the quiet depth of held water.",
       "image": "creatures/legendary/WNG02_waterwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1739,7 +1739,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Stone-limbed and solemn, it lands like a mountain settling—cliffs answer its call with quiet echoes.",
+      "description": "Its earth-colored frame feels carved rather than hatched, like a grounded thing that learned how to take air.",
       "image": "creatures/legendary/WNG03_earthwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1758,7 +1758,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "A whisper given form; it vanishes into currents and reappears miles away, laughing in the language of gusts.",
+      "description": "Pale and weightless, it looks as though a current shaped itself into a body and chose not to disperse.",
       "image": "creatures/legendary/WNG04_airwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1777,7 +1777,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Warm mist billows from its feathers; rainbows cling to its wake as if unwilling to let go.",
+      "description": "Soft vapor gathers around its span until the form seems to blur at the edges of its own flight.",
       "image": "creatures/legendary/WNG05_steamwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1796,7 +1796,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Veins of molten glow lace its scales; volcanoes murmur lullabies when it circles their calderas.",
+      "description": "Its black body is split by molten seams, giving it the look of a flyer built around contained rupture.",
       "image": "creatures/legendary/WNG06_lavawing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1814,7 +1814,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "A storm with a heartbeat—every wingbeat sketches jagged light across the cloudbanks.",
+      "description": "Jagged blue-black lines pull through its frame like charged fractures waiting for release.",
       "image": "creatures/legendary/WNG07_lightningwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1832,7 +1832,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "River-brown and stubborn, it banks low over floodplains, sewing fertile silt with every sweep.",
+      "description": "Its heavy brown shape looks pulled from wet soil, as though flight had been added after the mass had already settled.",
       "image": "creatures/legendary/WNG08_mudwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1850,7 +1850,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Quiet as snowfall, it paints the air with glittering rime and leaves the world breathless behind it.",
+      "description": "Its ice-cut crest and pale span give it the severe stillness of something made to pass through cold without feeling it.",
       "image": "creatures/legendary/WNG09_icewing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1868,7 +1868,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Desert-born, it rises on heated mirage and carves dunes into new maps with its turbulent glide.",
+      "description": "Dust-colored and wind-worn, it looks close to scattering even while it remains perfectly formed.",
       "image": "creatures/legendary/WNG10_dustwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1886,7 +1886,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Faceted wings refract the sun into wandering constellations; healers gather beneath its lumens.",
+      "description": "Crystal rises through its form in hard planes, turning flight into something sharp, deliberate, and exact.",
       "image": "creatures/legendary/WNG11_crystalwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1904,7 +1904,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Vine-veined membranes rustle like forests in wind; seeds hitch rides beneath its scales to distant fields.",
+      "description": "Its green frame is overtaken by leaves and stems until it feels less like an animal than growth made airborne.",
       "image": "creatures/legendary/WNG12_plantwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1922,7 +1922,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "A haze of sweet-sour perfume trails it; even serpents bow as it shadows their dens.",
+      "description": "Its violet form and green-tipped ridges give it the ceremonial look of poison given permission to fly.",
       "image": "creatures/legendary/WNG13_poisonwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1940,7 +1940,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Half in this world, half in the hush between—its passage tolls like distant bells only children hear.",
+      "description": "Its pale body seems to thin into the air around it, as though the creature is only partially committed to remaining here.",
       "image": "creatures/legendary/WNG14_spiritwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1958,7 +1958,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "It drinks the stars as it climbs; courage frays in its shade, yet owls follow as if sworn.",
+      "description": "Its dark span erases detail until only white points remain, fixed inside a shape the light cannot fully keep.",
       "image": "creatures/legendary/WNG15_darkwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1976,7 +1976,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Dawn’s herald, it inks halos on the clouds and writes forgiveness across the sky.",
+      "description": "Its golden body is almost reduced to brightness, as though flight and light have become the same act.",
       "image": "creatures/legendary/WNG16_lightwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -1994,7 +1994,7 @@
       ],
       "variant": [],
       "rarity": "Legendary",
-      "description": "Its wings beat with a primal cadence—hunters lay down spears when that red rhythm fills the valley.",
+      "description": "Its red frame carries the feeling of circulation exposed, a living pulse sharpened into flight.",
       "image": "creatures/legendary/WNG17_bloodwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
@@ -2009,7 +2009,7 @@
       "name": "Simurgh",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to fire. Born of flame; passionate and volatile.",
+      "description": "It rises like a flame made obedient, a warden-shaped fire guarding what survives the burn.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2027,11 +2027,11 @@
       "name": "Leviathan",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to water. Fluid and adaptive; calm or crushing.",
+      "description": "Its body coils around stillness and depth, as though the relic it keeps was meant to drown memory before it surfaced.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 6,
         "frameDurationMs": 120
       },
       "types": [
@@ -2045,7 +2045,7 @@
       "name": "Terradon",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to earth. Sturdy and grounded; unyielding.",
+      "description": "It carries the patience of buried stone, standing over its relic like pressure given hunger.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2063,7 +2063,7 @@
       "name": "Roc",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to air. Swift and elusive; ever-moving.",
+      "description": "White and impossible, it circles like a warning drawn in air above what should not be reached.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2081,7 +2081,7 @@
       "name": "Boilrog",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to steam. Vapor between fire and water; shifting.",
+      "description": "Steam pours from it in heavy veils, hiding the boundary between body, heat, and the thing it was made to keep.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2099,7 +2099,7 @@
       "name": "Magmara",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to lava. Molten rock; searing and heavy.",
+      "description": "Its cracked surface holds a slow catastrophe, as though the relic beneath it is being sealed by force alone.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2117,7 +2117,7 @@
       "name": "Raikuma",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to lightning. Charged and sudden; crackling power.",
+      "description": "Dark surface and blue fractures make it feel one impact from release, a sentinel built to answer trespass instantly.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2135,7 +2135,7 @@
       "name": "Bogdrya",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to mud. Thick and stubborn mix of earth and water.",
+      "description": "Its swamp-heavy heads watch without urgency, certain that anything offered to the altar will sink before it reaches truth.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2153,7 +2153,7 @@
       "name": "Frowyrm",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to ice. Cold precision; frozen beauty.",
+      "description": "Its frozen body carries the still cruelty of preserved things, beauty sharpened into refusal.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2171,7 +2171,7 @@
       "name": "Ashdjinn",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to dust. Ancient grit; whisper of ruins.",
+      "description": "Dust holds its shape only provisionally, as though age and wind agreed to guard the relic together.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2189,7 +2189,7 @@
       "name": "Prismalith",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to crystal. Faceted and arcane; refractive.",
+      "description": "Crystal planes rise through it like a deliberate structure, turning light into another layer of concealment.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2207,7 +2207,7 @@
       "name": "Botanica",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to plant. Living growth; verdant and resilient.",
+      "description": "Leaves and branchwork overgrow the form until it resembles a shrine that learned how to move.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2225,7 +2225,7 @@
       "name": "Blightfang",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to poison. Toxic and corrosive; silent threat.",
+      "description": "Its sagging frame drips a patient toxicity, the kind made to outlast whatever sacrifices feed it.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2243,7 +2243,7 @@
       "name": "Wraithord",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to spirit. Ethereal and liminal; otherworldly.",
+      "description": "Thin and half-returned, it stands like a memory forced to keep watch after death should have taken it.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2261,11 +2261,11 @@
       "name": "Noctryos",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to dark. Veiled and secret; devours light.",
+      "description": "Its span and form drink the light around them, leaving only the stare of something that knows concealment can look like mercy.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 5,
         "frameDurationMs": 120
       },
       "types": [
@@ -2279,7 +2279,7 @@
       "name": "Solarin",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to light. Radiant and pure; revealing.",
+      "description": "It burns with a radiance too complete to trust, as though revelation itself has been weaponized into a guardian.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2297,7 +2297,7 @@
       "name": "Sanguorath",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "A mystic attuned to blood. Vital and primal; life-bound myth.",
+      "description": "Its red body exposes pulse as doctrine, a relic-warden that answers sacrifice with more of the same.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2319,7 +2319,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Lively and ember-bright, it leaves warm smudges where its paws tap the ground.",
+      "description": "Ember-bright and watchful, it leaves faint warm prints wherever it meets the ground.",
       "image": "creatures/common/LET01_firelet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2337,7 +2337,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Smooth and glimmering, it paddles through puddles and hums like a quiet stream.",
+      "description": "Smooth and glimmering, it moves with the hush of shallow water and leaves a shine where it lingers.",
       "image": "creatures/common/LET02_waterlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2355,7 +2355,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Pebble-tough and patient, it carries the hush of old trails in its gait.",
+      "description": "Pebble-tough and patient, it carries the stillness of old paths in its heavy little gait.",
       "image": "creatures/common/LET03_earthlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2373,7 +2373,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Feather-light and fidgety, it zips about as if the wind were tugging its tail.",
+      "description": "Feather-light and restless, it seems tugged forward by a wind no one else can feel.",
       "image": "creatures/common/LET04_airlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2391,7 +2391,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Wrapped in gentle vapor, it fogs up anything it noses with cheerful puffs.",
+      "description": "A pale vapor clings to it, fogging glass and breath alike when it draws near.",
       "image": "creatures/common/LET05_steamlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2409,7 +2409,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Veined with molten glow, it tiptoes carefully, leaving freckles of heat behind.",
+      "description": "Faint molten seams glow beneath its skin, and each careful step leaves a memory of heat.",
       "image": "creatures/common/LET06_lavalet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2427,7 +2427,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Quick as a wink, tiny sparks hop between its whiskers when it giggles.",
+      "description": "A small charge lives in its fine arcs, flashing sharp whenever it startles or shifts.",
       "image": "creatures/common/LET07_lightninglet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2445,7 +2445,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Mirthful and splattery, it decorates friends and footpaths with muddy polka-dots.",
+      "description": "Soft with clay and silt, it leaves blurred little prints that dry into cracked patterns.",
       "image": "creatures/common/LET08_mudlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2463,7 +2463,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Cool to the touch, it scribbles frosty doodles wherever it pauses.",
+      "description": "Cool to the touch, it leaves delicate frost marks wherever it comes to rest.",
       "image": "creatures/common/LET09_icelet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2481,7 +2481,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Dune-dusted and spry, a little swirl of grit trails every skip and hop.",
+      "description": "Pale with grit, it carries a thin drifting wake as if the ground is always loosening behind it.",
       "image": "creatures/common/LET10_dustlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2499,7 +2499,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Facet-bright and curious, it catches light and tosses it back in rainbow shards.",
+      "description": "Clear shards rise from its crown, catching light in cold, glassy flashes.",
       "image": "creatures/common/LET11_crystalet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2510,14 +2510,14 @@
     },
     {
       "id": "LET12",
-      "name": "Leaflet",
+      "name": "Plantlet",
       "mutationFamily": "Let",
       "types": [
         "Plant"
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Leaf-fringed and sunny, small blossoms seem to follow wherever it settles.",
+      "description": "Leaf-fringed and sunward, it carries the feeling of fresh growth just after rain.",
       "image": "creatures/common/LET12_leaflet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2535,7 +2535,7 @@
       ],
       "rarity": "Common",
       "variant": [],
-      "description": "Sweet-sour and sly, a violet haze twinkles in its footsteps—look, don’t lick.",
+      "description": "Sweet-sour and still, it gives off a faint violet haze that warns more than it welcomes.",
       "image": "creatures/common/LET13_poisonlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2553,7 +2553,7 @@
       ],
       "rarity": "Uncommon",
       "variant": [],
-      "description": "Half here, half hush, it peeks from the corner of your eye and waves anyway.",
+      "description": "Half present and half remembered, it appears at the edge of sight before drifting gently into view.",
       "image": "creatures/uncommon/LET14_spiritlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2571,7 +2571,7 @@
       ],
       "rarity": "Uncommon",
       "variant": [],
-      "description": "Shadow-soft with white eyes, it plays hide-and-seek even at noon.",
+      "description": "A soft black silhouette with pale points, it seems darker than the shadow beneath it.",
       "image": "creatures/uncommon/LET15_darklet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2589,7 +2589,7 @@
       ],
       "rarity": "Uncommon",
       "variant": [],
-      "description": "Softly radiant, it turns hallways into little dawns as it toddles by.",
+      "description": "Softly radiant, it brightens the air around it with a clean, early light.",
       "image": "creatures/uncommon/LET16_lightlet.png",
       "spriteData": {
         "frameWidth": 512,
@@ -2607,7 +2607,7 @@
       ],
       "rarity": "Uncommon",
       "variant": [],
-      "description": "Red-warm and steady, you can almost hear a comforting heartbeat when it cuddles.",
+      "description": "Red-warm and steady, it carries a quiet pulse that feels older than its size.",
       "image": "creatures/uncommon/LET17_bloodlet.png",
       "spriteData": {
         "frameWidth": 512,

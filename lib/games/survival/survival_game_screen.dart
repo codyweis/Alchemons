@@ -360,47 +360,14 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
     final hasSeen = await db.settingsDao.hasSeenSurvivalMenuStoryIntro();
     if (hasSeen || !mounted) return;
 
-    final acceptedFirst = await LandscapeDialog.show(
+    await LandscapeDialog.show(
       context,
-      title: 'Refuses To Finish',
-      icon: Icons.hourglass_bottom_rounded,
-      typewriter: true,
-      message:
-          'Something here refuses to finish.\n\n'
-          'The field closes, the wave breaks, the silence returns, and then the same war leans forward again as if no ending was ever allowed to remain.',
-    );
-    if (acceptedFirst != true || !mounted) return;
-
-    final acceptedSecond = await LandscapeDialog.show(
-      context,
-      title: 'Your Creation?',
+      title: 'A Test?',
       icon: Icons.help_outline_rounded,
       typewriter: true,
       message:
-          'Is this your creation?\n\n'
-          'Or has this constant alchemical war always existed somewhere beneath memory, waiting for a witness strong enough to mistake it for a test?',
-    );
-    if (acceptedSecond != true || !mounted) return;
-
-    final acceptedThird = await LandscapeDialog.show(
-      context,
-      title: 'Still Measuring',
-      icon: Icons.science_outlined,
-      typewriter: true,
-      message:
-          'Every return sharpens the pattern.\nEvery loss teaches it your shape.\nEvery surviving guardian carries a little more of the loop inside its body.\n\n'
-          'Whatever built this place is still measuring.',
-    );
-    if (acceptedThird != true || !mounted) return;
-
-    await LandscapeDialog.show(
-      context,
-      title: 'Remade Again',
-      icon: Icons.all_inclusive_rounded,
-      typewriter: true,
-      message:
-          'Stay long enough and repetition becomes revelation.\n\n'
-          'If there is a way out, it may only appear to something that can survive being remade again and again.',
+          'Something here refuses to finish. The field closes, the wave breaks, the silence returns, and then the same war leans forward again as if no ending was ever allowed to remain.\n\n'
+          'Is this my creation? Or has this constant alchemical war always existed somewhere beneath memory, waiting for a witness strong enough to mistake it for a test?',
     );
 
     if (!mounted) return;

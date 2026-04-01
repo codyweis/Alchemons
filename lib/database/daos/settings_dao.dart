@@ -17,7 +17,7 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
 
   // --- ADD THESE CONSTANTS ---
   static const String _fontKey = 'app_font';
-  static const String _defaultFont = 'Aboreto'; // Your default font
+  static const String _defaultFont = 'IM Fell English';
   Future<String> getFontName() async {
     final font = await getSetting(_fontKey);
     return font ?? _defaultFont;
@@ -45,6 +45,11 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await into(settings).insertOnConflictUpdate(
       SettingsCompanion(key: Value(key), value: Value(value)),
     );
+  }
+
+  Future<bool> isArcanePortalUnlocked() async {
+    final v = await getSetting('arcane_portal_unlocked');
+    return v == '1' || (v != null && v.toLowerCase() == 'true');
   }
 
   Future<String?> getNotificationSummaryState(String type) async {
@@ -216,6 +221,19 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await setSetting('constellation_tutorial_seen', '1');
   }
 
+  Future<bool> hasPendingConstellationFirstUnlock() async {
+    final v = await getSetting('constellation_first_unlock_pending');
+    return v == '1';
+  }
+
+  Future<void> setConstellationFirstUnlockPending() async {
+    await setSetting('constellation_first_unlock_pending', '1');
+  }
+
+  Future<void> clearConstellationFirstUnlockPending() async {
+    await deleteSetting('constellation_first_unlock_pending');
+  }
+
   Future<bool> hasSeenBiomeHarvestTutorial() async {
     final v = await getSetting('biome_harvest_tutorial_seen');
     return v == '1';
@@ -299,9 +317,9 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
 
   // =================== COSMIC GARRISON (HOME BASE ALCHEMONS) ===================
 
-  /// Get the list of instance IDs assigned to home garrison slots (up to 5).
+  /// Get the list of instance IDs assigned to home garrison slots (up to 9).
   Future<List<String?>> getCosmicGarrisonSlots() async {
-    final keys = List.generate(5, (i) => 'cosmic_garrison_slot_$i');
+    final keys = List.generate(9, (i) => 'cosmic_garrison_slot_$i');
     final vals = <String?>[];
     for (final k in keys) {
       final v = await getSetting(k);
@@ -314,7 +332,7 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     int index,
     String? instanceId,
   ) async {
-    if (index < 0 || index > 4) return;
+    if (index < 0 || index > 8) return;
     final key = 'cosmic_garrison_slot_$index';
     await setSetting(key, instanceId ?? '');
   }

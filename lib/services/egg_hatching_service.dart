@@ -32,6 +32,7 @@ import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/delay_type_widget.dart';
+import 'package:alchemons/widgets/pure_breeding_intro_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -572,6 +573,14 @@ class EggHatching {
       isNewDiscovery,
       cinematicQuality: cinematicQuality,
     );
+    if (!safeContext.mounted) return;
+    if (instance != null) {
+      await maybeShowFirstPureExtractionDialog(
+        safeContext,
+        instance: instance,
+        species: offspring,
+      );
+    }
 
     final recipeDiscovery = await recipeDiscoveryFuture.catchError(
       (_) => EncyclopediaDiscoveryResult.none,
@@ -951,18 +960,6 @@ class EggHatching {
                                             primaryColor,
                                             delay: const Duration(
                                               milliseconds: 450,
-                                            ),
-                                            fc: fc,
-                                          ),
-                                        if (hasPurityBonus &&
-                                            purityBonus != null)
-                                          _buildTypingAnalysisRow(
-                                            'BASE BONUS',
-                                            purityBonus.summary,
-                                            scanComplete,
-                                            primaryColor,
-                                            delay: const Duration(
-                                              milliseconds: 525,
                                             ),
                                             fc: fc,
                                           ),

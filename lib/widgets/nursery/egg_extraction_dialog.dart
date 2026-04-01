@@ -226,6 +226,8 @@ class ExtractionDialogState extends State<ExtractionDialog>
                             icon: Icons.biotech_rounded,
                             accentColor: rarityColor,
                             emphasis: CultivationDialogButtonEmphasis.primary,
+                            useSolidBackground: true,
+                            foregroundColor: Colors.white,
                             onTap: () {
                               HapticFeedback.heavyImpact();
                               widget.onExtract();

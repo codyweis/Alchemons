@@ -77,9 +77,11 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   // ── Orbital chambers ──────────────────────────────────────────────────────
 
   /// Spawn orbital chambers around the home planet.
-  /// Each entry is: (color, instanceId?, baseCreatureId?, displayName?, imagePath?)
+  /// Each entry is:
+  /// (color, instanceId?, baseCreatureId?, displayName?, imagePath?, spriteVisuals?)
   void spawnOrbitalChambers(
-    List<(Color, String?, String?, String?, String?)> chamberData,
+    List<(Color, String?, String?, String?, String?, SpriteVisuals?)>
+    chamberData,
   ) {
     if (homePlanet == null) return;
     orbitalChambers.clear();
@@ -87,7 +89,8 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     final vr = homePlanet!.visualRadius;
     final rng = Random();
     for (var i = 0; i < chamberData.length; i++) {
-      final (color, instId, baseId, name, imgPath) = chamberData[i];
+      final (color, instId, baseId, name, imgPath, spriteVisuals) =
+          chamberData[i];
       final angle = (i / chamberData.length) * pi * 2 + rng.nextDouble() * 0.3;
       final orbitDist = vr + 120 + rng.nextDouble() * 40;
       final pos = Offset(
@@ -107,6 +110,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
           baseCreatureId: baseId,
           displayName: name,
           imagePath: imgPath,
+          spriteVisuals: spriteVisuals,
           orbitDistance: orbitDist,
         ),
       );
@@ -135,7 +139,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     return dx * dx + dy * dy < threshold * threshold;
   }
 
-  // ── Ammo colour ───────────────────────────────────────────────────────────
+  // ── Ammo color ────────────────────────────────────────────────────────────
 
   Color get _ammoColor => switch (activeAmmoId) {
     'storm_bolts' => const Color(0xFFFFEB3B),
@@ -891,7 +895,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  COMPANION SPRITE COLOUR FILTERS
+  //  COMPANION SPRITE COLOR FILTERS
   // ══════════════════════════════════════════════════════════════════════════
 
   ui.ColorFilter _geneticsColorFilter(SpriteVisuals v) {

@@ -25,6 +25,7 @@ class ConstellationService extends ChangeNotifier {
     });
 
     await _backfillSpecimenExchangeUnlock();
+    await _backfillLineageAnalyzerUnlock();
   }
 
   Future<void> _backfillSpecimenExchangeUnlock() async {
@@ -42,6 +43,38 @@ class ConstellationService extends ChangeNotifier {
       await _db.constellationDao.unlockSkill(newRootId, 0);
       debugPrint(
         '✨ Backfilled constellation skill: Specimen Exchange (compatibility grant)',
+      );
+      notifyListeners();
+    } finally {
+      _compatMigrationRunning = false;
+    }
+  }
+
+  Future<void> _backfillLineageAnalyzerUnlock() async {
+    if (_compatMigrationRunning) return;
+    _compatMigrationRunning = true;
+    try {
+      final unlocked = await _db.constellationDao.getUnlockedSkillIds();
+      const lineageId = 'breeder_lineage_analyzer';
+      const downstreamSkillIds = {
+        'breeder_gene_analyzer',
+        'breeder_potential_analyzer',
+        'breeder_accelerated_gestation',
+        'breeder_accelerated_gestation2',
+        'breeder_accelerated_gestation3',
+        'breeder_harvesting_wilderness_specimens',
+        'breeder_harvesting_wilderness_specimens2',
+        'breeder_harvesting_wilderness_specimens3',
+      };
+
+      if (unlocked.contains(lineageId) ||
+          !downstreamSkillIds.any(unlocked.contains)) {
+        return;
+      }
+
+      await _db.constellationDao.unlockSkill(lineageId, 0);
+      debugPrint(
+        '✨ Backfilled constellation skill: Lineage Analyzer (compatibility grant)',
       );
       notifyListeners();
     } finally {

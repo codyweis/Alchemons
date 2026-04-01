@@ -1683,6 +1683,7 @@ class _RecipeCard extends StatelessWidget {
     final fs = focusState;
     final glow = fs.glow.clamp(0.0, 1.0);
     final flash = fs.flash.clamp(0.0, 1.0);
+    final isElementRecipe = recipe.kind == EncyclopediaRecipeKind.element;
     final discoveredOutcomes = recipe.outcomes
         .where(
           (entry) => discoveredOutcomeKeys.contains(
@@ -1697,7 +1698,9 @@ class _RecipeCard extends StatelessWidget {
         ? '${recipe.parentA} + ${recipe.parentB}'
         : 'Unknown Parent Pair';
     final outcomeText = unlocked
-        ? '${discoveredOutcomes.length} of ${recipe.outcomes.length} defined outcomes extracted'
+        ? isElementRecipe
+              ? null
+              : '${discoveredOutcomes.length} of ${recipe.outcomes.length} defined outcomes extracted'
         : 'Defined outcomes hidden';
 
     return Transform.scale(
@@ -1734,25 +1737,27 @@ class _RecipeCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        outcomeText,
-                        style: _T
-                            .body(context)
-                            .copyWith(
-                              fontSize: 11,
-                              color: unlocked
-                                  ? _C.of(context).textSecondary
-                                  : _C.of(context).textMuted,
-                            ),
+                if (outcomeText != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          outcomeText,
+                          style: _T
+                              .body(context)
+                              .copyWith(
+                                fontSize: 11,
+                                color: unlocked
+                                    ? _C.of(context).textSecondary
+                                    : _C.of(context).textMuted,
+                              ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
+                    ],
+                  ),
+                ],
+                SizedBox(height: outcomeText != null ? 10 : 8),
                 unlocked
                     ? Wrap(
                         spacing: 8,
@@ -1764,9 +1769,15 @@ class _RecipeCard extends StatelessWidget {
                               weight: outcome.weight,
                               color: accent,
                               flash: flash,
+                              emphasized:
+                                  recipe.kind == EncyclopediaRecipeKind.element,
                             ),
                           for (var i = 0; i < hiddenOutcomeCount; i++)
-                            _OutcomeChip.hidden(color: accent),
+                            _OutcomeChip.hidden(
+                              color: accent,
+                              emphasized:
+                                  recipe.kind == EncyclopediaRecipeKind.element,
+                            ),
                         ],
                       )
                     : Text(
@@ -2178,15 +2189,17 @@ class _OutcomeChip extends StatelessWidget {
   final Color color;
   final double flash;
   final bool hidden;
+  final bool emphasized;
 
   const _OutcomeChip({
     required this.label,
     required this.weight,
     required this.color,
     required this.flash,
+    this.emphasized = false,
   }) : hidden = false;
 
-  const _OutcomeChip.hidden({required this.color})
+  const _OutcomeChip.hidden({required this.color, this.emphasized = false})
     : label = '???',
       weight = null,
       flash = 0,
@@ -2195,8 +2208,14 @@ class _OutcomeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chipColor = Color.lerp(color, Colors.white, flash * 0.45) ?? color;
+    final displayLabel = emphasized ? label.toUpperCase() : label;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      constraints: emphasized
+          ? const BoxConstraints(minWidth: 118)
+          : const BoxConstraints(),
+      padding: emphasized
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 9)
+          : const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: chipColor.withValues(alpha: hidden ? 0.06 : 0.12),
         borderRadius: BorderRadius.circular(3),
@@ -2209,22 +2228,25 @@ class _OutcomeChip extends StatelessWidget {
         text: TextSpan(
           children: [
             TextSpan(
-              text: label,
+              text: weight != null && emphasized
+                  ? '$displayLabel '
+                  : displayLabel,
               style: TextStyle(
                 color: hidden
                     ? _C.of(context).textMuted
                     : _C.of(context).textPrimary,
                 fontWeight: FontWeight.w800,
-                fontSize: 11,
+                fontSize: emphasized ? 15 : 11,
+                letterSpacing: emphasized ? 0.8 : 0,
               ),
             ),
             if (weight != null)
               TextSpan(
-                text: '  $weight%',
+                text: emphasized ? '$weight%' : '  $weight%',
                 style: TextStyle(
                   color: chipColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  fontSize: emphasized ? 14 : 10,
                 ),
               ),
           ],

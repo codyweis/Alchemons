@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../database/alchemons_db.dart';
 
-// --- ADDED: Font map ---
+const String defaultAppFontName = 'IM Fell English';
+
 final Map<String, TextTheme Function(TextTheme)> appFontMap = {
-  'Aboreto': GoogleFonts.aboretoTextTheme,
+  defaultAppFontName: GoogleFonts.imFellEnglishTextTheme,
   'ABeeZee': GoogleFonts.aBeeZeeTextTheme,
-  'IM Fell English': GoogleFonts.imFellEnglishTextTheme,
   'Lato': GoogleFonts.latoTextTheme,
   'Roboto': GoogleFonts.robotoTextTheme,
   'Montserrat': GoogleFonts.montserratTextTheme,
@@ -22,17 +22,15 @@ class ThemeNotifier extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   ThemeMode get themeMode => _themeMode;
 
-  // --- ADDED: Font state ---
-  String _fontName = 'Aboreto'; // Default
+  String _fontName = defaultAppFontName;
   String get fontName => _fontName;
 
   TextTheme Function(TextTheme) get currentTextThemeFn {
-    return appFontMap[_fontName] ?? GoogleFonts.aboretoTextTheme;
+    return appFontMap[_fontName] ?? GoogleFonts.imFellEnglishTextTheme;
   }
-  // --- END ADDED ---
 
-  StreamSubscription<StoredThemeMode>? _themeSub; // --- MODIFIED: Renamed ---
-  StreamSubscription<String>? _fontSub; // --- ADDED ---
+  StreamSubscription<StoredThemeMode>? _themeSub;
+  StreamSubscription<String>? _fontSub;
 
   ThemeNotifier(this._db) {
     // initial load
@@ -44,15 +42,16 @@ class ThemeNotifier extends ChangeNotifier {
     final stored = await _db.settingsDao.getStoredThemeMode();
     _themeMode = _toFlutter(stored);
 
-    // --- ADDED: Get current font from DB ---
-    _fontName = await _db.settingsDao.getFontName();
-    // --- END ADDED ---
+    final storedFont = await _db.settingsDao.getFontName();
+    _fontName = _normalizeFontName(storedFont);
+    if (_fontName != storedFont) {
+      unawaited(_db.settingsDao.setFontName(_fontName));
+    }
 
     notifyListeners();
 
     // Listen for future changes
     _themeSub = _db.settingsDao.watchStoredThemeMode().listen((storedMode) {
-      // --- MODIFIED: Renamed _sub ---
       final nextMode = _toFlutter(storedMode);
       if (nextMode != _themeMode) {
         _themeMode = nextMode;
@@ -60,20 +59,22 @@ class ThemeNotifier extends ChangeNotifier {
       }
     });
 
-    // --- ADDED: Listen for font changes ---
     _fontSub = _db.settingsDao.watchFontName().listen((font) {
-      if (font != _fontName) {
-        _fontName = font;
+      final normalizedFont = _normalizeFontName(font);
+      if (normalizedFont != font) {
+        unawaited(_db.settingsDao.setFontName(normalizedFont));
+      }
+      if (normalizedFont != _fontName) {
+        _fontName = normalizedFont;
         notifyListeners();
       }
     });
-    // --- END ADDED ---
   }
 
   @override
   void dispose() {
-    _themeSub?.cancel(); // --- MODIFIED: Renamed _sub ---
-    _fontSub?.cancel(); // --- ADDED ---
+    _themeSub?.cancel();
+    _fontSub?.cancel();
     super.dispose();
   }
 
@@ -85,16 +86,13 @@ class ThemeNotifier extends ChangeNotifier {
     await _db.settingsDao.setStoredThemeMode(_fromFlutter(mode));
   }
 
-  // --- ADDED: Public API to change font ---
   Future<void> setFont(String newFontName) async {
     if (appFontMap.containsKey(newFontName)) {
       _fontName = newFontName;
       notifyListeners();
-      // This assumes you added setFontName to your settingsDao
       await _db.settingsDao.setFontName(newFontName);
     }
   }
-  // --- END ADDED ---
 
   // convenience toggles
   Future<void> toggleLightDark() async {
@@ -141,5 +139,12 @@ class ThemeNotifier extends ChangeNotifier {
         // caller (like a widget) can override this with MediaQuery if needed.
         return false;
     }
+  }
+
+  String _normalizeFontName(String? fontName) {
+    if (fontName != null && appFontMap.containsKey(fontName)) {
+      return fontName;
+    }
+    return defaultAppFontName;
   }
 }

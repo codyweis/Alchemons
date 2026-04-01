@@ -430,10 +430,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 class _Header extends StatelessWidget {
   final AnimationController bgCtrl;
   final VoidCallback onBack;
-  const _Header({
-    required this.bgCtrl,
-    required this.onBack,
-  });
+  const _Header({required this.bgCtrl, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -490,7 +487,6 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-
         ],
       ),
     );
@@ -1668,7 +1664,10 @@ class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'A rift to the arcane realm has opened\non the expedition map.',
+                      'A rift to the arcane realm has opened\n'
+                      'on the expedition map.\n\n'
+                      'Base stats and potentials have increased\n'
+                      'across all wilderness biomes.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'monospace',

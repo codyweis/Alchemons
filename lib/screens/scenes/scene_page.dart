@@ -15,6 +15,7 @@ import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
@@ -114,6 +115,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   bool _inEncounter = false;
   Creature? _wildCreature;
   bool _showTutorialHighlight = false;
+  bool _isCaptureTutorialScene = false;
   bool _riftSpawned = false;
   String? _shipSpawnId;
   bool _cosmicDesolationDialogShown = false;
@@ -175,7 +177,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       setState(() {
         _inEncounter = true;
         _wildCreature = hydrated as Creature;
-        _showTutorialHighlight = widget.isTutorial;
+        _showTutorialHighlight = widget.isTutorial || _isCaptureTutorialScene;
       });
       HapticFeedback.mediumImpact();
     };
@@ -218,23 +220,40 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           // Track visited biomes and possibly create the cosmic ship in-world
           await _registerVisitedBiome();
 
+          final isCaptureTutorialScene =
+              await OpeningWildernessService.isCaptureTutorialScene(
+                _db.settingsDao,
+                widget.sceneId,
+              );
+          if (mounted) {
+            setState(() {
+              _isCaptureTutorialScene = isCaptureTutorialScene;
+            });
+          } else {
+            _isCaptureTutorialScene = isCaptureTutorialScene;
+          }
+          _game.isTutorialMode = widget.isTutorial || _isCaptureTutorialScene;
+
           // Ensure spawns exist (first visit or empty scene)
-          if (!widget.isTutorial) {
+          if (!widget.isTutorial && !_isCaptureTutorialScene) {
             await _spawnService.ensureSpawnsForScene(widget.sceneId);
             await _enforcePoisonOnlySpawns();
             if (mounted) _syncSpawnsFromService();
           }
 
           // Load ship state for rendering (skip for tutorial flow).
-          if (!widget.isTutorial) {
+          if (!widget.isTutorial && !_isCaptureTutorialScene) {
             await _loadShipState();
             await _syncShipBeaconPlacement();
             await _consumeSceneBatchOnEntry();
           }
 
-          // 🆕 Guarantee tutorial spawn BEFORE showing dialog
-          if (widget.isTutorial) {
+          // Keep tutorial scenes pinned to the matching main Let.
+          if (widget.isTutorial || _isCaptureTutorialScene) {
             await _ensureTutorialSpawn();
+            if (_isCaptureTutorialScene) {
+              await _ensureCaptureTutorialHarvester();
+            }
             if (mounted) _syncSpawnsFromService();
           }
 
@@ -247,10 +266,23 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
             if (mounted) {
               await _showWelcomeDialog();
             }
+          } else if (_isCaptureTutorialScene &&
+              !_tutorialDialogShown &&
+              mounted) {
+            _tutorialDialogShown = true;
+            await _showCaptureTutorialDialog();
           }
 
-          if (mounted) {
+          if (mounted && !widget.isTutorial && !_isCaptureTutorialScene) {
             await _maybeShowFirstVisitWildernessStoryDialog();
+          }
+
+          if (!widget.isTutorial &&
+              !_isCaptureTutorialScene &&
+              !_riftSpawned &&
+              mounted) {
+            _riftSpawned = true;
+            _game.spawnRiftIfChance(sceneId: widget.sceneId);
           }
         });
       }
@@ -261,14 +293,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       _game.syncWildFromEncounters();
     } else {
       _syncSpawnsFromService();
-    }
-
-    // Spawn rift portal once per scene entry (10% chance, skip tutorial)
-    if (!_isCosmicPlanetMode && !_riftSpawned && !widget.isTutorial) {
-      _riftSpawned = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _game.spawnRiftIfChance(sceneId: widget.sceneId);
-      });
     }
   }
 
@@ -325,14 +349,13 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   Future<void> _ensureTutorialSpawn() async {
     // Clear any existing spawns first
     await _spawnService.clearSceneSpawns(widget.sceneId);
+    final tutorialSpawnId = OpeningWildernessService.tutorialSpawnPointForScene(
+      widget.sceneId,
+    );
+    final speciesId = OpeningWildernessService.mainLetForScene(widget.sceneId);
 
-    // Find the best spawn point for tutorial (front-center is ideal)
-    // SP_valley_02 is at (0.58, 0.80) - front middle, perfect for tutorial
-    const tutorialSpawnId = 'SP_valley_02';
-
-    // Force spawn LET04 at common rarity
     final tutorialEncounter = EncounterRoll(
-      speciesId: 'LET04',
+      speciesId: speciesId,
       rarity: EncounterRarity.common,
       spawnId: tutorialSpawnId,
     );
@@ -351,14 +374,25 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
             id: '${widget.sceneId}_$tutorialSpawnId',
             sceneId: widget.sceneId,
             spawnPointId: tutorialSpawnId,
-            speciesId: 'LET04',
+            speciesId: speciesId,
             rarity: 'common',
             spawnedAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
           ),
           mode: InsertMode.insertOrReplace,
         );
 
-    debugPrint('✨ Tutorial spawn guaranteed: LET04 at $tutorialSpawnId');
+    debugPrint(
+      '✨ Tutorial spawn guaranteed: $speciesId at ${widget.sceneId}/$tutorialSpawnId',
+    );
+  }
+
+  Future<void> _ensureCaptureTutorialHarvester() async {
+    final inventoryKey = OpeningWildernessService.harvesterInventoryKeyForScene(
+      widget.sceneId,
+    );
+    final qty = await _db.inventoryDao.getItemQty(inventoryKey);
+    if (qty > 0) return;
+    await _db.inventoryDao.addItemQty(inventoryKey, 1);
   }
 
   Future<void> _showWelcomeDialog() async {
@@ -398,6 +432,34 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       kind: LandscapeDialogKind.success,
       icon: Icons.check_circle_rounded,
       primaryLabel: 'Return to Lab',
+      barrierDismissible: false,
+    );
+  }
+
+  Future<void> _showCaptureTutorialDialog() async {
+    await LandscapeDialog.show(
+      context,
+      title: 'Harvester Trial',
+      message:
+          'This wild Alchemon must be harvested, not fused. Open the harvester panel and use the issued device to capture the specimen.',
+      typewriter: true,
+      kind: LandscapeDialogKind.info,
+      icon: Icons.catching_pokemon_rounded,
+      primaryLabel: 'Begin Capture',
+      barrierDismissible: false,
+    );
+  }
+
+  Future<void> _showPureWildDialog() async {
+    await LandscapeDialog.show(
+      context,
+      title: 'Pure Wild Specimen',
+      message:
+          'Wild Alchemons are pure by default. Harvest them for pure replicas, or fuse with them for different results.',
+      typewriter: false,
+      kind: LandscapeDialogKind.success,
+      icon: Icons.auto_awesome_rounded,
+      primaryLabel: 'Return to Cultivations',
       barrierDismissible: false,
     );
   }
@@ -870,9 +932,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     HapticFeedback.heavyImpact();
     Navigator.of(context).push(
       PageRouteBuilder<void>(
-        opaque: false,
-        barrierDismissible: true,
-        barrierColor: Colors.transparent,
+        opaque: true,
+        barrierDismissible: false,
         transitionDuration: const Duration(milliseconds: 900),
         reverseTransitionDuration: const Duration(milliseconds: 400),
         pageBuilder: (ctx, animation, secondary) => _RiftVoidPage(
@@ -1180,7 +1241,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     hydratedWildCreature: _wildCreature!,
                     party: widget.party,
                     highlightPartyHUD: _showTutorialHighlight,
-                    isTutorial: widget.isTutorial, // 🆕 Pass tutorial flag
+                    isTutorial: widget.isTutorial,
+                    isCaptureTutorial: _isCaptureTutorialScene,
                     onPreRollShake: () {
                       _game.shake(
                         duration: const Duration(milliseconds: 800),
@@ -1194,22 +1256,54 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       if (success && id != null) {
                         _game.clearWildAt(id);
                         _removeTransientSpawn(id);
-                        if (!_isCosmicPlanetMode &&
-                            !_usingSessionSceneSpawns &&
-                            !widget.isTutorial) {
+                        if (!_isCosmicPlanetMode && !_usingSessionSceneSpawns) {
                           await _spawnService.removeSpawn(widget.sceneId, id);
                         }
                         _usedSpawnPointId = null;
                         _exitEncounter(clearSpawnId: id);
                         _syncSpawnsFromService();
 
-                        // 🆕 Handle tutorial completion AFTER everything
+                        if (_isCaptureTutorialScene && mounted) {
+                          await _showPureWildDialog();
+                          if (!mounted) return;
+                          await OpeningWildernessService.completeCaptureTutorial(
+                            _db.settingsDao,
+                          );
+                          for (final sceneId
+                              in OpeningWildernessService.coreScenes) {
+                            await _spawnService.scheduleNextSpawnTime(
+                              sceneId,
+                              force: true,
+                            );
+                          }
+                          if (!context.mounted) return;
+                          Navigator.of(
+                            context,
+                          ).popUntil((route) => route.isFirst);
+                          if (widget.onNavigateSection != null) {
+                            Future.microtask(() {
+                              if (mounted) {
+                                widget.onNavigateSection!(
+                                  NavSection.breed,
+                                  breedInitialTab: 1,
+                                );
+                              }
+                            });
+                          }
+                          return;
+                        }
+
+                        // Handle the first wilderness fusion tutorial after everything
                         if (!widget.isTutorial || !mounted) return;
 
                         await _showSuccessDialog();
                         if (!mounted) return;
 
                         final settingsDao = _db.settingsDao;
+                        await OpeningWildernessService.advanceToCaptureTutorial(
+                          settingsDao,
+                          firstScene: widget.sceneId,
+                        );
                         await settingsDao.setFieldTutorialCompleted();
                         await settingsDao.setNavLocked(false);
 
@@ -1238,7 +1332,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     },
                   ),
                 // Back / leave button - 🆕 Hidden in tutorial
-                if (!widget.isTutorial)
+                if (!widget.isTutorial && !_isCaptureTutorialScene)
                   SafeArea(
                     child: Align(
                       alignment: Alignment.topLeft,

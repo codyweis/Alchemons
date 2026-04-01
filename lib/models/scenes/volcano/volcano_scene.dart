@@ -36,15 +36,25 @@ final volcanoScene = SceneDefinition(
   spawnPoints: [
     SpawnPoint(
       id: 'SP_volcano_01',
-      normalizedPos: const Offset(0.40, 0.65),
+      normalizedPos: const Offset(0.24, 0.72),
       anchor: SceneLayer.layer4,
       size: Vector2(80, 80),
+      battlePos: const Offset(0.54, 0.72),
     ),
     SpawnPoint(
       id: 'SP_volcano_02',
-      normalizedPos: const Offset(0.58, 0.80),
+      normalizedPos: const Offset(0.60, 0.78),
       anchor: SceneLayer.layer4,
       size: Vector2(80, 80),
+      battlePos: const Offset(0.34, 0.78),
+    ),
+    // airborne ash perch above the lava shelf for wings/floating mons
+    SpawnPoint(
+      id: 'SP_volcano_03',
+      normalizedPos: const Offset(0.72, 0.58),
+      anchor: SceneLayer.layer3,
+      size: Vector2(72, 72),
+      battlePos: const Offset(0.44, 0.58),
     ),
   ],
 );

@@ -351,14 +351,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Consume Alchemons into elemental material to enhance other Alchemons.',
       icon: Icons.auto_fix_high_rounded,
-      cost: const {
-        'silver': 5000,
-        'res_volcanic': 200,
-        'res_oceanic': 200,
-        'res_verdant': 200,
-        'res_earthen': 200,
-        'res_arcane': 200,
-      },
+      cost: const {'silver': 10000},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -464,13 +457,13 @@ class ShopService extends ChangeNotifier {
     // --- NEW: Currency exchange units (5% fee baked in) ---
     ShopOffer(
       id: 'fx.silver_to_gold.unit',
-      name: 'Silver → Gold (10g)',
+      name: 'Silver → Gold (5g)',
       description:
-          'Exchange 500,000 silver for 10 gold. Use gold for premium items, portal keys, and rare cosmetics.',
+          'Exchange 100,000 silver for 5 gold. Use gold for premium items, portal keys, and rare cosmetics.',
       icon: Icons.currency_exchange_rounded,
       iconColor: const Color(0xFFF59E0B),
-      cost: const {'silver': 500000},
-      reward: const {'gold': 10},
+      cost: const {'silver': 100000},
+      reward: const {'gold': 5},
       rewardType: 'currency',
       limit: PurchaseLimit.unlimited,
     ),
@@ -493,7 +486,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: Icons.biotech_rounded,
-      cost: const {'silver': 1000}, // 1st purchase: 1,000 silver
+      cost: const {'silver': 500}, // 1st purchase: 500 silver
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,

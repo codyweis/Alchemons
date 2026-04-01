@@ -520,7 +520,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                     const SizedBox(height: 10),
                                     CultivationDialogButton(
                                       tokens: t,
-                                      label: 'USE INSTANT HATCH ×$qty',
+                                      label: 'USE INSTANT FUSE ×$qty',
                                       icon: Icons.flash_on_rounded,
                                       accentColor: t.success,
                                       emphasis: CultivationDialogButtonEmphasis

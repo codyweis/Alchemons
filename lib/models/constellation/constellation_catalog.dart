@@ -51,7 +51,7 @@ class ConstellationCatalog {
   static const crossSpeciesLineage = ConstellationSkill(
     id: 'breeder_cross_species',
     name: 'Cross-Species Lineage',
-    description: 'Unlock the ability to breed two different species',
+    description: 'Unlock the ability to fuse two different species',
     tree: ConstellationTree.breeder,
     pointsCost: 1,
     prerequisites: [],
@@ -65,7 +65,7 @@ class ConstellationCatalog {
         'Unlock the ability to view what nature effects do to creatures',
     tree: ConstellationTree.breeder,
     pointsCost: 1,
-    prerequisites: ['breeder_cross_species'],
+    prerequisites: ['breeder_lineage_analyzer'],
     tier: 3,
   );
 

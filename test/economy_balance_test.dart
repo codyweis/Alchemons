@@ -44,16 +44,25 @@ void main() {
       expect(avgGold, lessThan(0.08));
     });
 
-    test('early survival no longer guarantees loot boxes', () {
+    test('survival guarantees the smallest loot pool through wave 20', () {
+      for (final wave in [10, 15, 20]) {
+        final reward = LootBoxConfig.rollSurvivalLootBoxReward(
+          wave,
+          Random(wave),
+        );
+        expect(reward, isNotNull, reason: 'wave $wave should always award loot');
+        expect(reward!.quantity, 1, reason: 'wave $wave should stay on the smallest loot tier');
+      }
+
       var lootDrops = 0;
       for (var i = 0; i < 1000; i++) {
-        if (LootBoxConfig.rollSurvivalLootBoxReward(10, Random(i)) != null) {
+        if (LootBoxConfig.rollSurvivalLootBoxReward(21, Random(i)) != null) {
           lootDrops++;
         }
       }
 
-      expect(lootDrops, greaterThan(150));
-      expect(lootDrops, lessThan(350));
+      expect(lootDrops, greaterThan(400));
+      expect(lootDrops, lessThan(600));
     });
   });
 }

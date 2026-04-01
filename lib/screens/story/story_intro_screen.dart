@@ -18,7 +18,6 @@ class StoryIntroScreen extends StatefulWidget {
 
 class _StoryIntroScreenState extends State<StoryIntroScreen>
     with TickerProviderStateMixin {
-  late AnimationController _fadeController;
   late AnimationController _pageTransitionController;
 
   int _currentPage = 0;
@@ -32,18 +31,11 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    );
     _pageTransitionController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
       value: 1.0, // Start fully visible
     );
-
-    // Start with fade in
-    _fadeController.forward();
 
     // Start auto-advance timer
     _startAutoAdvanceTimer();
@@ -51,7 +43,6 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
 
   @override
   void dispose() {
-    _fadeController.dispose();
     _pageTransitionController.dispose();
     _skipTimer?.cancel();
     _autoAdvanceTimer?.cancel();
@@ -229,8 +220,6 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
       key: key,
       child: switch (page.type) {
         StoryPageType.quote => _buildQuotePage(page),
-        StoryPageType.narrative => _buildNarrativePage(page),
-        StoryPageType.creatureReveal => _buildCreatureRevealPage(page),
         StoryPageType.elementIntro => _buildElementIntroPage(page),
         StoryPageType.loading => _buildLoadingPage(page),
       },
@@ -257,65 +246,6 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildNarrativePage(StoryPage page) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              page.mainText,
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 26,
-                height: 1.8,
-                color: page.textColor ?? Colors.white,
-                fontWeight: FontWeight.w300,
-                letterSpacing: 1.2,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCreatureRevealPage(StoryPage page) {
-    // We'll show a creature here - you can customize which one
-    return SafeArea(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Creature showcase goes here
-          // For now, placeholder
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white24, width: 2),
-            ),
-            child: const Icon(
-              Icons.psychology_outlined,
-              size: 80,
-              color: Colors.white38,
-            ),
-          ),
-          const SizedBox(height: 40),
-          Text(
-            '...',
-            style: GoogleFonts.robotoMono(
-              fontSize: 18,
-              color: Colors.white70,
-              letterSpacing: 8,
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -1356,47 +1356,133 @@ class _ShipBeaconComponent extends PositionComponent with TapCallbacks {
     canvas.translate(c.dx, c.dy);
     canvas.scale(pulse);
 
+    final enginePulse = 0.85 + 0.15 * sin(_elapsed * 9);
+
     // Engine glow
     final glowPaint = Paint()
-      ..color = const Color(0xAA00E5FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-    canvas.drawCircle(const Offset(0, 24), 12, glowPaint);
+      ..color = const Color(0xAA00E5FF).withValues(alpha: 0.62 * enginePulse)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    canvas.drawCircle(const Offset(0, 28), 13, glowPaint);
 
-    // Trail particles (same feel as cosmic default)
-    final trailPaint = Paint()..color = const Color(0x4000BFFF);
-    for (var i = 1; i <= 3; i++) {
-      final wobble = sin(_elapsed * 8 + i * 1.5) * 3;
+    for (final x in const [-7.5, 7.5]) {
       canvas.drawCircle(
-        Offset(wobble, 24.0 + i * 10),
-        5.0 - i * 0.9,
+        Offset(x, 23),
+        4.5,
+        Paint()..color = const Color(0xCC8AF7FF),
+      );
+    }
+
+    // Trail particles
+    for (var i = 1; i <= 4; i++) {
+      final wobble = sin(_elapsed * 8 + i * 1.35) * (2.8 + i * 0.25);
+      final trailPaint = Paint()
+        ..color = const Color(0xFF5ED8FF).withValues(alpha: 0.24 - i * 0.04);
+      canvas.drawCircle(
+        Offset(wobble, 28.0 + i * 9),
+        5.1 - i * 0.7,
         trailPaint,
       );
     }
 
-    // Ship body
-    final bodyPath = Path()
-      ..moveTo(0, -30)
-      ..lineTo(-16, 24)
-      ..lineTo(0, 12)
-      ..lineTo(16, 24)
+    final wingPath = Path()
+      ..moveTo(0, -34)
+      ..lineTo(-8, -22)
+      ..lineTo(-18, -8)
+      ..lineTo(-24, 16)
+      ..lineTo(-11, 12)
+      ..lineTo(-5, 26)
+      ..lineTo(0, 21)
+      ..lineTo(5, 26)
+      ..lineTo(11, 12)
+      ..lineTo(24, 16)
+      ..lineTo(18, -8)
+      ..lineTo(8, -22)
       ..close();
 
-    final bodyPaint = Paint()
-      ..shader = ui.Gradient.linear(const Offset(0, -30), const Offset(0, 24), [
-        const Color(0xFF80DEEA),
-        const Color(0xFF0077B6),
+    final fuselagePath = Path()
+      ..moveTo(0, -38)
+      ..lineTo(-5.5, -18)
+      ..lineTo(-6.5, -4)
+      ..lineTo(-4.2, 19)
+      ..lineTo(0, 25)
+      ..lineTo(4.2, 19)
+      ..lineTo(6.5, -4)
+      ..lineTo(5.5, -18)
+      ..close();
+
+    final wingPaint = Paint()
+      ..shader = ui.Gradient.linear(const Offset(0, -34), const Offset(0, 26), [
+        const Color(0xFF4FC3F7),
+        const Color(0xFF0C5C86),
       ]);
-    canvas.drawPath(bodyPath, bodyPaint);
+    canvas.drawPath(wingPath, wingPaint);
+
+    final fuselagePaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -38),
+        const Offset(0, 25),
+        [
+          const Color(0xFFDDFBFF),
+          const Color(0xFF90E8FF),
+          const Color(0xFF0D79AB),
+        ],
+        const [0.0, 0.42, 1.0],
+      );
+    canvas.drawPath(fuselagePath, fuselagePaint);
+
+    final canopyPath = Path()
+      ..moveTo(0, -22)
+      ..quadraticBezierTo(7, -18, 5.5, -5)
+      ..quadraticBezierTo(0, 1, -5.5, -5)
+      ..quadraticBezierTo(-7, -18, 0, -22)
+      ..close();
+    final canopyPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -22),
+        const Offset(0, 1),
+        [
+          const Color(0xFFF6FEFF),
+          const Color(0xFF6FE8FF),
+          const Color(0xFF007EA7),
+        ],
+        const [0.0, 0.48, 1.0],
+      );
+    canvas.drawPath(canopyPath, canopyPaint);
+
+    final intakePaint = Paint()
+      ..color = const Color(0x6615334A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawLine(const Offset(-11, -5), const Offset(-15, 12), intakePaint);
+    canvas.drawLine(const Offset(11, -5), const Offset(15, 12), intakePaint);
+
+    final hullHighlight = Paint()
+      ..color = const Color(0x99FFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawLine(const Offset(0, -29), const Offset(0, 16), hullHighlight);
 
     final outlinePaint = Paint()
       ..color = const Color(0xAA00E5FF)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
-    canvas.drawPath(bodyPath, outlinePaint);
+    canvas.drawPath(wingPath, outlinePaint);
+    canvas.drawPath(fuselagePath, outlinePaint);
+
+    canvas.drawCircle(
+      const Offset(-13, 5),
+      2.1,
+      Paint()..color = const Color(0x99A8FFFF),
+    );
+    canvas.drawCircle(
+      const Offset(13, 5),
+      2.1,
+      Paint()..color = const Color(0x9959D8FF),
+    );
 
     canvas.drawCircle(
       const Offset(0, -8),
-      5,
+      5.5,
       Paint()..color = const Color(0xCC00E5FF),
     );
 

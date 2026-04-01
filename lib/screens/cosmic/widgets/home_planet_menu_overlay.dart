@@ -206,7 +206,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                     Padding(
                                       padding: const EdgeInsets.only(top: 6),
                                       child: const Text(
-                                        'Deposit elements to change your planet colour.',
+                                        'Deposit elements to change your planet color.',
                                         style: TextStyle(
                                           fontFamily: 'monospace',
                                           color: CosmicScreenStyles.textMuted,

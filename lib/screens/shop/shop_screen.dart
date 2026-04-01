@@ -1888,6 +1888,7 @@ class _ShopScreenState extends State<ShopScreen> {
       final creatureId = await CreatureSelectionSheet.show<String?>(
         context: context,
         discoveredCreatures: discovered,
+        stateScopeKey: 'shop_effect_species',
         onSelectCreature: (id) => Navigator.of(context).pop(id),
         isScrollControlled: true,
         title: 'Choose Species',
@@ -1908,6 +1909,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: InstancesSheet(
             species: creature,
             theme: theme,
+            prefsScopeKey: 'shop_effect_instances',
             onTap: (inst) => Navigator.pop(context, inst.instanceId),
           ),
         ),
@@ -1981,7 +1983,7 @@ class _ShopScreenState extends State<ShopScreen> {
           onTap: () {
             if (!unlocked) {
               _toast(
-                'Unlock Specimen Exchange in the Explorer tree',
+                'Explore the constellations to unlock.',
                 icon: Icons.lock_rounded,
                 color: t.amber,
               );

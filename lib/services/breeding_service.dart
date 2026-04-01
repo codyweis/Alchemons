@@ -8,6 +8,8 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
@@ -15,6 +17,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 import 'package:flutter/foundation.dart';
@@ -76,6 +79,16 @@ class BreedingServiceV2 {
   ///   1) Call the engine exactly once.
   ///   2) Use that *same* offspring for the likelihood analyzer.
   ///   3) Store the analysis JSON inside the EggPayload.
+  Future<String?> getEggPlacementFailureMessage({
+    bool requireStorageCapacity = true,
+  }) async {
+    final free = await db.incubatorDao.firstFreeSlot();
+    if (free != null) return null;
+    if (!requireStorageCapacity) return null;
+    if (await ColdStorageService.hasCapacity(db)) return null;
+    return ColdStorageService.buildFullMessage(db);
+  }
+
   Future<EggCreationResult> breedInstances(
     CreatureInstance parent1,
     CreatureInstance parent2, {
@@ -111,13 +124,28 @@ class BreedingServiceV2 {
       parent2,
       offspring,
     );
+    final pureBreedingInfo = baseA != null && baseB != null
+        ? _buildPureBreedingInfo(
+            offspring: offspring,
+            parentA: ParentSnapshotFactory.fromDbInstance(parent1, repository),
+            parentB: ParentSnapshotFactory.fromDbInstance(parent2, repository),
+            parentCreatureA: baseA,
+            parentCreatureB: baseB,
+          )
+        : null;
 
     final payload = payloadFactory.fromBreedingResult(
       offspring,
       likelihoodAnalysisJson: analysisJson,
     );
 
-    return _createEgg(offspring, payload, bothParentsFire: bothParentsFire);
+    return _createEgg(
+      offspring,
+      payload,
+      bothParentsFire: bothParentsFire,
+      pureBreedingInfo: pureBreedingInfo,
+      enforceStorageCapacity: false,
+    );
   }
 
   /// Wild breeding - breed instance with wild catalog creature
@@ -127,6 +155,7 @@ class BreedingServiceV2 {
     CreatureInstance ownedParent,
     Creature wildCreature, {
     int? wildSeed,
+    Duration? customHatchDuration,
     // kept for compat; ignored
     String? likelihoodAnalysisJson,
     bool forcePrismatic = false,
@@ -141,10 +170,13 @@ class BreedingServiceV2 {
     }
     // --------------------------------------------
 
+    final arcaneBoostUnlocked = await db.settingsDao.isArcanePortalUnlocked();
+
     // Randomize wild creature's attributes ONCE
     final randomizedWild = wildRandomizer.randomizeWildCreature(
       wildCreature,
       seed: wildSeed,
+      arcaneBoostUnlocked: arcaneBoostUnlocked,
     );
 
     // Breed using the randomized wild
@@ -166,6 +198,14 @@ class BreedingServiceV2 {
       randomizedWild,
       offspring,
     );
+    final ownedBase = repository.getCreatureById(ownedParent.baseId);
+    final pureBreedingInfo = _buildPureBreedingInfo(
+      offspring: offspring,
+      parentA: ParentSnapshotFactory.fromDbInstance(ownedParent, repository),
+      parentB: ParentSnapshot.fromCreatureWithStats(randomizedWild, null),
+      parentCreatureA: ownedBase,
+      parentCreatureB: randomizedWild,
+    );
 
     final payload = payloadFactory.fromWildBreeding(
       offspring,
@@ -176,13 +216,19 @@ class BreedingServiceV2 {
     );
 
     // Fire perk: owned parent + wild both Fire?
-    final ownedBase = repository.getCreatureById(ownedParent.baseId);
     final bothParentsFire =
         ownedBase != null &&
         ownedBase.types.contains('Fire') &&
         randomizedWild.types.contains('Fire');
 
-    return _createEgg(offspring, payload, bothParentsFire: bothParentsFire);
+    return _createEgg(
+      offspring,
+      payload,
+      customHatchDuration: customHatchDuration,
+      bothParentsFire: bothParentsFire,
+      pureBreedingInfo: pureBreedingInfo,
+      enforceStorageCapacity: false,
+    );
   }
 
   /// Create starter egg (starters have no RNG/analysis)
@@ -271,6 +317,8 @@ class BreedingServiceV2 {
     EggPayload payload, {
     Duration? customHatchDuration,
     bool bothParentsFire = false,
+    PureBreedingInfo? pureBreedingInfo,
+    bool enforceStorageCapacity = true,
   }) async {
     final rarityKey = creature.rarity.toLowerCase();
     final baseHatchDelay =
@@ -291,7 +339,7 @@ class BreedingServiceV2 {
     final free = await db.incubatorDao.firstFreeSlot();
 
     if (free == null) {
-      if (!await ColdStorageService.hasCapacity(db)) {
+      if (enforceStorageCapacity && !await ColdStorageService.hasCapacity(db)) {
         return EggCreationResult.failure(
           await ColdStorageService.buildFullMessage(db),
         );
@@ -305,7 +353,11 @@ class BreedingServiceV2 {
         payloadJson: payloadJson,
       );
 
-      return EggCreationResult.queued(eggId: eggId, creatureId: creature.id);
+      return EggCreationResult.queued(
+        eggId: eggId,
+        creatureId: creature.id,
+        pureBreedingInfo: pureBreedingInfo,
+      );
     } else {
       final hatchAtUtc = DateTime.now().toUtc().add(adjustedDelay);
       await db.incubatorDao.placeEgg(
@@ -321,9 +373,125 @@ class BreedingServiceV2 {
         eggId: eggId,
         creatureId: creature.id,
         slotId: free.id,
+        pureBreedingInfo: pureBreedingInfo,
       );
     }
   }
+
+  PureBreedingInfo? _buildPureBreedingInfo({
+    required Creature offspring,
+    required ParentSnapshot parentA,
+    required ParentSnapshot parentB,
+    required Creature? parentCreatureA,
+    required Creature parentCreatureB,
+  }) {
+    final lineage = offspring.lineageData;
+    if (lineage == null) return null;
+
+    final purity = classifyPurityFromLineages(
+      elementLineage: lineage.elementLineage,
+      speciesLineage: lineage.familyLineage,
+    );
+    if (!purity.isPure) return null;
+
+    final elementName = _singlePositiveLineageKey(lineage.elementLineage);
+    final familyName = _singlePositiveLineageKey(lineage.familyLineage);
+
+    return PureBreedingInfo(
+      elementName: elementName,
+      familyName: familyName,
+      foundedNewElementLine: parentCreatureA != null
+          ? _didFoundNewPureElementLine(
+              child: offspring,
+              parentA: parentA,
+              parentB: parentB,
+              creatureA: parentCreatureA,
+              creatureB: parentCreatureB,
+            )
+          : false,
+      foundedNewFamilyLine: parentCreatureA != null
+          ? _didFoundNewPureFamilyLine(
+              child: offspring,
+              parentA: parentA,
+              parentB: parentB,
+              creatureA: parentCreatureA,
+              creatureB: parentCreatureB,
+            )
+          : false,
+    );
+  }
+
+  bool _didFoundNewPureElementLine({
+    required Creature child,
+    required ParentSnapshot parentA,
+    required ParentSnapshot parentB,
+    required Creature creatureA,
+    required Creature creatureB,
+  }) {
+    final childElement = _primaryElementOf(child);
+    final elemA = _primaryElementOf(creatureA);
+    final elemB = _primaryElementOf(creatureB);
+    if (childElement == null || elemA == null || elemB == null) return false;
+    if (childElement == elemA || childElement == elemB) return false;
+
+    if (!_isPureElementLine(parentA, elemA) ||
+        !_isPureElementLine(parentB, elemB)) {
+      return false;
+    }
+
+    final recipe =
+        engine.elementRecipes.recipes[ElementRecipeConfig.keyOf(elemA, elemB)];
+    return recipe != null && recipe.containsKey(childElement);
+  }
+
+  bool _didFoundNewPureFamilyLine({
+    required Creature child,
+    required ParentSnapshot parentA,
+    required ParentSnapshot parentB,
+    required Creature creatureA,
+    required Creature creatureB,
+  }) {
+    final childFamily = _familyOf(child);
+    final famA = _familyOf(creatureA);
+    final famB = _familyOf(creatureB);
+    if (childFamily == 'Unknown' || famA == 'Unknown' || famB == 'Unknown') {
+      return false;
+    }
+    if (childFamily == famA || childFamily == famB) return false;
+
+    if (!_isPureFamilyLine(parentA, famA) ||
+        !_isPureFamilyLine(parentB, famB)) {
+      return false;
+    }
+
+    final recipe =
+        engine.familyRecipes.recipes[FamilyRecipeConfig.keyOf(famA, famB)];
+    return recipe != null && recipe.containsKey(childFamily);
+  }
+
+  bool _isPureElementLine(ParentSnapshot parent, String currentElement) {
+    final nonZero = parent.elementLineage.entries
+        .where((entry) => entry.value > 0)
+        .toList();
+    return nonZero.length == 1 && nonZero.first.key == currentElement;
+  }
+
+  bool _isPureFamilyLine(ParentSnapshot parent, String currentFamily) {
+    final nonZero = parent.familyLineage.entries
+        .where((entry) => entry.value > 0)
+        .toList();
+    return nonZero.length == 1 && nonZero.first.key == currentFamily;
+  }
+
+  String? _singlePositiveLineageKey(Map<String, int> lineage) {
+    final nonZero = lineage.entries.where((entry) => entry.value > 0).toList();
+    return nonZero.length == 1 ? nonZero.first.key : null;
+  }
+
+  String? _primaryElementOf(Creature creature) =>
+      creature.types.isNotEmpty ? creature.types.first : null;
+
+  String _familyOf(Creature creature) => creature.mutationFamily ?? 'Unknown';
 
   Duration _applyHatchModifiers(
     Duration base,
@@ -380,6 +548,7 @@ class EggCreationResult {
   final int? slotId;
   final String? message;
   final EggPlacement placement;
+  final PureBreedingInfo? pureBreedingInfo;
 
   EggCreationResult._({
     required this.success,
@@ -388,12 +557,14 @@ class EggCreationResult {
     this.slotId,
     this.message,
     required this.placement,
+    this.pureBreedingInfo,
   });
 
   factory EggCreationResult.incubating({
     required String eggId,
     required String creatureId,
     required int slotId,
+    PureBreedingInfo? pureBreedingInfo,
   }) {
     return EggCreationResult._(
       success: true,
@@ -401,18 +572,21 @@ class EggCreationResult {
       creatureId: creatureId,
       slotId: slotId,
       placement: EggPlacement.incubator,
+      pureBreedingInfo: pureBreedingInfo,
     );
   }
 
   factory EggCreationResult.queued({
     required String eggId,
     required String creatureId,
+    PureBreedingInfo? pureBreedingInfo,
   }) {
     return EggCreationResult._(
       success: true,
       eggId: eggId,
       creatureId: creatureId,
       placement: EggPlacement.storage,
+      pureBreedingInfo: pureBreedingInfo,
     );
   }
 
@@ -426,3 +600,19 @@ class EggCreationResult {
 }
 
 enum EggPlacement { incubator, storage, none }
+
+class PureBreedingInfo {
+  final String? elementName;
+  final String? familyName;
+  final bool foundedNewElementLine;
+  final bool foundedNewFamilyLine;
+
+  const PureBreedingInfo({
+    this.elementName,
+    this.familyName,
+    this.foundedNewElementLine = false,
+    this.foundedNewFamilyLine = false,
+  });
+
+  bool get foundedNewLine => foundedNewElementLine || foundedNewFamilyLine;
+}

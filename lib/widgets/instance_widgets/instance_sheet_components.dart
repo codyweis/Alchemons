@@ -103,7 +103,7 @@ class InstanceCard extends StatelessWidget {
     };
     final showSortBadge = activeSortBy?.isStatSort == true;
     final topLeftLabel = showSortBadge
-        ? '${activeSortBy!.shortLabel} ${activeSortBy!.valueForInstance(instance).toStringAsFixed(1)}'
+        ? 'LV ${instance.level} ${activeSortBy!.shortLabel} ${activeSortBy!.valueForInstance(instance).toStringAsFixed(1)}'
         : 'LV ${instance.level}';
     final topLeftTextColor = showSortBadge
         ? t.readableAccent(sortBadgeColor)

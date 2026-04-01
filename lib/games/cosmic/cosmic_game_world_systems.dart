@@ -2722,14 +2722,23 @@ extension CosmicGameWorldSystems on CosmicGame {
   }
 
   bool get hasRemainingStarDust => collectedDustCount < starDusts.length;
+  bool get hasUndiscoveredPlanets => world_.discoveredCount < world_.totalCount;
 
   int? get starDustScannerTargetIndex => _starDustScannerTargetIndex;
+  int? get planetScannerTargetIndex => _planetScannerTargetIndex;
 
   StarDust? get starDustScannerTarget {
     final idx = _starDustScannerTargetIndex;
     if (idx == null || idx < 0 || idx >= starDusts.length) return null;
     final dust = starDusts[idx];
     return dust.collected ? null : dust;
+  }
+
+  CosmicPlanet? get planetScannerTarget {
+    final idx = _planetScannerTargetIndex;
+    if (idx == null || idx < 0 || idx >= world_.planets.length) return null;
+    final planet = world_.planets[idx];
+    return planet.discovered ? null : planet;
   }
 
   int? consumeCompletedScannerDustIndex() {
@@ -2762,6 +2771,32 @@ extension CosmicGameWorldSystems on CosmicGame {
     shipWallet.shards -= shardCost;
     _starDustScannerTargetIndex = target.index;
     _relocateStarDustScanner(scanner);
+    return null;
+  }
+
+  String? activatePlanetScanner(SpacePOI scanner, {int shardCost = 50}) {
+    syncPlanetScannerAvailability();
+    if (scanner.type != POIType.planetScanner || !spacePOIs.contains(scanner)) {
+      return 'Planet scanner unavailable.';
+    }
+    if (!hasUndiscoveredPlanets) {
+      return 'All planets have been discovered. Scanner offline.';
+    }
+    if (_planetScannerTargetIndex != null) {
+      return 'Planet scanner already locked. Follow the beacon to the nearest undiscovered planet.';
+    }
+    if (shipWallet.shards < shardCost) {
+      return 'Not enough shards. Need $shardCost to activate the scanner.';
+    }
+
+    final target = _nearestUndiscoveredPlanet();
+    if (target == null) {
+      return 'No undiscovered planets found.';
+    }
+
+    shipWallet.shards -= shardCost;
+    _planetScannerTargetIndex = target.$1;
+    _relocatePlanetScanner(scanner);
     return null;
   }
 
@@ -2973,6 +3008,9 @@ extension CosmicGameWorldSystems on CosmicGame {
     return null;
   }
 
+  List<SpacePOI> _planetScannerPois() =>
+      spacePOIs.where((poi) => poi.type == POIType.planetScanner).toList();
+
   StarDust? _nearestUncollectedStarDust() {
     final ww = world_.worldSize.width;
     final wh = world_.worldSize.height;
@@ -2995,12 +3033,36 @@ extension CosmicGameWorldSystems on CosmicGame {
     return best;
   }
 
-  void syncStarDustScannerAvailability() {
-    final scanner = _findStarDustScannerPoi();
-    if (!hasRemainingStarDust) {
-      if (scanner != null) {
-        spacePOIs.remove(scanner);
+  (int, CosmicPlanet)? _nearestUndiscoveredPlanet() {
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+    (int, CosmicPlanet)? best;
+    double bestDist = double.infinity;
+    for (var i = 0; i < world_.planets.length; i++) {
+      final planet = world_.planets[i];
+      if (planet.discovered) continue;
+      var dx = planet.position.dx - ship.pos.dx;
+      var dy = planet.position.dy - ship.pos.dy;
+      if (dx > ww / 2) dx -= ww;
+      if (dx < -ww / 2) dx += ww;
+      if (dy > wh / 2) dy -= wh;
+      if (dy < -wh / 2) dy += wh;
+      final d = sqrt(dx * dx + dy * dy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = (i, planet);
       }
+    }
+    return best;
+  }
+
+  void syncStarDustScannerAvailability() {
+    final scanners = spacePOIs
+        .where((poi) => poi.type == POIType.stardustScanner)
+        .toList();
+    final scanner = scanners.isEmpty ? null : scanners.first;
+    if (!hasRemainingStarDust) {
+      spacePOIs.removeWhere((poi) => poi.type == POIType.stardustScanner);
       _starDustScannerTargetIndex = null;
       if (nearMarket?.type == POIType.stardustScanner) {
         nearMarket = null;
@@ -3022,7 +3084,76 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
   }
 
+  void syncPlanetScannerAvailability({int desiredCount = 4}) {
+    final scanners = _planetScannerPois();
+    if (!hasUndiscoveredPlanets) {
+      for (final scanner in scanners) {
+        spacePOIs.remove(scanner);
+      }
+      _planetScannerTargetIndex = null;
+      if (nearMarket?.type == POIType.planetScanner) {
+        nearMarket = null;
+        onNearMarket?.call(null);
+      }
+      return;
+    }
+
+    while (scanners.length < desiredCount) {
+      final newScanner = SpacePOI(
+        position: ship.pos,
+        type: POIType.planetScanner,
+        element: 'Water',
+        radius: 120,
+        discovered: false,
+      );
+      spacePOIs.add(newScanner);
+      scanners.add(newScanner);
+      _relocatePlanetScanner(newScanner);
+    }
+
+    while (scanners.length > desiredCount) {
+      final scanner = scanners.removeLast();
+      spacePOIs.remove(scanner);
+      if (nearMarket == scanner) {
+        nearMarket = null;
+        onNearMarket?.call(null);
+      }
+    }
+  }
+
   void _relocateStarDustScanner(SpacePOI scanner) {
+    final rng = Random();
+    const margin = 2200.0;
+    const minPlanetDist = 2600.0;
+    const minPoiDist = 2200.0;
+    const minShipDist = 7000.0;
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+
+    Offset pos;
+    int tries = 0;
+    do {
+      pos = Offset(
+        margin + rng.nextDouble() * (ww - margin * 2),
+        margin + rng.nextDouble() * (wh - margin * 2),
+      );
+      tries++;
+    } while (tries < 500 &&
+        ((pos - ship.pos).distance < minShipDist ||
+            world_.planets.any(
+              (p) => (p.position - pos).distance < minPlanetDist,
+            ) ||
+            spacePOIs.any(
+              (p) => p != scanner && (p.position - pos).distance < minPoiDist,
+            )));
+
+    scanner.position = pos;
+    scanner.discovered = false;
+    scanner.interacted = false;
+    scanner.life = 0;
+  }
+
+  void _relocatePlanetScanner(SpacePOI scanner) {
     final rng = Random();
     const margin = 2200.0;
     const minPlanetDist = 2600.0;

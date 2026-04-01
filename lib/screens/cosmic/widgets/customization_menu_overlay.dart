@@ -577,120 +577,213 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         if (widget.homePlanet != null) ...[
           _sectionHeader('PLANET SIZE', accent: CosmicScreenStyles.teal),
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: CosmicScreenStyles.bg2,
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(6),
               border: Border.all(color: CosmicScreenStyles.borderDim),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Selectable tier pills
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'SIZE: ',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: CosmicScreenStyles.textSecondary,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'CURRENT SIZE',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: CosmicScreenStyles.textMuted,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            HomePlanet.tierNames[activeTier].toUpperCase(),
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              color: CosmicScreenStyles.teal,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    ...List.generate(5, (i) {
-                      final unlocked = i <= maxTier;
-                      final selected = i == activeTier;
-                      final name = HomePlanet.tierNames[i];
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: GestureDetector(
-                          onTap: unlocked ? () => widget.onSelectSize(i) : null,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? CosmicScreenStyles.teal.withValues(
-                                      alpha: 0.2,
-                                    )
-                                  : unlocked
-                                  ? CosmicScreenStyles.bg3
-                                  : CosmicScreenStyles.bg1,
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(
-                                color: selected
-                                    ? CosmicScreenStyles.teal.withValues(
-                                        alpha: 0.5,
-                                      )
-                                    : unlocked
-                                    ? CosmicScreenStyles.borderDim
-                                    : CosmicScreenStyles.borderDim.withValues(
-                                        alpha: 0.4,
-                                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: nextCost == null
+                            ? CosmicScreenStyles.success.withValues(alpha: 0.12)
+                            : CosmicScreenStyles.amberBright.withValues(
+                                alpha: 0.12,
                               ),
-                            ),
-                            child: Text(
-                              name,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: selected
-                                    ? CosmicScreenStyles.teal
-                                    : unlocked
-                                    ? CosmicScreenStyles.textSecondary
-                                    : CosmicScreenStyles.textMuted,
-                                fontSize: 8,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: nextCost == null
+                              ? CosmicScreenStyles.success.withValues(
+                                  alpha: 0.3,
+                                )
+                              : CosmicScreenStyles.amberBright.withValues(
+                                  alpha: 0.28,
+                                ),
                         ),
-                      );
-                    }),
+                      ),
+                      child: Text(
+                        nextCost == null ? 'MAXED' : 'NEXT $nextCost ✦',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: nextCost == null
+                              ? CosmicScreenStyles.success
+                              : CosmicScreenStyles.amberBright,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                // Upgrade button
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    const gap = 8.0;
+                    const columns = 3;
+                    final tileWidth =
+                        (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+                    return Wrap(
+                      spacing: gap,
+                      runSpacing: gap,
+                      children: List.generate(5, (i) {
+                        final unlocked = i <= maxTier;
+                        final selected = i == activeTier;
+                        final name = HomePlanet.tierNames[i];
+
+                        return SizedBox(
+                          width: tileWidth,
+                          child: GestureDetector(
+                            onTap: unlocked
+                                ? () => widget.onSelectSize(i)
+                                : null,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? CosmicScreenStyles.teal.withValues(
+                                        alpha: 0.16,
+                                      )
+                                    : unlocked
+                                    ? CosmicScreenStyles.bg3
+                                    : CosmicScreenStyles.bg1,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: selected
+                                      ? CosmicScreenStyles.teal.withValues(
+                                          alpha: 0.55,
+                                        )
+                                      : unlocked
+                                      ? CosmicScreenStyles.borderDim
+                                      : CosmicScreenStyles.borderDim.withValues(
+                                          alpha: 0.45,
+                                        ),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    name.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontFamily: 'monospace',
+                                      color: selected
+                                          ? CosmicScreenStyles.teal
+                                          : unlocked
+                                          ? CosmicScreenStyles.textPrimary
+                                          : CosmicScreenStyles.textMuted,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    selected
+                                        ? 'ACTIVE'
+                                        : unlocked
+                                        ? 'UNLOCKED'
+                                        : 'LOCKED',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontFamily: 'monospace',
+                                      color: selected
+                                          ? CosmicScreenStyles.teal
+                                          : unlocked
+                                          ? CosmicScreenStyles.textSecondary
+                                          : CosmicScreenStyles.textMuted,
+                                      fontSize: 7.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
                 if (nextCost != null)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: canAffordUpgrade ? widget.onUpgradeSize : null,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
+                  GestureDetector(
+                    onTap: canAffordUpgrade ? widget.onUpgradeSize : null,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: canAffordUpgrade
+                            ? CosmicScreenStyles.amberBright.withValues(
+                                alpha: 0.15,
+                              )
+                            : CosmicScreenStyles.bg3,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
                           color: canAffordUpgrade
                               ? CosmicScreenStyles.amberBright.withValues(
-                                  alpha: 0.15,
+                                  alpha: 0.4,
                                 )
-                              : CosmicScreenStyles.bg2,
-                          borderRadius: BorderRadius.circular(3),
-                          border: Border.all(
-                            color: canAffordUpgrade
-                                ? CosmicScreenStyles.amberBright.withValues(
-                                    alpha: 0.4,
-                                  )
-                                : CosmicScreenStyles.borderDim,
-                          ),
+                              : CosmicScreenStyles.borderDim,
                         ),
-                        child: Text(
-                          'UNLOCK ${HomePlanet.tierNames[(maxTier + 1).clamp(0, 4)].toUpperCase()} ($nextCost ✦)',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: canAffordUpgrade
-                                ? CosmicScreenStyles.amberBright
-                                : CosmicScreenStyles.textMuted,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'UNLOCK ${HomePlanet.tierNames[(maxTier + 1).clamp(0, 4)].toUpperCase()} ($nextCost ✦)',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: canAffordUpgrade
+                              ? CosmicScreenStyles.amberBright
+                              : CosmicScreenStyles.textMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.7,
                         ),
                       ),
                     ),
@@ -703,7 +796,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: CosmicScreenStyles.success,
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -713,8 +806,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           ),
           const SizedBox(height: 12),
         ],
-        // Planet colour
-        _sectionHeader('PLANET COLOUR', accent: CosmicScreenStyles.amberBright),
+        // Planet color
+        _sectionHeader('PLANET COLOR', accent: CosmicScreenStyles.amberBright),
         _buildColorGrid(),
         const SizedBox(height: 12),
         // Base stations
@@ -779,26 +872,102 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     const cost = HomePlanet.colorUnlockCost;
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: CosmicScreenStyles.bg2,
-        borderRadius: BorderRadius.circular(3),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: CosmicScreenStyles.borderDim),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'CURRENT COLOR',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: CosmicScreenStyles.textMuted,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: activeCol == null
+                                ? const Color(0xFF607D8B)
+                                : kElementColors[activeCol]!,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          (activeCol ?? 'Default Gray').toUpperCase(),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: activeCol == null
+                                ? CosmicScreenStyles.textSecondary
+                                : kElementColors[activeCol]!,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: CosmicScreenStyles.amberBright.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: CosmicScreenStyles.amberBright.withValues(
+                      alpha: 0.28,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  '$cost EACH',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: CosmicScreenStyles.amberBright,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           // Default gray
           GestureDetector(
             onTap: () => widget.onSelectColor(null),
             child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: activeCol == null
                     ? CosmicScreenStyles.teal.withValues(alpha: 0.12)
                     : CosmicScreenStyles.bg3,
-                borderRadius: BorderRadius.circular(3),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: activeCol == null
                       ? CosmicScreenStyles.teal.withValues(alpha: 0.45)
@@ -808,8 +977,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               child: Row(
                 children: [
                   Container(
-                    width: 16,
-                    height: 16,
+                    width: 20,
+                    height: 20,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: Color(0xFF607D8B),
@@ -823,105 +992,143 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       color: activeCol == null
                           ? CosmicScreenStyles.teal
                           : CosmicScreenStyles.textSecondary,
-                      fontSize: 9,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    activeCol == null ? 'ACTIVE' : 'DEFAULT',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: activeCol == null
+                          ? CosmicScreenStyles.teal
+                          : CosmicScreenStyles.textMuted,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          // Element colours grid
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: elements.map((e) {
-              final isUnlocked = unlocked.contains(e.key);
-              final isActive = activeCol == e.key;
-              final canAfford =
-                  (widget.elementStorage.stored[e.key] ?? 0) >= cost;
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 8.0;
+              final columns = constraints.maxWidth >= 470 ? 5 : 4;
+              final tileWidth =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
 
-              return GestureDetector(
-                onTap: isUnlocked
-                    ? () => widget.onSelectColor(e.key)
-                    : canAfford
-                    ? () => widget.onUnlockColor(e.key)
-                    : null,
-                child: Container(
-                  width: 48,
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? CosmicScreenStyles.teal.withValues(alpha: 0.15)
-                        : isUnlocked
-                        ? CosmicScreenStyles.bg3
-                        : CosmicScreenStyles.bg1,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: isActive
-                          ? CosmicScreenStyles.teal.withValues(alpha: 0.5)
-                          : isUnlocked
-                          ? CosmicScreenStyles.borderDim
-                          : CosmicScreenStyles.borderDim.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 18,
-                        height: 18,
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: elements.map((e) {
+                  final isUnlocked = unlocked.contains(e.key);
+                  final isActive = activeCol == e.key;
+                  final canAfford =
+                      (widget.elementStorage.stored[e.key] ?? 0) >= cost;
+
+                  return SizedBox(
+                    width: tileWidth,
+                    child: GestureDetector(
+                      onTap: isUnlocked
+                          ? () => widget.onSelectColor(e.key)
+                          : canAfford
+                          ? () => widget.onUnlockColor(e.key)
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 9),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isUnlocked || canAfford
-                              ? e.value
-                              : e.value.withValues(alpha: 0.3),
-                          boxShadow: isActive
-                              ? [
-                                  BoxShadow(
-                                    color: e.value.withValues(alpha: 0.5),
-                                    blurRadius: 6,
+                          color: isActive
+                              ? CosmicScreenStyles.teal.withValues(alpha: 0.15)
+                              : isUnlocked
+                              ? CosmicScreenStyles.bg3
+                              : CosmicScreenStyles.bg1,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isActive
+                                ? CosmicScreenStyles.teal.withValues(alpha: 0.5)
+                                : isUnlocked
+                                ? CosmicScreenStyles.borderDim
+                                : CosmicScreenStyles.borderDim.withValues(
+                                    alpha: 0.4,
                                   ),
-                                ]
-                              : null,
+                          ),
                         ),
-                        child: !isUnlocked
-                            ? const Icon(
-                                Icons.lock,
-                                size: 10,
-                                color: Colors.white54,
-                              )
-                            : null,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        e.key,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: isUnlocked
-                              ? CosmicScreenStyles.textSecondary
-                              : CosmicScreenStyles.textMuted,
-                          fontSize: 7,
-                          fontWeight: FontWeight.w700,
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isUnlocked || canAfford
+                                    ? e.value
+                                    : e.value.withValues(alpha: 0.3),
+                                boxShadow: isActive
+                                    ? [
+                                        BoxShadow(
+                                          color: e.value.withValues(alpha: 0.5),
+                                          blurRadius: 6,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: !isUnlocked
+                                  ? const Icon(
+                                      Icons.lock,
+                                      size: 12,
+                                      color: Colors.white54,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              e.key,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: isUnlocked
+                                    ? CosmicScreenStyles.textSecondary
+                                    : CosmicScreenStyles.textMuted,
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.2,
+                              ),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              isActive
+                                  ? 'ACTIVE'
+                                  : isUnlocked
+                                  ? 'SELECT'
+                                  : canAfford
+                                  ? 'UNLOCK'
+                                  : '$cost',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: isActive
+                                    ? CosmicScreenStyles.teal
+                                    : canAfford
+                                    ? CosmicScreenStyles.amberBright
+                                    : CosmicScreenStyles.textMuted,
+                                fontSize: 7,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.7,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                }).toList(),
               );
-            }).toList(),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Unlock: $cost elements each',
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: CosmicScreenStyles.textMuted,
-              fontSize: 8,
-              fontWeight: FontWeight.w600,
-            ),
+            },
           ),
         ],
       ),

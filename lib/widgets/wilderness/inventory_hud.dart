@@ -500,6 +500,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                     return CreatureSelectionSheet(
                       scrollController: scrollController,
                       discoveredCreatures: eligibleDiscovered,
+                      stateScopeKey: 'wilderness_inventory_restore_species',
                       onSelectCreature: (creatureId) {
                         Navigator.pop(modalContext, creatureId);
                       },
@@ -527,6 +528,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
         child: InstancesSheet(
           species: selectedSpecies,
           theme: theme,
+          prefsScopeKey: 'wilderness_inventory_restore_instances',
           onTap: (inst) {
             Navigator.pop(context, inst.instanceId);
           },
@@ -625,6 +627,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                     return CreatureSelectionSheet(
                       scrollController: scrollController,
                       discoveredCreatures: eligibleDiscovered,
+                      stateScopeKey: 'wilderness_inventory_effect_species',
                       onSelectCreature: (creatureId) {
                         Navigator.pop(modalContext, creatureId);
                       },
@@ -652,6 +655,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
         child: InstancesSheet(
           species: selectedSpecies,
           theme: theme,
+          prefsScopeKey: 'wilderness_inventory_effect_instances',
           onTap: (inst) {
             Navigator.pop(context, inst.instanceId);
           },

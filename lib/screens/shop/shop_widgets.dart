@@ -16,6 +16,18 @@ import 'package:provider/provider.dart';
 // ============= SUPPORTING WIDGETS =============
 // ShowPurchasedToggle and CurrencyPill are unchanged...
 
+String _formatShopValue(int value) {
+  final digits = value.abs().toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) {
+      buffer.write(',');
+    }
+    buffer.write(digits[i]);
+  }
+  return value < 0 ? '-${buffer.toString()}' : buffer.toString();
+}
+
 class CurrencyPill extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -29,9 +41,7 @@ class CurrencyPill extends StatelessWidget {
   });
 
   String _format(int n) {
-    if (n >= 1000000) return '${(n / 1e6).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1e3).toStringAsFixed(1)}K';
-    return '$n';
+    return _formatShopValue(n);
   }
 
   @override
@@ -533,7 +543,7 @@ class _ForgeCostRow extends StatelessWidget {
             ),
           ),
           Text(
-            '-$amount',
+            '-${_formatShopValue(amount)}',
             style: TextStyle(
               fontFamily: 'monospace',
               color: hasEnough
@@ -545,7 +555,7 @@ class _ForgeCostRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Text(
-            'have $current',
+            'have ${_formatShopValue(current)}',
             style: TextStyle(
               fontFamily: 'monospace',
               color: hasEnough
@@ -1079,7 +1089,7 @@ class CostChip extends StatelessWidget {
           Icon(icon, size: 10, color: hasEnough ? color : Colors.red.shade300),
           const SizedBox(width: 3),
           Text(
-            '$amount',
+            _formatShopValue(amount),
             style: TextStyle(
               color: hasEnough ? color : Colors.red.shade300,
               fontSize: 10,
@@ -2112,7 +2122,7 @@ class DialogResourceDisplay extends StatelessWidget {
           ),
           // Amount being spent/gained
           Text(
-            '${isSpending ? '-' : '+'}$amount',
+            '${isSpending ? '-' : '+'}${_formatShopValue(amount)}',
             style: TextStyle(
               color: isSpending
                   ? (hasEnough ? Colors.red.shade300 : Colors.red.shade400)
@@ -2126,7 +2136,7 @@ class DialogResourceDisplay extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 6.0),
               child: Text(
-                '(Have: $current)',
+                '(Have: ${_formatShopValue(current!)})',
                 style: TextStyle(
                   color: hasEnough ? theme.textMuted : Colors.red.shade400,
                   fontSize: 10,

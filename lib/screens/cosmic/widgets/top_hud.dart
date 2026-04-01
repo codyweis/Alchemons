@@ -110,46 +110,95 @@ class TopHudState extends State<TopHud> {
           Row(
             children: [
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: widget.onSettings,
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0x1FFFFFFF), Color(0x0AFFFFFF)],
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0x1FFFFFFF), Color(0x0AFFFFFF)],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.settings_rounded,
+                        color: Colors.white60,
+                        size: 18,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      width: 0.5,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.settings_rounded,
-                    color: Colors.white60,
-                    size: 18,
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title removed per UI update
-                    Text(
-                      '${widget.planetsFound}/${widget.planetsTotal} planets  ·  '
-                      '${(widget.discoveryPct * 100).toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.3),
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.14),
+                          const Color(0xFF0C1733).withValues(alpha: 0.78),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        width: 0.7,
                       ),
                     ),
-                  ],
+                    child: RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.45,
+                          shadows: const [
+                            Shadow(color: Colors.black87, blurRadius: 8),
+                            Shadow(color: Colors.black54, blurRadius: 2),
+                          ],
+                        ),
+                        children: [
+                          TextSpan(
+                            text:
+                                '${widget.planetsFound}/${widget.planetsTotal} PLANETS',
+                          ),
+                          TextSpan(
+                            text: '  ·  ',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.58),
+                            ),
+                          ),
+                          TextSpan(
+                            text:
+                                '${(widget.discoveryPct * 100).toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              color: Color(0xFFD7F6FF),
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
               if (widget.dustCount > 0)

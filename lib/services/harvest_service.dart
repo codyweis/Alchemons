@@ -8,6 +8,8 @@ import 'package:alchemons/database/alchemons_db.dart' as db;
 class HarvestService extends ChangeNotifier {
   final db.AlchemonsDatabase _adb;
   StreamSubscription? _biomeSub;
+  static const Duration tapBoostStep = Duration(seconds: 5);
+  static const Duration tapBoostThrottle = Duration(milliseconds: 250);
   static const Duration _nudgeDebounce = Duration(milliseconds: 400);
 
   final Map<Biome, BiomeFarmState> _biomes = {
@@ -87,10 +89,7 @@ class HarvestService extends ChangeNotifier {
     return ok;
   }
 
-  Future<bool> nudge(
-    Biome biome, {
-    Duration by = const Duration(seconds: 5),
-  }) async {
+  Future<bool> nudge(Biome biome, {Duration by = tapBoostStep}) async {
     _applyOptimisticNudge(biome, -by.inMilliseconds);
     final completer = Completer<bool>();
     _pendingNudgeMs[biome] = (_pendingNudgeMs[biome] ?? 0) - by.inMilliseconds;

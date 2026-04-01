@@ -93,7 +93,7 @@ class SideDockFloating extends StatelessWidget {
           child: _FloatingSideButton(
             theme: theme,
             size: 70,
-            label: 'Extract',
+            label: 'Harvest',
             assetPath: 'assets/images/ui/extracticon.png',
             onTap: onHarvest,
             showDot: showHarvestDot,

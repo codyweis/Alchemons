@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/constants/creature_details_tutorials.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/components.dart';
@@ -374,6 +375,8 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
 
   CreatureInstance? _instance;
   int? _instanceLevel;
+  bool _favoriteBusy = false;
+  bool _nicknameBusy = false;
 
   int _initialTabIndex() {
     if (!widget.isDiscovered) return 0;
@@ -424,6 +427,162 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
         setState(() {});
         unawaited(_maybeShowPendingAnalyzerTutorials());
       }
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final instance = _instance;
+    final instanceId = widget.instanceId;
+    if (instance == null || instanceId == null || _favoriteBusy) return;
+
+    final nextFavorite = !instance.isFavorite;
+    setState(() {
+      _favoriteBusy = true;
+      _instance = instance.copyWith(
+        isFavorite: nextFavorite,
+        locked: nextFavorite,
+      );
+    });
+
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      await db.creatureDao.setFavorite(instanceId, nextFavorite);
+      final refreshed = await db.creatureDao.getInstance(instanceId);
+      if (!mounted) return;
+      setState(() {
+        _instance = refreshed ?? _instance;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _instance = instance;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _favoriteBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _editNickname() async {
+    final instance = _instance;
+    final instanceId = widget.instanceId;
+    if (instance == null || instanceId == null || _nicknameBusy) return;
+
+    final controller = TextEditingController(
+      text: instance.nickname?.trim() ?? '',
+    );
+    try {
+      final submitted = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          final c = _C.of(dialogContext);
+          final t = _T(c);
+          return AlertDialog(
+            backgroundColor: c.bg2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: c.borderDim),
+            ),
+            title: Text(
+              'Edit Nickname',
+              style: t.heading.copyWith(
+                color: c.textPrimary,
+                fontSize: 14,
+                letterSpacing: 1.4,
+              ),
+            ),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: TextStyle(color: c.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Leave blank for ${widget.creature.name}',
+                hintStyle: TextStyle(color: c.textMuted),
+                filled: true,
+                fillColor: c.bg3,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: c.borderDim),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: c.borderDim),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: c.amberBright),
+                ),
+              ),
+              onSubmitted: (value) =>
+                  Navigator.of(dialogContext).pop(value.trim()),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(
+                  'CANCEL',
+                  style: t.label.copyWith(color: c.textMuted),
+                ),
+              ),
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(controller.text.trim()),
+                child: Text(
+                  'SAVE',
+                  style: t.label.copyWith(color: c.amberBright),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (!mounted || submitted == null) return;
+
+      final normalized = submitted.trim();
+      final nextNickname = normalized.isEmpty ? null : normalized;
+      final currentNickname = instance.nickname?.trim();
+      final currentNormalized =
+          currentNickname == null || currentNickname.isEmpty
+          ? null
+          : currentNickname;
+
+      if (nextNickname == currentNormalized) return;
+
+      setState(() {
+        _nicknameBusy = true;
+        _instance = instance.copyWith(nickname: Value(nextNickname));
+      });
+
+      try {
+        final db = context.read<AlchemonsDatabase>();
+        await db.creatureDao.setNickname(instanceId, nextNickname);
+        final refreshed = await db.creatureDao.getInstance(instanceId);
+        if (!mounted) return;
+        setState(() {
+          _instance = refreshed ?? _instance;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _instance = instance;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update nickname.')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _nicknameBusy = false;
+          });
+        }
+      }
+    } finally {
+      controller.dispose();
     }
   }
 
@@ -671,11 +830,16 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
           children: [
             _HeaderBar(
               creature: effective,
+              instance: instance,
+              favoriteBusy: _favoriteBusy,
+              nicknameBusy: _nicknameBusy,
+              onToggleFavorite: _toggleFavorite,
+              onEditName: _editNickname,
               onClose: () => Navigator.of(context).pop(),
             ),
             if (discovered) _TabSelector(tabController: _tabController),
             Expanded(
-                child: discovered
+              child: discovered
                   ? TabBarView(
                       controller: _tabController,
                       physics: _tabSwipePhysics,
@@ -762,9 +926,22 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
 
 class _HeaderBar extends StatelessWidget {
   final Creature creature;
+  final CreatureInstance? instance;
+  final bool favoriteBusy;
+  final bool nicknameBusy;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback onEditName;
   final VoidCallback onClose;
 
-  const _HeaderBar({required this.creature, required this.onClose});
+  const _HeaderBar({
+    required this.creature,
+    required this.instance,
+    required this.favoriteBusy,
+    required this.nicknameBusy,
+    required this.onToggleFavorite,
+    required this.onEditName,
+    required this.onClose,
+  });
 
   Color _rarityColor(String rarity, _C c) {
     switch (rarity.toLowerCase()) {
@@ -783,6 +960,11 @@ class _HeaderBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = _C.of(context);
     final rarityColor = _rarityColor(creature.rarity, c);
+    final instance = this.instance;
+    final isFavorite = instance?.isFavorite ?? false;
+    final trimmedNickname = instance?.nickname?.trim();
+    final hasNickname = trimmedNickname?.isNotEmpty == true;
+    final displayName = hasNickname ? trimmedNickname! : creature.name;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -797,24 +979,82 @@ class _HeaderBar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        creature.name.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: c.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.0,
-                        ),
+                if (instance != null)
+                  InkWell(
+                    onTap: nicknameBusy ? null : onEditName,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 2,
+                        vertical: 2,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              displayName.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: c.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2.0,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          if (nicknameBusy)
+                            SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  c.amberBright,
+                                ),
+                              ),
+                            )
+                          else
+                            Icon(
+                              Icons.edit_outlined,
+                              size: 15,
+                              color: c.amberBright,
+                            ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  )
+                else
+                  Text(
+                    creature.name.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: c.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.0,
+                    ),
+                  ),
+                if (hasNickname) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    creature.name.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: c.textMuted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -838,6 +1078,48 @@ class _HeaderBar extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (instance != null) ...[
+                GestureDetector(
+                  onTap: favoriteBusy ? null : onToggleFavorite,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: isFavorite
+                          ? const Color(0xFFE91E63).withValues(alpha: 0.18)
+                          : c.bg3,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: isFavorite
+                            ? const Color(0xFFE91E63).withValues(alpha: 0.65)
+                            : c.borderDim,
+                      ),
+                    ),
+                    child: favoriteBusy
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                isFavorite
+                                    ? const Color(0xFFE91E63)
+                                    : c.textSecondary,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            isFavorite
+                                ? Icons.star_rounded
+                                : Icons.star_border_rounded,
+                            color: isFavorite
+                                ? const Color(0xFFE91E63)
+                                : c.textSecondary,
+                            size: 16,
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               GestureDetector(
                 onTap: onClose,
                 child: Container(

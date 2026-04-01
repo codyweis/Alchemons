@@ -19,6 +19,18 @@ enum InstanceDetailMode { info, stats, genetics }
 
 enum SelectionSheetView { species, allInstances }
 
+class _SelectionSheetMemory {
+  final String selectedFilter;
+  final String selectedSort;
+  final String selectedSpecies;
+
+  const _SelectionSheetMemory({
+    required this.selectedFilter,
+    required this.selectedSort,
+    required this.selectedSpecies,
+  });
+}
+
 class CreatureSelectionSheet extends StatefulWidget {
   final List<CreatureEntry> discoveredCreatures;
   final Function(String creatureId) onSelectCreature;
@@ -45,6 +57,7 @@ class CreatureSelectionSheet extends StatefulWidget {
   final bool allInstancesSelectionMode;
   final int allInstancesMaxSelections;
   final void Function(List<CreatureInstance>)? onConfirmAllInstancesSelection;
+  final String? stateScopeKey;
 
   const CreatureSelectionSheet({
     super.key,
@@ -57,7 +70,7 @@ class CreatureSelectionSheet extends StatefulWidget {
     this.emptyStateMessage,
     this.customHeader,
     this.isInstanceMode = false,
-    this.initialDetailMode = InstanceDetailMode.stats,
+    this.initialDetailMode = InstanceDetailMode.genetics,
     this.showOnlyAvailableTypes = false,
     this.showSearch = true,
     this.showSpeciesFilterRows = true,
@@ -67,6 +80,7 @@ class CreatureSelectionSheet extends StatefulWidget {
     this.allInstancesSelectionMode = false,
     this.allInstancesMaxSelections = 0,
     this.onConfirmAllInstancesSelection,
+    this.stateScopeKey,
   });
 
   @override
@@ -84,7 +98,7 @@ class CreatureSelectionSheet extends StatefulWidget {
     Widget? customHeader,
     bool isScrollControlled = true,
     bool isInstanceMode = false,
-    InstanceDetailMode initialDetailMode = InstanceDetailMode.stats,
+    InstanceDetailMode initialDetailMode = InstanceDetailMode.genetics,
     bool showOnlyAvailableTypes = false,
     bool showSearch = true,
     bool showSpeciesFilterRows = true,
@@ -94,6 +108,7 @@ class CreatureSelectionSheet extends StatefulWidget {
     bool allInstancesSelectionMode = false,
     int allInstancesMaxSelections = 0,
     void Function(List<CreatureInstance>)? onConfirmAllInstancesSelection,
+    String? stateScopeKey,
   }) {
     return showModalBottomSheet<T>(
       context: context,
@@ -126,6 +141,7 @@ class CreatureSelectionSheet extends StatefulWidget {
               allInstancesSelectionMode: allInstancesSelectionMode,
               allInstancesMaxSelections: allInstancesMaxSelections,
               onConfirmAllInstancesSelection: onConfirmAllInstancesSelection,
+              stateScopeKey: stateScopeKey,
             );
           },
         );
@@ -135,9 +151,7 @@ class CreatureSelectionSheet extends StatefulWidget {
 }
 
 class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
-  static String _lastSelectedFilter = 'All';
-  static String _lastSelectedSort = 'Name';
-  static String _lastSelectedSpecies = 'All';
+  static final Map<String, _SelectionSheetMemory> _memoryByScope = {};
   String _searchQuery = '';
   final _searchController = TextEditingController();
   bool _showFavoritesOnly = false;
@@ -150,14 +164,17 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   late InstanceDetailMode _detailMode;
   late SelectionSheetView _currentView;
 
+  String get _stateScopeKey => widget.stateScopeKey ?? 'default';
+
   @override
   void initState() {
     super.initState();
+    final memory = _memoryByScope[_stateScopeKey];
     _detailMode = widget.initialDetailMode;
-    _selectedFilter = _lastSelectedFilter;
-    _selectedSort = _lastSelectedSort;
+    _selectedFilter = memory?.selectedFilter ?? 'All';
+    _selectedSort = memory?.selectedSort ?? 'Name';
     _detailMode = widget.initialDetailMode;
-    _selectedSpecies = _lastSelectedSpecies;
+    _selectedSpecies = memory?.selectedSpecies ?? 'All';
     _currentView = widget.startInAllInstancesView
         ? SelectionSheetView.allInstances
         : SelectionSheetView.species;
@@ -178,9 +195,11 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   @override
   void dispose() {
     _searchController.dispose();
-    _lastSelectedFilter = _selectedFilter;
-    _lastSelectedSort = _selectedSort;
-    _lastSelectedSpecies = _selectedSpecies; // NEW
+    _memoryByScope[_stateScopeKey] = _SelectionSheetMemory(
+      selectedFilter: _selectedFilter,
+      selectedSort: _selectedSort,
+      selectedSpecies: _selectedSpecies,
+    );
     super.dispose();
   }
 
@@ -397,6 +416,8 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                     child: showingAllInstances
                         ? AllCreatureInstances(
                             theme: theme,
+                            prefsScopeKey:
+                                '${widget.stateScopeKey ?? 'creature_selection'}.all_instances',
                             selectedInstanceIds: widget.selectedInstanceIds,
                             selectionMode: widget.allInstancesSelectionMode,
                             maxSelections: widget.allInstancesMaxSelections,
@@ -567,7 +588,7 @@ class _DefaultHeader extends StatelessWidget {
     required this.showingAllInstances,
     this.compact = false,
     this.showDetailModeToggle = false,
-    this.detailMode = InstanceDetailMode.stats,
+    this.detailMode = InstanceDetailMode.genetics,
     this.onToggleDetailMode = _noop,
     this.selectedSort,
     this.onSortChanged,

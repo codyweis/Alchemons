@@ -299,6 +299,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
             return CreatureSelectionSheet(
               scrollController: scrollController,
               discoveredCreatures: filteredDiscovered,
+              stateScopeKey: 'blob_party_species',
               onSelectCreature: (creatureId) {
                 Navigator.pop(context, creatureId);
               },
@@ -326,6 +327,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
           child: InstancesSheet(
             theme: widget.theme,
             species: species,
+            prefsScopeKey: 'blob_party_instances',
             onTap: (CreatureInstance ci) {
               Navigator.pop(context, ci);
             },

@@ -1,7 +1,9 @@
 import 'dart:math';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
+import 'package:provider/provider.dart';
 
 class LootOpeningEntry {
   final IconData icon;
@@ -21,8 +23,10 @@ Future<void> showLootOpeningDialog({
   required BuildContext context,
   required List<LootOpeningEntry> entries,
   String title = 'REWARDS',
+  FactionTheme? theme,
 }) async {
   if (entries.isEmpty) return;
+  final dialogTheme = theme ?? context.read<FactionTheme>();
   await showGeneralDialog(
     context: context,
     barrierDismissible: false,
@@ -30,8 +34,13 @@ Future<void> showLootOpeningDialog({
     transitionDuration: const Duration(milliseconds: 350),
     transitionBuilder: (ctx, anim, _, child) =>
         FadeTransition(opacity: anim, child: child),
-    pageBuilder: (ctx, _, __) =>
-        _SleekLootDialog(entries: entries, title: title),
+    pageBuilder: (ctx, _, __) => Provider<FactionTheme>.value(
+      value: dialogTheme,
+      child: Theme(
+        data: dialogTheme.toMaterialTheme(Theme.of(context).textTheme),
+        child: _SleekLootDialog(entries: entries, title: title),
+      ),
+    ),
   );
 }
 
@@ -344,7 +353,9 @@ Future<void> showKeyItemUnlockDialog({
   required Color elementColor,
   String?
   itemImagePath, // optional relic PNG — shown instead of icon when provided
+  FactionTheme? theme,
 }) async {
+  final dialogTheme = theme ?? context.read<FactionTheme>();
   await showGeneralDialog(
     context: context,
     barrierDismissible: false,
@@ -353,12 +364,18 @@ Future<void> showKeyItemUnlockDialog({
     transitionBuilder: (ctx, anim, _, child) {
       return FadeTransition(opacity: anim, child: child);
     },
-    pageBuilder: (ctx, _, __) => _KeyItemRevealDialog(
-      itemName: itemName,
-      itemDescription: itemDescription,
-      itemIcon: itemIcon,
-      elementColor: elementColor,
-      itemImagePath: itemImagePath,
+    pageBuilder: (ctx, _, __) => Provider<FactionTheme>.value(
+      value: dialogTheme,
+      child: Theme(
+        data: dialogTheme.toMaterialTheme(Theme.of(context).textTheme),
+        child: _KeyItemRevealDialog(
+          itemName: itemName,
+          itemDescription: itemDescription,
+          itemIcon: itemIcon,
+          elementColor: elementColor,
+          itemImagePath: itemImagePath,
+        ),
+      ),
     ),
   );
 }
@@ -587,8 +604,8 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
                                 height: i.isEven ? 5 : 3,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: color.withValues(alpha: 
-                                    opacity.clamp(0.0, 1.0),
+                                  color: color.withValues(
+                                    alpha: opacity.clamp(0.0, 1.0),
                                   ),
                                 ),
                               ),

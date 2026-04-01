@@ -15,6 +15,7 @@ import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_points_widget.dart';
 import 'package:alchemons/screens/mystic_altar/mystic_altar_screen.dart';
 import 'package:alchemons/data/boss_data.dart';
+import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -22,6 +23,8 @@ import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/encounter_service.dart';
+import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -82,7 +85,11 @@ class _MainShellState extends State<MainShell> {
   // NEW: guard so we only request once per launch
   bool _creaturesTutorialRequested = false;
 
-  void _goToSection(NavSection section, {int? breedInitialTab}) {
+  void _goToSection(
+    NavSection section, {
+    int? breedInitialTab,
+    bool withHaptic = true,
+  }) {
     if (section == _currentSection) return;
 
     // Unfocus the creatures search field when leaving that tab
@@ -93,7 +100,9 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _currentSection = section;
     });
-    HapticFeedback.mediumImpact();
+    if (withHaptic) {
+      HapticFeedback.mediumImpact();
+    }
 
     // Trigger tutorials when user actually visits these sections:
     if (section == NavSection.creatures && !_creaturesTutorialRequested) {
@@ -212,7 +221,7 @@ class _MainShellState extends State<MainShell> {
         ),
         bottomNavigationBar: BottomNav(
           current: _currentSection,
-          onSelect: (s) => _goToSection(s),
+          onSelect: (s) => _goToSection(s, withHaptic: false),
           theme: theme,
         ),
       ),
@@ -244,11 +253,13 @@ class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1500),
     );
     _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.25), weight: 50),
-      TweenSequenceItem(tween: Tween(begin: 1.25, end: 1.0), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.42), weight: 44),
+      TweenSequenceItem(tween: Tween(begin: 1.42, end: 1.08), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 1.08, end: 1.34), weight: 18),
+      TweenSequenceItem(tween: Tween(begin: 1.34, end: 1.0), weight: 18),
     ]).animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeInOutCubic));
   }
 
@@ -285,7 +296,7 @@ class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
       _ctrl?.stop();
       _ctrl?.reset();
       await _ctrl?.forward();
-      await Future.delayed(const Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 260));
       if (!mounted) return;
       _ctrl?.reset();
       await _ctrl?.forward();
@@ -687,12 +698,78 @@ class _HomeScreenState extends State<HomeScreen>
     return rawIds.split(',').map(int.tryParse).whereType<int>().toSet();
   }
 
+  Future<void> _seedOpeningBiomeSpawns(
+    WildernessSpawnService spawnService,
+    Set<String> allowedScenes,
+  ) async {
+    final db = context.read<AlchemonsDatabase>();
+
+    for (final sceneId in _coreWildernessBiomes) {
+      await spawnService.clearSceneSpawns(sceneId);
+    }
+
+    for (final sceneId in allowedScenes) {
+      final spawnId = OpeningWildernessService.tutorialSpawnPointForScene(
+        sceneId,
+      );
+      final encounter = EncounterRoll(
+        speciesId: OpeningWildernessService.mainLetForScene(sceneId),
+        rarity: EncounterRarity.common,
+        spawnId: spawnId,
+      );
+
+      spawnService.forceSpawnAt(sceneId, spawnId, encounter);
+      await db
+          .into(db.activeSpawns)
+          .insert(
+            ActiveSpawnsCompanion.insert(
+              id: '${sceneId}_$spawnId',
+              sceneId: sceneId,
+              spawnPointId: spawnId,
+              speciesId: encounter.speciesId,
+              rarity: encounter.rarity.name,
+              spawnedAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
+    }
+  }
+
+  Future<void> _ensureOpeningWildernessReady(
+    FactionId faction,
+    WildernessSpawnService spawnService,
+  ) async {
+    final settings = context.read<AlchemonsDatabase>().settingsDao;
+    if (!await OpeningWildernessService.isRestrictionActive(settings)) {
+      await OpeningWildernessService.activateForFaction(settings, faction);
+    }
+
+    var allowedScenes = await OpeningWildernessService.allowedScenes(settings);
+    if (allowedScenes.isEmpty) {
+      await OpeningWildernessService.activateForFaction(settings, faction);
+      allowedScenes = await OpeningWildernessService.allowedScenes(settings);
+    }
+    final hasUnexpectedSpawn = _coreWildernessBiomes.any(
+      (sceneId) =>
+          !allowedScenes.contains(sceneId) &&
+          spawnService.getSceneSpawnCount(sceneId) > 0,
+    );
+    final missingAllowedSpawn = allowedScenes.any(
+      (sceneId) => spawnService.getSceneSpawnCount(sceneId) == 0,
+    );
+
+    if (allowedScenes.isEmpty || hasUnexpectedSpawn || missingAllowedSpawn) {
+      await _seedOpeningBiomeSpawns(spawnService, allowedScenes);
+    }
+  }
+
   Future<void> _checkFieldTutorial() async {
     if (_tutorialCheckInProgress) return;
     _tutorialCheckInProgress = true;
     try {
       final db = context.read<AlchemonsDatabase>();
       final spawnService = context.read<WildernessSpawnService>();
+      final factionService = context.read<FactionService>();
 
       // 🔹 First: if tutorial is already completed in DB, make sure local state matches
       final completed = await db.settingsDao.hasCompletedFieldTutorial();
@@ -767,20 +844,9 @@ class _HomeScreenState extends State<HomeScreen>
         // User has creatures - proceed with field tutorial
         debugPrint('🎓 Tutorial: Starting field tutorial');
         await db.settingsDao.setNavLocked(true);
-
-        final hasCoreBiomeSpawns = _coreWildernessBiomes.any(
-          (biomeId) => spawnService.getSceneSpawnCount(biomeId) > 0,
-        );
-        if (!hasCoreBiomeSpawns) {
-          debugPrint(
-            '🎓 Tutorial: No spawns found, scheduling immediate spawn for tutorial',
-          );
-          await spawnService.clearSceneSpawns('valley');
-          await spawnService.scheduleNextSpawnTime(
-            'valley',
-            windowMax: const Duration(seconds: 3),
-            force: true,
-          );
+        final faction = factionService.current;
+        if (faction != null) {
+          await _ensureOpeningWildernessReady(faction, spawnService);
         }
 
         setState(() {
@@ -1544,6 +1610,7 @@ class _HomeScreenState extends State<HomeScreen>
             return CreatureSelectionSheet(
               scrollController: scrollController,
               discoveredCreatures: filteredDiscovered,
+              stateScopeKey: 'home_featured_species',
               onSelectCreature: (creatureId) {
                 Navigator.pop(context, creatureId);
               },
@@ -1571,6 +1638,7 @@ class _HomeScreenState extends State<HomeScreen>
           child: InstancesSheet(
             theme: theme,
             species: species,
+            prefsScopeKey: 'home_featured_instances',
             onTap: (CreatureInstance ci) {
               Navigator.pop(context, ci);
             },
@@ -2037,13 +2105,11 @@ class _HomeScreenState extends State<HomeScreen>
       // This ensures restart will know to redirect to extraction
       await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
       await db.settingsDao.setNavLocked(true);
-
-      await spawnService.clearSceneSpawns('valley');
-      await spawnService.scheduleNextSpawnTime(
-        'valley',
-        windowMax: Duration(seconds: 10),
-        force: true,
+      await OpeningWildernessService.activateForFaction(
+        db.settingsDao,
+        faction,
       );
+      await _ensureOpeningWildernessReady(faction, spawnService);
 
       if (!mounted) return;
 

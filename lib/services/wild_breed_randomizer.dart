@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
+import 'package:alchemons/models/wilderness_stat_ranges.dart';
 
 class WildCreatureRandomizer {
   final Random _random;
@@ -12,7 +13,11 @@ class WildCreatureRandomizer {
   WildCreatureRandomizer({Random? random}) : _random = random ?? Random();
 
   /// Prepare a wild (catalog) creature for breeding by giving it random stats
-  Creature randomizeWildCreature(Creature wild, {int? seed}) {
+  Creature randomizeWildCreature(
+    Creature wild, {
+    int? seed,
+    bool arcaneBoostUnlocked = false,
+  }) {
     final rng = seed != null ? Random(seed) : _random;
 
     // Random nature
@@ -22,7 +27,11 @@ class WildCreatureRandomizer {
     final genetics = _randomizeGenetics(wild.genetics, rng);
 
     // Random stats (wild creatures have average stats)
-    final stats = _generateWildStats(wild.rarity, rng);
+    final stats = _generateWildStats(
+      wild.rarity,
+      rng,
+      arcaneBoostUnlocked: arcaneBoostUnlocked,
+    );
 
     return wild.copyWith(nature: nature, genetics: genetics, stats: stats);
   }
@@ -39,49 +48,55 @@ class WildCreatureRandomizer {
     return Genetics(variants);
   }
 
-  CreatureStats _generateWildStats(String rarity, Random rng) {
+  CreatureStats _generateWildStats(
+    String rarity,
+    Random rng, {
+    required bool arcaneBoostUnlocked,
+  }) {
     // Wild creatures have stats based on rarity
-    final baseRange = _getStatRangeForRarity(rarity);
+    final baseRange = wildernessStatRangeForRarity(
+      rarity,
+      arcaneBoostUnlocked: arcaneBoostUnlocked,
+    );
+    final speedPair = _rollStatPair(rng, baseRange);
+    final intelligencePair = _rollStatPair(rng, baseRange);
+    final strengthPair = _rollStatPair(rng, baseRange);
+    final beautyPair = _rollStatPair(rng, baseRange);
 
     return CreatureStats(
-      speed: _rollStat(rng, baseRange),
-      intelligence: _rollStat(rng, baseRange),
-      strength: _rollStat(rng, baseRange),
-      beauty: _rollStat(rng, baseRange),
-      speedPotential: _rollPotential(rng, baseRange),
-      intelligencePotential: _rollPotential(rng, baseRange),
-      strengthPotential: _rollPotential(rng, baseRange),
-      beautyPotential: _rollPotential(rng, baseRange),
+      speed: speedPair.stat,
+      intelligence: intelligencePair.stat,
+      strength: strengthPair.stat,
+      beauty: beautyPair.stat,
+      speedPotential: speedPair.potential,
+      intelligencePotential: intelligencePair.potential,
+      strengthPotential: strengthPair.potential,
+      beautyPotential: beautyPair.potential,
     );
   }
 
-  ({double min, double max, double potMin, double potMax})
-  _getStatRangeForRarity(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common':
-        return (min: 1.0, max: 2.0, potMin: 1.0, potMax: 2.0);
-      case 'uncommon':
-        return (min: 1.0, max: 1.0, potMin: 1.0, potMax: 2.0);
-      case 'rare':
-        return (min: 2.0, max: 2.0, potMin: 2.0, potMax: 3.0);
-      case 'legendary':
-        return (min: 2.0, max: 3.0, potMin: 3.0, potMax: 4.0);
-      default:
-        return (min: 1.0, max: 3.0, potMin: 2.0, potMax: 4.0);
-    }
+  ({double stat, double potential}) _rollStatPair(
+    Random rng,
+    WildernessStatRange range,
+  ) {
+    final potential = _rollPotential(rng, range);
+    final statMax = min(range.max, potential);
+    return (
+      stat: _rollStat(rng, range, maxOverride: statMax),
+      potential: potential,
+    );
   }
 
   double _rollStat(
     Random rng,
-    ({double min, double max, double potMin, double potMax}) range,
-  ) {
-    return range.min + (rng.nextDouble() * (range.max - range.min));
+    WildernessStatRange range, {
+    double? maxOverride,
+  }) {
+    final maxValue = maxOverride ?? range.max;
+    return range.min + (rng.nextDouble() * (maxValue - range.min));
   }
 
-  double _rollPotential(
-    Random rng,
-    ({double min, double max, double potMin, double potMax}) range,
-  ) {
+  double _rollPotential(Random rng, WildernessStatRange range) {
     return range.potMin + (rng.nextDouble() * (range.potMax - range.potMin));
   }
 }

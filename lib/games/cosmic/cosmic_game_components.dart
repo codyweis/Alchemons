@@ -33,8 +33,12 @@ class ShipComponent {
     switch (skin) {
       case 'skin_phantom':
         _renderPhantom(canvas, elapsed);
+      case 'skin_inferno':
+        _renderInferno(canvas, elapsed);
       case 'skin_solar':
         _renderSolar(canvas, elapsed);
+      case 'skin_crystal':
+        _renderCrystal(canvas, elapsed);
       default:
         _renderDefault(canvas, elapsed);
     }
@@ -44,188 +48,798 @@ class ShipComponent {
 
   // ── Default ship ──
   void _renderDefault(Canvas canvas, double elapsed) {
+    final enginePulse = 0.85 + 0.15 * sin(elapsed * 9);
+
     // Engine glow
     final glowPaint = Paint()
-      ..color = const Color(0x6000BFFF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
-    canvas.drawCircle(const Offset(0, 14), 8, glowPaint);
+      ..color = const Color(0x7000CFFF).withValues(alpha: 0.55 * enginePulse)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+    canvas.drawCircle(const Offset(0, 18), 9, glowPaint);
 
-    // Trail particles (simple)
-    final trailPaint = Paint()..color = const Color(0x4000BFFF);
-    for (var i = 1; i <= 3; i++) {
-      final wobble = sin(elapsed * 8 + i * 1.5) * 3;
+    // Twin engine plumes
+    for (final x in const [-5.5, 5.5]) {
       canvas.drawCircle(
-        Offset(wobble, 14.0 + i * 8),
-        4.0 - i * 0.8,
+        Offset(x, 15.5),
+        3.2,
+        Paint()..color = const Color(0xCC8AF7FF),
+      );
+    }
+
+    // Trail particles
+    for (var i = 1; i <= 4; i++) {
+      final wobble = sin(elapsed * 8 + i * 1.35) * (2.2 + i * 0.15);
+      final trailPaint = Paint()
+        ..color = const Color(0xFF5ED8FF).withValues(alpha: 0.24 - i * 0.04);
+      canvas.drawCircle(
+        Offset(wobble, 18.0 + i * 7.5),
+        4.2 - i * 0.65,
         trailPaint,
       );
     }
 
-    // Ship body — a sleek triangle
-    final bodyPath = Path()
-      ..moveTo(0, -18)
-      ..lineTo(-10, 14)
-      ..lineTo(0, 8)
-      ..lineTo(10, 14)
+    // Broad silhouette with wings, intakes, and a defined tail.
+    final wingPath = Path()
+      ..moveTo(0, -21)
+      ..lineTo(-7, -13)
+      ..lineTo(-14, -5)
+      ..lineTo(-19, 10)
+      ..lineTo(-9, 8)
+      ..lineTo(-4, 18)
+      ..lineTo(0, 15)
+      ..lineTo(4, 18)
+      ..lineTo(9, 8)
+      ..lineTo(19, 10)
+      ..lineTo(14, -5)
+      ..lineTo(7, -13)
       ..close();
 
-    // Hull gradient
-    final bodyPaint = Paint()
-      ..shader = ui.Gradient.linear(const Offset(0, -18), const Offset(0, 14), [
-        const Color(0xFF80DEEA),
-        const Color(0xFF0077B6),
-      ]);
-    canvas.drawPath(bodyPath, bodyPaint);
+    final fuselagePath = Path()
+      ..moveTo(0, -24)
+      ..lineTo(-4.5, -11)
+      ..lineTo(-5.5, -1)
+      ..lineTo(-3.5, 13)
+      ..lineTo(0, 18)
+      ..lineTo(3.5, 13)
+      ..lineTo(5.5, -1)
+      ..lineTo(4.5, -11)
+      ..close();
 
-    // Outline
+    final wingPaint = Paint()
+      ..shader = ui.Gradient.linear(const Offset(0, -21), const Offset(0, 18), [
+        const Color(0xFF4FC3F7),
+        const Color(0xFF0C5C86),
+      ]);
+    canvas.drawPath(wingPath, wingPaint);
+
+    final fuselagePaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -24),
+        const Offset(0, 18),
+        [
+          const Color(0xFFDDFBFF),
+          const Color(0xFF90E8FF),
+          const Color(0xFF0D79AB),
+        ],
+        const [0.0, 0.42, 1.0],
+      );
+    canvas.drawPath(fuselagePath, fuselagePaint);
+
+    final canopyPath = Path()
+      ..moveTo(0, -14)
+      ..quadraticBezierTo(5.5, -11, 4.5, -2)
+      ..quadraticBezierTo(0, 2.5, -4.5, -2)
+      ..quadraticBezierTo(-5.5, -11, 0, -14)
+      ..close();
+    final canopyPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -14),
+        const Offset(0, 2),
+        [
+          const Color(0xFFF6FEFF),
+          const Color(0xFF6FE8FF),
+          const Color(0xFF007EA7),
+        ],
+        const [0.0, 0.48, 1.0],
+      );
+    canvas.drawPath(canopyPath, canopyPaint);
+
+    final intakePaint = Paint()
+      ..color = const Color(0x6615334A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawLine(const Offset(-9, -3), const Offset(-12, 8), intakePaint);
+    canvas.drawLine(const Offset(9, -3), const Offset(12, 8), intakePaint);
+
+    final hullHighlight = Paint()
+      ..color = const Color(0x99FFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+    canvas.drawLine(const Offset(0, -19), const Offset(0, 11), hullHighlight);
+
     final outlinePaint = Paint()
       ..color = const Color(0xAA00E5FF)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
-    canvas.drawPath(bodyPath, outlinePaint);
+    canvas.drawPath(wingPath, outlinePaint);
+    canvas.drawPath(fuselagePath, outlinePaint);
+
+    // Running lights at the wing roots help sell the scale.
+    canvas.drawCircle(
+      const Offset(-10.5, 3.5),
+      1.7,
+      Paint()..color = const Color(0x99A8FFFF),
+    );
+    canvas.drawCircle(
+      const Offset(10.5, 3.5),
+      1.7,
+      Paint()..color = const Color(0x9959D8FF),
+    );
 
     // Cockpit glow
     canvas.drawCircle(
-      const Offset(0, -4),
-      3,
+      const Offset(0, -5),
+      3.6,
       Paint()..color = const Color(0xCC00E5FF),
     );
   }
 
   // ── Phantom Viper: angular stealth hull, violet exhaust ──
   void _renderPhantom(Canvas canvas, double elapsed) {
+    final phase = sin(elapsed * 4.6);
+
     // Dark-matter exhaust glow
     final glowPaint = Paint()
-      ..color = const Color(0x608B00FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
-    canvas.drawCircle(const Offset(0, 16), 7, glowPaint);
+      ..color = const Color(0x708B00FF).withValues(alpha: 0.55 + phase * 0.06)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+    canvas.drawCircle(const Offset(0, 18), 8, glowPaint);
+
+    for (final x in const [-5.0, 5.0]) {
+      canvas.drawCircle(
+        Offset(x, 15.5),
+        2.8,
+        Paint()..color = const Color(0xFFB56CFF),
+      );
+    }
 
     // Ghostly trail
-    for (var i = 1; i <= 4; i++) {
-      final wobble = sin(elapsed * 10 + i * 1.2) * 2.5;
-      final alpha = (0.35 - i * 0.07).clamp(0.0, 1.0);
+    for (var i = 1; i <= 5; i++) {
+      final wobble = sin(elapsed * 10 + i * 1.15) * (2.0 + i * 0.22);
+      final alpha = (0.34 - i * 0.05).clamp(0.0, 1.0);
       canvas.drawCircle(
-        Offset(wobble, 16.0 + i * 7),
-        3.5 - i * 0.6,
+        Offset(wobble, 18.0 + i * 6.5),
+        3.8 - i * 0.5,
         Paint()..color = Color.fromRGBO(139, 0, 255, alpha),
       );
     }
 
-    // Angular stealth body — sharp diamond profile
-    final bodyPath = Path()
-      ..moveTo(0, -20) // nose (sharp)
-      ..lineTo(-6, -8) // left shoulder notch
-      ..lineTo(-12, 10) // left wingtip
-      ..lineTo(-4, 6) // left inner
-      ..lineTo(0, 12) // tail center
-      ..lineTo(4, 6) // right inner
-      ..lineTo(12, 10) // right wingtip
-      ..lineTo(6, -8) // right shoulder notch
+    final wingPath = Path()
+      ..moveTo(0, -26)
+      ..lineTo(-7, -18)
+      ..lineTo(-13, -7)
+      ..lineTo(-20, 6)
+      ..lineTo(-11, 5)
+      ..lineTo(-6, 15)
+      ..lineTo(0, 11)
+      ..lineTo(6, 15)
+      ..lineTo(11, 5)
+      ..lineTo(20, 6)
+      ..lineTo(13, -7)
+      ..lineTo(7, -18)
       ..close();
 
-    // Dark hull gradient
-    final bodyPaint = Paint()
-      ..shader = ui.Gradient.linear(const Offset(0, -20), const Offset(0, 12), [
-        const Color(0xFF2D1B69), // deep violet
-        const Color(0xFF0D0D1A), // near-black
-      ]);
-    canvas.drawPath(bodyPath, bodyPaint);
+    final fuselagePath = Path()
+      ..moveTo(0, -29)
+      ..lineTo(-3.5, -18)
+      ..lineTo(-5, -2)
+      ..lineTo(-2.8, 12)
+      ..lineTo(0, 17)
+      ..lineTo(2.8, 12)
+      ..lineTo(5, -2)
+      ..lineTo(3.5, -18)
+      ..close();
 
-    // Faint violet outline
+    final wingPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -26),
+        const Offset(0, 15),
+        [
+          const Color(0xFF3D2478),
+          const Color(0xFF19122F),
+          const Color(0xFF07070F),
+        ],
+        const [0.0, 0.45, 1.0],
+      );
+    canvas.drawPath(wingPath, wingPaint);
+
+    final fuselagePaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -29),
+        const Offset(0, 17),
+        [
+          const Color(0xFF8E6CFF),
+          const Color(0xFF32205F),
+          const Color(0xFF090912),
+        ],
+        const [0.0, 0.32, 1.0],
+      );
+    canvas.drawPath(fuselagePath, fuselagePaint);
+
+    final canopyPath = Path()
+      ..moveTo(0, -18)
+      ..quadraticBezierTo(4.2, -15.5, 3.8, -6.5)
+      ..quadraticBezierTo(0, -2, -3.8, -6.5)
+      ..quadraticBezierTo(-4.2, -15.5, 0, -18)
+      ..close();
+    final canopyPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -18),
+        const Offset(0, -2),
+        [
+          const Color(0xFFE9D9FF),
+          const Color(0xFFB56CFF),
+          const Color(0xFF461A7B),
+        ],
+        const [0.0, 0.45, 1.0],
+      );
+    canvas.drawPath(canopyPath, canopyPaint);
+
+    final bladePaint = Paint()
+      ..color = const Color(0x883F2A6D)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawLine(const Offset(-12, -4), const Offset(-16, 7), bladePaint);
+    canvas.drawLine(const Offset(12, -4), const Offset(16, 7), bladePaint);
+
+    final hullGlow = Paint()
+      ..color = const Color(0x66D2A7FF)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawLine(const Offset(0, -23), const Offset(0, 9), hullGlow);
+
     final outlinePaint = Paint()
       ..color = const Color(0x889945FF)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
-    canvas.drawPath(bodyPath, outlinePaint);
+    canvas.drawPath(wingPath, outlinePaint);
+    canvas.drawPath(fuselagePath, outlinePaint);
 
-    // Twin cockpit eyes (menacing)
-    final eyeGlow = 0.7 + 0.3 * sin(elapsed * 4);
+    // Twin cockpit eyes and blade tips sell the stealth-upgrade silhouette.
+    final eyeGlow = 0.72 + 0.28 * sin(elapsed * 4);
     canvas.drawCircle(
-      const Offset(-3, -6),
-      2,
+      const Offset(-3.2, -10),
+      2.2,
       Paint()..color = Color.fromRGBO(180, 80, 255, eyeGlow),
     );
     canvas.drawCircle(
-      const Offset(3, -6),
-      2,
+      const Offset(3.2, -10),
+      2.2,
       Paint()..color = Color.fromRGBO(180, 80, 255, eyeGlow),
+    );
+    canvas.drawCircle(
+      const Offset(-14.5, 6),
+      1.3,
+      Paint()..color = const Color(0x99C59BFF),
+    );
+    canvas.drawCircle(
+      const Offset(14.5, 6),
+      1.3,
+      Paint()..color = const Color(0x99C59BFF),
     );
   }
 
   // ── Solar Dragoon: blazing golden hull, solar flares ──
   void _renderSolar(Canvas canvas, double elapsed) {
-    // Solar flare exhaust
+    final phase = sin(elapsed * 3.2);
+
+    // Solar halo behind the ship gives it a radiant capital-ship profile.
+    final haloPaint = Paint()
+      ..color = const Color(0x66FFD54F).withValues(alpha: 0.34 + phase * 0.05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawCircle(const Offset(0, -1), 18.5, haloPaint);
+    canvas.drawCircle(
+      const Offset(0, -1),
+      12.5,
+      Paint()
+        ..color = const Color(0x55FFF3B0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+
+    // Triple engine array
     final flarePaint = Paint()
-      ..color = const Color(0x70FF8F00)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-    canvas.drawCircle(const Offset(0, 14), 10, flarePaint);
+      ..color = const Color(0x85FF9A00).withValues(alpha: 0.62 + phase * 0.07)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    canvas.drawCircle(const Offset(0, 18), 12, flarePaint);
+    for (final x in const [-8.0, 0.0, 8.0]) {
+      canvas.drawCircle(
+        Offset(x, 16),
+        x == 0 ? 4.4 : 3.2,
+        Paint()..color = const Color(0xFFFFD15C),
+      );
+    }
 
     // Trailing fire particles
-    for (var i = 1; i <= 4; i++) {
-      final wobble = sin(elapsed * 12 + i * 1.8) * 3;
-      final alpha = (0.5 - i * 0.1).clamp(0.0, 1.0);
-      final hue = i.isEven ? const Color(0xFFFF6F00) : const Color(0xFFFFAB00);
+    for (var i = 1; i <= 5; i++) {
+      final wobble = sin(elapsed * 12 + i * 1.55) * (2.8 + i * 0.35);
+      final alpha = (0.52 - i * 0.08).clamp(0.0, 1.0);
+      final hue = i.isEven ? const Color(0xFFFF6F00) : const Color(0xFFFFC107);
       canvas.drawCircle(
-        Offset(wobble, 14.0 + i * 7),
-        4.5 - i * 0.8,
+        Offset(wobble, 18.0 + i * 7),
+        5.0 - i * 0.72,
         Paint()..color = hue.withValues(alpha: alpha),
       );
     }
 
-    // Solar flare wings (animated outward flickers)
-    for (var w = 0; w < 3; w++) {
-      final flareAngle = elapsed * 1.5 + w * pi * 2 / 3;
-      final flareLen = 5 + 3 * sin(elapsed * 5 + w * 2);
-      final fx = cos(flareAngle) * (10 + flareLen);
-      final fy = sin(flareAngle) * (10 + flareLen) * 0.4;
+    // Floating solar motes
+    for (var w = 0; w < 4; w++) {
+      final flareAngle = elapsed * 1.3 + w * pi * 2 / 4;
+      final flareLen = 7 + 4 * sin(elapsed * 4.2 + w * 1.7);
+      final fx = cos(flareAngle) * (13 + flareLen);
+      final fy = sin(flareAngle) * (13 + flareLen) * 0.42;
       canvas.drawCircle(
         Offset(fx, fy),
-        3,
+        3.2,
         Paint()
-          ..color = const Color(0x40FFD600)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+          ..color = const Color(0x55FFD95C)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
       );
     }
 
-    // Ship body — broad arrowhead with swept wings
-    final bodyPath = Path()
-      ..moveTo(0, -18) // nose
-      ..lineTo(-8, -2) // left shoulder
-      ..lineTo(-14, 12) // left wingtip (wider)
-      ..lineTo(-3, 8) // left inner
-      ..lineTo(0, 14) // tail
-      ..lineTo(3, 8) // right inner
-      ..lineTo(14, 12) // right wingtip
-      ..lineTo(8, -2) // right shoulder
+    // This skin is intentionally not a sleek dart; it's a radiant war-barge.
+    final leftPodPath = Path()
+      ..moveTo(-6, -15)
+      ..lineTo(-12, -13)
+      ..lineTo(-17, -6)
+      ..lineTo(-21, 8)
+      ..lineTo(-16, 12)
+      ..lineTo(-11, 10)
+      ..lineTo(-8, 17)
+      ..lineTo(-4, 14)
+      ..lineTo(-5, -2)
+      ..close();
+    final rightPodPath = Path()
+      ..moveTo(6, -15)
+      ..lineTo(12, -13)
+      ..lineTo(17, -6)
+      ..lineTo(21, 8)
+      ..lineTo(16, 12)
+      ..lineTo(11, 10)
+      ..lineTo(8, 17)
+      ..lineTo(4, 14)
+      ..lineTo(5, -2)
+      ..close();
+    final coreHullPath = Path()
+      ..moveTo(0, -30)
+      ..lineTo(-4.5, -19)
+      ..lineTo(-8, -9)
+      ..lineTo(-7.2, 9)
+      ..lineTo(-4.2, 20)
+      ..lineTo(0, 24)
+      ..lineTo(4.2, 20)
+      ..lineTo(7.2, 9)
+      ..lineTo(8, -9)
+      ..lineTo(4.5, -19)
+      ..close();
+    final noseCrestPath = Path()
+      ..moveTo(0, -34)
+      ..lineTo(-3.5, -25)
+      ..lineTo(0, -20)
+      ..lineTo(3.5, -25)
       ..close();
 
-    // Golden hull gradient
-    final bodyPaint = Paint()
-      ..shader = ui.Gradient.linear(const Offset(0, -18), const Offset(0, 14), [
-        const Color(0xFFFFE082), // bright gold
-        const Color(0xFFE65100), // deep orange
-      ]);
-    canvas.drawPath(bodyPath, bodyPaint);
+    final podPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -16),
+        const Offset(0, 17),
+        [
+          const Color(0xFFFFE999),
+          const Color(0xFFFFA726),
+          const Color(0xFFE65100),
+        ],
+        const [0.0, 0.45, 1.0],
+      );
+    canvas.drawPath(leftPodPath, podPaint);
+    canvas.drawPath(rightPodPath, podPaint);
 
-    // Warm amber outline
-    final outlinePaint = Paint()
-      ..color = const Color(0xAAFFAB00)
+    final corePaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -30),
+        const Offset(0, 24),
+        [
+          const Color(0xFFFFFBE4),
+          const Color(0xFFFFE082),
+          const Color(0xFFFF8F00),
+        ],
+        const [0.0, 0.38, 1.0],
+      );
+    canvas.drawPath(coreHullPath, corePaint);
+
+    final crestPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -34),
+        const Offset(0, -20),
+        [const Color(0xFFFFFFFF), const Color(0xFFFFD54F)],
+      );
+    canvas.drawPath(noseCrestPath, crestPaint);
+
+    final canopyPath = Path()
+      ..moveTo(0, -18)
+      ..quadraticBezierTo(4.8, -15, 4.2, -4.5)
+      ..quadraticBezierTo(0, 0.5, -4.2, -4.5)
+      ..quadraticBezierTo(-4.8, -15, 0, -18)
+      ..close();
+    final canopyPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        const Offset(0, -18),
+        const Offset(0, 1),
+        [
+          const Color(0xFFFFFFFF),
+          const Color(0xFFFFF176),
+          const Color(0xFFFFA000),
+        ],
+        const [0.0, 0.45, 1.0],
+      );
+    canvas.drawPath(canopyPath, canopyPaint);
+
+    final panelPaint = Paint()
+      ..color = const Color(0x88A84300)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    canvas.drawPath(bodyPath, outlinePaint);
+      ..strokeWidth = 1.1;
+    canvas.drawLine(const Offset(-10.5, -8), const Offset(-14, 9), panelPaint);
+    canvas.drawLine(const Offset(10.5, -8), const Offset(14, 9), panelPaint);
+    canvas.drawLine(const Offset(0, -20), const Offset(0, 16), panelPaint);
 
-    // Radiant cockpit
-    final cockpitGlow = 0.8 + 0.2 * sin(elapsed * 3);
+    final outlinePaint = Paint()
+      ..color = const Color(0xAAFFB300)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.25;
+    canvas.drawPath(leftPodPath, outlinePaint);
+    canvas.drawPath(rightPodPath, outlinePaint);
+    canvas.drawPath(coreHullPath, outlinePaint);
+    canvas.drawPath(noseCrestPath, outlinePaint);
+
+    // Radiant cockpit and bright pod markers keep it readable at small size.
+    final cockpitGlow = 0.82 + 0.18 * sin(elapsed * 3);
     canvas.drawCircle(
-      const Offset(0, -4),
-      3.5,
+      const Offset(0, -8),
+      4.4,
       Paint()..color = Color.fromRGBO(255, 214, 0, cockpitGlow),
     );
-    // Inner cockpit core
     canvas.drawCircle(
-      const Offset(0, -4),
-      1.5,
+      const Offset(0, -8),
+      1.9,
       Paint()..color = const Color(0xFFFFFFFF),
+    );
+    canvas.drawCircle(
+      const Offset(-14.5, 4.5),
+      1.7,
+      Paint()..color = const Color(0xFFFFE082),
+    );
+    canvas.drawCircle(
+      const Offset(14.5, 4.5),
+      1.7,
+      Paint()..color = const Color(0xFFFFE082),
+    );
+  }
+
+  // ── Inferno Raptor: aggressive flame-carved striker ──
+  void _renderInferno(Canvas canvas, double elapsed) {
+    final phase = sin(elapsed * 5.8);
+
+    final flameGlow = Paint()
+      ..color = const Color(0x88FF5A1F).withValues(alpha: 0.58 + phase * 0.07)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    canvas.drawCircle(const Offset(0, 19), 12, flameGlow);
+
+    for (final x in const [-6.5, 6.5]) {
+      canvas.drawCircle(
+        Offset(x, 15.5),
+        3.0,
+        Paint()..color = const Color(0xFFFFB74D),
+      );
+    }
+
+    // Flame lash exhaust
+    for (var i = 1; i <= 5; i++) {
+      final wobble = sin(elapsed * 13 + i * 1.25) * (2.8 + i * 0.45);
+      final alpha = (0.48 - i * 0.07).clamp(0.0, 1.0);
+      final ember = i.isEven
+          ? const Color(0xFFFF3D00)
+          : const Color(0xFFFFC400);
+      canvas.drawCircle(
+        Offset(wobble, 18.0 + i * 6.8),
+        4.7 - i * 0.65,
+        Paint()..color = ember.withValues(alpha: alpha),
+      );
+    }
+
+    // Flickering fire tongues off the wings.
+    for (final dir in const [-1.0, 1.0]) {
+      for (var i = 0; i < 3; i++) {
+        final t = elapsed * 3.8 + i * 0.8;
+        final flare = Path()
+          ..moveTo(9 * dir, -2 + i * 4)
+          ..quadraticBezierTo(
+            (15 + i * 2) * dir,
+            2 + sin(t) * 3,
+            (11 + i) * dir,
+            8 + i * 3,
+          )
+          ..quadraticBezierTo(
+            (7 + i * 0.5) * dir,
+            6 + i * 2,
+            9 * dir,
+            -2 + i * 4,
+          );
+        canvas.drawPath(
+          flare,
+          Paint()
+            ..color = const Color(0x55FF8A00)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        );
+      }
+    }
+
+    final wingPath = Path()
+      ..moveTo(0, -28)
+      ..lineTo(-5, -18)
+      ..lineTo(-13, -10)
+      ..lineTo(-21, 3)
+      ..lineTo(-12, 5)
+      ..lineTo(-8, 18)
+      ..lineTo(0, 11)
+      ..lineTo(8, 18)
+      ..lineTo(12, 5)
+      ..lineTo(21, 3)
+      ..lineTo(13, -10)
+      ..lineTo(5, -18)
+      ..close();
+    final fuselagePath = Path()
+      ..moveTo(0, -31)
+      ..lineTo(-3.2, -20)
+      ..lineTo(-4.8, -2)
+      ..lineTo(-2.8, 12)
+      ..lineTo(0, 21)
+      ..lineTo(2.8, 12)
+      ..lineTo(4.8, -2)
+      ..lineTo(3.2, -20)
+      ..close();
+    final bellyBladePath = Path()
+      ..moveTo(0, 22)
+      ..lineTo(-3.5, 13)
+      ..lineTo(0, 16)
+      ..lineTo(3.5, 13)
+      ..close();
+
+    canvas.drawPath(
+      wingPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          const Offset(0, -28),
+          const Offset(0, 18),
+          [
+            const Color(0xFFFFB74D),
+            const Color(0xFFFF6F00),
+            const Color(0xFFB71C1C),
+          ],
+          const [0.0, 0.42, 1.0],
+        ),
+    );
+    canvas.drawPath(
+      fuselagePath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          const Offset(0, -31),
+          const Offset(0, 21),
+          [
+            const Color(0xFFFFF3E0),
+            const Color(0xFFFF8F00),
+            const Color(0xFFD84315),
+          ],
+          const [0.0, 0.33, 1.0],
+        ),
+    );
+    canvas.drawPath(bellyBladePath, Paint()..color = const Color(0xFFFF7043));
+
+    final canopyPath = Path()
+      ..moveTo(0, -19)
+      ..quadraticBezierTo(4.2, -16, 3.6, -5)
+      ..quadraticBezierTo(0, -0.5, -3.6, -5)
+      ..quadraticBezierTo(-4.2, -16, 0, -19)
+      ..close();
+    canvas.drawPath(
+      canopyPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          const Offset(0, -19),
+          const Offset(0, 0),
+          [
+            const Color(0xFFFFFFF8),
+            const Color(0xFFFFD54F),
+            const Color(0xFFFF5722),
+          ],
+          const [0.0, 0.45, 1.0],
+        ),
+    );
+
+    final ventPaint = Paint()
+      ..color = const Color(0x88551B00)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+    canvas.drawLine(const Offset(-10, -5), const Offset(-14, 9), ventPaint);
+    canvas.drawLine(const Offset(10, -5), const Offset(14, 9), ventPaint);
+    canvas.drawLine(const Offset(0, -23), const Offset(0, 14), ventPaint);
+
+    final outline = Paint()
+      ..color = const Color(0xAAFFAB40)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawPath(wingPath, outline);
+    canvas.drawPath(fuselagePath, outline);
+
+    final cockpitGlow = 0.8 + 0.2 * sin(elapsed * 4.5);
+    canvas.drawCircle(
+      const Offset(0, -8),
+      3.8,
+      Paint()..color = Color.fromRGBO(255, 196, 0, cockpitGlow),
+    );
+    canvas.drawCircle(
+      const Offset(-12.5, 3.5),
+      1.6,
+      Paint()..color = const Color(0xFFFFAB40),
+    );
+    canvas.drawCircle(
+      const Offset(12.5, 3.5),
+      1.6,
+      Paint()..color = const Color(0xFFFF7043),
+    );
+  }
+
+  // ── Crystal Bastion: faceted shard frigate with prismatic core ──
+  void _renderCrystal(Canvas canvas, double elapsed) {
+    final phase = sin(elapsed * 3.7);
+
+    final prismGlow = Paint()
+      ..color = const Color(0x6698F5FF).withValues(alpha: 0.48 + phase * 0.05)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+    canvas.drawCircle(const Offset(0, 18), 10, prismGlow);
+
+    // Floating shard motes
+    for (var i = 0; i < 5; i++) {
+      final angle = elapsed * 1.4 + i * pi * 2 / 5;
+      final dist = 10.5 + (i.isEven ? 2.5 : 0.0);
+      final p = Offset(cos(angle) * dist, sin(angle) * dist * 0.65 - 2);
+      final shard = Path()
+        ..moveTo(p.dx, p.dy - 2.5)
+        ..lineTo(p.dx - 1.8, p.dy + 0.5)
+        ..lineTo(p.dx, p.dy + 3)
+        ..lineTo(p.dx + 1.8, p.dy + 0.5)
+        ..close();
+      canvas.drawPath(shard, Paint()..color = const Color(0x66C6F7FF));
+    }
+
+    for (final x in const [-5.0, 5.0]) {
+      canvas.drawCircle(
+        Offset(x, 15.5),
+        2.8,
+        Paint()..color = const Color(0xFFB3F0FF),
+      );
+    }
+
+    // Icy shard exhaust
+    for (var i = 1; i <= 5; i++) {
+      final wobble = sin(elapsed * 9 + i * 1.4) * (1.6 + i * 0.18);
+      final alpha = (0.34 - i * 0.05).clamp(0.0, 1.0);
+      final shard = Path()
+        ..moveTo(wobble, 18.0 + i * 6.8 - 3)
+        ..lineTo(wobble - 2.1, 18.0 + i * 6.8 + 1)
+        ..lineTo(wobble, 18.0 + i * 6.8 + 4)
+        ..lineTo(wobble + 2.1, 18.0 + i * 6.8 + 1)
+        ..close();
+      canvas.drawPath(
+        shard,
+        Paint()..color = const Color(0xFF8DEBFF).withValues(alpha: alpha),
+      );
+    }
+
+    final outerShardPath = Path()
+      ..moveTo(0, -27)
+      ..lineTo(-8, -18)
+      ..lineTo(-16, -8)
+      ..lineTo(-19, 5)
+      ..lineTo(-10, 9)
+      ..lineTo(-6, 20)
+      ..lineTo(0, 15)
+      ..lineTo(6, 20)
+      ..lineTo(10, 9)
+      ..lineTo(19, 5)
+      ..lineTo(16, -8)
+      ..lineTo(8, -18)
+      ..close();
+    final coreShardPath = Path()
+      ..moveTo(0, -31)
+      ..lineTo(-4.5, -18)
+      ..lineTo(-6.5, -2)
+      ..lineTo(-3, 14)
+      ..lineTo(0, 22)
+      ..lineTo(3, 14)
+      ..lineTo(6.5, -2)
+      ..lineTo(4.5, -18)
+      ..close();
+    final noseShardPath = Path()
+      ..moveTo(0, -35)
+      ..lineTo(-3, -27)
+      ..lineTo(0, -22)
+      ..lineTo(3, -27)
+      ..close();
+
+    canvas.drawPath(
+      outerShardPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          const Offset(0, -27),
+          const Offset(0, 20),
+          [
+            const Color(0xFFE1FBFF),
+            const Color(0xFF8BE9FF),
+            const Color(0xFF5E7CE2),
+          ],
+          const [0.0, 0.42, 1.0],
+        ),
+    );
+    canvas.drawPath(
+      coreShardPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          const Offset(0, -31),
+          const Offset(0, 22),
+          [
+            const Color(0xFFFFFFFF),
+            const Color(0xFFC6F7FF),
+            const Color(0xFF6B8CFF),
+          ],
+          const [0.0, 0.36, 1.0],
+        ),
+    );
+    canvas.drawPath(noseShardPath, Paint()..color = const Color(0xFFF2FEFF));
+
+    final facetPaint = Paint()
+      ..color = const Color(0x8878B7FF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawLine(const Offset(0, -24), const Offset(0, 16), facetPaint);
+    canvas.drawLine(const Offset(-10, -6), const Offset(-6, 11), facetPaint);
+    canvas.drawLine(const Offset(10, -6), const Offset(6, 11), facetPaint);
+
+    final outline = Paint()
+      ..color = const Color(0xAACFF8FF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.15;
+    canvas.drawPath(outerShardPath, outline);
+    canvas.drawPath(coreShardPath, outline);
+    canvas.drawPath(noseShardPath, outline);
+
+    final coreGlow = 0.78 + 0.22 * sin(elapsed * 3.2);
+    canvas.drawCircle(
+      const Offset(0, -8),
+      4.0,
+      Paint()..color = Color.fromRGBO(190, 245, 255, coreGlow),
+    );
+    canvas.drawCircle(
+      const Offset(0, -8),
+      1.8,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+    canvas.drawCircle(
+      const Offset(-12.5, 4.5),
+      1.5,
+      Paint()..color = const Color(0xFFA8EEFF),
+    );
+    canvas.drawCircle(
+      const Offset(12.5, 4.5),
+      1.5,
+      Paint()..color = const Color(0xFFA7C4FF),
     );
   }
 }

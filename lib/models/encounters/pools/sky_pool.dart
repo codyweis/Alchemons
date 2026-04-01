@@ -16,25 +16,34 @@ skyEncounterPools(SceneDefinition scene) {
     EncounterEntry(
       speciesId: 'LET04',
       rarity: EncounterRarity.common,
+      weightMul: 1.6,
     ), // Airlet
     EncounterEntry(
       speciesId: 'LET05',
-      rarity: EncounterRarity.common,
+      rarity: EncounterRarity.uncommon,
+      weightMul: 0.4,
     ), // Steamlet (clouds)
     // Uncommon
     EncounterEntry(
       speciesId: 'MAN04',
       rarity: EncounterRarity.uncommon,
+      weightMul: 0.35,
     ), // Airmane
     EncounterEntry(
       speciesId: 'PIP04',
       rarity: EncounterRarity.uncommon,
+      weightMul: 0.35,
     ), // Airpip
     // Rare
-    EncounterEntry(speciesId: 'HOR04', rarity: EncounterRarity.rare), // Airhorn
+    EncounterEntry(
+      speciesId: 'HOR04',
+      rarity: EncounterRarity.rare,
+      weightMul: 0.25,
+    ), // Airhorn
     EncounterEntry(
       speciesId: 'HOR09',
       rarity: EncounterRarity.rare,
+      weightMul: 0.15,
     ), // Icehorn (high altitude)
   ]);
 
@@ -45,12 +54,18 @@ skyEncounterPools(SceneDefinition scene) {
       EncounterEntry(
         speciesId: 'LET16',
         rarity: EncounterRarity.rare,
+        weightMul: 0.18,
       ), // Lightlet
       // Legendary
-      EncounterEntry(speciesId: 'WNG04', rarity: EncounterRarity.rare),
+      EncounterEntry(
+        speciesId: 'WNG04',
+        rarity: EncounterRarity.rare,
+        weightMul: 0.15,
+      ),
       EncounterEntry(
         speciesId: 'WNG16',
         rarity: EncounterRarity.legendary,
+        weightMul: 0.08,
       ), // Lightwing
     ]);
   } else if (isNight(now)) {
@@ -58,18 +73,25 @@ skyEncounterPools(SceneDefinition scene) {
       EncounterEntry(
         speciesId: 'WNG07',
         rarity: EncounterRarity.legendary,
+        weightMul: 0.08,
       ), // Lightningwing
       // --- Night Spawns ---
       EncounterEntry(
         speciesId: 'LET07',
-        rarity: EncounterRarity.common,
+        rarity: EncounterRarity.rare,
+        weightMul: 0.18,
       ), // Lightninglet
       // Spirit
       EncounterEntry(
         speciesId: 'LET14',
-        rarity: EncounterRarity.common,
+        rarity: EncounterRarity.rare,
+        weightMul: 0.14,
       ), // Spiritlet
-      EncounterEntry(speciesId: 'WNG14', rarity: EncounterRarity.legendary),
+      EncounterEntry(
+        speciesId: 'WNG14',
+        rarity: EncounterRarity.legendary,
+        weightMul: 0.06,
+      ),
     ]);
   }
 

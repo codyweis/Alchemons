@@ -76,12 +76,12 @@ class PurebloodChallenge {
     if (requireElementalPurity) {
       lines.add(
         requiredElement == null
-            ? 'Elemental lineage — pure'
-            : '${_labelize(requiredElement!)} element line — pure',
+            ? 'Elemental Lineage — Pure'
+            : '${_labelize(requiredElement!)} Element Line — Pure',
       );
     }
     if (requireSpeciesPurity) {
-      lines.add('$requiredFamily species line — pure');
+      lines.add('$requiredFamily Species Line — Pure');
     }
     if (requiredTint != null) {
       lines.add('Tinting — ${_traitLabel(requiredTint!, requiredTintLabel)}');
@@ -92,7 +92,7 @@ class PurebloodChallenge {
     if (requiredNature != null) {
       lines.add('Nature — ${_labelize(requiredNature!)}');
     }
-    lines.add('+$goldReward gold awarded');
+    lines.add('+$goldReward Gold Awarded');
     return lines;
   }
 }

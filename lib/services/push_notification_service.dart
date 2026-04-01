@@ -30,6 +30,8 @@ class PushNotificationService {
       2000; // Legacy 2000-2099 range for scheduled per-biome wilderness alerts
   static const int wildernessConsolidatedId =
       2100; // Single ID for consolidated
+  static const int wildernessScheduledId =
+      2200; // Single scheduled reminder for the next wilderness event
   static const int harvestScheduledId =
       3000; // Single scheduled reminder for the next pending harvest
   static const int harvestConsolidatedId = 3100; // Single ID for consolidated
@@ -113,6 +115,18 @@ class PushNotificationService {
   // Helper: normalize a DateTime to the minute (for grouping hatch windows)
   DateTime _normalizeToMinute(DateTime time) {
     return DateTime(time.year, time.month, time.day, time.hour, time.minute);
+  }
+
+  String _wildernessSceneLabel(String sceneId) {
+    const labels = <String, String>{
+      'valley': 'the Valley',
+      'sky': 'the Sky Peaks',
+      'volcano': 'the Volcano',
+      'swamp': 'the Swamp',
+      'arcane': 'the Arcane Portal',
+      'poison': 'the Poison Bog',
+    };
+    return labels[sceneId] ?? 'the wilderness';
   }
 
   String _resolveTimeZoneName(String raw) {
@@ -342,6 +356,52 @@ class PushNotificationService {
     debugPrint('🔕 Cancelled legacy scheduled wilderness notifications');
   }
 
+  Future<void> scheduleWildernessSpawnNotification({
+    required DateTime spawnTime,
+    required String sceneId,
+  }) async {
+    if (!_initialized) await initialize();
+
+    if (!await _prefs.isWildernessEnabled()) {
+      await _notifications.cancel(wildernessScheduledId);
+      return;
+    }
+
+    final localSpawnTime = spawnTime.isUtc ? spawnTime.toLocal() : spawnTime;
+    if (!localSpawnTime.isAfter(DateTime.now())) {
+      await _notifications.cancel(wildernessScheduledId);
+      return;
+    }
+
+    final scheduledDate = tz.TZDateTime.from(localSpawnTime, tz.local);
+    await _notifications.zonedSchedule(
+      wildernessScheduledId,
+      'Wild Creatures Detected!',
+      'New specimens may be waiting in ${_wildernessSceneLabel(sceneId)}',
+      scheduledDate,
+      _notificationDetails(
+        channelId: 'wilderness_spawns',
+        channelName: 'Wilderness Spawns',
+        channelDescription: 'Notifications when wild creatures spawn',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      payload: 'wilderness_due:$sceneId',
+    );
+
+    debugPrint(
+      '📅 Scheduled wilderness notification for $sceneId at $scheduledDate '
+      '(ID: $wildernessScheduledId)',
+    );
+  }
+
+  Future<void> cancelWildernessSpawnNotification() async {
+    if (!_initialized) await initialize();
+    await _notifications.cancel(wildernessScheduledId);
+    debugPrint('🔕 Cancelled scheduled wilderness notification');
+  }
+
   Future<void> showWildernessSpawnNotification({
     required int spawnCount,
     required int locationCount,
@@ -375,6 +435,7 @@ class PushNotificationService {
     for (int i = 0; i < 100; i++) {
       await _notifications.cancel(wildernessSpawnBaseId + i);
     }
+    await _notifications.cancel(wildernessScheduledId);
     await _notifications.cancel(wildernessConsolidatedId);
     debugPrint('🔕 Cancelled all wilderness notifications');
   }

@@ -76,6 +76,81 @@ TextStyle _bask(
   FontWeight w = FontWeight.w400,
 }) => _riteFont(context, sz, c, h: h, w: w);
 
+class _AutoShrinkText extends StatelessWidget {
+  const _AutoShrinkText(
+    this.text, {
+    required this.style,
+    this.maxLines = 1,
+    this.minFontSize = 12,
+  });
+
+  final String text;
+  final TextStyle style;
+  final int maxLines;
+  final double minFontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedWidth) {
+          return Text(
+            text,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          );
+        }
+
+        final baseFontSize = style.fontSize ?? 14;
+        final textScaler = MediaQuery.textScalerOf(context);
+        var resolvedFontSize = baseFontSize;
+        final direction = Directionality.of(context);
+        final words = text
+            .split(RegExp(r'\s+'))
+            .where((part) => part.isNotEmpty)
+            .toList(growable: false);
+
+        while (resolvedFontSize > minFontSize) {
+          final painter = TextPainter(
+            text: TextSpan(
+              text: text,
+              style: style.copyWith(fontSize: resolvedFontSize),
+            ),
+            textDirection: direction,
+            maxLines: maxLines,
+            textScaler: textScaler,
+          )..layout(maxWidth: constraints.maxWidth);
+
+          final hasOversizedWord = words.any((word) {
+            final wordPainter = TextPainter(
+              text: TextSpan(
+                text: word,
+                style: style.copyWith(fontSize: resolvedFontSize),
+              ),
+              textDirection: direction,
+              maxLines: 1,
+              textScaler: textScaler,
+            )..layout(maxWidth: constraints.maxWidth);
+            return wordPainter.didExceedMaxLines ||
+                wordPainter.width > constraints.maxWidth;
+          });
+
+          if (!painter.didExceedMaxLines && !hasOversizedWord) break;
+          resolvedFontSize -= 1;
+        }
+
+        return Text(
+          text,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
+          style: style.copyWith(fontSize: resolvedFontSize),
+        );
+      },
+    );
+  }
+}
+
 String _traitLabel(String id) {
   switch (id.trim().toLowerCase()) {
     case 'vibrant':
@@ -230,6 +305,70 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
       pageBuilder: (_, __, ___) => Material(
         color: Colors.transparent,
         child: _RiteStoryDialog(title: title, body: body),
+      ),
+    );
+  }
+
+  Future<void> _showRecipeDialog(PurebloodChallenge challenge) {
+    HapticFeedback.selectionClick();
+    return showGeneralDialog<void>(
+      context: context,
+      barrierLabel: 'recipe',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.88),
+      pageBuilder: (_, __, ___) => Material(
+        color: Colors.transparent,
+        child: _RiteRecipeDialog(challenge: challenge),
+      ),
+    );
+  }
+
+  Future<void> _showSpecimenDialog({
+    required String title,
+    required String emptyMessage,
+    required List<CreatureInstance> instances,
+    required CreatureCatalog catalog,
+    required PurebloodRiteService rite,
+    required PurebloodChallenge challenge,
+  }) async {
+    HapticFeedback.selectionClick();
+    final entries =
+        instances
+            .map((instance) {
+              final species = catalog.getCreatureById(instance.baseId);
+              if (species == null) return null;
+              return _RiteSpecimenEntry(
+                instance: instance,
+                species: species,
+                check: rite.evaluate(instance, challenge: challenge),
+              );
+            })
+            .whereType<_RiteSpecimenEntry>()
+            .toList(growable: false)
+          ..sort((a, b) {
+            final eligibleCmp = (b.check.isEligible ? 1 : 0).compareTo(
+              a.check.isEligible ? 1 : 0,
+            );
+            if (eligibleCmp != 0) return eligibleCmp;
+            final nameCmp = a.displayName.toLowerCase().compareTo(
+              b.displayName.toLowerCase(),
+            );
+            if (nameCmp != 0) return nameCmp;
+            return b.instance.level.compareTo(a.instance.level);
+          });
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierLabel: 'specimens',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.88),
+      pageBuilder: (_, __, ___) => Material(
+        color: Colors.transparent,
+        child: _RiteSpecimenDialog(
+          title: title,
+          emptyMessage: emptyMessage,
+          entries: entries,
+        ),
       ),
     );
   }
@@ -537,9 +676,10 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
               ),
             )
             .toList(growable: false);
-        final eligibleCount = instances
+        final eligibleInstances = instances
             .where((i) => rite.evaluate(i, challenge: challenge).isEligible)
-            .length;
+            .toList(growable: false);
+        final eligibleCount = eligibleInstances.length;
 
         return CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -551,6 +691,8 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                   currentStageIndex: stageIndex,
                   currentChallenge: challenge,
                   nextChallenge: nextChallenge,
+                  challengeLadder: rite.challengeLadder,
+                  onCompletedChallengeTap: _showRecipeDialog,
                 ),
               ),
             ),
@@ -560,6 +702,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                 child: _ChallengePanel(
                   challenge: challenge,
                   currentStageIndex: stageIndex,
+                  onTap: () => _showRecipeDialog(challenge),
                 ),
               ),
             ),
@@ -571,6 +714,24 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                   eligibleCount: eligibleCount,
                   stageStep: stageIndex + 1,
                   challenge: challenge,
+                  onOwnedTap: () => _showSpecimenDialog(
+                    title: 'Owned Specimens',
+                    emptyMessage:
+                        'No ${challenge.requiredFamily} specimens are available for this rite.',
+                    instances: instances,
+                    catalog: catalog,
+                    rite: rite,
+                    challenge: challenge,
+                  ),
+                  onEligibleTap: () => _showSpecimenDialog(
+                    title: 'Eligible Specimens',
+                    emptyMessage:
+                        'No specimens currently satisfy every condition for this rite.',
+                    instances: eligibleInstances,
+                    catalog: catalog,
+                    rite: rite,
+                    challenge: challenge,
+                  ),
                 ),
               ),
             ),
@@ -629,7 +790,10 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 48),
                 child: nextChallenge == null
                     ? const _PathEndCard()
-                    : _NextRiteCard(challenge: nextChallenge),
+                    : _NextRiteCard(
+                        challenge: nextChallenge,
+                        onTap: () => _showRecipeDialog(nextChallenge),
+                      ),
               ),
             ),
           ],
@@ -654,6 +818,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
         pageBuilder: (context, animation, secondaryAnimation) =>
             AllSpecimensPage(
               theme: theme,
+              instancePrefsScopeKey: 'pureblood_rite_specimens',
               popOnSelect: true,
               searchHint: 'PLACE SPECIMEN',
               selectedInstanceIds: _selectedInstanceId == null
@@ -759,10 +924,14 @@ class _PathProgressBar extends StatelessWidget {
     required this.currentStageIndex,
     required this.currentChallenge,
     required this.nextChallenge,
+    required this.challengeLadder,
+    required this.onCompletedChallengeTap,
   });
   final int currentStageIndex;
   final PurebloodChallenge currentChallenge;
   final PurebloodChallenge? nextChallenge;
+  final List<PurebloodChallenge> challengeLadder;
+  final ValueChanged<PurebloodChallenge> onCompletedChallengeTap;
 
   @override
   Widget build(BuildContext context) {
@@ -797,9 +966,17 @@ class _PathProgressBar extends StatelessWidget {
                   : i == currentStageIndex
                   ? _HkNodeStatus.active
                   : _HkNodeStatus.sealed;
+              final challenge = challengeLadder[i];
               return Row(
                 children: [
-                  _HkPathNode(status: status, index: i),
+                  _HkPathNode(
+                    status: status,
+                    index: i,
+                    challenge: challenge,
+                    onTap: status == _HkNodeStatus.done
+                        ? () => onCompletedChallengeTap(challenge)
+                        : null,
+                  ),
                   if (i < PurebloodRiteService.totalChallenges - 1)
                     _HkConnector(lit: i < currentStageIndex),
                 ],
@@ -815,16 +992,23 @@ class _PathProgressBar extends StatelessWidget {
 enum _HkNodeStatus { done, active, sealed }
 
 class _HkPathNode extends StatelessWidget {
-  const _HkPathNode({required this.status, required this.index});
+  const _HkPathNode({
+    required this.status,
+    required this.index,
+    required this.challenge,
+    this.onTap,
+  });
   final _HkNodeStatus status;
   final int index;
+  final PurebloodChallenge challenge;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final isActive = status == _HkNodeStatus.active;
     final isDone = status == _HkNodeStatus.done;
 
-    return SizedBox(
+    final node = SizedBox(
       width: 58,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -838,7 +1022,11 @@ class _HkPathNode extends StatelessWidget {
                     style: _mono(context, 14, _kVoid, w: FontWeight.w700),
                   ),
                 )
-              : _HkCircleNode(isDone: isDone, index: index),
+              : _HkCircleNode(
+                  status: status,
+                  index: index,
+                  challenge: challenge,
+                ),
           const SizedBox(height: 6),
           Text(
             '${index + 1}',
@@ -858,16 +1046,30 @@ class _HkPathNode extends StatelessWidget {
         ],
       ),
     );
+
+    if (onTap == null) return node;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: node,
+    );
   }
 }
 
 class _HkCircleNode extends StatelessWidget {
-  const _HkCircleNode({required this.isDone, required this.index});
-  final bool isDone;
+  const _HkCircleNode({
+    required this.status,
+    required this.index,
+    required this.challenge,
+  });
+  final _HkNodeStatus status;
   final int index;
+  final PurebloodChallenge challenge;
 
   @override
   Widget build(BuildContext context) {
+    final isDone = status == _HkNodeStatus.done;
+
     return SizedBox(
       width: 46,
       height: 46,
@@ -878,7 +1080,40 @@ class _HkCircleNode extends StatelessWidget {
         ),
         child: Center(
           child: isDone
-              ? Icon(Icons.check, size: 16, color: _kSoulGold)
+              ? Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: ClipOval(
+                        child: Container(
+                          color: _kVoidLight,
+                          child: _HkCreatureFrame(
+                            species: challenge.previewSpecies,
+                            size: 34,
+                            previewSizeGene: challenge.requiredSize,
+                            previewTintGene: challenge.requiredTint,
+                            preferStaticImage: true,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 2,
+                      bottom: 2,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: _kSoulGold,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: _kVoid, width: 1),
+                        ),
+                        child: const Icon(Icons.check, size: 10, color: _kVoid),
+                      ),
+                    ),
+                  ],
+                )
               : Text(
                   '${index + 1}',
                   style: _mono(
@@ -915,93 +1150,104 @@ class _ChallengePanel extends StatelessWidget {
   const _ChallengePanel({
     required this.challenge,
     required this.currentStageIndex,
+    required this.onTap,
   });
   final PurebloodChallenge challenge;
   final int currentStageIndex;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return _HkPanel(
-      accentColor: _kBlood,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _HkTag(label: 'CURRENT RITE', color: _kBlood),
-                const SizedBox(height: 12),
-                Text(
-                  challenge.shortTitle,
-                  style: _fell(context, 34, _kIvory, ls: 1.1),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Stage ${currentStageIndex + 1} of ${PurebloodRiteService.totalChallenges}',
-                  style: _mono(context, 12, _kSoulBlue),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  challenge.vesselDescription,
-                  style: _bask(context, 13, _kIvoryDim),
-                ),
-                const SizedBox(height: 14),
-                if (challenge.requireElementalPurity) ...[
-                  _HkReqLine(
-                    icon: Icons.opacity,
-                    label: challenge.requiredElement == null
-                        ? 'Elemental lineage — pure'
-                        : '${challenge.requiredElement} element line — pure',
-                    met: true,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: _HkPanel(
+        accentColor: _kBlood,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [_HkTag(label: 'CURRENT RITE', color: _kBlood)],
+                  ),
+                  const SizedBox(height: 12),
+                  _AutoShrinkText(
+                    challenge.shortTitle,
+                    maxLines: 2,
+                    minFontSize: 20,
+                    style: _fell(context, 34, _kIvory, ls: 1.1),
                   ),
                   const SizedBox(height: 6),
-                ],
-                if (challenge.requireSpeciesPurity) ...[
-                  _HkReqLine(
-                    icon: Icons.account_tree_outlined,
-                    label: '${challenge.requiredFamily} species line — pure',
-                    met: true,
+                  Text(
+                    'Stage ${currentStageIndex + 1} of ${PurebloodRiteService.totalChallenges}',
+                    style: _mono(context, 12, _kSoulBlue),
                   ),
-                  const SizedBox(height: 6),
-                ],
-                if (challenge.requiredTint != null) ...[
-                  _HkReqLine(
-                    icon:
-                        tintIcons[challenge.requiredTint] ??
-                        Icons.brightness_high_outlined,
-                    label: 'Tinting — ${_traitLabel(challenge.requiredTint!)}',
-                    met: true,
+                  const SizedBox(height: 10),
+                  Text(
+                    challenge.vesselDescription,
+                    style: _bask(context, 13, _kIvoryDim),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 14),
+                  if (challenge.requireElementalPurity) ...[
+                    _HkReqLine(
+                      icon: Icons.opacity,
+                      label: challenge.requiredElement == null
+                          ? 'Elemental lineage — PURE'
+                          : '${challenge.requiredElement} element line — PURE',
+                      met: true,
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (challenge.requireSpeciesPurity) ...[
+                    _HkReqLine(
+                      icon: Icons.account_tree_outlined,
+                      label: '${challenge.requiredFamily} species line — PURE',
+                      met: true,
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (challenge.requiredTint != null) ...[
+                    _HkReqLine(
+                      icon:
+                          tintIcons[challenge.requiredTint] ??
+                          Icons.brightness_high_outlined,
+                      label:
+                          'Tinting — ${_traitLabel(challenge.requiredTint!)}',
+                      met: true,
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (challenge.requiredSize != null) ...[
+                    _HkReqLine(
+                      icon: sizeIcons[challenge.requiredSize] ?? Icons.circle,
+                      label: 'Size — ${_traitLabel(challenge.requiredSize!)}',
+                      met: true,
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (challenge.requiredNature != null) ...[
+                    _HkReqLine(
+                      icon: Icons.psychology_alt_outlined,
+                      label:
+                          'Nature — ${_titleCaseLabel(challenge.requiredNature!)}',
+                      met: true,
+                    ),
+                  ],
                 ],
-                if (challenge.requiredSize != null) ...[
-                  _HkReqLine(
-                    icon: sizeIcons[challenge.requiredSize] ?? Icons.circle,
-                    label: 'Size — ${_traitLabel(challenge.requiredSize!)}',
-                    met: true,
-                  ),
-                  const SizedBox(height: 6),
-                ],
-                if (challenge.requiredNature != null) ...[
-                  _HkReqLine(
-                    icon: Icons.psychology_alt_outlined,
-                    label:
-                        'Nature — ${_titleCaseLabel(challenge.requiredNature!)}',
-                    met: true,
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 16),
-          _HkCreatureFrame(
-            species: challenge.previewSpecies,
-            size: 120,
-            previewSizeGene: challenge.requiredSize,
-            previewTintGene: challenge.requiredTint,
-          ),
-        ],
+            const SizedBox(width: 16),
+            _HkCreatureFrame(
+              species: challenge.previewSpecies,
+              size: 120,
+              previewSizeGene: challenge.requiredSize,
+              previewTintGene: challenge.requiredTint,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1051,9 +1297,13 @@ class _TriStatRow extends StatelessWidget {
     required this.eligibleCount,
     required this.stageStep,
     required this.challenge,
+    required this.onOwnedTap,
+    required this.onEligibleTap,
   });
   final int ownedCount, eligibleCount, stageStep;
   final PurebloodChallenge challenge;
+  final VoidCallback onOwnedTap;
+  final VoidCallback onEligibleTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1065,6 +1315,7 @@ class _TriStatRow extends StatelessWidget {
             label: 'OWNED',
             value: '$ownedCount',
             color: _kIvoryDim,
+            onTap: onOwnedTap,
           ),
         ),
         const SizedBox(width: 12),
@@ -1073,6 +1324,7 @@ class _TriStatRow extends StatelessWidget {
             label: 'ELIGIBLE',
             value: '$eligibleCount',
             color: _kSealGreenBr,
+            onTap: onEligibleTap,
           ),
         ),
         const SizedBox(width: 12),
@@ -1089,41 +1341,47 @@ class _HkStat extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    this.onTap,
   });
   final String label, value;
   final Color color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 70,
-      child: CustomPaint(
-        painter: _CornerBracketPainter(
-          color: _kIvoryMuted.withValues(alpha: 0.28),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(label, style: _mono(context, 9, _kIvoryMuted)),
-              ),
-              const SizedBox(height: 2),
-              Expanded(
-                child: Align(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        height: 70,
+        child: CustomPaint(
+          painter: _CornerBracketPainter(
+            color: _kIvoryMuted.withValues(alpha: 0.28),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
+                  child: Text(label, style: _mono(context, 9, _kIvoryMuted)),
+                ),
+                const SizedBox(height: 2),
+                Expanded(
+                  child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(value, style: _fell(context, 26, color)),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(value, style: _fell(context, 26, color)),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1602,7 +1860,7 @@ class _LineageRow extends StatelessWidget {
   const _LineageRow({
     required this.label,
     required this.pure,
-    this.successLabel = 'pure',
+    this.successLabel = 'PURE',
   });
   final String label;
   final bool pure;
@@ -1611,6 +1869,7 @@ class _LineageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
           width: 14,
@@ -1618,14 +1877,24 @@ class _LineageRow extends StatelessWidget {
           child: CustomPaint(painter: _ScratchMarkPainter(checked: pure)),
         ),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: _bask(context, 12.5, pure ? _kIvoryDim : _kIvoryMuted),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                label,
+                style: _bask(context, 12.5, pure ? _kIvoryDim : _kIvoryMuted),
+              ),
+              if (pure)
+                Text(
+                  '— $successLabel',
+                  style: _fellItalic(context, 11, _kSoulBlue),
+                ),
+            ],
+          ),
         ),
-        if (pure) ...[
-          const SizedBox(width: 6),
-          Text('— $successLabel', style: _fellItalic(context, 11, _kSoulBlue)),
-        ],
       ],
     );
   }
@@ -1635,62 +1904,423 @@ class _LineageRow extends StatelessWidget {
 // NEXT RITE CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 class _NextRiteCard extends StatelessWidget {
-  const _NextRiteCard({required this.challenge});
+  const _NextRiteCard({required this.challenge, required this.onTap});
   final PurebloodChallenge challenge;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _CornerBracketPainter(
-        color: _kIvoryMuted.withValues(alpha: 0.22),
-        bracketSize: 16,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: CustomPaint(
+        painter: _CornerBracketPainter(
+          color: _kIvoryMuted.withValues(alpha: 0.22),
+          bracketSize: 16,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              _HkCreatureFrame(
+                species: challenge.previewSpecies,
+                size: 72,
+                dimmed: true,
+                previewSizeGene: challenge.requiredSize,
+                previewTintGene: challenge.requiredTint,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _HkTag(
+                          label: 'SEALED',
+                          color: _kIvoryMuted,
+                          small: true,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _AutoShrinkText(
+                      challenge.shortTitle,
+                      maxLines: 2,
+                      minFontSize: 13,
+                      style: _fell(context, 17, _kIvoryDim),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      challenge.vesselDescription,
+                      style: _mono(context, 11, _kIvoryMuted),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.lock_outline,
+                color: _kIvoryMuted.withValues(alpha: 0.40),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            _HkCreatureFrame(
-              species: challenge.previewSpecies,
-              size: 72,
-              dimmed: true,
-              previewSizeGene: challenge.requiredSize,
-              previewTintGene: challenge.requiredTint,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _HkTag(label: 'SEALED', color: _kIvoryMuted, small: true),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        challenge.shortTitle,
-                        maxLines: 1,
-                        style: _fell(context, 17, _kIvoryDim),
+    );
+  }
+}
+
+class _RiteRecipeDialog extends StatefulWidget {
+  const _RiteRecipeDialog({required this.challenge});
+
+  final PurebloodChallenge challenge;
+
+  @override
+  State<_RiteRecipeDialog> createState() => _RiteRecipeDialogState();
+}
+
+class _RiteRecipeDialogState extends State<_RiteRecipeDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final challenge = widget.challenge;
+    return Center(
+      child: FadeTransition(
+        opacity: _ctrl,
+        child: SlideTransition(
+          position: Tween(
+            begin: const Offset(0, 0.05),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut)),
+          child: Container(
+            width: 360,
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            child: CustomPaint(
+              painter: _CornerBracketPainter(
+                color: _kSoulBlue.withValues(alpha: 0.60),
+                strokeWidth: 1.4,
+                bracketSize: 20,
+              ),
+              child: Container(
+                color: _kVoidLight,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _AutoShrinkText(
+                                challenge.shortTitle,
+                                maxLines: 2,
+                                minFontSize: 18,
+                                style: _fell(context, 24, _kIvory, ls: 0.7),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                '1x ${challenge.shortTitle}',
+                                style: _mono(context, 12, _kSoulBlue),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        _HkCreatureFrame(
+                          species: challenge.previewSpecies,
+                          size: 84,
+                          previewSizeGene: challenge.requiredSize,
+                          previewTintGene: challenge.requiredTint,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    for (final requirement in challenge.requirementLines) ...[
+                      _RecipeDetailLine(label: requirement),
+                      const SizedBox(height: 8),
+                    ],
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: 180,
+                      child: _HkBtn(
+                        label: 'Close',
+                        onTap: () => Navigator.of(context).pop(),
+                        primary: true,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    challenge.vesselDescription,
-                    style: _mono(context, 11, _kIvoryMuted),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.lock_outline,
-              color: _kIvoryMuted.withValues(alpha: 0.40),
-              size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecipeDetailLine extends StatelessWidget {
+  const _RecipeDetailLine({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: _kSoulBlue,
+              shape: BoxShape.circle,
             ),
-          ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label, style: _bask(context, 13, _kIvoryDim))),
+      ],
+    );
+  }
+}
+
+class _RiteSpecimenEntry {
+  const _RiteSpecimenEntry({
+    required this.instance,
+    required this.species,
+    required this.check,
+  });
+
+  final CreatureInstance instance;
+  final Creature species;
+  final PurebloodSacrificeCheck check;
+
+  String get displayName {
+    final nickname = instance.nickname?.trim();
+    if (nickname != null && nickname.isNotEmpty) return nickname;
+    return species.name;
+  }
+}
+
+class _RiteSpecimenDialog extends StatefulWidget {
+  const _RiteSpecimenDialog({
+    required this.title,
+    required this.emptyMessage,
+    required this.entries,
+  });
+
+  final String title;
+  final String emptyMessage;
+  final List<_RiteSpecimenEntry> entries;
+
+  @override
+  State<_RiteSpecimenDialog> createState() => _RiteSpecimenDialogState();
+}
+
+class _RiteSpecimenDialogState extends State<_RiteSpecimenDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: FadeTransition(
+        opacity: _ctrl,
+        child: SlideTransition(
+          position: Tween(
+            begin: const Offset(0, 0.05),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut)),
+          child: Container(
+            width: 380,
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            child: CustomPaint(
+              painter: _CornerBracketPainter(
+                color: _kSoulBlue.withValues(alpha: 0.60),
+                strokeWidth: 1.4,
+                bracketSize: 20,
+              ),
+              child: Container(
+                color: _kVoidLight,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HkTag(label: 'SPECIMENS', color: _kSoulBlue),
+                    const SizedBox(height: 12),
+                    Text(
+                      widget.title,
+                      style: _fell(context, 24, _kIvory, ls: 0.6),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${widget.entries.length} shown',
+                      style: _mono(context, 12, _kIvoryMuted),
+                    ),
+                    const SizedBox(height: 14),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 320),
+                      child: widget.entries.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Text(
+                                widget.emptyMessage,
+                                style: _bask(context, 13, _kIvoryDim),
+                              ),
+                            )
+                          : Scrollbar(
+                              thumbVisibility: true,
+                              child: ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: widget.entries.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (context, index) {
+                                  final entry = widget.entries[index];
+                                  final statusLabel = entry.check.isEligible
+                                      ? 'READY'
+                                      : entry.check.isProtected
+                                      ? 'LOCKED'
+                                      : 'MISSING';
+                                  final statusColor = entry.check.isEligible
+                                      ? _kSealGreenBr
+                                      : entry.check.isProtected
+                                      ? _kBlood
+                                      : _kIvoryMuted;
+
+                                  return CustomPaint(
+                                    painter: _CornerBracketPainter(
+                                      color: statusColor.withValues(
+                                        alpha: 0.35,
+                                      ),
+                                      bracketSize: 12,
+                                      strokeWidth: 1.1,
+                                    ),
+                                    child: Container(
+                                      color: _kVoid.withValues(alpha: 0.18),
+                                      padding: const EdgeInsets.all(12),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          _HkCreatureFrame(
+                                            species: entry.species,
+                                            instance: entry.instance,
+                                            size: 56,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  entry.displayName,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: _fell(
+                                                    context,
+                                                    16,
+                                                    _kIvory,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Lv ${entry.instance.level}  ·  ${entry.species.rarity.toUpperCase()}',
+                                                  style: _mono(
+                                                    context,
+                                                    11,
+                                                    _kIvoryMuted,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  entry.check.message,
+                                                  style: _bask(
+                                                    context,
+                                                    12,
+                                                    _kIvoryDim,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            statusLabel,
+                                            style: _mono(
+                                              context,
+                                              10,
+                                              statusColor,
+                                              w: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: 180,
+                      child: _HkBtn(
+                        label: 'Close',
+                        onTap: () => Navigator.of(context).pop(),
+                        primary: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -2481,6 +3111,7 @@ class _HkCreatureFrame extends StatelessWidget {
     this.previewSizeGene,
     this.previewTintGene,
     this.dimmed = false,
+    this.preferStaticImage = false,
   });
   final Creature species;
   final double size;
@@ -2488,6 +3119,7 @@ class _HkCreatureFrame extends StatelessWidget {
   final String? previewSizeGene;
   final String? previewTintGene;
   final bool dimmed;
+  final bool preferStaticImage;
 
   @override
   Widget build(BuildContext context) {
@@ -2504,13 +3136,35 @@ class _HkCreatureFrame extends StatelessWidget {
     final saturation = satFromGenes(previewGenetics);
     final brightness = briFromGenes(previewGenetics);
     final hueShift = hueFromGenes(previewGenetics);
+    final staticImage = Transform.scale(
+      scale: scale,
+      child: Image.asset(
+        _creatureAssetPath(species),
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => Image.asset(
+          species.image,
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.bug_report_rounded,
+            color: _kIvoryMuted,
+            size: size * 0.5,
+          ),
+        ),
+      ),
+    );
     return Opacity(
       opacity: dimmed ? 0.45 : 1.0,
       child: SizedBox(
         width: size,
         height: size,
-        child: instance != null
+        child: instance != null && !preferStaticImage
             ? InstanceSprite(creature: species, instance: instance!, size: size)
+            : preferStaticImage
+            ? staticImage
             : sprite != null
             ? RepaintBoundary(
                 child: CreatureSprite(
@@ -2532,33 +3186,14 @@ class _HkCreatureFrame extends StatelessWidget {
                   effectSlotSize: size,
                 ),
               )
-            : Transform.scale(
-                scale: scale,
-                child: Image.asset(
-                  _path(species),
-                  width: size,
-                  height: size,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => Image.asset(
-                    species.image,
-                    width: size,
-                    height: size,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.bug_report_rounded,
-                      color: _kIvoryMuted,
-                      size: size * 0.5,
-                    ),
-                  ),
-                ),
-              ),
+            : staticImage,
       ),
     );
   }
-
-  String _path(Creature c) =>
-      c.image.startsWith('assets/') ? c.image : 'assets/images/${c.image}';
 }
+
+String _creatureAssetPath(Creature c) =>
+    c.image.startsWith('assets/') ? c.image : 'assets/images/${c.image}';
 
 class _HkTag extends StatelessWidget {
   const _HkTag({required this.label, required this.color, this.small = false});

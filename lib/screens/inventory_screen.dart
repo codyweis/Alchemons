@@ -1077,6 +1077,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     return CreatureSelectionSheet(
                       scrollController: scrollController,
                       discoveredCreatures: eligibleDiscovered,
+                      stateScopeKey: 'inventory_restore_species',
                       onSelectCreature: (creatureId) {
                         Navigator.pop(modalContext, creatureId);
                       },
@@ -1105,6 +1106,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         child: InstancesSheet(
           species: selectedSpecies,
           theme: theme,
+          prefsScopeKey: 'inventory_restore_instances',
           onTap: (inst) {
             Navigator.pop(context, inst.instanceId);
           },
@@ -1210,6 +1212,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     return CreatureSelectionSheet(
                       scrollController: scrollController,
                       discoveredCreatures: eligibleDiscovered,
+                      stateScopeKey: 'inventory_effect_species',
                       onSelectCreature: (creatureId) {
                         Navigator.pop(modalContext, creatureId);
                       },
@@ -1238,6 +1241,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         child: InstancesSheet(
           species: selectedSpecies,
           theme: theme,
+          prefsScopeKey: 'inventory_effect_instances',
           onTap: (inst) {
             Navigator.pop(context, inst.instanceId);
           },

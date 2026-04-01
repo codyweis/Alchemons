@@ -98,6 +98,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
 
     return AllCreatureInstances(
       theme: theme,
+      prefsScopeKey: 'party_picker_all_instances',
       selectedInstanceIds: party.members.map((m) => m.instanceId).toList(),
       onTap: (inst) {
         // Already selected → deselect, no checks needed

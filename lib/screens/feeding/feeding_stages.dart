@@ -95,6 +95,7 @@ class FeedingStageBuilders {
 
     return AllCreatureInstances(
       theme: theme,
+      prefsScopeKey: 'feeding_all_instances',
       selectedInstanceIds: const [],
       onTap: onAllInstancesInstanceSelected,
     );
@@ -285,6 +286,7 @@ class FeedingStageBuilders {
     return InstancesSheet(
       species: species,
       theme: theme,
+      prefsScopeKey: 'feeding_target_instances',
       selectionMode: false,
       initialDetailMode: InstanceDetailMode.stats,
       onTap: (inst) => onInstanceSelected(inst.instanceId),

@@ -1709,6 +1709,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         pageBuilder: (context, animation, secondaryAnimation) =>
             AllSpecimensPage(
               theme: theme,
+              instancePrefsScopeKey: 'black_market_specimens',
               searchHint: searchHint,
               selectionMode: true,
               showFloatingCloseButton: false,

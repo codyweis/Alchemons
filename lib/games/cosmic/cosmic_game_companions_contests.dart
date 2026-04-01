@@ -1524,15 +1524,18 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _garrison.clear();
     if (homePlanet == null || members.isEmpty) return;
     final hp = homePlanet!;
-    final vr = hp.visualRadius;
     final rng = _rng;
-    final angleOffset = rng.nextDouble() * pi * 2;
 
     for (var i = 0; i < members.length; i++) {
       final m = members[i];
-      // Assign each garrison a stable orbital lane so they do not stack.
-      final angle = angleOffset + (i / members.length) * pi * 2;
-      final dist = vr + 28.0 + ((i % 2) * 18.0);
+      final slotIndex = m.slotIndex.clamp(0, kHomeGarrisonMaxSlots - 1);
+      final layerIndex = homeGarrisonLayerForSlot(slotIndex);
+      final angle =
+          homeGarrisonOrbitAngleForSlot(slotIndex) + rng.nextDouble() * 0.12;
+      final dist = homeGarrisonOrbitRadiusForSlot(
+        homePlanet: hp,
+        slotIndex: slotIndex,
+      );
       final pos = Offset(
         hp.position.dx + cos(angle) * dist,
         hp.position.dy + sin(angle) * dist,
@@ -1543,7 +1546,9 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       // Derive combat stats from member
       final atkDmg = 5.0 + m.statStrength * 0.5 + m.level * 0.8;
       final specialDmg = 8.0 + m.statIntelligence * 0.6 + m.level * 1.0;
-      final baseRange = 170.0 + m.statSpeed * 35.0 + m.statIntelligence * 20.0;
+      final baseRange =
+          CosmicBalance.companionBaseRange(m.statIntelligence) +
+          m.statSpeed * 12.0;
       final range = _familyAttackRange(family, baseRange);
       final specialRange = _familySpecialRange(family, baseRange);
       final garrisonHp = (80 + m.statStrength * 3 + m.level * 5).round();
@@ -1554,7 +1559,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
           wanderAngle: angle + pi / 2,
           guardAngle: angle,
           guardRadius: dist,
-          guardPhase: rng.nextDouble() * pi * 2,
+          guardPhase: rng.nextDouble() * pi * 2 + layerIndex * 0.8,
           speciesScale: specScale,
           attackDamage: atkDmg,
           specialDamage: specialDmg,

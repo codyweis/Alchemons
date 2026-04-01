@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:alchemons/games/boss/battle_game.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +33,8 @@ class BattleScreenFlame extends StatefulWidget {
 
 class _BattleScreenFlameState extends State<BattleScreenFlame>
     with SingleTickerProviderStateMixin {
+  final FactionTheme _battleFactionTheme = FactionTheme.scorchForge();
+  late final FC _fc = FC(_battleFactionTheme);
   late BattleGame game;
   late final AnimationController _bossNameController;
   int? selectedCreatureIndex;
@@ -144,7 +147,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   void _showVictory() {
-    final fc = FC.of(context);
+    final fc = _fc;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -222,7 +225,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   void _showDefeat() {
-    final fc = FC.of(context);
+    final fc = _fc;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -398,6 +401,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   void _selectFirstReadyCreature({bool showHint = false}) {
+    final fc = _fc;
     final nextReady = widget.playerTeam.indexWhere((c) => c.canAct);
     if (nextReady >= 0) {
       game.post(() => game.selectCreature(nextReady));
@@ -407,9 +411,17 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       if (showHint) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Switched to ${widget.playerTeam[nextReady].name}.'),
+            content: Text(
+              'Switched to ${widget.playerTeam[nextReady].name}.',
+              style: TextStyle(color: fc.textPrimary),
+            ),
             duration: Duration(milliseconds: 900),
             behavior: SnackBarBehavior.floating,
+            backgroundColor: fc.bg1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: fc.borderAccent.withValues(alpha: 0.55)),
+            ),
           ),
         );
       }
@@ -438,17 +450,39 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
 
   @override
   Widget build(BuildContext context) {
-    return ParticleBackgroundScaffold(
-      backgroundColor: Colors.black,
-      whiteBackground: false,
-      body: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: Stack(
-            children: [
-              GameWidget(game: game),
-              Column(children: [_buildTopHud(), Spacer(), _buildBottomDock()]),
-            ],
+    final battleTheme = _battleFactionTheme
+        .toMaterialTheme(ThemeData.dark().textTheme)
+        .copyWith(
+          scaffoldBackgroundColor: Colors.black,
+          snackBarTheme: SnackBarThemeData(
+            backgroundColor: const Color(0xFF0E1117),
+            contentTextStyle: const TextStyle(color: Color(0xFFE8DCC8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFF252D3A)),
+            ),
+          ),
+        );
+
+    return Provider<FactionTheme>.value(
+      value: _battleFactionTheme,
+      child: Theme(
+        data: battleTheme,
+        child: ParticleBackgroundScaffold(
+          backgroundColor: Colors.black,
+          whiteBackground: false,
+          body: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              child: Stack(
+                children: [
+                  GameWidget(game: game),
+                  Column(
+                    children: [_buildTopHud(), Spacer(), _buildBottomDock()],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -456,7 +490,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildTopHud() {
-    final fc = FC.of(context);
+    final fc = _fc;
     return Container(
       padding: EdgeInsets.zero,
       decoration: const BoxDecoration(color: Colors.transparent),
@@ -527,7 +561,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildBossHeaderCard() {
-    final fc = FC.of(context);
+    final fc = _fc;
     final hpPercent = widget.boss.hpPercent.clamp(0.0, 1.0);
     final isLowHp = hpPercent < 0.25;
     final isMidHp = hpPercent < 0.5;
@@ -667,7 +701,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildBossDebuffsUnderHp() {
-    final fc = FC.of(context);
+    final fc = _fc;
     final debuffs = _collectBossDebuffs();
     if (debuffs.isEmpty) {
       return const SizedBox.shrink();
@@ -763,7 +797,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildAnimatedTitleLetter(String letter, int index, int total) {
-    final fc = FC.of(context);
+    final fc = _fc;
     final start = (index / total) * 0.7;
     final end = (start + 0.3).clamp(0.0, 1.0);
     final curve = CurvedAnimation(
@@ -802,7 +836,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildBossHealthBar(double hpPercent) {
-    final fc = FC.of(context);
+    final fc = _fc;
     final hpColor = _getHealthColor(hpPercent);
 
     return Container(
@@ -860,7 +894,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildFeedTag(_BattleFeedEntry e) {
-    final fc = FC.of(context);
+    final fc = _fc;
     final Color color;
     final String label;
 
@@ -896,7 +930,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildBottomDock() {
-    final fc = FC.of(context);
+    final fc = _fc;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       decoration: BoxDecoration(
@@ -943,7 +977,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildTurnBanner() {
-    final fc = FC.of(context);
+    final fc = _fc;
     final color = fc.amberBright;
 
     return Container(
@@ -981,7 +1015,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildPartySlot(int index) {
-    final fc = FC.of(context);
+    final fc = _fc;
     final creature = widget.playerTeam[index];
     final isSelected = selectedCreatureIndex == index;
     final isDead = creature.isDead;
@@ -1104,7 +1138,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   Widget _buildMoveButtons() {
-    final fc = FC.of(context);
+    final fc = _fc;
     final selected = selectedCreatureIndex == null
         ? null
         : widget.playerTeam[selectedCreatureIndex!];
@@ -1185,7 +1219,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     required Color activeColor,
     required bool isActive,
   }) {
-    final fc = FC.of(context);
+    final fc = _fc;
     return SizedBox(
       height: 68,
       child: ElevatedButton(
@@ -1259,7 +1293,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     required Color color,
     double height = 8,
   }) {
-    final fc = FC.of(context);
+    final fc = _fc;
     final percent = (current / max).clamp(0.0, 1.0);
 
     return Container(

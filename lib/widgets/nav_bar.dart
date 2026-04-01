@@ -25,10 +25,23 @@ class BottomNav extends StatefulWidget {
 }
 
 class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
+  static const List<NavSection> _navSections = <NavSection>[
+    NavSection.inventory,
+    NavSection.creatures,
+    NavSection.home,
+    NavSection.breed,
+    NavSection.shop,
+  ];
+  static const double _dragActivationDistance = 12;
+
   late final AnimationController _expandController;
   late final Animation<double> _expandAnimation;
 
   static bool _navIconsCached = false;
+  int? _activePointer;
+  Offset? _dragStart;
+  bool _isSlidingAcrossNav = false;
+  NavSection? _lastDraggedSection;
 
   @override
   void didChangeDependencies() {
@@ -160,6 +173,60 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     widget.onSelect(section);
   }
 
+  void _handlePointerDown(PointerDownEvent event, {required bool isDisabled}) {
+    if (isDisabled || _activePointer != null) return;
+    _activePointer = event.pointer;
+    _dragStart = event.localPosition;
+    _isSlidingAcrossNav = false;
+    _lastDraggedSection = widget.current;
+  }
+
+  void _handlePointerMove(
+    PointerMoveEvent event, {
+    required double width,
+    required bool isDisabled,
+  }) {
+    if (isDisabled || event.pointer != _activePointer || width <= 0) return;
+
+    final dragStart = _dragStart;
+    if (dragStart == null) return;
+
+    if (!_isSlidingAcrossNav) {
+      final delta = event.localPosition - dragStart;
+      if (delta.distanceSquared <
+          _dragActivationDistance * _dragActivationDistance) {
+        return;
+      }
+      _isSlidingAcrossNav = true;
+    }
+
+    final nextSection = _sectionForDx(event.localPosition.dx, width);
+    if (nextSection == null || nextSection == _lastDraggedSection) return;
+
+    _lastDraggedSection = nextSection;
+    if (nextSection == widget.current) return;
+
+    HapticFeedback.selectionClick();
+    widget.onSelect(nextSection);
+  }
+
+  void _resetPointerTracking([int? pointer]) {
+    if (pointer != null && pointer != _activePointer) return;
+    _activePointer = null;
+    _dragStart = null;
+    _isSlidingAcrossNav = false;
+    _lastDraggedSection = null;
+  }
+
+  NavSection? _sectionForDx(double dx, double width) {
+    if (_navSections.isEmpty || width <= 0) return null;
+    final clampedDx = dx.clamp(0.0, width - 0.001);
+    final slotWidth = width / _navSections.length;
+    final index = (clampedDx / slotWidth).floor();
+    if (index < 0 || index >= _navSections.length) return null;
+    return _navSections[index];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
@@ -178,50 +245,70 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
           clipBehavior: Clip.none,
           child: SizedBox(
             height: 60,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavButton(
-                    section: NavSection.inventory,
-                    icon: 'assets/images/ui/inventorylight.png',
-                    label: 'INVENTORY',
-                    theme: theme,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (event) =>
+                      _handlePointerDown(event, isDisabled: isDisabled),
+                  onPointerMove: (event) => _handlePointerMove(
+                    event,
+                    width: constraints.maxWidth,
                     isDisabled: isDisabled,
                   ),
-                  _buildNavButton(
-                    section: NavSection.creatures,
-                    icon: isDark
-                        ? 'assets/images/ui/dexicon_light.png'
-                        : 'assets/images/ui/dexicon.png',
-                    label: 'CREATURES',
-                    theme: theme,
-                    isDisabled: isDisabled,
+                  onPointerUp: (event) => _resetPointerTracking(event.pointer),
+                  onPointerCancel: (event) =>
+                      _resetPointerTracking(event.pointer),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildNavButton(
+                          section: NavSection.inventory,
+                          icon: 'assets/images/ui/inventorylight.png',
+                          label: 'INVENTORY',
+                          theme: theme,
+                          isDisabled: isDisabled,
+                        ),
+                        _buildNavButton(
+                          section: NavSection.creatures,
+                          icon: isDark
+                              ? 'assets/images/ui/dexicon_light.png'
+                              : 'assets/images/ui/dexicon.png',
+                          label: 'CREATURES',
+                          theme: theme,
+                          isDisabled: isDisabled,
+                        ),
+                        _buildNavButton(
+                          section: NavSection.home,
+                          icon: 'assets/images/ui/homeicon2.png',
+                          label: 'HOME',
+                          theme: theme,
+                          isDisabled: isDisabled,
+                        ),
+                        _buildNavButton(
+                          section: NavSection.breed,
+                          icon: 'assets/images/ui/extrastorage.png',
+                          label: 'FUSION',
+                          theme: theme,
+                          isDisabled: isDisabled,
+                        ),
+                        _buildNavButton(
+                          section: NavSection.shop,
+                          icon: 'assets/images/ui/shopicon2.png',
+                          label: 'SHOP',
+                          theme: theme,
+                          isDisabled: isDisabled,
+                        ),
+                      ],
+                    ),
                   ),
-                  _buildNavButton(
-                    section: NavSection.home,
-                    icon: 'assets/images/ui/homeicon2.png',
-                    label: 'HOME',
-                    theme: theme,
-                    isDisabled: isDisabled,
-                  ),
-                  _buildNavButton(
-                    section: NavSection.breed,
-                    icon: 'assets/images/ui/extrastorage.png',
-                    label: 'FUSION',
-                    theme: theme,
-                    isDisabled: isDisabled,
-                  ),
-                  _buildNavButton(
-                    section: NavSection.shop,
-                    icon: 'assets/images/ui/shopicon2.png',
-                    label: 'SHOP',
-                    theme: theme,
-                    isDisabled: isDisabled,
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         );
@@ -295,8 +382,8 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                           child: Text(
                             label,
                             style: TextStyle(
-                              color: (theme?.text ?? Colors.white).withValues(alpha: 
-                                opacity,
+                              color: (theme?.text ?? Colors.white).withValues(
+                                alpha: opacity,
                               ),
                               fontSize: 12,
                               fontWeight: FontWeight.w700,

@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/data/boss_data.dart';
 import 'package:alchemons/models/boss/boss_model.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -34,6 +35,20 @@ class _C {
   static const gold = Color(0xFFF59E0B);
   static const success = Color(0xFF16A34A);
   static const danger = Color(0xFFC0392B);
+}
+
+class _WitnessRequirement {
+  const _WitnessRequirement({
+    required this.bossId,
+    required this.label,
+    required this.color,
+    required this.completed,
+  });
+
+  final String bossId;
+  final String label;
+  final Color color;
+  final bool completed;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,6 +79,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
   final Map<String, String?> _placed = {};
   List<Creature> _species = [];
   Creature? _mystic;
+  List<_WitnessRequirement> _bloodWitnesses = const [];
   bool _hasKey = false;
   bool _loading = true;
   bool _summoning = false;
@@ -113,6 +129,25 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         .byType(widget.boss.element)
         .where((s) => s.id != mystic?.id)
         .toList();
+    final bloodWitnesses = <_WitnessRequirement>[];
+
+    if (_isBloodBoss) {
+      for (final boss in BossRepository.allBosses.where((b) => b.order < 17)) {
+        final summonedValue = await db.settingsDao.getSetting(
+          'altar_summoned_${boss.id}',
+        );
+        final summoned =
+            summonedValue != null && summonedValue.trim().isNotEmpty;
+        bloodWitnesses.add(
+          _WitnessRequirement(
+            bossId: boss.id,
+            label: catalog.mysticByElement(boss.element)?.name ?? boss.name,
+            color: boss.elementColor,
+            completed: summoned,
+          ),
+        );
+      }
+    }
 
     final placed = <String, String?>{};
     for (final sp in species) {
@@ -127,6 +162,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         _hasKey = qty > 0;
         _mystic = mystic;
         _species = species;
+        _bloodWitnesses = bloodWitnesses;
         _placed
           ..clear()
           ..addAll(placed);
@@ -141,49 +177,60 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
     final db = context.read<AlchemonsDatabase>();
     final hasSeen = await db.settingsDao.hasSeenBossRelicScreenStoryIntro();
-    if (hasSeen || !mounted) return;
+    if (!hasSeen && mounted) {
+      await LandscapeDialog.show(
+        context,
+        title: 'A Relic Is Not A Trophy',
+        icon: Icons.album_outlined,
+        typewriter: true,
+        message:
+            'It is what remains when form fails. Not the creature, not its beauty, but the instruction that endured beneath both.\n\n'
+            'Is creation discovery or concealment, is beauty truth made visible, or a veil drawn over something worse.',
+      );
 
-    final acceptedFirst = await LandscapeDialog.show(
-      context,
-      title: 'Set It In The Hollow',
-      icon: Icons.album_outlined,
-      typewriter: true,
-      message:
-          'The relic does not belong on a shelf.\n\n'
-          'It wants a hollow, a socket, a wound shaped closely enough to remember the creature that kept it.',
-    );
-    if (acceptedFirst != true || !mounted) return;
+      if (!mounted) return;
+      await db.settingsDao.setBossRelicScreenStoryIntroSeen();
+    }
 
-    final acceptedSecond = await LandscapeDialog.show(
-      context,
-      title: 'Nothing Ends Empty',
-      icon: Icons.change_history_rounded,
-      typewriter: true,
-      message:
-          'A defeated warden leaves more than remains.\n\n'
-          'It leaves an arrangement, and arrangements like this are rarely built for mourning alone.',
-    );
-    if (acceptedSecond != true || !mounted) return;
+    if (!_isBloodBoss || !mounted) return;
+    final hasSeenBloodIntro =
+        await db.settingsDao.getSetting('blood_mystic_relic_story_intro_seen_v1') ==
+        '1';
+    if (hasSeenBloodIntro || !mounted) return;
 
     await LandscapeDialog.show(
       context,
-      title: 'Call It Back Differently',
-      icon: Icons.auto_fix_high_rounded,
+      title: 'Not A Return',
+      icon: Icons.auto_awesome_outlined,
       typewriter: true,
       message:
-          'Place what was taken. Shape what is missing. Offer the altar enough living pattern, and it may return something that remembers the boss without obeying it.',
+          'A relic does not bring something back. It gives the surviving instruction a body again.\n\n'
+          'If the mystics were made to guard what this world could not bear, then Sanguorath is what remains when sacrifice itself is taught to take shape.',
     );
 
     if (!mounted) return;
-    await db.settingsDao.setBossRelicScreenStoryIntroSeen();
+    await db.settingsDao.setSetting(
+      'blood_mystic_relic_story_intro_seen_v1',
+      '1',
+    );
   }
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
+  bool get _isBloodBoss => widget.boss.element.toLowerCase() == 'blood';
+
   bool get _allFilled =>
       _species.isNotEmpty && _species.every((s) => _placed[s.id] != null);
 
-  bool get _canSummon => _hasKey && _allFilled && !_summoning;
+  bool get _allWitnessed =>
+      !_isBloodBoss ||
+      (_bloodWitnesses.isNotEmpty &&
+          _bloodWitnesses.every((w) => w.completed));
+
+  int get _witnessRemaining =>
+      _bloodWitnesses.where((w) => !w.completed).length;
+
+  bool get _canSummon => _hasKey && _allFilled && _allWitnessed && !_summoning;
 
   String _traitName() {
     final meta = BossLootKeys.elementRewards[widget.boss.element.toLowerCase()];
@@ -520,6 +567,30 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       false;
 
   Future<void> _showSuccess(Creature sp, Boss boss) async {
+    if (boss.element.toLowerCase() == 'blood') {
+      final db = context.read<AlchemonsDatabase>();
+      final seen =
+          await db.settingsDao.getSetting('blood_mystic_space_hint_seen_v1') ==
+          '1';
+      if (!seen && mounted) {
+        await LandscapeDialog.show(
+          context,
+          title: 'Carry It Outward',
+          icon: Icons.public_rounded,
+          typewriter: true,
+          message:
+              'Do not keep it here.\n\nThe stars are not above this world. They are part of the seal. Bring the blood mystic outward, where the last offering can be witnessed.',
+        );
+        if (mounted) {
+          await db.settingsDao.setSetting(
+            'blood_mystic_space_hint_seen_v1',
+            '1',
+          );
+        }
+      }
+    }
+
+    if (!mounted) return;
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -598,6 +669,8 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
                         canSummon: _canSummon,
                         hasKey: _hasKey,
                         allFilled: _allFilled,
+                        witnesses: _bloodWitnesses,
+                        witnessRemaining: _witnessRemaining,
                         summoning: _summoning,
                         elColor: elColor,
                         pulse: _pulse,
@@ -1347,6 +1420,8 @@ class _TrackPainter extends CustomPainter {
 class _BottomBar extends StatelessWidget {
   final int filled, total;
   final bool canSummon, hasKey, allFilled, summoning, selectedFilled;
+  final List<_WitnessRequirement> witnesses;
+  final int witnessRemaining;
   final String selectedName;
   final Color elColor;
   final Animation<double> pulse;
@@ -1359,6 +1434,8 @@ class _BottomBar extends StatelessWidget {
     required this.canSummon,
     required this.hasKey,
     required this.allFilled,
+    required this.witnesses,
+    required this.witnessRemaining,
     required this.summoning,
     required this.selectedFilled,
     required this.selectedName,
@@ -1413,6 +1490,14 @@ class _BottomBar extends StatelessWidget {
                   ],
                 ),
               ),
+
+            if (witnesses.isNotEmpty) ...[
+              _WitnessSection(
+                witnesses: witnesses,
+                pulse: pulse.value,
+              ),
+              const SizedBox(height: 12),
+            ],
 
             // ── Selected creature row: ‹ name › + place button ───────────
             if (selectedName.isNotEmpty) ...[
@@ -1486,13 +1571,15 @@ class _BottomBar extends StatelessWidget {
             ],
 
             // ── Summon button ────────────────────────────────────────────
-            if (!hasKey || !allFilled)
+            if (!hasKey || !allFilled || witnessRemaining > 0)
               Padding(
                 padding: const EdgeInsets.only(bottom: 7),
                 child: Text(
                   !hasKey
                       ? 'KEY ITEM REQUIRED'
-                      : '${total - filled} OFFERING SLOTS REMAINING',
+                      : !allFilled
+                      ? '${total - filled} OFFERING SLOTS REMAINING'
+                      : '$witnessRemaining WITNESS${witnessRemaining == 1 ? '' : 'ES'} REMAINING',
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     color: _C.muted,
@@ -1563,6 +1650,101 @@ class _BottomBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WitnessSection extends StatelessWidget {
+  const _WitnessSection({required this.witnesses, required this.pulse});
+
+  final List<_WitnessRequirement> witnesses;
+  final double pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = witnesses.where((w) => w.completed).length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: _C.bg.withValues(alpha: 0.32),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _C.border, width: 0.7),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'WITNESSES  $completed / ${witnesses.length}',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: _C.sub,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final witness in witnesses)
+                _WitnessChip(witness: witness, pulse: pulse),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WitnessChip extends StatelessWidget {
+  const _WitnessChip({required this.witness, required this.pulse});
+
+  final _WitnessRequirement witness;
+  final double pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = witness.completed
+        ? witness.color.withValues(alpha: 0.24 + pulse * 0.06)
+        : _C.surface;
+    final borderColor = witness.completed
+        ? witness.color.withValues(alpha: 0.55 + pulse * 0.10)
+        : _C.muted.withValues(alpha: 0.24);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      decoration: BoxDecoration(
+        color: activeColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: borderColor, width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            witness.completed
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            color: witness.completed ? witness.color : _C.muted,
+            size: 12,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            witness.label.toUpperCase(),
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: witness.completed ? Colors.white : _C.sub,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -356,6 +356,9 @@ class LootBoxConfig {
         .toList();
     final picked = keys[rng.nextInt(keys.length)];
 
+    if (wave <= 20) {
+      return SurvivalLootBoxReward(boxKey: picked, quantity: 1);
+    }
     if (wave >= 50) {
       return SurvivalLootBoxReward(boxKey: picked, quantity: 2);
     }
@@ -364,13 +367,10 @@ class LootBoxConfig {
           ? SurvivalLootBoxReward(boxKey: picked, quantity: 1)
           : null;
     }
-    if (wave >= 20) {
+    if (wave > 20) {
       return rng.nextDouble() < 0.5
           ? SurvivalLootBoxReward(boxKey: picked, quantity: 1)
           : null;
-    }
-    if (wave >= 10 && rng.nextDouble() < 0.25) {
-      return SurvivalLootBoxReward(boxKey: picked, quantity: 1);
     }
     return null;
   }

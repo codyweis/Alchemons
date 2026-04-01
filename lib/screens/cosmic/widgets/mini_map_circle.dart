@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
@@ -5,7 +6,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:flutter/material.dart';
 
-class CosmicMiniMapCircle extends StatelessWidget {
+class CosmicMiniMapCircle extends StatefulWidget {
   const CosmicMiniMapCircle({
     super.key,
     required this.world,
@@ -20,31 +21,69 @@ class CosmicMiniMapCircle extends StatelessWidget {
   final VoidCallback onLongPress;
 
   @override
+  State<CosmicMiniMapCircle> createState() => _CosmicMiniMapCircleState();
+}
+
+class _CosmicMiniMapCircleState extends State<CosmicMiniMapCircle> {
+  static const _refreshInterval = Duration(milliseconds: 90);
+
+  late final ValueNotifier<int> _repaintTick;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _repaintTick = ValueNotifier<int>(0);
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+      _repaintTick.value++;
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _repaintTick.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: RepaintBoundary(
-        child: Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: const Color(0xFFFFB300).withValues(alpha: 0.7),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 16,
-                spreadRadius: 1,
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
+      child: SizedBox(
+        width: 84,
+        height: 84,
+        child: Center(
+          child: RepaintBoundary(
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFFFB300).withValues(alpha: 0.7),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: ClipOval(
-            child: CustomPaint(
-              painter: _MiniCirclePainter(world: world, game: game),
+              child: ClipOval(
+                child: CustomPaint(
+                  isComplex: true,
+                  painter: _MiniCirclePainter(
+                    world: widget.world,
+                    game: widget.game,
+                    repaint: _repaintTick,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -54,7 +93,7 @@ class CosmicMiniMapCircle extends StatelessWidget {
 }
 
 class _MiniCirclePainter extends CustomPainter {
-  _MiniCirclePainter({required this.world, required this.game});
+  _MiniCirclePainter({required this.world, required this.game, super.repaint});
 
   final CosmicWorld world;
   final CosmicGame game;
@@ -112,7 +151,9 @@ class _MiniCirclePainter extends CustomPainter {
     }
 
     for (final poi in game.spacePOIs) {
-      final isScanner = poi.type == POIType.stardustScanner;
+      final isScanner =
+          poi.type == POIType.stardustScanner ||
+          poi.type == POIType.planetScanner;
       if (poi.type == POIType.comet) continue;
       final isMarket =
           poi.type == POIType.harvesterMarket ||
@@ -148,6 +189,9 @@ class _MiniCirclePainter extends CustomPainter {
           break;
         case POIType.stardustScanner:
           c = const Color(0xFF9CCC65);
+          break;
+        case POIType.planetScanner:
+          c = const Color(0xFF64B5F6);
           break;
       }
       final r = isScanner ? 3.0 : (isMarket ? 2.6 : 2.1);
@@ -223,6 +267,56 @@ class _MiniCirclePainter extends CustomPainter {
         canvas.drawCircle(
           edge,
           3.8 + pulse * 1.9,
+          Paint()
+            ..color = targetColor.withValues(alpha: 0.3)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0,
+        );
+      }
+    }
+
+    final targetPlanet = game.planetScannerTarget;
+    if (targetPlanet != null) {
+      final tp = toMini(targetPlanet.position);
+      final dv = tp - center;
+      final dist = dv.distance;
+      final pulse =
+          0.55 + 0.45 * sin(DateTime.now().millisecondsSinceEpoch / 210.0);
+      const targetColor = Color(0xFF90CAF9);
+
+      if (dist <= viewR - 6) {
+        canvas.drawCircle(
+          tp,
+          3.0 + pulse * 1.6,
+          Paint()..color = targetColor.withValues(alpha: 0.88),
+        );
+        canvas.drawCircle(
+          tp,
+          6.4 + pulse * 2.1,
+          Paint()
+            ..color = targetColor.withValues(alpha: 0.35)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1,
+        );
+      } else if (dist > 0.001) {
+        final dir = Offset(dv.dx / dist, dv.dy / dist);
+        final edge = center + dir * (viewR - 5);
+        final perp = Offset(-dir.dy, dir.dx);
+
+        final tip = edge;
+        final back = edge - dir * 8;
+        final tri = Path()
+          ..moveTo(tip.dx, tip.dy)
+          ..lineTo(back.dx + perp.dx * 3.6, back.dy + perp.dy * 3.6)
+          ..lineTo(back.dx - perp.dx * 3.6, back.dy - perp.dy * 3.6)
+          ..close();
+        canvas.drawPath(
+          tri,
+          Paint()..color = targetColor.withValues(alpha: 0.92),
+        );
+        canvas.drawCircle(
+          edge,
+          4.0 + pulse * 2.1,
           Paint()
             ..color = targetColor.withValues(alpha: 0.3)
             ..style = PaintingStyle.stroke
@@ -321,5 +415,6 @@ class _MiniCirclePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MiniCirclePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _MiniCirclePainter oldDelegate) =>
+      world != oldDelegate.world || game != oldDelegate.game;
 }

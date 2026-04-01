@@ -1066,6 +1066,7 @@ class _BreedingTabState extends State<BreedingTab>
     try {
       // --- Cross-species check runs BEFORE any cinematic / fade ---
       final repo = context.read<CreatureCatalog>();
+      final breedingService = context.read<BreedingServiceV2>();
       final speciesA = repo.getCreatureById(selectedParent1!.baseId);
       final speciesB = repo.getCreatureById(selectedParent2!.baseId);
 
@@ -1102,6 +1103,17 @@ class _BreedingTabState extends State<BreedingTab>
         if (!mounted) return;
         await _showCrossSpeciesLockedDialog(context, famA, famB);
         // Do NOT start fade / cinematic; we just bail out cleanly.
+        return;
+      }
+
+      final placementFailure = await breedingService
+          .getEggPlacementFailureMessage();
+      if (placementFailure != null) {
+        _showToast(
+          placementFailure,
+          icon: Icons.inventory_2_rounded,
+          color: Colors.orange,
+        );
         return;
       }
       // -------------------------------------------------------------
@@ -1177,9 +1189,8 @@ class _BreedingTabState extends State<BreedingTab>
 
       final leftSprite = spriteFor(selectedParent1!, speciesA);
       final rightSprite = spriteFor(selectedParent2!, speciesB);
-
       if (!mounted) return;
-      await showAlchemyFusionCinematic<void>(
+      final didBreed = await showAlchemyFusionCinematic<bool>(
         context: context,
         leftSprite: leftSprite,
         rightSprite: rightSprite,
@@ -1199,7 +1210,7 @@ class _BreedingTabState extends State<BreedingTab>
               icon: Icons.warning_rounded,
               color: Colors.orange,
             );
-            throw Exception(result.message ?? 'Breeding failed');
+            return false;
           }
 
           if (result.placement == EggPlacement.storage) {
@@ -1222,9 +1233,12 @@ class _BreedingTabState extends State<BreedingTab>
             speciesA,
             speciesB,
           );
+
+          return true;
         },
       );
 
+      if (didBreed != true) return;
       if (!mounted) return;
 
       setState(() {
@@ -1238,7 +1252,6 @@ class _BreedingTabState extends State<BreedingTab>
 
       widget.onBreedingComplete();
     } catch (e) {
-      if (e.toString().contains('Incompatible')) return;
       _showToast(
         'Fusion protocol error: $e',
         color: Colors.red,
@@ -1364,6 +1377,7 @@ class _BreedingTabState extends State<BreedingTab>
         pageBuilder: (context, animation, secondaryAnimation) =>
             AllSpecimensPage(
               theme: theme,
+              instancePrefsScopeKey: 'breed_specimens',
               popOnSelect: true,
               searchHint: searchHint,
               selectedInstanceIds: selectedIds,

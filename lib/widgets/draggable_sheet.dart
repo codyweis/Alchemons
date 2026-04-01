@@ -9,7 +9,8 @@ class DraggableSheet extends StatefulWidget {
   final FactionTheme theme;
   final void Function(CreatureInstance) onInstanceTap;
 
-  const DraggableSheet({super.key, 
+  const DraggableSheet({
+    super.key,
     required this.animation,
     required this.theme,
     required this.onInstanceTap,
@@ -33,8 +34,7 @@ class _DraggableSheetState extends State<DraggableSheet> {
   }
 
   void _onVerticalDragEnd(DragEndDetails details) {
-    setState(() {
-    });
+    setState(() {});
 
     // If dragged down more than 150px or fast velocity, dismiss
     if (_dragOffset > 150 || details.velocity.pixelsPerSecond.dy > 500) {
@@ -111,7 +111,9 @@ class _DraggableSheetState extends State<DraggableSheet> {
                               height: 4,
                               margin: const EdgeInsets.only(bottom: 12),
                               decoration: BoxDecoration(
-                                color: widget.theme.textMuted.withValues(alpha: .3),
+                                color: widget.theme.textMuted.withValues(
+                                  alpha: .3,
+                                ),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -160,6 +162,7 @@ class _DraggableSheetState extends State<DraggableSheet> {
                         onVerticalDragStart: (_) {},
                         child: AllCreatureInstances(
                           theme: widget.theme,
+                          prefsScopeKey: 'draggable_sheet_all_instances',
                           selectedInstanceIds: const [],
                           onTap: widget.onInstanceTap,
                         ),

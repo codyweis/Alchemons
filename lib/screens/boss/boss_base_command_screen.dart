@@ -7,6 +7,7 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/boss_upgrades.dart';
 import 'package:alchemons/services/boss_upgrade_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -66,6 +67,10 @@ class _BossBaseCommandScreenState extends State<BossBaseCommandScreen> {
   int _silverBalance = 0;
   bool _purchasing = false;
 
+  ThemeData get _bossThemeData => FactionTheme.scorchForge()
+      .toMaterialTheme(ThemeData.dark().textTheme)
+      .copyWith(scaffoldBackgroundColor: _C.bg0);
+
   @override
   void initState() {
     super.initState();
@@ -82,14 +87,17 @@ class _BossBaseCommandScreenState extends State<BossBaseCommandScreen> {
   Widget build(BuildContext context) {
     return Consumer<BossUpgradeService>(
       builder: (context, svc, _) {
-        return Scaffold(
-          backgroundColor: _C.bg0,
-          body: SafeArea(
-            child: Column(
-              children: [
-                _buildHeader(),
-                Expanded(child: _buildUpgradeList(svc)),
-              ],
+        return Theme(
+          data: _bossThemeData,
+          child: Scaffold(
+            backgroundColor: _C.bg0,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  Expanded(child: _buildUpgradeList(svc)),
+                ],
+              ),
             ),
           ),
         );

@@ -321,6 +321,14 @@ class _BreedScreenState extends State<BreedScreen>
                             duration: _tabAnimationDuration,
                             curve: Curves.easeOutCubic,
                           ),
+                          onRequestFusion: () {
+                            if (_tabController.index == 1) return;
+                            _tabController.animateTo(
+                              1,
+                              duration: _tabAnimationDuration,
+                              curve: Curves.easeOutCubic,
+                            );
+                          },
                         ),
                       ),
                       TickerMode(

@@ -5,9 +5,24 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Alchemons",
+            "name": "Alchemons (standard debug)",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "flutterMode": "debug",
+            "args": [
+                "--flavor",
+                "standard"
+            ]
+        },
+        {
+            "name": "Alchemons Creator (debug)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "debug",
+            "args": [
+                "--flavor",
+                "creator"
+            ]
         },
         {
             "name": "Alchemons (profile mode)",

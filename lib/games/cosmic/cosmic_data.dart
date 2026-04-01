@@ -11,7 +11,7 @@ import 'package:alchemons/systems/effects/has_effects.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 
 // ─────────────────────────────────────────────────────────
-// ELEMENT COLOURS  (mirrors SurvivalAttackManager.getElementColor)
+// ELEMENT COLORS  (mirrors SurvivalAttackManager.getElementColor)
 // ─────────────────────────────────────────────────────────
 const Map<String, Color> kElementColors = {
   'Fire': Color(0xFFFF5722),
@@ -146,12 +146,38 @@ class CosmicBalance {
   }
 
   static double companionBaseRange(double intelligence) {
-    return 130.0 + clampStat(intelligence) * 55.0;
+    return 95.0 + clampStat(intelligence) * 30.0;
   }
 
   static double shipDamageMultiplier(int level) {
     final safeLevel = level.clamp(0, HomeCustomizationState.maxUpgradeLevel);
     return 1.0 + safeLevel * 0.08;
+  }
+
+  static double missileDamageMultiplier(int level) {
+    final safeLevel = level.clamp(0, HomeCustomizationState.maxUpgradeLevel);
+    return 1.0 + safeLevel * 0.04;
+  }
+
+  static double missileHitDamage({required int level, required bool vsBoss}) {
+    final baseDamage = vsBoss ? 1.2 : 2.2;
+    return baseDamage * missileDamageMultiplier(level);
+  }
+
+  static double shipProjectileHitDamage({
+    required int level,
+    required bool machineGun,
+  }) {
+    final baseDamage = machineGun ? 0.14 : 0.4;
+    return baseDamage * shipDamageMultiplier(level) * kDamageScale;
+  }
+
+  static double shipProjectileAsteroidDamage({
+    required int level,
+    required bool machineGun,
+  }) {
+    final baseDamage = machineGun ? 0.06 : 0.14;
+    return baseDamage * shipDamageMultiplier(level);
   }
 
   static double enemyBaseHealth(EnemyTier tier) => switch (tier) {
@@ -338,7 +364,7 @@ class PrismaticField {
   bool rewardClaimed = false;
   double life = 0; // visual animation timer
 
-  /// Prismatic hue-cycling colours for the aurora bands.
+  /// Prismatic hue-cycling colors for the aurora bands.
   static const List<Color> auroraColors = [
     Color(0xFFFF0066), // magenta-pink
     Color(0xFFFF6600), // orange
@@ -652,7 +678,7 @@ class RiftPortal {
   static const double interactRadius = 120.0;
   static const double exitRadius = 150.0;
 
-  /// Faction display colour for rendering.
+  /// Faction display color for rendering.
   Color get color => switch (faction) {
     'volcanic' => const Color(0xFFFF5722),
     'oceanic' => const Color(0xFF2196F3),
@@ -1531,11 +1557,11 @@ class HomePlanet {
   int astralBank; // banked Astral Shards
   int sizeTierLevel; // max unlocked tier: 0=Tiny,1=Small,2=Medium,3=Big,4=Huge
   int activeSizeTier; // currently selected tier (≤ sizeTierLevel)
-  String? activeColor; // selected element colour (null = default gray)
-  Set<String> unlockedColors; // element names whose colours have been purchased
+  String? activeColor; // selected element color (null = default gray)
+  Set<String> unlockedColors; // element names whose colors have been purchased
 
-  /// Cost in elements to unlock a colour.
-  static const int colorUnlockCost = 500;
+  /// Cost in elements to unlock a color.
+  static const int colorUnlockCost = 100;
 
   /// Shard cost to upgrade TO each tier index.
   static const List<int> tierUpgradeCosts = [0, 50, 150, 400, 1000];
@@ -1560,7 +1586,7 @@ class HomePlanet {
        activeSizeTier = activeSizeTier ?? 0,
        unlockedColors = unlockedColors ?? {};
 
-  /// Planet colour — uses selected element colour, or default gray.
+  /// Planet color — uses selected element color, or default gray.
   Color get blendedColor {
     if (activeColor != null && kElementColors.containsKey(activeColor)) {
       return kElementColors[activeColor]!;
@@ -1651,6 +1677,40 @@ class HomePlanet {
       unlockedColors: unlocked,
     );
   }
+}
+
+const int kHomeGarrisonMaxSlots = 9;
+const List<int> kHomeGarrisonSlotsByTier = [1, 3, 4, 7, 9];
+const List<double> _kHomeGarrisonBaseAngles = [-pi / 2, pi / 6, 5 * pi / 6];
+
+int homeGarrisonSlotsForTier(int activeSizeTier) {
+  final tier = activeSizeTier.clamp(0, kHomeGarrisonSlotsByTier.length - 1);
+  return kHomeGarrisonSlotsByTier[tier];
+}
+
+int homeGarrisonLayerForSlot(int slotIndex) {
+  final clamped = slotIndex.clamp(0, kHomeGarrisonMaxSlots - 1);
+  return clamped ~/ 3;
+}
+
+double homeGarrisonOrbitAngleForSlot(int slotIndex) {
+  final clamped = slotIndex.clamp(0, kHomeGarrisonMaxSlots - 1);
+  return _kHomeGarrisonBaseAngles[clamped % 3];
+}
+
+double homeGarrisonOrbitRadiusForSlot({
+  required HomePlanet homePlanet,
+  required int slotIndex,
+}) {
+  final vr = homePlanet.visualRadius;
+  final innerRing = vr + 34.0;
+  final effectEdge = vr + (vr * 3.5);
+
+  return switch (homeGarrisonLayerForSlot(slotIndex)) {
+    0 => innerRing,
+    1 => lerpDouble(innerRing, effectEdge, 0.4)!,
+    _ => lerpDouble(innerRing, effectEdge, 0.8)!,
+  };
 }
 
 // ─────────────────────────────────────────────────────────
@@ -2023,7 +2083,7 @@ const List<HomeRecipe> kHomeRecipes = [
     id: 'natures_blessing',
     name: 'Nature\'s Blessing',
     description:
-        'All 17 elements harmonise — your planet radiates every colour.',
+        'All 17 elements harmonize — your planet radiates every color.',
     category: HomeRecipeCategory.visual,
     ingredients: {
       'Fire': 30,
@@ -2165,7 +2225,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'A stealth-plated hull with a dark-matter exhaust trail. The ship becomes a slender, angular silhouette with violet engine glow.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Dark': 250, 'Spirit': 150, 'Crystal': 100},
+    ingredients: {'Dark': 250, 'Spirit': 150, 'Poison': 100},
     iconName: 'visibility_off',
   ),
   HomeRecipe(
@@ -2174,8 +2234,26 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'A blazing golden hull forged from concentrated light and fire. Trailing solar flares and a radiant amber cockpit.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Fire': 200, 'Light': 200, 'Lava': 100},
+    ingredients: {'Fire': 200, 'Light': 300, 'Steam': 100},
     iconName: 'wb_sunny',
+  ),
+  HomeRecipe(
+    id: 'skin_inferno',
+    name: 'Inferno Raptor',
+    description:
+        'An aggressive flame-carved striker with ember exhaust, molten plating, and wingtip fire tongues.',
+    category: HomeRecipeCategory.equipment,
+    ingredients: {'Fire': 260, 'Lava': 180, 'Earth': 80},
+    iconName: 'local_fire_department',
+  ),
+  HomeRecipe(
+    id: 'skin_crystal',
+    name: 'Crystal Bastion',
+    description:
+        'A faceted shard frigate with icy prism engines, floating crystal motes, and a luminous crystalline core.',
+    category: HomeRecipeCategory.equipment,
+    ingredients: {'Crystal': 260, 'Ice': 140, 'Water': 120},
+    iconName: 'diamond',
   ),
 ];
 
@@ -2211,6 +2289,29 @@ class HomeCustomizationState {
   /// Damage multiplier for a given upgrade level (60% at max).
   static double damageMultiplier(int level) =>
       CosmicBalance.shipDamageMultiplier(level);
+
+  /// Missile damage multiplier uses a softer early curve than regular ammo.
+  static double missileDamageMultiplier(int level) =>
+      CosmicBalance.missileDamageMultiplier(level);
+
+  static double missileHitDamage({required int level, required bool vsBoss}) =>
+      CosmicBalance.missileHitDamage(level: level, vsBoss: vsBoss);
+
+  static double shipProjectileHitDamage({
+    required int level,
+    required bool machineGun,
+  }) => CosmicBalance.shipProjectileHitDamage(
+    level: level,
+    machineGun: machineGun,
+  );
+
+  static double shipProjectileAsteroidDamage({
+    required int level,
+    required bool machineGun,
+  }) => CosmicBalance.shipProjectileAsteroidDamage(
+    level: level,
+    machineGun: machineGun,
+  );
 
   HomeCustomizationState({
     Set<String>? unlockedIds,
@@ -2290,7 +2391,12 @@ class HomeCustomizationState {
   };
 
   /// Ship skin IDs that are mutually exclusive — only one active at a time.
-  static const _skinIds = {'skin_phantom', 'skin_solar'};
+  static const _skinIds = {
+    'skin_phantom',
+    'skin_solar',
+    'skin_inferno',
+    'skin_crystal',
+  };
 
   void toggle(String id) {
     if (!unlockedIds.contains(id)) return;
@@ -3481,6 +3587,7 @@ class Projectile {
 enum ProjectileVisualStyle {
   standard,
   meteor,
+  letShard,
   dart,
   slash,
   sigil,
@@ -4604,7 +4711,7 @@ CosmicSpecialResult _letSpecial(
       speedMultiplier: 0.55,
       radiusMultiplier: 3.5,
       visualScale: 3.0,
-      visualStyle: ProjectileVisualStyle.meteor,
+      visualStyle: ProjectileVisualStyle.letShard,
       trailInterval: 0.08,
       trailDamage: damage * 0.45,
       trailLife: 0.7,
@@ -4633,6 +4740,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 2.5,
             piercing: true,
             visualScale: 1.8,
+            visualStyle: ProjectileVisualStyle.sigil,
           ),
         );
       }
@@ -4683,6 +4791,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 3.3,
             piercing: true,
             visualScale: 2.8,
+            visualStyle: ProjectileVisualStyle.letShard,
           ),
         );
       }
@@ -4756,6 +4865,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 3.4,
             piercing: true,
             visualScale: 2.8,
+            visualStyle: ProjectileVisualStyle.sigil,
           ),
         );
       }
@@ -4823,6 +4933,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 3.0,
             piercing: true,
             visualScale: 2.5,
+            visualStyle: ProjectileVisualStyle.letShard,
           ),
         );
       }
@@ -4848,6 +4959,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 2.5,
             piercing: true,
             visualScale: 2.2,
+            visualStyle: ProjectileVisualStyle.sigil,
           ),
         );
       }
@@ -4873,6 +4985,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 3.1,
             piercing: true,
             visualScale: 2.2,
+            visualStyle: ProjectileVisualStyle.sigil,
           ),
         );
       }
@@ -4983,6 +5096,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 2.2,
             piercing: true,
             visualScale: 1.6,
+            visualStyle: ProjectileVisualStyle.sigil,
           ),
         );
       }
@@ -5050,6 +5164,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 2.6,
             piercing: true,
             visualScale: 2.2,
+            visualStyle: ProjectileVisualStyle.sigil,
           ),
         );
       }
@@ -5069,6 +5184,7 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 3.0,
             piercing: true,
             visualScale: 2.5,
+            visualStyle: ProjectileVisualStyle.letShard,
           ),
         );
       }
@@ -8229,7 +8345,7 @@ class OrbitalChamber {
   /// Visual / collision radius.
   double radius;
 
-  /// Element-based colour for the orb glow.
+  /// Element-based color for the orb glow.
   Color color;
 
   /// Unique seed for per-bubble animation phase.
@@ -8249,6 +8365,9 @@ class OrbitalChamber {
 
   /// Static image path for the creature (e.g. 'creatures/rare/HOR01_firehorn.png').
   String? imagePath;
+
+  /// Full sprite visuals so chamber rendering can reuse alchemy effects/tints.
+  SpriteVisuals? spriteVisuals;
 
   /// Desired orbital distance from home planet centre.
   double orbitDistance;
@@ -8270,6 +8389,7 @@ class OrbitalChamber {
     this.baseCreatureId,
     this.displayName,
     this.imagePath,
+    this.spriteVisuals,
     this.orbitDistance = 200,
     this.knocked = false,
     this.knockTimer = 0,
@@ -8529,6 +8649,7 @@ enum POIType {
   riftKeyMarket,
   cosmicMarket,
   stardustScanner,
+  planetScanner,
 }
 
 /// A discoverable point of interest in the cosmos.
@@ -8792,7 +8913,7 @@ class CosmicPartyMember {
   final double statStrength;
   final double statBeauty;
 
-  /// Slot index in the party (0-2).
+  /// Slot index in the owning formation or garrison.
   final int slotIndex;
 
   /// Current effective stamina bars (after regen).

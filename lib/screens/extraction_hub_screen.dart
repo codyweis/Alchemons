@@ -338,7 +338,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'EXTRACTION HUB',
+                                        'HARVEST',
                                         style: TextStyle(
                                           fontFamily: 'monospace',
                                           color: t.textPrimary,
@@ -588,6 +588,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     with TickerProviderStateMixin {
   late final Ticker _ticker;
   double _tSeconds = 0.0;
+  DateTime? _lastTapBoostAt;
 
   late final AnimationController _tapFxCtrl;
   Offset? _tapLocal;
@@ -738,11 +739,19 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   void _handleTapBoost(BiomeFarmState farm) {
     if (!farm.hasActive || farm.completed) return;
+    final now = DateTime.now();
+    final lastBoost = _lastTapBoostAt;
+    if (lastBoost != null &&
+        now.difference(lastBoost) < HarvestService.tapBoostThrottle) {
+      return;
+    }
+    _lastTapBoostAt = now;
     final totalMs = farm.activeJob!.durationMs;
+    final boostMs = HarvestService.tapBoostStep.inMilliseconds;
     final currentMs = (1.0 - _jobCtrl.value) * totalMs;
-    final newMs = (currentMs - 1000).clamp(0, totalMs).toDouble();
+    final newMs = (currentMs - boostMs).clamp(0, totalMs).toDouble();
     _jobCtrl.value = 1.0 - (newMs / totalMs);
-    widget.service.nudge(widget.farm.biome);
+    widget.service.nudge(widget.farm.biome, by: HarvestService.tapBoostStep);
   }
 
   // ── Start job ─────────────────────────────────────────────────────────────
@@ -760,6 +769,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
         reverseTransitionDuration: const Duration(milliseconds: 220),
         pageBuilder: (context, animation, secondaryAnimation) => AllSpecimensPage(
           theme: theme,
+          instancePrefsScopeKey: 'harvest_biome_${widget.farm.biome.id}',
           popOnSelect: true,
           searchHint: 'SELECT SPECIMEN',
           allowedPrimaryTypes: widget.farm.biome.elementTypes,
@@ -1213,7 +1223,9 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
         return LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 210;
-            final panelHeight = compact ? 126.0 : 104.0;
+            final panelHeight = compact
+                ? (farm.hasActive ? 144.0 : 126.0)
+                : (farm.hasActive ? 124.0 : 104.0);
 
             Widget? badge;
             if (farm.completed) {
@@ -1343,7 +1355,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                       effectiveFill: vm.effectiveFill,
                                       creatureWidget: _creatureWidget,
                                       onTapDown: (details, inner) {
-                                        _handleTapBoost(farm);
                                         final lp = details.localPosition;
                                         final clamped = Offset(
                                           lp.dx.clamp(
@@ -1374,6 +1385,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                     theme: theme,
                                     farm: farm,
                                     biome: farm.biome,
+                                    remaining: vm.remaining,
                                     compact: compact,
                                     onCollect: farm.completed
                                         ? () => _handleCollect(farm)
@@ -1495,6 +1507,7 @@ class _ActivePanel extends StatelessWidget {
     required this.theme,
     required this.farm,
     required this.biome,
+    required this.remaining,
     required this.compact,
     required this.onCollect,
     required this.onCancel,
@@ -1503,6 +1516,7 @@ class _ActivePanel extends StatelessWidget {
   final FactionTheme theme;
   final BiomeFarmState farm;
   final Biome biome;
+  final Duration? remaining;
   final bool compact;
   final VoidCallback? onCollect;
   final VoidCallback onCancel;
@@ -1517,6 +1531,19 @@ class _ActivePanel extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        Text(
+          farm.completed
+              ? 'Ready to collect'
+              : 'Time left: ${_formatHarvestRemaining(remaining)}',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: farm.completed ? t.success : color,
+            fontSize: compact ? 8.5 : 9.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.7,
+          ),
+        ),
+        SizedBox(height: compact ? 4 : 6),
         Text(
           'Rate: $rate / min',
           style: TextStyle(
@@ -1585,6 +1612,16 @@ class _ActivePanel extends StatelessWidget {
       ],
     );
   }
+}
+
+String _formatHarvestRemaining(Duration? d) {
+  if (d == null) return '—';
+  final h = d.inHours;
+  final m = d.inMinutes.remainder(60);
+  final s = d.inSeconds.remainder(60);
+  if (h > 0) return '${h}h ${m}m';
+  if (m > 0) return '${m}m ${s}s';
+  return '${s}s';
 }
 
 class _LockedPanel extends StatelessWidget {
