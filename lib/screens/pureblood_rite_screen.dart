@@ -223,6 +223,11 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
   String? _selectedInstanceId;
   bool _checkedIntroStory = false;
 
+  // Weekly challenge state
+  bool? _weeklyCompleted;
+  String? _weeklySelectedInstanceId;
+  String? _weeklyBusyInstanceId;
+
   @override
   void initState() {
     super.initState();
@@ -235,6 +240,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
       duration: const Duration(milliseconds: 700),
     )..forward();
     _loadStageProgress();
+    _loadWeeklyStatus();
     _maybeShowIntroStory();
   }
 
@@ -252,6 +258,15 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
     final idx = await rite.getStageIndex();
     if (!mounted) return;
     setState(() => _stageIndex = idx);
+  }
+
+  Future<void> _loadWeeklyStatus() async {
+    final db = context.read<AlchemonsDatabase>();
+    final catalog = context.read<CreatureCatalog>();
+    final rite = PurebloodRiteService(db, catalog);
+    final completed = await rite.isWeeklyComplete();
+    if (!mounted) return;
+    setState(() => _weeklyCompleted = completed);
   }
 
   Future<void> _maybeShowIntroStory() async {
@@ -448,7 +463,12 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                     child: stageIndex == null
                         ? _buildLoading(context)
                         : challenge == null
-                        ? _buildCompletedContent(context)
+                        ? _buildCompletedContent(
+                            context: context,
+                            db: db,
+                            catalog: catalog,
+                            rite: rite,
+                          )
                         : _buildContent(
                             context: context,
                             db: db,
@@ -584,58 +604,325 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
     );
   }
 
-  Widget _buildCompletedContent(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.workspace_premium_rounded,
-              color: _kSoulGold,
-              size: 52,
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Rite Complete',
-              textAlign: TextAlign.center,
-              style: _fell(context, 30, _kSoulGold, ls: 0.6),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'All 20 offerings have been accepted. The altar has nothing left to demand.',
-              textAlign: TextAlign.center,
-              style: _bask(context, 13, _kIvoryDim),
-            ),
-            const SizedBox(height: 22),
-            _HkPanel(
-              accentColor: _kSoulGold,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _HkTag(label: 'SEALED', color: _kSoulGold),
-                  const SizedBox(height: 12),
-                  Text(
-                    'You completed the full rite ladder, from the first pure Let to the final Light Horn offering, and sealed the altar for good.',
-                    style: _bask(context, 13, _kIvoryDim),
-                  ),
-                ],
+  Widget _buildCompletedContent({
+    required BuildContext context,
+    required AlchemonsDatabase db,
+    required CreatureCatalog catalog,
+    required PurebloodRiteService rite,
+  }) {
+    final weeklyChallenge = rite.weeklyChallenge();
+    final resetIn = PurebloodRiteService.timeUntilWeeklyReset();
+    final resetDays = resetIn.inDays;
+    final resetHours = resetIn.inHours % 24;
+
+    return StreamBuilder<List<CreatureInstance>>(
+      stream: db.creatureDao.watchAllInstances(),
+      builder: (context, snapshot) {
+        final allInstances = snapshot.data ?? const <CreatureInstance>[];
+        final weeklySelected = _weeklySelectedInstanceId == null
+            ? null
+            : allInstances.firstWhereOrNull(
+                (i) => i.instanceId == _weeklySelectedInstanceId,
+              );
+        if (_weeklySelectedInstanceId != null && weeklySelected == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() => _weeklySelectedInstanceId = null);
+          });
+        }
+        final weeklySelectedSpecies = weeklySelected == null
+            ? null
+            : catalog.getCreatureById(weeklySelected.baseId);
+        final weeklyCheck = weeklySelected == null
+            ? null
+            : rite.evaluate(weeklySelected, challenge: weeklyChallenge);
+
+        final familyInstances = allInstances
+            .where(
+              (i) => rite.speciesMatchesChallenge(
+                catalog.getCreatureById(i.baseId),
+                challenge: weeklyChallenge,
+              ),
+            )
+            .toList(growable: false);
+        final eligibleInstances = familyInstances
+            .where((i) => rite.evaluate(i, challenge: weeklyChallenge).isEligible)
+            .toList(growable: false);
+
+        final isCompleted = _weeklyCompleted ?? false;
+
+        return CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // ── Rite complete banner ──────────────────────────────────────
+            _s(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.workspace_premium_rounded,
+                      color: _kSoulGold,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Rite Complete',
+                            style: _fell(context, 22, _kSoulGold, ls: 0.5),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'All 20 offerings sealed. The altar endures.',
+                            style: _bask(context, 12, _kIvoryMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: 220,
-              child: _HkBtn(
-                label: 'Return',
-                onTap: () => Navigator.of(context).maybePop(),
-                primary: false,
+            // ── Weekly Challenge header ───────────────────────────────────
+            _s(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
+                child: _HkSectionHead(
+                  title: 'Weekly Altar Challenge',
+                  sub: isCompleted
+                      ? 'Completed this week. Resets in '
+                            '${resetDays}d ${resetHours}h.'
+                      : 'A new offering demanded each week. Resets in '
+                            '${resetDays}d ${resetHours}h.',
+                ),
+              ),
+            ),
+            if (_weeklyCompleted == null)
+              _s(
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 36),
+                  child: Center(child: _AltarLoader(size: 52)),
+                ),
+              )
+            else ...[
+              // ── Weekly challenge info card ────────────────────────────
+              _s(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                  child: _WeeklyChallengePanel(
+                    challenge: weeklyChallenge,
+                    isCompleted: isCompleted,
+                    onTap: () => _showRecipeDialog(weeklyChallenge),
+                  ),
+                ),
+              ),
+              if (!isCompleted) ...[
+                // ── Stat row ─────────────────────────────────────────────
+                _s(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                    child: _TriStatRow(
+                      ownedCount: familyInstances.length,
+                      eligibleCount: eligibleInstances.length,
+                      stageStep: weeklyChallenge.goldReward,
+                      stageLabel: 'REWARD',
+                      challenge: weeklyChallenge,
+                      onOwnedTap: () => _showSpecimenDialog(
+                        title: 'Owned Specimens',
+                        emptyMessage:
+                            'No ${weeklyChallenge.requiredFamily} specimens available.',
+                        instances: familyInstances,
+                        catalog: catalog,
+                        rite: rite,
+                        challenge: weeklyChallenge,
+                      ),
+                      onEligibleTap: () => _showSpecimenDialog(
+                        title: 'Eligible Specimens',
+                        emptyMessage:
+                            'No specimens satisfy every weekly condition.',
+                        instances: eligibleInstances,
+                        catalog: catalog,
+                        rite: rite,
+                        challenge: weeklyChallenge,
+                      ),
+                    ),
+                  ),
+                ),
+                // ── Chamber ──────────────────────────────────────────────
+                _s(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+                    child: _HkSectionHead(
+                      title: 'Ritual Chamber',
+                      sub:
+                          'Place any specimen in the chamber. The altar will judge it.',
+                    ),
+                  ),
+                ),
+                _s(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                    child: _SacrificeChamberCard(
+                      challenge: weeklyChallenge,
+                      selectedInstance: weeklySelected,
+                      selectedSpecies: weeklySelectedSpecies,
+                      selectedCheck: weeklyCheck,
+                      isBusy: weeklySelected != null &&
+                          _weeklyBusyInstanceId == weeklySelected.instanceId,
+                      onTap: () => _openWeeklyChamberSelection(
+                        rite: rite,
+                        challenge: weeklyChallenge,
+                      ),
+                      onSacrifice: weeklySelected != null &&
+                              weeklySelectedSpecies != null &&
+                              weeklyCheck?.isEligible == true &&
+                              _weeklyBusyInstanceId != weeklySelected.instanceId
+                          ? () => _handleWeeklySacrifice(
+                              rite: rite,
+                              challenge: weeklyChallenge,
+                              species: weeklySelectedSpecies,
+                              instance: weeklySelected,
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+              ] else ...[
+                // ── Already completed card ────────────────────────────────
+                _s(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                    child: _WeeklyCompleteCard(
+                      resetDays: resetDays,
+                      resetHours: resetHours,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+            _s(const SizedBox(height: 24)),
+            _s(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 48),
+                child: SizedBox(
+                  width: 220,
+                  child: _HkBtn(
+                    label: 'Return',
+                    onTap: () => Navigator.of(context).maybePop(),
+                    primary: false,
+                  ),
+                ),
               ),
             ),
           ],
-        ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openWeeklyChamberSelection({
+    required PurebloodRiteService rite,
+    required PurebloodChallenge challenge,
+  }) async {
+    final theme = context.read<FactionTheme>();
+    if (!mounted) return;
+
+    final selected = await Navigator.of(context).push<CreatureInstance>(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            AllSpecimensPage(
+              theme: theme,
+              instancePrefsScopeKey: 'pureblood_rite_specimens',
+              popOnSelect: true,
+              searchHint: 'PLACE SPECIMEN',
+              selectedInstanceIds: _weeklySelectedInstanceId == null
+                  ? const []
+                  : [_weeklySelectedInstanceId!],
+            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
       ),
     );
+    if (selected == null || !mounted) return;
+
+    final check = rite.evaluate(selected, challenge: challenge);
+    setState(() => _weeklySelectedInstanceId = selected.instanceId);
+
+    if (!check.isEligible) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(check.message)));
+    }
+  }
+
+  Future<void> _handleWeeklySacrifice({
+    required PurebloodRiteService rite,
+    required PurebloodChallenge challenge,
+    required Creature species,
+    required CreatureInstance instance,
+  }) async {
+    final confirmed = await showGeneralDialog<bool>(
+      context: context,
+      barrierLabel: 'confirm',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      pageBuilder: (_, __, ___) => Material(
+        color: Colors.transparent,
+        child: _HkConfirmDialog(species: species, instance: instance),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _weeklyBusyInstanceId = instance.instanceId);
+    try {
+      HapticFeedback.heavyImpact();
+      final result = await rite.sacrificeWeekly(
+        instanceId: instance.instanceId,
+        challenge: challenge,
+      );
+      if (mounted) {
+        setState(() {
+          _weeklyCompleted = true;
+          _weeklySelectedInstanceId = null;
+        });
+      }
+      if (!mounted) return;
+      await showGeneralDialog<void>(
+        context: context,
+        barrierLabel: 'echo',
+        barrierDismissible: false,
+        barrierColor: Colors.black,
+        pageBuilder: (_, __, ___) => Material(
+          color: Colors.transparent,
+          child: _RitualEchoOverlay(
+            species: species,
+            instance: instance,
+            reward: result.goldEarned,
+            nextChallengeTitle: null,
+            completedRite: false,
+            completionBonusGold: 0,
+          ),
+        ),
+      );
+    } on PurebloodRiteException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _weeklyBusyInstanceId = null);
+    }
   }
 
   Widget _buildContent({
@@ -1236,6 +1523,15 @@ class _ChallengePanel extends StatelessWidget {
                       met: true,
                     ),
                   ],
+                  if (challenge.requiredVariantFaction != null) ...[
+                    const SizedBox(height: 6),
+                    _HkReqLine(
+                      icon: Icons.scatter_plot_outlined,
+                      label:
+                          'Variant — ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
+                      met: true,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1299,11 +1595,13 @@ class _TriStatRow extends StatelessWidget {
     required this.challenge,
     required this.onOwnedTap,
     required this.onEligibleTap,
+    this.stageLabel = 'STAGE',
   });
   final int ownedCount, eligibleCount, stageStep;
   final PurebloodChallenge challenge;
   final VoidCallback onOwnedTap;
   final VoidCallback onEligibleTap;
+  final String stageLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1329,7 +1627,7 @@ class _TriStatRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _HkStat(label: 'STAGE', value: '$stageStep', color: elColor),
+          child: _HkStat(label: stageLabel, value: '$stageStep', color: elColor),
         ),
       ],
     );
@@ -1524,6 +1822,15 @@ class _SacrificeChamberCard extends StatelessWidget {
                                   label:
                                       'Nature: ${_titleCaseLabel(challenge.requiredNature!)}',
                                   pure: check?.matchesNature ?? false,
+                                  successLabel: 'met',
+                                ),
+                              ],
+                              if (challenge.requiredVariantFaction != null) ...[
+                                const SizedBox(height: 4),
+                                _LineageRow(
+                                  label:
+                                      'Variant: ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
+                                  pure: check?.matchesVariant ?? false,
                                   successLabel: 'met',
                                 ),
                               ],
@@ -2321,6 +2628,178 @@ class _RiteSpecimenDialogState extends State<_RiteSpecimenDialog>
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEEKLY CHALLENGE WIDGETS
+// ═══════════════════════════════════════════════════════════════════════════════
+class _WeeklyChallengePanel extends StatelessWidget {
+  const _WeeklyChallengePanel({
+    required this.challenge,
+    required this.isCompleted,
+    required this.onTap,
+  });
+  final PurebloodChallenge challenge;
+  final bool isCompleted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = isCompleted ? _kSoulGold : _kSoulBlue;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: _HkPanel(
+        accentColor: accentColor,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _HkTag(
+                        label: isCompleted ? 'COMPLETED' : 'WEEKLY OFFER',
+                        color: accentColor,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _AutoShrinkText(
+                    challenge.shortTitle,
+                    maxLines: 2,
+                    minFontSize: 18,
+                    style: _fell(context, 30, _kIvory, ls: 0.8),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '+${challenge.goldReward} Gold Reward',
+                    style: _mono(context, 12, _kSoulGold),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    challenge.vesselDescription,
+                    style: _bask(context, 13, _kIvoryDim),
+                  ),
+                  const SizedBox(height: 14),
+                  if (challenge.requireElementalPurity) ...[
+                    _HkReqLine(
+                      icon: Icons.opacity,
+                      label: challenge.requiredElement == null
+                          ? 'Elemental lineage — PURE'
+                          : '${challenge.requiredElement} element line — PURE',
+                      met: true,
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (challenge.requireSpeciesPurity) ...[
+                    _HkReqLine(
+                      icon: Icons.account_tree_outlined,
+                      label: '${challenge.requiredFamily} species line — PURE',
+                      met: true,
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (challenge.requiredSize != null) ...[
+                    _HkReqLine(
+                      icon: sizeIcons[challenge.requiredSize] ?? Icons.circle,
+                      label: 'Size — ${_traitLabel(challenge.requiredSize!)}',
+                      met: true,
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (challenge.requiredTint != null) ...[
+                    _HkReqLine(
+                      icon: tintIcons[challenge.requiredTint] ??
+                          Icons.brightness_high_outlined,
+                      label: 'Pigmentation — ${_traitLabel(challenge.requiredTint!)}',
+                      met: true,
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (challenge.requiredNature != null) ...[
+                    _HkReqLine(
+                      icon: Icons.psychology_alt_outlined,
+                      label:
+                          'Nature — ${_titleCaseLabel(challenge.requiredNature!)}',
+                      met: true,
+                    ),
+                  ],
+                  if (challenge.requiredVariantFaction != null) ...[
+                    const SizedBox(height: 6),
+                    _HkReqLine(
+                      icon: Icons.scatter_plot_outlined,
+                      label:
+                          'Variant — ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
+                      met: true,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _HkCreatureFrame(
+              species: challenge.previewSpecies,
+              size: 110,
+              previewSizeGene: challenge.requiredSize,
+              previewTintGene: challenge.requiredTint,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeeklyCompleteCard extends StatelessWidget {
+  const _WeeklyCompleteCard({
+    required this.resetDays,
+    required this.resetHours,
+  });
+  final int resetDays;
+  final int resetHours;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _CornerBracketPainter(
+        color: _kSoulGold.withValues(alpha: 0.45),
+        bracketSize: 16,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.workspace_premium_rounded,
+              color: _kSoulGold,
+              size: 28,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Weekly offering accepted.',
+                    style: _fell(context, 15, _kSoulGold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Return when the altar resets in '
+                    '${resetDays}d ${resetHours}h.',
+                    style: _bask(context, 13, _kIvoryDim),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

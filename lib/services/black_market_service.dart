@@ -222,6 +222,16 @@ class BlackMarketService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> reloadFromStorage() async {
+    _purchasedToday.clear();
+    _lastPurchaseDate = '';
+    _lastGoldExchangeDate = '';
+    await _initFromSettings();
+    _updateWeeklyContent();
+    _checkStatus();
+    notifyListeners();
+  }
+
   Future<void> _saveWeekKey(String weekKey) async {
     await _db
         .into(_db.settings)

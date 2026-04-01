@@ -305,8 +305,13 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       tempNodes[skill.id] = node;
     }
 
+    // Sort skills by tier so story fragments read outward ring-by-ring
+    // instead of following one branch all the way out before the next.
+    final sortedSkills = List<ConstellationSkill>.from(skills)
+      ..sort((a, b) => a.tier.compareTo(b.tier));
+
     int connectionIndex = 0;
-    for (final skill in skills) {
+    for (final skill in sortedSkills) {
       for (final prereqId in skill.prerequisites) {
         final fromNode = tempNodes[prereqId];
         final toNode = tempNodes[skill.id];
@@ -1246,7 +1251,13 @@ class ConnectionLine extends Component {
     if (lineLength <= 0.001) return;
 
     final direction = path / lineLength;
-    final perpendicular = Vector2(-direction.y, direction.x);
+    // Use a consistent perpendicular that favours screen-right / screen-down
+    // so bubbles don't flip unpredictably.
+    var perpendicular = Vector2(-direction.y, direction.x);
+    if (perpendicular.x < 0 ||
+        (perpendicular.x.abs() < 0.01 && perpendicular.y < 0)) {
+      perpendicular = -perpendicular;
+    }
 
     final longestLineChars = _wrappedStoryLines.fold<int>(
       0,
@@ -1258,24 +1269,15 @@ class ConnectionLine extends Component {
       140.0,
     );
 
-    final baseDistance = (lineLength * 0.46).clamp(150.0, 270.0);
+    final baseDistance = (lineLength * 0.18).clamp(40.0, 90.0);
     final safeDistance = baseDistance + (textHeight * 0.5);
 
-    final rightCandidate = midPoint + perpendicular * safeDistance;
-    final leftCandidate = midPoint - perpendicular * safeDistance;
-    final rightDist2 =
-        rightCandidate.x * rightCandidate.x +
-        rightCandidate.y * rightCandidate.y;
-    final leftDist2 =
-        leftCandidate.x * leftCandidate.x + leftCandidate.y * leftCandidate.y;
+    // Alternate sides based on connectionIndex for even distribution.
+    final double sideSign = connectionIndex.isEven ? 1.0 : -1.0;
 
-    double sideSign = rightDist2 >= leftDist2 ? 1.0 : -1.0;
-    if ((rightDist2 - leftDist2).abs() < 8000) {
-      sideSign = connectionIndex.isEven ? 1.0 : -1.0;
-    }
-
-    final lane = (connectionIndex % 5) - 2;
-    final alongOffset = direction * (lane * 32.0);
+    // Slight shift along the line so adjacent quotes don't stack exactly.
+    final lane = (connectionIndex % 3) - 1; // -1, 0, 1
+    final alongOffset = direction * (lane * 18.0);
     final storyPos =
         midPoint +
         perpendicular * (safeDistance * sideSign) +

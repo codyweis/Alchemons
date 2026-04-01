@@ -21,7 +21,7 @@ skyEncounterPools(SceneDefinition scene) {
     EncounterEntry(
       speciesId: 'LET05',
       rarity: EncounterRarity.uncommon,
-      weightMul: 0.4,
+      weightMul: 0.45,
     ), // Steamlet (clouds)
     // Uncommon
     EncounterEntry(
@@ -40,11 +40,6 @@ skyEncounterPools(SceneDefinition scene) {
       rarity: EncounterRarity.rare,
       weightMul: 0.25,
     ), // Airhorn
-    EncounterEntry(
-      speciesId: 'HOR09',
-      rarity: EncounterRarity.rare,
-      weightMul: 0.15,
-    ), // Icehorn (high altitude)
   ]);
 
   if (isDay(now)) {
@@ -53,15 +48,15 @@ skyEncounterPools(SceneDefinition scene) {
       // Light
       EncounterEntry(
         speciesId: 'LET16',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.18,
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.30,
       ), // Lightlet
       // Legendary
       EncounterEntry(
         speciesId: 'WNG04',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.15,
-      ),
+        rarity: EncounterRarity.legendary,
+        weightMul: 0.10,
+      ), // Airwing
       EncounterEntry(
         speciesId: 'WNG16',
         rarity: EncounterRarity.legendary,
@@ -78,20 +73,15 @@ skyEncounterPools(SceneDefinition scene) {
       // --- Night Spawns ---
       EncounterEntry(
         speciesId: 'LET07',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.18,
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.30,
       ), // Lightninglet
       // Spirit
       EncounterEntry(
         speciesId: 'LET14',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.14,
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.25,
       ), // Spiritlet
-      EncounterEntry(
-        speciesId: 'WNG14',
-        rarity: EncounterRarity.legendary,
-        weightMul: 0.06,
-      ),
     ]);
   }
 

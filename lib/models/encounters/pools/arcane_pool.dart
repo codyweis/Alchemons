@@ -17,7 +17,7 @@ arcaneEncounterPools(SceneDefinition scene) {
   entries.addAll([
     EncounterEntry(
       speciesId: 'LET14',
-      rarity: EncounterRarity.common,
+      rarity: EncounterRarity.uncommon,
     ), // Spiritlet
     EncounterEntry(
       speciesId: 'PIP14',
@@ -33,7 +33,7 @@ arcaneEncounterPools(SceneDefinition scene) {
   entries.addAll([
     EncounterEntry(
       speciesId: 'LET11',
-      rarity: EncounterRarity.common,
+      rarity: EncounterRarity.uncommon,
     ), // Crystalet
     EncounterEntry(
       speciesId: 'PIP11',
@@ -84,10 +84,6 @@ arcaneEncounterPools(SceneDefinition scene) {
       speciesId: 'LET17',
       rarity: EncounterRarity.rare,
     ), // bloodlet
-    EncounterEntry(
-      speciesId: 'WNG14',
-      rarity: EncounterRarity.rare,
-    ), // Spiritwing
   ]);
 
   // ── Time-of-day specials ─────────────────────────────────────────────────
@@ -95,10 +91,6 @@ arcaneEncounterPools(SceneDefinition scene) {
   if (isNight(now)) {
     // Night: more Dark & Spirit evolved forms
     entries.addAll([
-      EncounterEntry(
-        speciesId: 'HOR15',
-        rarity: EncounterRarity.rare,
-      ), // Darkhorn
       EncounterEntry(
         speciesId: 'WNG15',
         rarity: EncounterRarity.legendary,

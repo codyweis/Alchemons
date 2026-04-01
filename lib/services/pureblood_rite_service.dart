@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/helpers/genetics_loader.dart';
+import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 
@@ -16,6 +20,7 @@ class PurebloodChallenge {
   final String? requiredTint;
   final String? requiredTintLabel;
   final String? requiredNature;
+  final String? requiredVariantFaction;
   final int goldReward;
   final int stageIndex;
 
@@ -30,6 +35,7 @@ class PurebloodChallenge {
     required this.requiredTint,
     required this.requiredTintLabel,
     required this.requiredNature,
+    this.requiredVariantFaction,
     required this.goldReward,
     required this.stageIndex,
   });
@@ -63,6 +69,9 @@ class PurebloodChallenge {
     if (requiredNature != null) {
       requirements.add('${_labelize(requiredNature!)} nature');
     }
+    if (requiredVariantFaction != null) {
+      requirements.add('${_labelize(requiredVariantFaction!)} variant');
+    }
 
     if (requirements.isEmpty) {
       return 'Any $requiredFamily specimen may answer this rite.';
@@ -92,6 +101,9 @@ class PurebloodChallenge {
     if (requiredNature != null) {
       lines.add('Nature — ${_labelize(requiredNature!)}');
     }
+    if (requiredVariantFaction != null) {
+      lines.add('Variant — ${_labelize(requiredVariantFaction!)}');
+    }
     lines.add('+$goldReward Gold Awarded');
     return lines;
   }
@@ -105,6 +117,7 @@ class PurebloodSacrificeCheck {
   final bool matchesTint;
   final bool matchesSize;
   final bool matchesNature;
+  final bool matchesVariant;
   final bool isProtected;
   final String message;
 
@@ -116,11 +129,12 @@ class PurebloodSacrificeCheck {
     required this.matchesTint,
     required this.matchesSize,
     required this.matchesNature,
+    required this.matchesVariant,
     required this.isProtected,
     required this.message,
   });
 
-  bool get matchesTrait => matchesTint && matchesSize && matchesNature;
+  bool get matchesTrait => matchesTint && matchesSize && matchesNature && matchesVariant;
 }
 
 class PurebloodSacrificeResult {
@@ -456,6 +470,10 @@ class PurebloodRiteService {
         challenge.requiredNature == null ||
         instance.natureId?.trim().toLowerCase() ==
             challenge.requiredNature!.trim().toLowerCase();
+    final matchesVariant =
+        challenge.requiredVariantFaction == null ||
+        instance.variantFaction?.trim().toLowerCase() ==
+            challenge.requiredVariantFaction!.trim().toLowerCase();
     final isProtected = instance.locked || instance.isFavorite == true;
 
     if (!matchesFamily) {
@@ -467,6 +485,7 @@ class PurebloodRiteService {
         matchesTint: matchesTint,
         matchesSize: matchesSize,
         matchesNature: matchesNature,
+        matchesVariant: matchesVariant,
         isProtected: false,
         message:
             'Only ${challenge.requiredFamily} specimens may answer this rite.',
@@ -482,6 +501,7 @@ class PurebloodRiteService {
         matchesTint: matchesTint,
         matchesSize: matchesSize,
         matchesNature: matchesNature,
+        matchesVariant: matchesVariant,
         isProtected: true,
         message: 'Favorited or locked specimens cannot be sacrificed.',
       );
@@ -509,6 +529,9 @@ class PurebloodRiteService {
     if (!matchesNature && challenge.requiredNature != null) {
       missing.add('${_labelize(challenge.requiredNature!)} nature');
     }
+    if (!matchesVariant && challenge.requiredVariantFaction != null) {
+      missing.add('${_labelize(challenge.requiredVariantFaction!)} variant');
+    }
 
     if (missing.isNotEmpty) {
       return PurebloodSacrificeCheck(
@@ -519,6 +542,7 @@ class PurebloodRiteService {
         matchesTint: matchesTint,
         matchesSize: matchesSize,
         matchesNature: matchesNature,
+        matchesVariant: matchesVariant,
         isProtected: false,
         message: 'Requires ${_joinWithAnd(missing)}.',
       );
@@ -532,6 +556,7 @@ class PurebloodRiteService {
       matchesTint: true,
       matchesSize: true,
       matchesNature: true,
+      matchesVariant: true,
       isProtected: false,
       message: 'All rite conditions satisfied.',
     );
@@ -601,6 +626,253 @@ class PurebloodRiteService {
     if (stageIndex < 10) return 5;
     if (stageIndex < 15) return 10;
     return 15;
+  }
+
+  // ─── Weekly Challenge ────────────────────────────────────────────────────────
+
+  static const String _weeklyCompletedWeekKey =
+      'pureblood_weekly_rite_completed_week_v1';
+
+  static String currentWeekKey() {
+    final now = DateTime.now().toUtc();
+    final daysFromMonday = (now.weekday - DateTime.monday) % 7;
+    final monday = DateTime.utc(now.year, now.month, now.day)
+        .subtract(Duration(days: daysFromMonday));
+    return '${monday.year}-'
+        '${monday.month.toString().padLeft(2, '0')}-'
+        '${monday.day.toString().padLeft(2, '0')}';
+  }
+
+  static int _seedFromWeekKey(String weekKey) =>
+      int.parse(weekKey.replaceAll('-', ''));
+
+  static Duration timeUntilWeeklyReset() {
+    final now = DateTime.now().toUtc();
+    final daysFromMonday = (now.weekday - DateTime.monday) % 7;
+    final monday = DateTime.utc(now.year, now.month, now.day)
+        .subtract(Duration(days: daysFromMonday));
+    final nextMonday = monday.add(const Duration(days: 7));
+    return nextMonday.difference(now);
+  }
+
+  PurebloodChallenge weeklyChallenge() {
+    final seed = _seedFromWeekKey(currentWeekKey());
+    return _generateWeeklyChallenge(seed);
+  }
+
+  Future<bool> isWeeklyComplete() async {
+    final stored = await _db.settingsDao.getSetting(_weeklyCompletedWeekKey);
+    return stored == currentWeekKey();
+  }
+
+  Future<PurebloodSacrificeResult> sacrificeWeekly({
+    required String instanceId,
+    required PurebloodChallenge challenge,
+  }) async {
+    if (challenge.stageIndex != -1) {
+      throw const PurebloodRiteException('Not a weekly challenge.');
+    }
+    if (await isWeeklyComplete()) {
+      throw const PurebloodRiteException(
+        'Weekly challenge already completed this week.',
+      );
+    }
+
+    final instance = await _db.creatureDao.getInstance(instanceId);
+    if (instance == null) {
+      throw const PurebloodRiteException(
+        'That specimen is no longer available.',
+      );
+    }
+
+    final check = evaluate(instance, challenge: challenge);
+    if (!check.isEligible) {
+      throw PurebloodRiteException(check.message);
+    }
+
+    await _db.transaction(() async {
+      await _db.creatureDao.deleteInstances([instance.instanceId]);
+      await _db.currencyDao.addGold(challenge.goldReward);
+      await _db.settingsDao.setSetting(
+        _weeklyCompletedWeekKey,
+        currentWeekKey(),
+      );
+    });
+
+    return PurebloodSacrificeResult(
+      challenge: challenge,
+      instance: instance,
+      goldEarned: challenge.goldReward,
+      completionBonusGold: 0,
+      newStageIndex: totalChallenges,
+      nextChallenge: null,
+      completedRite: false,
+    );
+  }
+
+  PurebloodChallenge _generateWeeklyChallenge(int seed) {
+    final rng = math.Random(seed);
+
+    final families = _catalog.allFamilies();
+    final family = families[rng.nextInt(families.length)];
+
+    final familyCreatures = _catalog.creatures
+        .where((c) => _normalizedFamily(c.mutationFamily) == family)
+        .toList();
+
+    final availableElements = <String>{};
+    for (final c in familyCreatures) {
+      availableElements.addAll(c.types);
+    }
+    final elementsList = availableElements.toList()..sort();
+
+    final requiredElement = elementsList.isEmpty
+        ? null
+        : elementsList[rng.nextInt(elementsList.length)];
+
+    // Pick preview species deterministically (sorted by id then first match)
+    final previewCandidates = (requiredElement == null
+            ? familyCreatures
+            : familyCreatures
+                .where((c) => c.types.contains(requiredElement))
+                .toList())
+        .toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+    final previewSpecies = (previewCandidates.isEmpty
+            ? (familyCreatures..sort((a, b) => a.id.compareTo(b.id)))
+            : previewCandidates)
+        .first;
+
+    // Shuffle the extras pool with our seeded rng
+    final pool = ['speciesPurity', 'size', 'tint', 'nature', 'variant'];
+    for (var i = pool.length - 1; i > 0; i--) {
+      final j = rng.nextInt(i + 1);
+      final tmp = pool[i];
+      pool[i] = pool[j];
+      pool[j] = tmp;
+    }
+
+    bool requireSpeciesPurity = false;
+    String? requiredSize;
+    String? requiredTint;
+    String? requiredNature;
+    String? requiredVariantFaction;
+
+    final sizes = GeneticsCatalog.track('size').variants
+        .map((v) => v.id)
+        .where((id) => id != 'normal')
+        .toList();
+    final tints = GeneticsCatalog.track('tinting').variants
+        .map((v) => v.id)
+        .where((id) => id != 'normal')
+        .toList();
+    final natures = NatureCatalog.all.map((n) => n.id).toList();
+    final variantFactions = FactionId.values.map((f) => f.name).toList();
+
+    // Always pick at least 1 extra (to guarantee 4 total things: family +
+    // element + elementalPurity + extra). Additional picks use decreasing odds.
+    const extraPickOdds = [1.0, 0.65, 0.40, 0.20, 0.0];
+    int picked = 0;
+    for (final option in pool) {
+      if (picked >= extraPickOdds.length) break;
+      final odds = extraPickOdds[picked];
+      if (odds <= 0.0 || (picked > 0 && rng.nextDouble() >= odds)) continue;
+      switch (option) {
+        case 'speciesPurity':
+          requireSpeciesPurity = true;
+        case 'size':
+          requiredSize = sizes[rng.nextInt(sizes.length)];
+        case 'tint':
+          requiredTint = tints[rng.nextInt(tints.length)];
+        case 'nature':
+          requiredNature = natures[rng.nextInt(natures.length)];
+        case 'variant':
+          requiredVariantFaction = variantFactions[rng.nextInt(variantFactions.length)];
+      }
+      picked++;
+    }
+
+    final goldReward = _weeklyGoldReward(
+      element: requiredElement,
+      speciesPurity: requireSpeciesPurity,
+      size: requiredSize,
+      tint: requiredTint,
+      nature: requiredNature,
+      variantFaction: requiredVariantFaction,
+    );
+
+    final title = _buildWeeklyTitle(
+      family: family,
+      element: requiredElement,
+      speciesPurity: requireSpeciesPurity,
+      size: requiredSize,
+      tint: requiredTint,
+      nature: requiredNature,
+      variantFaction: requiredVariantFaction,
+    );
+
+    return PurebloodChallenge(
+      previewSpecies: previewSpecies,
+      displayTitle: title,
+      requiredFamily: family,
+      requiredElement: requiredElement,
+      requireElementalPurity: true,
+      requireSpeciesPurity: requireSpeciesPurity,
+      requiredSize: requiredSize,
+      requiredTint: requiredTint,
+      requiredTintLabel: null,
+      requiredNature: requiredNature,
+      requiredVariantFaction: requiredVariantFaction,
+      goldReward: goldReward,
+      stageIndex: -1,
+    );
+  }
+
+  static int _weeklyGoldReward({
+    required String? element,
+    required bool speciesPurity,
+    required String? size,
+    required String? tint,
+    required String? nature,
+    required String? variantFaction,
+  }) {
+    int difficulty = 0;
+    if (element != null) difficulty += 1;
+    difficulty += 1; // elementalPurity is always required
+    if (speciesPurity) difficulty += 1;
+    if (size == 'tiny' || size == 'giant') difficulty += 2;
+    else if (size != null) difficulty += 1;
+    if (tint == 'albino') difficulty += 2;
+    else if (tint != null) difficulty += 1;
+    if (nature != null) difficulty += 1;
+    if (variantFaction != null) difficulty += 2;
+    // Minimum difficulty 3 (element + purity + 1 extra) maps to 5 gold.
+    // Any variant challenge is always maximum reward.
+    if (variantFaction != null) return 10;
+    return (difficulty + 2).clamp(5, 9);
+  }
+
+  static String _buildWeeklyTitle({
+    required String family,
+    required String? element,
+    required bool speciesPurity,
+    required String? size,
+    required String? tint,
+    required String? nature,
+    required String? variantFaction,
+  }) {
+    final parts = <String>[];
+    if (speciesPurity) parts.add('Pure');
+    if (size != null) parts.add(_labelize(size));
+    if (tint != null) parts.add(_traitLabel(tint, null));
+    if (nature != null) parts.add(_labelize(nature));
+    if (variantFaction != null) parts.add('${_labelize(variantFaction)} Variant');
+    if (element != null) {
+      parts.add('$element$family');
+    } else {
+      parts.add(family);
+    }
+    return parts.join(' ');
   }
 
   Map<String, int> _decodeLineage(String? raw, {String? fallback}) {

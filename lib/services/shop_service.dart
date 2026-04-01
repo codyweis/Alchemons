@@ -977,6 +977,12 @@ class ShopService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> reloadFromStorage() async {
+    await _loadPurchaseHistory();
+    await _loadInventoryCache();
+    await _loadContestEffectUnlocks();
+  }
+
   // lib/services/shop_service.dart
 
   ShopOffer? _resolveOfferById(String offerId) {

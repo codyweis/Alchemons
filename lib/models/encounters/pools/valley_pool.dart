@@ -30,20 +30,16 @@ valleyEncounterPools(SceneDefinition scene) {
   final perSpawn = <String, EncounterPool>{
     'SP_valley_05': EncounterPool(
       entries: [
+        // Cloud layer — air/steam only
         EncounterEntry(
-          speciesId: 'WNG01',
-          rarity: EncounterRarity.legendary,
-          weightMul: 0.08,
-        ),
-        EncounterEntry(
-          speciesId: 'LET03',
+          speciesId: 'LET04',
           rarity: EncounterRarity.common,
           weightMul: 0.75,
         ),
         EncounterEntry(
-          speciesId: 'LET04',
-          rarity: EncounterRarity.rare,
-          weightMul: 0.18,
+          speciesId: 'LET05',
+          rarity: EncounterRarity.uncommon,
+          weightMul: 0.35,
         ),
       ],
     ),
@@ -68,11 +64,11 @@ valleyEncounterPools(SceneDefinition scene) {
     ),
     'SP_valley_01': EncounterPool(
       entries: [
-        // This spawn point can spawn two different exclusive creatures
+        // Sky area — flying creatures only
         EncounterEntry(
           speciesId: 'WNG03',
-          rarity: EncounterRarity.rare,
-          weightMul: 0.12,
+          rarity: EncounterRarity.legendary,
+          weightMul: 0.08,
         ),
         EncounterEntry(
           speciesId: 'WNG04',
@@ -80,38 +76,29 @@ valleyEncounterPools(SceneDefinition scene) {
           weightMul: 0.08,
         ),
         EncounterEntry(
-          speciesId: 'LET03',
+          speciesId: 'LET04',
           rarity: EncounterRarity.common,
           weightMul: 0.75,
-        ),
-        EncounterEntry(
-          speciesId: 'LET04',
-          rarity: EncounterRarity.rare,
-          weightMul: 0.18,
         ),
       ],
     ),
     'SP_valley_08': EncounterPool(
       entries: [
+        // Cloud layer — air/flying only
         EncounterEntry(
-          speciesId: 'WNG02',
+          speciesId: 'WNG03',
           rarity: EncounterRarity.legendary,
           weightMul: 0.08,
         ),
         EncounterEntry(
-          speciesId: 'WNG03',
-          rarity: EncounterRarity.rare,
-          weightMul: 0.14,
-        ),
-        EncounterEntry(
-          speciesId: 'LET03',
-          rarity: EncounterRarity.common,
-          weightMul: 0.72,
-        ),
-        EncounterEntry(
           speciesId: 'LET04',
-          rarity: EncounterRarity.rare,
-          weightMul: 0.18,
+          rarity: EncounterRarity.common,
+          weightMul: 0.75,
+        ),
+        EncounterEntry(
+          speciesId: 'LET05',
+          rarity: EncounterRarity.uncommon,
+          weightMul: 0.35,
         ),
       ],
     ),
@@ -119,10 +106,11 @@ valleyEncounterPools(SceneDefinition scene) {
 
   // 2. === GET ALL EXCLUSIVE SPECIES ===
   // Collect every speciesId that is locked to a specific point.
+  // LET03/LET04 appear in overrides but should still be in scene-wide.
   final exclusiveSpecies = perSpawn.values
       .expand((pool) => pool.entries) // Get all entries from all override pools
       .map((entry) => entry.speciesId) // Get their speciesId
-      .where((speciesId) => speciesId != 'LET03')
+      .where((id) => id != 'LET03' && id != 'LET04')
       .toSet(); // Use a Set for fast filtering
 
   // 3. === DEFINE BASE SCENE-WIDE POOL ===
@@ -140,8 +128,8 @@ valleyEncounterPools(SceneDefinition scene) {
           ),
           EncounterEntry(
             speciesId: 'LET15',
-            rarity: EncounterRarity.rare,
-            weightMul: 0.12,
+            rarity: EncounterRarity.uncommon,
+            weightMul: 0.25,
           ),
           EncounterEntry(
             speciesId: 'MAN03',
@@ -166,13 +154,13 @@ valleyEncounterPools(SceneDefinition scene) {
           ),
           EncounterEntry(
             speciesId: 'MAN12',
-            rarity: EncounterRarity.rare,
-            weightMul: 0.15,
+            rarity: EncounterRarity.uncommon,
+            weightMul: 0.30,
           ),
           EncounterEntry(
             speciesId: 'LET16',
-            rarity: EncounterRarity.rare,
-            weightMul: 0.12,
+            rarity: EncounterRarity.uncommon,
+            weightMul: 0.25,
           ),
           EncounterEntry(
             speciesId: 'MAN03',
@@ -183,16 +171,6 @@ valleyEncounterPools(SceneDefinition scene) {
             speciesId: 'HOR03',
             rarity: EncounterRarity.rare,
             weightMul: 0.18,
-          ),
-          EncounterEntry(
-            speciesId: 'WNG04',
-            rarity: EncounterRarity.legendary,
-            weightMul: 0.08,
-          ),
-          EncounterEntry(
-            speciesId: 'WNG03',
-            rarity: EncounterRarity.rare,
-            weightMul: 0.12,
           ),
         ];
 

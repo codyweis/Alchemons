@@ -76,6 +76,14 @@ class BossProgressNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> reloadFromPreferences() async {
+    _defeatedBosses.clear();
+    _currentBossOrder = 1;
+    _isLoaded = false;
+    notifyListeners();
+    await _loadProgress();
+  }
+
   // Persistence
   Future<void> _loadProgress() async {
     try {

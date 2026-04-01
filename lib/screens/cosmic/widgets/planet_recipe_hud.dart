@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 
-class PlanetRecipeHud extends StatelessWidget {
-  const PlanetRecipeHud({
+class PlanetRecipeHud extends StatefulWidget {  const PlanetRecipeHud({
     super.key,
     required this.planet,
     required this.recipe,
@@ -26,20 +25,30 @@ class PlanetRecipeHud extends StatelessWidget {
   final bool showPinnedTag;
 
   @override
+  State<PlanetRecipeHud> createState() => _PlanetRecipeHudState();
+}
+
+class _PlanetRecipeHudState extends State<PlanetRecipeHud> {
+  @override
   Widget build(BuildContext context) {
-    final color = planet.color;
-    final recipeLabel = recipe.level == 3
-        ? '${planetName(planet.element).toUpperCase()} FINAL RECIPE'
-        : '${planetName(planet.element).toUpperCase()} RECIPE  LV.${recipe.level}';
-    final score = recipe.matchScore(meter.breakdown, meter.total);
+    final color = widget.planet.color;
+    final recipeLabel = widget.recipe.level == 3
+        ? '${planetName(widget.planet.element).toUpperCase()} FINAL RECIPE'
+        : '${planetName(widget.planet.element).toUpperCase()} RECIPE  LV.${widget.recipe.level}';
+    final score = widget.recipe.matchScore(widget.meter.breakdown, widget.meter.total);
     final scoreColor = score >= 0.7
         ? Colors.greenAccent
         : score >= 0.5
         ? Colors.amber
         : Colors.redAccent;
+    final meterFull = widget.meter.isFull;
+    // Highlighted when meter is full (regardless of match) or when match is good
+    final buttonActive = (meterFull || score >= 0.7) && widget.onSummon != null;
+    // Good match gets amber glow; full-but-mismatched gets a cool cyan glow
+    final goodMatch = score >= 0.7 && widget.onSummon != null;
 
     // Sort recipe components by percentage descending
-    final sortedComponents = recipe.components.entries.toList()
+    final sortedComponents = widget.recipe.components.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return Container(
@@ -74,8 +83,8 @@ class PlanetRecipeHud extends StatelessWidget {
               Icon(Icons.public, color: color, size: 14),
               const SizedBox(width: 8),
               Text(
-                hideLevel
-                    ? '${planetName(planet.element).toUpperCase()} PATHWAY'
+                widget.hideLevel
+                    ? '${planetName(widget.planet.element).toUpperCase()} PATHWAY'
                     : recipeLabel,
                 style: TextStyle(
                   color: color,
@@ -84,7 +93,7 @@ class PlanetRecipeHud extends StatelessWidget {
                   letterSpacing: 1.5,
                 ),
               ),
-              if (showPinnedTag) ...[
+              if (widget.showPinnedTag) ...[
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -111,19 +120,19 @@ class PlanetRecipeHud extends StatelessWidget {
               ],
               const Spacer(),
               InkResponse(
-                onTap: onTogglePin,
+                onTap: widget.onTogglePin,
                 radius: 16,
                 child: Icon(
-                  isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  widget.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
                   size: 15,
-                  color: isPinned
+                  color: widget.isPinned
                       ? color.withValues(alpha: 0.95)
                       : Colors.white.withValues(alpha: 0.55),
                 ),
               ),
               const SizedBox(width: 6),
               // Match score
-              if (meter.total > 0)
+              if (widget.meter.total > 0)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 6,
@@ -156,8 +165,8 @@ class PlanetRecipeHud extends StatelessWidget {
           ...sortedComponents.map((e) {
             final elemColor = elementColor(e.key);
             final targetPct = e.value;
-            final actualPct = meter.total > 0
-                ? ((meter.breakdown[e.key] ?? 0) / meter.total * 100)
+            final actualPct = widget.meter.total > 0
+                ? ((widget.meter.breakdown[e.key] ?? 0) / widget.meter.total * 100)
                 : 0.0;
             final diff = (actualPct - targetPct).abs();
             final good = diff <= 10;
@@ -247,7 +256,7 @@ class PlanetRecipeHud extends StatelessWidget {
           }),
 
           // Random allowance
-          if (recipe.randomPct > 0)
+          if (widget.recipe.randomPct > 0)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Row(
@@ -262,7 +271,7 @@ class PlanetRecipeHud extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Any  ${recipe.randomPct.toStringAsFixed(0)}%',
+                    'Any  ${widget.recipe.randomPct.toStringAsFixed(0)}%',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.8),
                       fontSize: 10,
@@ -278,75 +287,79 @@ class PlanetRecipeHud extends StatelessWidget {
 
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: onSummon,
+            onTap: widget.onSummon,
             child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: score >= 0.7 && onSummon != null
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: goodMatch
+                        ? [
+                            const Color(0xFFFF6F00),
+                            const Color(0xFFFF8F00),
+                            const Color(0xFFFFC107),
+                          ]
+                        : buttonActive
+                        ? [
+                            const Color(0xFF1A3A5C),
+                            const Color(0xFF1E4D7A),
+                            const Color(0xFF2196F3).withValues(alpha: 0.85),
+                          ]
+                        : [
+                            Colors.white.withValues(alpha: 0.07),
+                            Colors.white.withValues(alpha: 0.03),
+                          ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: goodMatch
                       ? [
-                          const Color(0xFFFF6F00),
-                          const Color(0xFFFF8F00),
-                          const Color(0xFFFFC107),
+                          BoxShadow(
+                            color: Colors.amber.withValues(alpha: 0.38),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                          BoxShadow(
+                            color: const Color(0xFFFF6F00).withValues(alpha: 0.22),
+                            blurRadius: 36,
+                            spreadRadius: 4,
+                          ),
                         ]
-                      : [
-                          Colors.white.withValues(alpha: 0.08),
-                          Colors.white.withValues(alpha: 0.04),
-                        ],
+                      : buttonActive
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF2196F3).withValues(alpha: 0.28),
+                            blurRadius: 16,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : null,
+                  border: goodMatch
+                      ? Border.all(
+                          color: Colors.amber.withValues(alpha: 0.55),
+                          width: 1.2,
+                        )
+                      : buttonActive
+                      ? Border.all(
+                          color: const Color(0xFF2196F3).withValues(alpha: 0.4),
+                          width: 1.0,
+                        )
+                      : null,
                 ),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: score >= 0.7 && onSummon != null
-                    ? [
-                        BoxShadow(
-                          color: Colors.amber.withValues(alpha: 0.4),
-                          blurRadius: 20,
-                          spreadRadius: 3,
-                        ),
-                        BoxShadow(
-                          color: const Color(
-                            0xFFFF6F00,
-                          ).withValues(alpha: 0.25),
-                          blurRadius: 40,
-                          spreadRadius: 6,
-                        ),
-                      ]
-                    : null,
-                border: score >= 0.7 && onSummon != null
-                    ? Border.all(
-                        color: Colors.amber.withValues(alpha: 0.6),
-                        width: 1.5,
-                      )
-                    : null,
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    color: score >= 0.7 && onSummon != null
-                        ? Colors.white
-                        : Colors.white38,
-                    size: 16,
+                alignment: Alignment.center,
+                child: Text(
+                  widget.actionLabel,
+                  style: TextStyle(
+                    color: buttonActive
+                        ? Colors.white.withValues(alpha: 0.95)
+                        : Colors.white.withValues(alpha: 0.28),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    actionLabel,
-                    style: TextStyle(
-                      color: score >= 0.7 && onSummon != null
-                          ? Colors.white
-                          : Colors.white38,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
           ),
         ],
       ),

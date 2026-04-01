@@ -54,6 +54,22 @@ final swampScene = SceneDefinition(
       size: Vector2(80, 80),
       battlePos: const Offset(0.40, 0.72),
     ),
+    // left side of the stone island
+    SpawnPoint(
+      id: 'SP_swamp_04',
+      normalizedPos: const Offset(0.30, 0.70),
+      anchor: SceneLayer.layer5,
+      size: Vector2(75, 75),
+      battlePos: const Offset(0.56, 0.70),
+    ),
+    // near the back trees, slightly elevated ground
+    SpawnPoint(
+      id: 'SP_swamp_05',
+      normalizedPos: const Offset(0.45, 0.58),
+      anchor: SceneLayer.layer3,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.70, 0.58),
+    ),
     // hovering marsh pocket for wings/spirits above the island
     SpawnPoint(
       id: 'SP_swamp_03',

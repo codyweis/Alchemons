@@ -165,6 +165,11 @@ class FactionService extends ChangeNotifier {
     return _cached;
   }
 
+  Future<void> reloadFromStorage() async {
+    _cached = null;
+    await loadId();
+  }
+
   Future<void> setId(FactionId id) async {
     await db.settingsDao.setSetting(_kFactionKey, id.name);
     _cached = id.name;

@@ -11,40 +11,36 @@ volcanoEncounterPools(SceneDefinition scene) {
   final perSpawn = <String, EncounterPool>{
     'SP_volcano_03': EncounterPool(
       entries: [
+        // Aerial ash perch — flying/floating creatures only
         EncounterEntry(
-          speciesId: 'LET01',
-          rarity: EncounterRarity.common,
-          weightMul: 0.7,
-        ),
-        EncounterEntry(
-          speciesId: 'LET10',
+          speciesId: 'LET05',
           rarity: EncounterRarity.uncommon,
-          weightMul: 0.35,
-        ),
+          weightMul: 0.45,
+        ), // Steamlet (rises from lava)
         EncounterEntry(
           speciesId: 'LET14',
-          rarity: EncounterRarity.rare,
-          weightMul: 0.12,
+          rarity: EncounterRarity.uncommon,
+          weightMul: 0.25,
           condition: isNight,
-        ),
+        ), // Spiritlet (floats)
         EncounterEntry(
           speciesId: 'WNG06',
           rarity: EncounterRarity.legendary,
           weightMul: 0.08,
           condition: isDay,
-        ),
+        ), // Lavawing
         EncounterEntry(
           speciesId: 'WNG01',
           rarity: EncounterRarity.legendary,
           weightMul: 0.08,
           condition: isDay,
-        ),
+        ), // Firewing
         EncounterEntry(
           speciesId: 'MSK14',
-          rarity: EncounterRarity.legendary,
-          weightMul: 0.06,
+          rarity: EncounterRarity.rare,
+          weightMul: 0.12,
           condition: isNight,
-        ),
+        ), // Spiritmask (floats)
       ],
     ),
   };
@@ -77,14 +73,14 @@ volcanoEncounterPools(SceneDefinition scene) {
     ), // Firemane
     EncounterEntry(
       speciesId: 'PIP06',
-      rarity: EncounterRarity.rare,
-      weightMul: 0.18,
+      rarity: EncounterRarity.uncommon,
+      weightMul: 0.30,
     ), // Lavapip
     EncounterEntry(
       speciesId: 'PIP01',
       rarity: EncounterRarity.uncommon,
       weightMul: 0.3,
-    ), // Lavamane
+    ), // Firepip
     // Rare
     EncounterEntry(
       speciesId: 'HOR01',
@@ -93,8 +89,8 @@ volcanoEncounterPools(SceneDefinition scene) {
     ), // Firehorn
     EncounterEntry(
       speciesId: 'HOR06',
-      rarity: EncounterRarity.legendary,
-      weightMul: 0.08,
+      rarity: EncounterRarity.rare,
+      weightMul: 0.15,
     ), // Lavahorn
     EncounterEntry(
       speciesId: 'MSK01',
@@ -104,32 +100,20 @@ volcanoEncounterPools(SceneDefinition scene) {
   ]);
 
   if (isDay(now)) {
-    entries.addAll([
-      EncounterEntry(
-        speciesId: 'WNG06',
-        rarity: EncounterRarity.legendary,
-        weightMul: 0.08,
-      ), // Lavawing
-      //firewing
-      EncounterEntry(
-        speciesId: 'WNG01',
-        rarity: EncounterRarity.legendary,
-        weightMul: 0.08,
-      ), // Firewing
-    ]);
+    // Wings only spawn at aerial SP_volcano_03
   } else if (isNight(now)) {
     entries.addAll([
       // --- Night Spawns ---
       // Spirit
       EncounterEntry(
         speciesId: 'LET14',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.1,
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.25,
       ), // Spiritlet
       EncounterEntry(
         speciesId: 'MSK14',
-        rarity: EncounterRarity.legendary,
-        weightMul: 0.08,
+        rarity: EncounterRarity.rare,
+        weightMul: 0.15,
       ), // Spiritmask
       EncounterEntry(
         speciesId: 'MSK06',

@@ -15,6 +15,7 @@ import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
+import 'package:alchemons/services/save_restore_reload_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/save_transfer_service.dart';
@@ -443,20 +444,9 @@ class _AppGateState extends State<AppGate> {
 
   @override
   Widget build(BuildContext context) {
-    final account = context.watch<AccountService>();
-    final session = context.watch<AccountSessionService>();
-
     if (!_readyToShowShell) {
       // You can make this a nice splash / logo if you want.
       return const Scaffold(backgroundColor: Colors.black);
-    }
-
-    if (account.initialized &&
-        account.isSignedIn &&
-        session.state.initialized) {
-      if (!session.state.activeOnThisDevice) {
-        return const _AccountMovedGate();
-      }
     }
 
     return widget.child;
@@ -474,6 +464,29 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
   bool _busy = false;
 
   Future<void> _restoreAccountHere() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Restore account here?'),
+          content: const Text(
+            'This will permanently overwrite the local save on this device with the signed-in account backup. Your current local progress on this device will be lost unless it already exists somewhere else.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Restore'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
     final account = context.read<AccountService>();
     final session = context.read<AccountSessionService>();
     final cloudSave = context.read<AccountCloudSaveService>();
@@ -487,6 +500,8 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
         saveCode,
         ownerAccountId: account.user!.uid,
       );
+      if (!mounted) return;
+      await reloadStateAfterSaveRestore(context);
       await session.claimCurrentDevice(force: true);
       await session.refresh();
       if (!mounted) return;
@@ -638,6 +653,15 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 10),
+                  Text(
+                    'Warning: restoring the account here will permanently replace the current local save on this device.',
+                    style: TextStyle(
+                      color: Colors.orangeAccent.withValues(alpha: 0.92),
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 28),
                   Wrap(
                     spacing: 12,

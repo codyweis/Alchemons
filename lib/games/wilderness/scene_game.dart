@@ -126,7 +126,7 @@ class SceneGame extends FlameGame with ScaleDetector {
   double? _pinchStartZoom;
 
   // Gesture feel
-  double scrollSensitivity = 0.3;
+  double scrollSensitivity = 0.5;
 
   // Viewport height in root space (used for spawnPoint world coords)
   double _viewportH = 0;

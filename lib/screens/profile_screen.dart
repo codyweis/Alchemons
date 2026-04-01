@@ -17,6 +17,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
+import 'package:alchemons/services/save_restore_reload_service.dart';
 import 'package:alchemons/services/save_transfer_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/models/faction.dart';
@@ -438,7 +439,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       await sessionService.refresh();
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack('Signed in.');
+      _showTransferSnack(
+        'Signed in. Your local save stays active on this device until you choose restore or switch the account here.',
+      );
     } on AccountException catch (error) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showTransferSnack(error.message, isError: true);
@@ -676,7 +679,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           backgroundColor: t.bg2,
           title: Text('Restore account backup?', style: _heading(t)),
           content: Text(
-            'This overwrites the progress stored on this device with the latest backup from this account.',
+            'This will permanently overwrite the local save on this device with the latest backup from this account. Your current local progress on this device will be lost unless it has already been backed up somewhere else.',
             style: _body(t),
           ),
           actions: [
@@ -717,6 +720,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         transferCode,
         ownerAccountId: account.user!.uid,
       );
+      if (!mounted) return;
+      await reloadStateAfterSaveRestore(context);
       await session.claimCurrentDevice(force: true);
       await session.refresh();
       await _reloadProfileState();
@@ -1466,6 +1471,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 12),
                           _AccountValueRow(
+                            label: 'CURRENT SAVE',
+                            value: accountSession.state.activeOnThisDevice
+                                ? 'ACCOUNT SAVE ON THIS DEVICE'
+                                : 'LOCAL SAVE ON THIS DEVICE',
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            accountSession.state.activeOnThisDevice
+                                ? 'This device is currently playing the signed-in account save.'
+                                : 'This device is still playing its local save. Restore or use this device to switch over.',
+                            style: _body(t).copyWith(fontSize: 10),
+                          ),
+                          const SizedBox(height: 12),
+                          _AccountValueRow(
                             label: 'DEVICE STATUS',
                             value: accountSession.state.activeOnThisDevice
                                 ? 'ACTIVE ON THIS DEVICE'
@@ -1535,8 +1554,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           !account.isSignedIn
                               ? 'Sign in with your transfer account before backing up or restoring saves.'
                               : !accountSession.state.activeOnThisDevice
-                              ? 'This account is active on another device. Move the account here from the account-moved screen to restore the latest cloud backup.'
-                              : 'Back up this device save to your account. Then sign into the same account on another device and restore it there.',
+                              ? 'This account is active on another device. You can keep playing your current local save here, restore the account backup onto this device, or explicitly make this device the active one.'
+                              : 'Back up this device save to your account. Then sign into the same account on another device and restore it there. Restoring will permanently replace that device local save.',
                           style: _body(t),
                         ),
                         const SizedBox(height: 12),
@@ -1567,8 +1586,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   _saveTransferBusy ||
                                       !account.initialized ||
                                       !account.isConfigured ||
-                                      !account.isSignedIn ||
-                                      !accountSession.state.activeOnThisDevice
+                                      !account.isSignedIn
                                   ? null
                                   : _importSave,
                             ),

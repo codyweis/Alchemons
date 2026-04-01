@@ -85,6 +85,12 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
   }
 
   @override
+  void didUpdateWidget(MiniMapOverlay old) {
+    super.didUpdateWidget(old);
+    _refreshPlanets();
+  }
+
+  @override
   void dispose() {
     _planetScrollCtrl.dispose();
     _transformCtrl.dispose();
@@ -296,8 +302,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    _refreshPlanets();
-
     if (_discoveredPlanets.isNotEmpty &&
         _planetIndex >= _discoveredPlanets.length) {
       _planetIndex = _discoveredPlanets.length - 1;
@@ -1121,7 +1125,7 @@ class _TravelPromptCard extends StatelessWidget {
 // MAP VIEW
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MapView extends StatelessWidget {
+class _MapView extends StatefulWidget {
   const _MapView({
     required this.world,
     required this.game,
@@ -1146,6 +1150,13 @@ class _MapView extends StatelessWidget {
   final bool showAllContestArenas;
 
   @override
+  State<_MapView> createState() => _MapViewState();
+}
+
+class _MapViewState extends State<_MapView> {
+  double _lastFitSize = -1;
+
+  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
@@ -1153,10 +1164,15 @@ class _MapView extends StatelessWidget {
         builder: (context, constraints) {
           final fitSize = min(constraints.maxWidth, constraints.maxHeight);
           final scale =
-              fitSize / max(world.worldSize.width, world.worldSize.height);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            onViewportReady(viewportSize: fitSize, scale: scale);
-          });
+              fitSize /
+              max(widget.world.worldSize.width, widget.world.worldSize.height);
+          if (_lastFitSize != fitSize) {
+            _lastFitSize = fitSize;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              widget.onViewportReady(viewportSize: fitSize, scale: scale);
+            });
+          }
 
           return Center(
             child: SizedBox(
@@ -1166,11 +1182,11 @@ class _MapView extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTapDown: (d) => onTapDown(d, scale),
-                  onTapUp: (d) => onTapUp(d, scale),
-                  onLongPressStart: (d) => onLongPress(d, scale),
+                  onTapDown: (d) => widget.onTapDown(d, scale),
+                  onTapUp: (d) => widget.onTapUp(d, scale),
+                  onLongPressStart: (d) => widget.onLongPress(d, scale),
                   child: InteractiveViewer(
-                    transformationController: transformCtrl,
+                    transformationController: widget.transformCtrl,
                     minScale: 1.0,
                     maxScale: 8.0,
                     boundaryMargin: EdgeInsets.zero,
@@ -1179,16 +1195,16 @@ class _MapView extends StatelessWidget {
                         isComplex: true,
                         size: Size(fitSize, fitSize),
                         painter: _MiniMapPainter(
-                          world: world,
-                          game: game,
+                          world: widget.world,
+                          game: widget.game,
                           scale: scale,
-                          shipPos: game.ship.pos,
-                          revealedCellCount: game.revealedCells.length,
-                          discoveredPlanetCount: world.planets
+                          shipPos: widget.game.ship.pos,
+                          revealedCellCount: widget.game.revealedCells.length,
+                          discoveredPlanetCount: widget.world.planets
                               .where((p) => p.discovered)
                               .length,
-                          showAllContestArenasOnMap: showAllContestArenas,
-                          markers: markers,
+                          showAllContestArenasOnMap: widget.showAllContestArenas,
+                          markers: widget.markers,
                         ),
                       ),
                     ),
@@ -1276,6 +1292,8 @@ class _PlanetPreviewPainter extends CustomPainter {
   final double? explicitRadius;
   final double alpha;
 
+  static final _sphereShaderPaintCache = <int, Paint>{};
+
   static void _drawSphere(
     Canvas c,
     Offset p,
@@ -1286,10 +1304,13 @@ class _PlanetPreviewPainter extends CustomPainter {
     double alpha = 1.0,
   }) {
     final baseColor = color.withValues(alpha: color.a * alpha);
-    c.drawCircle(
-      p,
-      r,
-      Paint()
+    final key = Object.hash(
+      baseColor, (r * 10).round(), (highlight * 100).round(),
+      (shadow * 100).round(), p.dx.round(), p.dy.round(),
+    );
+    final paint = _sphereShaderPaintCache.putIfAbsent(
+      key,
+      () => Paint()
         ..shader = RadialGradient(
           colors: [
             Color.lerp(baseColor, Colors.white, highlight)!,
@@ -1301,6 +1322,7 @@ class _PlanetPreviewPainter extends CustomPainter {
           radius: 1.05,
         ).createShader(Rect.fromCircle(center: p, radius: r)),
     );
+    c.drawCircle(p, r, paint);
   }
 
   @override
@@ -1782,21 +1804,39 @@ class _MiniMapPainter extends CustomPainter {
   final bool showAllContestArenasOnMap;
   final List<MapMarker> markers;
 
+  static final _tpCache = <int, TextPainter>{};
+
   static TextPainter _tp(
     String text,
     TextStyle style, {
     TextAlign align = TextAlign.left,
   }) {
-    return TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-      textAlign: align,
-    )..layout();
+    final key = Object.hash(
+      text, style.fontSize, style.color, style.fontWeight?.index, align.index,
+    );
+    return _tpCache.putIfAbsent(
+      key,
+      () => TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: TextDirection.ltr,
+        textAlign: align,
+      )..layout(),
+    );
   }
 
-  static Paint _glowPaint(Color color, double alpha, double blur) => Paint()
-    ..color = color.withValues(alpha: alpha)
-    ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
+  static final _glowPaintCache = <int, Paint>{};
+
+  static Paint _glowPaint(Color color, double alpha, double blur) {
+    final key = Object.hash(
+      color, (alpha * 1000).round(), (blur * 10).round(),
+    );
+    return _glowPaintCache.putIfAbsent(
+      key,
+      () => Paint()
+        ..color = color.withValues(alpha: alpha)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur),
+    );
+  }
 
   void _paintLabel(
     Canvas canvas,
@@ -2329,11 +2369,13 @@ class _MiniMapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MiniMapPainter old) =>
-      scale != old.scale ||
-      revealedCellCount != old.revealedCellCount ||
-      discoveredPlanetCount != old.discoveredPlanetCount ||
-      showAllContestArenasOnMap != old.showAllContestArenasOnMap ||
-      shipPos != old.shipPos ||
-      !identical(markers, old.markers);
+  bool shouldRepaint(covariant _MiniMapPainter old) {
+    if (scale != old.scale) return true;
+    if (revealedCellCount != old.revealedCellCount) return true;
+    if (discoveredPlanetCount != old.discoveredPlanetCount) return true;
+    if (showAllContestArenasOnMap != old.showAllContestArenasOnMap) return true;
+    if (!identical(markers, old.markers)) return true;
+    // Only repaint when ship has moved a visible amount on the minimap.
+    return (shipPos - old.shipPos).distance * scale > 0.5;
+  }
 }

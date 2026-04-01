@@ -34,6 +34,10 @@ part 'cosmic_game_home_visuals.dart';
 // ─────────────────────────────────────────────────────────
 
 class CosmicGame extends FlameGame with PanDetector {
+  static const double _planetRecipeParticleCollectionMultiplier = 1.15;
+  static const double _planetRecipeParticlePickupRadius =
+      30.0 * _planetRecipeParticleCollectionMultiplier;
+
   CosmicGame({
     required this.world_,
     required this.onMeterChanged,
@@ -1071,7 +1075,9 @@ class CosmicGame extends FlameGame with PanDetector {
       // Check collection by ship
       final dx = p.x - ship.pos.dx;
       final dy = p.y - ship.pos.dy;
-      if (dx * dx + dy * dy < 30 * 30) {
+      if (dx * dx + dy * dy <
+          _planetRecipeParticlePickupRadius *
+              _planetRecipeParticlePickupRadius) {
         // Collected!
         if (!meter.isFull) {
           meter.add(p.element, 0.5 * _meterPickupMultiplier);

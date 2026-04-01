@@ -197,7 +197,7 @@ class ConstellationCatalog {
     description:
         'Increase faction specimens\' strength by another .005 when enhancing',
     tree: ConstellationTree.combat,
-    pointsCost: 32,
+    pointsCost: 25,
     prerequisites: ['combat_atk_boost_4'],
     tier: 5,
   );
@@ -253,7 +253,7 @@ class ConstellationCatalog {
     description:
         'Increase faction specimens\' intelligence by another .005 when enhancing',
     tree: ConstellationTree.combat,
-    pointsCost: 32,
+    pointsCost: 25,
     prerequisites: ['combat_int_boost_4'],
     tier: 5,
   );
@@ -308,7 +308,7 @@ class ConstellationCatalog {
     description:
         'Increase faction specimens\' beauty by another .005 when enhancing',
     tree: ConstellationTree.combat,
-    pointsCost: 32,
+    pointsCost: 25,
     prerequisites: ['combat_beauty_boost_4'],
     tier: 5,
   );
@@ -363,7 +363,7 @@ class ConstellationCatalog {
     description:
         'Increase faction specimens\' speed by another .005 when enhancing',
     tree: ConstellationTree.combat,
-    pointsCost: 32,
+    pointsCost: 25,
     prerequisites: ['combat_speed_boost_4'],
     tier: 5,
   );

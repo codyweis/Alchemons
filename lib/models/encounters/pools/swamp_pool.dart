@@ -11,40 +11,36 @@ swampEncounterPools(SceneDefinition scene) {
   final perSpawn = <String, EncounterPool>{
     'SP_swamp_03': EncounterPool(
       entries: [
+        // Hovering marsh pocket — flying/floating creatures only
         EncounterEntry(
-          speciesId: 'LET02',
+          speciesId: 'LET04',
           rarity: EncounterRarity.common,
           weightMul: 0.75,
-        ),
-        EncounterEntry(
-          speciesId: 'LET08',
-          rarity: EncounterRarity.uncommon,
-          weightMul: 0.3,
-        ),
+        ), // Airlet
         EncounterEntry(
           speciesId: 'LET13',
-          rarity: EncounterRarity.rare,
-          weightMul: 0.12,
+          rarity: EncounterRarity.uncommon,
+          weightMul: 0.25,
           condition: isNight,
-        ),
+        ), // Poisonlet (toxic gas rises)
         EncounterEntry(
           speciesId: 'LET14',
-          rarity: EncounterRarity.rare,
-          weightMul: 0.1,
+          rarity: EncounterRarity.uncommon,
+          weightMul: 0.20,
           condition: isNight,
-        ),
+        ), // Spiritlet (floats)
         EncounterEntry(
           speciesId: 'WNG08',
           rarity: EncounterRarity.legendary,
           weightMul: 0.08,
           condition: isDay,
-        ),
+        ), // Mudwing
         EncounterEntry(
           speciesId: 'MSK14',
-          rarity: EncounterRarity.legendary,
-          weightMul: 0.06,
+          rarity: EncounterRarity.rare,
+          weightMul: 0.12,
           condition: isNight,
-        ),
+        ), // Spiritmask (floats)
       ],
     ),
   };
@@ -57,7 +53,7 @@ swampEncounterPools(SceneDefinition scene) {
     EncounterEntry(
       speciesId: 'LET08',
       rarity: EncounterRarity.uncommon,
-      weightMul: 0.35,
+      weightMul: 0.45,
     ), // Mudlet
     EncounterEntry(
       speciesId: 'LET02',
@@ -82,8 +78,8 @@ swampEncounterPools(SceneDefinition scene) {
     ), // Mudpip
     EncounterEntry(
       speciesId: 'PIP13',
-      rarity: EncounterRarity.rare,
-      weightMul: 0.18,
+      rarity: EncounterRarity.uncommon,
+      weightMul: 0.25,
     ), // Poisonpip
     // Rare
     EncounterEntry(
@@ -104,42 +100,36 @@ swampEncounterPools(SceneDefinition scene) {
   ]);
 
   if (isDay(now)) {
-    entries.addAll([
-      EncounterEntry(
-        speciesId: 'WNG08',
-        rarity: EncounterRarity.legendary,
-        weightMul: 0.08,
-      ), // Mudwing
-    ]);
+    // Wings only spawn at aerial SP_swamp_03
   } else if (isNight(now)) {
     entries.addAll([
       // --- Night Spawns ---
       // Dark
       EncounterEntry(
         speciesId: 'LET13',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.16,
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.30,
       ), // Poisonlet
       EncounterEntry(
         speciesId: 'LET15',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.12,
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.25,
       ), // Darklet
       EncounterEntry(
         speciesId: 'MAN15',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.1,
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.25,
       ), // Darkmane
       // Spirit
       EncounterEntry(
         speciesId: 'LET14',
-        rarity: EncounterRarity.rare,
-        weightMul: 0.1,
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.25,
       ), // Spiritlet
       EncounterEntry(
         speciesId: 'MSK14',
-        rarity: EncounterRarity.legendary,
-        weightMul: 0.08,
+        rarity: EncounterRarity.rare,
+        weightMul: 0.15,
       ), // Spiritmask
       // Legendary
       EncounterEntry(
@@ -147,11 +137,6 @@ swampEncounterPools(SceneDefinition scene) {
         rarity: EncounterRarity.legendary,
         weightMul: 0.06,
       ), // Poisonkin
-      EncounterEntry(
-        speciesId: 'KIN08',
-        rarity: EncounterRarity.legendary,
-        weightMul: 0.06,
-      ), // Mudkin
     ]);
   }
 

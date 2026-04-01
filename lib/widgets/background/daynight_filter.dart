@@ -9,7 +9,7 @@ class DayNightFilter extends StatelessWidget {
     required this.child,
     required this.intensity,
     this.tint = const Color(0xFF0C1740), // deep cool blue
-    this.minLuma = 0.70, // percentage brightness when fully night
+    this.minLuma = 0.90, // percentage brightness when fully night
   });
 
   final Widget child;
