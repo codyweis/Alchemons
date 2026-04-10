@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:alchemons/games/boss/attack_animations.dart';
 import 'package:alchemons/games/boss/battle_game.dart';
 import 'package:alchemons/games/sprite_effects/sprite_beauty_radiance_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_blood_aura_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_intelligence_halo_component.dart';
@@ -172,6 +173,9 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
         break;
       case 'intelligence_halo':
         effectComponent = IntelligenceHaloComponent(baseSize: effectBase);
+        break;
+      case 'blood_aura':
+        effectComponent = BloodAuraComponent(baseSize: effectBase);
         break;
       default:
         return; // No known effect

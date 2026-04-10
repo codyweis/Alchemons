@@ -1263,6 +1263,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       InvKeys.alchemySpeedFlux => 'speed_flux',
       InvKeys.alchemyStrengthForge => 'strength_forge',
       InvKeys.alchemyIntelligenceHalo => 'intelligence_halo',
+      InvKeys.alchemyBloodAura => 'blood_aura',
       _ => null,
     };
 

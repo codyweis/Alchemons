@@ -25,6 +25,7 @@ class OrbBaseDef {
   final OrbBaseSkin skin;
   final String name;
   final String description;
+  final String ability;
   final IconData icon;
   final Color primaryColor;
   final Color secondaryColor;
@@ -36,6 +37,7 @@ class OrbBaseDef {
     required this.skin,
     required this.name,
     required this.description,
+    required this.ability,
     required this.icon,
     required this.primaryColor,
     required this.secondaryColor,
@@ -50,19 +52,19 @@ class OrbBaseDef {
       case OrbBaseSkin.defaultOrb:
         return 1.0;
       case OrbBaseSkin.voidforgeOrb:
-        return 1.0;
+        return 0.90; // glass cannon trade-off
       case OrbBaseSkin.celestialOrb:
         return 1.0;
       case OrbBaseSkin.infernalOrb:
         return 1.0;
       case OrbBaseSkin.frozenNexusOrb:
-        return 1.0;
+        return 1.05;
       case OrbBaseSkin.phantomWispOrb:
-        return 1.0;
+        return 0.95;
       case OrbBaseSkin.prismHeartOrb:
-        return 1.0;
+        return 1.10;
       case OrbBaseSkin.verdantBloomOrb:
-        return 1.0;
+        return 1.15; // tankiest orb
     }
   }
 }
@@ -72,6 +74,7 @@ const List<OrbBaseDef> kOrbBases = [
     skin: OrbBaseSkin.defaultOrb,
     name: 'Standard Orb',
     description: 'The default alchemy orb. Reliable and balanced.',
+    ability: 'No special ability.',
     icon: Icons.blur_circular_rounded,
     primaryColor: Color(0xFF00BCD4),
     secondaryColor: Color(0xFF3F51B5),
@@ -84,6 +87,7 @@ const List<OrbBaseDef> kOrbBases = [
     name: 'Voidforge Core',
     description:
         'Forged in the Void — an orb crackling with dark energy runes.',
+    ability: '+12% guardian damage · −10% orb HP',
     icon: Icons.nightlight_round,
     primaryColor: Color(0xFF6A0DAD),
     secondaryColor: Color(0xFF1A0033),
@@ -95,6 +99,7 @@ const List<OrbBaseDef> kOrbBases = [
     skin: OrbBaseSkin.celestialOrb,
     name: 'Celestial Beacon',
     description: 'A radiant sphere of starlight — pulsing with cosmic power.',
+    ability: 'Heals guardians & ship 3% every 8s',
     icon: Icons.auto_awesome_rounded,
     primaryColor: Color(0xFFFFD700),
     secondaryColor: Color(0xFFFF8C00),
@@ -107,6 +112,7 @@ const List<OrbBaseDef> kOrbBases = [
     name: 'Infernal Engine',
     description:
         'Molten iron and dragonfire — enemies take burn damage near the orb.',
+    ability: 'Burn aura deals damage to nearby enemies every 0.5s',
     icon: Icons.local_fire_department_rounded,
     primaryColor: Color(0xFFFF4500),
     secondaryColor: Color(0xFF8B0000),
@@ -119,6 +125,7 @@ const List<OrbBaseDef> kOrbBases = [
     name: 'Frozen Nexus',
     description:
         'An ancient ice crystal — jagged frost shards orbit its frozen core.',
+    ability: 'Slows enemies near the orb · +5% orb HP',
     icon: Icons.ac_unit_rounded,
     primaryColor: Color(0xFF88DDFF),
     secondaryColor: Color(0xFF1A3A5C),
@@ -131,6 +138,7 @@ const List<OrbBaseDef> kOrbBases = [
     name: 'Phantom Wisp',
     description:
         'A ghostly sphere that phases between realms — flickering and ethereal.',
+    ability: '10% chance to dodge enemy projectiles · −5% orb HP',
     icon: Icons.blur_on_rounded,
     primaryColor: Color(0xFF7BFFCE),
     secondaryColor: Color(0xFF0A2A2A),
@@ -143,6 +151,7 @@ const List<OrbBaseDef> kOrbBases = [
     name: 'Prism Heart',
     description:
         'A crystalline prism refracting all light — shifts through every color.',
+    ability: '+10% orb HP · passive regen +0.3 HP/s',
     icon: Icons.diamond_rounded,
     primaryColor: Color(0xFFFF69B4),
     secondaryColor: Color(0xFF4400AA),
@@ -155,6 +164,7 @@ const List<OrbBaseDef> kOrbBases = [
     name: 'Verdant Bloom',
     description:
         'A living orb of tangled vines and blossoms — pulses with nature\'s rhythm.',
+    ability: '+15% orb HP · passive regen +1 HP/s',
     icon: Icons.eco_rounded,
     primaryColor: Color(0xFF32CD32),
     secondaryColor: Color(0xFF0B3D0B),

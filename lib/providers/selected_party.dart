@@ -6,7 +6,10 @@ import '../models/wilderness.dart'; // PartyMember
 // PartyMember
 
 class SelectedPartyNotifier extends ChangeNotifier {
-  static const maxSize = 4; // ⬅️ changed from 3 to 4
+  SelectedPartyNotifier({int? maxSize}) : maxSize = maxSize ?? defaultMaxSize;
+
+  static const defaultMaxSize = 4;
+  final int maxSize;
 
   final List<PartyMember> _members = [];
   List<PartyMember> get members => List.unmodifiable(_members);

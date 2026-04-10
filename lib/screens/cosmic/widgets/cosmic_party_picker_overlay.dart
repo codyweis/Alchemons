@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -25,6 +26,7 @@ class CosmicPartyPickerOverlay extends StatefulWidget {
     this.maxSlots = 3,
     this.hintText =
         'Tap a slot to assign an Alchemon.\nSummon one to fight alongside your ship!',
+    this.excludeInstanceIds = const {},
   });
 
   final int slotsUnlocked;
@@ -38,6 +40,7 @@ class CosmicPartyPickerOverlay extends StatefulWidget {
   final String title;
   final int maxSlots;
   final String hintText;
+  final Set<String> excludeInstanceIds;
 
   @override
   State<CosmicPartyPickerOverlay> createState() =>
@@ -111,6 +114,13 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     }
     list = list.where((ci) => !assignedIds.contains(ci.instanceId)).toList();
 
+    // Exclude instances from the other list (e.g. ship party vs garrison)
+    if (widget.excludeInstanceIds.isNotEmpty) {
+      list = list
+          .where((ci) => !widget.excludeInstanceIds.contains(ci.instanceId))
+          .toList();
+    }
+
     // Sort
     list.sort((a, b) {
       // Sort 0-stamina to the bottom
@@ -182,8 +192,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       Expanded(
                         child: Text(
                           widget.title,
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
+                          style: TextStyle(
+                            fontFamily: appFontFamily(context),
                             color: Color(0xFF00E5FF),
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
@@ -254,8 +264,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                         ),
                         Text(
                           'ASSIGN TO SLOT ${_assigningSlot + 1}',
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
+                          style: TextStyle(
+                            fontFamily: appFontFamily(context),
                             color: Colors.white70,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -288,7 +298,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                             child: TextField(
                               controller: _searchController,
                               onChanged: (_) => setState(() => _applyFilters()),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 13,
                               ),
@@ -307,7 +317,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                                 _searchController.clear();
                                 setState(() => _applyFilters());
                               },
-                              child: const Padding(
+                              child: Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 6),
                                 child: Icon(
                                   Icons.clear,
@@ -383,7 +393,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                     child: Text(
                       widget.hintText,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white38,
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
@@ -413,7 +423,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white10),
         ),
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -422,7 +432,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               Text(
                 'LOCKED',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: Colors.white24,
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
@@ -460,7 +470,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 Text(
                   'SLOT ${slotIndex + 1}',
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -534,7 +544,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   ? '${member.displayName.substring(0, 8)}…'
                   : member.displayName,
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: appFontFamily(context),
                 color: eColor,
                 fontSize: 9,
                 fontWeight: FontWeight.w800,
@@ -547,7 +557,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
             Text(
               isActive ? '▶ ACTIVE' : 'Lv${member.level}',
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: appFontFamily(context),
                 color: isActive ? eColor : Colors.white38,
                 fontSize: 8,
                 fontWeight: FontWeight.w600,
@@ -613,8 +623,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               width: 38,
               child: Text(
                 label,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
+                style: TextStyle(
+                  fontFamily: appFontFamily(context),
                   color: Color(0xFF8A7B6A),
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -656,8 +666,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               child: Text(
                 value.toStringAsFixed(1),
                 textAlign: TextAlign.right,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
+                style: TextStyle(
+                  fontFamily: appFontFamily(context),
                   color: Color(0xFFE8DCC8),
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -714,7 +724,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 Text(
                   name,
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: eColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
@@ -736,7 +746,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                     Text(
                       element.toUpperCase(),
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: appFontFamily(context),
                         color: eColor.withValues(alpha: 0.8),
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
@@ -746,8 +756,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                     const SizedBox(width: 8),
                     Text(
                       'LV $level',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
+                      style: TextStyle(
+                        fontFamily: appFontFamily(context),
                         color: Color(0xFF8A7B6A),
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
@@ -797,7 +807,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 member.displayName,
                 style: TextStyle(
                   color: elementColor(member.element),
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -805,7 +815,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.info_outline, color: Colors.white54),
-                title: const Text(
+                title: Text(
                   'View Details',
                   style: TextStyle(color: Colors.white70),
                 ),
@@ -826,7 +836,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               ),
               ListTile(
                 leading: const Icon(Icons.swap_horiz, color: Colors.white54),
-                title: const Text(
+                title: Text(
                   'Replace',
                   style: TextStyle(color: Colors.white70),
                 ),
@@ -840,7 +850,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   Icons.remove_circle_outline,
                   color: Color(0xFFE53935),
                 ),
-                title: const Text(
+                title: Text(
                   'Remove',
                   style: TextStyle(color: Color(0xFFE53935)),
                 ),
@@ -939,7 +949,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   Text(
                     name.length > 7 ? '${name.substring(0, 7)}…' : name,
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: appFontFamily(context),
                       color: eColor,
                       fontSize: 8,
                       fontWeight: FontWeight.w700,
@@ -953,8 +963,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       padding: const EdgeInsets.only(top: 1),
                       child: Text(
                         _statLabelForSort(_sortBy, ci),
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
+                        style: TextStyle(
+                          fontFamily: appFontFamily(context),
                           color: Color(0xFF00E5FF),
                           fontSize: 8,
                           fontWeight: FontWeight.w700,
@@ -1000,8 +1010,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   ),
                   child: Text(
                     'LV${ci.level}',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
                       color: Colors.white70,
                       fontSize: 7,
                       fontWeight: FontWeight.w800,
@@ -1044,8 +1054,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
             Expanded(
               child: Text(
                 'NO STAMINA',
-                style: const TextStyle(
-                  fontFamily: 'monospace',
+                style: TextStyle(
+                  fontFamily: appFontFamily(context),
                   color: Color(0xFFFF9800),
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
@@ -1061,7 +1071,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           children: [
             Text(
               '$name has no stamina remaining.',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const SizedBox(height: 12),
             if (potionQty > 0)
@@ -1075,8 +1085,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   const SizedBox(width: 6),
                   Text(
                     'Stamina Potion ×$potionQty',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
                       color: Color(0xFF00E676),
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -1085,7 +1095,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 ],
               )
             else
-              const Text(
+              Text(
                 'No stamina potions available.\nWait for stamina to regenerate.',
                 style: TextStyle(color: Colors.white38, fontSize: 12),
               ),
@@ -1094,10 +1104,10 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
+            child: Text(
               'CANCEL',
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: appFontFamily(context),
                 color: Colors.white38,
                 fontSize: 11,
                 letterSpacing: 1,
@@ -1107,10 +1117,10 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           if (potionQty > 0)
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text(
+              child: Text(
                 'USE POTION',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: Color(0xFF00E676),
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -1142,8 +1152,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 const SizedBox(width: 8),
                 Text(
                   '${name.toUpperCase()} STAMINA RESTORED',
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
                     color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -1213,7 +1223,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
         child: Text(
           label,
           style: TextStyle(
-            fontFamily: 'monospace',
+            fontFamily: appFontFamily(context),
             color: active ? const Color(0xFF00E5FF) : Colors.white38,
             fontSize: 10,
             fontWeight: FontWeight.w700,

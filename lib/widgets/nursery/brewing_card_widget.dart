@@ -54,7 +54,9 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
 
   void _extractParticleTypes() {
     final payload = parseEggPayload(widget.egg);
-    final types = extractParticleTypeIdsFromPayload(payload);
+    final types = isBloodbornPayload(payload)
+        ? const ['blood', 'dark']
+        : extractParticleTypeIdsFromPayload(payload);
     _parentTypes = types.isEmpty ? null : types;
   }
 
@@ -87,6 +89,8 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
     final theme = widget.theme;
     final media = MediaQuery.of(context);
     final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
+    final payload = parseEggPayload(widget.egg);
+    final isBloodborn = isBloodbornPayload(payload);
 
     final shortestSide = media.size.shortestSide;
     int particleCount;
@@ -113,7 +117,9 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
     }
 
     final showParticles =
-        TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
+        TickerMode.valuesOf(context).enabled &&
+        !media.disableAnimations &&
+        particleCount > 0;
 
     return RepaintBoundary(
       child: GestureDetector(
@@ -126,19 +132,29 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
             borderRadius: BorderRadius.circular(5),
             border: Border.all(
               color: widget.isReady
-                  ? const Color(0xFFFFD700)
-                  : theme.text.withValues(alpha: 0.5),
+                  ? (isBloodborn
+                        ? kBloodbornReadyBorder
+                        : const Color(0xFFFFD700))
+                  : (isBloodborn
+                        ? kBloodbornSecondary.withValues(alpha: 0.75)
+                        : theme.text.withValues(alpha: 0.5)),
               width: widget.isReady ? 1.0 : 0.5,
             ),
             boxShadow: widget.isReady
                 ? [
                     BoxShadow(
-                      color: const Color(0xFFFFD700).withValues(alpha: 0.18),
+                      color: (isBloodborn
+                              ? kBloodbornSecondary
+                              : const Color(0xFFFFD700))
+                          .withValues(alpha: 0.18),
                       blurRadius: 8,
                       spreadRadius: 1,
                     ),
                     BoxShadow(
-                      color: const Color(0xFFFFD700).withValues(alpha: 0.08),
+                      color: (isBloodborn
+                              ? kBloodbornPrimary
+                              : const Color(0xFFFFD700))
+                          .withValues(alpha: 0.08),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),

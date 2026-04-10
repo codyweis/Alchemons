@@ -118,7 +118,7 @@ void _printStoryMatrix(List<_BossRow> bosses) {
     const _TierProfile('4.8', 4.8),
   ];
 
-  stdout.writeln('\n=== STORY BOSS MATRIX (party: 4 x level 10) ===');
+  stdout.writeln('\n=== STORY BOSS MATRIX (party: 4 x level 5) ===');
   stdout.writeln(
     'ord boss              elem tier  rnd@2.5 rnd@3.5 rnd@4.25 rnd@4.8 win@4.8 minStat',
   );
@@ -365,7 +365,7 @@ class _PlayerStats {
 }
 
 _PlayerStats _buildPlayerStats(double traitValue) {
-  const level = 10;
+  const level = 5;
   final scaled = traitValue * 10;
   final physAtk = (scaled * 0.4 + level * 2).round();
   final elemDef = (scaled * 0.4 + level * 2).round();

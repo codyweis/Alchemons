@@ -119,7 +119,6 @@ class CosmicGame extends FlameGame with PanDetector {
   ui.Picture? _staticEffectsPicture;
   Set<String> _cachedCustomizations = {};
   double _cachedVr = 0;
-  Offset _cachedPictureOffset = Offset.zero;
 
   // Stars stored in spatial grid for fast rendering
   static const double _starChunkSize = 800.0;
@@ -305,6 +304,8 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // Boost visual state (set in update, read in render)
   bool isBoosting = false;
+  double _boostTrailVisual = 0.0;
+  bool _boostTrailWasActive = false;
 
   // Active companion (summoned party alchemon)
   CosmicCompanion? activeCompanion;
@@ -312,6 +313,7 @@ class CosmicGame extends FlameGame with PanDetector {
   SpriteAnimationTicker? _companionTicker;
   SpriteVisuals? _companionVisuals;
   double _companionSpriteScale = 1.0;
+  bool companionTethered = true;
   final Random _rng = Random();
 
   // Home garrison (stationed alchemons inside home planet)
@@ -321,6 +323,11 @@ class CosmicGame extends FlameGame with PanDetector {
   final List<CosmicEnemy> enemies = [];
   CosmicBoss? activeBoss;
   final List<BossProjectile> bossProjectiles = [];
+  bool sandboxMode = false;
+  Offset? sandboxAreaCenter;
+  Offset? sandboxReturnPosition;
+  static const double sandboxAreaRevealRadius = 900.0;
+  final Random sandboxRng = Random(0x5A4E4442);
 
   // Loot drops on the ground
   final List<LootDrop> lootDrops = [];
@@ -404,8 +411,10 @@ class CosmicGame extends FlameGame with PanDetector {
   final List<VfxShockRing> vfxRings = [];
 
   // Camera offset (ship is always centred; camera follows ship)
-  double get camX => ship.pos.dx - size.x / 2;
-  double get camY => ship.pos.dy - size.y / 2;
+  // Zoom < 1 shows more of the world (0.85 = 15% zoom-out).
+  static const double cameraZoom = 0.85;
+  double get camX => ship.pos.dx - size.x / (2 * cameraZoom);
+  double get camY => ship.pos.dy - size.y / (2 * cameraZoom);
 
   // ── lifecycle ──────────────────────────────────────────
 
@@ -523,8 +532,8 @@ class CosmicGame extends FlameGame with PanDetector {
     if (tapToShootMode) return;
     _dragTarget = _wrap(
       Offset(
-        info.eventPosition.global.x + camX,
-        info.eventPosition.global.y + camY,
+        info.eventPosition.global.x / cameraZoom + camX,
+        info.eventPosition.global.y / cameraZoom + camY,
       ),
     );
   }
@@ -534,8 +543,8 @@ class CosmicGame extends FlameGame with PanDetector {
     if (tapToShootMode) return;
     _dragTarget = _wrap(
       Offset(
-        info.eventPosition.global.x + camX,
-        info.eventPosition.global.y + camY,
+        info.eventPosition.global.x / cameraZoom + camX,
+        info.eventPosition.global.y / cameraZoom + camY,
       ),
     );
   }
@@ -547,7 +556,10 @@ class CosmicGame extends FlameGame with PanDetector {
 
   /// Set drag target from screen coordinates (used by tap-to-shoot mode).
   void setDragTargetFromScreen(Offset screenPos) {
-    _dragTarget = _wrap(Offset(screenPos.dx + camX, screenPos.dy + camY));
+    _dragTarget = _wrap(Offset(
+      screenPos.dx / cameraZoom + camX,
+      screenPos.dy / cameraZoom + camY,
+    ));
   }
 
   /// Set a world travel target and steer using shortest toroidal path.
@@ -673,6 +685,27 @@ class CosmicGame extends FlameGame with PanDetector {
     }
   }
 
+  double _combatHoldDistance({
+    required String family,
+    required double attackRange,
+    required double specialRange,
+    required double basicCooldown,
+    required double specialCooldown,
+  }) {
+    final preferred = _preferredCombatDistance(
+      family: family,
+      attackRange: attackRange,
+      specialRange: specialRange,
+    );
+    final basicBuffer = max(48.0, attackRange - 18.0);
+    final specialBuffer = max(basicBuffer, specialRange - 18.0);
+
+    if (specialCooldown <= 0) {
+      return min(preferred, specialBuffer);
+    }
+    return min(preferred, basicBuffer);
+  }
+
   double _combatChaseSpeed(String family, double speedStat) {
     final base = 100.0 + (speedStat * 10.0);
     switch (family.toLowerCase()) {
@@ -687,6 +720,127 @@ class CosmicGame extends FlameGame with PanDetector {
       default:
         return base;
     }
+  }
+
+  double _combatStrafeSpeed(String family, double speedStat) {
+    final base = 34.0 + speedStat * 7.0;
+    switch (family.toLowerCase()) {
+      case 'wing':
+      case 'pip':
+        return base * 1.55;
+      case 'let':
+      case 'mystic':
+        return base * 1.25;
+      case 'horn':
+        return base * 0.55;
+      default:
+        return base;
+    }
+  }
+
+  double _combatRetreatDistance({
+    required String family,
+    required double holdDistance,
+    required double attackRange,
+  }) {
+    switch (family.toLowerCase()) {
+      case 'horn':
+        return max(54.0, min(holdDistance * 0.42, attackRange * 0.48));
+      case 'mane':
+        return max(64.0, min(holdDistance * 0.52, attackRange * 0.58));
+      case 'wing':
+      case 'pip':
+      case 'let':
+      case 'mystic':
+        return max(84.0, min(holdDistance * 0.82, attackRange * 0.76));
+      default:
+        return max(68.0, min(holdDistance * 0.65, attackRange * 0.62));
+    }
+  }
+
+  int _combatStrafeDirection(String id) {
+    final hash = id.codeUnits.fold<int>(0, (acc, c) => acc + c);
+    return hash.isEven ? 1 : -1;
+  }
+
+  static const double _battleRingDamageMultiplier = 1.35;
+  static const double _battleRingDefenseScale = 0.68;
+
+  int _battleRingDamageAfterDefense(double rawDamage, int defense) {
+    return max(
+      1,
+      (rawDamage *
+              _battleRingDamageMultiplier *
+              100 /
+              (100 + defense * _battleRingDefenseScale))
+          .round(),
+    );
+  }
+
+  Offset _updateRingDuelMovement({
+    required Offset actorPos,
+    required Offset targetPos,
+    required Offset ringCenter,
+    required double dt,
+    required String family,
+    required String idSeed,
+    required double speedStat,
+    required double holdDistance,
+    required double attackRange,
+    required double specialRange,
+    required double life,
+  }) {
+    final toTarget = targetPos - actorPos;
+    final dist = toTarget.distance;
+    if (dist <= 0.001) return actorPos;
+
+    final radialDir = toTarget / dist;
+    final retreatDistance = _combatRetreatDistance(
+      family: family,
+      holdDistance: holdDistance,
+      attackRange: attackRange,
+    );
+    final radialSpeed = _combatChaseSpeed(family, speedStat);
+    final strafeSpeed = _combatStrafeSpeed(family, speedStat);
+    final strafeDirection = _combatStrafeDirection(idSeed).toDouble();
+
+    var move = Offset.zero;
+    if (dist > holdDistance + 10.0) {
+      move += radialDir * radialSpeed;
+    } else if (dist < retreatDistance) {
+      move -= radialDir * (radialSpeed * 0.92);
+    } else {
+      final tangent = Offset(-radialDir.dy, radialDir.dx) * strafeDirection;
+      final weave =
+          0.65 + 0.35 * sin(life * (1.4 + speedStat * 0.12) + strafeDirection);
+      move += tangent * (strafeSpeed * weave);
+
+      if (dist > holdDistance * 0.96) {
+        move += radialDir * (radialSpeed * 0.18);
+      } else if (dist < holdDistance * 0.82) {
+        move -= radialDir * (radialSpeed * 0.22);
+      }
+    }
+
+    var nextPos = actorPos + move * dt;
+
+    // Keep the duel inside the ring instead of letting strafe movement drift
+    // fighters outward over time.
+    const ringLimit = 168.0;
+    final fromCenter = nextPos - ringCenter;
+    final fromCenterDist = fromCenter.distance;
+    if (fromCenterDist > ringLimit) {
+      nextPos = ringCenter + (fromCenter / fromCenterDist) * ringLimit;
+    }
+
+    final minTargetGap = min(attackRange, specialRange) * 0.28;
+    final nextToTarget = targetPos - nextPos;
+    final nextDist = nextToTarget.distance;
+    if (nextDist < minTargetGap && nextDist > 0.001) {
+      nextPos = targetPos - (nextToTarget / nextDist) * minTargetGap;
+    }
+
+    return nextPos;
   }
 
   double _distanceToSegment(Offset point, Offset start, Offset end) {
@@ -711,46 +865,79 @@ class CosmicGame extends FlameGame with PanDetector {
     Offset to, {
     double sweepRadius = 48.0,
   }) {
+    // Track which enemies were already hit this charge to avoid repeat damage.
+    comp.chargeHitIds ??= <int>{};
     var hit = false;
 
     for (final e in enemies) {
       if (e.dead) continue;
+      if (comp.chargeHitIds!.contains(e.hashCode)) continue;
       final d = _distanceToSegment(e.position, from, to);
       if (d <= e.radius + sweepRadius) {
         e.health -= comp.chargeDamage;
         _spawnHitSpark(e.position, elementColor(comp.member.element));
         if (!e.provoked) _provokePackOf(e);
+        comp.chargeHitIds!.add(e.hashCode);
         hit = true;
       }
     }
 
     if (activeBoss != null) {
-      final bossRadius = activeBoss!.radius + sweepRadius;
-      final d = _distanceToSegment(activeBoss!.position, from, to);
-      if (d <= bossRadius) {
-        activeBoss!.health -= comp.chargeDamage;
-        _spawnHitSpark(to, elementColor(comp.member.element));
-        hit = true;
+      if (!comp.chargeHitIds!.contains(activeBoss.hashCode)) {
+        final bossRadius = activeBoss!.radius + sweepRadius;
+        final d = _distanceToSegment(activeBoss!.position, from, to);
+        if (d <= bossRadius) {
+          activeBoss!.health -= comp.chargeDamage;
+          _spawnHitSpark(to, elementColor(comp.member.element));
+          comp.chargeHitIds!.add(activeBoss.hashCode);
+          hit = true;
+        }
       }
     }
 
     if (battleRingOpponent != null && battleRingOpponent!.isAlive) {
-      final d = _distanceToSegment(battleRingOpponent!.position, from, to);
-      if (d <= sweepRadius + 28.0) {
-        battleRingOpponent!.takeDamage(comp.chargeDamage.round());
-        _spawnHitSpark(
-          battleRingOpponent!.position,
-          elementColor(comp.member.element),
-        );
-        hit = true;
+      if (!comp.chargeHitIds!.contains(battleRingOpponent.hashCode)) {
+        final d = _distanceToSegment(battleRingOpponent!.position, from, to);
+        if (d <= sweepRadius + 28.0) {
+          battleRingOpponent!.takeDamage(comp.chargeDamage.round());
+          _spawnHitSpark(
+            battleRingOpponent!.position,
+            elementColor(comp.member.element),
+          );
+          comp.chargeHitIds!.add(battleRingOpponent.hashCode);
+          hit = true;
+        }
       }
     }
 
-    if (hit) {
-      comp.chargeTimer = 0;
-      comp.chargeTarget = null;
-    }
+    // Don't stop — let the horn charge through and land on the far side.
     return hit;
+  }
+
+  /// After a horn charge ends, re-anchor the companion at its landing spot.
+  /// If it landed inside a boss, push it out to the far side so it doesn't
+  /// get stuck orbiting on top of the boss.
+  void _postChargeReanchor(CosmicCompanion comp) {
+    Offset pos = comp.position;
+
+    if (activeBoss != null) {
+      final toBoss = activeBoss!.position - pos;
+      final dist = toBoss.distance;
+      final clearance = activeBoss!.radius + 40.0;
+      if (dist < clearance && dist > 0.1) {
+        // Push outward from boss center
+        final awayDir = (pos - activeBoss!.position) / dist;
+        pos = activeBoss!.position + awayDir * clearance;
+        comp.position = pos;
+      } else if (dist <= 0.1) {
+        // Exactly on top — push in the direction the charge was heading
+        final chargeDir = Offset(cos(comp.angle), sin(comp.angle));
+        pos = activeBoss!.position + chargeDir * clearance;
+        comp.position = pos;
+      }
+    }
+
+    comp.anchorPosition = pos;
   }
 
   // ── update loop ────────────────────────────────────────
@@ -781,6 +968,23 @@ class CosmicGame extends FlameGame with PanDetector {
         isBoosting = true;
       }
     }
+    if (isBoosting && !_boostTrailWasActive) {
+      _boostTrailVisual = 1.0;
+    }
+    final boostTrailTarget = isBoosting ? shipFuel.fraction : 0.0;
+    final boostTrailStep = (isBoosting ? 0.9 : 1.8) * dt;
+    if (_boostTrailVisual > boostTrailTarget) {
+      _boostTrailVisual = max(
+        boostTrailTarget,
+        _boostTrailVisual - boostTrailStep,
+      );
+    } else if (_boostTrailVisual < boostTrailTarget) {
+      _boostTrailVisual = min(
+        boostTrailTarget,
+        _boostTrailVisual + boostTrailStep,
+      );
+    }
+    _boostTrailWasActive = isBoosting;
     if (slowMode && !_shipDead) baseSpeed *= slowSpeedMultiplier;
     final shipSpeed = baseSpeed;
 
@@ -994,7 +1198,9 @@ class CosmicGame extends FlameGame with PanDetector {
           poi.type != POIType.riftKeyMarket &&
           poi.type != POIType.cosmicMarket &&
           poi.type != POIType.stardustScanner &&
-          poi.type != POIType.planetScanner) {
+          poi.type != POIType.planetScanner &&
+          poi.type != POIType.goldConversion &&
+          poi.type != POIType.survivalPortal) {
         continue;
       }
       var mdx = poi.position.dx - ship.pos.dx;
@@ -1362,7 +1568,8 @@ class CosmicGame extends FlameGame with PanDetector {
         final bdx = m.position.dx - boss.position.dx;
         final bdy = m.position.dy - boss.position.dy;
         if (bdx * bdx + bdy * bdy < (boss.radius + 6) * (boss.radius + 6)) {
-          if (boss.shieldUp && boss.type == BossType.gunner) {
+          if (boss.shieldUp &&
+              (boss.type == BossType.gunner || boss.type == BossType.bulwark)) {
             boss.shieldHealth -= HomeCustomizationState.missileHitDamage(
               level: missileUpgradeLevel,
               vsBoss: true,
@@ -1614,7 +1821,8 @@ class CosmicGame extends FlameGame with PanDetector {
             level: ammoUpgradeLevel,
             machineGun: isMachineGun,
           );
-          if (boss.shieldUp && boss.type == BossType.gunner) {
+          if (boss.shieldUp &&
+              (boss.type == BossType.gunner || boss.type == BossType.bulwark)) {
             boss.shieldHealth -= projBossDmg;
             _spawnHitSpark(p.position, Colors.cyanAccent);
             projectiles.removeAt(i);
@@ -1682,40 +1890,79 @@ class CosmicGame extends FlameGame with PanDetector {
         final dx = (comp.position.dx - ship.pos.dx).abs();
         final dy = (comp.position.dy - ship.pos.dy).abs();
         if (!battleRing.inBattle &&
-            (dx > size.x / 2 + margin || dy > size.y / 2 + margin)) {
+            (dx > size.x / (2 * cameraZoom) + margin || dy > size.y / (2 * cameraZoom) + margin)) {
           comp.returning = true;
           comp.returnTimer = 0.6;
           onCompanionAutoReturned?.call();
         } else {
+          final ringDuelActive =
+              battleRing.inBattle &&
+              battleRingOpponent != null &&
+              battleRingOpponent!.isAlive;
+          if (comp.basicHasteTimer > 0) {
+            comp.basicHasteTimer = max(0.0, comp.basicHasteTimer - dt);
+            if (comp.basicHasteTimer <= 0) {
+              comp.basicHasteMultiplier = 1.0;
+            }
+          }
           comp.wanderTimer -= dt;
-          if (comp.wanderTimer <= 0) {
+          if (!ringDuelActive && comp.wanderTimer <= 0) {
             // Pick a new wander direction every 2-3s
             comp.wanderAngle = _rng.nextDouble() * 2 * pi;
             comp.wanderTimer = 2.0 + _rng.nextDouble();
           }
 
           // Drift gently toward the wander target (stays within radius)
-          final wanderTarget = Offset(
-            comp.anchorPosition.dx +
-                cos(comp.wanderAngle) * CosmicCompanion.wanderRadius * 0.6,
-            comp.anchorPosition.dy +
-                sin(comp.wanderAngle) * CosmicCompanion.wanderRadius * 0.6,
-          );
-          final toWander = wanderTarget - comp.position;
-          final wanderDist = toWander.distance;
-          if (wanderDist > 2.0) {
-            final wanderSpeed = 40.0 * dt; // gentle drift
-            comp.position +=
-                (toWander / wanderDist) * min(wanderSpeed, wanderDist);
-          }
+          if (!ringDuelActive && !comp.isCharging) {
+            // When tethered, continuously pull anchor back toward ship
+            // so companion returns after a charge instead of orbiting the boss.
+            if (companionTethered) {
+              final shipPos = ship.pos;
+              final anchorToShip = shipPos - comp.anchorPosition;
+              final anchorShipDist = anchorToShip.distance;
+              if (anchorShipDist > CosmicCompanion.wanderRadius) {
+                final pull = (1.5 * dt).clamp(0.0, 1.0);
+                comp.anchorPosition = Offset(
+                  comp.anchorPosition.dx + anchorToShip.dx * pull,
+                  comp.anchorPosition.dy + anchorToShip.dy * pull,
+                );
+              }
+            }
 
-          // Clamp within wander radius of anchor
-          final fromAnchor = comp.position - comp.anchorPosition;
-          if (fromAnchor.distance > CosmicCompanion.wanderRadius) {
-            final clamped =
-                (fromAnchor / fromAnchor.distance) *
-                CosmicCompanion.wanderRadius;
-            comp.position = comp.anchorPosition + clamped;
+            final fromAnchor = comp.position - comp.anchorPosition;
+            final anchorDist = fromAnchor.distance;
+
+            // Smooth sine-wave orbit around anchor
+            final phase = comp.life * 0.7 + comp.wanderAngle;
+            final orbitX = cos(phase) * CosmicCompanion.wanderRadius * 0.5;
+            final orbitY =
+                sin(phase * 1.3) * CosmicCompanion.wanderRadius * 0.35;
+            final wanderTarget = Offset(
+              comp.anchorPosition.dx + orbitX,
+              comp.anchorPosition.dy + orbitY,
+            );
+            final toWander = wanderTarget - comp.position;
+            if (toWander.distance > 1.0) {
+              final lerpFactor = (3.0 * dt).clamp(0.0, 1.0);
+              comp.position = Offset(
+                comp.position.dx + toWander.dx * lerpFactor,
+                comp.position.dy + toWander.dy * lerpFactor,
+              );
+            }
+
+            // Soft pull if drifting outside wander radius (no hard clamp)
+            if (anchorDist > CosmicCompanion.wanderRadius) {
+              final pullStrength = (4.0 * dt).clamp(0.0, 1.0);
+              final target = comp.anchorPosition +
+                  (fromAnchor / anchorDist) *
+                      CosmicCompanion.wanderRadius;
+              comp.position = Offset(
+                comp.position.dx +
+                    (target.dx - comp.position.dx) * pullStrength,
+                comp.position.dy +
+                    (target.dy - comp.position.dy) * pullStrength,
+              );
+            }
           }
 
           // Auto-attack nearest enemy
@@ -1735,6 +1982,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 comp.angle = atan2(toTarget.dy, toTarget.dx);
                 _resolveCompanionChargeImpact(comp, startPos, comp.position);
               } else {
+                // Arrived at overshoot point — final AoE sweep and stop.
                 _resolveCompanionChargeImpact(
                   comp,
                   startPos,
@@ -1743,10 +1991,18 @@ class CosmicGame extends FlameGame with PanDetector {
                 );
                 comp.chargeTimer = 0;
                 comp.chargeTarget = null;
+                comp.chargeHitIds = null;
+                _postChargeReanchor(comp);
+                // Prevent immediate re-charge after landing
+                comp.specialCooldown = max(comp.specialCooldown, comp.effectiveSpecialCooldown * 0.5);
               }
             }
             if (comp.chargeTimer <= 0) {
               comp.chargeTarget = null;
+              comp.chargeHitIds = null;
+              _postChargeReanchor(comp);
+              // Prevent immediate re-charge after timeout
+              comp.specialCooldown = max(comp.specialCooldown, comp.effectiveSpecialCooldown * 0.5);
             }
           }
 
@@ -1766,10 +2022,12 @@ class CosmicGame extends FlameGame with PanDetector {
             attackRange: comp.attackRange,
             specialRange: comp.specialAbilityRange,
           );
-          final preferredDistance = _preferredCombatDistance(
+          final holdDistance = _combatHoldDistance(
             family: family,
             attackRange: comp.attackRange,
             specialRange: comp.specialAbilityRange,
+            basicCooldown: comp.basicCooldown,
+            specialCooldown: comp.specialCooldown,
           );
           CosmicEnemy? nearestEnemy;
           double nearestDist = acquireRange;
@@ -1816,9 +2074,22 @@ class CosmicGame extends FlameGame with PanDetector {
             final toTarget = targetPos - comp.position;
             comp.angle = atan2(toTarget.dy, toTarget.dx);
 
-            // If the target is out of special range, move toward it.
-            final distToTarget = toTarget.distance;
-            if (distToTarget > preferredDistance) {
+            var distToTarget = toTarget.distance;
+            if (ringDuelActive) {
+              comp.position = _updateRingDuelMovement(
+                actorPos: comp.position,
+                targetPos: targetPos,
+                ringCenter: battleRing.position,
+                dt: dt,
+                family: family,
+                idSeed: comp.member.instanceId,
+                speedStat: comp.member.statSpeed.toDouble(),
+                holdDistance: holdDistance,
+                attackRange: comp.attackRange,
+                specialRange: comp.specialAbilityRange,
+                life: comp.life,
+              );
+            } else if (distToTarget > holdDistance) {
               final chaseSpeed = _combatChaseSpeed(
                 family,
                 comp.member.statSpeed.toDouble(),
@@ -1826,6 +2097,11 @@ class CosmicGame extends FlameGame with PanDetector {
               final step = chaseSpeed * dt;
               comp.position +=
                   (toTarget / distToTarget) * min(step, distToTarget);
+            }
+            if (ringDuelActive || distToTarget > holdDistance) {
+              final refreshed = targetPos - comp.position;
+              distToTarget = refreshed.distance;
+              comp.angle = atan2(refreshed.dy, refreshed.dx);
             }
 
             // Basic attack — family-specific pattern
@@ -1852,18 +2128,40 @@ class CosmicGame extends FlameGame with PanDetector {
                 baseAngle: comp.angle,
                 family: comp.member.family,
                 element: comp.member.element,
-                damage: comp.elemAtk * 2.0,
+                damage: comp.elemAtk * 0.8,
                 maxHp: comp.maxHp,
                 casterPower: comp.member.statIntelligence.toDouble(),
+                casterBeauty: comp.member.statBeauty.toDouble(),
+                casterIntelligence: comp.member.statIntelligence.toDouble(),
+                casterStrength: comp.member.statStrength.toDouble(),
                 targetPos: targetPos,
               );
               companionProjectiles.addAll(result.projectiles);
               // Apply companion state changes from ability
               if (result.shieldHp > 0) comp.shieldHp = result.shieldHp;
               if (result.chargeTimer > 0) {
-                comp.chargeTimer = result.chargeTimer;
                 comp.chargeDamage = result.chargeDamage;
-                comp.chargeTarget = targetPos;
+                comp.chargeHitIds = <int>{};
+                // Overshoot: charge to a point 80px past the target so the
+                // horn punches through and lands on the far side.
+                final dir = targetPos - comp.position;
+                final dist = dir.distance;
+                if (dist > 1) {
+                  final overshootTarget =
+                      targetPos + (dir / dist) * 80.0;
+                  comp.chargeTarget = overshootTarget;
+                  // Timer = time to reach overshoot + small buffer, capped
+                  // by the ability's chargeTimer as a speed feel factor.
+                  final travelDist =
+                      (overshootTarget - comp.position).distance;
+                  final travelTime =
+                      travelDist / CosmicCompanion.chargeSpeed;
+                  comp.chargeTimer =
+                      (travelTime + 0.15).clamp(0.3, 3.0);
+                } else {
+                  comp.chargeTarget = targetPos;
+                  comp.chargeTimer = result.chargeTimer;
+                }
               }
               if (result.selfHeal > 0) {
                 comp.currentHp = min(
@@ -1871,9 +2169,16 @@ class CosmicGame extends FlameGame with PanDetector {
                   comp.currentHp + result.selfHeal,
                 );
               }
+              if (result.shipHeal > 0) {
+                shipHealth = min(shipMaxHealth, shipHealth + result.shipHeal);
+              }
               if (result.blessingTimer > 0) {
                 comp.blessingTimer = result.blessingTimer;
                 comp.blessingHealPerTick = result.blessingHealPerTick;
+              }
+              if (result.basicHasteTimer > 0) {
+                comp.basicHasteTimer = result.basicHasteTimer;
+                comp.basicHasteMultiplier = result.basicHasteMultiplier;
               }
               // VFX burst
               _spawnHitSpark(comp.position, elementColor(comp.member.element));
@@ -1921,35 +2226,57 @@ class CosmicGame extends FlameGame with PanDetector {
         dismissBattleRingOpponent();
         onBattleRingWon?.call();
       } else {
-        // Wander near ring center
+        final duelTargetActive =
+            activeCompanion != null && activeCompanion!.isAlive;
+
+        // Wander near ring center only while the duel target is absent.
         opp.wanderTimer -= dt;
-        if (opp.wanderTimer <= 0) {
+        if (!duelTargetActive && opp.wanderTimer <= 0) {
           opp.wanderAngle = _rng.nextDouble() * 2 * pi;
           opp.wanderTimer = 2.0 + _rng.nextDouble();
         }
-        final wanderTargetO = Offset(
-          opp.anchorPosition.dx +
-              cos(opp.wanderAngle) * CosmicCompanion.wanderRadius * 0.6,
-          opp.anchorPosition.dy +
-              sin(opp.wanderAngle) * CosmicCompanion.wanderRadius * 0.6,
-        );
-        final toWanderO = wanderTargetO - opp.position;
-        final wanderDistO = toWanderO.distance;
-        if (wanderDistO > 2.0) {
-          final wanderSpeedO = 40.0 * dt;
-          opp.position +=
-              (toWanderO / wanderDistO) * min(wanderSpeedO, wanderDistO);
-        }
-        // Clamp within wander radius
-        final fromAnchorO = opp.position - opp.anchorPosition;
-        if (fromAnchorO.distance > CosmicCompanion.wanderRadius) {
-          opp.position =
-              opp.anchorPosition +
-              (fromAnchorO / fromAnchorO.distance) *
-                  CosmicCompanion.wanderRadius;
+        if (!duelTargetActive) {
+          // Smooth sine-wave orbit around anchor
+          final phase = opp.life * 0.7 + opp.wanderAngle;
+          final orbitX = cos(phase) * CosmicCompanion.wanderRadius * 0.5;
+          final orbitY =
+              sin(phase * 1.3) * CosmicCompanion.wanderRadius * 0.35;
+          final wanderTargetO = Offset(
+            opp.anchorPosition.dx + orbitX,
+            opp.anchorPosition.dy + orbitY,
+          );
+          final toWanderO = wanderTargetO - opp.position;
+          if (toWanderO.distance > 1.0) {
+            final lerpFactor = (3.0 * dt).clamp(0.0, 1.0);
+            opp.position = Offset(
+              opp.position.dx + toWanderO.dx * lerpFactor,
+              opp.position.dy + toWanderO.dy * lerpFactor,
+            );
+          }
+          // Soft pull if outside radius
+          final fromAnchorO = opp.position - opp.anchorPosition;
+          final anchorDistO = fromAnchorO.distance;
+          if (anchorDistO > CosmicCompanion.wanderRadius) {
+            final pullStrength = (4.0 * dt).clamp(0.0, 1.0);
+            final target = opp.anchorPosition +
+                (fromAnchorO / anchorDistO) *
+                    CosmicCompanion.wanderRadius;
+            opp.position = Offset(
+              opp.position.dx +
+                  (target.dx - opp.position.dx) * pullStrength,
+              opp.position.dy +
+                  (target.dy - opp.position.dy) * pullStrength,
+            );
+          }
         }
 
         // Cooldowns
+        if (opp.basicHasteTimer > 0) {
+          opp.basicHasteTimer = max(0.0, opp.basicHasteTimer - dt);
+          if (opp.basicHasteTimer <= 0) {
+            opp.basicHasteMultiplier = 1.0;
+          }
+        }
         opp.basicCooldown = (opp.basicCooldown - dt).clamp(0.0, 100.0);
         opp.specialCooldown = (opp.specialCooldown - dt).clamp(0.0, 100.0);
 
@@ -1989,9 +2316,9 @@ class CosmicGame extends FlameGame with PanDetector {
               opp.position += (toTarget / dist) * min(step, dist);
               opp.angle = atan2(toTarget.dy, toTarget.dx);
             } else {
-              final dmg = max(
-                1,
-                (opp.chargeDamage * 100 / (100 + comp.physDef)).round(),
+              final dmg = _battleRingDamageAfterDefense(
+                opp.chargeDamage,
+                comp.physDef,
               );
               comp.takeDamage(dmg);
               _spawnHitSpark(comp.position, elementColor(opp.member.element));
@@ -2009,22 +2336,31 @@ class CosmicGame extends FlameGame with PanDetector {
 
           if (!skipActions) {
             final family = opp.member.family.toLowerCase();
-            final preferredDistance = _preferredCombatDistance(
+            final holdDistance = _combatHoldDistance(
               family: family,
               attackRange: opp.attackRange,
               specialRange: opp.specialAbilityRange,
+              basicCooldown: opp.basicCooldown,
+              specialCooldown: opp.specialCooldown,
             );
             final toCompNow = comp.position - opp.position;
             distToComp = toCompNow.distance;
-            if (distToComp > preferredDistance) {
-              final chaseSpeedOpp = _combatChaseSpeed(
-                family,
-                opp.member.statSpeed.toDouble(),
-              );
-              final stepOpp = chaseSpeedOpp * dt;
-              opp.position +=
-                  (toCompNow / distToComp) * min(stepOpp, distToComp);
-            }
+            opp.position = _updateRingDuelMovement(
+              actorPos: opp.position,
+              targetPos: comp.position,
+              ringCenter: battleRing.position,
+              dt: dt,
+              family: family,
+              idSeed: opp.member.instanceId,
+              speedStat: opp.member.statSpeed.toDouble(),
+              holdDistance: holdDistance,
+              attackRange: opp.attackRange,
+              specialRange: opp.specialAbilityRange,
+              life: opp.life,
+            );
+            final refreshedToComp = comp.position - opp.position;
+            distToComp = refreshedToComp.distance;
+            opp.angle = atan2(refreshedToComp.dy, refreshedToComp.dx);
 
             // Basic attack
             if (distToComp <= opp.attackRange && opp.basicCooldown <= 0) {
@@ -2048,9 +2384,12 @@ class CosmicGame extends FlameGame with PanDetector {
                 baseAngle: opp.angle,
                 family: opp.member.family,
                 element: opp.member.element,
-                damage: opp.elemAtk * 2.0,
+                damage: opp.elemAtk * 0.8,
                 maxHp: opp.maxHp,
                 casterPower: opp.member.statIntelligence.toDouble(),
+                casterBeauty: opp.member.statBeauty.toDouble(),
+                casterIntelligence: opp.member.statIntelligence.toDouble(),
+                casterStrength: opp.member.statStrength.toDouble(),
                 targetPos: comp.position,
               );
               ringOpponentProjectiles.addAll(result.projectiles);
@@ -2066,6 +2405,10 @@ class CosmicGame extends FlameGame with PanDetector {
               if (result.blessingTimer > 0) {
                 opp.blessingTimer = result.blessingTimer;
                 opp.blessingHealPerTick = result.blessingHealPerTick;
+              }
+              if (result.basicHasteTimer > 0) {
+                opp.basicHasteTimer = result.basicHasteTimer;
+                opp.basicHasteMultiplier = result.basicHasteMultiplier;
               }
               _spawnHitSpark(opp.position, elementColor(opp.member.element));
             }
@@ -2228,9 +2571,9 @@ class CosmicGame extends FlameGame with PanDetector {
           final pierceFalloff = p.piercing
               ? pow(0.7, p.pierceCount).toDouble()
               : 1.0;
-          final dmg = max(
-            1,
-            (p.damage * pierceFalloff * 100 / (100 + comp.elemDef)).round(),
+          final dmg = _battleRingDamageAfterDefense(
+            p.damage * pierceFalloff,
+            comp.elemDef,
           );
           comp.takeDamage(dmg);
           _spawnHitSpark(
@@ -2544,6 +2887,7 @@ class CosmicGame extends FlameGame with PanDetector {
       // Hit boss
       if (i < companionProjectiles.length && activeBoss != null) {
         final cp = companionProjectiles[i];
+        if (!cp.hitBoss) {
         final boss = activeBoss!;
         final bdx = cp.position.dx - boss.position.dx;
         final bdy = cp.position.dy - boss.position.dy;
@@ -2552,7 +2896,8 @@ class CosmicGame extends FlameGame with PanDetector {
           final pierceFalloff = cp.piercing
               ? pow(0.7, cp.pierceCount).toDouble()
               : 1.0;
-          if (boss.shieldUp && boss.type == BossType.gunner) {
+          if (boss.shieldUp &&
+              (boss.type == BossType.gunner || boss.type == BossType.bulwark)) {
             boss.shieldHealth -= cp.damage * pierceFalloff;
             _spawnHitSpark(cp.position, Colors.cyanAccent);
             if (boss.shieldHealth <= 0) {
@@ -2568,9 +2913,11 @@ class CosmicGame extends FlameGame with PanDetector {
           }
           if (cp.piercing) {
             cp.pierceCount++;
+            cp.hitBoss = true;
           } else {
             companionProjectiles.removeAt(i);
           }
+        }
         }
       }
 
@@ -2625,9 +2972,9 @@ class CosmicGame extends FlameGame with PanDetector {
           final pierceFalloff = cp.piercing
               ? pow(0.7, cp.pierceCount).toDouble()
               : 1.0;
-          final dmg = max(
-            1,
-            (cp.damage * pierceFalloff * 100 / (100 + opp.elemDef)).round(),
+          final dmg = _battleRingDamageAfterDefense(
+            cp.damage * pierceFalloff,
+            opp.elemDef,
           );
           opp.takeDamage(dmg);
           _spawnHitSpark(cp.position, elementColor(opp.member.element));
@@ -2650,25 +2997,53 @@ class CosmicGame extends FlameGame with PanDetector {
 
       for (final g in _garrison) {
         g.ticker?.update(dt);
+        if (g.basicHasteTimer > 0) {
+          g.basicHasteTimer = max(0.0, g.basicHasteTimer - dt);
+          if (g.basicHasteTimer <= 0) {
+            g.basicHasteMultiplier = 1.0;
+          }
+        }
         g.attackCooldown = (g.attackCooldown - dt).clamp(0.0, 100.0);
         g.specialCooldown = (g.specialCooldown - dt).clamp(0.0, 100.0);
 
-        // ── Horn charge: rush toward target, AoE on arrival ──
+        // ── Horn charge: rush through target, damage en route ──
         if (g.chargeTimer > 0) {
           g.chargeTimer -= dt;
           if (g.chargeTarget != null) {
+            final startPos = g.position;
             final toTarget = g.chargeTarget! - g.position;
             final dist = toTarget.distance;
             if (dist > 10) {
               final step = 400.0 * dt;
               g.position += (toTarget / dist) * min(step, dist);
               g.faceAngle = atan2(toTarget.dy, toTarget.dx);
+              // Damage enemies along the charge path
+              for (final e in enemies) {
+                if (e.dead) continue;
+                final d = _distanceToSegment(e.position, startPos, g.position);
+                if (d < e.radius + 48) {
+                  e.health -= g.chargeDamage;
+                  _spawnHitSpark(e.position, elementColor(g.member.element));
+                  if (!e.provoked) _provokePackOf(e);
+                }
+              }
+              if (activeBoss != null) {
+                final d = _distanceToSegment(
+                  activeBoss!.position,
+                  startPos,
+                  g.position,
+                );
+                if (d < activeBoss!.radius + 48) {
+                  activeBoss!.health -= g.chargeDamage;
+                  _spawnHitSpark(g.position, elementColor(g.member.element));
+                }
+              }
             } else {
-              // AoE damage on arrival
+              // Arrived at overshoot point — final AoE sweep and stop.
               for (final e in enemies) {
                 if (e.dead) continue;
                 final d = (e.position - g.position).distance;
-                if (d < 50) {
+                if (d < 68) {
                   e.health -= g.chargeDamage;
                   _spawnHitSpark(e.position, elementColor(g.member.element));
                   if (!e.provoked) _provokePackOf(e);
@@ -2676,7 +3051,7 @@ class CosmicGame extends FlameGame with PanDetector {
               }
               if (activeBoss != null) {
                 final bd = (activeBoss!.position - g.position).distance;
-                if (bd < 50) {
+                if (bd < 68) {
                   activeBoss!.health -= g.chargeDamage;
                   _spawnHitSpark(g.position, elementColor(g.member.element));
                 }
@@ -2695,6 +3070,8 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         final family = g.member.family.toLowerCase();
+        final gBasicCooldownDuration =
+            (1.2 * g.basicHasteMultiplier.clamp(0.45, 1.0)).clamp(0.45, 2.0);
         final acquireRange = _combatAcquireRange(
           family: family,
           attackRange: g.attackRange,
@@ -2744,7 +3121,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
           // Basic attack — family-specific pattern
           if (g.attackCooldown <= 0 && toTarget.distance <= g.attackRange) {
-            g.attackCooldown = 1.2;
+            g.attackCooldown = gBasicCooldownDuration;
             final basics = createFamilyBasicAttack(
               origin: g.position,
               angle: g.faceAngle,
@@ -2770,15 +3147,31 @@ class CosmicGame extends FlameGame with PanDetector {
               damage: g.specialDamage,
               maxHp: g.maxHp,
               casterPower: g.member.statIntelligence.toDouble(),
+              casterBeauty: g.member.statBeauty.toDouble(),
+              casterIntelligence: g.member.statIntelligence.toDouble(),
+              casterStrength: g.member.statStrength.toDouble(),
               targetPos: targetPos,
             );
             companionProjectiles.addAll(result.projectiles);
             // Apply garrison state changes
             if (result.shieldHp > 0) g.shieldHp = result.shieldHp;
             if (result.chargeTimer > 0) {
-              g.chargeTimer = result.chargeTimer;
               g.chargeDamage = result.chargeDamage;
-              g.chargeTarget = targetPos;
+              // Overshoot: charge past the target so horn punches through.
+              final dir = targetPos - g.position;
+              final dist = dir.distance;
+              if (dist > 1) {
+                final overshootTarget =
+                    targetPos + (dir / dist) * 80.0;
+                g.chargeTarget = overshootTarget;
+                final travelDist =
+                    (overshootTarget - g.position).distance;
+                final travelTime = travelDist / 400.0;
+                g.chargeTimer = (travelTime + 0.15).clamp(0.3, 3.0);
+              } else {
+                g.chargeTarget = targetPos;
+                g.chargeTimer = result.chargeTimer;
+              }
             }
             if (result.selfHeal > 0) {
               g.hp = min(g.maxHp, g.hp + result.selfHeal);
@@ -2786,6 +3179,10 @@ class CosmicGame extends FlameGame with PanDetector {
             if (result.blessingTimer > 0) {
               g.blessingTimer = result.blessingTimer;
               g.blessingHealPerTick = result.blessingHealPerTick;
+            }
+            if (result.basicHasteTimer > 0) {
+              g.basicHasteTimer = result.basicHasteTimer;
+              g.basicHasteMultiplier = result.basicHasteMultiplier;
             }
             _spawnHitSpark(g.position, elementColor(g.member.element));
           }
@@ -2839,7 +3236,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── enemy spawning (random, scattered) — paused during battle ring ──
-    if (!battleRing.inBattle) {
+    if (!battleRing.inBattle && !sandboxMode) {
       _enemySpawnTimer += dt;
       if (_enemySpawnTimer >= _enemySpawnInterval &&
           enemies.length < _maxEnemies) {
@@ -2888,13 +3285,15 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── periodic swarm cluster spawns ──
-    _swarmSpawnTimer += dt;
-    if (_swarmSpawnTimer >= _swarmSpawnInterval &&
-        enemies.length < _maxEnemies) {
-      _swarmSpawnTimer = 0;
-      // 72% chance each interval — keeps ambient prey density up
-      if (Random().nextDouble() < 0.72) {
-        _spawnSwarmCluster();
+    if (!sandboxMode) {
+      _swarmSpawnTimer += dt;
+      if (_swarmSpawnTimer >= _swarmSpawnInterval &&
+          enemies.length < _maxEnemies) {
+        _swarmSpawnTimer = 0;
+        // 72% chance each interval — keeps ambient prey density up
+        if (Random().nextDouble() < 0.72) {
+          _spawnSwarmCluster();
+        }
       }
     }
 
@@ -2902,11 +3301,13 @@ class CosmicGame extends FlameGame with PanDetector {
     _updateBossLairs(dt);
 
     // ── random boss spawn (in addition to lairs) ──
-    _bossSpawnTimer += dt;
-    if (_bossSpawnTimer >= _bossSpawnInterval) {
-      _bossSpawnTimer = 0;
-      if (activeBoss == null && Random().nextDouble() < 0.25) {
-        _spawnBoss();
+    if (!sandboxMode) {
+      _bossSpawnTimer += dt;
+      if (_bossSpawnTimer >= _bossSpawnInterval) {
+        _bossSpawnTimer = 0;
+        if (activeBoss == null && Random().nextDouble() < 0.25) {
+          _spawnBoss();
+        }
       }
     }
 
@@ -3097,6 +3498,30 @@ class CosmicGame extends FlameGame with PanDetector {
             charging: boss.type == BossType.charger && boss.charging,
           ),
         );
+      }
+
+      // Boss collision → companion damage
+      if (activeCompanion != null &&
+          activeCompanion!.isAlive &&
+          activeCompanion!.invincibleTimer <= 0) {
+        final comp = activeCompanion!;
+        final cdx = comp.position.dx - boss.position.dx;
+        final cdy = comp.position.dy - boss.position.dy;
+        final compHitR = boss.radius + 15;
+        if (cdx * cdx + cdy * cdy < compHitR * compHitR) {
+          final rawDmg = CosmicBalance.bossCollisionDamage(
+            level: boss.level,
+            type: boss.type,
+            charging: boss.type == BossType.charger && boss.charging,
+          );
+          final scaledDmg = rawDmg * 30.0;
+          final dmg = max(
+            1,
+            (scaledDmg * 100 / (100 + comp.physDef)).round(),
+          );
+          comp.takeDamage(dmg);
+          _spawnHitSpark(comp.position, elementColor(boss.element));
+        }
       }
     }
 
@@ -3602,7 +4027,8 @@ class CosmicGame extends FlameGame with PanDetector {
           poi.type == POIType.riftKeyMarket ||
           poi.type == POIType.cosmicMarket ||
           poi.type == POIType.stardustScanner ||
-          poi.type == POIType.planetScanner) {
+          poi.type == POIType.planetScanner ||
+          poi.type == POIType.goldConversion) {
         continue;
       }
 
@@ -3642,6 +4068,7 @@ class CosmicGame extends FlameGame with PanDetector {
           case POIType.cosmicMarket:
           case POIType.stardustScanner:
           case POIType.planetScanner:
+          case POIType.goldConversion:
             // Markets are handled via nearMarket proximity, not one-shot.
             break;
           case POIType.warpAnomaly:
@@ -3655,6 +4082,9 @@ class CosmicGame extends FlameGame with PanDetector {
             ship.pos = newPos;
             _dragTarget = newPos;
             _revealAround(ship.pos, 300);
+            break;
+          case POIType.survivalPortal:
+            // Handled via nearMarket proximity HUD, not one-shot.
             break;
         }
       }
@@ -3678,10 +4108,11 @@ class CosmicGame extends FlameGame with PanDetector {
 
     final cx = camX;
     final cy = camY;
-    final screenW = size.x;
-    final screenH = size.y;
+    final screenW = size.x / cameraZoom;
+    final screenH = size.y / cameraZoom;
 
     canvas.save();
+    canvas.scale(cameraZoom, cameraZoom);
     canvas.translate(-cx, -cy);
 
     // ── background stars (spatial grid lookup) ──
@@ -4751,6 +5182,7 @@ class CosmicGame extends FlameGame with PanDetector {
         case POIType.cosmicMarket:
         case POIType.stardustScanner:
         case POIType.planetScanner:
+        case POIType.goldConversion:
           final mColor = poi.type == POIType.harvesterMarket
               ? const Color(0xFFFFB300) // amber/gold
               : poi.type == POIType.riftKeyMarket
@@ -4759,6 +5191,8 @@ class CosmicGame extends FlameGame with PanDetector {
               ? const Color(0xFF00E5FF) // cyan/teal for cosmic
               : poi.type == POIType.stardustScanner
               ? const Color(0xFF9CCC65) // green for stardust
+              : poi.type == POIType.goldConversion
+              ? const Color(0xFFFFD740) // gold for conversion
               : const Color(0xFF64B5F6); // blue for planet scanner
           // Rotating hexagonal station
           canvas.save();
@@ -4827,6 +5261,8 @@ class CosmicGame extends FlameGame with PanDetector {
               ? 'COSMIC MARKET'
               : poi.type == POIType.stardustScanner
               ? 'STAR DUST SCANNER'
+              : poi.type == POIType.goldConversion
+              ? 'GOLD CONVERSION'
               : 'PLANET SCANNER';
           final mTp = TextPainter(
             text: TextSpan(
@@ -4844,6 +5280,79 @@ class CosmicGame extends FlameGame with PanDetector {
             canvas,
             Offset(pp.dx - mTp.width / 2, pp.dy + poi.radius * 0.8 + 8),
           );
+          break;
+
+        case POIType.survivalPortal:
+          // Glowing purple portal ring
+          const portalColor = Color(0xFF8B5CF6);
+          const portalCore = Color(0xFFB388FF);
+
+          // Outer pulsing glow
+          canvas.drawCircle(
+            pp,
+            poi.radius * 1.8,
+            Paint()
+              ..color = portalColor.withValues(alpha: 0.06 + 0.03 * sin(poi.life * 2))
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
+          );
+
+          // Concentric rings
+          for (var ring = 0; ring < 5; ring++) {
+            final ringR = poi.radius * (0.4 + ring * 0.2) +
+                sin(poi.life * 2.5 + ring * 0.8) * 4;
+            canvas.drawCircle(
+              pp,
+              ringR,
+              Paint()
+                ..color = portalColor.withValues(alpha: 0.25 - ring * 0.04)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2.0 - ring * 0.2
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+            );
+          }
+
+          // Inner vortex core
+          canvas.drawCircle(
+            pp,
+            poi.radius * 0.25,
+            Paint()
+              ..color = portalCore.withValues(alpha: 0.5 + 0.25 * sin(poi.life * 3))
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+          );
+
+          // Orbiting void sparks
+          for (var s = 0; s < 6; s++) {
+            final sa = poi.life * 0.8 + s * pi / 3;
+            final sr = poi.radius * 0.6;
+            canvas.drawCircle(
+              Offset(pp.dx + cos(sa) * sr, pp.dy + sin(sa) * sr),
+              2.0,
+              Paint()
+                ..color = portalCore.withValues(
+                  alpha: 0.6 + 0.3 * sin(poi.life * 4 + s),
+                ),
+            );
+          }
+
+          // Label
+          if (!poi.interacted) {
+            final portalTp = TextPainter(
+              text: TextSpan(
+                text: poi.discovered ? 'SURVIVAL PORTAL' : 'UNKNOWN SIGNAL',
+                style: const TextStyle(
+                  color: Color(0x99B388FF),
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                ),
+              ),
+              textDirection: TextDirection.ltr,
+            )..layout();
+            portalTp.paint(
+              canvas,
+              Offset(pp.dx - portalTp.width / 2, pp.dy + poi.radius + 10),
+            );
+          }
           break;
       }
     }
@@ -6390,20 +6899,28 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         // ── Gunner: shield ring ──
-        if (boss.type == BossType.gunner && boss.shieldUp) {
+        if ((boss.type == BossType.gunner || boss.type == BossType.bulwark) &&
+            boss.shieldUp) {
           final shieldAlpha =
-              (boss.shieldHealth / CosmicBalance.bossShieldHealth(boss.level))
+              (boss.shieldHealth /
+                      (boss.type == BossType.bulwark
+                          ? CosmicBalance.bossShieldHealth(boss.level) * 1.4
+                          : CosmicBalance.bossShieldHealth(boss.level)))
                   .clamp(0.0, 1.0);
           canvas.drawCircle(
             Offset.zero,
-            boss.radius * 1.6,
+            boss.type == BossType.bulwark
+                ? boss.radius * 1.85
+                : boss.radius * 1.6,
             Paint()
               ..color = Colors.cyanAccent.withValues(alpha: 0.2 * shieldAlpha)
               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
           );
           canvas.drawCircle(
             Offset.zero,
-            boss.radius * 1.4,
+            boss.type == BossType.bulwark
+                ? boss.radius * 1.55
+                : boss.radius * 1.4,
             Paint()
               ..color = Colors.cyanAccent.withValues(alpha: 0.5 * shieldAlpha)
               ..style = PaintingStyle.stroke
@@ -6415,6 +6932,9 @@ class CosmicGame extends FlameGame with PanDetector {
         final moteCount = switch (boss.type) {
           BossType.charger => 4,
           BossType.gunner => 6,
+          BossType.skirmisher => 5,
+          BossType.bulwark => 6,
+          BossType.carrier => 7,
           BossType.warden => 8,
         };
         for (var i = 0; i < moteCount; i++) {
@@ -6470,6 +6990,9 @@ class CosmicGame extends FlameGame with PanDetector {
         final starPoints = switch (boss.type) {
           BossType.charger => 5,
           BossType.gunner => 7,
+          BossType.skirmisher => 8,
+          BossType.bulwark => 4,
+          BossType.carrier => 6,
           BossType.warden => 9,
         };
         final sigPath = Path();
@@ -6538,6 +7061,9 @@ class CosmicGame extends FlameGame with PanDetector {
         final typeTag = switch (boss.type) {
           BossType.charger => '⚡',
           BossType.gunner => '🔫',
+          BossType.skirmisher => '🎯',
+          BossType.bulwark => '🛡️',
+          BossType.carrier => '🛸',
           BossType.warden => '👑',
         };
         final namePainter = TextPainter(
@@ -8412,20 +8938,54 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // Boost exhaust trail
-      if (isBoosting) {
-        final exX = ship.pos.dx - cos(ship.angle) * 22;
-        final exY = ship.pos.dy - sin(ship.angle) * 22;
+      if (_boostTrailVisual > 0.01) {
+        final exhaustDir = Offset(cos(ship.angle), sin(ship.angle));
+        final exhaustCenter = ship.pos - exhaustDir * 22;
+        final activeTrailUnits = _boostTrailVisual * 4;
+        for (var i = 0; i < 4; i++) {
+          final fill = (activeTrailUnits - i).clamp(0.0, 1.0);
+          if (fill <= 0) continue;
+          final trailCenter = exhaustCenter - exhaustDir * (i * 10.5);
+          final pulse = 0.88 + 0.12 * sin(_elapsed * 15 - i * 0.65);
+          final glowRadius = (8 - i * 1.15) * fill * pulse;
+          final coreRadius = (4.2 - i * 0.5) * (0.35 + 0.65 * fill);
+          final glowAlpha = (0.14 + 0.30 * fill) * pulse;
+          final coreAlpha = 0.24 + 0.62 * fill;
+          canvas.drawCircle(
+            trailCenter,
+            glowRadius,
+            Paint()
+              ..color = const Color(0xFFFF6F00).withValues(alpha: glowAlpha)
+              ..maskFilter = MaskFilter.blur(
+                BlurStyle.normal,
+                10 - i.toDouble(),
+              ),
+          );
+          canvas.drawCircle(
+            trailCenter,
+            coreRadius,
+            Paint()
+              ..color = const Color(0xFFFFD180).withValues(alpha: coreAlpha),
+          );
+        }
+
+        final corePulse = 0.92 + 0.18 * sin(_elapsed * 15);
         canvas.drawCircle(
-          Offset(exX, exY),
-          8 + 3 * sin(_elapsed * 15),
+          exhaustCenter,
+          7.5 * corePulse,
           Paint()
-            ..color = const Color(0xFFFF6F00).withValues(alpha: 0.5)
+            ..color = const Color(
+              0xFFFF6F00,
+            ).withValues(alpha: isBoosting ? 0.5 : 0.28 * _boostTrailVisual)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
         );
         canvas.drawCircle(
-          Offset(exX, exY),
+          exhaustCenter,
           4,
-          Paint()..color = const Color(0xFFFFAB40).withValues(alpha: 0.8),
+          Paint()
+            ..color = const Color(0xFFFFAB40).withValues(
+              alpha: isBoosting ? 0.82 : 0.32 + 0.3 * _boostTrailVisual,
+            ),
         );
       }
 
@@ -8506,8 +9066,8 @@ class CosmicGame extends FlameGame with PanDetector {
       canvas.translate(-cx, -cy); // move to screen-space
 
       final t = _warpFlash; // 1.0 → 0.0
-      final sw = size.x;
-      final sh = size.y;
+      final sw = size.x / cameraZoom;
+      final sh = size.y / cameraZoom;
       final center = Offset(sw / 2, sh / 2);
 
       // Phase 1 (t > 0.5): bright purple/white flash from centre

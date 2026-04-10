@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 // Mirrors PurebloodRiteService._generateWeeklyChallenge logic exactly.
@@ -5,28 +6,67 @@ import 'dart:math' as math;
 const families = ['Let', 'Pip', 'Mane', 'Mask', 'Horn', 'Wing', 'Kin'];
 
 const allElements = [
-  'Fire', 'Water', 'Earth', 'Air', 'Steam', 'Lava', 'Lightning',
-  'Mud', 'Ice', 'Dust', 'Crystal', 'Plant', 'Poison', 'Spirit', 'Dark', 'Light', 'Blood',
+  'Fire',
+  'Water',
+  'Earth',
+  'Air',
+  'Steam',
+  'Lava',
+  'Lightning',
+  'Mud',
+  'Ice',
+  'Dust',
+  'Crystal',
+  'Plant',
+  'Poison',
+  'Spirit',
+  'Dark',
+  'Light',
+  'Blood',
 ];
 
 // A simplified element pool per family (representative subset, not full catalog).
 const familyElements = {
-  'Let':  ['Fire', 'Water', 'Air', 'Lightning', 'Mud', 'Ice', 'Dark', 'Light', 'Blood'],
-  'Pip':  ['Lava', 'Fire', 'Blood', 'Poison', 'Earth', 'Steam'],
+  'Let': [
+    'Fire',
+    'Water',
+    'Air',
+    'Lightning',
+    'Mud',
+    'Ice',
+    'Dark',
+    'Light',
+    'Blood',
+  ],
+  'Pip': ['Lava', 'Fire', 'Blood', 'Poison', 'Earth', 'Steam'],
   'Mane': ['Steam', 'Ice', 'Fire', 'Air', 'Water', 'Crystal'],
   'Mask': ['Ice', 'Dark', 'Spirit', 'Dust', 'Poison'],
   'Horn': ['Lightning', 'Air', 'Fire', 'Poison', 'Light'],
   'Wing': ['Plant', 'Air', 'Crystal', 'Spirit', 'Light'],
-  'Kin':  ['Earth', 'Water', 'Fire', 'Dark', 'Air'],
+  'Kin': ['Earth', 'Water', 'Fire', 'Dark', 'Air'],
 };
 
 const sizes = ['tiny', 'small', 'large', 'giant'];
 const tints = ['warm', 'cool', 'vibrant', 'pale', 'albino'];
 const natures = [
-  'Metabolic', 'Reproductive', 'Ecophysiological', 'Sympatric',
-  'Conspecific', 'Homotypic', 'Heterotypic', 'Precocial', 'Neuroadaptive',
-  'Swift', 'Clever', 'Mighty', 'Elegant', 'Homeostatic', 'Placidal',
-  'Dormant', 'Apathetic', 'Nullic',
+  'Metabolic',
+  'Reproductive',
+  'Ecophysiological',
+  'Sympatric',
+  'Conspecific',
+  'Homotypic',
+  'Heterotypic',
+  'Precocial',
+  'Neuroadaptive',
+  'Swift',
+  'Clever',
+  'Mighty',
+  'Elegant',
+  'Homeostatic',
+  'Placidal',
+  'Dormant',
+  'Apathetic',
+  'Nullic',
 ];
 const variantFactions = ['volcanic', 'oceanic', 'verdant', 'earthen', 'arcane'];
 
@@ -35,9 +75,12 @@ String labelize(String v) =>
 
 String tintLabel(String v) {
   switch (v.toLowerCase()) {
-    case 'warm':    return 'Thermal';
-    case 'cool':    return 'Cryogenic';
-    default:        return labelize(v);
+    case 'warm':
+      return 'Thermal';
+    case 'cool':
+      return 'Cryogenic';
+    default:
+      return labelize(v);
   }
 }
 
@@ -50,13 +93,29 @@ int goldReward({
   required String? variantFaction,
 }) {
   int d = 0;
-  if (element != null) d += 1;
+  if (element != null) {
+    d += 1;
+  }
   d += 1; // elemental purity always required
-  if (speciesPurity) d += 1;
-  if (size == 'tiny' || size == 'giant') d += 2; else if (size != null) d += 1;
-  if (tint == 'albino') d += 2; else if (tint != null) d += 1;
-  if (nature != null) d += 1;
-  if (variantFaction != null) return 10;
+  if (speciesPurity) {
+    d += 1;
+  }
+  if (size == 'tiny' || size == 'giant') {
+    d += 2;
+  } else if (size != null) {
+    d += 1;
+  }
+  if (tint == 'albino') {
+    d += 2;
+  } else if (tint != null) {
+    d += 1;
+  }
+  if (nature != null) {
+    d += 1;
+  }
+  if (variantFaction != null) {
+    return 10;
+  }
   return (d + 2).clamp(5, 9);
 }
 
@@ -94,7 +153,9 @@ void generate(int seed, String weekLabel) {
   // Fisher-Yates shuffle
   for (var i = pool.length - 1; i > 0; i--) {
     final j = rng.nextInt(i + 1);
-    final tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+    final tmp = pool[i];
+    pool[i] = pool[j];
+    pool[j] = tmp;
   }
 
   bool speciesPurity = false;
@@ -110,11 +171,16 @@ void generate(int seed, String weekLabel) {
     final odds = extraPickOdds[picked];
     if (odds <= 0.0 || (picked > 0 && rng.nextDouble() >= odds)) continue;
     switch (option) {
-      case 'speciesPurity': speciesPurity = true;
-      case 'size':          size = sizes[rng.nextInt(sizes.length)];
-      case 'tint':          tint = tints[rng.nextInt(tints.length)];
-      case 'nature':        nature = natures[rng.nextInt(natures.length)];
-      case 'variant':       variantFaction = variantFactions[rng.nextInt(variantFactions.length)];
+      case 'speciesPurity':
+        speciesPurity = true;
+      case 'size':
+        size = sizes[rng.nextInt(sizes.length)];
+      case 'tint':
+        tint = tints[rng.nextInt(tints.length)];
+      case 'nature':
+        nature = natures[rng.nextInt(natures.length)];
+      case 'variant':
+        variantFaction = variantFactions[rng.nextInt(variantFactions.length)];
     }
     picked++;
   }
@@ -141,16 +207,16 @@ void generate(int seed, String weekLabel) {
   final reqs = <String>[];
   reqs.add('$requiredElement $family — elemental purity required');
   if (speciesPurity) reqs.add('Species purity required');
-  if (size != null) reqs.add('Size: ${labelize(size!)}');
-  if (tint != null) reqs.add('Pigmentation: ${tintLabel(tint!)}');
-  if (nature != null) reqs.add('Nature: ${labelize(nature!)}');
-  if (variantFaction != null) reqs.add('Variant: ${labelize(variantFaction!)}');
+  if (size != null) reqs.add('Size: ${labelize(size)}');
+  if (tint != null) reqs.add('Pigmentation: ${tintLabel(tint)}');
+  if (nature != null) reqs.add('Nature: ${labelize(nature)}');
+  if (variantFaction != null) reqs.add('Variant: ${labelize(variantFaction)}');
 
-  print('Week $weekLabel  (seed $seed)');
-  print('  Title  : $title');
-  print('  Reward : +$gold gold');
-  print('  Reqs   : ${reqs.join(' / ')}');
-  print('');
+  stdout.writeln('Week $weekLabel  (seed $seed)');
+  stdout.writeln('  Title  : $title');
+  stdout.writeln('  Reward : +$gold gold');
+  stdout.writeln('  Reqs   : ${reqs.join(' / ')}');
+  stdout.writeln('');
 }
 
 void main() {

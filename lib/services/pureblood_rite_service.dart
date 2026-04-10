@@ -134,7 +134,8 @@ class PurebloodSacrificeCheck {
     required this.message,
   });
 
-  bool get matchesTrait => matchesTint && matchesSize && matchesNature && matchesVariant;
+  bool get matchesTrait =>
+      matchesTint && matchesSize && matchesNature && matchesVariant;
 }
 
 class PurebloodSacrificeResult {
@@ -636,8 +637,11 @@ class PurebloodRiteService {
   static String currentWeekKey() {
     final now = DateTime.now().toUtc();
     final daysFromMonday = (now.weekday - DateTime.monday) % 7;
-    final monday = DateTime.utc(now.year, now.month, now.day)
-        .subtract(Duration(days: daysFromMonday));
+    final monday = DateTime.utc(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: daysFromMonday));
     return '${monday.year}-'
         '${monday.month.toString().padLeft(2, '0')}-'
         '${monday.day.toString().padLeft(2, '0')}';
@@ -649,8 +653,11 @@ class PurebloodRiteService {
   static Duration timeUntilWeeklyReset() {
     final now = DateTime.now().toUtc();
     final daysFromMonday = (now.weekday - DateTime.monday) % 7;
-    final monday = DateTime.utc(now.year, now.month, now.day)
-        .subtract(Duration(days: daysFromMonday));
+    final monday = DateTime.utc(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: daysFromMonday));
     final nextMonday = monday.add(const Duration(days: 7));
     return nextMonday.difference(now);
   }
@@ -731,17 +738,19 @@ class PurebloodRiteService {
         : elementsList[rng.nextInt(elementsList.length)];
 
     // Pick preview species deterministically (sorted by id then first match)
-    final previewCandidates = (requiredElement == null
-            ? familyCreatures
-            : familyCreatures
-                .where((c) => c.types.contains(requiredElement))
-                .toList())
-        .toList()
-      ..sort((a, b) => a.id.compareTo(b.id));
-    final previewSpecies = (previewCandidates.isEmpty
-            ? (familyCreatures..sort((a, b) => a.id.compareTo(b.id)))
-            : previewCandidates)
-        .first;
+    final previewCandidates =
+        (requiredElement == null
+                ? familyCreatures
+                : familyCreatures
+                      .where((c) => c.types.contains(requiredElement))
+                      .toList())
+            .toList()
+          ..sort((a, b) => a.id.compareTo(b.id));
+    final previewSpecies =
+        (previewCandidates.isEmpty
+                ? (familyCreatures..sort((a, b) => a.id.compareTo(b.id)))
+                : previewCandidates)
+            .first;
 
     // Shuffle the extras pool with our seeded rng
     final pool = ['speciesPurity', 'size', 'tint', 'nature', 'variant'];
@@ -758,14 +767,12 @@ class PurebloodRiteService {
     String? requiredNature;
     String? requiredVariantFaction;
 
-    final sizes = GeneticsCatalog.track('size').variants
-        .map((v) => v.id)
-        .where((id) => id != 'normal')
-        .toList();
-    final tints = GeneticsCatalog.track('tinting').variants
-        .map((v) => v.id)
-        .where((id) => id != 'normal')
-        .toList();
+    final sizes = GeneticsCatalog.track(
+      'size',
+    ).variants.map((v) => v.id).where((id) => id != 'normal').toList();
+    final tints = GeneticsCatalog.track(
+      'tinting',
+    ).variants.map((v) => v.id).where((id) => id != 'normal').toList();
     final natures = NatureCatalog.all.map((n) => n.id).toList();
     final variantFactions = FactionId.values.map((f) => f.name).toList();
 
@@ -787,7 +794,8 @@ class PurebloodRiteService {
         case 'nature':
           requiredNature = natures[rng.nextInt(natures.length)];
         case 'variant':
-          requiredVariantFaction = variantFactions[rng.nextInt(variantFactions.length)];
+          requiredVariantFaction =
+              variantFactions[rng.nextInt(variantFactions.length)];
       }
       picked++;
     }
@@ -837,18 +845,36 @@ class PurebloodRiteService {
     required String? variantFaction,
   }) {
     int difficulty = 0;
-    if (element != null) difficulty += 1;
+    if (element != null) {
+      difficulty += 1;
+    }
     difficulty += 1; // elementalPurity is always required
-    if (speciesPurity) difficulty += 1;
-    if (size == 'tiny' || size == 'giant') difficulty += 2;
-    else if (size != null) difficulty += 1;
-    if (tint == 'albino') difficulty += 2;
-    else if (tint != null) difficulty += 1;
-    if (nature != null) difficulty += 1;
-    if (variantFaction != null) difficulty += 2;
+    if (speciesPurity) {
+      difficulty += 1;
+    }
+    if (size == 'tiny' || size == 'giant') {
+      difficulty += 2;
+    } else if (size != null) {
+      difficulty += 1;
+    }
+    if (tint == 'albino') {
+      difficulty += 2;
+    } else if (tint != null) {
+      difficulty += 1;
+    }
+    if (nature != null) {
+      difficulty += 1;
+    }
+    final hasVariant =
+        variantFaction != null &&
+        variantFaction.trim().isNotEmpty &&
+        variantFaction.trim().toLowerCase() != 'bloodborn';
+    if (hasVariant) {
+      difficulty += 2;
+    }
     // Minimum difficulty 3 (element + purity + 1 extra) maps to 5 gold.
     // Any variant challenge is always maximum reward.
-    if (variantFaction != null) return 10;
+    if (hasVariant) return 10;
     return (difficulty + 2).clamp(5, 9);
   }
 
@@ -862,11 +888,23 @@ class PurebloodRiteService {
     required String? variantFaction,
   }) {
     final parts = <String>[];
-    if (speciesPurity) parts.add('Pure');
-    if (size != null) parts.add(_labelize(size));
-    if (tint != null) parts.add(_traitLabel(tint, null));
-    if (nature != null) parts.add(_labelize(nature));
-    if (variantFaction != null) parts.add('${_labelize(variantFaction)} Variant');
+    if (speciesPurity) {
+      parts.add('Pure');
+    }
+    if (size != null) {
+      parts.add(_labelize(size));
+    }
+    if (tint != null) {
+      parts.add(_traitLabel(tint, null));
+    }
+    if (nature != null) {
+      parts.add(_labelize(nature));
+    }
+    if (variantFaction != null &&
+        variantFaction.trim().isNotEmpty &&
+        variantFaction.trim().toLowerCase() != 'bloodborn') {
+      parts.add('${_labelize(variantFaction)} Variant');
+    }
     if (element != null) {
       parts.add('$element$family');
     } else {

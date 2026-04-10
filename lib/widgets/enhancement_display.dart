@@ -196,7 +196,13 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
   }
 
   int _getXpNeeded(int level) {
-    return CreatureInstanceServiceFeeding.xpNeededForLevel(level);
+    final repo = context.read<CreatureCatalog>();
+    final creature = repo.getCreatureById(widget.instance.baseId);
+    final rarity = creature?.rarity ?? 'Common';
+    return CreatureInstanceServiceFeeding.xpNeededForLevel(
+      level,
+      rarity: rarity,
+    );
   }
 
   // live helpers (used only AFTER animation)

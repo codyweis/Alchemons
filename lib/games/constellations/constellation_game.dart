@@ -10,52 +10,85 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
+const Map<ConstellationTree, List<String>> kTreeStoryBeats = {
   ConstellationTree.breeder: [
     'In the hush before barter,',
-    'The first heartbeat',
-    'or waking breath,',
-    'the moment marking',
-    'flesh and life,',
-    'a flicker in the night,',
-    'the light grows,',
-    'the light flickers,',
-    'then fades,',
-    'can you remember',
-    'the glow?',
+    'The first heartbeat\nor waking breath,',
+    'the moment marking\nflesh and life,',
   ],
-  ConstellationTree.combat: [
-    'They built the arena in a place sound refused to cross.',
-    'No cheers, no drums, only breath and impact.',
-    'Your first step inside felt heavier than gravity allowed.',
-    'Old scars in the floor traced obsolete strategies.',
-    'You stood where legends once evaporated into statistics.',
-    'A single light followed you like an accusing star.',
-    'Your partner waited, muscles coiled, eyes full of questions.',
-    'You answered with a gesture: not command, but invitation.',
-    'The opening move drew a new constellation of motion.',
-    'Every dodge rewrote your understanding of survival.',
-    'Victory arrived not as triumph, but as continued existence.',
-    'Outside, the world kept turning, indifferent but available.',
-    'You left the ring marked—less by wounds than by clarity.',
-    'Protection, you realized, is just violence with better boundaries.',
-    'From then on, every fight was a negotiation with fate.',
-    'The arena stayed silent, but the sky learned your name.',
-  ],
+  ConstellationTree.combat: [],
   ConstellationTree.extraction: [
-    'The loneliness',
-    'of the night',
-    'stands before me,',
-    'silence is the only thing',
-    'to be heard.',
-    'My thoughts are released',
-    'and now are set free.',
-    'But silence',
-    'is still present,',
-    'for thoughts',
-    'are not words.',
+    'The loneliness of the night.',
+    'Stands before me.',
+    'Silence is the only thing.',
+    'To be heard.',
   ],
 };
+
+const Map<ConstellationTree, List<String>> kTreeCodaSegments = {
+  ConstellationTree.breeder: [
+    'a flicker in the night,',
+    'the light grows,\nthe light flickers,\nthen fades.',
+    'can you remember\nthe glow?',
+  ],
+  ConstellationTree.extraction: [
+    'My thoughts are released,',
+    'and now are set free.',
+    'But silence is still present.',
+    'For thoughts are not words.',
+  ],
+};
+
+const Map<ConstellationTree, List<String>> kTreeCodaProgressionSkillIds = {
+  ConstellationTree.breeder: [
+    'breeder_potential_analyzer',
+    'breeder_accelerated_gestation',
+    'breeder_accelerated_gestation2',
+    'breeder_accelerated_gestation3',
+    'breeder_harvesting_wilderness_specimens',
+    'breeder_harvesting_wilderness_specimens2',
+    'breeder_harvesting_wilderness_specimens3',
+  ],
+  ConstellationTree.extraction: [
+    'extraction_all_day_market',
+    'extraction_sale_boost_1',
+    'extraction_sale_boost_2',
+    'extraction_sale_boost_3',
+    'exraction_xp_boost_1',
+    'exraction_xp_boost_2',
+    'exraction_xp_boost_3',
+  ],
+};
+
+const List<List<String>> kExtractionCodaRevealPairs = [
+  ['extraction_sale_boost_1', 'exraction_xp_boost_1'],
+  ['extraction_sale_boost_2', 'exraction_xp_boost_2'],
+  ['extraction_sale_boost_3', 'exraction_xp_boost_3'],
+];
+
+const List<String> kExtractionCodaStoryIds = [
+  'extraction_coda_0',
+  'extraction_coda_1',
+  'extraction_coda_2',
+  'extraction_coda_3',
+];
+
+const List<String> kBreederCodaStoryIds = [
+  'breeder_coda_0',
+  'breeder_coda_1',
+  'breeder_coda_2',
+];
+
+const List<String> kCombatStoryLines = [
+  'They built the arena',
+  'where sound refused to cross.',
+  'No cheers.',
+  'No drums.',
+  'Only breath and impact.',
+  'The opening move',
+  'drew a constellation of motion.',
+  'The sky learned your name.',
+];
 
 class ConstellationGame extends FlameGame with ScaleDetector {
   ConstellationTree selectedTree;
@@ -68,6 +101,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
   final Map<String, SkillNode> _nodes = {};
   final Map<String, ConnectionLine> _connections = {};
+  final List<TreeStoryBlock> _storyBlocks = [];
 
   final Map<ConstellationTree, Vector2> _treePositions = {
     ConstellationTree.breeder: Vector2(0, -600),
@@ -249,16 +283,17 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       _nodes[entry.key] = entry.value;
       await world.add(entry.value);
     }
+
+    await _maybeAddTreeCodaBlock(tree, treeOffset, baseY);
   }
 
   String? _storyFragmentForConnection(
     ConstellationTree tree,
     int connectionIndex,
   ) {
-    final fragments = kTreeStoryFragments[tree];
-    if (fragments == null || fragments.isEmpty) return null;
-    if (connectionIndex >= fragments.length) return null;
-    return fragments[connectionIndex];
+    final beats = kTreeStoryBeats[tree];
+    if (beats == null || connectionIndex >= beats.length) return null;
+    return beats[connectionIndex];
   }
 
   Future<void> _buildCombatAlchemyTree(
@@ -266,7 +301,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     Vector2 treeOffset,
   ) async {
     final tempNodes = <String, SkillNode>{};
-    const double ringSpacing = 150.0;
+    const double ringSpacing = 180.0;
 
     double angleForSkill(ConstellationSkill skill) {
       final id = skill.id;
@@ -330,10 +365,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
             isTreeVisible: _visibleTrees.contains(ConstellationTree.combat),
             primaryColor: primaryColor,
             connectionIndex: connectionIndex,
-            storyText: _storyFragmentForConnection(
-              ConstellationTree.combat,
-              connectionIndex,
-            ),
+            storyText: null,
           );
 
           connectionIndex++;
@@ -347,6 +379,192 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       _nodes[entry.key] = entry.value;
       await world.add(entry.value);
     }
+
+    final combatPoem = TreeStoryBlock(
+      tree: ConstellationTree.combat,
+      position: treeOffset,
+      isTreeVisible: _visibleTrees.contains(ConstellationTree.combat),
+      primaryColor: primaryColor,
+      text: '',
+      progressiveLines: kCombatStoryLines,
+      revealedLineCount: _combatRevealedLineCount(_unlockedSkills),
+      maxWidth: 260,
+      alignment: TextAlign.center,
+      revealUnlocked: true,
+    );
+    _storyBlocks.add(combatPoem);
+    await world.add(combatPoem);
+  }
+
+  Future<void> _maybeAddTreeCodaBlock(
+    ConstellationTree tree,
+    Vector2 treeOffset,
+    double baseY,
+  ) async {
+    final coda = kTreeCodaSegments[tree];
+    if (coda == null || coda.isEmpty) return;
+
+    if (tree == ConstellationTree.breeder) {
+      final positions = <Vector2>[
+        Vector2(0.0, baseY - (5 * 180.0)),
+        Vector2(0.0, baseY - (6 * 180.0)),
+        Vector2(0.0, baseY - (7 * 180.0)),
+      ];
+
+      for (int i = 0; i < coda.length && i < positions.length; i++) {
+        final block = TreeStoryBlock(
+          storyId: kBreederCodaStoryIds[i],
+          tree: tree,
+          position: treeOffset + positions[i],
+          isTreeVisible: _visibleTrees.contains(tree),
+          primaryColor: primaryColor,
+          text: coda[i],
+          maxWidth: 190,
+          alignment: TextAlign.center,
+          revealUnlocked: _isBreederStoryBlockUnlocked(
+            kBreederCodaStoryIds[i],
+            _unlockedSkills,
+          ),
+        );
+        _storyBlocks.add(block);
+        await world.add(block);
+      }
+      return;
+    }
+
+    if (tree == ConstellationTree.extraction) {
+      final tierYs = <double>[
+        baseY - (5.5 * 180.0),
+        baseY - (7 * 180.0),
+        baseY - (8 * 180.0),
+        baseY - (9 * 180.0),
+      ];
+
+      for (int i = 0; i < coda.length && i < tierYs.length; i++) {
+        final xOffset = i == 0 ? -120.0 : 0.0;
+        final block = TreeStoryBlock(
+          storyId: kExtractionCodaStoryIds[i],
+          tree: tree,
+          position: treeOffset + Vector2(xOffset, tierYs[i]),
+          isTreeVisible: _visibleTrees.contains(tree),
+          primaryColor: primaryColor,
+          text: coda[i],
+          maxWidth: 210,
+          alignment: TextAlign.center,
+          revealUnlocked: _isExtractionStoryBlockUnlocked(
+            kExtractionCodaStoryIds[i],
+            _unlockedSkills,
+          ),
+        );
+        _storyBlocks.add(block);
+        await world.add(block);
+      }
+      return;
+    }
+
+    final block = TreeStoryBlock(
+      tree: tree,
+      position: treeOffset + Vector2(0, -(baseY - 180.0)),
+      isTreeVisible: _visibleTrees.contains(tree),
+      primaryColor: primaryColor,
+      text: '',
+      progressiveLines: coda,
+      revealedLineCount: _treeCodaRevealedLineCount(tree, _unlockedSkills),
+      maxWidth: 220,
+      alignment: TextAlign.center,
+      revealUnlocked: _treeCodaRevealedLineCount(tree, _unlockedSkills) > 0,
+    );
+    _storyBlocks.add(block);
+    await world.add(block);
+  }
+
+  int _treeCodaProgressCount(
+    ConstellationTree tree,
+    Set<String> unlockedSkills,
+  ) {
+    final skillIds = kTreeCodaProgressionSkillIds[tree];
+    if (skillIds == null || skillIds.isEmpty) return 0;
+    return skillIds.where(unlockedSkills.contains).length;
+  }
+
+  int _treeCodaRevealedLineCount(
+    ConstellationTree tree,
+    Set<String> unlockedSkills,
+  ) {
+    final lines = kTreeCodaSegments[tree];
+    if (lines == null || lines.isEmpty) {
+      return tree == ConstellationTree.combat ? kCombatStoryLines.length : 0;
+    }
+
+    if (tree == ConstellationTree.extraction) {
+      return kExtractionCodaRevealPairs
+          .where(
+            (pair) => pair.every((skillId) => unlockedSkills.contains(skillId)),
+          )
+          .length
+          .clamp(0, lines.length);
+    }
+
+    final skillIds = kTreeCodaProgressionSkillIds[tree];
+    if (skillIds == null || skillIds.isEmpty) {
+      return 0;
+    }
+
+    final unlockedCount = _treeCodaProgressCount(tree, unlockedSkills);
+    if (unlockedCount <= 0) return 0;
+
+    return ((unlockedCount / skillIds.length) * lines.length).ceil().clamp(
+      0,
+      lines.length,
+    );
+  }
+
+  bool _isExtractionStoryBlockUnlocked(
+    String storyId,
+    Set<String> unlockedSkills,
+  ) {
+    switch (storyId) {
+      case 'extraction_coda_0':
+        return unlockedSkills.contains('extraction_all_day_market');
+      case 'extraction_coda_1':
+        return kExtractionCodaRevealPairs[0].every(unlockedSkills.contains);
+      case 'extraction_coda_2':
+        return kExtractionCodaRevealPairs[1].every(unlockedSkills.contains);
+      case 'extraction_coda_3':
+        return kExtractionCodaRevealPairs[2].every(unlockedSkills.contains);
+      default:
+        return false;
+    }
+  }
+
+  bool _isBreederStoryBlockUnlocked(
+    String storyId,
+    Set<String> unlockedSkills,
+  ) {
+    switch (storyId) {
+      case 'breeder_coda_0':
+        return unlockedSkills.contains('breeder_accelerated_gestation') &&
+            unlockedSkills.contains('breeder_harvesting_wilderness_specimens');
+      case 'breeder_coda_1':
+        return unlockedSkills.contains('breeder_accelerated_gestation2') &&
+            unlockedSkills.contains('breeder_harvesting_wilderness_specimens2');
+      case 'breeder_coda_2':
+        return unlockedSkills.contains('breeder_accelerated_gestation3') &&
+            unlockedSkills.contains('breeder_harvesting_wilderness_specimens3');
+      default:
+        return false;
+    }
+  }
+
+  int _combatUnlockedCount(Set<String> unlockedSkills) {
+    return ConstellationCatalog.forTree(
+      ConstellationTree.combat,
+    ).where((skill) => unlockedSkills.contains(skill.id)).length;
+  }
+
+  int _combatRevealedLineCount(Set<String> unlockedSkills) {
+    final unlockedCount = _combatUnlockedCount(unlockedSkills);
+    return unlockedCount.clamp(0, kCombatStoryLines.length);
   }
 
   Future<void> transitionToTree(ConstellationTree tree) async {
@@ -471,8 +689,59 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       }
     }
 
+    for (final block in _storyBlocks) {
+      if (block.tree == ConstellationTree.combat) {
+        block.updateRevealState(true);
+        block.updateRevealedLineCount(
+          _combatRevealedLineCount(_unlockedSkills),
+        );
+      } else if (block.tree == ConstellationTree.breeder &&
+          block.storyId != null) {
+        block.updateRevealState(
+          _isBreederStoryBlockUnlocked(block.storyId!, _unlockedSkills),
+        );
+      } else if (block.tree == ConstellationTree.extraction &&
+          block.storyId != null) {
+        block.updateRevealState(
+          _isExtractionStoryBlockUnlocked(block.storyId!, _unlockedSkills),
+        );
+      } else {
+        final revealedLineCount = _treeCodaRevealedLineCount(
+          block.tree,
+          _unlockedSkills,
+        );
+        block.updateRevealState(revealedLineCount > 0);
+        block.updateRevealedLineCount(revealedLineCount);
+      }
+    }
+
     if (_pendingFocusSkillId != null) {
       _applyPendingFocus();
+    }
+  }
+
+  /// Instantly reveals all story-text bubbles on every connection that has
+  /// one, regardless of unlock state. Useful for previewing quote layouts.
+  void revealAllQuotes() {
+    for (final connection in _connections.values) {
+      connection.revealStoryInstant();
+    }
+    for (final block in _storyBlocks) {
+      block.updateRevealState(true);
+      if (block.tree == ConstellationTree.combat) {
+        block.updateRevealedLineCount(kCombatStoryLines.length);
+      } else if (block.tree == ConstellationTree.breeder &&
+          block.storyId != null) {
+        continue;
+      } else if (block.tree == ConstellationTree.extraction &&
+          block.storyId != null) {
+        continue;
+      } else {
+        final lines = kTreeCodaSegments[block.tree];
+        if (lines != null) {
+          block.updateRevealedLineCount(lines.length);
+        }
+      }
     }
   }
 
@@ -485,6 +754,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     for (final connection in _connections.values) {
       connection.setTreeVisible(_visibleTrees.contains(connection.tree));
+    }
+
+    for (final block in _storyBlocks) {
+      block.setTreeVisible(_visibleTrees.contains(block.tree));
     }
 
     if (!_visibleTrees.contains(selectedTree)) {
@@ -651,6 +924,236 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     );
 
     await Future.delayed(const Duration(milliseconds: 3000));
+  }
+}
+
+class CombatStoryColumn extends PositionComponent {
+  final Color primaryColor;
+  final Color secondaryColor;
+  final int totalCombatSkills;
+  final List<String> segments;
+
+  bool isTreeVisible;
+  int unlockedCombatSkills;
+
+  late final List<String> _wrappedSegments;
+  late final List<List<String>> _wrappedSegmentLines;
+  late final List<int> _thresholds;
+  TextPaint? _textPaint;
+
+  final Paint _backdropPaint = Paint()..style = PaintingStyle.fill;
+  final Paint _borderPaint = Paint()..style = PaintingStyle.stroke;
+
+  static const double _bubbleWidth = 240.0;
+  static const double _lineHeight = 17.0;
+  static const double _bubblePadding = 18.0;
+  static const double _bubbleGap = 14.0;
+
+  CombatStoryColumn({
+    required Vector2 position,
+    required this.isTreeVisible,
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.totalCombatSkills,
+    required this.unlockedCombatSkills,
+    required this.segments,
+  }) : super(position: position, anchor: Anchor.bottomCenter, priority: 2) {
+    _wrappedSegments = segments
+        .map(
+          (segment) =>
+              ConnectionLine.wrapStoryText(segment, maxCharsPerLine: 30),
+        )
+        .toList();
+    _wrappedSegmentLines = _wrappedSegments
+        .map(
+          (segment) => segment.isEmpty ? const <String>[] : segment.split('\n'),
+        )
+        .toList();
+    _thresholds = _buildThresholds(totalCombatSkills, segments.length);
+  }
+
+  static List<int> _buildThresholds(int totalSkills, int segmentCount) {
+    if (segmentCount <= 0) return const <int>[];
+    if (segmentCount == 1) return [totalSkills];
+    if (totalSkills <= 1) {
+      return List<int>.generate(segmentCount, (_) => 1);
+    }
+
+    final thresholds = <int>[];
+    final span = totalSkills - 1;
+    for (int i = 0; i < segmentCount - 1; i++) {
+      final t = (1 + ((span * i) / (segmentCount - 1)).floor()).clamp(
+        1,
+        totalSkills,
+      );
+      thresholds.add(t);
+    }
+    thresholds.add(totalSkills);
+    return thresholds;
+  }
+
+  void updateUnlockedCombatSkills(int count) {
+    unlockedCombatSkills = count;
+  }
+
+  void setTreeVisible(bool visible) {
+    isTreeVisible = visible;
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (!isTreeVisible) return;
+    final revealedCount = _thresholds
+        .where((t) => unlockedCombatSkills >= t)
+        .length;
+    if (revealedCount <= 0) return;
+
+    _textPaint ??= TextPaint(
+      style: GoogleFonts.imFellGreatPrimer(
+        color: Colors.white.withValues(alpha: 0.95),
+        fontSize: 13,
+        height: 1.2,
+      ),
+    );
+
+    double yOffset = 0.0;
+    for (int i = 0; i < revealedCount; i++) {
+      final lines = _wrappedSegmentLines[i];
+      final bubbleHeight = (lines.length * _lineHeight) + _bubblePadding;
+      final xOffset = (i.isEven ? -1.0 : 1.0) * (18.0 + (i % 3) * 8.0);
+      final rect = Rect.fromCenter(
+        center: Offset(xOffset, -(yOffset + bubbleHeight / 2)),
+        width: _bubbleWidth,
+        height: bubbleHeight,
+      );
+      final bubble = RRect.fromRectAndRadius(rect, const Radius.circular(12));
+
+      final alpha = i == revealedCount - 1 ? 0.72 : 0.58;
+      _backdropPaint.color = Colors.black.withValues(alpha: alpha);
+      canvas.drawRRect(bubble, _backdropPaint);
+
+      _borderPaint
+        ..color = primaryColor.withValues(
+          alpha: i == revealedCount - 1 ? 0.5 : 0.28,
+        )
+        ..strokeWidth = 1.0;
+      canvas.drawRRect(bubble, _borderPaint);
+
+      _textPaint!.render(
+        canvas,
+        _wrappedSegments[i],
+        Vector2(xOffset, -(yOffset + bubbleHeight / 2)),
+        anchor: Anchor.center,
+      );
+
+      yOffset += bubbleHeight + _bubbleGap;
+    }
+  }
+}
+
+class TreeStoryBlock extends PositionComponent {
+  final String? storyId;
+  final ConstellationTree tree;
+  final Color primaryColor;
+  final String text;
+  final List<String>? progressiveLines;
+  final double maxWidth;
+  final TextAlign alignment;
+
+  bool isTreeVisible;
+  bool revealUnlocked;
+  int revealedLineCount;
+
+  TextPainter? _textPainter;
+  String _laidOutText = '';
+  final Paint _backdropPaint = Paint()..style = PaintingStyle.fill;
+  final Paint _borderPaint = Paint()..style = PaintingStyle.stroke;
+
+  TreeStoryBlock({
+    this.storyId,
+    required this.tree,
+    required Vector2 position,
+    required this.isTreeVisible,
+    required this.primaryColor,
+    required this.text,
+    this.progressiveLines,
+    this.revealedLineCount = 0,
+    required this.maxWidth,
+    required this.alignment,
+    required this.revealUnlocked,
+  }) : super(position: position, anchor: Anchor.center, priority: 3);
+
+  void setTreeVisible(bool visible) {
+    isTreeVisible = visible;
+  }
+
+  void updateRevealState(bool unlocked) {
+    if (tree == ConstellationTree.combat) {
+      revealUnlocked = true;
+      return;
+    }
+    revealUnlocked = unlocked;
+  }
+
+  void updateRevealedLineCount(int count) {
+    final lines = progressiveLines;
+    if (lines == null) return;
+    final next = count.clamp(0, lines.length);
+    if (next == revealedLineCount) return;
+    revealedLineCount = next;
+    _textPainter = null;
+    _laidOutText = '';
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (!isTreeVisible || !revealUnlocked) return;
+
+    final displayText = progressiveLines == null
+        ? text.trim()
+        : progressiveLines!.take(revealedLineCount).join('\n').trim();
+    if (displayText.isEmpty) return;
+
+    if (_textPainter == null || _laidOutText != displayText) {
+      _laidOutText = displayText;
+      _textPainter = TextPainter(
+        text: TextSpan(
+          text: displayText,
+          style: GoogleFonts.imFellGreatPrimer(
+            color: Colors.white.withValues(alpha: 0.94),
+            fontSize: 14,
+            height: 1.3,
+          ),
+        ),
+        textAlign: alignment,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: maxWidth);
+    }
+
+    final width = _textPainter!.width + 34.0;
+    final height = _textPainter!.height + 28.0;
+    final rect = Rect.fromCenter(
+      center: Offset.zero,
+      width: width,
+      height: height,
+    );
+    final bubble = RRect.fromRectAndRadius(rect, const Radius.circular(12));
+
+    _backdropPaint.color = Colors.black.withValues(alpha: 0.68);
+    canvas.drawRRect(bubble, _backdropPaint);
+
+    _borderPaint
+      ..color = primaryColor.withValues(alpha: 0.34)
+      ..strokeWidth = 1.0;
+    canvas.drawRRect(bubble, _borderPaint);
+
+    final dx = alignment == TextAlign.left
+        ? rect.left + 18.0
+        : rect.left + ((rect.width - _textPainter!.width) / 2);
+    _textPainter!.paint(
+      canvas,
+      Offset(dx, rect.top + ((rect.height - _textPainter!.height) / 2)),
+    );
   }
 }
 
@@ -1047,10 +1550,10 @@ class ConnectionLine extends Component {
   bool _showEnergyPulse = false;
   double _storyFloatOffset = 10.0;
 
-  late final String _wrappedStoryText;
-  late final List<String> _wrappedStoryLines;
-  TextPaint? _storyTextPaint;
+  late final String _normalizedStoryText;
+  TextPainter? _storyTextPainter;
   double _storyPaintAlpha = -1.0;
+  double _storyLayoutWidth = -1.0;
 
   final Paint _linePaint = Paint()
     ..style = PaintingStyle.stroke
@@ -1076,23 +1579,25 @@ class ConnectionLine extends Component {
     required this.connectionIndex,
     this.storyText,
   }) : super(priority: -1) {
-    _wrappedStoryText = _wrapStoryText(storyText);
-    _wrappedStoryLines = _wrappedStoryText.isEmpty
-        ? const <String>[]
-        : _wrappedStoryText.split('\n');
+    _normalizedStoryText = normalizeStoryText(storyText);
   }
 
-  static String _wrapStoryText(String? text, {int maxCharsPerLine = 26}) {
+  static String normalizeStoryText(String? text) {
     if (text == null) return '';
-    final clean = text.trim();
+    return text
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .join('\n');
+  }
+
+  static String wrapStoryText(String? text, {int maxCharsPerLine = 26}) {
+    final clean = normalizeStoryText(text);
     if (clean.isEmpty) return '';
 
     final wrappedLines = <String>[];
     for (final paragraph in clean.split('\n')) {
-      final p = paragraph.trim();
-      if (p.isEmpty) continue;
-
-      final words = p.split(RegExp(r'\s+'));
+      final words = paragraph.split(RegExp(r'\s+'));
       var currentLine = '';
 
       for (final word in words) {
@@ -1129,6 +1634,19 @@ class ConnectionLine extends Component {
     _energyPulsePosition = 0.0;
     _showEnergyPulse = true;
     _storyFloatOffset = 10.0;
+  }
+
+  /// Instantly shows the story text without playing the draw animation.
+  /// Used by the debug quote-reveal button.
+  void revealStoryInstant() {
+    if (storyText == null) return;
+    _isAnimating = false;
+    isActive = true;
+    _animationProgress = 1.0;
+    _showEnergyPulse = false;
+    _storyOpacity = 1.0;
+    _storyFloatOffset = 0.0;
+    _glowIntensity = 0.0;
   }
 
   @override
@@ -1243,7 +1761,7 @@ class ConnectionLine extends Component {
   }
 
   void _drawStoryText(Canvas canvas, Vector2 from, Vector2 to) {
-    if (_wrappedStoryText.isEmpty) return;
+    if (_normalizedStoryText.isEmpty) return;
 
     final midPoint = (from + to) / 2;
     final path = to - from;
@@ -1251,50 +1769,50 @@ class ConnectionLine extends Component {
     if (lineLength <= 0.001) return;
 
     final direction = path / lineLength;
-    // Use a consistent perpendicular that favours screen-right / screen-down
-    // so bubbles don't flip unpredictably.
     var perpendicular = Vector2(-direction.y, direction.x);
-    if (perpendicular.x < 0 ||
-        (perpendicular.x.abs() < 0.01 && perpendicular.y < 0)) {
+    if (perpendicular.length2 <= 0.001) {
+      perpendicular = Vector2(1, 0);
+    }
+    final treeCenter = _treeCenterFor(tree);
+    final radial = midPoint - treeCenter;
+    if (radial.length2 > 0.001 && radial.dot(perpendicular) < 0) {
       perpendicular = -perpendicular;
     }
 
-    final longestLineChars = _wrappedStoryLines.fold<int>(
-      0,
-      (max, line) => math.max(max, line.length),
-    );
-    final textWidth = (longestLineChars * 7.0 + 30.0).clamp(110.0, 320.0);
-    final textHeight = (_wrappedStoryLines.length * 16.0 + 16.0).clamp(
-      34.0,
-      140.0,
-    );
+    final maxTextWidth = (lineLength * 0.78).clamp(120.0, 180.0);
 
-    final baseDistance = (lineLength * 0.18).clamp(40.0, 90.0);
-    final safeDistance = baseDistance + (textHeight * 0.5);
+    final alpha = (_storyOpacity * 0.9).clamp(0.0, 1.0);
+    if (_storyTextPainter == null ||
+        (alpha - _storyPaintAlpha).abs() > 0.02 ||
+        (_storyLayoutWidth - maxTextWidth).abs() > 0.5) {
+      _storyPaintAlpha = alpha;
+      _storyLayoutWidth = maxTextWidth;
+      _storyTextPainter = TextPainter(
+        text: TextSpan(
+          text: _normalizedStoryText,
+          style: GoogleFonts.imFellGreatPrimer(
+            color: Colors.white.withValues(alpha: alpha),
+            fontSize: 13,
+            height: 1.25,
+          ),
+        ),
+        textAlign: TextAlign.left,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: maxTextWidth);
+    }
 
-    // Alternate sides based on connectionIndex for even distribution.
-    final double sideSign = connectionIndex.isEven ? 1.0 : -1.0;
+    final textPainter = _storyTextPainter!;
+    final textWidth = textPainter.width + 28.0;
+    final textHeight = textPainter.height + 22.0;
 
-    // Slight shift along the line so adjacent quotes don't stack exactly.
-    final lane = (connectionIndex % 3) - 1; // -1, 0, 1
-    final alongOffset = direction * (lane * 18.0);
+    final sideSign = connectionIndex.isEven ? -1.0 : 1.0;
+    final radialOffset = (64.0 + ((connectionIndex % 3) * 22.0)) * sideSign;
+    final tangentNudge = ((connectionIndex % 4) - 1.5) * 12.0;
     final storyPos =
         midPoint +
-        perpendicular * (safeDistance * sideSign) +
-        alongOffset +
+        perpendicular * radialOffset +
+        direction * tangentNudge +
         Vector2(0, -_storyFloatOffset);
-
-    final alpha = (_storyOpacity * 0.85).clamp(0.0, 1.0);
-    if (_storyTextPaint == null || (alpha - _storyPaintAlpha).abs() > 0.02) {
-      _storyPaintAlpha = alpha;
-      _storyTextPaint = TextPaint(
-        style: GoogleFonts.imFellGreatPrimer(
-          color: Colors.white.withValues(alpha: alpha),
-          fontSize: 12,
-          height: 1.15,
-        ),
-      );
-    }
 
     final rect = Rect.fromCenter(
       center: storyPos.toOffset(),
@@ -1304,23 +1822,35 @@ class ConnectionLine extends Component {
     final bubble = RRect.fromRectAndRadius(rect, const Radius.circular(10));
 
     _storyBackdropPaint.color = Colors.black.withValues(
-      alpha: (_storyOpacity * 0.62).clamp(0.0, 1.0),
+      alpha: (_storyOpacity * 0.78).clamp(0.0, 1.0),
     );
     canvas.drawRRect(bubble, _storyBackdropPaint);
 
     _storyBorderPaint
       ..color = primaryColor.withValues(
-        alpha: (_storyOpacity * 0.3).clamp(0.0, 1.0),
+        alpha: (_storyOpacity * 0.42).clamp(0.0, 1.0),
       )
       ..strokeWidth = 1.0;
     canvas.drawRRect(bubble, _storyBorderPaint);
 
-    _storyTextPaint!.render(
+    textPainter.paint(
       canvas,
-      _wrappedStoryText,
-      storyPos,
-      anchor: Anchor.center,
+      Offset(
+        rect.left + ((rect.width - textPainter.width) / 2),
+        rect.top + ((rect.height - textPainter.height) / 2),
+      ),
     );
+  }
+
+  static Vector2 _treeCenterFor(ConstellationTree tree) {
+    switch (tree) {
+      case ConstellationTree.breeder:
+        return Vector2(0, -600);
+      case ConstellationTree.combat:
+        return Vector2(-700, 400);
+      case ConstellationTree.extraction:
+        return Vector2(700, 400);
+    }
   }
 
   void setTreeVisible(bool visible) {

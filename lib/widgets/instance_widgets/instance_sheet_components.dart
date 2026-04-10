@@ -39,6 +39,13 @@ class _ScanlinePainter extends CustomPainter {
   bool shouldRepaint(_) => false;
 }
 
+String _displayVariantFaction(String faction) {
+  final trimmed = faction.trim();
+  if (trimmed.isEmpty) return trimmed;
+  if (trimmed.toLowerCase() == 'bloodborn') return 'Bloodborn';
+  return trimmed[0].toUpperCase() + trimmed.substring(1);
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // INSTANCE CARD
 // ──────────────────────────────────────────────────────────────────────────────
@@ -511,7 +518,7 @@ class _GeneticsBlock extends StatelessWidget {
           const SizedBox(height: 3),
         ],
         if (variant.isNotEmpty) ...[
-          _MiniRow(color: t.teal, label: variant.toUpperCase()),
+          _MiniRow(color: t.teal, label: _displayVariantFaction(variant)),
           const SizedBox(height: 2),
         ],
         _MiniRow(color: t.amberBright, label: _sizeName().toUpperCase()),

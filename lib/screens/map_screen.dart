@@ -598,7 +598,10 @@ class _MapScreenState extends State<MapScreen>
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const PartyPickerScreen(enforceUniqueSpecies: false),
+        builder: (_) => const PartyPickerScreen(
+          enforceUniqueSpecies: false,
+          teamStorageKey: 'saved_teams_wilderness',
+        ),
       ),
     );
     if (result == null) return;

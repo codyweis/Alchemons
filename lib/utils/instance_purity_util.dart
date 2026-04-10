@@ -9,8 +9,12 @@ enum InstancePurityFilter {
   species,
   pure;
 
-  InstancePurityFilter next() =>
-      values[(index + 1) % InstancePurityFilter.values.length];
+  InstancePurityFilter next() => switch (this) {
+    InstancePurityFilter.all => InstancePurityFilter.pure,
+    InstancePurityFilter.pure => InstancePurityFilter.elemental,
+    InstancePurityFilter.elemental => InstancePurityFilter.species,
+    InstancePurityFilter.species => InstancePurityFilter.all,
+  };
 
   String? get chipValueText => switch (this) {
     InstancePurityFilter.all => null,

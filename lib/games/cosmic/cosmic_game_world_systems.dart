@@ -1,6 +1,15 @@
 part of 'cosmic_game.dart';
 
 extension CosmicGameWorldSystems on CosmicGame {
+  String _bossTypeTag(BossType type) => switch (type) {
+    BossType.charger => '⚡',
+    BossType.gunner => '🔫',
+    BossType.skirmisher => '🎯',
+    BossType.bulwark => '🛡️',
+    BossType.carrier => '🛸',
+    BossType.warden => '👑',
+  };
+
   void _revealAround(Offset center, double radius) {
     final cellR = (radius / CosmicGame.fogCellSize).ceil();
     final cx = (center.dx / CosmicGame.fogCellSize).floor();
@@ -170,7 +179,9 @@ extension CosmicGameWorldSystems on CosmicGame {
       default:
         // Aggressive / drifting — spawn at viewport edge
         final angle = rng.nextDouble() * pi * 2;
-        final edgeDist = sqrt(size.x * size.x + size.y * size.y) * 0.55;
+        final vw = size.x / CosmicGame.cameraZoom;
+        final vh = size.y / CosmicGame.cameraZoom;
+        final edgeDist = sqrt(vw * vw + vh * vh) * 0.55;
         pos = _wrap(
           Offset(
             ship.pos.dx + cos(angle) * edgeDist,
@@ -208,6 +219,209 @@ extension CosmicGameWorldSystems on CosmicGame {
         aggroRadius: aggroRadius,
         stalkDistance: 400 + rng.nextDouble() * 300,
       ),
+    );
+  }
+
+  void setSandboxMode({required bool enabled, Offset? center}) {
+    if (enabled) {
+      if (!sandboxMode) {
+        sandboxReturnPosition = ship.pos;
+      }
+      sandboxMode = true;
+      sandboxAreaCenter = center ?? sandboxAreaCenter;
+      clearSandboxHostiles();
+      if (sandboxAreaCenter != null) {
+        teleportTo(sandboxAreaCenter!);
+        _revealAround(sandboxAreaCenter!, CosmicGame.sandboxAreaRevealRadius);
+      }
+      shipHealth = CosmicGame.shipMaxHealth;
+      _shipDead = false;
+      _respawnTimer = 0;
+      _shipInvincible = 1.2;
+      clearSteeringInput();
+      nearPlanet = null;
+      nearMarket = null;
+      nearContestArena = null;
+      _nearestRift = null;
+      _wasNearRift = false;
+      _wasNearNexus = false;
+      _isNearNexus = false;
+      _wasNearBattleRing = false;
+      _isNearBattleRing = false;
+      _wasNearBloodRing = false;
+      _isNearBloodRing = false;
+      onNearPlanet?.call(null);
+      onNearMarket?.call(null);
+      onNearRift?.call(false);
+      onNearNexus?.call(false);
+      onNearBattleRing?.call(false);
+      onNearBloodRing?.call(false);
+      onNearContestArena?.call(null);
+    } else {
+      sandboxMode = false;
+      clearSandboxHostiles();
+      final returnPos = sandboxReturnPosition;
+      sandboxReturnPosition = null;
+      sandboxAreaCenter = null;
+      if (returnPos != null) {
+        teleportTo(returnPos);
+      }
+      shipHealth = CosmicGame.shipMaxHealth;
+      _shipDead = false;
+      _respawnTimer = 0;
+      _shipInvincible = 0.75;
+    }
+  }
+
+  void clearSandboxHostiles() {
+    enemies.clear();
+    activeBoss = null;
+    bossProjectiles.clear();
+    projectiles.clear();
+    _missiles.clear();
+    elemParticles.clear();
+    battleRingOpponent = null;
+    ringOpponentProjectiles.clear();
+    ringMinions.clear();
+    _pendingRingMinionCount = 0;
+    _pendingRingMinionLevel = 0;
+    _pendingRingMinionElement = null;
+    _ringMinionsSpawnedForCurrentOpponent = false;
+  }
+
+  void resetSandboxCombatState() {
+    if (!sandboxMode) return;
+    shipHealth = CosmicGame.shipMaxHealth;
+    _shipDead = false;
+    _respawnTimer = 0;
+    _shipInvincible = 2.0;
+    clearSandboxHostiles();
+    if (activeCompanion != null) {
+      activeCompanion!.currentHp = activeCompanion!.maxHp;
+      activeCompanion!.shieldHp = 0;
+      activeCompanion!.invincibleTimer = 1.2;
+      activeCompanion!.returning = false;
+      activeCompanion!.returnTimer = 0;
+      activeCompanion!.position = ship.pos + const Offset(72, 0);
+      activeCompanion!.anchorPosition = activeCompanion!.position;
+    }
+    if (sandboxAreaCenter != null) {
+      teleportTo(sandboxAreaCenter!);
+    } else {
+      clearSteeringInput();
+    }
+  }
+
+  void spawnSandboxEnemy({
+    required EnemyTier tier,
+    String? element,
+    EnemyBehavior behavior = EnemyBehavior.aggressive,
+    int count = 1,
+  }) {
+    final spawnCount = count.clamp(1, 24);
+    final resolvedElement = element ?? _randomEnemyElement(sandboxRng);
+    for (var i = 0; i < spawnCount; i++) {
+      final angle = sandboxRng.nextDouble() * pi * 2;
+      final distance = 160.0 + sandboxRng.nextDouble() * 170.0;
+      final pos = _wrap(
+        Offset(
+          ship.pos.dx + cos(angle) * distance,
+          ship.pos.dy + sin(angle) * distance,
+        ),
+      );
+      enemies.add(
+        CosmicEnemy(
+          position: pos,
+          element: resolvedElement,
+          tier: tier,
+          radius: switch (tier) {
+            EnemyTier.drone => 6 + sandboxRng.nextDouble() * 3,
+            EnemyTier.wisp => 8 + sandboxRng.nextDouble() * 4,
+            EnemyTier.sentinel => 14 + sandboxRng.nextDouble() * 6,
+            EnemyTier.phantom => 12 + sandboxRng.nextDouble() * 5,
+            EnemyTier.brute => 20 + sandboxRng.nextDouble() * 8,
+            EnemyTier.colossus => 30 + sandboxRng.nextDouble() * 12,
+          },
+          health: CosmicBalance.enemyBaseHealth(tier),
+          speed: switch (tier) {
+            EnemyTier.drone => 90 + sandboxRng.nextDouble() * 50,
+            EnemyTier.wisp => 60 + sandboxRng.nextDouble() * 40,
+            EnemyTier.sentinel => 35 + sandboxRng.nextDouble() * 25,
+            EnemyTier.phantom => 45 + sandboxRng.nextDouble() * 30,
+            EnemyTier.brute => 20 + sandboxRng.nextDouble() * 15,
+            EnemyTier.colossus => 12 + sandboxRng.nextDouble() * 8,
+          },
+          angle: angle + pi,
+          driftTimer: sandboxRng.nextDouble() * 2,
+          behavior: behavior,
+          provoked: behavior == EnemyBehavior.aggressive,
+          aggroRadius: 420,
+          stalkDistance: 340,
+        ),
+      );
+    }
+  }
+
+  void spawnSandboxDummy({int count = 1}) {
+    final spawnCount = count.clamp(1, 12);
+    for (var i = 0; i < spawnCount; i++) {
+      final angle = sandboxRng.nextDouble() * pi * 2;
+      final distance = 160.0 + sandboxRng.nextDouble() * 120.0;
+      final pos = _wrap(
+        Offset(
+          ship.pos.dx + cos(angle) * distance,
+          ship.pos.dy + sin(angle) * distance,
+        ),
+      );
+      enemies.add(
+        CosmicEnemy(
+          position: pos,
+          element: 'neutral',
+          tier: EnemyTier.colossus,
+          radius: 28,
+          health: 99999,
+          speed: 0,
+          angle: angle + pi,
+          driftTimer: 999999,
+          behavior: EnemyBehavior.drifting,
+          provoked: false,
+          aggroRadius: 0,
+          stalkDistance: 0,
+        ),
+      );
+    }
+  }
+
+  void spawnSandboxBoss({required BossTemplate template, required int level}) {
+    final rng = Random();
+    final safeLevel = CosmicBalance.clampLevel(level);
+    final angle = rng.nextDouble() * pi * 2;
+    final distance = 320.0;
+    final pos = _wrap(
+      Offset(
+        ship.pos.dx + cos(angle) * distance,
+        ship.pos.dy + sin(angle) * distance,
+      ),
+    );
+
+    final healthScale = CosmicBalance.bossHealthScale(safeLevel);
+    final speedScale = CosmicBalance.bossSpeedScale(safeLevel);
+    final radiusBonus = CosmicBalance.bossRadiusBonus(safeLevel);
+
+    activeBoss = CosmicBoss(
+      position: pos,
+      name: template.name,
+      element: template.element,
+      level: safeLevel,
+      radius: template.radius + radiusBonus,
+      maxHealth: template.health * healthScale,
+      speed: template.speed * speedScale,
+      angle: rng.nextDouble() * pi * 2,
+      forcedType: template.preferredType,
+    );
+    bossProjectiles.clear();
+    onBossSpawned?.call(
+      '${_bossTypeTag(activeBoss!.type)} Lv$safeLevel ${template.name}',
     );
   }
 
@@ -1140,14 +1354,11 @@ extension CosmicGameWorldSystems on CosmicGame {
       maxHealth: lair.template.health * healthScale,
       speed: lair.template.speed * speedScale,
       angle: Random().nextDouble() * pi * 2,
+      forcedType: lair.template.preferredType,
     );
-
-    final bossTypeTag = switch (bossTypeForLevel(lvl)) {
-      BossType.charger => '⚡',
-      BossType.gunner => '🔫',
-      BossType.warden => '👑',
-    };
-    onBossSpawned?.call('$bossTypeTag Lv$lvl ${lair.template.name}');
+    onBossSpawned?.call(
+      '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${lair.template.name}',
+    );
   }
 
   /// Respawn a single galaxy whirl at a new random position.
@@ -1178,7 +1389,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       GalaxyWhirl(
         position: pos,
         element: elements[rng.nextInt(elements.length)],
-        level: rng.nextInt(10) + 1,
+        level: rng.nextInt(5) + 1,
         radius: 50 + rng.nextDouble() * 30,
         totalWaves: 3 + rng.nextInt(3),
       ),
@@ -1188,7 +1399,7 @@ extension CosmicGameWorldSystems on CosmicGame {
   void _spawnBoss() {
     final rng = Random();
     final template = kBossTemplates[rng.nextInt(kBossTemplates.length)];
-    final lvl = rng.nextInt(10) + 1; // random level 1-10
+    final lvl = rng.nextInt(5) + 1; // random level 1-5
 
     // Spawn near the matching element's planet
     final matchingPlanet = world_.planets.firstWhere(
@@ -1216,14 +1427,11 @@ extension CosmicGameWorldSystems on CosmicGame {
       maxHealth: template.health * healthScale,
       speed: template.speed * speedScale,
       angle: rng.nextDouble() * pi * 2,
+      forcedType: template.preferredType,
     );
-
-    final bossTypeTag = switch (bossTypeForLevel(lvl)) {
-      BossType.charger => '⚡',
-      BossType.gunner => '🔫',
-      BossType.warden => '👑',
-    };
-    onBossSpawned?.call('$bossTypeTag Lv$lvl ${template.name}');
+    onBossSpawned?.call(
+      '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${template.name}',
+    );
   }
 
   /// Spawn a guaranteed boss when a planet is first discovered.
@@ -1263,14 +1471,11 @@ extension CosmicGameWorldSystems on CosmicGame {
       maxHealth: template.health * healthScale,
       speed: template.speed * speedScale,
       angle: rng.nextDouble() * pi * 2,
+      forcedType: template.preferredType,
     );
-
-    final bossTypeTag = switch (bossTypeForLevel(lvl)) {
-      BossType.charger => '⚡',
-      BossType.gunner => '🔫',
-      BossType.warden => '👑',
-    };
-    onBossSpawned?.call('$bossTypeTag Lv$lvl ${template.name}');
+    onBossSpawned?.call(
+      '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${template.name}',
+    );
   }
 
   void _updateBossAI(CosmicBoss boss, double dt) {
@@ -1286,14 +1491,41 @@ extension CosmicGameWorldSystems on CosmicGame {
     if (dy > wh / 2) dy -= wh;
     if (dy < -wh / 2) dy += wh;
 
-    final toShip = atan2(dy, dx);
+    final toShipAngle = atan2(dy, dx);
     final dist = sqrt(dx * dx + dy * dy);
+
+    // ~30% of the time, aim at the companion instead of the ship.
+    // Chargers still always rush the ship (they're melee, not ranged).
+    double toShip = toShipAngle;
+    if (boss.type != BossType.charger &&
+        activeCompanion != null &&
+        activeCompanion!.isAlive) {
+      // Use phaseTimer as a cheap deterministic toggle so it doesn't
+      // flicker every frame — switches target roughly every ~2-3 seconds.
+      final cycle = (boss.phaseTimer * 0.4).floor() % 10;
+      if (cycle < 3) {
+        // 3 out of 10 cycles → aim at companion
+        var cdx = activeCompanion!.position.dx - boss.position.dx;
+        var cdy = activeCompanion!.position.dy - boss.position.dy;
+        if (cdx > ww / 2) cdx -= ww;
+        if (cdx < -ww / 2) cdx += ww;
+        if (cdy > wh / 2) cdy -= wh;
+        if (cdy < -wh / 2) cdy += wh;
+        toShip = atan2(cdy, cdx);
+      }
+    }
 
     switch (boss.type) {
       case BossType.charger:
         _updateChargerBoss(boss, dt, toShip, dist);
       case BossType.gunner:
         _updateGunnerBoss(boss, dt, toShip, dist);
+      case BossType.skirmisher:
+        _updateSkirmisherBoss(boss, dt, toShip, dist);
+      case BossType.bulwark:
+        _updateBulwarkBoss(boss, dt, toShip, dist);
+      case BossType.carrier:
+        _updateCarrierBoss(boss, dt, toShip, dist);
       case BossType.warden:
         _updateWardenBoss(boss, dt, toShip, dist);
     }
@@ -1441,6 +1673,385 @@ extension CosmicGameWorldSystems on CosmicGame {
   }
 
   // ────────────────────────────────────────────────
+  // SKIRMISHER BOSS
+  // Behaviour: darts around at range, peppers quick shots,
+  // and deploys light sniper escorts to reward chase and pick-offs.
+  // ────────────────────────────────────────────────
+  void _updateSkirmisherBoss(
+    CosmicBoss boss,
+    double dt,
+    double toShip,
+    double dist,
+  ) {
+    var angleDiff = toShip - boss.angle;
+    while (angleDiff > pi) {
+      angleDiff -= pi * 2;
+    }
+    while (angleDiff < -pi) {
+      angleDiff += pi * 2;
+    }
+    boss.angle += angleDiff * 2.8 * dt;
+
+    final desiredRange = boss.healthPct < 0.45 ? 330.0 : 290.0;
+    final orbitSign = sin(boss.phaseTimer * 1.6 + boss.level * 0.45) >= 0
+        ? 1.0
+        : -1.0;
+    double moveAngle;
+    if (dist > desiredRange + 85) {
+      moveAngle = toShip + orbitSign * 0.25;
+    } else if (dist < desiredRange - 70) {
+      moveAngle = toShip + pi + orbitSign * 0.18;
+    } else {
+      moveAngle = toShip + orbitSign * (pi / 2);
+    }
+    final speedBurst = 1.1 + 0.35 * (0.5 + 0.5 * sin(boss.phaseTimer * 4.2));
+    boss.position = _wrap(
+      Offset(
+        boss.position.dx + cos(moveAngle) * boss.speed * speedBurst * dt,
+        boss.position.dy + sin(moveAngle) * boss.speed * speedBurst * dt,
+      ),
+    );
+
+    boss.shootTimer -= dt;
+    if (boss.shootTimer <= 0 && dist < 620) {
+      boss.shootTimer = boss.healthPct < 0.45 ? 0.8 : 0.95;
+      final shots = boss.level >= 6 || boss.healthPct < 0.45 ? 3 : 2;
+      for (var s = 0; s < shots; s++) {
+        final spread = (s - (shots - 1) / 2) * 0.11;
+        bossProjectiles.add(
+          BossProjectile(
+            position: boss.position,
+            angle: toShip + spread,
+            element: boss.element,
+            damage: CosmicBalance.bossProjectileDamage(
+              level: boss.level,
+              type: boss.type,
+            ),
+            speed: 255 + boss.level * 20.0,
+            radius: 3.6,
+          ),
+        );
+      }
+    }
+
+    boss.escortTimer -= dt;
+    if (boss.escortTimer <= 0 && enemies.length < CosmicGame._maxEnemies - 2) {
+      boss.escortTimer = max(
+        4.2,
+        (CosmicBoss.escortCooldown - 0.9) - boss.level * 0.12,
+      );
+      _spawnSkirmisherEscortPack(boss);
+    }
+  }
+
+  void _spawnSkirmisherEscortPack(CosmicBoss boss) {
+    final rng = Random();
+    final packCount = boss.healthPct < 0.5 ? 3 : 2;
+
+    for (var i = 0; i < packCount; i++) {
+      final angle = rng.nextDouble() * pi * 2;
+      final dist = boss.radius * 2.6 + 38 + rng.nextDouble() * 40;
+      final pos = _wrap(
+        Offset(
+          boss.position.dx + cos(angle) * dist,
+          boss.position.dy + sin(angle) * dist,
+        ),
+      );
+
+      final isPhantom = i == 0 || rng.nextDouble() < 0.45;
+      final tier = isPhantom ? EnemyTier.phantom : EnemyTier.drone;
+      final stalkDistance = 380.0 + rng.nextDouble() * 120.0;
+      enemies.add(
+        CosmicEnemy(
+          position: pos,
+          element: boss.element,
+          tier: tier,
+          radius: isPhantom
+              ? 14 + rng.nextDouble() * 4
+              : 7 + rng.nextDouble() * 2,
+          health: CosmicBalance.enemyBaseHealth(tier) * (isPhantom ? 1.1 : 0.9),
+          speed: isPhantom
+              ? 88 + rng.nextDouble() * 20
+              : 118 + rng.nextDouble() * 26,
+          angle: rng.nextDouble() * pi * 2,
+          driftTimer: rng.nextDouble() * 1.5,
+          behavior: isPhantom
+              ? EnemyBehavior.stalking
+              : EnemyBehavior.aggressive,
+          provoked: true,
+          homePos: boss.position,
+          aggroRadius: 420.0,
+          stalkDistance: stalkDistance,
+        ),
+      );
+    }
+  }
+
+  // ────────────────────────────────────────────────
+  // BULWARK BOSS
+  // Behaviour: slow armored anchor that advances behind a recurring shield
+  // and calls in heavy support packs to punish tunnel vision.
+  // ────────────────────────────────────────────────
+  void _updateBulwarkBoss(
+    CosmicBoss boss,
+    double dt,
+    double toShip,
+    double dist,
+  ) {
+    var angleDiff = toShip - boss.angle;
+    while (angleDiff > pi) {
+      angleDiff -= pi * 2;
+    }
+    while (angleDiff < -pi) {
+      angleDiff += pi * 2;
+    }
+    boss.angle += angleDiff * 1.55 * dt;
+
+    final desiredRange = boss.healthPct < 0.4 ? 170.0 : 210.0;
+    double moveAngle;
+    if (dist > desiredRange + 55) {
+      moveAngle = toShip;
+    } else if (dist < desiredRange - 40) {
+      moveAngle = toShip + pi;
+    } else {
+      moveAngle = toShip + pi / 3;
+    }
+    final shieldSlow = boss.shieldUp ? 0.72 : 1.0;
+    boss.position = _wrap(
+      Offset(
+        boss.position.dx + cos(moveAngle) * boss.speed * shieldSlow * dt,
+        boss.position.dy + sin(moveAngle) * boss.speed * shieldSlow * dt,
+      ),
+    );
+
+    boss.shootTimer -= dt;
+    if (boss.shootTimer <= 0 && dist < 360) {
+      boss.shootTimer = boss.healthPct < 0.45 ? 1.0 : 1.25;
+      for (var s = 0; s < 2; s++) {
+        final spread = (s == 0 ? -1 : 1) * 0.09;
+        bossProjectiles.add(
+          BossProjectile(
+            position: boss.position,
+            angle: toShip + spread,
+            element: boss.element,
+            damage: CosmicBalance.bossProjectileDamage(
+              level: boss.level,
+              type: boss.type,
+            ),
+            speed: 185 + boss.level * 6.0,
+            radius: 5.0,
+          ),
+        );
+      }
+    }
+
+    boss.shieldTimer -= dt;
+    if (boss.shieldUp) {
+      if (boss.shieldTimer <= 0 || boss.shieldHealth <= 0) {
+        boss.shieldUp = false;
+        boss.shieldTimer = 5.8;
+      }
+    } else if (boss.shieldTimer <= 0) {
+      boss.shieldUp = true;
+      boss.shieldHealth = CosmicBalance.bossShieldHealth(boss.level) * 1.4;
+      boss.shieldTimer = 3.8;
+    }
+
+    boss.escortTimer -= dt;
+    if (boss.escortTimer <= 0 && enemies.length < CosmicGame._maxEnemies - 2) {
+      boss.escortTimer = max(
+        4.8,
+        CosmicBoss.escortCooldown + 0.6 - boss.level * 0.12,
+      );
+      _spawnBulwarkEscortPack(boss);
+    }
+  }
+
+  void _spawnBulwarkEscortPack(CosmicBoss boss) {
+    final rng = Random();
+    final packCount = boss.healthPct < 0.45 ? 3 : 2;
+
+    for (var i = 0; i < packCount; i++) {
+      final angle = rng.nextDouble() * pi * 2;
+      final dist = boss.radius * 2.8 + 28 + rng.nextDouble() * 36;
+      final pos = _wrap(
+        Offset(
+          boss.position.dx + cos(angle) * dist,
+          boss.position.dy + sin(angle) * dist,
+        ),
+      );
+
+      final isAnchor = i == 0;
+      final tier = isAnchor
+          ? (boss.healthPct < 0.5 ? EnemyTier.brute : EnemyTier.sentinel)
+          : (rng.nextDouble() < 0.5 ? EnemyTier.sentinel : EnemyTier.drone);
+      final behavior = isAnchor
+          ? EnemyBehavior.territorial
+          : EnemyBehavior.aggressive;
+      final radius = switch (tier) {
+        EnemyTier.drone => 8 + rng.nextDouble() * 2,
+        EnemyTier.wisp => 9 + rng.nextDouble() * 3,
+        EnemyTier.sentinel => 16 + rng.nextDouble() * 5,
+        EnemyTier.phantom => 14 + rng.nextDouble() * 4,
+        EnemyTier.brute => 21 + rng.nextDouble() * 6,
+        EnemyTier.colossus => 28 + rng.nextDouble() * 8,
+      };
+      final speed = switch (tier) {
+        EnemyTier.drone => 88 + rng.nextDouble() * 24,
+        EnemyTier.wisp => 75 + rng.nextDouble() * 25,
+        EnemyTier.sentinel => 38 + rng.nextDouble() * 14,
+        EnemyTier.phantom => 54 + rng.nextDouble() * 16,
+        EnemyTier.brute => 24 + rng.nextDouble() * 10,
+        EnemyTier.colossus => 18 + rng.nextDouble() * 8,
+      };
+      final healthScale = isAnchor ? 2.2 : 1.45;
+
+      enemies.add(
+        CosmicEnemy(
+          position: pos,
+          element: boss.element,
+          tier: tier,
+          radius: radius,
+          health: CosmicBalance.enemyBaseHealth(tier) * healthScale,
+          speed: speed,
+          angle: rng.nextDouble() * pi * 2,
+          driftTimer: rng.nextDouble() * 2,
+          behavior: behavior,
+          provoked: true,
+          homePos: boss.position,
+          aggroRadius: isAnchor ? 240.0 : 360.0,
+        ),
+      );
+    }
+  }
+
+  // ────────────────────────────────────────────────
+  // CARRIER BOSS
+  // Behaviour: holds mid-range, fires light screen shots,
+  // periodically deploys escort packages that change target priority.
+  // ────────────────────────────────────────────────
+  void _updateCarrierBoss(
+    CosmicBoss boss,
+    double dt,
+    double toShip,
+    double dist,
+  ) {
+    var angleDiff = toShip - boss.angle;
+    while (angleDiff > pi) {
+      angleDiff -= pi * 2;
+    }
+    while (angleDiff < -pi) {
+      angleDiff += pi * 2;
+    }
+    boss.angle += angleDiff * 1.85 * dt;
+
+    final desiredRange = boss.healthPct < 0.45 ? 320.0 : 380.0;
+    double moveAngle;
+    if (dist > desiredRange + 70) {
+      moveAngle = toShip;
+    } else if (dist < desiredRange - 60) {
+      moveAngle = toShip + pi;
+    } else {
+      moveAngle = toShip + pi / 2;
+    }
+    boss.position = _wrap(
+      Offset(
+        boss.position.dx + cos(moveAngle) * boss.speed * dt,
+        boss.position.dy + sin(moveAngle) * boss.speed * dt,
+      ),
+    );
+
+    boss.shootTimer -= dt;
+    if (boss.shootTimer <= 0 && dist < 560) {
+      boss.shootTimer = 1.25;
+      for (var s = 0; s < 2; s++) {
+        final spread = (s == 0 ? -1 : 1) * 0.12;
+        bossProjectiles.add(
+          BossProjectile(
+            position: boss.position,
+            angle: toShip + spread,
+            element: boss.element,
+            damage: CosmicBalance.bossProjectileDamage(
+              level: boss.level,
+              type: boss.type,
+            ),
+            speed: 210 + boss.level * 7.0,
+            radius: 4.0,
+          ),
+        );
+      }
+    }
+
+    boss.escortTimer -= dt;
+    if (boss.escortTimer <= 0 && enemies.length < CosmicGame._maxEnemies - 3) {
+      boss.escortTimer = max(
+        3.8,
+        CosmicBoss.escortCooldown - boss.level * 0.18,
+      );
+      _spawnCarrierEscortPack(boss);
+    }
+  }
+
+  void _spawnCarrierEscortPack(CosmicBoss boss) {
+    final rng = Random();
+    final packCount = boss.healthPct < 0.4 ? 4 : 3;
+    final sentryIndices = <int>{if (packCount >= 3) rng.nextInt(packCount)};
+
+    for (var i = 0; i < packCount; i++) {
+      final angle = rng.nextDouble() * pi * 2;
+      final dist = boss.radius * 2.4 + 30 + rng.nextDouble() * 45;
+      final pos = _wrap(
+        Offset(
+          boss.position.dx + cos(angle) * dist,
+          boss.position.dy + sin(angle) * dist,
+        ),
+      );
+
+      final isScreener = sentryIndices.contains(i);
+      final tier = isScreener
+          ? EnemyTier.sentinel
+          : (rng.nextDouble() < 0.55 ? EnemyTier.drone : EnemyTier.wisp);
+      final behavior = isScreener
+          ? EnemyBehavior.territorial
+          : EnemyBehavior.aggressive;
+      final radius = switch (tier) {
+        EnemyTier.drone => 7 + rng.nextDouble() * 2,
+        EnemyTier.wisp => 9 + rng.nextDouble() * 3,
+        EnemyTier.sentinel => 15 + rng.nextDouble() * 5,
+        EnemyTier.phantom => 14 + rng.nextDouble() * 4,
+        EnemyTier.brute => 20 + rng.nextDouble() * 6,
+        EnemyTier.colossus => 28 + rng.nextDouble() * 8,
+      };
+      final speed = switch (tier) {
+        EnemyTier.drone => 95 + rng.nextDouble() * 40,
+        EnemyTier.wisp => 78 + rng.nextDouble() * 35,
+        EnemyTier.sentinel => 42 + rng.nextDouble() * 18,
+        EnemyTier.phantom => 58 + rng.nextDouble() * 18,
+        EnemyTier.brute => 28 + rng.nextDouble() * 12,
+        EnemyTier.colossus => 18 + rng.nextDouble() * 8,
+      };
+      final healthScale = isScreener ? 1.9 : 1.25;
+
+      enemies.add(
+        CosmicEnemy(
+          position: pos,
+          element: boss.element,
+          tier: tier,
+          radius: radius,
+          health: CosmicBalance.enemyBaseHealth(tier) * healthScale,
+          speed: speed,
+          angle: rng.nextDouble() * pi * 2,
+          driftTimer: rng.nextDouble() * 2,
+          behavior: behavior,
+          provoked: true,
+          homePos: isScreener ? boss.position : null,
+          aggroRadius: isScreener ? 260.0 : 420.0,
+        ),
+      );
+    }
+  }
+
+  // ────────────────────────────────────────────────
   // WARDEN BOSS (Lv 8-10)
   //  Behaviour: fires projectile fans, summons minion enemies,
   //  enrages below 30% HP (faster attacks, speed boost).
@@ -1507,7 +2118,7 @@ extension CosmicGameWorldSystems on CosmicGame {
               type: boss.type,
               enraged: boss.enraged,
             ),
-            speed: 200 + boss.level * 10.0,
+            speed: 200 + boss.level * 20.0,
             radius: 5.0,
           ),
         );
@@ -1590,7 +2201,33 @@ extension CosmicGameWorldSystems on CosmicGame {
         final hitR = bp.radius + 14;
         if (sdx * sdx + sdy * sdy < hitR * hitR) {
           _damageShip(bp.damage);
+          // _damageShip may clear bossProjectiles (sandbox reset), bail out.
+          if (i >= bossProjectiles.length) break;
           bossProjectiles.removeAt(i);
+          continue;
+        }
+      }
+
+      // Hit companion?
+      if (activeCompanion != null &&
+          activeCompanion!.isAlive &&
+          activeCompanion!.invincibleTimer <= 0) {
+        final comp = activeCompanion!;
+        final cdx = comp.position.dx - bp.position.dx;
+        final cdy = comp.position.dy - bp.position.dy;
+        final compHitR = bp.radius + 15;
+        if (cdx * cdx + cdy * cdy < compHitR * compHitR) {
+          // Boss projectile damage is ship-scale (~1-2). Scale up to
+          // companion-scale so it's meaningful against companion defenses.
+          final scaledDmg = bp.damage * 30.0;
+          final dmg = max(
+            1,
+            (scaledDmg * 100 / (100 + comp.elemDef)).round(),
+          );
+          comp.takeDamage(dmg);
+          _spawnHitSpark(comp.position, elementColor(bp.element));
+          bossProjectiles.removeAt(i);
+          continue;
         }
       }
     }
@@ -1614,68 +2251,73 @@ extension CosmicGameWorldSystems on CosmicGame {
   }
 
   /// Spawn item drops from a defeated boss.
-  /// Lv 4-6: small chance for a standard harvester matching boss element.
-  /// Lv 7-9: higher chance for harvester + small chance for portal key.
-  /// Lv 10: guaranteed harvester + portal key + chance for guaranteed harvester.
+  /// Lv 3: small chance for a standard harvester matching boss element.
+  /// Lv 4: higher chance for harvester + 5% portal key.
+  /// Lv 5: guaranteed harvester + 20% portal key + chance for guaranteed harvester.
   void _spawnBossItemDrops(CosmicBoss boss) {
+    if (sandboxMode) return;
     final rng = Random();
     final faction = factionForElement(boss.element);
     final harvesterKey = 'item.harvest_std_$faction';
     final portalKey = 'item.portal_key.$faction';
 
-    if (boss.level >= 10) {
-      // Lv10: guaranteed standard harvester + portal key
+    if (boss.level >= 5) {
+      // Lv5: guaranteed standard harvester, 20% portal key
       _spawnItemDrop(boss.position, harvesterKey);
-      _spawnItemDrop(boss.position, portalKey);
+      if (rng.nextDouble() < 0.20) {
+        _spawnItemDrop(boss.position, portalKey);
+      }
       // 25% chance for a guaranteed (stabilized) harvester
       if (rng.nextDouble() < 0.25) {
         _spawnItemDrop(boss.position, 'item.harvest_guaranteed');
       }
-    } else if (boss.level >= 7) {
-      // Lv7-9: 60% harvester, 30% portal key
+    } else if (boss.level >= 4) {
+      // Lv4: 60% harvester, 5% portal key
       if (rng.nextDouble() < 0.60) {
         _spawnItemDrop(boss.position, harvesterKey);
       }
-      if (rng.nextDouble() < 0.30) {
+      if (rng.nextDouble() < 0.05) {
         _spawnItemDrop(boss.position, portalKey);
       }
-    } else if (boss.level >= 4) {
-      // Lv4-6: 25% harvester
+    } else if (boss.level >= 3) {
+      // Lv3: 25% harvester
       if (rng.nextDouble() < 0.25) {
         _spawnItemDrop(boss.position, harvesterKey);
       }
     }
-    // Lv1-3: no item drops (shards + particles only)
+    // Lv1-2: no item drops (shards + particles only)
   }
 
   /// Spawn item drops from a completed galaxy whirl (horde).
-  /// Lv 4-6: small chance for a harvester.
-  /// Lv 7-9: decent chance for harvester.
-  /// Lv 10: guaranteed harvester + portal key + chance for stabilized harvester.
+  /// Lv 3: small chance for a harvester.
+  /// Lv 4: decent chance for harvester + 5% portal key.
+  /// Lv 5: guaranteed harvester + 20% portal key + chance for stabilized harvester.
   void _spawnWhirlItemDrops(GalaxyWhirl whirl) {
     final rng = Random();
     final faction = factionForElement(whirl.element);
     final harvesterKey = 'item.harvest_std_$faction';
     final portalKey = 'item.portal_key.$faction';
 
-    if (whirl.level >= 10) {
-      // Lv10: guaranteed harvester + portal key
+    if (whirl.level >= 5) {
+      // Lv5: guaranteed harvester, 20% portal key
       _spawnItemDrop(whirl.position, harvesterKey);
-      _spawnItemDrop(whirl.position, portalKey);
+      if (rng.nextDouble() < 0.20) {
+        _spawnItemDrop(whirl.position, portalKey);
+      }
       // 15% chance for stabilized harvester (slightly lower than boss)
       if (rng.nextDouble() < 0.15) {
         _spawnItemDrop(whirl.position, 'item.harvest_guaranteed');
       }
-    } else if (whirl.level >= 7) {
-      // Lv7-9: 40% harvester, 15% portal key
+    } else if (whirl.level >= 4) {
+      // Lv4: 40% harvester, 5% portal key
       if (rng.nextDouble() < 0.40) {
         _spawnItemDrop(whirl.position, harvesterKey);
       }
-      if (rng.nextDouble() < 0.15) {
+      if (rng.nextDouble() < 0.05) {
         _spawnItemDrop(whirl.position, portalKey);
       }
-    } else if (whirl.level >= 4) {
-      // Lv4-6: 15% harvester
+    } else if (whirl.level >= 3) {
+      // Lv3: 15% harvester
       if (rng.nextDouble() < 0.15) {
         _spawnItemDrop(whirl.position, harvesterKey);
       }
@@ -1750,6 +2392,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     int shardAmount,
     double particleAmount,
   ) {
+    if (sandboxMode) return;
     final rng = Random();
 
     // Astral Shards — 1-3 individual crystal drops
@@ -2437,6 +3080,7 @@ extension CosmicGameWorldSystems on CosmicGame {
 
   void _damageShip(double damage) {
     if (_shipDead || _shipInvincible > 0) return;
+    if (sandboxMode) return; // Ship is invincible in sandbox
     shipHealth -= damage;
     _shipInvincible = 0.65; // brief invincibility after hit
 
@@ -2444,6 +3088,12 @@ extension CosmicGameWorldSystems on CosmicGame {
     _spawnHitSpark(ship.pos, Colors.redAccent);
 
     if (shipHealth <= 0) {
+      if (sandboxMode) {
+        _spawnKillVfx(ship.pos, const Color(0xFF00E5FF), 18, true);
+        shooting = false;
+        resetSandboxCombatState();
+        return;
+      }
       shipHealth = 0;
       _shipDead = true;
       _respawnTimer = 2.5; // 2.5s respawn delay

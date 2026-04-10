@@ -1,6 +1,7 @@
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
@@ -255,7 +256,6 @@ class _XPBarDisplayState extends State<XPBarDisplay>
     with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _xpAnimation;
-  late Animation<int> _levelAnimation;
 
   @override
   void initState() {
@@ -269,34 +269,10 @@ class _XPBarDisplayState extends State<XPBarDisplay>
   }
 
   void _setupAnimations() {
-    final startLevel = widget.preFeedLevel ?? widget.instance.level;
-    final endLevel = widget.instance.level;
-    final startXp = widget.preFeedXp ?? widget.instance.xp;
-    final endXp = widget.instance.xp;
-
-    _levelAnimation = IntTween(begin: startLevel, end: endLevel).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+    _xpAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
     );
-
-    if (startLevel == endLevel) {
-      final xpNeeded = CreatureInstanceServiceFeeding.xpNeededForLevel(
-        startLevel,
-      );
-      final startPercent = startXp / xpNeeded;
-      final endPercent = endXp / xpNeeded;
-
-      _xpAnimation = Tween<double>(begin: startPercent, end: endPercent)
-          .animate(
-            CurvedAnimation(
-              parent: _animController,
-              curve: Curves.easeOutCubic,
-            ),
-          );
-    } else {
-      _xpAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
-      );
-    }
   }
 
   @override
@@ -323,24 +299,23 @@ class _XPBarDisplayState extends State<XPBarDisplay>
     final t = ForgeTokens(widget.theme);
     final currentLevel = widget.instance.level;
     final currentXp = widget.instance.xp;
+    final repo = context.read<CreatureCatalog>();
+    final creature = repo.getCreatureById(widget.instance.baseId);
+    final rarity = creature?.rarity ?? 'Common';
     final xpNeeded = CreatureInstanceServiceFeeding.xpNeededForLevel(
       currentLevel,
+      rarity: rarity,
     );
 
     return AnimatedBuilder(
       animation: _animController,
       builder: (context, child) {
-        final displayLevel = widget.isAnimating
-            ? _levelAnimation.value
-            : currentLevel;
-
-        final displayXpPercent = widget.isAnimating
-            ? _xpAnimation.value
-            : (currentXp / xpNeeded).clamp(0.0, 1.0);
-
-        final displayXp = widget.isAnimating
-            ? (displayXpPercent * xpNeeded).round()
-            : currentXp;
+        final frame = _buildXpFrame(
+          rarity: rarity,
+          liveLevel: currentLevel,
+          liveXp: currentXp,
+          liveMaxXp: xpNeeded,
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,7 +323,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
             Row(
               children: [
                 Text(
-                  'Level $displayLevel',
+                  'Level ${frame.displayLevel}',
                   style: TextStyle(
                     color: t.textPrimary,
                     fontSize: 11,
@@ -376,7 +351,10 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                         child: Stack(
                           children: [
                             FractionallySizedBox(
-                              widthFactor: displayXpPercent.clamp(0.0, 1.0),
+                              widthFactor: frame.displayProgress.clamp(
+                                0.0,
+                                1.0,
+                              ),
                               child: Container(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
@@ -396,7 +374,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                   ),
                   SizedBox(width: 6),
                   Text(
-                    '$displayXp/$xpNeeded',
+                    '${frame.displayXp}/${frame.displayMaxXp}',
                     style: TextStyle(
                       color: t.textSecondary,
                       fontSize: 9,
@@ -437,6 +415,95 @@ class _XPBarDisplayState extends State<XPBarDisplay>
       },
     );
   }
+
+  _XpBarFrame _buildXpFrame({
+    required String rarity,
+    required int liveLevel,
+    required int liveXp,
+    required int liveMaxXp,
+  }) {
+    if (!widget.isAnimating) {
+      final progress = liveMaxXp > 0
+          ? (liveXp / liveMaxXp).clamp(0.0, 1.0)
+          : 0.0;
+      return _XpBarFrame(
+        displayLevel: liveLevel,
+        displayXp: liveXp,
+        displayMaxXp: liveMaxXp,
+        displayProgress: progress,
+      );
+    }
+
+    final startLevel = widget.preFeedLevel ?? liveLevel;
+    final startXp = widget.preFeedXp ?? liveXp;
+    final endLevel = liveLevel;
+    final endXp = liveXp;
+    final startMaxXp = CreatureInstanceServiceFeeding.xpNeededForLevel(
+      startLevel,
+      rarity: rarity,
+    );
+    final endMaxXp = CreatureInstanceServiceFeeding.xpNeededForLevel(
+      endLevel,
+      rarity: rarity,
+    );
+    final t = _xpAnimation.value;
+
+    if (startLevel == endLevel) {
+      final startProgress = startMaxXp > 0
+          ? (startXp / startMaxXp).clamp(0.0, 1.0)
+          : 0.0;
+      final endProgress = endMaxXp > 0
+          ? (endXp / endMaxXp).clamp(0.0, 1.0)
+          : 0.0;
+      final progress = _lerpDouble(startProgress, endProgress, t);
+      return _XpBarFrame(
+        displayLevel: startLevel,
+        displayXp: (progress * startMaxXp).round(),
+        displayMaxXp: startMaxXp,
+        displayProgress: progress,
+      );
+    }
+
+    if (t < 0.5) {
+      final localT = t / 0.5;
+      final startProgress = startMaxXp > 0
+          ? (startXp / startMaxXp).clamp(0.0, 1.0)
+          : 0.0;
+      final progress = _lerpDouble(startProgress, 1.0, localT);
+      return _XpBarFrame(
+        displayLevel: startLevel,
+        displayXp: (progress * startMaxXp).round(),
+        displayMaxXp: startMaxXp,
+        displayProgress: progress,
+      );
+    }
+
+    final localT = (t - 0.5) / 0.5;
+    final endProgress = endMaxXp > 0 ? (endXp / endMaxXp).clamp(0.0, 1.0) : 0.0;
+    final progress = _lerpDouble(0.0, endProgress, localT);
+    return _XpBarFrame(
+      displayLevel: endLevel,
+      displayXp: (progress * endMaxXp).round(),
+      displayMaxXp: endMaxXp,
+      displayProgress: progress,
+    );
+  }
+
+  double _lerpDouble(double a, double b, double t) => a + ((b - a) * t);
+}
+
+class _XpBarFrame {
+  final int displayLevel;
+  final int displayXp;
+  final int displayMaxXp;
+  final double displayProgress;
+
+  const _XpBarFrame({
+    required this.displayLevel,
+    required this.displayXp,
+    required this.displayMaxXp,
+    required this.displayProgress,
+  });
 }
 
 // ---------- Current Stats Display ----------
@@ -463,86 +530,158 @@ class CurrentStatsDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
       decoration: BoxDecoration(
-        color: t.bg2,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [t.bg2, t.bg1],
+        ),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: t.borderDim),
+        boxShadow: [
+          BoxShadow(
+            color: t.amber.withValues(alpha: 0.08),
+            blurRadius: 18,
+            spreadRadius: -12,
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          FastLongPressDetector(
-            onLongPress: () {
-              showQuickInstanceDialog(
-                context: context,
-                theme: theme,
-                creature: creature,
-                instance: instance,
-              );
-            },
-            child: InstanceSprite(
-              creature: creature,
-              instance: instance,
-              size: 50,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  creature.name,
-                  style: TextStyle(
-                    color: t.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 5,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 122,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Positioned(
+                            bottom: 12,
+                            child: Container(
+                              width: 120,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                gradient: RadialGradient(
+                                  colors: [
+                                    t.amber.withValues(alpha: 0.28),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 0,
+                            child: Container(
+                              width: 88,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    t.amber.withValues(alpha: 0.12),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 10,
+                            child: FastLongPressDetector(
+                              onLongPress: () {
+                                showQuickInstanceDialog(
+                                  context: context,
+                                  theme: theme,
+                                  creature: creature,
+                                  instance: instance,
+                                );
+                              },
+                              child: InstanceSprite(
+                                creature: creature,
+                                instance: instance,
+                                size: 100,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      creature.name,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: t.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                XPBarDisplay(
-                  theme: theme,
-                  instance: instance,
-                  isAnimating: isAnimating,
-                  preFeedLevel: preFeedLevel,
-                  preFeedXp: preFeedXp,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 6,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    XPBarDisplay(
+                      theme: theme,
+                      instance: instance,
+                      isAnimating: isAnimating,
+                      preFeedLevel: preFeedLevel,
+                      preFeedXp: preFeedXp,
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: t.bg1.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: t.borderDim),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          StatMiniBar(
+                            label: 'SPD',
+                            value: instance.statSpeed,
+                            potential: instance.statSpeedPotential,
+                            theme: theme,
+                          ),
+                          StatMiniBar(
+                            label: 'INT',
+                            value: instance.statIntelligence,
+                            potential: instance.statIntelligencePotential,
+                            theme: theme,
+                          ),
+                          StatMiniBar(
+                            label: 'STR',
+                            value: instance.statStrength,
+                            potential: instance.statStrengthPotential,
+                            theme: theme,
+                          ),
+                          StatMiniBar(
+                            label: 'BEA',
+                            value: instance.statBeauty,
+                            potential: instance.statBeautyPotential,
+                            theme: theme,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 128,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                StatMiniBar(
-                  label: 'SPD',
-                  value: instance.statSpeed,
-                  potential: instance.statSpeedPotential,
-                  theme: theme,
-                ),
-                StatMiniBar(
-                  label: 'INT',
-                  value: instance.statIntelligence,
-                  potential: instance.statIntelligencePotential,
-                  theme: theme,
-                ),
-                StatMiniBar(
-                  label: 'STR',
-                  value: instance.statStrength,
-                  potential: instance.statStrengthPotential,
-                  theme: theme,
-                ),
-                StatMiniBar(
-                  label: 'BEA',
-                  value: instance.statBeauty,
-                  potential: instance.statBeautyPotential,
-                  theme: theme,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -805,6 +944,105 @@ class StatGainIndicator extends StatelessWidget {
   }
 }
 
+// ---------- Target Panel ----------
+
+class FeedTargetPanel extends StatelessWidget {
+  final FactionTheme theme;
+  final CreatureInstance? targetInstance;
+  final Creature? targetCreature;
+  final FeedResult? preview;
+  final bool shouldAnimate;
+  final int? preFeedLevel;
+  final int? preFeedXp;
+
+  const FeedTargetPanel({
+    super.key,
+    required this.theme,
+    required this.targetInstance,
+    required this.targetCreature,
+    required this.preview,
+    required this.shouldAnimate,
+    this.preFeedLevel,
+    this.preFeedXp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final t = ForgeTokens(theme);
+    final isMaxLevel = targetInstance?.level == 10;
+    final constellationEffects = context.watch<ConstellationEffectsService>();
+
+    if (targetInstance == null || targetCreature == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [t.bg1, t.bg0],
+        ),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isMaxLevel)
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: fc.amberBright.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: fc.amber.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.stars, color: fc.amberBright, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Max Level Reached!\nThis creature can no longer be enhanced.',
+                      style: TextStyle(
+                        color: fc.amberBright,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            CurrentStatsDisplay(
+              theme: theme,
+              instance: targetInstance!,
+              creature: targetCreature!,
+              isAnimating: shouldAnimate,
+              preFeedLevel: preFeedLevel,
+              preFeedXp: preFeedXp,
+            ),
+            if (preview != null && preview!.ok) ...[
+              const SizedBox(height: 8),
+              StatGainsPreview(
+                theme: theme,
+                preview: preview!,
+                instance: targetInstance!,
+              ),
+            ],
+          ],
+          const SizedBox(height: 10),
+          _buildConstellationBonuses(theme, constellationEffects),
+        ],
+      ),
+    );
+  }
+}
+
 // ---------- Feed Footer ----------
 
 class FeedFooter extends StatelessWidget {
@@ -835,111 +1073,21 @@ class FeedFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fc = FC.of(context);
     final t = ForgeTokens(theme);
-    final isMaxLevel = targetInstance?.level == 10;
-    final constellationEffects = context.watch<ConstellationEffectsService>();
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
-        color: t.bg1,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [t.bg1, t.bg0],
+        ),
         border: Border(top: BorderSide(color: t.borderDim)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // SPECIMEN LOADED status badge
-          if (targetInstance != null) ...[
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: fc.amberDim.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: fc.amber.withValues(alpha: 0.45)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.only(right: 5),
-                        decoration: BoxDecoration(
-                          color: fc.amberGlow,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      Text(
-                        'SPECIMEN LOADED',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: fc.amberBright,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-          ],
-          if (targetInstance != null && targetCreature != null) ...[
-            if (isMaxLevel)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: fc.amberBright.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: fc.amber.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.stars, color: fc.amberBright, size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Max Level Reached!\nThis creature can no longer be enhanced.',
-                        style: TextStyle(
-                          color: fc.amberBright,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else ...[
-              CurrentStatsDisplay(
-                theme: theme,
-                instance: targetInstance!,
-                creature: targetCreature!,
-                isAnimating: shouldAnimate,
-                preFeedLevel: preFeedLevel,
-                preFeedXp: preFeedXp,
-              ),
-              if (preview != null && preview!.ok) ...[
-                const SizedBox(height: 8),
-                StatGainsPreview(
-                  theme: theme,
-                  preview: preview!,
-                  instance: targetInstance!,
-                ),
-              ],
-            ],
-            const SizedBox(height: 12),
-            _buildConstellationBonuses(theme, constellationEffects),
-          ],
           EnhanceButton(
             theme: theme,
             enabled:

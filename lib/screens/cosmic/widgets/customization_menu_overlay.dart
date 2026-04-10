@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'cosmic_screen_styles.dart';
 
@@ -53,6 +54,13 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
 
   /// Which tab is active: 0 = SHIP, 1 = HOME
   int _activeTab = 0;
+  late final PageController _pageController = PageController();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,11 +129,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       color: CosmicScreenStyles.amber,
                       margin: const EdgeInsets.only(right: 10),
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'CUSTOMIZATION LAB',
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: appFontFamily(context),
                           color: CosmicScreenStyles.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -179,10 +187,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           size: 14,
                         ),
                         const SizedBox(width: 6),
-                        const Text(
+                        Text(
                           'RESOURCES',
                           style: TextStyle(
-                            fontFamily: 'monospace',
+                            fontFamily: appFontFamily(context),
                             color: CosmicScreenStyles.textSecondary,
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
@@ -199,8 +207,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           const SizedBox(width: 4),
                           Text(
                             _fmt(bankBalance),
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
+                            style: TextStyle(
+                              fontFamily: appFontFamily(context),
                               color: CosmicScreenStyles.amberBright,
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -222,16 +230,21 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
 
               // Tab content
               Expanded(
-                child: _activeTab == 0
-                    ? _buildShipTab(weapons, systems, ammos, skins)
-                    : _buildHomeTab(
-                        maxTier,
-                        activeTier,
-                        nextCost,
-                        canAffordUpgrade,
-                        visuals,
-                        stations,
-                      ),
+                child: PageView(
+                  controller: _pageController,
+                  onPageChanged: (i) => setState(() => _activeTab = i),
+                  children: [
+                    _buildShipTab(weapons, systems, ammos, skins),
+                    _buildHomeTab(
+                      maxTier,
+                      activeTier,
+                      nextCost,
+                      canAffordUpgrade,
+                      visuals,
+                      stations,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -305,11 +318,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         color: CosmicScreenStyles.amber,
                         margin: const EdgeInsets.only(right: 8),
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'RESOURCES',
                           style: TextStyle(
-                            fontFamily: 'monospace',
+                            fontFamily: appFontFamily(context),
                             color: CosmicScreenStyles.textPrimary,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -345,10 +358,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           size: 14,
                         ),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'ASTRAL SHARDS',
                           style: TextStyle(
-                            fontFamily: 'monospace',
+                            fontFamily: appFontFamily(context),
                             color: CosmicScreenStyles.amberBright,
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
@@ -358,8 +371,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         const Spacer(),
                         Text(
                           _fmt(bankBalance),
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
+                          style: TextStyle(
+                            fontFamily: appFontFamily(context),
                             color: CosmicScreenStyles.amberBright,
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -370,12 +383,12 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   ),
                 // Element list
                 if (entries.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.all(20),
                     child: Text(
                       'No elements collected yet',
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: appFontFamily(context),
                         color: CosmicScreenStyles.textMuted,
                         fontSize: 10,
                       ),
@@ -411,7 +424,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                 child: Text(
                                   e.key.toUpperCase(),
                                   style: TextStyle(
-                                    fontFamily: 'monospace',
+                                    fontFamily: appFontFamily(context),
                                     color: color.withValues(alpha: 0.85),
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,
@@ -421,8 +434,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                               ),
                               Text(
                                 _fmt(e.value),
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
+                                style: TextStyle(
+                                  fontFamily: appFontFamily(context),
                                   color: CosmicScreenStyles.textPrimary,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
@@ -453,10 +466,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         size: 12,
                       ),
                       const SizedBox(width: 8),
-                      const Text(
+                      Text(
                         'TOTAL',
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: appFontFamily(context),
                           color: CosmicScreenStyles.textSecondary,
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
@@ -466,8 +479,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       const Spacer(),
                       Text(
                         _fmt(widget.elementStorage.total),
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
+                        style: TextStyle(
+                          fontFamily: appFontFamily(context),
                           color: CosmicScreenStyles.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -488,7 +501,14 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     final active = _activeTab == index;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _activeTab = index),
+        onTap: () {
+          setState(() => _activeTab = index);
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+          );
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 7),
           decoration: BoxDecoration(
@@ -506,7 +526,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           child: Text(
             label,
             style: TextStyle(
-              fontFamily: 'monospace',
+              fontFamily: appFontFamily(context),
               color: active ? color : CosmicScreenStyles.textMuted,
               fontSize: 10,
               fontWeight: FontWeight.w800,
@@ -593,10 +613,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'CURRENT SIZE',
                             style: TextStyle(
-                              fontFamily: 'monospace',
+                              fontFamily: appFontFamily(context),
                               color: CosmicScreenStyles.textMuted,
                               fontSize: 8.5,
                               fontWeight: FontWeight.w700,
@@ -606,8 +626,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           const SizedBox(height: 4),
                           Text(
                             HomePlanet.tierNames[activeTier].toUpperCase(),
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
+                            style: TextStyle(
+                              fontFamily: appFontFamily(context),
                               color: CosmicScreenStyles.teal,
                               fontSize: 13,
                               fontWeight: FontWeight.w900,
@@ -642,7 +662,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       child: Text(
                         nextCost == null ? 'MAXED' : 'NEXT $nextCost ✦',
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: appFontFamily(context),
                           color: nextCost == null
                               ? CosmicScreenStyles.success
                               : CosmicScreenStyles.amberBright,
@@ -708,7 +728,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                     name.toUpperCase(),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      fontFamily: 'monospace',
+                                      fontFamily: appFontFamily(context),
                                       color: selected
                                           ? CosmicScreenStyles.teal
                                           : unlocked
@@ -728,7 +748,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                         : 'LOCKED',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      fontFamily: 'monospace',
+                                      fontFamily: appFontFamily(context),
                                       color: selected
                                           ? CosmicScreenStyles.teal
                                           : unlocked
@@ -777,7 +797,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       child: Text(
                         'UNLOCK ${HomePlanet.tierNames[(maxTier + 1).clamp(0, 4)].toUpperCase()} ($nextCost ✦)',
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: appFontFamily(context),
                           color: canAffordUpgrade
                               ? CosmicScreenStyles.amberBright
                               : CosmicScreenStyles.textMuted,
@@ -789,12 +809,12 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     ),
                   ),
                 if (nextCost == null)
-                  const Align(
+                  Align(
                     alignment: Alignment.centerRight,
                     child: Text(
                       'ALL SIZES UNLOCKED',
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: appFontFamily(context),
                         color: CosmicScreenStyles.success,
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -836,7 +856,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 width: 0.8,
               ),
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
@@ -848,7 +868,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 Text(
                   'CHAMBERS',
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.6,
@@ -888,10 +908,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'CURRENT COLOR',
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: appFontFamily(context),
                         color: CosmicScreenStyles.textMuted,
                         fontSize: 8.5,
                         fontWeight: FontWeight.w700,
@@ -915,7 +935,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         Text(
                           (activeCol ?? 'Default Gray').toUpperCase(),
                           style: TextStyle(
-                            fontFamily: 'monospace',
+                            fontFamily: appFontFamily(context),
                             color: activeCol == null
                                 ? CosmicScreenStyles.textSecondary
                                 : kElementColors[activeCol]!,
@@ -945,8 +965,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 ),
                 child: Text(
                   '$cost EACH',
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
                     color: CosmicScreenStyles.amberBright,
                     fontSize: 8.5,
                     fontWeight: FontWeight.w800,
@@ -988,7 +1008,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   Text(
                     'DEFAULT GRAY',
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: appFontFamily(context),
                       color: activeCol == null
                           ? CosmicScreenStyles.teal
                           : CosmicScreenStyles.textSecondary,
@@ -1001,7 +1021,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   Text(
                     activeCol == null ? 'ACTIVE' : 'DEFAULT',
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: appFontFamily(context),
                       color: activeCol == null
                           ? CosmicScreenStyles.teal
                           : CosmicScreenStyles.textMuted,
@@ -1088,7 +1108,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                             Text(
                               e.key,
                               style: TextStyle(
-                                fontFamily: 'monospace',
+                                fontFamily: appFontFamily(context),
                                 color: isUnlocked
                                     ? CosmicScreenStyles.textSecondary
                                     : CosmicScreenStyles.textMuted,
@@ -1109,7 +1129,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                   ? 'UNLOCK'
                                   : '$cost',
                               style: TextStyle(
-                                fontFamily: 'monospace',
+                                fontFamily: appFontFamily(context),
                                 color: isActive
                                     ? CosmicScreenStyles.teal
                                     : canAfford
@@ -1150,8 +1170,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         children: [
           Text(
             '${CargoUpgrade.nameForLevel(level)} (Lv $level/${CargoUpgrade.maxLevel})',
-            style: const TextStyle(
-              fontFamily: 'monospace',
+            style: TextStyle(
+              fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textPrimary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -1160,8 +1180,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           const SizedBox(height: 4),
           Text(
             'Teleport with ${(CargoUpgrade.capacityForLevel(level) * 100).round()}% meter',
-            style: const TextStyle(
-              fontFamily: 'monospace',
+            style: TextStyle(
+              fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textSecondary,
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -1171,8 +1191,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             const SizedBox(height: 6),
             Text(
               'Next: ${CargoUpgrade.nextDescription(level)}',
-              style: const TextStyle(
-                fontFamily: 'monospace',
+              style: TextStyle(
+                fontFamily: appFontFamily(context),
                 color: CosmicScreenStyles.textMuted,
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
@@ -1194,8 +1214,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   ),
                   child: Text(
                     '${e.key}: ${_fmt(e.value)}',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
                       color: CosmicScreenStyles.amberBright,
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
@@ -1227,7 +1247,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       ? 'UPGRADE CARGO'
                       : 'DOCK AT HOME TO UPGRADE',
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: widget.isNearHome
                         ? CosmicScreenStyles.amberBright
                         : CosmicScreenStyles.textMuted,
@@ -1239,12 +1259,12 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               ),
             ),
           ] else
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 4),
               child: Text(
                 'MAX LEVEL REACHED',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: CosmicScreenStyles.success,
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
@@ -1271,7 +1291,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           Text(
             title,
             style: TextStyle(
-              fontFamily: 'monospace',
+              fontFamily: appFontFamily(context),
               color: a,
               fontSize: 10,
               fontWeight: FontWeight.w800,
@@ -1314,8 +1334,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
                     color: CosmicScreenStyles.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -1326,7 +1346,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               Text(
                 '+$pct%',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: maxed
                       ? CosmicScreenStyles.success
                       : CosmicScreenStyles.amberBright,
@@ -1339,8 +1359,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           const SizedBox(height: 4),
           Text(
             description,
-            style: const TextStyle(
-              fontFamily: 'monospace',
+            style: TextStyle(
+              fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textSecondary,
               fontSize: 9,
               fontWeight: FontWeight.w500,
@@ -1381,12 +1401,12 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           const SizedBox(height: 8),
           // Upgrade button
           if (maxed)
-            const Align(
+            Align(
               alignment: Alignment.centerRight,
               child: Text(
                 'MAX LEVEL',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: CosmicScreenStyles.success,
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
@@ -1419,7 +1439,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   child: Text(
                     'UPGRADE LV${level + 1} ($nextCost ✦)',
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: appFontFamily(context),
                       color: canAfford
                           ? CosmicScreenStyles.amberBright
                           : CosmicScreenStyles.textMuted,
@@ -1467,11 +1487,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 size: 14,
               ),
               const SizedBox(width: 6),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'FUEL TANK',
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: CosmicScreenStyles.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -1482,7 +1502,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               Text(
                 '$currentCap units',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: maxed
                       ? CosmicScreenStyles.success
                       : const Color(0xFFFF6F00),
@@ -1497,8 +1517,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             maxed
                 ? 'Maximum capacity reached.'
                 : 'Upgrade to $nextCap unit capacity.',
-            style: const TextStyle(
-              fontFamily: 'monospace',
+            style: TextStyle(
+              fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textSecondary,
               fontSize: 9,
               fontWeight: FontWeight.w500,
@@ -1530,12 +1550,12 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           ),
           const SizedBox(height: 8),
           if (maxed)
-            const Align(
+            Align(
               alignment: Alignment.centerRight,
               child: Text(
                 'MAX LEVEL',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: CosmicScreenStyles.success,
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
@@ -1566,7 +1586,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   child: Text(
                     'UPGRADE LV${level + 1} ($nextCost ✦)',
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: appFontFamily(context),
                       color: canAfford
                           ? const Color(0xFFFF6F00)
                           : CosmicScreenStyles.textMuted,
@@ -1631,7 +1651,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 child: Text(
                   unlocked ? recipe.name : '???',
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: unlocked
                         ? CosmicScreenStyles.textPrimary
                         : CosmicScreenStyles.textMuted,
@@ -1686,7 +1706,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     child: Text(
                       active ? 'ON' : 'OFF',
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: appFontFamily(context),
                         color: active
                             ? CosmicScreenStyles.teal
                             : CosmicScreenStyles.textMuted,
@@ -1703,8 +1723,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             const SizedBox(height: 4),
             Text(
               recipe.description,
-              style: const TextStyle(
-                fontFamily: 'monospace',
+              style: TextStyle(
+                fontFamily: appFontFamily(context),
                 color: CosmicScreenStyles.textSecondary,
                 fontSize: 9,
                 fontWeight: FontWeight.w500,
@@ -1712,10 +1732,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             ),
             if (needsBigPlanet && !planetBigEnough) ...[
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 '⚠ Requires Big planet size',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: CosmicScreenStyles.amber,
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
@@ -1749,7 +1769,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   child: Text(
                     '${e.key}: ${_fmt(has)}/${_fmt(e.value)}',
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: appFontFamily(context),
                       color: enough
                           ? elementColor(e.key)
                           : CosmicScreenStyles.textMuted,
@@ -1781,7 +1801,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 child: Text(
                   canAfford ? 'CRAFT' : 'NEED MORE ELEMENTS',
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: canAfford
                         ? CosmicScreenStyles.amberBright
                         : CosmicScreenStyles.textMuted,
@@ -1846,8 +1866,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     Expanded(
                       child: Text(
                         recipe.name.toUpperCase(),
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
+                        style: TextStyle(
+                          fontFamily: appFontFamily(context),
                           color: CosmicScreenStyles.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -1868,8 +1888,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 ),
                 child: Text(
                   recipe.description,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
                     color: CosmicScreenStyles.textSecondary,
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
@@ -1923,8 +1943,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                 ),
                                 Text(
                                   param.label.toUpperCase(),
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
+                                  style: TextStyle(
+                                    fontFamily: appFontFamily(context),
                                     color: CosmicScreenStyles.teal,
                                     fontSize: 9,
                                     fontWeight: FontWeight.w800,
@@ -1973,7 +1993,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                     child: Text(
                                       opt,
                                       style: TextStyle(
-                                        fontFamily: 'monospace',
+                                        fontFamily: appFontFamily(context),
                                         color: selected
                                             ? CosmicScreenStyles.teal
                                             : CosmicScreenStyles.textSecondary,

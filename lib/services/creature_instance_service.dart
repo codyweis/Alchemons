@@ -1,7 +1,9 @@
 import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart' as db;
+import 'dart:math';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:uuid/uuid.dart';
@@ -164,7 +166,68 @@ class EnhancementTransferProfile {
   });
 }
 
+class PowerupApplyResult {
+  final bool ok;
+  final double delta;
+  final double newValue;
+  final String statKey;
+  final double rolledDelta;
+  final String rollLabel;
+  final bool isRareRoll;
+  final bool isJackpotRoll;
+  final Duration animationDuration;
+  final Duration flashDuration;
+  final double glowBoost;
+  final String? error;
+
+  const PowerupApplyResult({
+    required this.ok,
+    required this.delta,
+    required this.newValue,
+    required this.statKey,
+    required this.rolledDelta,
+    required this.rollLabel,
+    required this.isRareRoll,
+    required this.isJackpotRoll,
+    required this.animationDuration,
+    required this.flashDuration,
+    required this.glowBoost,
+    this.error,
+  });
+
+  factory PowerupApplyResult.fail(String statKey, String message) =>
+      PowerupApplyResult(
+        ok: false,
+        delta: 0,
+        newValue: 0,
+        statKey: statKey,
+        rolledDelta: 0,
+        rollLabel: 'FAILED ROLL',
+        isRareRoll: false,
+        isJackpotRoll: false,
+        animationDuration: const Duration(milliseconds: 1500),
+        flashDuration: const Duration(milliseconds: 500),
+        glowBoost: 1.0,
+        error: message,
+      );
+}
+
 extension CreatureInstanceServiceFeeding on CreatureInstanceService {
+  static const Map<String, List<int>> _xpCurveByRarity = {
+    'common': [20, 24, 28, 34, 60, 75, 95, 125, 159],
+    'uncommon': [25, 30, 36, 42, 78, 99, 123, 150, 192],
+    'rare': [30, 36, 43, 51, 93, 118, 147, 180, 232],
+    'legendary': [40, 48, 58, 67, 125, 160, 200, 245, 297],
+    'epic': [35, 42, 50, 58, 108, 137, 171, 209, 270],
+    'mythic': [45, 54, 65, 76, 141, 180, 225, 276, 338],
+  };
+
+  static String normalizeRarity(String? rarity) {
+    final trimmed = rarity?.trim();
+    if (trimmed == null || trimmed.isEmpty) return 'common';
+    return trimmed.toLowerCase();
+  }
+
   // ---------------------------------------------------------------------------
   // Feeding rules & XP helpers
   // ---------------------------------------------------------------------------
@@ -196,10 +259,12 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
 
   /// XP curve for level cap 10.
   ///
-  /// Front-loads progress through level 5, then steepens levels 6-10 while
-  /// preserving the overall cost of 42 level-1 same-species fodders.
-  static int xpNeededForLevel(int level) {
-    const xpTable = <int>[42, 50, 60, 70, 130, 165, 205, 250, 318];
+  /// Front-loads progress through level 5, then steepens levels 6-10 with
+  /// rarity-specific totals so common breeders are much easier to raise.
+  static int xpNeededForLevel(int level, {String rarity = 'Common'}) {
+    final xpTable =
+        _xpCurveByRarity[normalizeRarity(rarity)] ??
+        _xpCurveByRarity['common']!;
     final index = max(0, level - 1);
     if (index >= xpTable.length) {
       return xpTable.last;
@@ -456,10 +521,13 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     ).clamp(-10.0, 10.0);
 
     // Simulate level-ups using APPLIED XP
+    final targetBase = repo.getCreatureById(target.baseId);
+    final targetRarity = targetBase?.rarity ?? 'Common';
     int level = target.level;
     int xp = target.xp + appliedXp;
-    while (level < maxLevel && xp >= xpNeededForLevel(level)) {
-      xp -= xpNeededForLevel(level);
+    while (level < maxLevel &&
+        xp >= xpNeededForLevel(level, rarity: targetRarity)) {
+      xp -= xpNeededForLevel(level, rarity: targetRarity);
       level++;
     }
 
@@ -551,11 +619,15 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     ).clamp(-10.0, 10.0);
 
     await _db.transaction(() async {
+      final targetBase = repo.getCreatureById(target.baseId);
+      final targetRarity = targetBase?.rarity ?? 'Common';
+
       // Apply XP & level ups using APPLIED XP
       await _db.creatureDao.addXpAndMaybeLevel(
         instanceId: target.instanceId,
         deltaXp: appliedXp,
-        xpNeededForLevel: xpNeededForLevel,
+        xpNeededForLevel: (level) =>
+            xpNeededForLevel(level, rarity: targetRarity),
         maxLevel: maxLevel,
       );
 
@@ -619,6 +691,85 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       newXpRemainder: updated.xp,
       fodderConsumed: fodders.length,
       statGains: cappedGains,
+    );
+  }
+
+  Future<PowerupApplyResult> applyAlchemicalPowerup({
+    required String targetInstanceId,
+    required AlchemicalPowerupType powerup,
+    Random? rng,
+    AlchemicalPowerupRoll? forcedRoll,
+  }) async {
+    final target = await _db.creatureDao.getInstance(targetInstanceId);
+    if (target == null) {
+      return PowerupApplyResult.fail(powerup.statKey, 'Target not found');
+    }
+
+    final currentValue = switch (powerup) {
+      AlchemicalPowerupType.speed => target.statSpeed,
+      AlchemicalPowerupType.intelligence => target.statIntelligence,
+      AlchemicalPowerupType.strength => target.statStrength,
+      AlchemicalPowerupType.beauty => target.statBeauty,
+    };
+    final potentialValue = switch (powerup) {
+      AlchemicalPowerupType.speed => target.statSpeedPotential,
+      AlchemicalPowerupType.intelligence => target.statIntelligencePotential,
+      AlchemicalPowerupType.strength => target.statStrengthPotential,
+      AlchemicalPowerupType.beauty => target.statBeautyPotential,
+    };
+
+    final roll =
+        forcedRoll ??
+        rollAlchemicalPowerup(
+          currentValue: currentValue,
+          potentialValue: potentialValue,
+          rng: rng,
+        );
+    final delta = roll.appliedDelta;
+    if (delta <= 0) {
+      return PowerupApplyResult.fail(
+        powerup.statKey,
+        '${powerup.name} has no effect because this stat is already at potential.',
+      );
+    }
+
+    final hadItem = await _db.inventoryDao.consumeItem(powerup.inventoryKey);
+    if (!hadItem) {
+      return PowerupApplyResult.fail(
+        powerup.statKey,
+        'No ${powerup.name} available.',
+      );
+    }
+
+    final newValue = (currentValue + delta).clamp(0.0, potentialValue);
+    await _db.creatureDao.updateStats(
+      instanceId: target.instanceId,
+      statSpeed: powerup == AlchemicalPowerupType.speed
+          ? newValue
+          : target.statSpeed,
+      statIntelligence: powerup == AlchemicalPowerupType.intelligence
+          ? newValue
+          : target.statIntelligence,
+      statStrength: powerup == AlchemicalPowerupType.strength
+          ? newValue
+          : target.statStrength,
+      statBeauty: powerup == AlchemicalPowerupType.beauty
+          ? newValue
+          : target.statBeauty,
+    );
+
+    return PowerupApplyResult(
+      ok: true,
+      delta: delta,
+      newValue: newValue,
+      statKey: powerup.statKey,
+      rolledDelta: roll.rolledDelta,
+      rollLabel: roll.label,
+      isRareRoll: roll.isRare,
+      isJackpotRoll: roll.isJackpot,
+      animationDuration: roll.animationDuration,
+      flashDuration: roll.flashDuration,
+      glowBoost: roll.glowBoost,
     );
   }
 }

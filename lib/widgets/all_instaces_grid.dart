@@ -665,9 +665,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                           _sortBy == SortBy.levelHigh ||
                           _sortBy == SortBy.levelLow,
                       onTap: () => _mutate(() {
-                        _sortBy = _sortBy == SortBy.levelLow
-                            ? SortBy.levelHigh
-                            : SortBy.levelLow;
+                        _sortBy = _sortBy == SortBy.levelHigh
+                            ? SortBy.levelLow
+                            : SortBy.levelHigh;
                       }),
                       theme: widget.theme,
                     ),
@@ -734,15 +734,6 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       }),
                       theme: widget.theme,
                     ),
-                    if (widget.searchTextOverride == null)
-                      _TopControlChip(
-                        label: 'CLEAR',
-                        accentColor: const Color(0xFFEF4444),
-                        selected: _hasResettableState,
-                        onTap: () =>
-                            _mutate(() => _resetAllControls(clearSearch: true)),
-                        theme: widget.theme,
-                      ),
                   ],
                 ),
               ),

@@ -1,7 +1,9 @@
+import 'package:alchemons/screens/feeding/alchemical_powerup_feeding_screen.dart';
 import 'package:alchemons/screens/feeding/feeding_stages.dart';
 import 'package:alchemons/screens/feeding/feeding_widgets.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,8 +21,11 @@ class FeedingScreen extends StatefulWidget {
   State<FeedingScreen> createState() => _FeedingScreenState();
 }
 
+enum _EnhancementEntryMode { none, feedMons }
+
 class _FeedingScreenState extends State<FeedingScreen>
     with TickerProviderStateMixin {
+  _EnhancementEntryMode _entryMode = _EnhancementEntryMode.none;
   // Selection state
   String? _targetSpeciesId;
   String? _targetInstanceId;
@@ -38,7 +43,7 @@ class _FeedingScreenState extends State<FeedingScreen>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late final ScrollController _speciesScrollCtrl;
-  FeedingSpeciesSort _speciesSort = FeedingSpeciesSort.name;
+  FeedingSpeciesSort _speciesSort = FeedingSpeciesSort.amount;
 
   bool _showAllInstances = false;
 
@@ -185,13 +190,49 @@ class _FeedingScreenState extends State<FeedingScreen>
       _targetSpeciesId != null && _targetInstanceId == null;
   bool get _isPickingFodder =>
       _targetSpeciesId != null && _targetInstanceId != null;
-  bool get _canLeaveScreen => _currentStage == 'species';
+  bool get _canLeaveScreen => _entryMode == _EnhancementEntryMode.none;
 
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
     final t = ForgeTokens(theme);
     final db = context.watch<AlchemonsDatabase>();
+
+    if (_entryMode == _EnhancementEntryMode.none) {
+      return ParticleBackgroundScaffold(
+        whiteBackground: false,
+        body: Scaffold(
+          backgroundColor: Colors.transparent,
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerDocked,
+          floatingActionButton: FloatingCloseButton(
+            size: 50,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).maybePop();
+            },
+            theme: theme,
+          ),
+          body: SafeArea(
+            child: _EnhancementEntryView(
+              theme: theme,
+              onFeedMons: () {
+                HapticFeedback.mediumImpact();
+                setState(() => _entryMode = _EnhancementEntryMode.feedMons);
+              },
+              onFeedPowerups: () async {
+                HapticFeedback.mediumImpact();
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AlchemicalPowerupFeedingScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    }
 
     return PopScope(
       canPop: _canLeaveScreen,
@@ -243,6 +284,30 @@ class _FeedingScreenState extends State<FeedingScreen>
                         });
                       },
                     ),
+                    if (_isPickingFodder)
+                      StreamBuilder<CreatureInstance?>(
+                        stream: context
+                            .read<AlchemonsDatabase>()
+                            .creatureDao
+                            .watchInstanceById(_targetInstanceId!),
+                        builder: (context, snapshot) {
+                          final targetInstance = snapshot.data;
+                          final repo = context.read<CreatureCatalog>();
+                          final targetCreature = targetInstance == null
+                              ? null
+                              : repo.getCreatureById(targetInstance.baseId);
+
+                          return FeedTargetPanel(
+                            theme: theme,
+                            targetInstance: targetInstance,
+                            targetCreature: targetCreature,
+                            preview: _preview,
+                            shouldAnimate: _shouldAnimateEnhancement,
+                            preFeedLevel: _preFeedLevel,
+                            preFeedXp: _preFeedXp,
+                          );
+                        },
+                      ),
                     const SizedBox(height: 10),
                     Expanded(
                       child: StreamBuilder<List<CreatureInstance>>(
@@ -352,6 +417,12 @@ class _FeedingScreenState extends State<FeedingScreen>
 
   void _handleBack() {
     setState(() {
+      if (_entryMode == _EnhancementEntryMode.feedMons &&
+          !_showAllInstances &&
+          _isPickingSpecies) {
+        _entryMode = _EnhancementEntryMode.none;
+        return;
+      }
       if (_showAllInstances) {
         _showAllInstances = false;
         _searchController.clear();
@@ -466,5 +537,201 @@ class _FeedingScreenState extends State<FeedingScreen>
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
+  }
+}
+
+class _EnhancementEntryView extends StatelessWidget {
+  final FactionTheme theme;
+  final VoidCallback onFeedMons;
+  final VoidCallback onFeedPowerups;
+
+  const _EnhancementEntryView({
+    required this.theme,
+    required this.onFeedMons,
+    required this.onFeedPowerups,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 12),
+          Text(
+            'Enhance',
+            style: TextStyle(
+              color: theme.text,
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+            ),
+          ),
+          Text(
+            'Modes',
+            style: TextStyle(
+              color: theme.textMuted,
+              fontSize: 36,
+              fontWeight: FontWeight.w300,
+              height: 1.1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Choose how you want to strengthen your creatures',
+            style: TextStyle(color: theme.textMuted, fontSize: 14),
+          ),
+          const SizedBox(height: 32),
+          Expanded(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: _EntryCard(
+                      theme: theme,
+                      title: 'Sacrifice Alchemons',
+                      tagline: 'XP + Stat Growth',
+                      subtitle:
+                          'Sacrifice spare specimens of the same species to increase levels and improve stat growth.',
+                      accent: const Color(0xFFFFB649),
+                      onTap: onFeedMons,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: _EntryCard(
+                      theme: theme,
+                      title: 'Alchemical Powerups',
+                      tagline: 'Precision Stat Tuning',
+                      subtitle:
+                          'Use alchemical powerups to push individual stats closer to their full potential.',
+                      accent: const Color(0xFF78B7FF),
+                      onTap: onFeedPowerups,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EntryCard extends StatelessWidget {
+  final FactionTheme theme;
+  final String title;
+  final String tagline;
+  final String subtitle;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _EntryCard({
+    required this.theme,
+    required this.title,
+    required this.tagline,
+    required this.subtitle,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Ink(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: theme.surface.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: accent.withValues(alpha: 0.25), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          tagline,
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      color: accent,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+              Container(
+                height: 2,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(1),
+                  gradient: LinearGradient(
+                    colors: [
+                      accent.withValues(alpha: 0.5),
+                      accent.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

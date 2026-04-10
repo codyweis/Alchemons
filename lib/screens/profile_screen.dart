@@ -1843,7 +1843,8 @@ class _NotificationToggleRow extends StatelessWidget {
             opacity: enabled ? 1.0 : 0.45,
             child: Switch.adaptive(
               value: value,
-              activeColor: accent,
+              activeTrackColor: accent.withValues(alpha: 0.5),
+              activeThumbColor: accent,
               onChanged: (v) {
                 HapticFeedback.selectionClick();
                 onChanged(v);

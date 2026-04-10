@@ -450,7 +450,9 @@ class _StorageEggCardState extends State<StorageEggCard>
     particleCount = (particleCount * qualityMultiplier).round().clamp(0, 8);
 
     final showParticles =
-        TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
+        TickerMode.valuesOf(context).enabled &&
+        !media.disableAnimations &&
+        particleCount > 0;
     final particleSpeed = isReady ? 0.8 + (_pulseController.value * 1.3) : 0.45;
     final borderColor = isReady
         ? const Color(0xFFFFD700)
@@ -922,19 +924,31 @@ class EggDetailsModal extends StatelessWidget {
     Duration displayRemaining,
     bool isReady,
   ) {
-    final borderColor = isReady ? const Color(0xFFFFD700) : t.borderAccent;
+    final payload = parseEggPayload(egg);
+    final isBloodborn = isBloodbornPayload(payload);
+    final displaySkin = isBloodborn
+        ? const ElementalGroupSkin(
+            frameStart: kBloodbornPrimary,
+            frameEnd: kBloodbornSecondary,
+            fill: kBloodbornFill,
+            badge: kBloodbornSecondary,
+          )
+        : skin;
+    final borderColor = isReady
+        ? (isBloodborn ? kBloodbornReadyBorder : const Color(0xFFFFD700))
+        : (isBloodborn ? kBloodbornSecondary : t.borderAccent);
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [skin.frameStart, skin.frameEnd],
+          colors: [displaySkin.frameStart, displaySkin.frameEnd],
         ),
         border: Border.all(color: borderColor, width: isReady ? 1.5 : 1),
         boxShadow: [
           BoxShadow(
-            color: (isReady ? borderColor : skin.frameEnd).withValues(
+            color: (isReady ? borderColor : displaySkin.frameEnd).withValues(
               alpha: isReady ? 0.45 : 0.25,
             ),
             blurRadius: isReady ? 24 : 16,
@@ -954,7 +968,7 @@ class EggDetailsModal extends StatelessWidget {
                     center: Alignment.center,
                     radius: 1.0,
                     colors: [
-                      skin.fill,
+                      displaySkin.fill,
                       Colors.black.withValues(alpha: 0.08),
                       Colors.black.withValues(alpha: 0.18),
                     ],
@@ -968,8 +982,12 @@ class EggDetailsModal extends StatelessWidget {
             Positioned.fill(
               child: IgnorePointer(
                 child: AlchemyBrewingParticleSystem(
-                  parentATypeId: elementGroup.particleTypes.$1,
-                  parentBTypeId: elementGroup.particleTypes.$2,
+                  parentATypeId: isBloodborn
+                      ? 'blood'
+                      : elementGroup.particleTypes.$1,
+                  parentBTypeId: isBloodborn
+                      ? 'dark'
+                      : elementGroup.particleTypes.$2,
                   particleCount: isReady ? 22 : 18,
                   speedMultiplier: isReady ? 1.0 : 0.45,
                   fusion: isReady,
@@ -1191,6 +1209,7 @@ class EggDetailsModal extends StatelessWidget {
       'planet_summon' => 'Planet Summon',
       'boss_summon' => 'Boss Summon',
       'vial' => 'Extraction Vial',
+      'bloodborn' => 'Bloodborn Rite',
       'starter' => 'Starter Selection',
       _ => source.replaceAll('_', ' ').toUpperCase(),
     };

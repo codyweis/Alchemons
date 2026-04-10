@@ -7,6 +7,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/blood_aura.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
@@ -250,6 +251,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
   Color? _deriveVariantTint() {
     final faction = widget.variantFaction?.trim();
     if (faction == null || faction.isEmpty) return null;
+    if (faction.toLowerCase() == 'bloodborn') return null;
     return FactionColors.of(faction);
   }
 
@@ -301,6 +303,8 @@ class _CreatureSpriteState extends State<CreatureSprite>
         return StrengthForge(size: widgetEff ?? displayEff);
       case 'intelligence_halo':
         return IntelligenceHalo(size: widgetEff ?? displayEff);
+      case 'blood_aura':
+        return BloodAura(size: widgetEff ?? displayEff);
       default:
         return const SizedBox.shrink();
     }
@@ -484,6 +488,8 @@ class InstanceSprite extends StatelessWidget {
         return StrengthForge(size: widgetEff);
       case 'intelligence_halo':
         return IntelligenceHalo(size: widgetEff);
+      case 'blood_aura':
+        return BloodAura(size: widgetEff);
       default:
         return const SizedBox.shrink();
     }
@@ -496,6 +502,7 @@ Color? deriveLineageTint(CreatureInstance? inst) {
   if (inst == null) return null;
   // 1) Try explicit variant/native faction fields if present
   final variantFaction = _tryGetString(inst, 'variantFaction'); // e.g. "Pyro"
+  if ((variantFaction ?? '').trim().toLowerCase() == 'bloodborn') return null;
 
   String? chosen = variantFaction?.isNotEmpty == true ? variantFaction : null;
   if (chosen == null) return null;

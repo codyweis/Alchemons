@@ -115,6 +115,8 @@ class FactionColors {
       116,
       250,
     ), // Was 0xFFFDE68A (slightly more saturated)
+    'Bloodborn': Color(0xFFFF5252),
+    'bloodborn': Color(0xFFFF5252),
   };
 
   static Color of(String key) =>

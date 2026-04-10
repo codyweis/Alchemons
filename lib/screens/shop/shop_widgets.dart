@@ -2,6 +2,7 @@
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/harvest_biome.dart';
@@ -578,6 +579,39 @@ Widget _buildOfferPreview(
   double size = 64.0,
   required FactionTheme theme,
 }) {
+  // 0b. Alchemical powerup orb — render glowing sphere in stat color
+  if (offer.id.startsWith('boost.powerup.')) {
+    final type = AlchemicalPowerupType.values.firstWhere(
+      (t) => offer.id == t.shopOfferId,
+      orElse: () => AlchemicalPowerupType.speed,
+    );
+    return Center(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.94),
+              type.color.withValues(alpha: 0.88),
+              type.glowColor.withValues(alpha: 0.36),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.30, 0.66, 1.0],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: type.glowColor.withValues(alpha: 0.55),
+              blurRadius: 24,
+              spreadRadius: 4,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // 0. Survival orb skin — render the radiant orb sphere
   if (offer.id.startsWith('survival.orb.')) {
     final orbDef = kOrbBases.where((d) => d.shopId == offer.id);

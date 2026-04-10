@@ -11,6 +11,7 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -211,7 +212,7 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
                       Text(
                         'COSMIC SUMMON',
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: appFontFamily(context),
                           color: color,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -220,8 +221,8 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
                       ),
                       Text(
                         widget.elementName.toUpperCase(),
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
+                        style: TextStyle(
+                          fontFamily: appFontFamily(context),
                           color: Colors.white,
                           fontSize: 20,
                           fontWeight: FontWeight.w900,

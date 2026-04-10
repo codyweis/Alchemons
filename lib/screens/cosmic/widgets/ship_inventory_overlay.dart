@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'cosmic_screen_styles.dart';
 
@@ -119,11 +120,11 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'INVENTORY',
                         style: TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: appFontFamily(context),
                           color: CosmicScreenStyles.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -133,8 +134,8 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                     ),
                     Text(
                       '${widget.inventory.entries.where((e) => _isSpaceItem(e.key)).fold(0, (s, e) => s + e.value)} ITEMS',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
+                      style: TextStyle(
+                        fontFamily: appFontFamily(context),
                         color: CosmicScreenStyles.textMuted,
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
@@ -172,10 +173,10 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                               size: 40,
                             ),
                             const SizedBox(height: 12),
-                            const Text(
+                            Text(
                               'NO ITEMS ABOARD',
                               style: TextStyle(
-                                fontFamily: 'monospace',
+                                fontFamily: appFontFamily(context),
                                 color: CosmicScreenStyles.textMuted,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -183,7 +184,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
+                            Text(
                               'Collect items from the shop or rifts.',
                               style: TextStyle(
                                 color: CosmicScreenStyles.textMuted,
@@ -253,7 +254,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                                             child: Text(
                                               _invDisplayName(e.key),
                                               style: TextStyle(
-                                                fontFamily: 'monospace',
+                                                fontFamily: appFontFamily(context),
                                                 color: isSelected
                                                     ? col
                                                     : CosmicScreenStyles
@@ -285,7 +286,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                                             child: Text(
                                               'x${e.value}',
                                               style: TextStyle(
-                                                fontFamily: 'monospace',
+                                                fontFamily: appFontFamily(context),
                                                 color: col,
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w800,
@@ -313,7 +314,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                                           ),
                                           child: Text(
                                             _invDescription(e.key),
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               color: CosmicScreenStyles
                                                   .textSecondary,
                                               fontSize: 11,

@@ -5,14 +5,16 @@ import 'package:alchemons/models/nature.dart';
 
 class NatureCatalog {
   static final List<NatureDef> _all = [];
+  static const Map<String, String> _legacyAliases = {'Placidal': 'Placid'};
 
   static List<NatureDef> get all => List.unmodifiable(_all);
 
   static NatureDef random(Random rng) => _all[rng.nextInt(_all.length)];
 
   static NatureDef? byId(String id) {
+    final canonicalId = _legacyAliases[id] ?? id;
     for (final n in _all) {
-      if (n.id == id) return n;
+      if (n.id == canonicalId) return n;
     }
     return null;
   }

@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'dart:math' as math;
 
 import 'package:alchemons/games/sprite_effects/sprite_beauty_radiance_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_blood_aura_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_intelligence_halo_component.dart';
@@ -137,6 +138,8 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
         return StrengthForgeComponent(baseSize: baseSize);
       case 'intelligence_halo':
         return IntelligenceHaloComponent(baseSize: baseSize);
+      case 'blood_aura':
+        return BloodAuraComponent(baseSize: baseSize);
       default:
         return null;
     }
@@ -229,6 +232,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   /// Derives tint color from variantFaction (matches deriveLineageTint logic).
   Color? _deriveVariantTint() {
     if (variantFaction == null || variantFaction!.isEmpty) return null;
+    if (variantFaction!.trim().toLowerCase() == 'bloodborn') return null;
     return FactionColors.of(variantFaction!);
   }
 

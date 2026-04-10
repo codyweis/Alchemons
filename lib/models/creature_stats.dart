@@ -28,6 +28,13 @@ class CreatureStats {
     required this.beautyPotential,
   });
 
+  static bool breedingDebugLogsEnabled = false;
+
+  static void _debugBreedingLog(String message) {
+    if (!breedingDebugLogsEnabled) return;
+    debugPrint(message);
+  }
+
   factory CreatureStats.generate(Random rng, {String rarity = 'Common'}) {
     final statParams = _getStatParamsByRarity(rarity);
 
@@ -173,6 +180,21 @@ class CreatureStats {
     String? parent2NatureId,
     String? childNatureId,
   }) {
+    String? natureProtectedStat(String? natureId) {
+      switch (natureId) {
+        case 'Swift':
+          return 'speed';
+        case 'Clever':
+          return 'intelligence';
+        case 'Mighty':
+          return 'strength';
+        case 'Elegant':
+          return 'beauty';
+        default:
+          return null;
+      }
+    }
+
     // Helper to determine if a nature boosts a specific stat
     bool natureBoostsStat(String? natureId, String statName) {
       if (natureId == null) return false;
@@ -190,41 +212,55 @@ class CreatureStats {
       }
     }
 
-    // Blend base stats with nature-aware weighting
-    double blendBaseStat(double s1, double s2, String statName) {
+    // Base stats now use diminishing inheritance odds instead of pure
+    // averaging so strong parents can produce more exciting offspring.
+    double inheritBaseStat(
+      double s1,
+      double s2,
+      String statName,
+      double strongInheritanceChance,
+    ) {
       final p1Boosted = natureBoostsStat(parent1NatureId, statName);
       final p2Boosted = natureBoostsStat(parent2NatureId, statName);
+      final childBoosted = natureBoostsStat(childNatureId, statName);
 
-      double weight1 = 0.5;
-      double weight2 = 0.5;
-
-      if (p1Boosted && !p2Boosted) {
-        weight1 = 0.65;
-        weight2 = 0.35;
-      } else if (p2Boosted && !p1Boosted) {
-        weight1 = 0.35;
-        weight2 = 0.65;
-      } else if (p1Boosted && p2Boosted) {
-        if (s1 > s2) {
-          weight1 = 0.6;
-          weight2 = 0.4;
-        } else {
-          weight1 = 0.4;
-          weight2 = 0.6;
+      if ((s1 - s2).abs() < 0.001) {
+        var tiedResult = s1 + ((rng.nextDouble() - 0.5) * 0.18);
+        if (childBoosted) tiedResult += 0.05;
+        if (rng.nextDouble() < mutationChance) {
+          final mutation = (rng.nextDouble() - 0.5) * mutationStrength;
+          tiedResult += mutation;
         }
-      } else {
-        if (s1 > s2) {
-          weight1 = 0.55;
-          weight2 = 0.45;
-        } else {
-          weight1 = 0.45;
-          weight2 = 0.55;
-        }
+        return tiedResult.clamp(0.0, 5.0);
       }
 
-      final avg = (s1 * weight1) + (s2 * weight2);
-      final variance = (rng.nextDouble() - 0.5) * 0.15;
-      var result = avg + variance;
+      final p1Stronger = s1 > s2;
+      final strongValue = p1Stronger ? s1 : s2;
+      final weakValue = p1Stronger ? s2 : s1;
+
+      var effectiveStrongChance = strongInheritanceChance;
+      if (p1Boosted != p2Boosted) {
+        final boostedParentIsStronger =
+            (p1Boosted && p1Stronger) || (p2Boosted && !p1Stronger);
+        effectiveStrongChance += boostedParentIsStronger ? 0.10 : -0.10;
+      }
+      if (childBoosted) effectiveStrongChance += 0.05;
+      effectiveStrongChance = effectiveStrongChance.clamp(0.20, 0.95);
+
+      final inheritedStrong = rng.nextDouble() < effectiveStrongChance;
+      final anchor = inheritedStrong ? strongValue : weakValue;
+      final other = inheritedStrong ? weakValue : strongValue;
+
+      final bleed = inheritedStrong
+          ? rng.nextDouble() * 0.25
+          : rng.nextDouble() * 0.35;
+      var result = anchor + ((other - anchor) * bleed);
+
+      result += (rng.nextDouble() - 0.5) * 0.18;
+
+      if (childBoosted) {
+        result += 0.05;
+      }
 
       if (rng.nextDouble() < mutationChance) {
         final mutation = (rng.nextDouble() - 0.5) * mutationStrength;
@@ -296,6 +332,12 @@ class CreatureStats {
     final p2High = {p2Potentials[0].$1, p2Potentials[1].$1};
 
     final stableStats = {...p1High, ...p2High};
+    final protectedStats = <String>{
+      if (natureProtectedStat(parent1NatureId) case final stat?) stat,
+      if (natureProtectedStat(parent2NatureId) case final stat?) stat,
+    };
+
+    stableStats.addAll(protectedStats);
 
     if (stableStats.length == 4) {
       final avgPotentials = <String, double>{};
@@ -318,9 +360,16 @@ class CreatureStats {
       }
 
       final lowestStat = avgPotentials.entries
-          .reduce((a, b) => a.value < b.value ? a : b)
-          .key;
-      stableStats.remove(lowestStat);
+          .where((entry) => !protectedStats.contains(entry.key))
+          .fold<MapEntry<String, double>?>(
+            null,
+            (lowest, entry) =>
+                lowest == null || entry.value < lowest.value ? entry : lowest,
+          )
+          ?.key;
+      if (lowestStat != null) {
+        stableStats.remove(lowestStat);
+      }
     }
 
     // Find the TRUE lowest stat (the 4th one) - this becomes our wildcard
@@ -330,18 +379,33 @@ class CreatureStats {
       orElse: () => 'beauty',
     );
 
-    debugPrint('=== WILDCARD STAT: $wildcardStat ===');
+    _debugBreedingLog('=== WILDCARD STAT: $wildcardStat ===');
 
-    // Generate base stats normally
-    final newStats = [
-      blendBaseStat(parent1.speed, parent2.speed, 'speed'),
-      blendBaseStat(parent1.intelligence, parent2.intelligence, 'intelligence'),
-      blendBaseStat(parent1.strength, parent2.strength, 'strength'),
-      blendBaseStat(parent1.beauty, parent2.beauty, 'beauty'),
+    final statNames = ['speed', 'intelligence', 'strength', 'beauty'];
+    const strongInheritanceOdds = [0.80, 0.65, 0.50, 0.35];
+
+    final statOrder = List<int>.generate(4, (i) => i)..shuffle(rng);
+    final newStats = List<double>.filled(4, 0.0);
+    final parentBaseStats = [
+      (parent1.speed, parent2.speed),
+      (parent1.intelligence, parent2.intelligence),
+      (parent1.strength, parent2.strength),
+      (parent1.beauty, parent2.beauty),
     ];
 
+    for (int rollIndex = 0; rollIndex < statOrder.length; rollIndex++) {
+      final statIndex = statOrder[rollIndex];
+      final statName = statNames[statIndex];
+      final statPair = parentBaseStats[statIndex];
+      newStats[statIndex] = inheritBaseStat(
+        statPair.$1,
+        statPair.$2,
+        statName,
+        strongInheritanceOdds[rollIndex],
+      );
+    }
+
     // Generate potentials with THREE types: stable, volatile, and WILDCARD
-    final statNames = ['speed', 'intelligence', 'strength', 'beauty'];
     final parentPotentials = [
       (parent1.speedPotential, parent2.speedPotential),
       (parent1.intelligencePotential, parent2.intelligencePotential),
@@ -366,7 +430,7 @@ class CreatureStats {
         if (roll < 0.02) {
           // 2% chance (1/50): JACKPOT!!! (4.5 to 5.0)
           potential = 4.5 + (rng.nextDouble() * 0.5);
-          debugPrint(
+          _debugBreedingLog(
             '  $statName: 🎰 JACKPOT WILDCARD = ${potential.toStringAsFixed(2)}',
           );
         } else if (roll < 0.12) {
@@ -383,12 +447,20 @@ class CreatureStats {
           potential = 4.0 + (rng.nextDouble() * 0.5);
         }
 
-        debugPrint(
+        _debugBreedingLog(
           '  $statName: WILDCARD ROLL = ${potential.toStringAsFixed(2)}',
         );
       } else if (stableStats.contains(statName)) {
         // STABLE: Top 2-3 stats blend normally
         potential = blendPotentialStable(p1Val, p2Val, statName);
+
+        final bothParentsProtectStat =
+            natureProtectedStat(parent1NatureId) == statName &&
+            natureProtectedStat(parent2NatureId) == statName;
+        if (bothParentsProtectStat) {
+          final lowerParent = min(p1Val, p2Val);
+          potential = max(potential, lowerParent);
+        }
       } else {
         // VOLATILE: Remaining low stat has wild variance
         final avg = (p1Val + p2Val) / 2.0;

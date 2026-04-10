@@ -75,9 +75,9 @@
       "effect": {}
     },
     {
-      "id": "Placidal",
-      "dominance": 2,
-      "effect": {}
+      "id": "Placid",
+      "dominance": 1,
+      "effect": { "xp_gain_mult": 0.85 }
     },
     {
       "id": "Dormant",

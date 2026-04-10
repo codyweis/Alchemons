@@ -11,11 +11,16 @@ import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/cosmic/cosmic_summon_screen.dart';
 import 'package:alchemons/screens/cosmic/space_market_sheet.dart';
 import 'package:alchemons/screens/cosmic/cosmic_sell_sheet.dart';
+import 'package:alchemons/screens/cosmic/gold_conversion_sheet.dart';
 import 'package:alchemons/screens/scenes/scene_page.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
+import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/egg/egg_payload.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
@@ -34,7 +39,9 @@ import 'package:alchemons/screens/cosmic/blood_ring_ending_screen.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -129,8 +136,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _isNearBloodRing = false;
   static const _bloodRingPrefsKey = 'cosmic_blood_ring_v1';
   bool _runningBloodEnding = false;
-  static const bool _bloodRingDebugBypassRequirements = false;
-  static const bool _bloodRingDebugAlwaysFirstTime = false;
 
   // Space market state
   SpacePOI? _nearMarketPOI;
@@ -149,6 +154,9 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Slow-mode toggle
   bool _slowMode = false;
+
+  // Companion tether toggle (magnet)
+  bool _companionTethered = true;
 
   // Joystick toggle (on by default)
   bool _showJoystick = true;
@@ -181,6 +189,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _showChamberPicker = false;
   bool _showShipMenu = false;
   bool _showSettingsMenu = false;
+  bool _showSandboxPanel = false;
+  bool _sandboxMode = false;
   bool _showHomeMenu = false;
   bool _showPartyPicker = false;
   bool _showGarrisonPicker = false;
@@ -197,6 +207,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// Tracks HP fraction (0.0–1.0) for each party slot between summons.
   /// 1.0 = full health, 0.0 = dead. Reset to 1.0 when near home.
   final Map<int, double> _companionHpFraction = {};
+  final Map<int, double> _companionSpecialCooldown = {};
+  Timer? _companionCooldownUiTimer;
 
   // Home garrison state (alchemons stationed at home planet)
   List<CosmicPartyMember?> _garrisonMembers = [];
@@ -206,10 +218,19 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showChamberPicker ||
       _showShipMenu ||
       _showSettingsMenu ||
+      _showSandboxPanel ||
       _showHomeMenu ||
       _showPartyPicker ||
       _showGarrisonPicker ||
       (_game?.beautyContestCinematicActive ?? false);
+
+  int _sandboxCompanionStatTier = 4;
+  int _sandboxEnemyCount = 1;
+  int _sandboxBossLevel = 3;
+  String _sandboxCreatureQuery = '';
+  EnemyTier _sandboxEnemyTier = EnemyTier.sentinel;
+  EnemyBehavior _sandboxEnemyBehavior = EnemyBehavior.aggressive;
+  BossTemplate _sandboxBossTemplate = kBossTemplates.first;
 
   // Meter animation
   late AnimationController _meterPulse;
@@ -284,16 +305,27 @@ class _CosmicScreenState extends State<CosmicScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _screenShakeAnim = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: -14.0), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -14.0, end: 14.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 14.0, end: -12.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -12.0, end: 12.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 12.0, end: -8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 8.0, end: 0.0), weight: 1),
-    ]).animate(
-      CurvedAnimation(parent: _screenShakeCtrl, curve: Curves.easeInOut),
+    _screenShakeAnim =
+        TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 0.0, end: -14.0), weight: 1),
+          TweenSequenceItem(tween: Tween(begin: -14.0, end: 14.0), weight: 2),
+          TweenSequenceItem(tween: Tween(begin: 14.0, end: -12.0), weight: 2),
+          TweenSequenceItem(tween: Tween(begin: -12.0, end: 12.0), weight: 2),
+          TweenSequenceItem(tween: Tween(begin: 12.0, end: -8.0), weight: 2),
+          TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 2),
+          TweenSequenceItem(tween: Tween(begin: 8.0, end: 0.0), weight: 1),
+        ]).animate(
+          CurvedAnimation(parent: _screenShakeCtrl, curve: Curves.easeInOut),
+        );
+
+    _companionCooldownUiTimer = Timer.periodic(
+      const Duration(milliseconds: 250),
+      (_) {
+        if (!mounted) return;
+        if (_activeCompanionSlot != null && _game?.activeCompanion != null) {
+          setState(() {});
+        }
+      },
     );
 
     _initWorld();
@@ -582,10 +614,17 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (savedBloodRing != null) {
       game.bloodRing.discovered = savedBloodRing.discovered;
       game.bloodRing.ritualCompleted = savedBloodRing.ritualCompleted;
-    }
-    if (_bloodRingDebugAlwaysFirstTime) {
-      // Temporary test mode: force "first-time ritual" behavior every session.
-      game.bloodRing.ritualCompleted = false;
+      game.bloodRing.lastOfferingInstanceId =
+          savedBloodRing.lastOfferingInstanceId;
+      game.bloodRing.lastOfferingName = savedBloodRing.lastOfferingName;
+      game.bloodRing.lastOfferingImagePath =
+          savedBloodRing.lastOfferingImagePath;
+      game.bloodRing.lastOfferingElement = savedBloodRing.lastOfferingElement;
+      game.bloodRing.lastOfferingFamily = savedBloodRing.lastOfferingFamily;
+      game.bloodRing.lastOfferingIntelligence =
+          savedBloodRing.lastOfferingIntelligence;
+      game.bloodRing.lastOfferingStrength = savedBloodRing.lastOfferingStrength;
+      game.bloodRing.lastOfferingBeauty = savedBloodRing.lastOfferingBeauty;
     }
     game.onBattleRingWon = _onBattleRingWon;
     game.onBattleRingLost = _onBattleRingLost;
@@ -984,7 +1023,11 @@ class _CosmicScreenState extends State<CosmicScreen>
       _saveCompanionHp();
       _game!.returnCompanion();
     }
-    _game!.summonCompanion(member, hpFraction: hpFrac);
+    _game!.summonCompanion(
+      member,
+      hpFraction: hpFrac,
+      initialSpecialCooldown: _companionSpecialCooldown[slotIndex] ?? 0.0,
+    );
     setState(() => _activeCompanionSlot = slotIndex);
   }
 
@@ -1000,11 +1043,225 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() => _activeCompanionSlot = null);
   }
 
+  Offset get _sandboxAreaCenter {
+    final candidates = <Offset>[
+      Offset(_world.worldSize.width * 0.08, _world.worldSize.height * 0.08),
+      Offset(_world.worldSize.width * 0.92, _world.worldSize.height * 0.08),
+      Offset(_world.worldSize.width * 0.08, _world.worldSize.height * 0.92),
+      Offset(_world.worldSize.width * 0.92, _world.worldSize.height * 0.92),
+      Offset(_world.worldSize.width * 0.50, _world.worldSize.height * 0.10),
+      Offset(_world.worldSize.width * 0.50, _world.worldSize.height * 0.90),
+      Offset(_world.worldSize.width * 0.10, _world.worldSize.height * 0.50),
+      Offset(_world.worldSize.width * 0.90, _world.worldSize.height * 0.50),
+    ];
+
+    double clearanceFor(Offset point) {
+      var minDist = double.infinity;
+      final pois = _game?.spacePOIs ?? const <SpacePOI>[];
+      final whirls = _game?.galaxyWhirls ?? const <GalaxyWhirl>[];
+
+      for (final planet in _world.planets) {
+        minDist = min(
+          minDist,
+          (planet.position - point).distance - planet.radius,
+        );
+      }
+      for (final poi in pois) {
+        minDist = min(minDist, (poi.position - point).distance - poi.radius);
+      }
+      for (final whirl in whirls) {
+        minDist = min(minDist, (whirl.position - point).distance - 240.0);
+      }
+      for (final arena in _world.contestArenas) {
+        minDist = min(
+          minDist,
+          (arena.position - point).distance - CosmicContestArena.visualRadius,
+        );
+      }
+
+      minDist = min(
+        minDist,
+        (_world.elementalNexus.position - point).distance -
+            ElementalNexus.visualRadius,
+      );
+      minDist = min(
+        minDist,
+        (_world.battleRing.position - point).distance - BattleRing.visualRadius,
+      );
+      minDist = min(
+        minDist,
+        (_world.bloodRing.position - point).distance - BloodRing.visualRadius,
+      );
+      if (_homePlanet != null) {
+        minDist = min(
+          minDist,
+          (_homePlanet!.position - point).distance - _homePlanet!.visualRadius,
+        );
+      }
+
+      final beltOuter = _game?.asteroidBelt.outerRadius ?? 0.0;
+      if (beltOuter > 0) {
+        final beltCenter = _game!.asteroidBelt.center;
+        final beltDist = (beltCenter - point).distance;
+        if (beltDist < beltOuter + 500) {
+          minDist = min(minDist, beltDist - (beltOuter + 500));
+        }
+      }
+
+      return minDist;
+    }
+
+    return candidates.reduce(
+      (best, candidate) =>
+          clearanceFor(candidate) > clearanceFor(best) ? candidate : best,
+    );
+  }
+
+  List<Creature> _sandboxCreatures(CreatureCatalog catalog) {
+    final query = _sandboxCreatureQuery.trim().toLowerCase();
+    final list =
+        catalog.creatures
+            .where((c) => c.spriteData != null)
+            .where((c) => (c.mutationFamily ?? '').trim().isNotEmpty)
+            .where((c) {
+              if (query.isEmpty) return true;
+              return c.name.toLowerCase().contains(query) ||
+                  c.id.toLowerCase().contains(query) ||
+                  c.types.any((t) => t.toLowerCase().contains(query)) ||
+                  (c.mutationFamily?.toLowerCase().contains(query) ?? false);
+            })
+            .toList()
+          ..sort((a, b) {
+            final fam = (a.mutationFamily ?? '').compareTo(
+              b.mutationFamily ?? '',
+            );
+            if (fam != 0) return fam;
+            final elem = (a.types.firstOrNull ?? '').compareTo(
+              b.types.firstOrNull ?? '',
+            );
+            if (elem != 0) return elem;
+            return a.name.compareTo(b.name);
+          });
+    return list;
+  }
+
+  CosmicPartyMember _sandboxMemberFromCreature(Creature creature) {
+    return CosmicPartyMember(
+      instanceId:
+          'sandbox_${creature.id}_${DateTime.now().microsecondsSinceEpoch}',
+      baseId: creature.id,
+      displayName: creature.name,
+      imagePath: 'assets/images/${creature.image}',
+      element: creature.types.firstOrNull ?? 'Fire',
+      family: (creature.mutationFamily ?? 'Kin').toLowerCase(),
+      level: 10,
+      statSpeed: _sandboxCompanionStatTier.toDouble(),
+      statIntelligence: _sandboxCompanionStatTier.toDouble(),
+      statStrength: _sandboxCompanionStatTier.toDouble(),
+      statBeauty: _sandboxCompanionStatTier.toDouble(),
+      slotIndex: -1,
+      staminaBars: 99,
+      staminaMax: 99,
+      spriteSheet: creature.spriteData != null
+          ? sheetFromCreature(creature)
+          : null,
+    );
+  }
+
+  void _toggleSandboxPanel() {
+    final game = _game;
+    if (game == null) return;
+    final opening = !_showSandboxPanel;
+    if (opening) {
+      if (!_sandboxMode) {
+        _sandboxMode = true;
+        game.setSandboxMode(enabled: true, center: _sandboxAreaCenter);
+        _showQuote('Sandbox mode engaged.');
+      }
+    }
+    setState(() => _showSandboxPanel = opening);
+  }
+
+  void _leaveSandboxMode() {
+    final game = _game;
+    if (game == null) return;
+    game.setSandboxMode(enabled: false);
+    setState(() {
+      _showSandboxPanel = false;
+      _sandboxMode = false;
+    });
+    _showQuote('Sandbox mode disabled.');
+  }
+
+  void _clearSandboxHostiles() {
+    _game?.clearSandboxHostiles();
+    HapticFeedback.selectionClick();
+    setState(() {});
+  }
+
+  void _summonSandboxCompanion(Creature creature) {
+    final game = _game;
+    if (game == null) return;
+    if (game.battleRing.inBattle) {
+      _showQuote('Finish the battle ring fight before sandbox summoning.');
+      return;
+    }
+    if (_activeCompanionSlot != null) {
+      _saveCompanionHp();
+    }
+    setState(() => _activeCompanionSlot = null);
+    game.summonCompanion(_sandboxMemberFromCreature(creature));
+    HapticFeedback.mediumImpact();
+    _showQuote(
+      '${creature.name} summoned at Lv10 with all stats set to $_sandboxCompanionStatTier.',
+    );
+  }
+
+  void _spawnSandboxEnemy() {
+    final game = _game;
+    if (game == null) return;
+    game.spawnSandboxEnemy(
+      tier: _sandboxEnemyTier,
+      behavior: _sandboxEnemyBehavior,
+      count: _sandboxEnemyCount,
+    );
+    HapticFeedback.lightImpact();
+    _showQuote(
+      '$_sandboxEnemyCount ${_sandboxEnemyBehavior.name.toUpperCase()} ${_sandboxEnemyTier.name.toUpperCase()} ${_sandboxEnemyCount == 1 ? 'enemy' : 'enemies'} spawned.',
+    );
+    setState(() {});
+  }
+
+  void _spawnSandboxDummy() {
+    final game = _game;
+    if (game == null) return;
+    game.spawnSandboxDummy(count: _sandboxEnemyCount);
+    HapticFeedback.lightImpact();
+    _showQuote(
+      '$_sandboxEnemyCount test ${_sandboxEnemyCount == 1 ? 'dummy' : 'dummies'} spawned.',
+    );
+    setState(() {});
+  }
+
+  void _spawnSandboxBoss() {
+    final game = _game;
+    if (game == null) return;
+    game.spawnSandboxBoss(
+      template: _sandboxBossTemplate,
+      level: _sandboxBossLevel,
+    );
+    HapticFeedback.heavyImpact();
+    _showQuote('${_sandboxBossTemplate.name} spawned at Lv$_sandboxBossLevel.');
+    setState(() {});
+  }
+
   /// Persist the active companion's current HP fraction before returning it.
   void _saveCompanionHp() {
     final comp = _game?.activeCompanion;
     if (comp != null && _activeCompanionSlot != null) {
       _companionHpFraction[_activeCompanionSlot!] = comp.hpPercent;
+      _companionSpecialCooldown[_activeCompanionSlot!] = comp.specialCooldown
+          .clamp(0.0, 100.0);
     }
   }
 
@@ -1012,7 +1269,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!mounted) return;
     // During a ring battle the companion must stay deployed.
     if (_game?.battleRing.inBattle == true) return;
-    setState(() => _activeCompanionSlot = null);
+    _saveCompanionHp();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _activeCompanionSlot = null);
+    });
   }
 
   void _onCompanionDied(CosmicPartyMember member) {
@@ -1022,25 +1282,34 @@ class _CosmicScreenState extends State<CosmicScreen>
       // Mark slot dead and clear, but don't drain stamina (ring is consequence-free).
       if (_activeCompanionSlot != null) {
         _companionHpFraction[_activeCompanionSlot!] = 0.0;
+        _companionSpecialCooldown[_activeCompanionSlot!] = 0.0;
       }
-      setState(() => _activeCompanionSlot = null);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _activeCompanionSlot = null);
+      });
       return;
     }
     // Mark this slot as dead (0 HP)
     if (_activeCompanionSlot != null) {
       _companionHpFraction[_activeCompanionSlot!] = 0.0;
+      _companionSpecialCooldown[_activeCompanionSlot!] = 0.0;
     }
-    // Drain the dead companion's stamina to 0
-    final db = context.read<AlchemonsDatabase>();
-    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-    db.creatureDao.updateStamina(
-      instanceId: member.instanceId,
-      staminaBars: 0,
-      staminaLastUtcMs: nowMs,
-    );
-    setState(() => _activeCompanionSlot = null);
-    // Refresh party so the dead member is removed (stamina gate)
-    _initCosmicParty();
+    // Drain the dead companion's stamina to 0, except for synthetic sandbox summons.
+    if (!member.instanceId.startsWith('sandbox_')) {
+      final db = context.read<AlchemonsDatabase>();
+      final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+      db.creatureDao.updateStamina(
+        instanceId: member.instanceId,
+        staminaBars: 0,
+        staminaLastUtcMs: nowMs,
+      );
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() => _activeCompanionSlot = null);
+        _initCosmicParty();
+      }
+    });
   }
 
   /// Called when the prismatic field easter-egg reward is claimed.
@@ -1882,7 +2151,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (fx == 'beauty_radiance') traitBonus += 0.15;
       if ((member.visualVariant ?? '').trim().isNotEmpty) traitBonus += 0.12;
       if (visuals?.tint != null) traitBonus += 0.05;
-      if ((inst?.variantFaction ?? '').trim().isNotEmpty) traitBonus += 0.06;
+      final variantKey = (inst?.variantFaction ?? '').trim().toLowerCase();
+      if (variantKey.isNotEmpty && variantKey != 'bloodborn') {
+        traitBonus += 0.06;
+      }
     }
     if (trait == CosmicContestTrait.speed) {
       final scale = visuals?.scale ?? 1.0;
@@ -2857,7 +3129,7 @@ class _CosmicScreenState extends State<CosmicScreen>
             borderRadius: BorderRadius.circular(14),
             side: const BorderSide(color: Color(0x55FF8A80), width: 1.2),
           ),
-          title: const Text(
+          title: Text(
             'Choose Favorite Alchemon',
             style: TextStyle(
               color: Color(0xFFFFCDD2),
@@ -2908,14 +3180,14 @@ class _CosmicScreenState extends State<CosmicScreen>
                       ),
                       title: Text(
                         c.displayName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       subtitle: Text(
                         '${c.element} · ${c.family}',
-                        style: const TextStyle(color: Colors.white60),
+                        style: TextStyle(color: Colors.white60),
                       ),
                       trailing: const Icon(
                         Icons.chevron_right_rounded,
@@ -2929,7 +3201,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text('Cancel'),
             ),
           ],
         );
@@ -2937,16 +3209,78 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  Future<void> _openBloodPortalPlaceholder() async {
+  Future<void> _openBloodPortalCredits() async {
     final game = _game;
-    game?.pauseEngine();
+    if (game == null || _runningBloodEnding) return;
+    final available = _partyMembers.whereType<CosmicPartyMember>().toList();
+    if (available.isEmpty) {
+      _showQuote('Bring one Alchemon in your ship party.');
+      return;
+    }
+    final active = _activeCompanionSlot == null
+        ? null
+        : _partyMembers[_activeCompanionSlot!];
+    final mysticMember = active != null && _isMysticBloodCompanion(active)
+        ? active
+        : available.first;
+    final savedOffering = _findSavedBloodRingOffering(available);
+    CosmicPartyMember? favoriteMember;
+    for (final member in available) {
+      if (member != mysticMember) {
+        favoriteMember = member;
+        break;
+      }
+    }
+    final replayOffering = savedOffering ?? favoriteMember ?? mysticMember;
+    final savedOfferingName = game.bloodRing.lastOfferingName?.trim();
+    final storyName =
+        (savedOfferingName != null && savedOfferingName.isNotEmpty)
+        ? savedOfferingName
+        : replayOffering.displayName;
+    _runningBloodEnding = true;
+    var shouldReturnHome = false;
+    game.pauseEngine();
     try {
-      await _pushFade<void>(
-        const BloodRingPortalPlaceholderPage(),
+      await _pushFade<bool>(
+        BloodRingStoryScenePage(offeringName: storyName),
         duration: const Duration(milliseconds: 280),
       );
+
+      if (!mounted) return;
+      await _pushFade<bool>(
+        BloodRingValleyCreditsPage(
+          mysticImagePath: mysticMember.imagePath,
+          offeringImagePath:
+              game.bloodRing.lastOfferingImagePath ?? replayOffering.imagePath,
+          offeringElement:
+              game.bloodRing.lastOfferingElement ?? replayOffering.element,
+          offeringFamily:
+              game.bloodRing.lastOfferingFamily ?? replayOffering.family,
+          offeringIntelligence:
+              game.bloodRing.lastOfferingIntelligence ??
+              replayOffering.statIntelligence,
+          offeringStrength:
+              game.bloodRing.lastOfferingStrength ??
+              replayOffering.statStrength,
+          offeringBeauty:
+              game.bloodRing.lastOfferingBeauty ?? replayOffering.statBeauty,
+        ),
+        duration: const Duration(milliseconds: 280),
+      );
+      shouldReturnHome = true;
     } finally {
-      if (mounted) game?.resumeEngine();
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+      _runningBloodEnding = false;
+      if (mounted && !shouldReturnHome) {
+        game.resumeEngine();
+      }
+    }
+
+    if (shouldReturnHome && mounted) {
+      Navigator.of(context).pop();
     }
   }
 
@@ -2985,11 +3319,164 @@ class _CosmicScreenState extends State<CosmicScreen>
     _bloodRitualCtrl.value = 0;
   }
 
+  Map<String, int> _decodeLineageJson(String? raw) {
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return {};
+      return decoded.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          value is num ? value.toInt() : int.tryParse(value.toString()) ?? 0,
+        ),
+      );
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Map<String, String> _decodeGeneticsJson(String? raw) {
+    if (raw == null || raw.isEmpty) return const {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const {};
+      return decoded.map((key, value) => MapEntry(key.toString(), '$value'));
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  void _rememberBloodRingOffering({
+    required String offeringName,
+    String? offeringInstanceId,
+    String? offeringImagePath,
+    String? offeringElement,
+    String? offeringFamily,
+    double? offeringIntelligence,
+    double? offeringStrength,
+    double? offeringBeauty,
+  }) {
+    final ring = _game?.bloodRing;
+    if (ring == null) return;
+    ring.lastOfferingInstanceId = offeringInstanceId;
+    ring.lastOfferingName = offeringName;
+    ring.lastOfferingImagePath = offeringImagePath;
+    ring.lastOfferingElement = offeringElement;
+    ring.lastOfferingFamily = offeringFamily;
+    ring.lastOfferingIntelligence = offeringIntelligence;
+    ring.lastOfferingStrength = offeringStrength;
+    ring.lastOfferingBeauty = offeringBeauty;
+  }
+
+  CosmicPartyMember? _findSavedBloodRingOffering(
+    List<CosmicPartyMember> available,
+  ) {
+    final savedId = _game?.bloodRing.lastOfferingInstanceId?.trim();
+    if (savedId == null || savedId.isEmpty) return null;
+    for (final member in available) {
+      if (member.instanceId == savedId) return member;
+    }
+    return null;
+  }
+
+  Future<bool> _grantBloodbornRewardEgg(String sacrificedInstanceId) async {
+    if (!mounted) return false;
+    final db = context.read<AlchemonsDatabase>();
+    final repo = context.read<CreatureCatalog>();
+    final sacrificed = await db.creatureDao.getInstance(sacrificedInstanceId);
+    if (sacrificed == null) return false;
+    final base = repo.getCreatureById(sacrificed.baseId);
+    if (base == null) return false;
+
+    final nativeFaction = elementalGroupNameOf(base);
+    final factionLineage = _decodeLineageJson(sacrificed.factionLineageJson);
+    final elementLineage = _decodeLineageJson(sacrificed.elementLineageJson);
+    final familyLineage = _decodeLineageJson(sacrificed.familyLineageJson);
+    final payload = EggPayload(
+      baseId: sacrificed.baseId,
+      rarity: base.rarity,
+      source: 'bloodborn',
+      vialName: 'Bloodborn Vial',
+      natureId: sacrificed.natureId,
+      isPrismaticSkin: sacrificed.isPrismaticSkin,
+      genetics: _decodeGeneticsJson(sacrificed.geneticsJson),
+      stats: CreatureStats(
+        speed: sacrificed.statSpeed,
+        intelligence: sacrificed.statIntelligence,
+        strength: sacrificed.statStrength,
+        beauty: sacrificed.statBeauty,
+      ),
+      potentials: const CreatureStatPotentials(
+        speed: 5.0,
+        intelligence: 5.0,
+        strength: 5.0,
+        beauty: 5.0,
+      ),
+      lineage: LineageData(
+        generationDepth: sacrificed.generationDepth,
+        nativeFaction: nativeFaction,
+        variantFaction: 'bloodborn',
+        factionLineage: factionLineage.isEmpty
+            ? {nativeFaction: 1}
+            : factionLineage,
+        elementLineage: elementLineage.isEmpty && base.types.isNotEmpty
+            ? {base.types.first: 1}
+            : elementLineage,
+        familyLineage:
+            familyLineage.isEmpty &&
+                base.mutationFamily != null &&
+                base.mutationFamily!.trim().isNotEmpty
+            ? {base.mutationFamily!.trim(): 1}
+            : familyLineage,
+        isPure: sacrificed.isPure,
+      ),
+      likelihoodAnalysisJson: sacrificed.likelihoodAnalysisJson,
+    );
+    final eggId = db.creatureDao.makeInstanceId('BLOOD');
+    final rarityKey = base.rarity.toLowerCase();
+    final hatchDelay =
+        BreedConstants.rarityHatchTimes[rarityKey] ?? const Duration(hours: 8);
+    final payloadJson = payload.toJsonString();
+    final free = await db.incubatorDao.firstFreeSlot();
+    if (free != null) {
+      await db.incubatorDao.placeEgg(
+        slotId: free.id,
+        eggId: eggId,
+        resultCreatureId: base.id,
+        rarity: base.rarity,
+        hatchAtUtc: DateTime.now().toUtc().add(hatchDelay),
+        payloadJson: payloadJson,
+      );
+    } else {
+      await db.incubatorDao.enqueueEgg(
+        eggId: eggId,
+        resultCreatureId: base.id,
+        rarity: base.rarity,
+        remaining: hatchDelay,
+        payloadJson: payloadJson,
+      );
+    }
+    await db.inventoryDao.addItemQty(InvKeys.alchemyBloodAura, 1);
+    final freeText = free == null
+        ? 'Bloodborn specimen transferred to cold storage'
+        : 'Bloodborn specimen placed in incubation chamber ${free.id + 1}';
+    if (!mounted) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(freeText), behavior: SnackBarBehavior.floating),
+    );
+    return true;
+  }
+
   Future<void> _runBloodRingEnding({
-    required String mysticName,
-    required String favoriteName,
+    required String storyAlchemonName,
+    String? sacrificedInstanceId,
     String? mysticImagePath,
     String? offeringImagePath,
+    String? offeringElement,
+    String? offeringFamily,
+    double? offeringIntelligence,
+    double? offeringStrength,
+    double? offeringBeauty,
   }) async {
     final game = _game;
     if (game == null || _runningBloodEnding) return;
@@ -2998,34 +3485,52 @@ class _CosmicScreenState extends State<CosmicScreen>
     game.pauseEngine();
 
     try {
+      _rememberBloodRingOffering(
+        offeringName: storyAlchemonName,
+        offeringInstanceId: sacrificedInstanceId,
+        offeringImagePath: offeringImagePath,
+        offeringElement: offeringElement,
+        offeringFamily: offeringFamily,
+        offeringIntelligence: offeringIntelligence,
+        offeringStrength: offeringStrength,
+        offeringBeauty: offeringBeauty,
+      );
+      await _saveBloodRingState();
+
       await _playBloodRitualInSpace();
 
       if (!mounted) return;
       await _pushFade<bool>(
-        BloodRingStoryScenePage(
-          mysticName: mysticName,
-          favoriteName: favoriteName,
-        ),
+        BloodRingStoryScenePage(offeringName: storyAlchemonName),
         duration: const Duration(milliseconds: 360),
       );
 
       if (!mounted) return;
       await _pushFade<bool>(
         BloodRingValleyCreditsPage(
-          mysticName: mysticName,
-          favoriteName: favoriteName,
           mysticImagePath: mysticImagePath,
           offeringImagePath: offeringImagePath,
+          offeringElement: offeringElement,
+          offeringFamily: offeringFamily,
+          offeringIntelligence: offeringIntelligence,
+          offeringStrength: offeringStrength,
+          offeringBeauty: offeringBeauty,
         ),
         duration: const Duration(milliseconds: 360),
       );
 
-      if (!_bloodRingDebugAlwaysFirstTime) {
-        game.bloodRing.ritualCompleted = true;
+      if (sacrificedInstanceId != null && mounted) {
+        await _grantBloodbornRewardEgg(sacrificedInstanceId);
       }
+
+      game.bloodRing.ritualCompleted = true;
       await _saveBloodRingState();
       shouldReturnHome = true;
     } finally {
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
       _runningBloodEnding = false;
       if (mounted && !shouldReturnHome) {
         _resetBloodRitualOverlay();
@@ -3045,32 +3550,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     final ring = _game!.bloodRing;
     if (ring.ritualCompleted) {
-      await _openBloodPortalPlaceholder();
-      return;
-    }
-
-    if (_bloodRingDebugBypassRequirements) {
-      final available = _partyMembers.whereType<CosmicPartyMember>().toList();
-      final mysticName = available.isNotEmpty
-          ? available.first.displayName
-          : 'Mystic Blood';
-      final favoriteName = available.length > 1
-          ? available[1].displayName
-          : 'Unnamed Offering';
-      final mysticImagePath = available.isNotEmpty
-          ? available.first.imagePath
-          : null;
-      final offeringImagePath = available.length > 1
-          ? available[1].imagePath
-          : available.isNotEmpty
-          ? available.first.imagePath
-          : null;
-      await _runBloodRingEnding(
-        mysticName: mysticName,
-        favoriteName: favoriteName,
-        mysticImagePath: mysticImagePath,
-        offeringImagePath: offeringImagePath,
-      );
+      await _openBloodPortalCredits();
       return;
     }
 
@@ -3108,10 +3588,15 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (picked == null) return;
 
     await _runBloodRingEnding(
-      mysticName: active.displayName,
-      favoriteName: picked.displayName,
+      storyAlchemonName: picked.displayName,
+      sacrificedInstanceId: picked.instanceId,
       mysticImagePath: active.imagePath,
       offeringImagePath: picked.imagePath,
+      offeringElement: picked.element,
+      offeringFamily: picked.family,
+      offeringIntelligence: picked.statIntelligence,
+      offeringStrength: picked.statStrength,
+      offeringBeauty: picked.statBeauty,
     );
   }
 
@@ -3238,6 +3723,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (poi.type == POIType.warpAnomaly) {
       _playCosmicSfx(SoundCue.cosmicAnomalyBurst);
     }
+    if (poi.type == POIType.survivalPortal) {
+      final db = context.read<AlchemonsDatabase>();
+      db.settingsDao.setCosmicSurvivalPortalDiscovered();
+    }
     _saveFogState();
     if (mounted && _showPinnedMiniMap) {
       setState(() {});
@@ -3246,6 +3735,10 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   void _openMarketShop() {
     if (_nearMarketPOI == null || _game == null) return;
+    if (_nearMarketPOI!.type == POIType.survivalPortal) {
+      _enterSurvivalPortal();
+      return;
+    }
     if (_nearMarketPOI!.type == POIType.stardustScanner) {
       _activateStarDustScanner();
       return;
@@ -3256,6 +3749,19 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     if (_nearMarketPOI!.type == POIType.cosmicMarket) {
       CosmicSellSheet.show(context);
+      return;
+    }
+    if (_nearMarketPOI!.type == POIType.goldConversion) {
+      GoldConversionSheet.show(
+        context,
+        carriedShards: _game!.shipWallet.shards,
+        shardCapacity: _game!.shipWallet.shardCapacity,
+        addShards: (amount) {
+          setState(() {
+            _game!.shipWallet.shards += amount;
+          });
+        },
+      );
       return;
     }
     SpaceMarketSheet.show(
@@ -3287,6 +3793,18 @@ class _CosmicScreenState extends State<CosmicScreen>
     HapticFeedback.mediumImpact();
     _saveFogState();
     if (mounted) setState(() {});
+  }
+
+  void _enterSurvivalPortal() {
+    if (_game == null) return;
+    HapticFeedback.mediumImpact();
+    // Persist portal discovery
+    final db = context.read<AlchemonsDatabase>();
+    db.settingsDao.setCosmicSurvivalPortalDiscovered();
+    // Navigate to cosmic survival screen
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const CosmicSurvivalScreen()));
   }
 
   void _activatePlanetScanner() {
@@ -3683,19 +4201,19 @@ class _CosmicScreenState extends State<CosmicScreen>
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00E5FF).withValues(
-                alpha: _awaitingShipMenuTap ? 0.45 : 0.18,
-              ),
+              color: const Color(
+                0xFF00E5FF,
+              ).withValues(alpha: _awaitingShipMenuTap ? 0.45 : 0.18),
               blurRadius: _awaitingShipMenuTap ? 22 : 12,
               spreadRadius: _awaitingShipMenuTap ? 2 : 0,
             ),
           ],
         ),
         alignment: Alignment.center,
-        child: const Text(
+        child: Text(
           'SHIP',
           style: TextStyle(
-            fontFamily: 'monospace',
+            fontFamily: appFontFamily(context),
             color: CosmicScreenStyles.textPrimary,
             fontSize: 12,
             fontWeight: FontWeight.w800,
@@ -3720,33 +4238,89 @@ class _CosmicScreenState extends State<CosmicScreen>
         height: 44,
         decoration: BoxDecoration(
           color: _slowMode
-              ? const Color(0xFFFFB300).withValues(alpha: 0.22)
-              : Colors.black54,
-          borderRadius: BorderRadius.circular(10),
+              ? const Color(0xFFFFB300).withValues(alpha: 0.18)
+              : Colors.black45,
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: _slowMode ? const Color(0xFFFFB300) : Colors.white24,
-            width: _slowMode ? 2 : 1,
+            color: _slowMode
+                ? const Color(0xFFFFB300).withValues(alpha: 0.8)
+                : Colors.white10,
+            width: 1,
           ),
-          boxShadow: _slowMode
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFFFFB300).withValues(alpha: 0.06),
-                    blurRadius: 10,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
         ),
         child: Center(
-          child: AnimatedScale(
-            scale: _slowMode ? 1.12 : 1.0,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.elasticOut,
-            child: Icon(
-              Icons.slow_motion_video,
-              color: _slowMode ? const Color(0xFFFFB300) : Colors.white54,
-              size: 20,
-            ),
+          child: Icon(
+            Icons.slow_motion_video,
+            color: _slowMode ? const Color(0xFFFFB300) : Colors.white38,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompanionTetherButton() {
+    return GestureDetector(
+      onTap: () {
+        setState(() => _companionTethered = !_companionTethered);
+        _game?.companionTethered = _companionTethered;
+        HapticFeedback.selectionClick();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: _companionTethered
+              ? const Color(0xFF42A5F5).withValues(alpha: 0.18)
+              : Colors.black45,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: _companionTethered
+                ? const Color(0xFF42A5F5).withValues(alpha: 0.8)
+                : Colors.white10,
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            _companionTethered ? Icons.link : Icons.link_off,
+            color: _companionTethered
+                ? const Color(0xFF42A5F5)
+                : Colors.white38,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSandboxButton() {
+    return GestureDetector(
+      onTap: _toggleSandboxPanel,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: _sandboxMode
+              ? const Color(0xFF7CFFB2).withValues(alpha: 0.18)
+              : Colors.black45,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: _sandboxMode
+                ? const Color(0xFF7CFFB2).withValues(alpha: 0.8)
+                : Colors.white10,
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.science_rounded,
+            color: _sandboxMode ? const Color(0xFF7CFFB2) : Colors.white38,
+            size: 20,
           ),
         ),
       ),
@@ -3757,6 +4331,11 @@ class _CosmicScreenState extends State<CosmicScreen>
   Widget _buildPartySlotButton(int i) {
     final member = i < _partyMembers.length ? _partyMembers[i] : null;
     final isActive = _activeCompanionSlot == i;
+    final specialCooldown = isActive
+        ? (_game?.activeCompanion?.specialCooldown ??
+              (_companionSpecialCooldown[i] ?? 0.0))
+        : (_companionSpecialCooldown[i] ?? 0.0);
+    final showCooldown = member != null && specialCooldown > 0.05;
     final hpFrac = isActive
         ? (_game?.activeCompanion?.hpPercent ??
               (_companionHpFraction[i] ?? 1.0))
@@ -3790,22 +4369,22 @@ class _CosmicScreenState extends State<CosmicScreen>
         height: 44,
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFFE53935).withValues(alpha: 0.2)
+              ? const Color(0xFFE53935).withValues(alpha: 0.18)
               : isDead
-              ? const Color(0xFFE53935).withValues(alpha: 0.08)
+              ? const Color(0xFFE53935).withValues(alpha: 0.06)
               : isDisabled
-              ? Colors.black38
-              : const Color(0xFF00E676).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
+              ? Colors.black45
+              : const Color(0xFF00E676).withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: isActive
-                ? const Color(0xFFE53935)
+                ? const Color(0xFFE53935).withValues(alpha: 0.8)
                 : isDead
-                ? const Color(0xFFE53935).withValues(alpha: 0.3)
+                ? const Color(0xFFE53935).withValues(alpha: 0.25)
                 : isDisabled
-                ? Colors.white12
-                : const Color(0xFF00E676).withValues(alpha: 0.7),
-            width: isActive ? 2 : 1,
+                ? Colors.white10
+                : const Color(0xFF00E676).withValues(alpha: 0.5),
+            width: 1,
           ),
         ),
         child: member != null
@@ -3881,13 +4460,47 @@ class _CosmicScreenState extends State<CosmicScreen>
                         child: Text(
                           'RET',
                           style: TextStyle(
-                            fontFamily: 'monospace',
+                            fontFamily: appFontFamily(context),
                             color: const Color(
                               0xFFE53935,
                             ).withValues(alpha: 0.9),
                             fontSize: 6,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    if (showCooldown)
+                      Positioned(
+                        bottom: -2,
+                        left: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.82),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: isActive
+                                  ? const Color(
+                                      0xFFE53935,
+                                    ).withValues(alpha: 0.8)
+                                  : const Color(
+                                      0xFF00E676,
+                                    ).withValues(alpha: 0.75),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            specialCooldown.ceil().toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
                           ),
                         ),
                       ),
@@ -4230,21 +4843,15 @@ class _CosmicScreenState extends State<CosmicScreen>
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: Colors.white24),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-        ),
+        title: Text(title, style: TextStyle(color: Colors.white, fontSize: 16)),
         content: Text(
           'Cost: $cost',
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
+          style: TextStyle(color: Colors.white70, fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white54),
-            ),
+            child: Text('Cancel', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -4255,7 +4862,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               ),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Confirm'),
+            child: Text('Confirm'),
           ),
         ],
       ),
@@ -4420,11 +5027,21 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
-  void _handleSelectPlanetSize(int tier) {
+  void _handleSelectPlanetSize(int tier) async {
     if (_homePlanet == null) return;
     if (tier > _homePlanet!.sizeTierLevel) return;
+    final oldSlots = _garrisonSlots;
     _homePlanet!.activeSizeTier = tier;
     _saveHomePlanet();
+    final newSlots = _garrisonSlots;
+    // Clear garrison slots that exceed the new tier's capacity
+    if (newSlots < oldSlots) {
+      final db = context.read<AlchemonsDatabase>();
+      for (var i = newSlots; i < oldSlots; i++) {
+        await db.settingsDao.setCosmicGarrisonSlotInstance(i, null);
+      }
+      await _initGarrison();
+    }
     setState(() {});
   }
 
@@ -5074,6 +5691,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     try {
       unawaited(context.read<AudioController>().playHomeMusic());
     } catch (_) {}
+    _companionCooldownUiTimer?.cancel();
     _meterPulse.dispose();
     _quoteFade.dispose();
     _miniMapCtrl.dispose();
@@ -5118,6 +5736,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     if (_showSettingsMenu) {
       setState(() => _showSettingsMenu = false);
+      return true;
+    }
+    if (_showSandboxPanel) {
+      setState(() => _showSandboxPanel = false);
       return true;
     }
     if (_showShipMenu) {
@@ -5354,923 +5976,1225 @@ class _CosmicScreenState extends State<CosmicScreen>
             child: child,
           ),
           child: Stack(
-          children: [
-            // ── Flame game canvas ──
-            Positioned.fill(child: GameWidget(game: _game!)),
+            children: [
+              // ── Flame game canvas ──
+              Positioned.fill(child: GameWidget(game: _game!)),
 
-            // ── Tap-to-shoot full-screen listener ──
-            if (_tapToShoot &&
-                !_anyOverlayOpen &&
-                _summonResult == null &&
-                !_showMiniMap)
-              Positioned.fill(
-                child: Listener(
-                  behavior: HitTestBehavior.opaque,
-                  onPointerDown: _handleTapShootPointerDown,
-                  onPointerMove: _handleTapShootPointerMove,
-                  onPointerUp: _handleTapShootPointerUp,
-                  onPointerCancel: _handleTapShootPointerCancel,
+              // ── Tap-to-shoot full-screen listener ──
+              if (_tapToShoot &&
+                  !_anyOverlayOpen &&
+                  _summonResult == null &&
+                  !_showMiniMap)
+                Positioned.fill(
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: _handleTapShootPointerDown,
+                    onPointerMove: _handleTapShootPointerMove,
+                    onPointerUp: _handleTapShootPointerUp,
+                    onPointerCancel: _handleTapShootPointerCancel,
+                  ),
                 ),
-              ),
 
-            // ── Map button (hidden when pinned mini-map is active) ──
-            if (_summonResult == null &&
-                !_anyOverlayOpen &&
-                !_showPinnedMiniMap &&
-                !_awaitingShipMenuTap)
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-                top: mapColumnTop,
-                left: 12,
-                child: SafeArea(
-                  child: GestureDetector(
-                    onTap: _toggleMiniMap,
-                    onLongPress: _togglePinnedMiniMap,
-                    child: AnimatedBuilder(
-                      animation: _miniMapCtrl,
-                      builder: (context, child) {
-                        final t = Curves.easeOutCubic.transform(
-                          _miniMapCtrl.value,
-                        );
-                        final rot = (pi / 12) * t; // small tilt when open
-                        final scale = 1.0 + 0.08 * t;
-                        return Transform.rotate(
-                          angle: rot,
-                          child: Transform.scale(scale: scale, child: child),
-                        );
-                      },
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
+              // ── Map button (hidden when pinned mini-map is active) ──
+              if (_summonResult == null &&
+                  !_anyOverlayOpen &&
+                  !_showPinnedMiniMap &&
+                  !_awaitingShipMenuTap)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  top: mapColumnTop,
+                  left: 12,
+                  child: SafeArea(
+                    child: GestureDetector(
+                      onTap: _toggleMiniMap,
+                      onLongPress: _togglePinnedMiniMap,
+                      child: AnimatedBuilder(
+                        animation: _miniMapCtrl,
+                        builder: (context, child) {
+                          final t = Curves.easeOutCubic.transform(
+                            _miniMapCtrl.value,
+                          );
+                          final rot = (pi / 12) * t; // small tilt when open
+                          final scale = 1.0 + 0.08 * t;
+                          return Transform.rotate(
+                            angle: rot,
+                            child: Transform.scale(scale: scale, child: child),
+                          );
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _showPinnedMiniMap
+                                  ? const Color(0xFFFFB300)
+                                  : Colors.white24,
+                              width: _showPinnedMiniMap ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.map_rounded,
                             color: _showPinnedMiniMap
                                 ? const Color(0xFFFFB300)
-                                : Colors.white24,
-                            width: _showPinnedMiniMap ? 1.5 : 1,
+                                : Colors.white60,
+                            size: 20,
                           ),
-                        ),
-                        child: Icon(
-                          Icons.map_rounded,
-                          color: _showPinnedMiniMap
-                              ? const Color(0xFFFFB300)
-                              : Colors.white60,
-                          size: 20,
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
 
-            // ── Pinned mini-map replaces the map icon slot ──
-            if (_showPinnedMiniMap &&
-                _summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 320),
-                curve: Curves.easeOutCubic,
-                top: mapColumnTop,
-                left: 12,
-                child: SafeArea(
-                  child: CosmicMiniMapCircle(
-                    world: _world,
-                    game: _game!,
-                    onTap: _toggleMiniMap,
-                    onLongPress: _togglePinnedMiniMap,
+              // ── Pinned mini-map replaces the map icon slot ──
+              if (_showPinnedMiniMap &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  top: mapColumnTop,
+                  left: 12,
+                  child: SafeArea(
+                    child: CosmicMiniMapCircle(
+                      world: _world,
+                      game: _game!,
+                      onTap: _toggleMiniMap,
+                      onLongPress: _togglePinnedMiniMap,
+                    ),
                   ),
                 ),
-              ),
 
-            // ── Space Market Hub ──
-            if (_nearMarketPOI != null &&
-                _nearPlanet == null &&
-                !_isNearHome &&
-                _summonResult == null &&
-                !_showElementsCaptured &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              Builder(
-                builder: (_) {
-                  final mType = _nearMarketPOI!.type;
-                  final mColor = mType == POIType.harvesterMarket
-                      ? const Color(0xFFFFB300)
-                      : mType == POIType.riftKeyMarket
-                      ? const Color(0xFF7C4DFF)
-                      : mType == POIType.cosmicMarket
-                      ? const Color(0xFF00E5FF)
-                      : mType == POIType.stardustScanner
-                      ? const Color(0xFF9CCC65)
-                      : const Color(0xFF64B5F6);
-                  final mLabel = mType == POIType.harvesterMarket
-                      ? 'HARVESTER SHOP'
-                      : mType == POIType.riftKeyMarket
-                      ? 'RIFT KEY SHOP'
-                      : mType == POIType.cosmicMarket
-                      ? 'COSMIC MARKET'
-                      : mType == POIType.stardustScanner
-                      ? 'STAR DUST SCANNER'
-                      : 'PLANET SCANNER';
-                  final scannerTrackingActive =
-                      _game?.starDustScannerTargetIndex != null;
-                  final planetTrackingActive =
-                      _game?.planetScannerTargetIndex != null;
-                  return Positioned(
-                    bottom: 100,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _openMarketShop,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: CosmicScreenStyles.bg1,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: mColor.withValues(alpha: 0.7),
+              // ── Space Market Hub ──
+              if (_nearMarketPOI != null &&
+                  _nearPlanet == null &&
+                  !_isNearHome &&
+                  _summonResult == null &&
+                  !_showElementsCaptured &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Builder(
+                  builder: (_) {
+                    final mType = _nearMarketPOI!.type;
+                    final mColor = mType == POIType.harvesterMarket
+                        ? const Color(0xFFFFB300)
+                        : mType == POIType.riftKeyMarket
+                        ? const Color(0xFF7C4DFF)
+                        : mType == POIType.cosmicMarket
+                        ? const Color(0xFF00E5FF)
+                        : mType == POIType.stardustScanner
+                        ? const Color(0xFF9CCC65)
+                        : mType == POIType.goldConversion
+                        ? const Color(0xFFFFD740)
+                        : mType == POIType.survivalPortal
+                        ? const Color(0xFF8B5CF6)
+                        : const Color(0xFF64B5F6);
+                    final mLabel = mType == POIType.harvesterMarket
+                        ? 'HARVESTER SHOP'
+                        : mType == POIType.riftKeyMarket
+                        ? 'RIFT KEY SHOP'
+                        : mType == POIType.cosmicMarket
+                        ? 'COSMIC MARKET'
+                        : mType == POIType.stardustScanner
+                        ? 'STAR DUST SCANNER'
+                        : mType == POIType.goldConversion
+                        ? 'GOLD CONVERSION'
+                        : mType == POIType.survivalPortal
+                        ? 'SURVIVAL PORTAL'
+                        : 'PLANET SCANNER';
+                    final scannerTrackingActive =
+                        _game?.starDustScannerTargetIndex != null;
+                    final planetTrackingActive =
+                        _game?.planetScannerTargetIndex != null;
+                    return Positioned(
+                      bottom: 100,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _openMarketShop,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: mColor.withValues(alpha: 0.3),
-                                blurRadius: 20,
-                                spreadRadius: 2,
+                            decoration: BoxDecoration(
+                              color: CosmicScreenStyles.bg1,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: mColor.withValues(alpha: 0.7),
                               ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                mLabel,
-                                style: TextStyle(
-                                  color: mColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.2,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: mColor.withValues(alpha: 0.3),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: mColor.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: mColor.withValues(alpha: 0.4),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  mLabel,
+                                  style: TextStyle(
+                                    color: mColor,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
-                                child: Text(
-                                  mType == POIType.cosmicMarket
-                                      ? 'SELL ALCHEMONS'
-                                      : mType == POIType.stardustScanner
-                                      ? (scannerTrackingActive
-                                            ? 'TRACKING ACTIVE'
-                                            : 'SCAN FOR $_starDustScanCost SHARDS')
-                                      : mType == POIType.planetScanner
-                                      ? (planetTrackingActive
-                                            ? 'TRACKING ACTIVE'
-                                            : 'SCAN FOR $_planetScanCost SHARDS')
-                                      : 'ENTER SHOP',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.8,
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: mColor.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: mColor.withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    mType == POIType.cosmicMarket
+                                        ? 'SELL ALCHEMONS'
+                                        : mType == POIType.goldConversion
+                                        ? 'CONVERT GOLD'
+                                        : mType == POIType.stardustScanner
+                                        ? (scannerTrackingActive
+                                              ? 'TRACKING ACTIVE'
+                                              : 'SCAN FOR $_starDustScanCost SHARDS')
+                                        : mType == POIType.planetScanner
+                                        ? (planetTrackingActive
+                                              ? 'TRACKING ACTIVE'
+                                              : 'SCAN FOR $_planetScanCost SHARDS')
+                                        : mType == POIType.survivalPortal
+                                        ? 'ENTER SURVIVAL PORTAL'
+                                        : 'ENTER SHOP',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
 
-            // ── Virtual joystick (bottom-left) ──
-            if (_showJoystick &&
-                _summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              Positioned(
-                bottom: 20,
-                left: 12,
-                child: SafeArea(
-                  child: VirtualJoystick(
-                    sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
-                    onDirectionChanged: (dir) {
-                      _game?.joystickDirection = dir;
-                    },
+              // ── Virtual joystick (bottom-left) ──
+              if (_showJoystick &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 20,
+                  left: 12,
+                  child: SafeArea(
+                    child: VirtualJoystick(
+                      sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
+                      onDirectionChanged: (dir) {
+                        _game?.joystickDirection = dir;
+                      },
+                    ),
                   ),
                 ),
-              ),
 
-            // ── Planet recipe HUD (moved to top safe-area, compact)
-            if (hudPlanet != null &&
-                !_isNearHome &&
-                _summonResult == null &&
-                !_showElementsCaptured &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 280),
-                curve: Curves.easeOutCubic,
-                top: 74,
-                left: 0,
-                right: 0,
-                child: SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                          // Animated alchemical meter above the planet HUD
-                          if (!showingPinnedOnly) ...[
-                            AnimatedBuilder(
-                              animation: _planetMeterCtrl,
-                              builder: (context, child) {
-                                final t = Curves.easeOut.transform(
-                                  _planetMeterCtrl.value,
-                                );
-                                return Opacity(
-                                  opacity: t.clamp(0.0, 1.0),
-                                  child: Transform.translate(
-                                    offset: Offset(0, (1 - t) * 8),
-                                    child: child,
-                                  ),
-                                );
-                              },
-                              child: GestureDetector(
-                                onTap: _handleMeterTap,
-                                child: AnimatedBuilder(
-                                  animation: _meterPulse,
-                                  builder: (context, child) {
+              // ── Planet recipe HUD (moved to top safe-area, compact)
+              if (hudPlanet != null &&
+                  !_isNearHome &&
+                  _summonResult == null &&
+                  !_showElementsCaptured &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  top: 74,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Animated alchemical meter above the planet HUD
+                        if (!showingPinnedOnly) ...[
+                          AnimatedBuilder(
+                            animation: _planetMeterCtrl,
+                            builder: (context, child) {
+                              final t = Curves.easeOut.transform(
+                                _planetMeterCtrl.value,
+                              );
+                              return Opacity(
+                                opacity: t.clamp(0.0, 1.0),
+                                child: Transform.translate(
+                                  offset: Offset(0, (1 - t) * 8),
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: GestureDetector(
+                              onTap: _handleMeterTap,
+                              child: AnimatedBuilder(
+                                animation: _meterPulse,
+                                builder: (context, child) {
+                                  final meter = _game!.meter;
+                                  final glow = meter.isFull
+                                      ? _meterPulse.value * 0.4
+                                      : 0.0;
+                                  return Container(
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.white.withValues(alpha: 0.07),
+                                          Colors.white.withValues(alpha: 0.02),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: meter.isFull
+                                            ? Colors.amberAccent.withValues(
+                                                alpha: 0.4 + glow,
+                                              )
+                                            : Colors.white.withValues(
+                                                alpha: 0.06,
+                                              ),
+                                        width: meter.isFull ? 1.0 : 0.5,
+                                      ),
+                                      boxShadow: meter.isFull
+                                          ? [
+                                              BoxShadow(
+                                                color: Colors.amberAccent
+                                                    .withValues(
+                                                      alpha: 0.12 + glow * 0.2,
+                                                    ),
+                                                blurRadius: 14,
+                                                spreadRadius: 1,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(9),
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
                                     final meter = _game!.meter;
-                                    final glow = meter.isFull
-                                        ? _meterPulse.value * 0.4
-                                        : 0.0;
-                                    return Container(
-                                      height: 24,
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [
-                                            Colors.white.withValues(
-                                              alpha: 0.07,
+                                    final breakdown = meter.breakdown;
+                                    final total = meter.total;
+                                    if (total <= 0) {
+                                      return Container(
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          'ALCHEMICAL METER',
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.18,
                                             ),
-                                            Colors.white.withValues(
-                                              alpha: 0.02,
-                                            ),
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: meter.isFull
-                                              ? Colors.amberAccent.withValues(
-                                                  alpha: 0.4 + glow,
-                                                )
-                                              : Colors.white.withValues(
-                                                  alpha: 0.06,
-                                                ),
-                                          width: meter.isFull ? 1.0 : 0.5,
-                                        ),
-                                        boxShadow: meter.isFull
-                                            ? [
-                                                BoxShadow(
-                                                  color: Colors.amberAccent
-                                                      .withValues(
-                                                        alpha:
-                                                            0.12 + glow * 0.2,
-                                                      ),
-                                                  blurRadius: 14,
-                                                  spreadRadius: 1,
-                                                ),
-                                              ]
-                                            : null,
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(9),
-                                        child: child,
-                                      ),
-                                    );
-                                  },
-                                  child: LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final meter = _game!.meter;
-                                      final breakdown = meter.breakdown;
-                                      final total = meter.total;
-                                      if (total <= 0) {
-                                        return Container(
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            'ALCHEMICAL METER',
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.18,
-                                              ),
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: 2,
-                                            ),
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 2,
                                           ),
-                                        );
-                                      }
+                                        ),
+                                      );
+                                    }
 
-                                      final sorted = breakdown.entries.toList()
-                                        ..sort(
-                                          (a, b) => b.value.compareTo(a.value),
-                                        );
+                                    final sorted = breakdown.entries.toList()
+                                      ..sort(
+                                        (a, b) => b.value.compareTo(a.value),
+                                      );
 
-                                      return Stack(
-                                        children: [
-                                          Row(
-                                            children: sorted.map((e) {
-                                              final pct =
-                                                  e.value /
-                                                  ElementMeter.maxCapacity;
-                                              return Expanded(
-                                                flex: (pct * 1000)
-                                                    .round()
-                                                    .clamp(1, 1000),
-                                                child: Container(
-                                                  decoration: BoxDecoration(
-                                                    gradient: LinearGradient(
-                                                      begin:
-                                                          Alignment.topCenter,
-                                                      end: Alignment
-                                                          .bottomCenter,
-                                                      colors: [
-                                                        Color.lerp(
-                                                          elementColor(e.key),
-                                                          Colors.white,
-                                                          0.2,
-                                                        )!,
+                                    return Stack(
+                                      children: [
+                                        Row(
+                                          children: sorted.map((e) {
+                                            final pct =
+                                                e.value /
+                                                ElementMeter.maxCapacity;
+                                            return Expanded(
+                                              flex: (pct * 1000).round().clamp(
+                                                1,
+                                                1000,
+                                              ),
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topCenter,
+                                                    end: Alignment.bottomCenter,
+                                                    colors: [
+                                                      Color.lerp(
                                                         elementColor(e.key),
-                                                        Color.lerp(
-                                                          elementColor(e.key),
-                                                          Colors.black,
-                                                          0.25,
-                                                        )!,
-                                                      ],
-                                                      stops: const [
-                                                        0.0,
-                                                        0.4,
-                                                        1.0,
-                                                      ],
-                                                    ),
+                                                        Colors.white,
+                                                        0.2,
+                                                      )!,
+                                                      elementColor(e.key),
+                                                      Color.lerp(
+                                                        elementColor(e.key),
+                                                        Colors.black,
+                                                        0.25,
+                                                      )!,
+                                                    ],
+                                                    stops: const [
+                                                      0.0,
+                                                      0.4,
+                                                      1.0,
+                                                    ],
                                                   ),
-                                                ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                          Positioned(
-                                            top: 0,
-                                            left: 0,
-                                            right: 0,
-                                            height: 7,
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.topCenter,
-                                                  end: Alignment.bottomCenter,
-                                                  colors: [
-                                                    Colors.white.withValues(
-                                                      alpha: 0.3,
-                                                    ),
-                                                    Colors.white.withValues(
-                                                      alpha: 0.0,
-                                                    ),
-                                                  ],
                                                 ),
                                               ),
-                                            ),
-                                          ),
-                                          Center(
-                                            child: Text(
-                                              meter.isFull
-                                                  ? 'METER FULL — FLY TO A PLANET'
-                                                  : '${(meter.fillPct * 100).toStringAsFixed(0)}%',
-                                              style: TextStyle(
-                                                color: Colors.white.withValues(
-                                                  alpha: 0.9,
-                                                ),
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w900,
-                                                letterSpacing: 0.8,
-                                                shadows: const [
-                                                  Shadow(
-                                                    color: Colors.black,
-                                                    blurRadius: 6,
+                                            );
+                                          }).toList(),
+                                        ),
+                                        Positioned(
+                                          top: 0,
+                                          left: 0,
+                                          right: 0,
+                                          height: 7,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [
+                                                  Colors.white.withValues(
+                                                    alpha: 0.3,
                                                   ),
-                                                  Shadow(
-                                                    color: Colors.black,
-                                                    blurRadius: 3,
+                                                  Colors.white.withValues(
+                                                    alpha: 0.0,
                                                   ),
                                                 ],
                                               ),
                                             ),
                                           ),
-                                        ],
-                                      );
-                                    },
-                                  ),
+                                        ),
+                                        Center(
+                                          child: Text(
+                                            meter.isFull
+                                                ? 'METER FULL — FLY TO A PLANET'
+                                                : '${(meter.fillPct * 100).toStringAsFixed(0)}%',
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.9,
+                                              ),
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.8,
+                                              shadows: const [
+                                                Shadow(
+                                                  color: Colors.black,
+                                                  blurRadius: 6,
+                                                ),
+                                                Shadow(
+                                                  color: Colors.black,
+                                                  blurRadius: 3,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 8),
-                          ],
-                          if (hasPinnedRecipe)
-                            _buildPinnedRecipeMeter(
-                              planet: hudPlanet,
-                              recipe: _getRecipeForPlanet(hudPlanet),
-                              onTogglePin: () => _togglePinnedRecipe(hudPlanet),
-                            )
-                          else
-                            PlanetRecipeHud(
-                              planet: hudPlanet,
-                              recipe: _getRecipeForPlanet(hudPlanet),
-                              meter: _game!.meter,
-                              actionLabel: hudPathwayUnlocked
-                                  ? 'ENTER PLANET'
-                                  : 'SUMMON',
-                              hideLevel: hudPathwayUnlocked,
-                              onSummon: hudCanAct ? _triggerScreenShakeAndSummon : null,
-                              onTogglePin: () => _togglePinnedRecipe(hudPlanet),
-                              isPinned:
-                                  _pinnedRecipeElement == hudPlanet.element,
-                            ),
+                          ),
+                          const SizedBox(height: 8),
                         ],
+                        if (hasPinnedRecipe)
+                          _buildPinnedRecipeMeter(
+                            planet: hudPlanet,
+                            recipe: _getRecipeForPlanet(hudPlanet),
+                            onTogglePin: () => _togglePinnedRecipe(hudPlanet),
+                          )
+                        else
+                          PlanetRecipeHud(
+                            planet: hudPlanet,
+                            recipe: _getRecipeForPlanet(hudPlanet),
+                            meter: _game!.meter,
+                            actionLabel: hudPathwayUnlocked
+                                ? 'ENTER PLANET'
+                                : 'SUMMON',
+                            hideLevel: hudPathwayUnlocked,
+                            onSummon: hudCanAct
+                                ? _triggerScreenShakeAndSummon
+                                : null,
+                            onTogglePin: () => _togglePinnedRecipe(hudPlanet),
+                            isPinned: _pinnedRecipeElement == hudPlanet.element,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // ── Top HUD ──
+              if (!_anyOverlayOpen)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: TopHud(
+                      theme: theme,
+                      meter: _game!.meter,
+                      meterPulse: _meterPulse,
+                      discoveryPct: _game!.discoveryPct,
+                      planetsFound: _world.discoveredCount,
+                      planetsTotal: _world.totalCount,
+                      dustCount: _collectedDust.length,
+                      wallet: _game!.shipWallet,
+                      onSettings: () =>
+                          setState(() => _showSettingsMenu = true),
+                      onMiniMap: _toggleMiniMap,
+                      onMeterTap: _handleMeterTap,
+                      showMeter: _nearPlanet == null || _isNearHome,
+                      collapsed: _topHudCollapsed,
+                      onCollapsedChanged: (collapsed) {
+                        if (_topHudCollapsed == collapsed) return;
+                        setState(() => _topHudCollapsed = collapsed);
+                      },
+                    ),
+                  ),
+                ),
+
+              // ── Home planet HUD ──
+              // ── Mini-map overlay (animated open/close) ──
+              if (_showMiniMap || _miniMapCtrl.isAnimating)
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: _miniMapCtrl,
+                    builder: (context, child) {
+                      final t = Curves.easeOutCubic.transform(
+                        _miniMapCtrl.value,
+                      );
+                      final translateY = (1 - t) * 40.0;
+                      return Transform.translate(
+                        offset: Offset(0, translateY),
+                        child: child,
+                      );
+                    },
+                    child: RepaintBoundary(
+                      child: MiniMapOverlay(
+                        world: _world,
+                        game: _game!,
+                        theme: theme,
+                        markers: _mapMarkers,
+                        hasHomePlanet: _homePlanet != null,
+                        debugShowAllContestArenasOnMap:
+                            _contestDebugShowAllOnMap,
+                        debugEnableContestArenaTeleport:
+                            _contestDebugAllowMapTeleport,
+                        onTeleport: (pos) {
+                          final meterPct = _game!.meter.fillPct;
+                          if (meterPct > _teleportCapacity) {
+                            final capPct = (_teleportCapacity * 100).round();
+                            _showQuote(
+                              'Too much elemental energy! Lighten below $capPct% to teleport.',
+                            );
+                            HapticFeedback.heavyImpact();
+                            return;
+                          }
+                          _resetCosmicTouchState();
+                          _game?.teleportTo(pos);
+                          _closeMiniMap();
+                        },
+                        onNavigatePlanet: (planet) {
+                          final meterPct = _game!.meter.fillPct;
+                          if (meterPct > _teleportCapacity) {
+                            final capPct = (_teleportCapacity * 100).round();
+                            _showQuote(
+                              'Too much elemental energy! Lighten below $capPct% to teleport.',
+                            );
+                            HapticFeedback.heavyImpact();
+                            return;
+                          }
+                          _resetCosmicTouchState();
+                          _game?.teleportTo(planet.position);
+                          _showQuote(
+                            'Teleported to ${planetName(planet.element)}.',
+                          );
+                          HapticFeedback.lightImpact();
+                          _closeMiniMap();
+                        },
+                        onGoHome: () {
+                          if (_handleGoHome()) {
+                            _closeMiniMap();
+                          }
+                        },
+                        onClose: _closeMiniMap,
+                        onMarkersChanged: (markers) {
+                          setState(() => _mapMarkers = markers);
+                          _saveMapMarkers();
+                        },
                       ),
                     ),
                   ),
+                ),
 
-            // ── Top HUD ──
-            if (!_anyOverlayOpen)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: SafeArea(
-                  child: TopHud(
+              // ── Summon result popup ──
+              if (_summonResult != null)
+                Positioned.fill(
+                  child: SummonPopup(
+                    result: _summonResult!,
                     theme: theme,
-                    meter: _game!.meter,
-                    meterPulse: _meterPulse,
-                    discoveryPct: _game!.discoveryPct,
-                    planetsFound: _world.discoveredCount,
-                    planetsTotal: _world.totalCount,
-                    dustCount: _collectedDust.length,
-                    wallet: _game!.shipWallet,
-                    onSettings: () =>
-                        setState(() => _showSettingsMenu = true),
-                    onMiniMap: _toggleMiniMap,
-                    onMeterTap: _handleMeterTap,
-                    showMeter: _nearPlanet == null || _isNearHome,
-                    collapsed: _topHudCollapsed,
-                    onCollapsedChanged: (collapsed) {
-                      if (_topHudCollapsed == collapsed) return;
-                      setState(() => _topHudCollapsed = collapsed);
+                    onReset: _handleReset,
+                    onComplete: _handleCompleteSummon,
+                  ),
+                ),
+
+              // ── Elements captured popup ──
+              if (_showElementsCaptured)
+                Positioned.fill(
+                  child: ElementsCapturedPopup(
+                    breakdown: _capturedBreakdown,
+                    onDismiss: () {
+                      _game?.resumeEngine();
+                      setState(() => _showElementsCaptured = false);
                     },
                   ),
                 ),
-              ),
 
-            // ── Home planet HUD ──
-            // ── Mini-map overlay (animated open/close) ──
-            if (_showMiniMap || _miniMapCtrl.isAnimating)
-              Positioned.fill(
-                child: AnimatedBuilder(
-                  animation: _miniMapCtrl,
-                  builder: (context, child) {
-                    final t = Curves.easeOutCubic.transform(_miniMapCtrl.value);
-                    final translateY = (1 - t) * 40.0;
-                    return Transform.translate(
-                      offset: Offset(0, translateY),
-                      child: child,
-                    );
-                  },
-                  child: RepaintBoundary(
-                    child: MiniMapOverlay(
-                      world: _world,
-                      game: _game!,
-                      theme: theme,
-                      markers: _mapMarkers,
-                      hasHomePlanet: _homePlanet != null,
-                      debugShowAllContestArenasOnMap: _contestDebugShowAllOnMap,
-                      debugEnableContestArenaTeleport:
-                          _contestDebugAllowMapTeleport,
-                      onTeleport: (pos) {
-                        final meterPct = _game!.meter.fillPct;
-                        if (meterPct > _teleportCapacity) {
-                          final capPct = (_teleportCapacity * 100).round();
-                          _showQuote(
-                            'Too much elemental energy! Lighten below $capPct% to teleport.',
-                          );
-                          HapticFeedback.heavyImpact();
-                          return;
-                        }
-                        _resetCosmicTouchState();
-                        _game?.teleportTo(pos);
-                        _closeMiniMap();
-                      },
-                      onNavigatePlanet: (planet) {
-                        final meterPct = _game!.meter.fillPct;
-                        if (meterPct > _teleportCapacity) {
-                          final capPct = (_teleportCapacity * 100).round();
-                          _showQuote(
-                            'Too much elemental energy! Lighten below $capPct% to teleport.',
-                          );
-                          HapticFeedback.heavyImpact();
-                          return;
-                        }
-                        _resetCosmicTouchState();
-                        _game?.teleportTo(planet.position);
-                        _showQuote(
-                          'Teleported to ${planetName(planet.element)}.',
-                        );
-                        HapticFeedback.lightImpact();
-                        _closeMiniMap();
-                      },
-                      onGoHome: () {
-                        if (_handleGoHome()) {
-                          _closeMiniMap();
-                        }
-                      },
-                      onClose: _closeMiniMap,
-                      onMarkersChanged: (markers) {
-                        setState(() => _mapMarkers = markers);
-                        _saveMapMarkers();
-                      },
-                    ),
+              // ── Home planet menu overlay ──
+              if (_showHomeMenu && _homePlanet != null)
+                Positioned.fill(
+                  child: HomePlanetMenuOverlay(
+                    homePlanet: _homePlanet!,
+                    elementStorage: _elementStorage,
+                    onCustomize: () {
+                      setState(() => _showHomeMenu = false);
+                      setState(() => _showCustomizationMenu = true);
+                    },
+                    onGarrison: () {
+                      setState(() => _showHomeMenu = false);
+                      setState(() => _showGarrisonPicker = true);
+                    },
+                    onClose: () => setState(() => _showHomeMenu = false),
                   ),
                 ),
-              ),
 
-            // ── Summon result popup ──
-            if (_summonResult != null)
-              Positioned.fill(
-                child: SummonPopup(
-                  result: _summonResult!,
-                  theme: theme,
-                  onReset: _handleReset,
-                  onComplete: _handleCompleteSummon,
+              // ── Customization menu overlay ──
+              if (_showCustomizationMenu)
+                Positioned.fill(
+                  child: CustomizationMenuOverlay(
+                    customizationState: _customizationState,
+                    elementStorage: _elementStorage,
+                    homePlanet: _homePlanet,
+                    onTryRecipe: _handleTryRecipe,
+                    onToggleRecipe: _handleToggleRecipe,
+                    onOptionChanged: _handleOptionChanged,
+                    onUpgradeSize: _handleUpgradePlanetSize,
+                    onSelectSize: _handleSelectPlanetSize,
+                    onUnlockColor: _handleUnlockColor,
+                    onSelectColor: _handleSelectColor,
+                    onClose: () =>
+                        setState(() => _showCustomizationMenu = false),
+                    cargoLevel: _cargoLevel,
+                    isNearHome: _isNearHome,
+                    onUpgradeCargo: () async {
+                      await _handleUpgradeCargo();
+                      if (mounted) setState(() {});
+                    },
+                    onChambers: () {
+                      setState(() => _showCustomizationMenu = false);
+                      setState(() => _showChamberPicker = true);
+                    },
+                    onUpgradePowerUp: _handleUpgradePowerUp,
+                  ),
                 ),
-              ),
 
-            // ── Elements captured popup ──
-            if (_showElementsCaptured)
-              Positioned.fill(
-                child: ElementsCapturedPopup(
-                  breakdown: _capturedBreakdown,
-                  onDismiss: () {
-                    _game?.resumeEngine();
-                    setState(() => _showElementsCaptured = false);
-                  },
+              // ── Chamber picker overlay ──
+              if (_showChamberPicker)
+                Positioned.fill(
+                  child: ChamberPickerOverlay(
+                    chambers: _game?.orbitalChambers ?? [],
+                    onAssign: _handleAssignChamber,
+                    onClear: _handleClearChamber,
+                    onClose: () => setState(() => _showChamberPicker = false),
+                  ),
                 ),
-              ),
 
-            // ── Home planet menu overlay ──
-            if (_showHomeMenu && _homePlanet != null)
-              Positioned.fill(
-                child: HomePlanetMenuOverlay(
-                  homePlanet: _homePlanet!,
-                  elementStorage: _elementStorage,
-                  onCustomize: () {
-                    setState(() => _showHomeMenu = false);
-                    setState(() => _showCustomizationMenu = true);
-                  },
-                  onGarrison: () {
-                    setState(() => _showHomeMenu = false);
-                    setState(() => _showGarrisonPicker = true);
-                  },
-                  onClose: () => setState(() => _showHomeMenu = false),
+              // ── Party picker overlay ──
+              if (_showPartyPicker)
+                Positioned.fill(
+                  child: CosmicPartyPickerOverlay(
+                    slotsUnlocked: _cosmicPartySlotsUnlocked,
+                    partyMembers: _partyMembers,
+                    activeSlot: _activeCompanionSlot,
+                    onAssign: _handleAssignPartySlot,
+                    onClear: _handleClearPartySlot,
+                    onSummon: _handleSummonCompanion,
+                    onReturn: _handleReturnCompanion,
+                    onClose: () => setState(() => _showPartyPicker = false),
+                    excludeInstanceIds: _garrisonMembers
+                        .whereType<CosmicPartyMember>()
+                        .map((m) => m.instanceId)
+                        .toSet(),
+                  ),
                 ),
-              ),
 
-            // ── Customization menu overlay ──
-            if (_showCustomizationMenu)
-              Positioned.fill(
-                child: CustomizationMenuOverlay(
-                  customizationState: _customizationState,
-                  elementStorage: _elementStorage,
-                  homePlanet: _homePlanet,
-                  onTryRecipe: _handleTryRecipe,
-                  onToggleRecipe: _handleToggleRecipe,
-                  onOptionChanged: _handleOptionChanged,
-                  onUpgradeSize: _handleUpgradePlanetSize,
-                  onSelectSize: _handleSelectPlanetSize,
-                  onUnlockColor: _handleUnlockColor,
-                  onSelectColor: _handleSelectColor,
-                  onClose: () => setState(() => _showCustomizationMenu = false),
-                  cargoLevel: _cargoLevel,
-                  isNearHome: _isNearHome,
-                  onUpgradeCargo: () async {
-                    await _handleUpgradeCargo();
-                    if (mounted) setState(() {});
-                  },
-                  onChambers: () {
-                    setState(() => _showCustomizationMenu = false);
-                    setState(() => _showChamberPicker = true);
-                  },
-                  onUpgradePowerUp: _handleUpgradePowerUp,
+              // ── Garrison picker overlay ──
+              if (_showGarrisonPicker)
+                Positioned.fill(
+                  child: CosmicPartyPickerOverlay(
+                    title: 'HOME GARRISON',
+                    maxSlots: kHomeGarrisonMaxSlots,
+                    slotsUnlocked: _garrisonSlots,
+                    partyMembers: _garrisonMembers,
+                    onAssign: _handleAssignGarrisonSlot,
+                    onClear: _handleClearGarrisonSlot,
+                    onClose: () => setState(() => _showGarrisonPicker = false),
+                    hintText:
+                        'Tap a slot to station an Alchemon.\nGarrison size grows with planet tier!',
+                    excludeInstanceIds: _partyMembers
+                        .whereType<CosmicPartyMember>()
+                        .map((m) => m.instanceId)
+                        .toSet(),
+                  ),
                 ),
-              ),
 
-            // ── Chamber picker overlay ──
-            if (_showChamberPicker)
-              Positioned.fill(
-                child: ChamberPickerOverlay(
-                  chambers: _game?.orbitalChambers ?? [],
-                  onAssign: _handleAssignChamber,
-                  onClear: _handleClearChamber,
-                  onClose: () => setState(() => _showChamberPicker = false),
-                ),
-              ),
-
-            // ── Party picker overlay ──
-            if (_showPartyPicker)
-              Positioned.fill(
-                child: CosmicPartyPickerOverlay(
-                  slotsUnlocked: _cosmicPartySlotsUnlocked,
-                  partyMembers: _partyMembers,
-                  activeSlot: _activeCompanionSlot,
-                  onAssign: _handleAssignPartySlot,
-                  onClear: _handleClearPartySlot,
-                  onSummon: _handleSummonCompanion,
-                  onReturn: _handleReturnCompanion,
-                  onClose: () => setState(() => _showPartyPicker = false),
-                ),
-              ),
-
-            // ── Garrison picker overlay ──
-            if (_showGarrisonPicker)
-              Positioned.fill(
-                child: CosmicPartyPickerOverlay(
-                  title: 'HOME GARRISON',
-                  maxSlots: kHomeGarrisonMaxSlots,
-                  slotsUnlocked: _garrisonSlots,
-                  partyMembers: _garrisonMembers,
-                  onAssign: _handleAssignGarrisonSlot,
-                  onClear: _handleClearGarrisonSlot,
-                  onClose: () => setState(() => _showGarrisonPicker = false),
-                  hintText:
-                      'Tap a slot to station an Alchemon.\nGarrison size grows with planet tier!',
-                ),
-              ),
-
-            // ── Discovery quote overlay ──
-            if (_activeQuote != null)
-              Positioned(
-                left: 24,
-                right: 24,
-                bottom: MediaQuery.of(context).size.height * 0.35,
-                child: FadeTransition(
-                  opacity: _quoteFade,
-                  child: IgnorePointer(
-                    child: Text(
-                      _activeQuote!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 18,
-                        fontStyle: FontStyle.italic,
-                        height: 1.5,
-                        shadows: [
-                          Shadow(blurRadius: 12, color: Colors.black87),
-                        ],
+              // ── Discovery quote overlay ──
+              if (_activeQuote != null)
+                Positioned(
+                  left: 24,
+                  right: 24,
+                  bottom: MediaQuery.of(context).size.height * 0.35,
+                  child: FadeTransition(
+                    opacity: _quoteFade,
+                    child: IgnorePointer(
+                      child: Text(
+                        _activeQuote!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 18,
+                          fontStyle: FontStyle.italic,
+                          height: 1.5,
+                          shadows: [
+                            Shadow(blurRadius: 12, color: Colors.black87),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
 
-            // ── Rift portal button ──
-            if (_game != null &&
-                _isNearRift &&
-                _game!.nearestRift != null &&
-                _summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              Builder(
-                builder: (context) {
-                  final rift = _game!.nearestRift!;
-                  final col = rift.color;
-                  final core = rift.coreColor;
-                  return Positioned(
-                    bottom: 100,
-                    left: 0,
-                    right: 0,
-                    child: Center(
+              // ── Rift portal button ──
+              if (_game != null &&
+                  _isNearRift &&
+                  _game!.nearestRift != null &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Builder(
+                  builder: (context) {
+                    final rift = _game!.nearestRift!;
+                    final col = rift.color;
+                    final core = rift.coreColor;
+                    return Positioned(
+                      bottom: 100,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _handleRiftTap,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: core.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: col, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: col.withValues(alpha: 0.4),
+                                  blurRadius: 20,
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.blur_on, color: col, size: 22),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'ENTER ${rift.displayName.toUpperCase()}',
+                                  style: TextStyle(
+                                    color: col,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+              // ── Blood Ring button ──
+              if (_game != null &&
+                  _isNearBloodRing &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 100,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: _handleBloodRingTap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.93),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFFF8A80),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFFB71C1C,
+                              ).withValues(alpha: 0.55),
+                              blurRadius: 24,
+                            ),
+                            BoxShadow(
+                              color: const Color(
+                                0xFFFFCDD2,
+                              ).withValues(alpha: 0.16),
+                              blurRadius: 40,
+                              spreadRadius: 3,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.brightness_2,
+                                  color: Color(0xFFFF8A80),
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  _game!.bloodRing.ritualCompleted
+                                      ? 'ENTER BLOOD PORTAL'
+                                      : 'BLOOD RITUAL',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _game!.bloodRing.ritualCompleted
+                                  ? 'Replay the ending credits'
+                                  : 'Summon Mystic Blood + Choose One Offering',
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Trait Contest button ──
+              if (_game != null &&
+                  _nearContestArena != null &&
+                  _nearMarketPOI == null &&
+                  !_isNearBattleRing &&
+                  !_isNearBloodRing &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Builder(
+                  builder: (_) {
+                    final trait = _nearContestArena!.trait;
+                    final done = _contestProgress.completedLevels(trait);
+                    final nextLevel = (done + 1).clamp(1, 5);
+                    final mastered = _contestProgress.isMastered(trait);
+                    final accent = trait.color;
+                    return Positioned(
+                      bottom: 100,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _handleContestArenaTap,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: accent, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accent.withValues(alpha: 0.5),
+                                  blurRadius: 24,
+                                ),
+                                BoxShadow(
+                                  color: accent.withValues(alpha: 0.2),
+                                  blurRadius: 36,
+                                  spreadRadius: 3,
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.emoji_events_rounded,
+                                      color: accent,
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      '${trait.label.toUpperCase()} CONTEST',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  mastered
+                                      ? 'MASTERED (5/5)'
+                                      : 'LEVEL $nextLevel / 5  •  TAP TO START',
+                                  style: TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+              // ── Battle Ring button ──
+              if (_game != null &&
+                  _isNearBattleRing &&
+                  !_game!.battleRing.inBattle &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 100,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: _handleBattleRingTap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFFFD740),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFFFFD740,
+                              ).withValues(alpha: 0.5),
+                              blurRadius: 24,
+                            ),
+                            BoxShadow(
+                              color: const Color(
+                                0xFFFF6F00,
+                              ).withValues(alpha: 0.2),
+                              blurRadius: 40,
+                              spreadRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.sports_mma,
+                                  color: Color(0xFFFFD740),
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  _game!.battleRing.isCompleted
+                                      ? 'PRACTICE ARENA'
+                                      : 'DEPLOY ALCHEMON TO START',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _game!.battleRing.isCompleted
+                                  ? 'Endless Battles'
+                                  : _game!.battleRing.levelLabel,
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Elemental Nexus button (enter from normal world) ──
+              // Hidden once the player has completed the nexus (harvester awarded).
+              if (_game != null &&
+                  _isNearNexus &&
+                  !(_game!.inNexusPocket) &&
+                  !_game!.elementalNexus.harvesterAwarded &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 100,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: _handleNexusTap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.deepPurpleAccent,
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.deepPurpleAccent.withValues(
+                                alpha: 0.5,
+                              ),
+                              blurRadius: 24,
+                            ),
+                            BoxShadow(
+                              color: Colors.cyanAccent.withValues(alpha: 0.2),
+                              blurRadius: 40,
+                              spreadRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.blur_circular,
+                                  color: Colors.deepPurpleAccent,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'ENTER ELEMENTAL NEXUS',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '4 Boss Keys + 25% Fire · Water · Air · Earth',
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Pocket portal button (inside pocket dimension) ──
+              if (_game != null &&
+                  _game!.inNexusPocket &&
+                  _nearPocketPortalElement != null &&
+                  !_anyOverlayOpen)
+                Builder(
+                  builder: (context) {
+                    final element = _nearPocketPortalElement!;
+                    final col = {
+                      'Fire': const Color(0xFFFF5722),
+                      'Water': const Color(0xFF448AFF),
+                      'Earth': const Color(0xFF795548),
+                      'Air': const Color(0xFF81D4FA),
+                    }[element]!;
+                    return Positioned(
+                      bottom: 100,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _handlePocketPortalTap,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: col, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: col.withValues(alpha: 0.5),
+                                  blurRadius: 24,
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.blur_on, color: col, size: 22),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'ENTER ${element.toUpperCase()} PORTAL',
+                                  style: TextStyle(
+                                    color: col,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+              // ── Exit pocket button (top-left, inside pocket dimension) ──
+              if (_game != null && _game!.inNexusPocket && !_anyOverlayOpen)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
                       child: GestureDetector(
-                        onTap: _handleRiftTap,
+                        onTap: () {
+                          if (_game == null) return;
+                          HapticFeedback.mediumImpact();
+                          _game!.exitNexusPocket();
+                          _saveNexusState();
+                          setState(() {
+                            _nearPocketPortalElement = null;
+                          });
+                        },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 14,
+                            horizontal: 14,
+                            vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: core.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: col, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: col.withValues(alpha: 0.4),
-                                blurRadius: 20,
-                              ),
-                            ],
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white24, width: 1),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.blur_on, color: col, size: 22),
-                              const SizedBox(width: 10),
-                              Text(
-                                'ENTER ${rift.displayName.toUpperCase()}',
-                                style: TextStyle(
-                                  color: col,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-            // ── Blood Ring button ──
-            if (_game != null &&
-                _isNearBloodRing &&
-                _summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              Positioned(
-                bottom: 100,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: _handleBloodRingTap,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.93),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFFFF8A80),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFB71C1C,
-                            ).withValues(alpha: 0.55),
-                            blurRadius: 24,
-                          ),
-                          BoxShadow(
-                            color: const Color(
-                              0xFFFFCDD2,
-                            ).withValues(alpha: 0.16),
-                            blurRadius: 40,
-                            spreadRadius: 3,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
                               const Icon(
-                                Icons.brightness_2,
-                                color: Color(0xFFFF8A80),
-                                size: 22,
+                                Icons.arrow_back,
+                                color: Colors.white54,
+                                size: 16,
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 6),
                               Text(
-                                _game!.bloodRing.ritualCompleted
-                                    ? 'ENTER BLOOD PORTAL'
-                                    : 'BLOOD RITUAL',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _game!.bloodRing.ritualCompleted
-                                ? 'Flappy Portal Mini Game (Coming Soon)'
-                                : 'Summon Mystic Blood + Choose One Offering',
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // ── Trait Contest button ──
-            if (_game != null &&
-                _nearContestArena != null &&
-                _nearMarketPOI == null &&
-                !_isNearBattleRing &&
-                !_isNearBloodRing &&
-                _summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              Builder(
-                builder: (_) {
-                  final trait = _nearContestArena!.trait;
-                  final done = _contestProgress.completedLevels(trait);
-                  final nextLevel = (done + 1).clamp(1, 5);
-                  final mastered = _contestProgress.isMastered(trait);
-                  final accent = trait.color;
-                  return Positioned(
-                    bottom: 100,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _handleContestArenaTap,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.92),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: accent, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: accent.withValues(alpha: 0.5),
-                                blurRadius: 24,
-                              ),
-                              BoxShadow(
-                                color: accent.withValues(alpha: 0.2),
-                                blurRadius: 36,
-                                spreadRadius: 3,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.emoji_events_rounded,
-                                    color: accent,
-                                    size: 22,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    '${trait.label.toUpperCase()} CONTEST',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                mastered
-                                    ? 'MASTERED (5/5)'
-                                    : 'LEVEL $nextLevel / 5  •  TAP TO START',
-                                style: const TextStyle(
-                                  color: Colors.white60,
+                                'EXIT NEXUS',
+                                style: TextStyle(
+                                  color: Colors.white54,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 1,
@@ -6281,313 +7205,330 @@ class _CosmicScreenState extends State<CosmicScreen>
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
 
-            // ── Battle Ring button ──
-            if (_game != null &&
-                _isNearBattleRing &&
-                !_game!.battleRing.inBattle &&
-                _summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              Positioned(
-                bottom: 100,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: _handleBattleRingTap,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFFFFD740),
-                          width: 2,
+              // Companion HUD moved: small health bars are shown above each
+              // companion slot button below (no floating HUD).
+              // ── Home Base + Deposit buttons (bottom center, near home) ──
+              if (_homePlanet != null)
+                Positioned(
+                  bottom: 20,
+                  left: _showJoystick ? (_largeJoystick ? 146.0 : 120.0) : 0,
+                  right: _showJoystick ? 74 : 0,
+                  child: AnimatedOpacity(
+                    opacity:
+                        (_isNearHome &&
+                            _summonResult == null &&
+                            !_showElementsCaptured &&
+                            !_showMiniMap &&
+                            !_anyOverlayOpen)
+                        ? 1.0
+                        : 0.0,
+                    duration: const Duration(milliseconds: 350),
+                    child: AnimatedSlide(
+                      offset:
+                          (_isNearHome &&
+                              _summonResult == null &&
+                              !_showElementsCaptured &&
+                              !_showMiniMap &&
+                              !_anyOverlayOpen)
+                          ? Offset.zero
+                          : const Offset(0, 0.4),
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeOutCubic,
+                      child: IgnorePointer(
+                        ignoring:
+                            !(_isNearHome &&
+                                _summonResult == null &&
+                                !_showElementsCaptured &&
+                                !_showMiniMap &&
+                                !_anyOverlayOpen),
+                        child: SafeArea(
+                          child: Center(
+                            child: _showJoystick
+                                ? Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // HOME BASE button
+                                      GestureDetector(
+                                        onTap: () => setState(
+                                          () => _showHomeMenu = true,
+                                        ),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: CosmicScreenStyles.bg1,
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                            border: Border.all(
+                                              color: CosmicScreenStyles.amber
+                                                  .withValues(alpha: 0.6),
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: CosmicScreenStyles.amber
+                                                    .withValues(alpha: 0.25),
+                                                blurRadius: 16,
+                                                spreadRadius: 1,
+                                              ),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 18,
+                                                height: 18,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  gradient: RadialGradient(
+                                                    colors: [
+                                                      Color.lerp(
+                                                        _homePlanet!
+                                                            .blendedColor,
+                                                        Colors.white,
+                                                        0.3,
+                                                      )!,
+                                                      _homePlanet!.blendedColor,
+                                                    ],
+                                                  ),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: _homePlanet!
+                                                          .blendedColor
+                                                          .withValues(
+                                                            alpha: 0.5,
+                                                          ),
+                                                      blurRadius: 6,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'HOME BASE',
+                                                style: TextStyle(
+                                                  fontFamily: appFontFamily(
+                                                    context,
+                                                  ),
+                                                  color: CosmicScreenStyles
+                                                      .textPrimary,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: 1.5,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      // SHIP button
+                                      _buildShipButton(),
+                                      const SizedBox(height: 6),
+                                      // DEPOSIT button
+                                      GestureDetector(
+                                        onTap: _handleDepositAll,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: CosmicScreenStyles.amber,
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                            border: Border.all(
+                                              color:
+                                                  CosmicScreenStyles.amberGlow,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: CosmicScreenStyles.amber
+                                                    .withValues(alpha: 0.35),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            'DEPOSIT',
+                                            style: TextStyle(
+                                              fontFamily: appFontFamily(
+                                                context,
+                                              ),
+                                              color: CosmicScreenStyles.bg0,
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // HOME BASE button
+                                      GestureDetector(
+                                        onTap: () => setState(
+                                          () => _showHomeMenu = true,
+                                        ),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: CosmicScreenStyles.bg1,
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                            border: Border.all(
+                                              color: CosmicScreenStyles.amber
+                                                  .withValues(alpha: 0.6),
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: CosmicScreenStyles.amber
+                                                    .withValues(alpha: 0.25),
+                                                blurRadius: 16,
+                                                spreadRadius: 1,
+                                              ),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 22,
+                                                height: 22,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  gradient: RadialGradient(
+                                                    colors: [
+                                                      Color.lerp(
+                                                        _homePlanet!
+                                                            .blendedColor,
+                                                        Colors.white,
+                                                        0.3,
+                                                      )!,
+                                                      _homePlanet!.blendedColor,
+                                                    ],
+                                                  ),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: _homePlanet!
+                                                          .blendedColor
+                                                          .withValues(
+                                                            alpha: 0.5,
+                                                          ),
+                                                      blurRadius: 6,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                'HOME BASE',
+                                                style: TextStyle(
+                                                  fontFamily: appFontFamily(
+                                                    context,
+                                                  ),
+                                                  color: CosmicScreenStyles
+                                                      .textPrimary,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: 2.0,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      // SHIP button
+                                      _buildShipButton(),
+                                      const SizedBox(height: 6),
+                                      // DEPOSIT button
+                                      GestureDetector(
+                                        onTap: _handleDepositAll,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: CosmicScreenStyles.amber,
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                            border: Border.all(
+                                              color:
+                                                  CosmicScreenStyles.amberGlow,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: CosmicScreenStyles.amber
+                                                    .withValues(alpha: 0.35),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Text(
+                                            'DEPOSIT',
+                                            style: TextStyle(
+                                              fontFamily: appFontFamily(
+                                                context,
+                                              ),
+                                              color: CosmicScreenStyles.bg0,
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFFFD740,
-                            ).withValues(alpha: 0.5),
-                            blurRadius: 24,
-                          ),
-                          BoxShadow(
-                            color: const Color(
-                              0xFFFF6F00,
-                            ).withValues(alpha: 0.2),
-                            blurRadius: 40,
-                            spreadRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.sports_mma,
-                                color: Color(0xFFFFD740),
-                                size: 22,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                _game!.battleRing.isCompleted
-                                    ? 'PRACTICE ARENA'
-                                    : 'DEPLOY ALCHEMON TO START',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _game!.battleRing.isCompleted
-                                ? 'Endless Battles'
-                                : _game!.battleRing.levelLabel,
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ),
                 ),
-              ),
+              // (Fuel & missiles now auto-refill at home — no buttons needed)
 
-            // ── Elemental Nexus button (enter from normal world) ──
-            // Hidden once the player has completed the nexus (harvester awarded).
-            if (_game != null &&
-                _isNearNexus &&
-                !(_game!.inNexusPocket) &&
-                !_game!.elementalNexus.harvesterAwarded &&
-                _summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              Positioned(
-                bottom: 100,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: _handleNexusTap,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.deepPurpleAccent,
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.deepPurpleAccent.withValues(
-                              alpha: 0.5,
-                            ),
-                            blurRadius: 24,
-                          ),
-                          BoxShadow(
-                            color: Colors.cyanAccent.withValues(alpha: 0.2),
-                            blurRadius: 40,
-                            spreadRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.blur_circular,
-                                color: Colors.deepPurpleAccent,
-                                size: 22,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'ENTER ELEMENTAL NEXUS',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '4 Boss Keys + 25% Fire · Water · Air · Earth',
-                            style: TextStyle(
-                              color: Colors.white60,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // ── Pocket portal button (inside pocket dimension) ──
-            if (_game != null &&
-                _game!.inNexusPocket &&
-                _nearPocketPortalElement != null &&
-                !_anyOverlayOpen)
-              Builder(
-                builder: (context) {
-                  final element = _nearPocketPortalElement!;
-                  final col = {
-                    'Fire': const Color(0xFFFF5722),
-                    'Water': const Color(0xFF448AFF),
-                    'Earth': const Color(0xFF795548),
-                    'Air': const Color(0xFF81D4FA),
-                  }[element]!;
-                  return Positioned(
-                    bottom: 100,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _handlePocketPortalTap,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.92),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: col, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: col.withValues(alpha: 0.5),
-                                blurRadius: 24,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.blur_on, color: col, size: 22),
-                              const SizedBox(width: 10),
-                              Text(
-                                'ENTER ${element.toUpperCase()} PORTAL',
-                                style: TextStyle(
-                                  color: col,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-            // ── Exit pocket button (top-left, inside pocket dimension) ──
-            if (_game != null && _game!.inNexusPocket && !_anyOverlayOpen)
-              Positioned(
-                top: 0,
-                left: 0,
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: GestureDetector(
-                      onTap: () {
-                        if (_game == null) return;
-                        HapticFeedback.mediumImpact();
-                        _game!.exitNexusPocket();
-                        _saveNexusState();
-                        setState(() {
-                          _nearPocketPortalElement = null;
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.7),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white24, width: 1),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.arrow_back,
-                              color: Colors.white54,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'EXIT NEXUS',
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // Companion HUD moved: small health bars are shown above each
-            // companion slot button below (no floating HUD).
-            // ── Home Base + Deposit buttons (bottom center, near home) ──
-            if (_homePlanet != null)
+              // ── SHIP button (bottom center, hidden when near home) ──
               Positioned(
                 bottom: 20,
                 left: _showJoystick ? (_largeJoystick ? 146.0 : 120.0) : 0,
                 right: _showJoystick ? 74 : 0,
                 child: AnimatedOpacity(
-                  opacity: (_isNearHome &&
+                  opacity:
+                      (!_isNearHome &&
                           _summonResult == null &&
-                          !_showElementsCaptured &&
                           !_showMiniMap &&
                           !_anyOverlayOpen)
-                      ? 1.0
+                      ? (_nearPlanet != null ? 0.25 : 1.0)
                       : 0.0,
                   duration: const Duration(milliseconds: 350),
                   child: AnimatedSlide(
-                    offset: (_isNearHome &&
+                    offset:
+                        (!_isNearHome &&
                             _summonResult == null &&
-                            !_showElementsCaptured &&
                             !_showMiniMap &&
                             !_anyOverlayOpen)
                         ? Offset.zero
@@ -6595,703 +7536,1288 @@ class _CosmicScreenState extends State<CosmicScreen>
                     duration: const Duration(milliseconds: 350),
                     curve: Curves.easeOutCubic,
                     child: IgnorePointer(
-                      ignoring: !(_isNearHome &&
-                          _summonResult == null &&
-                          !_showElementsCaptured &&
-                          !_showMiniMap &&
-                          !_anyOverlayOpen),
-                      child: SafeArea(
-                  child: Center(
-                    child: _showJoystick
-                        ? Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // HOME BASE button
-                              GestureDetector(
-                                onTap: () =>
-                                    setState(() => _showHomeMenu = true),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: CosmicScreenStyles.bg1,
-                                    borderRadius: BorderRadius.circular(3),
-                                    border: Border.all(
-                                      color: CosmicScreenStyles.amber
-                                          .withValues(alpha: 0.6),
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: CosmicScreenStyles.amber
-                                            .withValues(alpha: 0.25),
-                                        blurRadius: 16,
-                                        spreadRadius: 1,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: RadialGradient(
-                                            colors: [
-                                              Color.lerp(
-                                                _homePlanet!.blendedColor,
-                                                Colors.white,
-                                                0.3,
-                                              )!,
-                                              _homePlanet!.blendedColor,
-                                            ],
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: _homePlanet!.blendedColor
-                                                  .withValues(alpha: 0.5),
-                                              blurRadius: 6,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        'HOME BASE',
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: CosmicScreenStyles.textPrimary,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 1.5,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              // SHIP button
-                              _buildShipButton(),
-                              const SizedBox(height: 6),
-                              // DEPOSIT button
-                              GestureDetector(
-                                onTap: _handleDepositAll,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: CosmicScreenStyles.amber,
-                                    borderRadius: BorderRadius.circular(3),
-                                    border: Border.all(
-                                      color: CosmicScreenStyles.amberGlow,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: CosmicScreenStyles.amber
-                                            .withValues(alpha: 0.35),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: const Text(
-                                    'DEPOSIT',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.bg0,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // HOME BASE button
-                              GestureDetector(
-                                onTap: () =>
-                                    setState(() => _showHomeMenu = true),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: CosmicScreenStyles.bg1,
-                                    borderRadius: BorderRadius.circular(3),
-                                    border: Border.all(
-                                      color: CosmicScreenStyles.amber
-                                          .withValues(alpha: 0.6),
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: CosmicScreenStyles.amber
-                                            .withValues(alpha: 0.25),
-                                        blurRadius: 16,
-                                        spreadRadius: 1,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 22,
-                                        height: 22,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: RadialGradient(
-                                            colors: [
-                                              Color.lerp(
-                                                _homePlanet!.blendedColor,
-                                                Colors.white,
-                                                0.3,
-                                              )!,
-                                              _homePlanet!.blendedColor,
-                                            ],
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: _homePlanet!.blendedColor
-                                                  .withValues(alpha: 0.5),
-                                              blurRadius: 6,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      const Text(
-                                        'HOME BASE',
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: CosmicScreenStyles.textPrimary,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 2.0,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              // SHIP button
-                              _buildShipButton(),
-                              const SizedBox(height: 6),
-                              // DEPOSIT button
-                              GestureDetector(
-                                onTap: _handleDepositAll,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: CosmicScreenStyles.amber,
-                                    borderRadius: BorderRadius.circular(3),
-                                    border: Border.all(
-                                      color: CosmicScreenStyles.amberGlow,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: CosmicScreenStyles.amber
-                                            .withValues(alpha: 0.35),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Text(
-                                    'DEPOSIT',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.bg0,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
+                      ignoring:
+                          _isNearHome ||
+                          _summonResult != null ||
+                          _showMiniMap ||
+                          _anyOverlayOpen,
+                      child: SafeArea(child: _buildShipButton()),
                     ),
                   ),
                 ),
               ),
-            // (Fuel & missiles now auto-refill at home — no buttons needed)
 
-            // ── SHIP button (bottom center, hidden when near home) ──
-            Positioned(
-              bottom: 20,
-              left: _showJoystick ? (_largeJoystick ? 146.0 : 120.0) : 0,
-              right: _showJoystick ? 74 : 0,
-              child: AnimatedOpacity(
-                opacity: (!_isNearHome &&
-                        _summonResult == null &&
-                        !_showMiniMap &&
-                        !_anyOverlayOpen)
-                    ? (_nearPlanet != null ? 0.25 : 1.0)
-                    : 0.0,
-                duration: const Duration(milliseconds: 350),
-                child: AnimatedSlide(
-                  offset: (!_isNearHome &&
-                          _summonResult == null &&
-                          !_showMiniMap &&
-                          !_anyOverlayOpen)
-                      ? Offset.zero
-                      : const Offset(0, 0.4),
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeOutCubic,
-                  child: IgnorePointer(
-                    ignoring: _isNearHome ||
-                        _summonResult != null ||
-                        _showMiniMap ||
-                        _anyOverlayOpen,
+              // ── Combat buttons (right side) ──
+              if (_summonResult == null && !_showMiniMap && !_anyOverlayOpen)
+                Positioned(
+                  bottom: 20,
+                  right: 12,
+                  child: AnimatedOpacity(
+                    opacity: _nearPlanet != null && !_isNearHome ? 0.25 : 1.0,
+                    duration: const Duration(milliseconds: 300),
                     child: SafeArea(
-                      child: _buildShipButton(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // Boost button
+                          if (_customizationState.hasBooster)
+                            GestureDetector(
+                              onTapDown: _boostToggleMode
+                                  ? null
+                                  : (_) => _startBoosting(),
+                              onTapUp: _boostToggleMode
+                                  ? null
+                                  : (_) => _stopBoosting(),
+                              onTapCancel: _boostToggleMode
+                                  ? null
+                                  : _stopBoosting,
+                              onTap: _boostToggleMode ? _toggleBoosting : null,
+                              child: Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: _isBoosting
+                                      ? const Color(
+                                          0xFFFF6F00,
+                                        ).withValues(alpha: 0.2)
+                                      : Colors.black54,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: _isBoosting
+                                        ? const Color(0xFFFF6F00)
+                                        : Colors.white24,
+                                    width: _isBoosting ? 2 : 1,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.local_fire_department_rounded,
+                                  color: _isBoosting
+                                      ? const Color(0xFFFF6F00)
+                                      : Colors.white54,
+                                  size: 25,
+                                ),
+                              ),
+                            ),
+                          if (_customizationState.hasBooster)
+                            const SizedBox(height: 14),
+                          // Weapon buttons (slide-to-switch)
+                          Listener(
+                            onPointerDown: _handleWeaponPointerDown,
+                            onPointerMove: _handleWeaponPointerMove,
+                            onPointerUp: _handleWeaponPointerUp,
+                            onPointerCancel: _handleWeaponPointerCancel,
+                            child: Column(
+                              key: _weaponColumnKey,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_customizationState.hasMissiles)
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: _isShootingMissiles
+                                          ? const Color(
+                                              0xFFE53935,
+                                            ).withValues(alpha: 0.2)
+                                          : Colors.black54,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: _isShootingMissiles
+                                            ? const Color(0xFFE53935)
+                                            : Colors.white24,
+                                        width: _isShootingMissiles ? 2 : 1,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.gps_fixed_rounded,
+                                          color: _isShootingMissiles
+                                              ? const Color(0xFFE53935)
+                                              : Colors.white54,
+                                          size: 21,
+                                        ),
+                                        Text(
+                                          '${_game?.missileAmmo ?? 0}',
+                                          style: TextStyle(
+                                            fontFamily: appFontFamily(context),
+                                            color: _isShootingMissiles
+                                                ? const Color(0xFFE53935)
+                                                : Colors.white38,
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                if (_customizationState.hasMissiles)
+                                  const SizedBox(height: 10),
+                                if (!_tapToShoot)
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: _isShooting
+                                          ? const Color(
+                                              0xFF00E5FF,
+                                            ).withValues(alpha: 0.2)
+                                          : Colors.black54,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: _isShooting
+                                            ? const Color(0xFF00E5FF)
+                                            : Colors.white24,
+                                        width: _isShooting ? 2 : 1,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.flash_on_rounded,
+                                      color: _isShooting
+                                          ? const Color(0xFF00E5FF)
+                                          : Colors.white54,
+                                      size: 25,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
 
-            // ── Combat buttons (right side) ──
-            if (_summonResult == null && !_showMiniMap && !_anyOverlayOpen)
-              Positioned(
-                bottom: 20,
-                right: 12,
-                child: AnimatedOpacity(
-                  opacity: _nearPlanet != null && !_isNearHome ? 0.25 : 1.0,
+              if (_awaitingShipMenuTap &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  right: 72,
+                  bottom: 84,
+                  child: IgnorePointer(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 260),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(
+                            0xFF00E5FF,
+                          ).withValues(alpha: 0.65),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF00E5FF,
+                            ).withValues(alpha: 0.22),
+                            blurRadius: 18,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        'Tap the ship icon to open your ship console and build your home base.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Companion column (stacked on right side) ──
+              if (_summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen &&
+                  !_awaitingShipMenuTap)
+                AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  right: 12,
+                  top:
+                      120 + (_nearPlanet != null && !_isNearHome ? 240.0 : 0.0),
                   child: SafeArea(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        // Boost button
-                        if (_customizationState.hasBooster)
-                          GestureDetector(
-                            onTapDown: _boostToggleMode
-                                ? null
-                                : (_) => _startBoosting(),
-                            onTapUp: _boostToggleMode
-                                ? null
-                                : (_) => _stopBoosting(),
-                            onTapCancel:
-                                _boostToggleMode ? null : _stopBoosting,
-                            onTap: _boostToggleMode ? _toggleBoosting : null,
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: _isBoosting
-                                    ? const Color(
-                                        0xFFFF6F00,
-                                      ).withValues(alpha: 0.2)
-                                    : Colors.black54,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: _isBoosting
-                                      ? const Color(0xFFFF6F00)
-                                      : Colors.white24,
-                                  width: _isBoosting ? 2 : 1,
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.local_fire_department_rounded,
-                                color: _isBoosting
-                                    ? const Color(0xFFFF6F00)
-                                    : Colors.white54,
-                                size: 25,
-                              ),
-                            ),
-                          ),
-                        if (_customizationState.hasBooster)
-                          const SizedBox(height: 14),
-                        // Weapon buttons (slide-to-switch)
-                        Listener(
-                          onPointerDown: _handleWeaponPointerDown,
-                          onPointerMove: _handleWeaponPointerMove,
-                          onPointerUp: _handleWeaponPointerUp,
-                          onPointerCancel: _handleWeaponPointerCancel,
-                          child: Column(
-                            key: _weaponColumnKey,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_customizationState.hasMissiles)
-                                Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: _isShootingMissiles
-                                        ? const Color(
-                                            0xFFE53935,
-                                          ).withValues(alpha: 0.2)
-                                        : Colors.black54,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: _isShootingMissiles
-                                          ? const Color(0xFFE53935)
-                                          : Colors.white24,
-                                      width: _isShootingMissiles ? 2 : 1,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.gps_fixed_rounded,
-                                        color: _isShootingMissiles
-                                            ? const Color(0xFFE53935)
-                                            : Colors.white54,
-                                        size: 21,
-                                      ),
-                                      Text(
-                                        '${_game?.missileAmmo ?? 0}',
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: _isShootingMissiles
-                                              ? const Color(0xFFE53935)
-                                              : Colors.white38,
-                                          fontSize: 8,
-                                          fontWeight: FontWeight.w800,
+                        if (kDebugMode) ...[
+                          _buildSandboxButton(),
+                          const SizedBox(height: 10),
+                        ],
+                        _buildSlowModeButton(),
+                        const SizedBox(height: 10),
+                        if (_activeCompanionSlot != null) ...[
+                          _buildCompanionTetherButton(),
+                          const SizedBox(height: 10),
+                        ],
+                        for (
+                          var i = 0;
+                          i < _cosmicPartySlotsUnlocked && i < 3;
+                          i++
+                        ) ...[
+                          // Small health bar above each companion slot
+                          Builder(
+                            builder: (_) {
+                              final isActive = _activeCompanionSlot == i;
+                              final hpFrac = isActive
+                                  ? (_game?.activeCompanion?.hpPercent ??
+                                        (_companionHpFraction[i] ?? 1.0))
+                                  : (_companionHpFraction[i] ?? 1.0);
+                              return SizedBox(
+                                width: 44,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      height: 5,
+                                      decoration: BoxDecoration(
+                                        color: isActive
+                                            ? Colors.white12
+                                            : Colors.white10,
+                                        borderRadius: BorderRadius.circular(3),
+                                        border: Border.all(
+                                          color: isActive
+                                              ? Colors.white10
+                                              : Colors.white12,
+                                          width: 0.5,
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              if (_customizationState.hasMissiles)
-                                const SizedBox(height: 10),
-                              if (!_tapToShoot)
-                                Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: _isShooting
-                                        ? const Color(
-                                            0xFF00E5FF,
-                                          ).withValues(alpha: 0.2)
-                                        : Colors.black54,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: _isShooting
-                                          ? const Color(0xFF00E5FF)
-                                          : Colors.white24,
-                                      width: _isShooting ? 2 : 1,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.flash_on_rounded,
-                                    color: _isShooting
-                                        ? const Color(0xFF00E5FF)
-                                        : Colors.white54,
-                                    size: 25,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-            if (_awaitingShipMenuTap &&
-                _summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen)
-              Positioned(
-                right: 72,
-                bottom: 84,
-                child: IgnorePointer(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 260),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: const Color(0xFF00E5FF).withValues(alpha: 0.65),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF00E5FF,
-                          ).withValues(alpha: 0.22),
-                          blurRadius: 18,
-                        ),
-                      ],
-                    ),
-                    child: const Text(
-                      'Tap the ship icon to open your ship console and build your home base.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // ── Companion column (stacked on right side) ──
-            if (_summonResult == null &&
-                !_showMiniMap &&
-                !_anyOverlayOpen &&
-                !_awaitingShipMenuTap &&
-                _cosmicPartySlotsUnlocked > 0)
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-                right: 12,
-                top: 120 + (_nearPlanet != null && !_isNearHome ? 240.0 : 0.0),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildSlowModeButton(),
-                      const SizedBox(height: 10),
-                      for (
-                        var i = 0;
-                        i < _cosmicPartySlotsUnlocked && i < 3;
-                        i++
-                      ) ...[
-                        // Small health bar above each companion slot
-                        Builder(
-                          builder: (_) {
-                            final isActive = _activeCompanionSlot == i;
-                            final hpFrac = isActive
-                                ? (_game?.activeCompanion?.hpPercent ??
-                                      (_companionHpFraction[i] ?? 1.0))
-                                : (_companionHpFraction[i] ?? 1.0);
-                            return SizedBox(
-                              width: 44,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    height: 5,
-                                    decoration: BoxDecoration(
-                                      color: isActive
-                                          ? Colors.white12
-                                          : Colors.white10,
-                                      borderRadius: BorderRadius.circular(3),
-                                      border: Border.all(
-                                        color: isActive
-                                            ? Colors.white10
-                                            : Colors.white12,
-                                        width: 0.5,
-                                      ),
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: FractionallySizedBox(
-                                        widthFactor: hpFrac.clamp(0.0, 1.0),
-                                        child: Container(
-                                          height: 5,
-                                          decoration: BoxDecoration(
-                                            color:
-                                                (hpFrac > 0.5
-                                                        ? const Color(
-                                                            0xFF00E676,
-                                                          )
-                                                        : hpFrac > 0.25
-                                                        ? const Color(
-                                                            0xFFFFEA00,
-                                                          )
-                                                        : const Color(
-                                                            0xFFE53935,
-                                                          ))
-                                                    .withValues(
-                                                      alpha: isActive
-                                                          ? 1.0
-                                                          : 0.35,
-                                                    ),
-                                            borderRadius: BorderRadius.circular(
-                                              3,
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: FractionallySizedBox(
+                                          widthFactor: hpFrac.clamp(0.0, 1.0),
+                                          child: Container(
+                                            height: 5,
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  (hpFrac > 0.5
+                                                          ? const Color(
+                                                              0xFF00E676,
+                                                            )
+                                                          : hpFrac > 0.25
+                                                          ? const Color(
+                                                              0xFFFFEA00,
+                                                            )
+                                                          : const Color(
+                                                              0xFFE53935,
+                                                            ))
+                                                      .withValues(
+                                                        alpha: isActive
+                                                            ? 1.0
+                                                            : 0.35,
+                                                      ),
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
                                             ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                        _buildPartySlotButton(i),
-                        if (i < _cosmicPartySlotsUnlocked - 1)
-                          const SizedBox(height: 8),
+                                    const SizedBox(height: 6),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          _buildPartySlotButton(i),
+                          if (i < _cosmicPartySlotsUnlocked - 1)
+                            const SizedBox(height: 8),
+                        ],
                       ],
+                    ),
+                  ),
+                ),
+
+              // ── Ship menu overlay ──
+              if (_showShipMenu)
+                ShipMenuOverlay(
+                  hasHomePlanet: _homePlanet != null,
+                  meterFill: _game?.meter.fillPct ?? 0,
+                  walletShards: _game?.shipWallet.shards ?? 0,
+                  shipHealth: _game?.shipHealth ?? 0,
+                  shipMaxHealth: CosmicGame.shipMaxHealth,
+                  fuelFraction: _game?.shipFuel.fraction ?? 0,
+                  activeWeaponName: _activeWeaponName,
+                  orbitalStockpile: _game?.orbitalStockpile ?? 0,
+                  orbitalActive: _game?.orbitals.length ?? 0,
+                  hasBooster: _customizationState.hasBooster,
+                  hasOrbitals: _customizationState.hasOrbitals,
+                  hasMissiles: _customizationState.hasMissiles,
+                  missileAmmo: _game?.missileAmmo ?? 0,
+                  hasRefuelStation: _customizationState.hasRefuelStation,
+                  hasMissileStation: _customizationState.hasMissileStation,
+                  hasSentinelStation: _customizationState.hasSentinelStation,
+                  cargoLevel: _cargoLevel,
+                  isNearHome: _isNearHome,
+                  onClose: () {
+                    if (_awaitingBuildHomeTap && _homePlanet == null) return;
+                    setState(() => _showShipMenu = false);
+                  },
+                  onBuildHome: () {
+                    final built = _handleBuildHomePlanet();
+                    if (_awaitingBuildHomeTap &&
+                        _homePlanet == null &&
+                        !built) {
+                      setState(() {
+                        _showShipMenu = false;
+                        _awaitingBuildHomeTap = false;
+                        _awaitingShipMenuTap = true;
+                      });
+                      return;
+                    }
+                    setState(() => _showShipMenu = false);
+                  },
+                  onRelocateHome: () {
+                    setState(() => _showShipMenu = false);
+                    _handleMoveHomePlanet();
+                  },
+                  onJettisonCargo: () {
+                    setState(() => _showShipMenu = false);
+                    _handleJettisonCargo();
+                  },
+                  onDumpWallet: () {
+                    setState(() => _showShipMenu = false);
+                    _handleDumpWallet();
+                  },
+                  onRefuel: () async {
+                    await _handleRefuel();
+                    if (mounted) setState(() {});
+                  },
+                  onCraftMissiles: () async {
+                    await _handleCraftMissiles();
+                    if (mounted) setState(() {});
+                  },
+                  onCraftSentinels: () async {
+                    await _handleCraftSentinels();
+                    if (mounted) setState(() {});
+                  },
+                  onUpgradeCargo: () async {
+                    await _handleUpgradeCargo();
+                    if (mounted) setState(() {});
+                  },
+                  tutorialBuildHomeMode:
+                      _awaitingBuildHomeTap && _homePlanet == null,
+                  hasParty: _cosmicPartySlotsUnlocked > 0,
+                  onParty: () {
+                    setState(() {
+                      _showShipMenu = false;
+                      _showPartyPicker = true;
+                    });
+                  },
+                ),
+
+              // ── Settings overlay ──
+              if (_showSettingsMenu)
+                _CosmicSettingsOverlay(
+                  joystickEnabled: _showJoystick,
+                  largeJoystickEnabled: _largeJoystick,
+                  tapToShootEnabled: _tapToShoot,
+                  boostToggleEnabled: _boostToggleMode,
+                  onClose: () => setState(() => _showSettingsMenu = false),
+                  onLeaveSpace: () async {
+                    setState(() => _showSettingsMenu = false);
+                    await _confirmLeave();
+                  },
+                  onToggleJoystick: (v) async {
+                    setState(() => _showJoystick = v);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('cosmic_joystick_enabled', v);
+                  },
+                  onToggleLargeJoystick: (v) async {
+                    setState(() => _largeJoystick = v);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('cosmic_large_joystick', v);
+                  },
+                  onToggleTapToShoot: (v) async {
+                    setState(() {
+                      _tapToShoot = v;
+                      _game?.tapToShootMode = v;
+                      _movePointerId = null;
+                      _tapShootPointerIds.clear();
+                      if (!v && _isShooting) _stopShooting();
+                    });
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('cosmic_tap_to_shoot', v);
+                  },
+                  onToggleBoostToggle: (v) async {
+                    setState(() {
+                      _boostToggleMode = v;
+                      if (!v && _isBoosting) _stopBoosting();
+                    });
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('cosmic_boost_toggle', v);
+                  },
+                ),
+
+              if (_showSandboxPanel)
+                Positioned.fill(
+                  child: _CosmicSandboxOverlay(
+                    creatures: _sandboxCreatures(
+                      context.read<CreatureCatalog>(),
+                    ),
+                    query: _sandboxCreatureQuery,
+                    onQueryChanged: (value) =>
+                        setState(() => _sandboxCreatureQuery = value),
+                    statTier: _sandboxCompanionStatTier,
+                    onStatTierChanged: (value) =>
+                        setState(() => _sandboxCompanionStatTier = value),
+                    onSummonCreature: _summonSandboxCompanion,
+                    enemyTier: _sandboxEnemyTier,
+                    onEnemyTierChanged: (value) =>
+                        setState(() => _sandboxEnemyTier = value),
+                    enemyBehavior: _sandboxEnemyBehavior,
+                    onEnemyBehaviorChanged: (value) =>
+                        setState(() => _sandboxEnemyBehavior = value),
+                    enemyCount: _sandboxEnemyCount,
+                    onEnemyCountChanged: (value) =>
+                        setState(() => _sandboxEnemyCount = value),
+                    onSpawnEnemy: _spawnSandboxEnemy,
+                    onSpawnDummy: _spawnSandboxDummy,
+                    bossTemplate: _sandboxBossTemplate,
+                    bossTemplates: kBossTemplates,
+                    onBossTemplateChanged: (value) =>
+                        setState(() => _sandboxBossTemplate = value),
+                    bossLevel: _sandboxBossLevel,
+                    onBossLevelChanged: (value) =>
+                        setState(() => _sandboxBossLevel = value),
+                    onSpawnBoss: _spawnSandboxBoss,
+                    onClearHostiles: _clearSandboxHostiles,
+                    onClose: _toggleSandboxPanel,
+                    onLeaveSandbox: _leaveSandboxMode,
+                  ),
+                ),
+
+              // ── In-space Blood Ritual overlay (fades space to black) ──
+              if (_showBloodRitualOverlay && _game != null)
+                Positioned.fill(
+                  child: AbsorbPointer(
+                    absorbing: true,
+                    child: AnimatedBuilder(
+                      animation: _bloodRitualCtrl,
+                      builder: (context, _) {
+                        return CustomPaint(
+                          painter: _BloodRitualSpaceOverlayPainter(
+                            game: _game!,
+                            progress: _bloodRitualCtrl.value,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CosmicSandboxOverlay extends StatefulWidget {
+  const _CosmicSandboxOverlay({
+    required this.creatures,
+    required this.query,
+    required this.onQueryChanged,
+    required this.statTier,
+    required this.onStatTierChanged,
+    required this.onSummonCreature,
+    required this.enemyTier,
+    required this.onEnemyTierChanged,
+    required this.enemyBehavior,
+    required this.onEnemyBehaviorChanged,
+    required this.enemyCount,
+    required this.onEnemyCountChanged,
+    required this.onSpawnEnemy,
+    required this.onSpawnDummy,
+    required this.bossTemplate,
+    required this.bossTemplates,
+    required this.onBossTemplateChanged,
+    required this.bossLevel,
+    required this.onBossLevelChanged,
+    required this.onSpawnBoss,
+    required this.onClearHostiles,
+    required this.onClose,
+    required this.onLeaveSandbox,
+  });
+
+  final List<Creature> creatures;
+  final String query;
+  final ValueChanged<String> onQueryChanged;
+  final int statTier;
+  final ValueChanged<int> onStatTierChanged;
+  final ValueChanged<Creature> onSummonCreature;
+  final EnemyTier enemyTier;
+  final ValueChanged<EnemyTier> onEnemyTierChanged;
+  final EnemyBehavior enemyBehavior;
+  final ValueChanged<EnemyBehavior> onEnemyBehaviorChanged;
+  final int enemyCount;
+  final ValueChanged<int> onEnemyCountChanged;
+  final VoidCallback onSpawnEnemy;
+  final VoidCallback onSpawnDummy;
+  final BossTemplate bossTemplate;
+  final List<BossTemplate> bossTemplates;
+  final ValueChanged<BossTemplate> onBossTemplateChanged;
+  final int bossLevel;
+  final ValueChanged<int> onBossLevelChanged;
+  final VoidCallback onSpawnBoss;
+  final VoidCallback onClearHostiles;
+  final VoidCallback onClose;
+  final VoidCallback onLeaveSandbox;
+
+  @override
+  State<_CosmicSandboxOverlay> createState() => _CosmicSandboxOverlayState();
+}
+
+class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
+    with SingleTickerProviderStateMixin {
+  late final TextEditingController _queryController;
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _queryController = TextEditingController(text: widget.query);
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CosmicSandboxOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.query != _queryController.text) {
+      _queryController.value = TextEditingValue(
+        text: widget.query,
+        selection: TextSelection.collapsed(offset: widget.query.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isPortrait = size.height > size.width;
+    final width = isPortrait ? size.width - 12 : min(size.width - 20, 1040.0);
+    final height = isPortrait ? size.height - 12 : min(size.height - 20, 780.0);
+    return Material(
+      color: Colors.black.withValues(alpha: 0.58),
+      child: SafeArea(
+        child: Center(
+          child: Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: const Color(0xFF081017).withValues(alpha: 0.97),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: const Color(0xFF7CFFB2).withValues(alpha: 0.42),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF7CFFB2).withValues(alpha: 0.08),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 12, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.science_rounded,
+                            color: Color(0xFF7CFFB2),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'COSMIC SANDBOX',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                Text(
+                                  'Isolated combat lab with real cosmic combat rules',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.58),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: widget.onClose,
+                            icon: const Icon(
+                              Icons.close,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: widget.onClearHostiles,
+                            child: const Text('Clear Hostiles'),
+                          ),
+                          TextButton(
+                            onPressed: widget.onLeaveSandbox,
+                            child: const Text('Leave Sandbox'),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-              ),
+                TabBar(
+                  controller: _tabController,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white54,
+                  indicatorColor: Color(0xFF7CFFB2),
+                  tabs: const [
+                    Tab(text: 'Alchemons'),
+                    Tab(text: 'Enemies'),
+                    Tab(text: 'Bosses'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildCreatureTab(),
+                      _buildEnemyTab(),
+                      _buildBossTab(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            // ── Ship menu overlay ──
-            if (_showShipMenu)
-              ShipMenuOverlay(
-                hasHomePlanet: _homePlanet != null,
-                meterFill: _game?.meter.fillPct ?? 0,
-                walletShards: _game?.shipWallet.shards ?? 0,
-                shipHealth: _game?.shipHealth ?? 0,
-                shipMaxHealth: CosmicGame.shipMaxHealth,
-                fuelFraction: _game?.shipFuel.fraction ?? 0,
-                activeWeaponName: _activeWeaponName,
-                orbitalStockpile: _game?.orbitalStockpile ?? 0,
-                orbitalActive: _game?.orbitals.length ?? 0,
-                hasBooster: _customizationState.hasBooster,
-                hasOrbitals: _customizationState.hasOrbitals,
-                hasMissiles: _customizationState.hasMissiles,
-                missileAmmo: _game?.missileAmmo ?? 0,
-                hasRefuelStation: _customizationState.hasRefuelStation,
-                hasMissileStation: _customizationState.hasMissileStation,
-                hasSentinelStation: _customizationState.hasSentinelStation,
-                cargoLevel: _cargoLevel,
-                isNearHome: _isNearHome,
-                onClose: () {
-                  if (_awaitingBuildHomeTap && _homePlanet == null) return;
-                  setState(() => _showShipMenu = false);
-                },
-                onBuildHome: () {
-                  final built = _handleBuildHomePlanet();
-                  if (_awaitingBuildHomeTap && _homePlanet == null && !built) {
-                    setState(() {
-                      _showShipMenu = false;
-                      _awaitingBuildHomeTap = false;
-                      _awaitingShipMenuTap = true;
-                    });
-                    return;
-                  }
-                  setState(() => _showShipMenu = false);
-                },
-                onRelocateHome: () {
-                  setState(() => _showShipMenu = false);
-                  _handleMoveHomePlanet();
-                },
-                onJettisonCargo: () {
-                  setState(() => _showShipMenu = false);
-                  _handleJettisonCargo();
-                },
-                onDumpWallet: () {
-                  setState(() => _showShipMenu = false);
-                  _handleDumpWallet();
-                },
-                onRefuel: () async {
-                  await _handleRefuel();
-                  if (mounted) setState(() {});
-                },
-                onCraftMissiles: () async {
-                  await _handleCraftMissiles();
-                  if (mounted) setState(() {});
-                },
-                onCraftSentinels: () async {
-                  await _handleCraftSentinels();
-                  if (mounted) setState(() {});
-                },
-                onUpgradeCargo: () async {
-                  await _handleUpgradeCargo();
-                  if (mounted) setState(() {});
-                },
-                tutorialBuildHomeMode:
-                    _awaitingBuildHomeTap && _homePlanet == null,
-                hasParty: _cosmicPartySlotsUnlocked > 0,
-                onParty: () {
-                  setState(() {
-                    _showShipMenu = false;
-                    _showPartyPicker = true;
-                  });
-                },
-              ),
-
-            // ── Settings overlay ──
-            if (_showSettingsMenu)
-              _CosmicSettingsOverlay(
-                joystickEnabled: _showJoystick,
-                largeJoystickEnabled: _largeJoystick,
-                tapToShootEnabled: _tapToShoot,
-                boostToggleEnabled: _boostToggleMode,
-                onClose: () => setState(() => _showSettingsMenu = false),
-                onLeaveSpace: () async {
-                  setState(() => _showSettingsMenu = false);
-                  await _confirmLeave();
-                },
-                onToggleJoystick: (v) async {
-                  setState(() => _showJoystick = v);
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('cosmic_joystick_enabled', v);
-                },
-                onToggleLargeJoystick: (v) async {
-                  setState(() => _largeJoystick = v);
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('cosmic_large_joystick', v);
-                },
-                onToggleTapToShoot: (v) async {
-                  setState(() {
-                    _tapToShoot = v;
-                    _game?.tapToShootMode = v;
-                    _movePointerId = null;
-                    _tapShootPointerIds.clear();
-                    if (!v && _isShooting) _stopShooting();
-                  });
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('cosmic_tap_to_shoot', v);
-                },
-                onToggleBoostToggle: (v) async {
-                  setState(() {
-                    _boostToggleMode = v;
-                    if (!v && _isBoosting) _stopBoosting();
-                  });
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('cosmic_boost_toggle', v);
-                },
-              ),
-
-            // ── In-space Blood Ritual overlay (fades space to black) ──
-            if (_showBloodRitualOverlay && _game != null)
-              Positioned.fill(
-                child: AbsorbPointer(
-                  absorbing: true,
-                  child: AnimatedBuilder(
-                    animation: _bloodRitualCtrl,
-                    builder: (context, _) {
-                      return CustomPaint(
-                        painter: _BloodRitualSpaceOverlayPainter(
-                          game: _game!,
-                          progress: _bloodRitualCtrl.value,
-                        ),
-                      );
+  Widget _buildCreatureTab() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              if (compact) ...[
+                TextField(
+                  onChanged: widget.onQueryChanged,
+                  controller: _queryController,
+                  decoration: InputDecoration(
+                    hintText: 'Search species, family, or element',
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.06),
+                    prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 12),
+                _buildDropdownShell(
+                  label: 'Stats',
+                  width: double.infinity,
+                  child: DropdownButton<int>(
+                    value: widget.statTier,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF101A22),
+                    style: const TextStyle(color: Colors.white),
+                    underline: const SizedBox.shrink(),
+                    items: List.generate(
+                      5,
+                      (i) => DropdownMenuItem<int>(
+                        value: i + 1,
+                        child: Text('${i + 1}/5'),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      if (value != null) widget.onStatTierChanged(value);
                     },
                   ),
                 ),
+              ] else
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        onChanged: widget.onQueryChanged,
+                        controller: _queryController,
+                        decoration: InputDecoration(
+                          hintText: 'Search species, family, or element',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.06),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Colors.white54,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildDropdownShell(
+                      label: 'Stats',
+                      width: 148,
+                      child: DropdownButton<int>(
+                        value: widget.statTier,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF101A22),
+                        style: const TextStyle(color: Colors.white),
+                        underline: const SizedBox.shrink(),
+                        items: List.generate(
+                          5,
+                          (i) => DropdownMenuItem<int>(
+                            value: i + 1,
+                            child: Text('${i + 1}/5'),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          if (value != null) widget.onStatTierChanged(value);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  'Sandbox summons always enter at Lv10. The selected stat tier sets Speed, Intelligence, Strength, and Beauty evenly. Death resets the lab instead of costing anything.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.68),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
               ),
-          ],
-        ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: widget.creatures.length,
+                  separatorBuilder: (_, __) => Divider(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    height: 1,
+                  ),
+                  itemBuilder: (context, index) {
+                    final creature = widget.creatures[index];
+                    final family = creature.mutationFamily ?? 'Unknown';
+                    final element = creature.types.firstOrNull ?? 'Fire';
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor: elementColor(
+                          element,
+                        ).withValues(alpha: 0.22),
+                        child: Text(
+                          family.isNotEmpty ? family[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        creature.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '$element · $family',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.62),
+                        ),
+                      ),
+                      trailing: FilledButton(
+                        onPressed: () => widget.onSummonCreature(creature),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF1C6F52),
+                        ),
+                        child: const Text('Summon'),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEnemyTab() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        final tierLabel = _enemyTierLabel(widget.enemyTier);
+        final tierDescription = _enemyTierDescription(widget.enemyTier);
+        final behaviorLabel = _enemyBehaviorLabel(widget.enemyBehavior);
+        final behaviorDescription = _enemyBehaviorDescription(
+          widget.enemyBehavior,
+        );
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (compact) ...[
+                _buildDropdownShell(
+                  label: 'Frame',
+                  width: double.infinity,
+                  child: DropdownButton<EnemyTier>(
+                    value: widget.enemyTier,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF101A22),
+                    style: const TextStyle(color: Colors.white),
+                    underline: const SizedBox.shrink(),
+                    items: EnemyTier.values
+                        .map(
+                          (tier) => DropdownMenuItem(
+                            value: tier,
+                            child: Text(_enemyTierLabel(tier).toUpperCase()),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) widget.onEnemyTierChanged(value);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildDropdownShell(
+                  label: 'Behavior',
+                  width: double.infinity,
+                  child: DropdownButton<EnemyBehavior>(
+                    value: widget.enemyBehavior,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF101A22),
+                    style: const TextStyle(color: Colors.white),
+                    underline: const SizedBox.shrink(),
+                    items: EnemyBehavior.values
+                        .map(
+                          (behavior) => DropdownMenuItem(
+                            value: behavior,
+                            child: Text(
+                              _enemyBehaviorLabel(behavior).toUpperCase(),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) widget.onEnemyBehaviorChanged(value);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildDropdownShell(
+                  label: 'Count',
+                  width: double.infinity,
+                  child: DropdownButton<int>(
+                    value: widget.enemyCount,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF101A22),
+                    style: const TextStyle(color: Colors.white),
+                    underline: const SizedBox.shrink(),
+                    items: List.generate(
+                      2,
+                      (i) => DropdownMenuItem(
+                        value: i == 0 ? 1 : 10,
+                        child: Text(i == 0 ? '1' : '10'),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      if (value != null) widget.onEnemyCountChanged(value);
+                    },
+                  ),
+                ),
+              ] else
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _buildDropdownShell(
+                      label: 'Frame',
+                      width: 180,
+                      child: DropdownButton<EnemyTier>(
+                        value: widget.enemyTier,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF101A22),
+                        style: const TextStyle(color: Colors.white),
+                        underline: const SizedBox.shrink(),
+                        items: EnemyTier.values
+                            .map(
+                              (tier) => DropdownMenuItem(
+                                value: tier,
+                                child: Text(
+                                  _enemyTierLabel(tier).toUpperCase(),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) widget.onEnemyTierChanged(value);
+                        },
+                      ),
+                    ),
+                    _buildDropdownShell(
+                      label: 'Behavior',
+                      width: 180,
+                      child: DropdownButton<EnemyBehavior>(
+                        value: widget.enemyBehavior,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF101A22),
+                        style: const TextStyle(color: Colors.white),
+                        underline: const SizedBox.shrink(),
+                        items: EnemyBehavior.values
+                            .map(
+                              (behavior) => DropdownMenuItem(
+                                value: behavior,
+                                child: Text(
+                                  _enemyBehaviorLabel(behavior).toUpperCase(),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            widget.onEnemyBehaviorChanged(value);
+                          }
+                        },
+                      ),
+                    ),
+                    _buildDropdownShell(
+                      label: 'Count',
+                      width: 180,
+                      child: DropdownButton<int>(
+                        value: widget.enemyCount,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF101A22),
+                        style: const TextStyle(color: Colors.white),
+                        underline: const SizedBox.shrink(),
+                        items: List.generate(
+                          2,
+                          (i) => DropdownMenuItem(
+                            value: i == 0 ? 1 : 10,
+                            child: Text(i == 0 ? '1' : '10'),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          if (value != null) widget.onEnemyCountChanged(value);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$tierLabel • $behaviorLabel',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$tierDescription $behaviorDescription',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.68),
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  'Enemy spawns use the actual roaming rules. You pick the body frame and behavior pattern, then the sandbox rolls a real enemy from that mechanical profile.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.68),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: widget.onSpawnEnemy,
+                    icon: const Icon(Icons.flash_on),
+                    label: const Text('Spawn Enemies'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: widget.onSpawnDummy,
+                    icon: const Icon(Icons.sports_martial_arts),
+                    label: const Text('Spawn Dummies'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.blueGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBossTab() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDropdownShell(
+                label: 'Boss',
+                width: double.infinity,
+                child: DropdownButton<BossTemplate>(
+                  value: widget.bossTemplate,
+                  isExpanded: true,
+                  dropdownColor: const Color(0xFF101A22),
+                  style: const TextStyle(color: Colors.white),
+                  underline: const SizedBox.shrink(),
+                  items: widget.bossTemplates
+                      .map(
+                        (template) => DropdownMenuItem(
+                          value: template,
+                          child: Text(
+                            '${template.name} · ${template.element}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) widget.onBossTemplateChanged(value);
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildDropdownShell(
+                label: 'Level',
+                width: compact ? double.infinity : 180,
+                child: DropdownButton<int>(
+                  value: widget.bossLevel,
+                  isExpanded: true,
+                  dropdownColor: const Color(0xFF101A22),
+                  style: const TextStyle(color: Colors.white),
+                  underline: const SizedBox.shrink(),
+                  items: List.generate(
+                    5,
+                    (i) => DropdownMenuItem(
+                      value: i + 1,
+                      child: Text('Lv ${i + 1}'),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    if (value != null) widget.onBossLevelChanged(value);
+                  },
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  'Bosses keep real cosmic level scaling because bosses actually have levels in gameplay. Preferred archetypes are preserved automatically.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.68),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: widget.onSpawnBoss,
+                icon: const Icon(Icons.whatshot),
+                label: const Text('Spawn Boss'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _enemyTierLabel(EnemyTier tier) => switch (tier) {
+    EnemyTier.wisp => 'Spark',
+    EnemyTier.drone => 'Dart',
+    EnemyTier.sentinel => 'Guard',
+    EnemyTier.phantom => 'Shade',
+    EnemyTier.brute => 'Bruiser',
+    EnemyTier.colossus => 'Titan',
+  };
+
+  String _enemyTierDescription(EnemyTier tier) => switch (tier) {
+    EnemyTier.wisp =>
+      'Light body with evasive movement and very low durability.',
+    EnemyTier.drone =>
+      'Fast striker frame that closes quickly and punishes openings.',
+    EnemyTier.sentinel =>
+      'Balanced midweight body with steady pressure and room control.',
+    EnemyTier.phantom =>
+      'Elusive hunter frame that feels slippery and harder to pin down.',
+    EnemyTier.brute =>
+      'Heavy close-range body that trades speed for force and staying power.',
+    EnemyTier.colossus =>
+      'Slow siege body with the biggest footprint and longest time-to-kill.',
+  };
+
+  String _enemyBehaviorLabel(EnemyBehavior behavior) => switch (behavior) {
+    EnemyBehavior.aggressive => 'Hunter',
+    EnemyBehavior.drifting => 'Drifter',
+    EnemyBehavior.feeding => 'Feeder',
+    EnemyBehavior.territorial => 'Guardian',
+    EnemyBehavior.stalking => 'Stalker',
+    EnemyBehavior.swarming => 'Swarm',
+  };
+
+  String _enemyBehaviorDescription(EnemyBehavior behavior) =>
+      switch (behavior) {
+        EnemyBehavior.aggressive =>
+          'It immediately presses the ship and keeps combat live.',
+        EnemyBehavior.drifting =>
+          'It mostly roams until it gets pulled into the fight.',
+        EnemyBehavior.feeding =>
+          'It behaves more passively and anchors around its local space.',
+        EnemyBehavior.territorial =>
+          'It defends an area and punishes you for staying inside it.',
+        EnemyBehavior.stalking =>
+          'It hovers at threatening distance and looks for timing windows.',
+        EnemyBehavior.swarming =>
+          'It clumps tightly and creates volume pressure through numbers.',
+      };
+
+  Widget _buildDropdownShell({
+    required String label,
+    required Widget child,
+    double width = 220,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
       ),
-    ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.56),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -7517,7 +9043,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                     children: [
                       const Icon(Icons.settings_rounded, color: Colors.white70),
                       const SizedBox(width: 8),
-                      const Text(
+                      Text(
                         'SETTINGS',
                         style: TextStyle(
                           color: Colors.white,
@@ -7569,7 +9095,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: onLeaveSpace,
                       icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Leave Space'),
+                      label: Text('Leave Space'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.redAccent,
                         side: BorderSide(
@@ -7618,7 +9144,7 @@ class _SettingsToggleRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white70,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -7803,7 +9329,7 @@ class _PlanetPathwayDisintegrationPageState
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Text(
                           'AM I DREAMING?',
                           textAlign: TextAlign.center,
                           style: TextStyle(
@@ -7821,7 +9347,7 @@ class _PlanetPathwayDisintegrationPageState
                             color: Colors.white.withValues(alpha: 0.9),
                             fontSize: 14,
                             height: 1.35,
-                            fontFamily: 'monospace',
+                            fontFamily: appFontFamily(context),
                             letterSpacing: 0.4,
                           ),
                         ),
@@ -7848,7 +9374,7 @@ class _PlanetPathwayDisintegrationPageState
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             'ENTER',
                             style: TextStyle(
                               fontSize: 12,

@@ -16,6 +16,7 @@
 
 import 'package:alchemons/data/boss_data.dart';
 import 'package:alchemons/models/boss/boss_model.dart';
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/wilderness.dart';
@@ -959,7 +960,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
   Widget _buildPartySection(SelectedPartyNotifier party) {
     final db = context.watch<AlchemonsDatabase>();
     final repo = context.watch<CreatureCatalog>();
-    const maxPartySize = SelectedPartyNotifier.maxSize;
+    final maxPartySize = SelectedPartyNotifier.defaultMaxSize;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1267,8 +1268,10 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 await Navigator.push<List<PartyMember>>(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        const PartyPickerScreen(showDeployConfirm: false),
+                    builder: (_) => const PartyPickerScreen(
+                      showDeployConfirm: false,
+                      teamStorageKey: 'saved_teams_boss',
+                    ),
                   ),
                 );
               },
@@ -1626,12 +1629,17 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         }
       } else {
         final lootBoxKey = BossLootKeys.lootBoxKeyForElement(boss.element);
+        final rewardRng = Random();
         final openedRewards = LootBoxConfig.rollBossLootBoxDropsForQuantity(
           lootBoxKey,
           1,
-          Random(),
+          rewardRng,
         );
         for (final reward in openedRewards) {
+          await db.inventoryDao.addItemQty(reward.key, reward.value);
+        }
+        final powerupRewards = rollBossRiftPowerupRewards(rewardRng);
+        for (final reward in powerupRewards) {
           await db.inventoryDao.addItemQty(reward.key, reward.value);
         }
         await db.settingsDao.setSetting(
@@ -1642,7 +1650,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
 
         final currencyRewards = LootBoxConfig.rollBossRematchBonusCurrency(
           boss.order,
-          Random(),
+          rewardRng,
         );
         final silver = currencyRewards['silver'] ?? 0;
         final gold = currencyRewards['gold'] ?? 0;
@@ -1657,6 +1665,16 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               name: def?.name ?? e.key,
               label: 'x${e.value}',
               color: _C.amber,
+            );
+          }),
+          ...powerupRewards.map((e) {
+            final type = alchemicalPowerupTypeFromInventoryKey(e.key);
+            final def = registry[e.key];
+            return LootOpeningEntry(
+              icon: type?.icon ?? def?.icon ?? Icons.blur_on_rounded,
+              name: type?.name ?? def?.name ?? e.key,
+              label: 'x${e.value}',
+              color: type?.color ?? _C.amberBright,
             );
           }),
           if (silver > 0)

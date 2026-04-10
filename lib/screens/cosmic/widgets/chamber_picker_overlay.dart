@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -190,7 +191,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                         color: Colors.white12,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
+                      child: Text(
                         '\u2715',
                         style: TextStyle(
                           color: Colors.white70,
@@ -332,7 +333,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                               color: Colors.red.withValues(alpha: 0.2),
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             'REMOVE',
                             style: TextStyle(
                               color: Colors.redAccent,
@@ -477,8 +478,8 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                       child: TextField(
                         controller: _searchController,
                         onChanged: (v) => setState(() => _searchQuery = v),
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
+                        style: TextStyle(
+                          fontFamily: appFontFamily(context),
                           color: Colors.white,
                           fontSize: 13,
                           letterSpacing: 0.5,
@@ -486,7 +487,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                         decoration: InputDecoration(
                           hintText: 'SEARCH...',
                           hintStyle: TextStyle(
-                            fontFamily: 'monospace',
+                            fontFamily: appFontFamily(context),
                             color: Colors.white.withValues(alpha: 0.25),
                             fontSize: 11,
                             letterSpacing: 1.0,
@@ -613,7 +614,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                                                     child: Text(
                                                       displayName[0]
                                                           .toUpperCase(),
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         color: Colors.white,
                                                         fontSize: 16,
                                                         fontWeight:
@@ -626,7 +627,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                                         : Center(
                                             child: Text(
                                               displayName[0].toUpperCase(),
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 color: Colors.white,
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w900,
@@ -644,7 +645,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       textAlign: TextAlign.center,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 10,
                                         fontWeight: FontWeight.w700,
@@ -670,7 +671,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                                         color: Colors.white10,
                                         borderRadius: BorderRadius.circular(4),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         'IN ORBIT',
                                         style: TextStyle(
                                           color: Colors.white38,
@@ -694,7 +695,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                                         ),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         'ASSIGN',
                                         style: TextStyle(
                                           color: Colors.white,

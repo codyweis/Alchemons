@@ -243,8 +243,14 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                 );
 
                 final parentTypes = _extractParentTypes(slot);
+                final payload = slot.payloadJson == null || slot.payloadJson!.isEmpty
+                    ? const <String, dynamic>{}
+                    : jsonDecode(slot.payloadJson!) as Map<String, dynamic>;
+                final isBloodborn = isBloodbornPayload(payload);
                 final rarity = (slot.rarity ?? 'common').toLowerCase();
-                final rarityColor = BreedConstants.getRarityColor(rarity);
+                final rarityColor = isBloodborn
+                    ? kBloodbornSecondary
+                    : BreedConstants.getRarityColor(rarity);
                 final chamberLabel = 'CHAMBER ${slot.id + 1}';
                 final hatchDelay = _hatchDelayFor(slot);
                 final isReady =

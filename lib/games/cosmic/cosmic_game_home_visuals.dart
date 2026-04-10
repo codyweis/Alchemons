@@ -44,8 +44,9 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   /// Returns null on success, or a warning string if placement is blocked.
   String? buildHomePlanet() {
     final pos = Offset(ship.pos.dx, ship.pos.dy);
-    if (_planetBlockingPlacement(pos) != null)
+    if (_planetBlockingPlacement(pos) != null) {
       return 'Too close to another planet';
+    }
     homePlanet = HomePlanet(position: pos);
     _setupOrbitalRelationship(pos);
     _invalidateEffectsCache();
@@ -58,8 +59,9 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   String? moveHomePlanet() {
     if (homePlanet == null) return 'No home planet';
     final pos = Offset(ship.pos.dx, ship.pos.dy);
-    if (_planetBlockingPlacement(pos) != null)
+    if (_planetBlockingPlacement(pos) != null) {
       return 'Too close to another planet';
+    }
     homePlanet!.position = pos;
     _setupOrbitalRelationship(pos);
     _invalidateEffectsCache();
@@ -180,7 +182,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     _staticEffectsPicture = recorder.endRecording();
     _cachedCustomizations = Set.of(activeCustomizations);
     _cachedVr = vr;
-    _cachedPictureOffset = pos;
   }
 
   bool _staticCacheValid(double vr) =>
@@ -219,6 +220,10 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     if (activeCustomizations.contains('frozen_shell')) {
       _drawFrozenShellSparkles(canvas, pos, vr, t);
     }
+    // Rings back half (behind planet).
+    if (activeCustomizations.contains('planetary_rings')) {
+      _drawPlanetaryRings(canvas, pos, vr, t, frontOnly: false);
+    }
   }
 
   // ── Static sub-draws (used by cache builder and animated overdraw) ────────
@@ -244,15 +249,28 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     }
   }
 
+  double _planetEffectScale(double vr) => (vr / 80.0).clamp(0.6, 2.8);
+
+  double _scaledEffectPx(
+    double vr,
+    double base, {
+    double min = 0.0,
+    double? max,
+  }) {
+    final scaled = base * _planetEffectScale(vr);
+    if (max == null) return scaled.clamp(min, double.infinity);
+    return scaled.clamp(min, max);
+  }
+
   void _drawLavaMoat(Canvas canvas, Offset pos, double vr, double t) {
     if (!activeCustomizations.contains('lava_moat')) return;
     final moatWidth = switch (customizationOptions['lava_moat.width'] ??
         'Normal') {
-      'Thin' => 3.0,
-      'Wide' => 10.0,
-      _ => 6.0,
+      'Thin' => _scaledEffectPx(vr, 3.0, min: 2.0, max: 8.0),
+      'Wide' => _scaledEffectPx(vr, 10.0, min: 5.0, max: 24.0),
+      _ => _scaledEffectPx(vr, 6.0, min: 3.0, max: 14.0),
     };
-    final moatR = vr + 14;
+    final moatR = vr + _scaledEffectPx(vr, 14.0, min: 8.0, max: 34.0);
     // Animated: alpha pulses.  When t==0 (cache pass) we draw the base alpha.
     final alpha = t > 0 ? 0.3 + 0.1 * sin(t * 1.2) : 0.3;
     _drawRingGlow(
@@ -277,21 +295,21 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     if (!activeCustomizations.contains('mud_fortress')) return;
     final thick = switch (customizationOptions['mud_fortress.thickness'] ??
         'Normal') {
-      'Thin' => 4.0,
-      'Thick' => 14.0,
-      _ => 8.0,
+      'Thin' => _scaledEffectPx(vr, 4.0, min: 2.5, max: 10.0),
+      'Thick' => _scaledEffectPx(vr, 14.0, min: 7.0, max: 30.0),
+      _ => _scaledEffectPx(vr, 8.0, min: 4.0, max: 18.0),
     };
     _drawRingGlow(
       canvas,
       pos,
-      vr + 6,
-      thick + 8,
+      vr + _scaledEffectPx(vr, 6.0, min: 3.0, max: 14.0),
+      thick + _scaledEffectPx(vr, 8.0, min: 4.0, max: 18.0),
       const Color(0xFF795548),
       0.25,
     );
     canvas.drawCircle(
       pos,
-      vr + 6,
+      vr + _scaledEffectPx(vr, 6.0, min: 3.0, max: 14.0),
       Paint()
         ..color = const Color(0xFF5D4037).withValues(alpha: 0.55)
         ..style = PaintingStyle.stroke
@@ -303,21 +321,21 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     if (!activeCustomizations.contains('frozen_shell')) return;
     final thick = switch (customizationOptions['frozen_shell.thickness'] ??
         'Normal') {
-      'Thin' => 3.0,
-      'Thick' => 9.0,
-      _ => 5.0,
+      'Thin' => _scaledEffectPx(vr, 3.0, min: 2.0, max: 8.0),
+      'Thick' => _scaledEffectPx(vr, 9.0, min: 5.0, max: 20.0),
+      _ => _scaledEffectPx(vr, 5.0, min: 3.0, max: 12.0),
     };
     _drawRingGlow(
       canvas,
       pos,
-      vr + 4,
-      thick + 10,
+      vr + _scaledEffectPx(vr, 4.0, min: 2.5, max: 10.0),
+      thick + _scaledEffectPx(vr, 10.0, min: 5.0, max: 20.0),
       const Color(0xFF00E5FF),
       0.18,
     );
     canvas.drawCircle(
       pos,
-      vr + 4,
+      vr + _scaledEffectPx(vr, 4.0, min: 2.5, max: 10.0),
       Paint()
         ..color = const Color(0xFF00E5FF).withValues(alpha: 0.22)
         ..style = PaintingStyle.stroke
@@ -334,13 +352,13 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     final sparkPaint = Paint();
     for (var i = 0; i < 8; i++) {
       final a = t * 0.3 + i * pi / 4;
-      final sr = vr + 6;
+      final sr = vr + _scaledEffectPx(vr, 6.0, min: 3.0, max: 14.0);
       sparkPaint.color = const Color(
         0xFFB3E5FC,
       ).withValues(alpha: (0.5 + 0.4 * sin(t * 3 + i)).clamp(0, 1));
       canvas.drawCircle(
         Offset(pos.dx + cos(a) * sr, pos.dy + sin(a) * sr),
-        1.8,
+        _scaledEffectPx(vr, 1.8, min: 1.2, max: 4.2),
         sparkPaint,
       );
     }
@@ -358,34 +376,56 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   ) {
     final t = _elapsed;
 
-    if (activeCustomizations.contains('flame_ring'))
+    if (activeCustomizations.contains('flame_ring')) {
       _drawFlameRing(canvas, pos, vr, t);
-    if (activeCustomizations.contains('vine_tendrils'))
+    }
+    if (activeCustomizations.contains('vine_tendrils')) {
       _drawVineTendrils(canvas, pos, vr, t);
-    if (activeCustomizations.contains('crystal_spires'))
+    }
+    if (activeCustomizations.contains('crystal_spires')) {
       _drawCrystalSpires(canvas, pos, vr, t);
-    if (activeCustomizations.contains('radiant_halo'))
+    }
+    if (activeCustomizations.contains('radiant_halo')) {
       _drawRadiantHalo(canvas, pos, vr, t);
-    if (activeCustomizations.contains('ocean_mist'))
+    }
+    if (activeCustomizations.contains('ocean_mist')) {
       _drawOceanMist(canvas, pos, vr, t);
-    if (activeCustomizations.contains('blood_moon'))
+    }
+    if (activeCustomizations.contains('blood_moon')) {
       _drawBloodMoon(canvas, pos, vr, t);
-    if (activeCustomizations.contains('poison_cloud'))
+    }
+    if (activeCustomizations.contains('poison_cloud')) {
       _drawPoisonCloud(canvas, pos, vr, t);
-    if (activeCustomizations.contains('dust_storm'))
+    }
+    if (activeCustomizations.contains('dust_storm')) {
       _drawDustStorm(canvas, pos, vr, t);
-    if (activeCustomizations.contains('steam_vents'))
+    }
+    if (activeCustomizations.contains('steam_vents')) {
       _drawSteamVents(canvas, pos, vr, t);
-    if (activeCustomizations.contains('lightning_rod'))
+    }
+    if (activeCustomizations.contains('lightning_rod')) {
       _drawLightningRod(canvas, pos, vr, t);
-    if (activeCustomizations.contains('spirit_wisps'))
+    }
+    if (activeCustomizations.contains('spirit_wisps')) {
       _drawSpiritWisps(canvas, pos, vr, t);
-    if (activeCustomizations.contains('natures_blessing'))
+    }
+    if (activeCustomizations.contains('natures_blessing')) {
       _drawNaturesBlessing(canvas, pos, vr, t);
+    }
     if (activeCustomizations.contains('orbiting_moon') &&
         homePlanet != null &&
         homePlanet!.sizeTierIndex >= 3) {
       _drawOrbitingMoon(canvas, pos, vr, t);
+    }
+    if (activeCustomizations.contains('phantom_phase')) {
+      _drawPhantomPhase(canvas, pos, vr, t);
+    }
+    if (activeCustomizations.contains('electric_field')) {
+      _drawElectricField(canvas, pos, vr, t);
+    }
+    // Rings front half (over planet).
+    if (activeCustomizations.contains('planetary_rings')) {
+      _drawPlanetaryRings(canvas, pos, vr, t, frontOnly: true);
     }
   }
 
@@ -409,8 +449,8 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     _drawRingGlow(
       canvas,
       pos,
-      vr + 14,
-      18,
+      vr + _scaledEffectPx(vr, 14.0, min: 8.0, max: 34.0),
+      _scaledEffectPx(vr, 18.0, min: 10.0, max: 36.0),
       const Color(0xFFFF6E40),
       baseAlpha * 0.4,
     );
@@ -418,9 +458,14 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     // 8 flame blooms as radial gradients.
     for (var i = 0; i < 8; i++) {
       final a = t * speed + i * pi / 4;
-      final flareR = vr + 12 + 4 * sin(t * 2 + i);
+      final flareR =
+          vr +
+          _scaledEffectPx(vr, 12.0, min: 6.0, max: 28.0) +
+          _scaledEffectPx(vr, 4.0, min: 2.0, max: 10.0) * sin(t * 2 + i);
       final alpha = (baseAlpha + 0.2 * sin(t * 2 + i)).clamp(0.0, 1.0);
-      final blobR = 7.0 + 2 * sin(t * 3 + i);
+      final blobR =
+          _scaledEffectPx(vr, 7.0, min: 4.0, max: 18.0) +
+          _scaledEffectPx(vr, 2.0, min: 1.0, max: 5.0) * sin(t * 3 + i);
       final centre = Offset(pos.dx + cos(a) * flareR, pos.dy + sin(a) * flareR);
       _drawGlow(
         canvas,
@@ -436,76 +481,236 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   void _drawVineTendrils(Canvas canvas, Offset pos, double vr, double t) {
     final lenMul = switch (customizationOptions['vine_tendrils.length'] ??
         'Medium') {
-      'Short' => 0.25,
+      'Short' => 0.30,
       'Long' => 0.80,
-      _ => 0.50,
+      _ => 0.55,
     };
     final count = switch (customizationOptions['vine_tendrils.count'] ??
         'Some') {
-      'Few' => 3,
+      'Few' => 4,
       'Many' => 10,
-      _ => 6,
+      _ => 7,
     };
-    final vinePaint = Paint()
-      ..color = const Color(0xFF4CAF50).withValues(alpha: 0.70)
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final leafPaint = Paint()
-      ..color = const Color(0xFF81C784).withValues(alpha: 0.85);
+    final segments = 12;
 
     for (var i = 0; i < count; i++) {
-      final a = i * pi * 2 / count + t * 0.1;
-      final endR = vr + vr * lenMul + 8 * sin(t * 0.6 + i);
-      final start = Offset(pos.dx + cos(a) * vr, pos.dy + sin(a) * vr);
-      final end = Offset(pos.dx + cos(a) * endR, pos.dy + sin(a) * endR);
-      canvas.drawLine(start, end, vinePaint);
-      canvas.drawCircle(end, 3, leafPaint);
+      final baseAngle =
+          i * pi * 2 / count + sin(t * 0.3 + i) * 0.06;
+      final vineLen = vr * lenMul * (1.0 + 0.25 * sin(t * 0.5 + i * 1.7));
+
+      final vinePath = Path();
+      final leafPositions = <Offset>[];
+      final leafAngles = <double>[];
+
+      Offset prev = Offset(
+        pos.dx + cos(baseAngle) * vr * 0.92,
+        pos.dy + sin(baseAngle) * vr * 0.92,
+      );
+      vinePath.moveTo(prev.dx, prev.dy);
+
+      for (var s = 1; s <= segments; s++) {
+        final frac = s / segments;
+        final sway =
+            sin(t * 1.5 + i * 2.3 + s * 0.8) *
+            _scaledEffectPx(vr, 8.0, min: 3.0, max: 18.0) *
+            frac;
+        final perpAngle = baseAngle + pi / 2;
+        final dist = vr * 0.92 + vineLen * frac;
+        final pt = Offset(
+          pos.dx + cos(baseAngle) * dist + cos(perpAngle) * sway,
+          pos.dy + sin(baseAngle) * dist + sin(perpAngle) * sway,
+        );
+        vinePath.lineTo(pt.dx, pt.dy);
+        prev = pt;
+
+        if (s % 3 == 0 && s < segments) {
+          leafPositions.add(pt);
+          leafAngles.add(baseAngle);
+        }
+      }
+
+      // Vine stroke — thin outer + lighter inner like plant planet
+      final vineColor = Color.lerp(
+        const Color(0xFF2E7D32),
+        const Color(0xFF66BB6A),
+        i / count,
+      )!;
+      canvas.drawPath(
+        vinePath,
+        Paint()
+          ..color = vineColor.withValues(alpha: 0.78)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = _scaledEffectPx(vr, 2.4, min: 1.4, max: 5.0)
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+      canvas.drawPath(
+        vinePath,
+        Paint()
+          ..color = const Color(0xFF81C784).withValues(alpha: 0.38)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = _scaledEffectPx(vr, 1.0, min: 0.6, max: 2.2)
+          ..strokeCap = StrokeCap.round,
+      );
+
+      // Teardrop leaves at intervals
+      for (var li = 0; li < leafPositions.length; li++) {
+        final lp = leafPositions[li];
+        final la =
+            leafAngles[li] +
+            pi / 2 * (li.isEven ? 1 : -1) +
+            sin(t * 2 + i + li) * 0.3;
+        final leafSize = _scaledEffectPx(vr, 6.0, min: 3.0, max: 13.0) *
+            (1.0 + 0.15 * sin(t * 1.2 + li * 1.5));
+
+        canvas.save();
+        canvas.translate(lp.dx, lp.dy);
+        canvas.rotate(la);
+
+        final leafPath = Path()
+          ..moveTo(0, 0)
+          ..quadraticBezierTo(
+            leafSize * 0.6,
+            -leafSize * 0.5,
+            leafSize * 1.5,
+            0,
+          )
+          ..quadraticBezierTo(leafSize * 0.6, leafSize * 0.5, 0, 0);
+
+        canvas.drawPath(
+          leafPath,
+          Paint()..color = const Color(0xFF4CAF50).withValues(alpha: 0.80),
+        );
+        // Leaf vein
+        canvas.drawLine(
+          Offset.zero,
+          Offset(leafSize * 1.2, 0),
+          Paint()
+            ..color = const Color(0xFF388E3C).withValues(alpha: 0.45)
+            ..strokeWidth = _scaledEffectPx(vr, 0.5, min: 0.3, max: 1.0),
+        );
+        canvas.restore();
+      }
+
+      // Glowing tip bud
+      final tipGlow = 0.35 + 0.25 * sin(t * 2 + i * 1.5);
+      final budR = _scaledEffectPx(vr, 2.8, min: 1.6, max: 6.0);
+      _drawGlow(canvas, prev, budR, const Color(0xFFA5D6A7), tipGlow, budR * 2.0);
+      canvas.drawCircle(
+        prev,
+        budR * 0.55,
+        Paint()..color = Colors.white.withValues(alpha: tipGlow * 0.75),
+      );
     }
   }
 
   void _drawCrystalSpires(Canvas canvas, Offset pos, double vr, double t) {
-    final tipBase = switch (customizationOptions['crystal_spires.height'] ??
+    final intensity = switch (customizationOptions['crystal_spires.height'] ??
         'Medium') {
-      'Short' => 8.0,
-      'Tall' => 20.0,
-      _ => 12.0,
+      'Short' => 0.6,
+      'Tall' => 1.4,
+      _ => 1.0,
     };
     final count = switch (customizationOptions['crystal_spires.density'] ??
         'Normal') {
       'Sparse' => 3,
-      'Dense' => 8,
+      'Dense' => 7,
       _ => 5,
     };
-    final outlinePaint = Paint()
-      ..color = const Color(0xFF1DE9B6).withValues(alpha: 0.75)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-    final fillPaint = Paint()
-      ..color = const Color(0xFF1DE9B6).withValues(alpha: 0.35);
-    final sparklePaint = Paint()
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.85);
 
+    // Crystalline surface reflection — a bright specular highlight that
+    // slowly rotates around the planet surface, plus twinkling facet glints.
+
+    // Main specular highlight — crescentic reflection
+    final specAngle = t * 0.15;
+    final specDist = vr * 0.35;
+    final specCenter = Offset(
+      pos.dx + cos(specAngle) * specDist,
+      pos.dy + sin(specAngle) * specDist,
+    );
+    final specR = _scaledEffectPx(vr, 28.0, min: 14.0, max: 60.0) * intensity;
+    _drawGlow(
+      canvas,
+      specCenter,
+      specR,
+      const Color(0xFFE0F7FA),
+      0.22 * intensity,
+      specR * 1.8,
+    );
+    // Secondary softer reflection on opposite side
+    final spec2Center = Offset(
+      pos.dx + cos(specAngle + pi * 0.7) * specDist * 0.8,
+      pos.dy + sin(specAngle + pi * 0.7) * specDist * 0.8,
+    );
+    _drawGlow(
+      canvas,
+      spec2Center,
+      specR * 0.6,
+      const Color(0xFFB2EBF2),
+      0.14 * intensity,
+      specR * 1.2,
+    );
+
+    // Facet glints — small twinkling sparkles across planet surface
     for (var i = 0; i < count; i++) {
-      final a = i * pi * 2 / count + 0.3;
-      final tipLen = tipBase + 6 * sin(t * 1.5 + i);
-      final base = Offset(pos.dx + cos(a) * vr, pos.dy + sin(a) * vr);
-      final tip = Offset(
-        pos.dx + cos(a) * (vr + tipLen),
-        pos.dy + sin(a) * (vr + tipLen),
+      final glintAngle = i * pi * 2 / count + t * 0.08 + i * 0.6;
+      final glintDist = vr * (0.25 + 0.45 * ((i * 0.618) % 1.0));
+      final glintPos = Offset(
+        pos.dx + cos(glintAngle) * glintDist,
+        pos.dy + sin(glintAngle) * glintDist,
       );
-      final perp = a + pi / 2;
-      final path = Path()
-        ..moveTo(base.dx + cos(perp) * 3, base.dy + sin(perp) * 3)
-        ..lineTo(tip.dx, tip.dy)
-        ..lineTo(base.dx - cos(perp) * 3, base.dy - sin(perp) * 3)
-        ..close();
-      canvas.drawPath(path, fillPaint);
-      canvas.drawPath(path, outlinePaint);
-      if (sin(t * 4 + i * 2) > 0.7) {
-        canvas.drawCircle(tip, 2, sparklePaint);
-      }
+
+      // Twinkle pattern — each glint fades in and out at different rates
+      final twinkle = sin(t * (2.0 + i * 0.4) + i * 1.8);
+      if (twinkle < 0.2) continue;
+
+      final alpha = (twinkle - 0.2) * 0.6 * intensity;
+      final glintR = _scaledEffectPx(vr, 2.0 + twinkle * 1.5, min: 1.0, max: 5.0);
+
+      // Star-cross glint
+      final crossLen = glintR * 2.5;
+      final crossPaint = Paint()
+        ..color = Colors.white.withValues(alpha: alpha.clamp(0.0, 1.0))
+        ..strokeWidth = _scaledEffectPx(vr, 0.7, min: 0.4, max: 1.5)
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(
+        Offset(glintPos.dx - crossLen, glintPos.dy),
+        Offset(glintPos.dx + crossLen, glintPos.dy),
+        crossPaint,
+      );
+      canvas.drawLine(
+        Offset(glintPos.dx, glintPos.dy - crossLen),
+        Offset(glintPos.dx, glintPos.dy + crossLen),
+        crossPaint,
+      );
+
+      // Core dot
+      _drawGlow(
+        canvas,
+        glintPos,
+        glintR,
+        Colors.white,
+        alpha.clamp(0.0, 0.5),
+        glintR * 2.0,
+      );
     }
+
+    // Subtle rim highlight — thin arc on the "lit" side
+    final rimArc = _scaledEffectPx(vr, 1.5, min: 0.8, max: 3.0);
+    final rimPath = Path()
+      ..addArc(
+        Rect.fromCircle(center: pos, radius: vr * 0.96),
+        specAngle - 0.5,
+        1.0,
+      );
+    canvas.drawPath(
+      rimPath,
+      Paint()
+        ..color = const Color(0xFF80DEEA).withValues(alpha: 0.18 * intensity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = rimArc
+        ..strokeCap = StrokeCap.round,
+    );
   }
 
   void _drawRadiantHalo(Canvas canvas, Offset pos, double vr, double t) {
@@ -521,12 +726,15 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       'Outer' => vr * 3.5,
       _ => vr * 1.5,
     };
-    final haloR = vr + posOffset + 3 * sin(t * 1.2);
+    final haloR =
+        vr +
+        posOffset +
+        _scaledEffectPx(vr, 3.0, min: 1.5, max: 8.0) * sin(t * 1.2);
     _drawRingGlow(
       canvas,
       pos,
       haloR,
-      12,
+      _scaledEffectPx(vr, 12.0, min: 6.0, max: 26.0),
       const Color(0xFFFFD54F),
       (glowAlpha * 0.35 + 0.05 * sin(t * 1.5)).clamp(0, 1),
     );
@@ -538,7 +746,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
           0xFFFFE082,
         ).withValues(alpha: (glowAlpha + 0.1 * sin(t * 1.5)).clamp(0, 1))
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
+        ..strokeWidth = _scaledEffectPx(vr, 2.5, min: 1.5, max: 6.0),
     );
   }
 
@@ -558,7 +766,9 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     for (var i = 0; i < count; i++) {
       final a = t * 0.2 + i * pi / (count / 2);
       final mr = vr + posOffset + 6 * sin(t * 0.5 + i * 1.2);
-      final r = 9.0 + 3 * sin(t * 0.8 + i);
+      final r =
+          _scaledEffectPx(vr, 9.0, min: 5.0, max: 18.0) +
+          _scaledEffectPx(vr, 3.0, min: 1.5, max: 6.0) * sin(t * 0.8 + i);
       _drawGlow(
         canvas,
         Offset(pos.dx + cos(a) * mr, pos.dy + sin(a) * mr),
@@ -577,15 +787,64 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       'Intense' => 0.25,
       _ => 0.15,
     };
+    final moonR = switch (customizationOptions['blood_moon.size'] ??
+        'Medium') {
+      'Small' => vr * 0.10,
+      'Large' => vr * 0.22,
+      _ => vr * 0.15,
+    };
+    final distGap = switch (customizationOptions['blood_moon.distance'] ??
+        'Mid') {
+      'Close' => 4.0,
+      'Far' => vr * 2.5,
+      _ => vr * 0.8,
+    };
+    final orbitR = vr + distGap + moonR;
+    // Orbit in opposite direction to regular moon for variety
+    final angle = -t * 0.45;
+    final mc = Offset(
+      pos.dx + cos(angle) * orbitR,
+      pos.dy + sin(angle) * orbitR,
+    );
+
+    // Crimson aura — pulsing glow around the moon
     final beat = pow(sin(t * pi / 0.75).clamp(0.0, 1.0), 8.0) * pulseAmp;
     _drawGlow(
       canvas,
-      pos,
-      vr * 1.3,
+      mc,
+      moonR * 2.2,
       const Color(0xFFD32F2F),
       (0.12 + beat).clamp(0, 1),
-      vr * 1.8,
+      moonR * 3.0,
     );
+
+    // Shadow
+    _drawGlow(
+      canvas,
+      Offset(mc.dx + 2, mc.dy + 3),
+      moonR * 1.1,
+      Colors.black,
+      0.30,
+      moonR * 1.8,
+    );
+
+    // Moon body — dark crimson sphere
+    canvas.drawCircle(
+      mc,
+      moonR,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(mc.dx - moonR * 0.3, mc.dy - moonR * 0.3),
+          moonR * 1.5,
+          [
+            const Color(0xFFE57373),
+            const Color(0xFFC62828),
+            const Color(0xFF4E0000),
+          ],
+          [0.0, 0.5, 1.0],
+        ),
+    );
+
   }
 
   void _drawPoisonCloud(Canvas canvas, Offset pos, double vr, double t) {
@@ -607,10 +866,10 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       _drawGlow(
         canvas,
         Offset(pos.dx + cos(a) * cr, pos.dy + sin(a) * cr),
-        10,
+        _scaledEffectPx(vr, 10.0, min: 5.0, max: 22.0),
         const Color(0xFF76FF03),
         (0.09 + 0.03 * sin(t + i)).clamp(0, 1),
-        18,
+        _scaledEffectPx(vr, 18.0, min: 10.0, max: 36.0),
       );
     }
   }
@@ -631,10 +890,15 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     final p = Paint()..color = const Color(0xFFFFCC80).withValues(alpha: 0.55);
     for (var i = 0; i < count; i++) {
       final a = t * 0.6 + i * pi / (count / 2);
-      final dr = vr + posOffset + 15 * sin(t * 0.3 + i * 0.5);
+      final dr =
+          vr +
+          posOffset +
+          _scaledEffectPx(vr, 15.0, min: 8.0, max: 34.0) *
+              sin(t * 0.3 + i * 0.5);
       canvas.drawCircle(
         Offset(pos.dx + cos(a) * dr, pos.dy + sin(a) * dr),
-        1.5 + sin(t + i) * 0.5,
+        _scaledEffectPx(vr, 1.5, min: 1.0, max: 3.5) +
+            _scaledEffectPx(vr, 0.5, min: 0.25, max: 1.0) * sin(t + i),
         p,
       );
     }
@@ -652,9 +916,15 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       final by = pos.dy + sin(a) * vr;
       // 4-step jet: radial gradient blob instead of blurred circle
       for (var j = 0; j < 4; j++) {
-        final jetDist = 5 + j * 7.0 + 3 * sin(t * 4 + i + j);
+        final jetDist =
+            _scaledEffectPx(vr, 5.0, min: 3.0, max: 12.0) +
+            j * _scaledEffectPx(vr, 7.0, min: 4.0, max: 16.0) +
+            _scaledEffectPx(vr, 3.0, min: 1.5, max: 8.0) *
+                sin(t * 4 + i + j);
         final jc = Offset(bx + cos(a) * jetDist, by + sin(a) * jetDist);
-        final jr = 3.5 + j * 0.6;
+        final jr =
+            _scaledEffectPx(vr, 3.5, min: 2.0, max: 8.0) +
+            j * _scaledEffectPx(vr, 0.6, min: 0.3, max: 1.4);
         _drawGlow(
           canvas,
           jc,
@@ -678,13 +948,15 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
 
     final boltPhase = (t * freq).floor() % 6;
     final boltA = boltPhase * pi / 3 + 0.2;
+    final outerOffset = _scaledEffectPx(vr, 25.0, min: 12.0, max: 56.0);
+    final innerOffset = _scaledEffectPx(vr, 2.0, min: 1.0, max: 6.0);
     final bStart = Offset(
-      pos.dx + cos(boltA) * (vr + 25),
-      pos.dy + sin(boltA) * (vr + 25),
+      pos.dx + cos(boltA) * (vr + outerOffset),
+      pos.dy + sin(boltA) * (vr + outerOffset),
     );
     final bEnd = Offset(
-      pos.dx + cos(boltA) * (vr + 2),
-      pos.dy + sin(boltA) * (vr + 2),
+      pos.dx + cos(boltA) * (vr + innerOffset),
+      pos.dy + sin(boltA) * (vr + innerOffset),
     );
 
     canvas.drawLine(
@@ -692,11 +964,18 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       bEnd,
       Paint()
         ..color = const Color(0xFFFFEB3B).withValues(alpha: 0.75)
-        ..strokeWidth = 2
+        ..strokeWidth = _scaledEffectPx(vr, 2.0, min: 1.4, max: 5.0)
         ..strokeCap = StrokeCap.round,
     );
     // Impact glow — radial gradient
-    _drawGlow(canvas, bEnd, 5, const Color(0xFFFFEB3B), 0.55, 10);
+    _drawGlow(
+      canvas,
+      bEnd,
+      _scaledEffectPx(vr, 5.0, min: 3.0, max: 12.0),
+      const Color(0xFFFFEB3B),
+      0.55,
+      _scaledEffectPx(vr, 10.0, min: 6.0, max: 22.0),
+    );
   }
 
   void _drawSpiritWisps(Canvas canvas, Offset pos, double vr, double t) {
@@ -720,15 +999,15 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       _drawGlow(
         canvas,
         wc,
-        4.5,
+        _scaledEffectPx(vr, 4.5, min: 2.5, max: 10.0),
         const Color(0xFF3F51B5),
         (0.28 + 0.2 * sin(t * 2 + i)).clamp(0, 1),
-        9,
+        _scaledEffectPx(vr, 9.0, min: 5.0, max: 20.0),
       );
       // Bright white core
       canvas.drawCircle(
         wc,
-        1.8,
+        _scaledEffectPx(vr, 1.8, min: 1.0, max: 4.0),
         Paint()
           ..color = const Color(
             0xFFE8EAF6,
@@ -769,7 +1048,14 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     }
 
     if (brightnessKey == 'Bright') {
-      _drawRingGlow(canvas, pos, nr + 14, 12, const Color(0xFFFFFFFF), 0.20);
+      _drawRingGlow(
+        canvas,
+        pos,
+        nr + _scaledEffectPx(vr, 14.0, min: 8.0, max: 30.0),
+        _scaledEffectPx(vr, 12.0, min: 6.0, max: 24.0),
+        const Color(0xFFFFFFFF),
+        0.20,
+      );
     }
   }
 
@@ -786,7 +1072,12 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       'Fast' => 1.2,
       _ => 0.6,
     };
-    final moonOrbitR = vr + 30 + moonR;
+    final distGap = switch (customizationOptions['orbiting_moon.distance'] ?? 'Mid') {
+      'Close' => 4.0,
+      'Far' => vr * 2.5,
+      _ => vr * 0.8,
+    };
+    final moonOrbitR = vr + distGap + moonR;
     final angle = t * speed;
     final mc = Offset(
       pos.dx + cos(angle) * moonOrbitR,
@@ -820,15 +1111,249 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
         ),
     );
 
-    // Craters
-    final craterPaint = Paint()
-      ..color = const Color(0xFF757575).withValues(alpha: 0.5);
-    for (var i = 0; i < 3; i++) {
-      final ca = i * pi * 2 / 3 + 0.5;
+  }
+
+  // ── Planetary Rings — tilted orbital disc with sparkles ────────────────────
+
+  void _drawPlanetaryRings(
+    Canvas canvas,
+    Offset pos,
+    double vr,
+    double t, {
+    required bool frontOnly,
+  }) {
+    final ringCount = switch (customizationOptions['planetary_rings.count'] ??
+        '2') {
+      '1' => 1,
+      '3' => 3,
+      _ => 2,
+    };
+    final style = customizationOptions['planetary_rings.style'] ?? 'Icy';
+
+    // Style determines colors
+    final (Color ringColor, Color sparkColor) = switch (style) {
+      'Rocky' => (const Color(0xFFA1887F), const Color(0xFFD7CCC8)),
+      'Prismatic' => (
+        HSVColor.fromAHSV(1.0, (t * 30) % 360, 0.5, 1.0).toColor(),
+        Colors.white,
+      ),
+      _ => (const Color(0xFFB2EBF2), Colors.white), // Icy
+    };
+
+    canvas.save();
+    canvas.translate(pos.dx, pos.dy);
+    canvas.rotate(-0.18);
+    canvas.scale(1.0, 0.25); // flatten into disc
+
+    if (frontOnly) {
+      // Match the icy source planet: only the near-side upper arc sits in front.
+      canvas.clipRect(Rect.fromLTRB(-vr * 4, -vr * 4, vr * 4, 0));
+    }
+
+    for (var ring = 0; ring < ringCount; ring++) {
+      final ringR = vr * (1.55 + ring * 0.22);
+      final alpha = (0.16 - ring * 0.03).clamp(0.04, 0.2);
+      final strokeW = (vr * (0.08 - ring * 0.015)).clamp(2.0, 18.0);
+
+      // Ring band
       canvas.drawCircle(
-        Offset(mc.dx + cos(ca) * moonR * 0.4, mc.dy + sin(ca) * moonR * 0.4),
-        moonR * 0.10,
-        craterPaint,
+        Offset.zero,
+        ringR,
+        Paint()
+          ..color = ringColor.withValues(alpha: alpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeW.clamp(2.0, 10.0),
+      );
+
+      // Sparkle particles in this ring
+      if (!frontOnly) {
+        final sparkCount = 4 + ring * 2;
+        for (var i = 0; i < sparkCount; i++) {
+          final sparkAngle =
+              t * 0.12 * (ring.isEven ? 1 : -1) + i * pi * 2 / sparkCount;
+          final sparkAlpha = (0.35 + 0.3 * sin(t * 3 + i * 2.1 + ring * 1.5))
+              .clamp(0.0, 0.65);
+          final sx = cos(sparkAngle) * ringR;
+          final sy = sin(sparkAngle) * ringR;
+          canvas.drawCircle(
+            Offset(sx, sy),
+            _scaledEffectPx(vr, 1.2, min: 0.9, max: 2.6) +
+                _scaledEffectPx(vr, 0.4, min: 0.2, max: 0.8) *
+                    sin(t * 4 + i),
+            Paint()..color = sparkColor.withValues(alpha: sparkAlpha),
+          );
+        }
+      }
+    }
+
+    canvas.restore();
+  }
+
+  // ── Phantom Phase — planet fades translucent periodically ──────────────────
+
+  void _drawPhantomPhase(Canvas canvas, Offset pos, double vr, double t) {
+    final intensity =
+        customizationOptions['phantom_phase.intensity'] ?? 'Normal';
+    // How transparent the planet becomes at peak phase
+    final fadeDepth = switch (intensity) {
+      'Subtle' => 0.15,
+      'Deep' => 0.55,
+      _ => 0.35,
+    };
+
+    // 8s cycle: 0-6s visible, 6-7s fade out, 7-8s fade back
+    final cycle = t % 8.0;
+    double phaseAlpha;
+    if (cycle < 6.0) {
+      phaseAlpha = 0.0;
+    } else if (cycle < 7.0) {
+      final f = cycle - 6.0;
+      phaseAlpha = f * f * fadeDepth; // ease-in fade
+    } else {
+      final f = cycle - 7.0;
+      phaseAlpha = fadeDepth * (1.0 - f * (2.0 - f)); // ease-out return
+    }
+
+    if (phaseAlpha < 0.01) return; // nothing to draw most of the time
+
+    // Overlay a dark disc that partially hides the planet (simulates transparency)
+    _drawGlow(
+      canvas,
+      pos,
+      vr * 0.7,
+      const Color(0xFF0A0014),
+      phaseAlpha,
+      vr * 1.1,
+    );
+
+    // Spectral shimmer at the edges during phase
+    _drawRingGlow(
+      canvas,
+      pos,
+      vr.toDouble(),
+      _scaledEffectPx(vr, 8.0, min: 4.0, max: 18.0),
+      const Color(0xFF7C4DFF),
+      phaseAlpha * 0.6,
+    );
+  }
+
+  // ── Electric Field — crackling bolts & sparks around the planet ────────────
+
+  void _drawElectricField(Canvas canvas, Offset pos, double vr, double t) {
+    final boltCount = switch (customizationOptions['electric_field.bolts'] ??
+        'Normal') {
+      'Few' => 3,
+      'Many' => 7,
+      _ => 5,
+    };
+    final intensityAlpha =
+        switch (customizationOptions['electric_field.intensity'] ?? 'Normal') {
+          'Dim' => 0.4,
+          'Bright' => 0.9,
+          _ => 0.65,
+        };
+
+    final fieldR = vr + _scaledEffectPx(vr, 22.0, min: 12.0, max: 52.0);
+
+    // ── Ambient electric haze ──
+    _drawRingGlow(
+      canvas,
+      pos,
+      fieldR,
+      _scaledEffectPx(vr, 12.0, min: 6.0, max: 24.0),
+      const Color(0xFFFFEB3B),
+      intensityAlpha * 0.08,
+    );
+
+    // ── Lightning bolts — flickering arcs from field to surface ──
+    for (var i = 0; i < boltCount; i++) {
+      final seed = (pos.dx.toInt() ^ pos.dy.toInt()) + i * 137;
+      final phase = t * (2.5 + i * 0.7) + seed * 0.1;
+      final flash = sin(phase) * sin(phase * 3.7 + i);
+      if (flash <= 0.3) continue; // bolt not visible this frame
+
+      final boltAlpha = ((flash - 0.3) * 1.4).clamp(0.0, 1.0) * intensityAlpha;
+      final startAngle =
+          (seed * 0.1 + t * 0.15 * (i.isEven ? 1 : -1)) % (pi * 2);
+      final boltStart = Offset(
+        pos.dx + cos(startAngle) * fieldR,
+        pos.dy + sin(startAngle) * fieldR,
+      );
+      final endAngle = startAngle + (sin(seed.toDouble()) * 0.3);
+      final boltEnd = Offset(
+        pos.dx + cos(endAngle) * (vr + 2),
+        pos.dy + sin(endAngle) * (vr + 2),
+      );
+
+      // Draw zig-zag bolt
+      final boltPath = Path();
+      boltPath.moveTo(boltStart.dx, boltStart.dy);
+      const segments = 4;
+      for (var s = 1; s <= segments; s++) {
+        final frac = s / segments;
+        final mx = boltStart.dx + (boltEnd.dx - boltStart.dx) * frac;
+        final my = boltStart.dy + (boltEnd.dy - boltStart.dy) * frac;
+        final perpX = -(boltEnd.dy - boltStart.dy);
+        final perpY = (boltEnd.dx - boltStart.dx);
+        final perpLen = sqrt(perpX * perpX + perpY * perpY);
+        final jag =
+            sin(t * 12 + s * 3.0 + i * 7) *
+            _scaledEffectPx(vr, 6.0, min: 3.0, max: 14.0);
+        if (perpLen > 0 && s < segments) {
+          boltPath.lineTo(
+            mx + (perpX / perpLen) * jag,
+            my + (perpY / perpLen) * jag,
+          );
+        } else {
+          boltPath.lineTo(mx, my);
+        }
+      }
+
+      // Glow layer
+      canvas.drawPath(
+        boltPath,
+        Paint()
+          ..color = const Color(0xFFFFEB3B).withValues(alpha: boltAlpha * 0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = _scaledEffectPx(vr, 3.5, min: 2.0, max: 8.0)
+          ..strokeCap = StrokeCap.round,
+      );
+      // Core layer
+      canvas.drawPath(
+        boltPath,
+        Paint()
+          ..color = Colors.white.withValues(alpha: boltAlpha * 0.9)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = _scaledEffectPx(vr, 1.2, min: 0.9, max: 3.0)
+          ..strokeCap = StrokeCap.round,
+      );
+
+      // Impact glow at surface
+      _drawGlow(
+        canvas,
+        boltEnd,
+        _scaledEffectPx(vr, 3.0, min: 1.8, max: 7.0),
+        const Color(0xFFFFEB3B),
+        boltAlpha * 0.6,
+        _scaledEffectPx(vr, 8.0, min: 4.0, max: 18.0),
+      );
+    }
+
+    // ── Orbiting spark motes ──
+    for (var i = 0; i < 6; i++) {
+      final sparkAngle = t * (0.5 + i * 0.12) + i * pi / 3;
+      final sparkDist = fieldR * (0.92 + 0.08 * sin(t * 3 + i * 2));
+      final sx = pos.dx + cos(sparkAngle) * sparkDist;
+      final sy = pos.dy + sin(sparkAngle) * sparkDist;
+      final sparkAlpha =
+          (0.3 + 0.3 * sin(t * 6 + i * 1.7)).clamp(0.0, 0.6) * intensityAlpha;
+      _drawGlow(
+        canvas,
+        Offset(sx, sy),
+        _scaledEffectPx(vr, 1.0, min: 0.8, max: 2.2),
+        const Color(0xFFFFEB3B),
+        sparkAlpha,
+        _scaledEffectPx(vr, 4.0, min: 2.0, max: 8.0),
       );
     }
   }

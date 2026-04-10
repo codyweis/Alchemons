@@ -175,8 +175,16 @@ Color _variantFactionColor(String faction) => switch (faction.toLowerCase()) {
   'earthen' => const Color(0xFF795548),
   'verdant' => const Color(0xFF4CAF50),
   'arcane' => const Color(0xFF9C27B0),
+  'bloodborn' => const Color(0xFFFF5252),
   _ => const Color(0xFF0EA5E9), // teal fallback
 };
+
+String _displayVariantFaction(String faction) {
+  final trimmed = faction.trim();
+  if (trimmed.isEmpty) return trimmed;
+  if (trimmed.toLowerCase() == 'bloodborn') return 'Bloodborn';
+  return trimmed[0].toUpperCase() + trimmed.substring(1);
+}
 
 /// Lozenge badge — rarity / type tag
 class _TagBadge extends StatelessWidget {
@@ -1527,13 +1535,13 @@ class _OverviewTab extends StatelessWidget {
                       Icon(Icons.auto_awesome_rounded, color: fColor, size: 9),
                       const SizedBox(width: 4),
                       Text(
-                        instance!.variantFaction!.toUpperCase(),
+                        _displayVariantFaction(instance!.variantFaction!),
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: fColor,
                           fontSize: 9,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
+                          letterSpacing: 0.6,
                         ),
                       ),
                     ],

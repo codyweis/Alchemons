@@ -4,11 +4,13 @@ import 'dart:math' as math;
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/blood_aura.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
@@ -181,6 +183,11 @@ class ShopService extends ChangeNotifier {
           dimension: size,
           child: IntelligenceHalo(size: effectSizeFromWidgetSize(size)),
         );
+      case InvKeys.alchemyBloodAura:
+        return SizedBox.square(
+          dimension: size,
+          child: BloodAura(size: effectSizeFromWidgetSize(size)),
+        );
 
       default:
         return null;
@@ -345,6 +352,19 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.bossRefresh,
       assetName: 'assets/images/ui/boss-summon.png',
     ),
+    for (final powerup in AlchemicalPowerupType.values)
+      ShopOffer(
+        id: powerup.shopOfferId,
+        name: powerup.name,
+        description: powerup.description,
+        icon: powerup.icon,
+        cost: const {'gold': 5},
+        reward: const {},
+        rewardType: 'boost',
+        limit: PurchaseLimit.unlimited,
+        inventoryKey: powerup.inventoryKey,
+        iconColor: powerup.color,
+      ),
     ShopOffer(
       id: elementalCreatorOfferId,
       name: 'Elemental Essence Creator',
@@ -666,6 +686,19 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.alchemyRitualGold,
     ),
     ShopOffer(
+      id: 'effects.blood_aura',
+      name: 'Blood Aura',
+      description:
+          'A blood-red alchemical shroud with crimson motes and a ritual pulse.',
+      icon: Icons.opacity_rounded,
+      iconColor: const Color(0xFFFF5252),
+      cost: const {'gold': 50},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyBloodAura,
+    ),
+    ShopOffer(
       id: beautyContestEffectOfferId,
       name: 'Beauty Radiance',
       description:
@@ -791,7 +824,7 @@ class ShopService extends ChangeNotifier {
       id: 'survival.orb.voidforge',
       name: 'Voidforge Core',
       description:
-          'Forged in the Void — an orb crackling with dark energy runes.',
+          'Forged in the Void — an orb crackling with dark energy runes. +12% guardian damage, but −10% orb HP.',
       icon: Icons.nightlight_round,
       iconColor: const Color(0xFFBB00FF),
       cost: const {'gold': 50},
@@ -802,7 +835,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'survival.orb.celestial',
       name: 'Celestial Beacon',
-      description: 'A radiant sphere of starlight — pulsing with cosmic power.',
+      description:
+          'A radiant sphere of starlight — pulsing with cosmic power. Heals guardians and ship 3% every 8s.',
       icon: Icons.auto_awesome_rounded,
       iconColor: const Color(0xFFFFD700),
       cost: const {'gold': 1},
@@ -813,7 +847,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'survival.orb.infernal',
       name: 'Infernal Engine',
-      description: 'Molten iron and dragonfire — enemies burn near the orb.',
+      description:
+          'Molten iron and dragonfire — enemies take burn damage near the orb. Burn aura damages nearby enemies every 0.5s.',
       icon: Icons.local_fire_department_rounded,
       iconColor: const Color(0xFFFF4500),
       cost: const {'gold': 1},
@@ -824,7 +859,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'survival.orb.frozen',
       name: 'Frozen Nexus',
-      description: 'An ancient ice crystal with jagged frost shards.',
+      description:
+          'An ancient ice crystal — jagged frost shards orbit its frozen core. Slows nearby enemies and grants +5% orb HP.',
       icon: Icons.ac_unit_rounded,
       iconColor: const Color(0xFF88DDFF),
       cost: const {'gold': 50},
@@ -835,7 +871,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'survival.orb.phantom',
       name: 'Phantom Wisp',
-      description: 'A ghostly sphere that phases between realms.',
+      description:
+          'A ghostly sphere that phases between realms — flickering and ethereal. 10% chance to dodge enemy projectiles, but −5% orb HP.',
       icon: Icons.blur_on_rounded,
       iconColor: const Color(0xFF7BFFCE),
       cost: const {'gold': 50},
@@ -846,7 +883,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'survival.orb.prism',
       name: 'Prism Heart',
-      description: 'A crystalline prism refracting all light.',
+      description:
+          'A crystalline prism refracting all light — shifts through every color. Grants +10% orb HP and passive regen of +0.3 HP/s.',
       icon: Icons.diamond_rounded,
       iconColor: const Color(0xFFFF69B4),
       cost: const {'gold': 50},
@@ -857,7 +895,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'survival.orb.verdant',
       name: 'Verdant Bloom',
-      description: 'A living orb of tangled vines and blossoms.',
+      description:
+          'A living orb of tangled vines and blossoms — pulses with nature\'s rhythm. Grants +15% orb HP and passive regen of +1 HP/s.',
       icon: Icons.eco_rounded,
       iconColor: const Color(0xFF32CD32),
       cost: const {'gold': 50},
@@ -1258,6 +1297,9 @@ class ShopService extends ChangeNotifier {
         return true;
       case intelligenceContestEffectOfferId:
         await _db.inventoryDao.addItemQty(InvKeys.alchemyIntelligenceHalo, qty);
+        return true;
+      case 'effects.blood_aura':
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyBloodAura, qty);
         return true;
 
       case 'unlock.fusion_slot.1':

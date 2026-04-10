@@ -121,7 +121,7 @@ class IncubatorDao extends DatabaseAccessor<AlchemonsDatabase>
         rows,
       ) {
         final nowUtc = DateTime.now().toUtc();
-        return rows
+        final normalized = rows
             .map(
               (egg) => ColdStorageService.normalizeEggForDisplay(
                 egg,
@@ -129,6 +129,13 @@ class IncubatorDao extends DatabaseAccessor<AlchemonsDatabase>
               ),
             )
             .toList();
+        normalized.sort((a, b) {
+          final aBlood = a.payloadJson?.contains('"source":"bloodborn"') ?? false;
+          final bBlood = b.payloadJson?.contains('"source":"bloodborn"') ?? false;
+          if (aBlood != bBlood) return aBlood ? -1 : 1;
+          return a.rarity.compareTo(b.rarity);
+        });
+        return normalized;
       });
 
   /// place in storage

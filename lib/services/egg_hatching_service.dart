@@ -118,7 +118,7 @@ class EggHatching {
     final hp = _parsePayload(slot.payloadJson, offspring);
 
     // Starter branch: exact DB write, no rerolls
-    if (hp.source == 'starter') {
+    if (hp.source == 'starter' || hp.source == 'bloodborn') {
       final fb = _fallbackLineageFor(offspring);
 
       final createdId = await db.creatureDao.insertInstanceFromHatchPayload(
@@ -137,6 +137,13 @@ class EggHatching {
           'Specimen containment full. Clear space to complete extraction.',
           icon: Icons.warning_amber_rounded,
           color: Colors.orange.shade600,
+        );
+      }
+
+      if (hp.source == 'bloodborn') {
+        await db.creatureDao.updateAlchemyEffect(
+          instanceId: createdId,
+          effect: 'blood_aura',
         );
       }
 
@@ -438,6 +445,8 @@ class EggHatching {
       'Earthen': const Color(0xFF795548), // Brown / Earth
       'Verdant': const Color(0xFF4CAF50), // Green / Nature
       'Arcane': const Color(0xFF9C27B0), // Purple / Magic
+      'Bloodborn': const Color(0xFFFF5252), // Crimson / Bloodborn
+      'bloodborn': const Color(0xFFFF5252),
     };
 
     return factionColors[variantFaction];
@@ -1602,12 +1611,19 @@ class EggHatching {
 
     return _buildTypingAnalysisRow(
       'VARIANT FACTION',
-      variantType,
+      _displayVariantFaction(variantType),
       startTyping,
       primaryColor,
       delay: const Duration(milliseconds: 900),
       fc: fc,
     );
+  }
+
+  static String _displayVariantFaction(String faction) {
+    final trimmed = faction.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (trimmed.toLowerCase() == 'bloodborn') return 'Bloodborn';
+    return trimmed[0].toUpperCase() + trimmed.substring(1);
   }
 
   static String _getSizeName(Creature c) =>

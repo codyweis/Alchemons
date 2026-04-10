@@ -137,10 +137,10 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
               // Loot opening Lottie animation
               Center(
                 child: SizedBox(
-                  width: 160,
-                  height: 160,
+                  width: 220,
+                  height: 220,
                   child: Lottie.asset(
-                    'assets/animations/loot-open.json',
+                    'assets/animations/loot-open-safe.json',
                     controller: _lottieCtrl,
                     fit: BoxFit.contain,
                     repeat: false,

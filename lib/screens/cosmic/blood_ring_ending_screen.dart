@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -125,14 +126,9 @@ class _BloodRitualFlashPageState extends State<BloodRitualFlashPage>
 }
 
 class BloodRingStoryScenePage extends StatefulWidget {
-  const BloodRingStoryScenePage({
-    super.key,
-    required this.mysticName,
-    required this.favoriteName,
-  });
+  const BloodRingStoryScenePage({super.key, required this.offeringName});
 
-  final String mysticName;
-  final String favoriteName;
+  final String offeringName;
 
   @override
   State<BloodRingStoryScenePage> createState() =>
@@ -152,9 +148,9 @@ class _BloodRingStoryScenePageState extends State<BloodRingStoryScenePage>
   void initState() {
     super.initState();
     _pages = [
-      'Whether you accept reality for the beauty it is, or forge deceptions of beauty to shield yourself from chaos, the ring does not care.',
+      'Whether you accept reality for the beauty it is, or forge deceptions of beauty to shield yourself from chaos.',
       'Reality bends to the witness and the wound at once. What you call truth is only a story that survived long enough to be believed.',
-      '${widget.mysticName} and ${widget.favoriteName} stand at the seam of worlds, where every certainty dissolves into choice.',
+      '${widget.offeringName} stands at the seam of worlds, where every certainty dissolves into choice.',
       'If all things are constructs, then this construct is yours now. Walk forward.',
     ];
     _fade = AnimationController(
@@ -269,74 +265,27 @@ class _BloodRingStoryScenePageState extends State<BloodRingStoryScenePage>
   }
 }
 
-class BloodRingPortalPlaceholderPage extends StatelessWidget {
-  const BloodRingPortalPlaceholderPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF070707),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.sports_esports,
-                  color: Color(0xFFFF8A80),
-                  size: 54,
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'BLOOD PORTAL',
-                  style: GoogleFonts.cinzel(
-                    color: const Color(0xFFFFCDD2),
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2.1,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Flappy-style mini game portal coming soon.\nAlchemon selection will be added here next.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.crimsonText(
-                    color: Colors.white70,
-                    fontSize: 20,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Back to Space'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 enum _ValleyFinalePhase { credits, approach, sacrifice }
 
 class BloodRingValleyCreditsPage extends StatefulWidget {
   const BloodRingValleyCreditsPage({
     super.key,
-    required this.mysticName,
-    required this.favoriteName,
     this.mysticImagePath,
     this.offeringImagePath,
+    this.offeringElement,
+    this.offeringFamily,
+    this.offeringIntelligence,
+    this.offeringStrength,
+    this.offeringBeauty,
   });
 
-  final String mysticName;
-  final String favoriteName;
   final String? mysticImagePath;
   final String? offeringImagePath;
+  final String? offeringElement;
+  final String? offeringFamily;
+  final double? offeringIntelligence;
+  final double? offeringStrength;
+  final double? offeringBeauty;
 
   @override
   State<BloodRingValleyCreditsPage> createState() =>
@@ -358,6 +307,7 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
   static const double _sacrificeDuration = 3.2;
   static const double _mysticRevealDuration = 1.25;
   static const double _maxJumpLift = -220.0;
+  static const double _abilityCooldown = 1.0;
 
   late final Ticker _ticker;
   Duration _lastTick = Duration.zero;
@@ -377,15 +327,21 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
   late final List<_CreditLineFxState> _lineFx;
   late final List<int> _creditRenderIndices;
   late final Map<int, int> _creditRenderOrder;
+  final List<_EndingProjectileFx> _abilityProjectiles = [];
+  double _abilityCooldownRemaining = 0;
 
   List<String> get _creditLines => [
     'ALCHEMONS',
     'A BLOOD RING FINALE',
-    'Design: Placeholder Name',
-    'Story: Placeholder Name',
-    'Code: Placeholder Name',
-    'Art + Audio: Placeholder Name',
-    'Starring: ${widget.mysticName} and ${widget.favoriteName}',
+    'Alchemons created by',
+    'Cody Weisenberger',
+    'Luck3yApps LLC',
+    'Special thanks to',
+    'Bryce',
+    'Whitney',
+    'Music by',
+    'Cleyton Kauffman',
+    'GloryToTheMachine',
     'Thank you for playing.',
   ];
 
@@ -421,8 +377,6 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
       SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.portraitUp,
         DeviceOrientation.portraitDown,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
       ]),
     );
     super.dispose();
@@ -432,6 +386,8 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
     final dt = (elapsed - _lastTick).inMicroseconds / 1000000.0;
     _lastTick = elapsed;
     if (!mounted || dt <= 0 || !_creditsReady) return;
+    _abilityCooldownRemaining = max(0.0, _abilityCooldownRemaining - dt);
+    _updateAbilityProjectiles(dt);
 
     if (_phase == _ValleyFinalePhase.sacrifice) {
       final slowT = _c01(_sacrificeElapsed / 1.5);
@@ -497,6 +453,103 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
   void _jump() {
     if (_phase == _ValleyFinalePhase.sacrifice) return;
     _playerVy = (_playerVy + _jumpVelocity).clamp(-740.0, 4800.0);
+  }
+
+  void _activateOfferingAbility() {
+    final family = widget.offeringFamily;
+    final element = widget.offeringElement;
+    if (_abilityCooldownRemaining > 0 ||
+        family == null ||
+        family.isEmpty ||
+        element == null ||
+        element.isEmpty ||
+        _viewportW <= 0 ||
+        _viewportH <= 0) {
+      return;
+    }
+    _abilityCooldownRemaining = _abilityCooldown;
+
+    final groundY = _viewportH * 0.88;
+    const playerSize = 82.0;
+    final playerLeft = (_viewportW * _playerX).clamp(
+      0.0,
+      _viewportW - playerSize,
+    );
+    final playerTop = (groundY - playerSize + _jumpOffset).clamp(
+      0.0,
+      _viewportH - playerSize,
+    );
+    final playerCenter = Offset(
+      playerLeft + (playerSize * 0.5),
+      playerTop + (playerSize * 0.5),
+    );
+    final target = Offset(_viewportW * 0.78, _viewportH * 0.53);
+    final angle = atan2(
+      target.dy - playerCenter.dy,
+      target.dx - playerCenter.dx,
+    );
+    final result = createCosmicSpecialAbility(
+      origin: playerCenter,
+      baseAngle: angle,
+      family: family,
+      element: element,
+      damage: max(8.0, (widget.offeringStrength ?? 3.0) * 2.2),
+      maxHp: 100,
+      casterPower: widget.offeringIntelligence ?? 3.0,
+      casterBeauty: widget.offeringBeauty ?? 3.0,
+      casterIntelligence: widget.offeringIntelligence ?? 3.0,
+      casterStrength: widget.offeringStrength ?? 3.0,
+      targetPos: target,
+    );
+    final tint = elementColor(element);
+    for (final projectile in result.projectiles.take(24)) {
+      _abilityProjectiles.add(
+        _EndingProjectileFx.fromProjectile(projectile, fallbackColor: tint),
+      );
+    }
+    if (result.projectiles.isEmpty || result.shieldHp > 0) {
+      _abilityProjectiles.add(
+        _EndingProjectileFx.pulse(
+          position: playerCenter,
+          color: tint,
+          style: ProjectileVisualStyle.sigil,
+        ),
+      );
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _updateAbilityProjectiles(double dt) {
+    for (final fx in _abilityProjectiles) {
+      fx.life -= dt;
+      if (fx.life <= 0) continue;
+      if (fx.orbitTime > 0 || fx.holdOrbit) {
+        fx.orbitTime = max(0.0, fx.orbitTime - dt);
+        fx.orbitAngle += fx.orbitSpeed * dt;
+        final center = fx.orbitCenter ?? fx.position;
+        fx.position =
+            center +
+            Offset(
+              cos(fx.orbitAngle) * fx.orbitRadius,
+              sin(fx.orbitAngle) * fx.orbitRadius,
+            );
+        if (fx.holdOrbit) {
+          continue;
+        }
+      }
+      if (!fx.stationary) {
+        final speed = Projectile.speed * fx.speedMultiplier * 0.42;
+        fx.position += Offset(cos(fx.angle), sin(fx.angle)) * speed * dt;
+      }
+    }
+    _abilityProjectiles.removeWhere(
+      (fx) =>
+          fx.life <= 0 ||
+          fx.position.dx < -120 ||
+          fx.position.dx > _viewportW + 120 ||
+          fx.position.dy < -120 ||
+          fx.position.dy > _viewportH + 120,
+    );
   }
 
   double _c01(double value) => value.clamp(0.0, 1.0).toDouble();
@@ -816,6 +869,16 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
                       ),
                     ),
                   ),
+                  for (final fx in _abilityProjectiles)
+                    Positioned(
+                      left: fx.position.dx - (fx.size * 0.5),
+                      top: fx.position.dy - (fx.size * 0.5),
+                      width: fx.size,
+                      height: fx.size,
+                      child: IgnorePointer(
+                        child: _EndingProjectileWidget(fx: fx),
+                      ),
+                    ),
                   if (shouldShowMystic)
                     Positioned(
                       left: mysticLeft,
@@ -1020,6 +1083,84 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
                       ),
                     ),
                   ),
+                  Positioned(
+                    left: 16,
+                    bottom: 16,
+                    child: SafeArea(
+                      minimum: const EdgeInsets.only(left: 0, bottom: 0),
+                      child: IgnorePointer(
+                        ignoring: _phase == _ValleyFinalePhase.sacrifice,
+                        child: Opacity(
+                          opacity: _phase == _ValleyFinalePhase.sacrifice
+                              ? 0.4
+                              : 1.0,
+                          child: GestureDetector(
+                            onTap: _activateOfferingAbility,
+                            child: SizedBox(
+                              width: 58,
+                              height: 58,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Container(
+                                    width: 52,
+                                    height: 52,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: const Color(0xEE050505),
+                                      border: Border.all(
+                                        color: const Color(0x88FFFFFF),
+                                        width: 1.1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.65,
+                                          ),
+                                          blurRadius: 18,
+                                          spreadRadius: 2,
+                                        ),
+                                        BoxShadow(
+                                          color: const Color(0x55FF1744),
+                                          blurRadius: 16,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 58,
+                                    height: 58,
+                                    child: CircularProgressIndicator(
+                                      value:
+                                          1.0 -
+                                          (_abilityCooldownRemaining /
+                                              _abilityCooldown),
+                                      strokeWidth: 3.2,
+                                      backgroundColor: Colors.white.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
+                                            Color(0xFFFF6B6B),
+                                          ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.auto_awesome_rounded,
+                                    color: _abilityCooldownRemaining > 0
+                                        ? Colors.white54
+                                        : const Color(0xFFFFCDD2),
+                                    size: 24,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1090,4 +1231,158 @@ class _CreditLineFxState {
   final List<double> letterVys;
   bool hit = false;
   double shake = 0;
+}
+
+class _EndingProjectileFx {
+  _EndingProjectileFx({
+    required this.position,
+    required this.angle,
+    required this.life,
+    required this.color,
+    required this.visualStyle,
+    required this.size,
+    required this.speedMultiplier,
+    required this.stationary,
+    required this.orbitCenter,
+    required this.orbitAngle,
+    required this.orbitRadius,
+    required this.orbitSpeed,
+    required this.orbitTime,
+    required this.holdOrbit,
+  });
+
+  factory _EndingProjectileFx.fromProjectile(
+    Projectile projectile, {
+    required Color fallbackColor,
+  }) {
+    final color = projectile.element == null
+        ? fallbackColor
+        : elementColor(projectile.element!);
+    final size =
+        switch (projectile.visualStyle) {
+          ProjectileVisualStyle.meteor => 24.0,
+          ProjectileVisualStyle.letShard => 16.0,
+          ProjectileVisualStyle.dart => 12.0,
+          ProjectileVisualStyle.slash => 26.0,
+          ProjectileVisualStyle.sigil => 20.0,
+          ProjectileVisualStyle.kinOrbital => 18.0,
+          ProjectileVisualStyle.mysticOrbital => 22.0,
+          ProjectileVisualStyle.standard => 14.0,
+        } *
+        projectile.visualScale.clamp(0.7, 2.2);
+    return _EndingProjectileFx(
+      position: projectile.position,
+      angle: projectile.angle,
+      life: projectile.life.clamp(0.4, 2.0),
+      color: color,
+      visualStyle: projectile.visualStyle,
+      size: size,
+      speedMultiplier: projectile.speedMultiplier,
+      stationary: projectile.stationary,
+      orbitCenter: projectile.orbitCenter,
+      orbitAngle: projectile.orbitAngle,
+      orbitRadius: projectile.orbitRadius,
+      orbitSpeed: projectile.orbitSpeed,
+      orbitTime: projectile.orbitTime,
+      holdOrbit: projectile.holdOrbit,
+    );
+  }
+
+  factory _EndingProjectileFx.pulse({
+    required Offset position,
+    required Color color,
+    required ProjectileVisualStyle style,
+  }) {
+    return _EndingProjectileFx(
+      position: position,
+      angle: 0,
+      life: 0.7,
+      color: color,
+      visualStyle: style,
+      size: 22,
+      speedMultiplier: 0,
+      stationary: true,
+      orbitCenter: null,
+      orbitAngle: 0,
+      orbitRadius: 0,
+      orbitSpeed: 0,
+      orbitTime: 0,
+      holdOrbit: false,
+    );
+  }
+
+  Offset position;
+  final double angle;
+  double life;
+  final Color color;
+  final ProjectileVisualStyle visualStyle;
+  final double size;
+  final double speedMultiplier;
+  final bool stationary;
+  final Offset? orbitCenter;
+  double orbitAngle;
+  final double orbitRadius;
+  final double orbitSpeed;
+  double orbitTime;
+  final bool holdOrbit;
+}
+
+class _EndingProjectileWidget extends StatelessWidget {
+  const _EndingProjectileWidget({required this.fx});
+
+  final _EndingProjectileFx fx;
+
+  @override
+  Widget build(BuildContext context) {
+    final alpha = fx.life.clamp(0.0, 1.0);
+    switch (fx.visualStyle) {
+      case ProjectileVisualStyle.slash:
+        return Transform.rotate(
+          angle: fx.angle,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(fx.size),
+              gradient: LinearGradient(
+                colors: [
+                  fx.color.withValues(alpha: 0.0),
+                  fx.color.withValues(alpha: alpha),
+                  fx.color.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        );
+      case ProjectileVisualStyle.sigil:
+        return Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: fx.color.withValues(alpha: alpha),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: fx.color.withValues(alpha: alpha * 0.55),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        );
+      default:
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: fx.color.withValues(alpha: alpha * 0.92),
+            boxShadow: [
+              BoxShadow(
+                color: fx.color.withValues(alpha: alpha * 0.55),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        );
+    }
+  }
 }

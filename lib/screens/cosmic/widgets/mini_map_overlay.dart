@@ -85,8 +85,8 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
   }
 
   @override
-  void didUpdateWidget(MiniMapOverlay old) {
-    super.didUpdateWidget(old);
+  void didUpdateWidget(MiniMapOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
     _refreshPlanets();
   }
 
@@ -124,8 +124,8 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _transformCtrl.value = Matrix4.identity()
-        ..translate(tx, ty)
-        ..scale(initialZoom);
+        ..translateByDouble(tx, ty, 0, 1)
+        ..scaleByDouble(initialZoom, initialZoom, 1, 1);
     });
   }
 
@@ -179,6 +179,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             subtitle: 'Planet route',
             accent: p.color,
             icon: Icons.public_rounded,
+            actionLabel: 'TRAVEL',
             onConfirm: () => _runAfterBuild(() => widget.onNavigatePlanet(p)),
           ),
           d,
@@ -196,6 +197,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             subtitle: 'Return home',
             accent: hp.blendedColor,
             icon: Icons.home_rounded,
+            actionLabel: 'TRAVEL',
             onConfirm: () => _runAfterBuild(widget.onGoHome),
           ),
           d,
@@ -204,10 +206,46 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     }
 
     for (final poi in widget.game.spacePOIs) {
-      if (!poi.discovered) continue;
+      if (!poi.discovered && poi.type != POIType.survivalPortal) continue;
+      if (poi.type == POIType.survivalPortal) {
+        final d = (poi.position - tapPos).distance;
+        if (d < 920) {
+          tryUpdate(
+            _MiniMapTravelPromptData(
+              title: poi.discovered
+                  ? 'TRAVEL TO SURVIVAL PORTAL'
+                  : 'UNKNOWN SIGNAL',
+              subtitle: poi.discovered
+                  ? 'Survival game mode'
+                  : 'Signal origin unknown',
+              accent: _poiColor(poi.type),
+              icon: _poiIcon(poi.type),
+              actionLabel: poi.discovered ? 'TRAVEL' : null,
+              onConfirm: poi.discovered
+                  ? () => _runAfterBuild(() => widget.onTeleport(poi.position))
+                  : null,
+            ),
+            d,
+          );
+        }
+        continue;
+      }
       if (poi.type != POIType.harvesterMarket &&
           poi.type != POIType.riftKeyMarket &&
-          poi.type != POIType.cosmicMarket) {
+          poi.type != POIType.cosmicMarket &&
+          poi.type != POIType.goldConversion) {
+        final d = (poi.position - tapPos).distance;
+        if (d < 920) {
+          tryUpdate(
+            _MiniMapTravelPromptData(
+              title: _poiLabel(poi.type),
+              subtitle: 'Space landmark',
+              accent: _poiColor(poi.type),
+              icon: _poiIcon(poi.type),
+            ),
+            d,
+          );
+        }
         continue;
       }
       final d = (poi.position - tapPos).distance;
@@ -218,6 +256,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             subtitle: 'Space destination',
             accent: _poiColor(poi.type),
             icon: Icons.storefront_rounded,
+            actionLabel: 'TRAVEL',
             onConfirm: () =>
                 _runAfterBuild(() => widget.onTeleport(poi.position)),
           ),
@@ -226,25 +265,125 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
       }
     }
 
-    if (widget.debugEnableContestArenaTeleport) {
-      for (final arena in widget.world.contestArenas) {
-        if (!widget.debugShowAllContestArenasOnMap && !arena.discovered) {
-          continue;
-        }
-        final d = (arena.position - tapPos).distance;
-        if (d < 1080) {
-          tryUpdate(
-            _MiniMapTravelPromptData(
-              title: 'TRAVEL TO ${arena.trait.arenaLabel.toUpperCase()}',
-              subtitle: 'Contest arena',
-              accent: arena.trait.color,
-              icon: Icons.emoji_events_rounded,
-              onConfirm: () =>
-                  _runAfterBuild(() => widget.onTeleport(arena.position)),
-            ),
-            d,
-          );
-        }
+    for (final arena in widget.world.contestArenas) {
+      if (!widget.debugShowAllContestArenasOnMap && !arena.discovered) {
+        continue;
+      }
+      final d = (arena.position - tapPos).distance;
+      if (d < 1080) {
+        tryUpdate(
+          _MiniMapTravelPromptData(
+            title: widget.debugEnableContestArenaTeleport
+                ? 'TRAVEL TO ${arena.trait.arenaLabel.toUpperCase()}'
+                : arena.trait.arenaLabel.toUpperCase(),
+            subtitle: 'Contest arena',
+            accent: arena.trait.color,
+            icon: Icons.emoji_events_rounded,
+            actionLabel: widget.debugEnableContestArenaTeleport
+                ? 'TRAVEL'
+                : null,
+            onConfirm: widget.debugEnableContestArenaTeleport
+                ? () => _runAfterBuild(() => widget.onTeleport(arena.position))
+                : null,
+          ),
+          d,
+        );
+      }
+    }
+
+    for (final whirl in widget.game.galaxyWhirls) {
+      if (whirl.state == WhirlState.completed) continue;
+      final d = (whirl.position - tapPos).distance;
+      if (d < 980) {
+        tryUpdate(
+          _MiniMapTravelPromptData(
+            title: 'LV ${whirl.level} ${whirl.hordeTypeName.toUpperCase()}',
+            subtitle: 'Galaxy whirl',
+            accent: elementColor(whirl.element),
+            icon: Icons.cyclone_rounded,
+          ),
+          d,
+        );
+      }
+    }
+
+    for (final lair in widget.game.bossLairs) {
+      if (lair.state != BossLairState.waiting) continue;
+      final d = (lair.position - tapPos).distance;
+      if (d < 1100) {
+        tryUpdate(
+          _MiniMapTravelPromptData(
+            title: lair.template.name.toUpperCase(),
+            subtitle: 'Boss lair',
+            accent: elementColor(lair.template.element),
+            icon: Icons.warning_amber_rounded,
+          ),
+          d,
+        );
+      }
+    }
+
+    final pf = widget.game.prismaticField;
+    if (pf.discovered) {
+      final d = (pf.position - tapPos).distance;
+      if (d < max(pf.radius * 2.2, 1200.0)) {
+        tryUpdate(
+          const _MiniMapTravelPromptData(
+            title: 'PRISMATIC AURORA',
+            subtitle: 'Ancient anomaly',
+            accent: Color(0xFFFF00CC),
+            icon: Icons.auto_awesome_rounded,
+          ),
+          d,
+        );
+      }
+    }
+
+    final nx = widget.world.elementalNexus;
+    if (nx.discovered) {
+      final d = (nx.position - tapPos).distance;
+      if (d < 1080) {
+        tryUpdate(
+          const _MiniMapTravelPromptData(
+            title: 'ELEMENTAL NEXUS',
+            subtitle: 'Ancient structure',
+            accent: Color(0xFFB388FF),
+            icon: Icons.blur_circular_rounded,
+          ),
+          d,
+        );
+      }
+    }
+
+    final br = widget.world.battleRing;
+    if (br.discovered) {
+      final d = (br.position - tapPos).distance;
+      if (d < 1080) {
+        tryUpdate(
+          _MiniMapTravelPromptData(
+            title: br.isCompleted ? 'BATTLE ARENA' : 'BATTLE RING',
+            subtitle: 'Combat landmark',
+            accent: const Color(0xFFFFD740),
+            icon: Icons.shield_rounded,
+          ),
+          d,
+        );
+      }
+    }
+
+    final ring = widget.world.bloodRing;
+    if (ring.discovered) {
+      final d = (ring.position - tapPos).distance;
+      if (d < 1080) {
+        tryUpdate(
+          _MiniMapTravelPromptData(
+            title: ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING',
+            subtitle: 'Forbidden landmark',
+            accent: const Color(0xFFFF8A80),
+            icon: Icons.radio_button_checked_rounded,
+          ),
+          d,
+        );
       }
     }
 
@@ -288,16 +427,40 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     POIType.cosmicMarket => 'COSMIC MARKET',
     POIType.stardustScanner => 'STAR DUST SCANNER',
     POIType.planetScanner => 'PLANET SCANNER',
+    POIType.goldConversion => 'GOLD CONVERSION',
+    POIType.nebula => 'NEBULA',
+    POIType.derelict => 'DERELICT',
+    POIType.warpAnomaly => 'ANOMALY',
+    POIType.survivalPortal => 'SURVIVAL PORTAL',
     _ => 'DESTINATION',
   };
 
   static Color _poiColor(POIType type) => switch (type) {
+    POIType.nebula => const Color(0xFF64B5F6),
+    POIType.derelict => const Color(0xFF90A4AE),
+    POIType.warpAnomaly => const Color(0xFFB388FF),
     POIType.harvesterMarket => const Color(0xFFFFD54F),
     POIType.riftKeyMarket => const Color(0xFF80DEEA),
     POIType.cosmicMarket => const Color(0xFFCE93D8),
     POIType.stardustScanner => const Color(0xFFA5D6A7),
     POIType.planetScanner => const Color(0xFF90CAF9),
+    POIType.goldConversion => const Color(0xFFFFD740),
+    POIType.survivalPortal => const Color(0xFF8B5CF6),
     _ => const Color(0xFF90CAF9),
+  };
+
+  static IconData _poiIcon(POIType type) => switch (type) {
+    POIType.nebula => Icons.blur_on_rounded,
+    POIType.derelict => Icons.grid_3x3_rounded,
+    POIType.warpAnomaly => Icons.change_history_rounded,
+    POIType.stardustScanner => Icons.radar_rounded,
+    POIType.planetScanner => Icons.travel_explore_rounded,
+    POIType.harvesterMarket => Icons.storefront_rounded,
+    POIType.riftKeyMarket => Icons.storefront_rounded,
+    POIType.cosmicMarket => Icons.storefront_rounded,
+    POIType.goldConversion => Icons.storefront_rounded,
+    POIType.survivalPortal => Icons.cyclone_rounded,
+    _ => Icons.place_rounded,
   };
 
   @override
@@ -392,7 +555,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                     onConfirm: () {
                       final prompt = _travelPrompt;
                       setState(() => _travelPrompt = null);
-                      prompt?.onConfirm();
+                      prompt?.onConfirm?.call();
                     },
                   ),
                 ),
@@ -414,14 +577,16 @@ class _MiniMapTravelPromptData {
     required this.subtitle,
     required this.accent,
     required this.icon,
-    required this.onConfirm,
+    this.actionLabel,
+    this.onConfirm,
   });
 
   final String title;
   final String subtitle;
   final Color accent;
   final IconData icon;
-  final VoidCallback onConfirm;
+  final String? actionLabel;
+  final VoidCallback? onConfirm;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1008,6 +1173,7 @@ class _TravelPromptCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = prompt.accent;
+    final canConfirm = prompt.onConfirm != null;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
@@ -1082,39 +1248,41 @@ class _TravelPromptCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              HapticFeedback.mediumImpact();
-              onConfirm();
-            },
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: accent.withValues(alpha: 0.55)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.navigation_rounded, color: accent, size: 13),
-                  const SizedBox(width: 6),
-                  Text(
-                    'TRAVEL',
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.9,
+          if (canConfirm) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                onConfirm();
+              },
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: accent.withValues(alpha: 0.55)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.navigation_rounded, color: accent, size: 13),
+                    const SizedBox(width: 6),
+                    Text(
+                      prompt.actionLabel ?? 'TRAVEL',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.9,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -1166,6 +1334,7 @@ class _MapViewState extends State<_MapView> {
           final scale =
               fitSize /
               max(widget.world.worldSize.width, widget.world.worldSize.height);
+          final discoveredPlanetCount = widget.world.discoveredCount;
           if (_lastFitSize != fitSize) {
             _lastFitSize = fitSize;
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1200,10 +1369,9 @@ class _MapViewState extends State<_MapView> {
                           scale: scale,
                           shipPos: widget.game.ship.pos,
                           revealedCellCount: widget.game.revealedCells.length,
-                          discoveredPlanetCount: widget.world.planets
-                              .where((p) => p.discovered)
-                              .length,
-                          showAllContestArenasOnMap: widget.showAllContestArenas,
+                          discoveredPlanetCount: discoveredPlanetCount,
+                          showAllContestArenasOnMap:
+                              widget.showAllContestArenas,
                           markers: widget.markers,
                         ),
                       ),
@@ -1305,8 +1473,12 @@ class _PlanetPreviewPainter extends CustomPainter {
   }) {
     final baseColor = color.withValues(alpha: color.a * alpha);
     final key = Object.hash(
-      baseColor, (r * 10).round(), (highlight * 100).round(),
-      (shadow * 100).round(), p.dx.round(), p.dy.round(),
+      baseColor,
+      (r * 10).round(),
+      (highlight * 100).round(),
+      (shadow * 100).round(),
+      p.dx.round(),
+      p.dy.round(),
     );
     final paint = _sphereShaderPaintCache.putIfAbsent(
       key,
@@ -1812,7 +1984,11 @@ class _MiniMapPainter extends CustomPainter {
     TextAlign align = TextAlign.left,
   }) {
     final key = Object.hash(
-      text, style.fontSize, style.color, style.fontWeight?.index, align.index,
+      text,
+      style.fontSize,
+      style.color,
+      style.fontWeight?.value,
+      align.name,
     );
     return _tpCache.putIfAbsent(
       key,
@@ -1827,9 +2003,7 @@ class _MiniMapPainter extends CustomPainter {
   static final _glowPaintCache = <int, Paint>{};
 
   static Paint _glowPaint(Color color, double alpha, double blur) {
-    final key = Object.hash(
-      color, (alpha * 1000).round(), (blur * 10).round(),
-    );
+    final key = Object.hash(color, (alpha * 1000).round(), (blur * 10).round());
     return _glowPaintCache.putIfAbsent(
       key,
       () => Paint()
@@ -1870,10 +2044,11 @@ class _MiniMapPainter extends CustomPainter {
     for (int i = 0; i < 6; i++) {
       final a = pi / 3 * i - pi / 6;
       final pt = Offset(pos.dx + 5.0 * cos(a), pos.dy + 5.0 * sin(a));
-      if (i == 0)
+      if (i == 0) {
         hexPath.moveTo(pt.dx, pt.dy);
-      else
+      } else {
         hexPath.lineTo(pt.dx, pt.dy);
+      }
     }
     hexPath.close();
     canvas
@@ -1898,23 +2073,56 @@ class _MiniMapPainter extends CustomPainter {
     // Revealed fog cells
     final fogCellScaled = CosmicGame.fogCellSize * scale;
     final gridW = (world.worldSize.width / CosmicGame.fogCellSize).ceil();
-    final revealPaint = Paint()..color = const Color(0xFF141C46);
+    final revealPaint = Paint()
+      ..color = const Color(0xFF141C46).withValues(alpha: 0.52);
     final revealEdgePaint = Paint()
-      ..color = const Color(0x331E2D70)
+      ..color = const Color(0x331E2D70).withValues(alpha: 0.38)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8;
-    for (final key in game.revealedCells) {
-      final gx = key % gridW;
-      final gy = key ~/ gridW;
-      final rect = Rect.fromLTWH(
-        gx * fogCellScaled,
-        gy * fogCellScaled,
-        fogCellScaled,
-        fogCellScaled,
-      );
-      canvas.drawRect(rect, revealPaint);
-      canvas.drawRect(rect.deflate(0.2), revealEdgePaint);
+    final showFogEdges = fogCellScaled >= 2.0 && revealedCellCount <= 5000;
+    if (fogCellScaled < 2.0) {
+      final bucketSide = max(1, (3.0 / fogCellScaled).ceil());
+      final bucketGridW = (gridW / bucketSide).ceil();
+      final bucketSize = fogCellScaled * bucketSide;
+      final paintedBuckets = <int>{};
+      for (final key in game.revealedCells) {
+        final gx = key % gridW;
+        final gy = key ~/ gridW;
+        final bx = gx ~/ bucketSide;
+        final by = gy ~/ bucketSide;
+        final bucketKey = by * bucketGridW + bx;
+        if (!paintedBuckets.add(bucketKey)) continue;
+        canvas.drawRect(
+          Rect.fromLTWH(
+            bx * bucketSize,
+            by * bucketSize,
+            bucketSize,
+            bucketSize,
+          ),
+          revealPaint,
+        );
+      }
+    } else {
+      for (final key in game.revealedCells) {
+        final gx = key % gridW;
+        final gy = key ~/ gridW;
+        final rect = Rect.fromLTWH(
+          gx * fogCellScaled,
+          gy * fogCellScaled,
+          fogCellScaled,
+          fogCellScaled,
+        );
+        canvas.drawRect(rect, revealPaint);
+        if (showFogEdges) {
+          canvas.drawRect(rect.deflate(0.2), revealEdgePaint);
+        }
+      }
     }
+
+    final showPlanetLabels = scale >= 0.012;
+    final showStructureLabels = scale >= 0.014;
+    final showPoiLabels = scale >= 0.016;
+    final showContestLabels = scale >= 0.018;
 
     // Planets
     for (final planet in world.planets) {
@@ -1928,14 +2136,16 @@ class _MiniMapPainter extends CustomPainter {
         ..drawCircle(pos, pr * 3, _glowPaint(planet.color, 0.2, 6))
         ..drawCircle(pos, pr, Paint()..color = planet.color);
 
-      _paintLabel(
-        canvas,
-        planetName(planet.element),
-        planet.color,
-        0.8,
-        pos,
-        pr,
-      );
+      if (showPlanetLabels) {
+        _paintLabel(
+          canvas,
+          planetName(planet.element),
+          planet.color,
+          0.8,
+          pos,
+          pr,
+        );
+      }
     }
 
     // Asteroid belt
@@ -2009,14 +2219,16 @@ class _MiniMapPainter extends CustomPainter {
         );
       }
       canvas.drawCircle(wPos, 2, Paint()..color = wColor);
-      _paintLabel(
-        canvas,
-        'Lv${whirl.level} ${whirl.hordeTypeName}',
-        wColor,
-        0.7,
-        wPos,
-        8,
-      );
+      if (showStructureLabels) {
+        _paintLabel(
+          canvas,
+          'Lv${whirl.level} ${whirl.hordeTypeName}',
+          wColor,
+          0.7,
+          wPos,
+          8,
+        );
+      }
     }
 
     // Nearest waiting boss lair
@@ -2057,31 +2269,40 @@ class _MiniMapPainter extends CustomPainter {
             ..strokeWidth = 1.5,
         );
 
-      final tag = switch (bossTypeForLevel(lair.level)) {
+      final tag = switch (lair.template.preferredType ??
+          bossTypeForLevel(lair.level)) {
         BossType.charger => '⚡',
         BossType.gunner => '🔫',
+        BossType.skirmisher => '🎯',
+        BossType.bulwark => '🛡️',
+        BossType.carrier => '🛸',
         BossType.warden => '👑',
       };
-      _paintLabel(
-        canvas,
-        '$tag Lv${lair.level} ${lair.template.name.toUpperCase()}',
-        const Color(0xFFFF5252),
-        1.0,
-        lPos,
-        9,
-      );
+      if (showStructureLabels) {
+        _paintLabel(
+          canvas,
+          '$tag Lv${lair.level} ${lair.template.name.toUpperCase()}',
+          const Color(0xFFFF5252),
+          1.0,
+          lPos,
+          9,
+        );
+      }
     }
 
     // Space POIs
     for (final poi in game.spacePOIs) {
-      if (poi.type == POIType.comet || poi.type == POIType.stardustScanner)
+      if (poi.type == POIType.comet || poi.type == POIType.stardustScanner) {
         continue;
+      }
 
       final isMarket =
           poi.type == POIType.harvesterMarket ||
           poi.type == POIType.riftKeyMarket ||
-          poi.type == POIType.cosmicMarket;
-      if (!poi.discovered && !isMarket) continue;
+          poi.type == POIType.cosmicMarket ||
+          poi.type == POIType.goldConversion;
+      final isSurvivalPortal = poi.type == POIType.survivalPortal;
+      if (!poi.discovered && !isMarket && !isSurvivalPortal) continue;
 
       final poiPos = poi.position * scale;
       late Color poiColor;
@@ -2176,21 +2397,64 @@ class _MiniMapPainter extends CustomPainter {
             poi.discovered,
           );
 
+        case POIType.goldConversion:
+          poiColor = const Color(0xFFFFD740);
+          poiLabel = 'GOLD CONVERSION';
+          poiDotR = 5.0;
+          _paintHexMarker(
+            canvas,
+            poiPos,
+            poiColor,
+            poi.discovered ? 0.7 : 0.25,
+            poi.discovered,
+          );
+
+        case POIType.survivalPortal:
+          poiColor = const Color(0xFF8B5CF6);
+          poiLabel = poi.discovered ? 'SURVIVAL PORTAL' : 'UNKNOWN SIGNAL';
+          poiDotR = 5.0;
+          canvas
+            ..drawCircle(
+              poiPos,
+              8,
+              _glowPaint(poiColor, poi.discovered ? 0.35 : 0.18, 10),
+            )
+            ..drawCircle(
+              poiPos,
+              poiDotR,
+              Paint()
+                ..color = poiColor.withValues(
+                  alpha: poi.discovered ? 0.8 : 0.4,
+                ),
+            )
+            ..drawCircle(
+              poiPos,
+              7,
+              Paint()
+                ..color = poiColor.withValues(
+                  alpha: poi.discovered ? 0.35 : 0.15,
+                )
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.2,
+            );
+
         default:
           continue;
       }
 
-      if (poi.discovered || !isMarket) {
-        _paintLabel(
-          canvas,
-          poiLabel,
-          poiColor,
-          poi.interacted ? 0.35 : 0.65,
-          poiPos,
-          poiDotR,
-        );
-      } else {
-        _paintLabel(canvas, '?', poiColor, 0.4, poiPos, poiDotR, fontSize: 7);
+      if (showPoiLabels) {
+        if (poi.discovered || !isMarket) {
+          _paintLabel(
+            canvas,
+            poiLabel,
+            poiColor,
+            poi.interacted ? 0.35 : 0.65,
+            poiPos,
+            poiDotR,
+          );
+        } else {
+          _paintLabel(canvas, '?', poiColor, 0.4, poiPos, poiDotR, fontSize: 7);
+        }
       }
     }
 
@@ -2217,7 +2481,9 @@ class _MiniMapPainter extends CustomPainter {
           Paint()..color = const Color(0xFFFFDD00).withValues(alpha: 0.8),
         );
 
-      _paintLabel(canvas, 'PRISMATIC AURORA', pfColor, 0.7, pfPos, pfr);
+      if (showStructureLabels) {
+        _paintLabel(canvas, 'PRISMATIC AURORA', pfColor, 0.7, pfPos, pfr);
+      }
     }
 
     // Elemental Nexus
@@ -2252,7 +2518,9 @@ class _MiniMapPainter extends CustomPainter {
           Paint()..color = dotColors[i].withValues(alpha: 0.8),
         );
       }
-      _paintLabel(canvas, 'ELEMENTAL NEXUS', nexusColor, 0.7, nxPos, 12);
+      if (showStructureLabels) {
+        _paintLabel(canvas, 'ELEMENTAL NEXUS', nexusColor, 0.7, nxPos, 12);
+      }
     }
 
     // Battle Ring
@@ -2267,10 +2535,11 @@ class _MiniMapPainter extends CustomPainter {
       for (var i = 0; i < 8; i++) {
         final a = i * pi / 4 - pi / 8;
         final pt = Offset(brPos.dx + cos(a) * 8, brPos.dy + sin(a) * 8);
-        if (i == 0)
+        if (i == 0) {
           octPath.moveTo(pt.dx, pt.dy);
-        else
+        } else {
           octPath.lineTo(pt.dx, pt.dy);
+        }
       }
       octPath.close();
       canvas
@@ -2287,14 +2556,16 @@ class _MiniMapPainter extends CustomPainter {
           Paint()..color = brColor.withValues(alpha: 0.9),
         );
 
-      _paintLabel(
-        canvas,
-        br.isCompleted ? 'BATTLE ARENA' : 'BATTLE RING',
-        brColor,
-        0.7,
-        brPos,
-        12,
-      );
+      if (showStructureLabels) {
+        _paintLabel(
+          canvas,
+          br.isCompleted ? 'BATTLE ARENA' : 'BATTLE RING',
+          brColor,
+          0.7,
+          brPos,
+          12,
+        );
+      }
     }
 
     // Contest arenas
@@ -2319,18 +2590,31 @@ class _MiniMapPainter extends CustomPainter {
           Paint()..color = aColor.withValues(alpha: 0.92),
         );
 
-      _paintLabel(
-        canvas,
-        '${arena.trait.label.toUpperCase()} CONTEST',
-        aColor,
-        0.78,
-        aPos,
-        12,
-      );
+      if (showContestLabels) {
+        _paintLabel(
+          canvas,
+          '${arena.trait.label.toUpperCase()} CONTEST',
+          aColor,
+          0.78,
+          aPos,
+          12,
+        );
+      }
     }
 
-    // Blood Ring
+    // Blood Ring – subtle red ring hint even before discovery
     final ring = world.bloodRing;
+    if (!ring.discovered) {
+      final ringPos = ring.position * scale;
+      canvas.drawCircle(
+        ringPos,
+        6,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0
+          ..color = const Color(0xFFB71C1C).withValues(alpha: 0.18),
+      );
+    }
     if (ring.discovered) {
       final ringPos = ring.position * scale;
       const ringColor = Color(0xFFFF8A80);
@@ -2351,14 +2635,16 @@ class _MiniMapPainter extends CustomPainter {
           Paint()..color = const Color(0xFFFFCDD2).withValues(alpha: 0.85),
         );
 
-      _paintLabel(
-        canvas,
-        ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING',
-        ringColor,
-        0.7,
-        ringPos,
-        12,
-      );
+      if (showStructureLabels) {
+        _paintLabel(
+          canvas,
+          ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING',
+          ringColor,
+          0.7,
+          ringPos,
+          12,
+        );
+      }
     }
 
     // Ship

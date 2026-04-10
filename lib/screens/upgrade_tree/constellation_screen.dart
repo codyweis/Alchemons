@@ -528,22 +528,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
 
                   return Stack(
                     children: [
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                center: const Alignment(0, -0.35),
-                                radius: 1.05,
-                                colors: [
-                                  theme.primary.withValues(alpha: 0.12),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
                       Positioned.fill(child: GameWidget(game: _game!)),
                       Positioned.fill(
                         child: IgnorePointer(
@@ -653,13 +637,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
         color: _ConstellationPalette.bg1.withValues(alpha: 0.98),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: _ConstellationPalette.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         children: [
@@ -678,7 +655,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'CONSTELLATION ALCHEMY',
+                      'CONSTELLATION',
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: _ConstellationPalette.text,
@@ -809,13 +786,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
         color: _ConstellationPalette.bg1.withValues(alpha: 0.98),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: _ConstellationPalette.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.24),
-            blurRadius: 16,
-            offset: const Offset(0, -2),
-          ),
-        ],
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
@@ -825,17 +795,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
           children: [
             Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: accent.withValues(alpha: 0.35)),
-                  ),
-                  child: Icon(_getTreeIcon(_selectedTree), color: accent),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -868,6 +827,13 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                   icon: Icons.lightbulb_outline_rounded,
                   onTap: () => _showEarnPointsDialog(theme),
                   iconColor: accent,
+                ),
+                const SizedBox(width: 6),
+                _ConstellationIconButton(
+                  theme: theme,
+                  icon: Icons.chat_bubble_outline_rounded,
+                  iconColor: _ConstellationPalette.teal,
+                  onTap: () => _game?.revealAllQuotes(),
                 ),
               ],
             ),
@@ -936,13 +902,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
             color: _ConstellationPalette.bg1,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: _ConstellationPalette.borderSoft),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1341,13 +1300,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                   ? theme.primary.withValues(alpha: 0.35)
                   : _ConstellationPalette.border,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1480,13 +1432,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
             color: _ConstellationPalette.bg1,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: _ConstellationPalette.borderSoft),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1807,24 +1752,9 @@ class _ConstellationTreeButton extends StatelessWidget {
                 : _ConstellationPalette.border,
             width: selected ? 1.2 : 1,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.14),
-                    blurRadius: 12,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 15,
-              color: selected ? accent : _ConstellationPalette.textMuted,
-            ),
-            const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(

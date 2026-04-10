@@ -16,8 +16,17 @@ import 'team_builder_dialog.dart';
 
 class StageHeader extends StatelessWidget {
   final FactionTheme theme;
+  final VoidCallback? onClear;
+  final bool hasActiveFilters;
+  final String teamStorageKey;
 
-  const StageHeader({super.key, required this.theme});
+  const StageHeader({
+    super.key,
+    required this.theme,
+    this.onClear,
+    this.hasActiveFilters = false,
+    required this.teamStorageKey,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +88,8 @@ class StageHeader extends StatelessWidget {
               HapticFeedback.lightImpact();
               await showDialog<void>(
                 context: context,
-                builder: (_) => TeamBuilderDialog(theme: theme),
+                builder: (_) =>
+                    TeamBuilderDialog(theme: theme, storageKey: teamStorageKey),
               );
             },
             child: Container(
@@ -107,6 +117,35 @@ class StageHeader extends StatelessWidget {
               ),
             ),
           ),
+          if (onClear != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                onClear!();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: hasActiveFilters
+                      ? theme.accent.withValues(alpha: 0.16)
+                      : theme.surfaceAlt,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(
+                    color: hasActiveFilters ? theme.accent : theme.border,
+                  ),
+                ),
+                child: Icon(
+                  Icons.close_rounded,
+                  color: hasActiveFilters ? theme.accent : theme.textMuted,
+                  size: 18,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -132,121 +171,107 @@ class PartyFooter extends StatelessWidget {
     final party = context.watch<SelectedPartyNotifier>();
     final db = context.watch<AlchemonsDatabase>();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.surface,
-        border: Border(top: BorderSide(color: theme.border)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Cache all instances once instead of using StreamBuilder
-          FutureBuilder<List<CreatureInstance>>(
-            future: db.creatureDao.getAllInstances(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const SizedBox.shrink();
-              }
+    return FutureBuilder<List<CreatureInstance>>(
+      future: db.creatureDao.getAllInstances(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
 
-              final allInstances = snapshot.data!;
-              final existingIds = allInstances
-                  .map((inst) => inst.instanceId)
-                  .toSet();
+        final allInstances = snapshot.data!;
+        final existingIds = allInstances.map((inst) => inst.instanceId).toSet();
 
-              final rawMembers = party.members;
-              final validMembers = rawMembers
-                  .where((m) => existingIds.contains(m.instanceId))
-                  .toList();
+        final rawMembers = party.members;
+        final validMembers = rawMembers
+            .where((m) => existingIds.contains(m.instanceId))
+            .toList();
 
-              // Prune any ghost members (instances that no longer exist in DB)
-              if (validMembers.length != rawMembers.length) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (context.mounted) {
-                    context.read<SelectedPartyNotifier>().setMembers(
-                      validMembers,
-                    );
-                  }
-                });
-              }
+        // Prune any ghost members (instances that no longer exist in DB)
+        if (validMembers.length != rawMembers.length) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              context.read<SelectedPartyNotifier>().setMembers(validMembers);
+            }
+          });
+        }
 
-              // Map valid members to actual instances
-              final selectedInstances = validMembers
-                  .map(
-                    (m) => allInstances.firstWhere(
-                      (inst) => inst.instanceId == m.instanceId,
-                    ),
-                  )
-                  .toList();
+        // Map valid members to actual instances
+        final selectedInstances = validMembers
+            .map(
+              (m) => allInstances.firstWhere(
+                (inst) => inst.instanceId == m.instanceId,
+              ),
+            )
+            .toList();
 
-              if (selectedInstances.isEmpty) {
-                return const SizedBox.shrink();
-              }
+        if (selectedInstances.isEmpty) {
+          return const SizedBox.shrink();
+        }
 
-              final count = validMembers.length;
-              final canDeploy =
-                  count > 0 && count <= SelectedPartyNotifier.maxSize;
+        final count = validMembers.length;
+        final canDeploy = count > 0 && count <= party.maxSize;
 
-              final stamina = context.read<StaminaService>();
-              final hasZeroStamina = selectedInstances.any((inst) {
-                final state = stamina.computeState(inst);
-                return state.bars == 0;
-              });
+        final stamina = context.read<StaminaService>();
+        final hasZeroStamina = selectedInstances.any((inst) {
+          final state = stamina.computeState(inst);
+          return state.bars == 0;
+        });
 
-              return Column(
-                children: [
-                  TeamDisplay(
-                    theme: theme,
-                    selectedInstances: selectedInstances,
-                  ),
-                  const SizedBox(height: 12),
-
-                  DeployButton(
-                    theme: theme,
-                    enabled: canDeploy,
-                    selectedCount: count,
-                    onTap: canDeploy
-                        ? () async {
-                            bool proceed = true;
-
-                            if (hasZeroStamina) {
-                              final warn = await showDialog<bool>(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (_) =>
-                                    ZeroStaminaWarningDialog(theme: theme),
-                              );
-                              proceed = warn == true;
-                            }
-
-                            if (!proceed) return;
-
-                            if (showDeployConfirm) {
-                              if (!context.mounted) return;
-                              final confirmed = await showDialog<bool>(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (_) =>
-                                    DeployConfirmDialog(theme: theme),
-                              );
-                              if (confirmed != true) return;
-                            }
-
-                            if (context.mounted) {
-                              Navigator.pop(
-                                context,
-                                context.read<SelectedPartyNotifier>().members,
-                              );
-                            }
-                          }
-                        : null,
-                  ),
-                ],
-              );
-            },
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.surface,
+            border: Border(top: BorderSide(color: theme.border)),
           ),
-        ],
-      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TeamDisplay(theme: theme, selectedInstances: selectedInstances),
+              const SizedBox(height: 12),
+
+              DeployButton(
+                theme: theme,
+                enabled: canDeploy,
+                selectedCount: count,
+                onTap: canDeploy
+                    ? () async {
+                        bool proceed = true;
+
+                        if (hasZeroStamina) {
+                          final warn = await showDialog<bool>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) =>
+                                ZeroStaminaWarningDialog(theme: theme),
+                          );
+                          proceed = warn == true;
+                        }
+
+                        if (!proceed) return;
+
+                        if (showDeployConfirm) {
+                          if (!context.mounted) return;
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => DeployConfirmDialog(theme: theme),
+                          );
+                          if (confirmed != true) return;
+                        }
+
+                        if (context.mounted) {
+                          Navigator.pop(
+                            context,
+                            context.read<SelectedPartyNotifier>().members,
+                          );
+                        }
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -307,7 +332,7 @@ class TeamDisplay extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  '${selectedInstances.length} / ${SelectedPartyNotifier.maxSize}',
+                  '${selectedInstances.length} / ${context.read<SelectedPartyNotifier>().maxSize}',
                   style: TextStyle(
                     color: Colors.greenAccent.shade400,
                     fontSize: 10,
@@ -319,26 +344,29 @@ class TeamDisplay extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Row(
-            children: List.generate(SelectedPartyNotifier.maxSize, (i) {
-              final inst = i < selectedInstances.length
-                  ? selectedInstances[i]
-                  : null;
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
-                  child: inst == null
-                      ? TeamSlotEmpty(theme: theme)
-                      : TeamSlotFilled(
-                          instance: inst,
-                          theme: theme,
-                          repo: repo,
-                          onRemove: () => context
-                              .read<SelectedPartyNotifier>()
-                              .toggle(inst.instanceId),
-                        ),
-                ),
-              );
-            }),
+            children: List.generate(
+              context.read<SelectedPartyNotifier>().maxSize,
+              (i) {
+                final inst = i < selectedInstances.length
+                    ? selectedInstances[i]
+                    : null;
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
+                    child: inst == null
+                        ? TeamSlotEmpty(theme: theme)
+                        : TeamSlotFilled(
+                            instance: inst,
+                            theme: theme,
+                            repo: repo,
+                            onRemove: () => context
+                                .read<SelectedPartyNotifier>()
+                                .toggle(inst.instanceId),
+                          ),
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),

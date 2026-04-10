@@ -16,6 +16,7 @@ import 'package:alchemons/screens/shop/shop_widgets.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -349,12 +350,12 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text('Cancel'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: _accent),
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Buy'),
+              child: Text('Buy'),
             ),
           ],
         );
@@ -380,7 +381,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Not enough resources'),
+          content: Text('Not enough resources'),
           backgroundColor: Colors.red.shade700,
           duration: const Duration(seconds: 2),
         ),
@@ -495,7 +496,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                   Text(
                     _title,
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: appFontFamily(context),
                       color: t.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,

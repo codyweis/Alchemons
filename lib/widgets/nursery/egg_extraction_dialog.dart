@@ -322,7 +322,9 @@ class _ParticleBanner extends StatelessWidget {
     particleCount = (particleCount * qualityMultiplier).round().clamp(0, 64);
 
     final showParticles =
-        TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
+        TickerMode.valuesOf(context).enabled &&
+        !media.disableAnimations &&
+        particleCount > 0;
 
     return SizedBox(
       height: 190,

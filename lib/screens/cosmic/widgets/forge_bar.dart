@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'cosmic_screen_styles.dart';
 
 class ForgeBar extends StatelessWidget {
@@ -23,8 +24,8 @@ class ForgeBar extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
-                fontFamily: 'monospace',
+              style: TextStyle(
+                fontFamily: appFontFamily(context),
                 color: CosmicScreenStyles.textSecondary,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
@@ -35,7 +36,7 @@ class ForgeBar extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: appFontFamily(context),
                 color: barColor,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,

@@ -1,7 +1,8 @@
+// ignore_for_file: unused_element
+
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/survival/special_attacks/ability_config.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
-import 'package:alchemons/widgets/survival_specs_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -53,7 +54,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
     final battleBasicMove = BattleMove.getBasicMove(unit.family);
 
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Column(
         children: [
           Container(
@@ -80,9 +81,8 @@ class ImprovedBattleScrollArea extends StatelessWidget {
                 border: Border.all(color: fc.borderAccent),
               ),
               tabs: const [
-                Tab(text: 'EXPLORE'),
+                Tab(text: 'COSMIC'),
                 Tab(text: 'BOSS'),
-                Tab(text: 'SURVIVAL'),
               ],
             ),
           ),
@@ -91,44 +91,8 @@ class ImprovedBattleScrollArea extends StatelessWidget {
               children: [
                 _buildExploreTab(unit, fc),
                 _buildBossTab(bossProfile, battleBasicMove, battleSpecialMove),
-                _buildSurvivalTab(unit, fc),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSurvivalTab(SurvivalUnit unit, FC fc) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _BattleSection(
-            title: 'Survival Metrics',
-            color: fc.amber,
-            child: SurvivalSpecsWidget(creature: creature, instance: instance),
-          ),
-          const SizedBox(height: 20),
-          _BattleSection(
-            title: 'Basic Attack',
-            color: fc.amber,
-            child: _DynamicBasicAttackCard(unit: unit),
-          ),
-          const SizedBox(height: 20),
-          _BattleSection(
-            title: 'Special Ability',
-            color: fc.amber,
-            child: _DynamicSpecialAbilityCard(unit: unit),
-          ),
-          const SizedBox(height: 20),
-          _BattleSection(
-            title: 'Stat Effects',
-            color: fc.amber,
-            child: const _StatEffectsCard(),
           ),
         ],
       ),
@@ -194,6 +158,12 @@ class ImprovedBattleScrollArea extends StatelessWidget {
             title: 'Special Attack',
             color: fc.amber,
             child: _exploreSpecialCard(family, element, fc, ft),
+          ),
+          const SizedBox(height: 20),
+          _BattleSection(
+            title: 'Cosmic Survival',
+            color: fc.amber,
+            child: _buildExploreSurvivalCard(family, element, fc),
           ),
           const SizedBox(height: 20),
           _BattleSection(
@@ -443,8 +413,8 @@ class ImprovedBattleScrollArea extends StatelessWidget {
           title: 'Artillery Bomber',
           description:
               'Lets fight like bombardiers. They stay back, lob heavy shots, '
-              'and drop meteor-style specials with impact zones, fragments, '
-              'and strong elemental follow-up effects.',
+              'and drop meteor-style specials with huge impact bursts, '
+              'fragments, and strong elemental follow-through pressure.',
         );
       case 'Pip':
         return const _CosmicFamilyRole(
@@ -466,9 +436,9 @@ class ImprovedBattleScrollArea extends StatelessWidget {
         return const _CosmicFamilyRole(
           title: 'Guardian Support',
           description:
-              'Kins are sustain guardians. Their specials heal, bless, and '
-              'deploy element-shaped guardian constructs such as ship wards, '
-              'escort sentries, snares, hunters, and other persistent support '
+              'Kins are guardian supports. Their specials heal, bless, and '
+              'deploy element-shaped constructs such as ship wards, escort '
+              'sentries, snares, peel veils, interceptors, and other support '
               'tools instead of one generic orbital move.',
         );
       case 'Mystic':
@@ -477,8 +447,8 @@ class ImprovedBattleScrollArea extends StatelessWidget {
           description:
               'Mystics are single-slot guardian power picks. Their specials '
               'are intentionally slower and much more powerful, with each '
-              'element behaving like a distinct ultimate rather than a generic '
-              'orbital burst.',
+              'element behaving like a distinct showpiece ultimate rather than '
+              'a generic orbital burst.',
         );
       case 'Mask':
         return const _CosmicFamilyRole(
@@ -533,6 +503,69 @@ class _BattleSection extends StatelessWidget {
       ],
     );
   }
+}
+
+Widget _buildExploreSurvivalCard(String family, String element, FC fc) {
+  final notes = _cosmicSurvivalNotes(family, element);
+  final accent = _survivalAccentColor(element);
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: fc.bg3,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: accent.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.blur_circular_rounded, size: 16, color: accent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                notes.summary,
+                style: TextStyle(
+                  color: fc.textPrimary,
+                  fontSize: 11,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      if (notes.bullets.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        for (final bullet in notes.bullets) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Icon(Icons.circle, size: 5, color: accent),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  bullet,
+                  style: TextStyle(
+                    color: fc.textSecondary,
+                    fontSize: 10.5,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (bullet != notes.bullets.last) const SizedBox(height: 8),
+        ],
+      ],
+    ],
+  );
 }
 
 class _BossCombatProfileCard extends StatelessWidget {
@@ -601,7 +634,11 @@ class _BossCombatProfileCard extends StatelessWidget {
           fc,
         ),
         const SizedBox(height: 6),
-        _moveLine('CD / Basic', '$specialRecoveryPerBasic turn(s) recovered', fc),
+        _moveLine(
+          'CD / Basic',
+          '$specialRecoveryPerBasic turn(s) recovered',
+          fc,
+        ),
         const SizedBox(height: 6),
         _moveLine('Special Unlock', 'Level 5', fc),
         const SizedBox(height: 4),
@@ -658,7 +695,8 @@ class _BossCombatProfileCard extends StatelessWidget {
               _scalingRow(
                 stat: 'BEAUTY',
                 title: 'Elemental Defense',
-                effect: 'Raises elemental defense and adds to physical defense.',
+                effect:
+                    'Raises elemental defense and adds to physical defense.',
                 fc: fc,
               ),
               const SizedBox(height: 6),
@@ -1446,6 +1484,222 @@ class _CosmicFamilyRole {
   const _CosmicFamilyRole({required this.title, required this.description});
 }
 
+class _CosmicSurvivalNotes {
+  final String summary;
+  final List<String> bullets;
+
+  const _CosmicSurvivalNotes({required this.summary, required this.bullets});
+}
+
+_CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
+  final normalizedFamily = family.trim();
+  final normalizedElement = element.trim();
+
+  final bullets = <String>[];
+
+  switch (normalizedFamily) {
+    case 'Horn':
+      bullets.addAll([
+        'Horns are the bruiser family in survival: they push forward, intercept orb threats, and fight closer than most companions.',
+        'Shield-heavy Horn variants buy time for the whole defense line and are best when lanes are collapsing into the orb.',
+      ]);
+      if ([
+        'Earth',
+        'Lava',
+        'Mud',
+        'Blood',
+        'Ice',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Horn leans especially hard into anchor duty with heavier body-blocking, sturdier pressure, or longer frontline presence.',
+        );
+      }
+      return _CosmicSurvivalNotes(
+        summary:
+            'Horn plays as an aggressive tank in cosmic survival: it wants to stand in front of danger, absorb pressure, and crash into priority threats.',
+        bullets: bullets,
+      );
+    case 'Wing':
+      bullets.addAll([
+        'Wings are mobile hunters: they chase shooters, peel hunters, and keep moving instead of holding a static line.',
+        'They are strongest when you need pursuit, cleanup, or boss pressure rather than pure orb anchoring.',
+      ]);
+      if (['Spirit', 'Air', 'Lightning', 'Light'].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Wing is one of the cleaner pursuit variants, so it excels at finishing scattered enemies before they rejoin the wave.',
+        );
+      }
+      return _CosmicSurvivalNotes(
+        summary:
+            'Wing is a skirmisher in survival. It wins by flying at vulnerable targets, re-angling constantly, and preventing backline enemies from getting comfortable.',
+        bullets: bullets,
+      );
+    case 'Let':
+      bullets.addAll([
+        'Lets are siege companions: they commit to lanes, fire from safer distance, and do not want to brawl on top of enemies.',
+        'Their best moments come from controlling approach paths with meteors, wells, walls, or other heavy follow-through pieces.',
+      ]);
+      if (['Dark', 'Mud', 'Steam', 'Poison'].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Let is especially control-oriented, so it shines when enemies are funneled through one lane and forced to sit in the setup.',
+        );
+      }
+      return _CosmicSurvivalNotes(
+        summary:
+            'Let behaves like artillery in survival: slower to reposition, heavier on commitment, and best when it can lock down a lane instead of dueling up close.',
+        bullets: bullets,
+      );
+    case 'Pip':
+      bullets.addAll([
+        'Pips are cleanup assassins: they dart after weak or spread-out enemies and keep pressure high between larger specials.',
+        'They are valuable for removing messy leftovers so bulkier allies can stay on important threats.',
+      ]);
+      if ([
+        'Lightning',
+        'Air',
+        'Crystal',
+        'Light',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Pip is one of the better ricochet or rebound variants, so it gets extra value when waves arrive in clumps or staggered packs.',
+        );
+      }
+      return _CosmicSurvivalNotes(
+        summary:
+            'Pip is a fast skirmish finisher in survival. It should feel surgical, opportunistic, and better at picks than at holding the center.',
+        bullets: bullets,
+      );
+    case 'Mane':
+      bullets.addAll([
+        'Manes are tempo brawlers: they step up, unload a barrage window, then keep the lane under pressure with fast follow-ups.',
+        'They are better at forward suppression than at hard defense, so they feel best when your team already has some frontline stability.',
+      ]);
+      if (['Poison', 'Fire', 'Lightning', 'Dust'].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Mane emphasizes tempo and barrage volume, which makes it especially good at keeping regular waves from rebuilding momentum.',
+        );
+      }
+      return _CosmicSurvivalNotes(
+        summary:
+            'Mane is an offense-first pressure family in survival. It wins by keeping targets under constant frontal tempo instead of by anchoring or escorting.',
+        bullets: bullets,
+      );
+    case 'Kin':
+      bullets.addAll([
+        'Kins are support escorts: they hold a safer distance, keep guardian pieces active, and stabilize the defense line instead of overcommitting.',
+        'They are at their best when their orbitals, blessings, intercepts, or support zones stay online long enough to shape the fight.',
+      ]);
+      if (['Light', 'Water', 'Crystal'].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Kin is one of the cleanest pure-support variants, with stronger escort, reinforcement, or interception value than most families get.',
+        );
+      } else if ([
+        'Steam',
+        'Mud',
+        'Earth',
+        'Plant',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Kin leans more into forward control pieces, so it plays like a support-artillery hybrid instead of a pure healer.',
+        );
+      }
+      return _CosmicSurvivalNotes(
+        summary:
+            'Kin is the dedicated support family in survival. It creates safer space through healing, blessing, escort orbitals, and control pieces rather than raw burst.',
+        bullets: bullets,
+      );
+    case 'Mystic':
+      bullets.addAll([
+        'Mystics are high-impact control casters: they place major battlefield pieces and care more about cast quality than constant uptime.',
+        'They are strongest when the fight gives them time to establish orbitals, control zones, sentinels, or trap patterns.',
+      ]);
+      if ([
+        'Steam',
+        'Dark',
+        'Earth',
+        'Poison',
+        'Light',
+        'Air',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Mystic is especially survival-relevant because it creates defensive orbitals, interception, taunt control, or long-lived denial space.',
+        );
+      } else if (normalizedElement == 'Blood') {
+        bullets.add(
+          'Blood Mystic adds sustain on top of its control pattern, making it one of the safest long-run mystic picks.',
+        );
+      }
+      return _CosmicSurvivalNotes(
+        summary:
+            'Mystic is the premium control family in survival. It should feel deliberate, setup-heavy, and capable of reshaping the battlefield with one special.',
+        bullets: bullets,
+      );
+    case 'Mask':
+      bullets.addAll([
+        'Masks are battlefield manipulators: they lure, misdirect, snare, and punish enemies for choosing the wrong path.',
+        'They are best in normal waves where aggro control and trap placement can peel pressure off the orb before the line breaks.',
+      ]);
+      if ([
+        'Mud',
+        'Dark',
+        'Steam',
+        'Poison',
+        'Earth',
+        'Light',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Mask is one of the stronger trap-control variants, so it gets most of its value from where it places pressure rather than from direct burst.',
+        );
+      }
+      return _CosmicSurvivalNotes(
+        summary:
+            'Mask is the trickster-control family in survival. It protects the orb by manipulating enemy movement, not by winning a straight damage race.',
+        bullets: bullets,
+      );
+  }
+
+  return _CosmicSurvivalNotes(
+    summary:
+        '$normalizedFamily has a distinct survival role, but its value still depends on whether this $normalizedElement variant leans toward pressure, control, support, or sustain.',
+    bullets: [
+      '$normalizedElement changes how the family delivers its role, not just the color of the projectiles.',
+      'In survival, the best picks are the ones whose movement and special pattern solve a specific problem for the team.',
+    ],
+  );
+}
+
+Color _survivalAccentColor(String element) {
+  switch (element) {
+    case 'Fire':
+    case 'Lava':
+      return Colors.deepOrange;
+    case 'Water':
+    case 'Ice':
+    case 'Steam':
+      return Colors.blueAccent;
+    case 'Earth':
+    case 'Mud':
+    case 'Crystal':
+      return Colors.teal;
+    case 'Air':
+    case 'Dust':
+    case 'Lightning':
+      return Colors.cyan;
+    case 'Plant':
+    case 'Poison':
+      return Colors.green;
+    case 'Spirit':
+    case 'Dark':
+      return Colors.deepPurpleAccent;
+    case 'Light':
+      return const Color(0xFFF4B860);
+    case 'Blood':
+      return const Color(0xFFE05A5A);
+    default:
+      return const Color(0xFF9FB3C8);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // COSMIC BASIC ATTACK INFO (per family)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1586,21 +1840,14 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         tags: ['SHIELD', 'CHARGE', 'NOVA', element.toUpperCase()],
       );
     case 'Wing':
-      final hasTrail = [
-        'Poison',
-        'Lava',
-        'Fire',
-        'Mud',
-        'Steam',
-        'Plant',
-      ].contains(element);
+      final hasTrail = ['Lava', 'Fire', 'Plant'].contains(element);
       return _CosmicSpecialInfo(
         subtitle: 'Piercing Beam • Beauty × 2 • Long-range line attack',
         description:
             'Fires a powerful $element beam that pierces through all enemies in its path. '
             '${hasTrail ? 'Leaves a lingering $element damage trail behind the beam. ' : ''}'
-            'Element determines secondary projectiles — chains, refractions, '
-            'or scatter effects.',
+            'Element determines secondary follow-through — chains, refractions, '
+            'hunters, or scatter effects.',
         icon: Icons.arrow_forward,
         tags: [
           'PIERCING',
@@ -1621,13 +1868,13 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       return _CosmicSpecialInfo(
         subtitle: 'Meteor Strike • Beauty × 2 • Heavy artillery cooldown',
         description:
-            'Drops a massive $element meteor on the target with a large impact area. '
+            'Drops a massive $element meteor on the target with a large impact burst. '
             '${hasCluster ? 'The meteor fragments mid-flight, splitting into sub-projectiles. ' : ''}'
-            'Element determines follow-up effects like fragments, lingering zones, chain bursts, or impact hazards.',
+            'Element determines the follow-through, such as shard fans, guided finishers, chain bursts, rupture lines, or other post-impact pressure.',
         icon: Icons.south,
         tags: [
           'METEOR',
-          'AOE',
+          'IMPACT',
           'HEAVY',
           if (hasCluster) 'CLUSTER',
           element.toUpperCase(),
@@ -1663,8 +1910,8 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         subtitle: 'Barrage Volley • Beauty × 2 • Forward suppression burst',
         description:
             'Unloads a dense forward $element barrage meant to suppress what is '
-            'in front of the Mane. Element changes spread, bolt weight, and '
-            'volume, but the move stays focused on frontal pressure.',
+            'in front of the Mane. Element changes spread, bolt weight, tempo, '
+            'and follow-through, but the move stays focused on frontal pressure.',
         icon: Icons.waves,
         tags: ['BARRAGE', 'SUPPRESSION', element.toUpperCase()],
       );
@@ -1684,18 +1931,19 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       return _CosmicSpecialInfo(
         subtitle: isDecoy
             ? 'Decoy Totem • Beauty × 2 • Control setup'
-            : 'Mine Field • Beauty × 2 • Control setup',
+            : 'Seeker Swarm • Beauty × 2 • Control setup',
         description: isDecoy
             ? 'Deploys $element decoy totems that taunt nearby enemies. Enemies '
                   'attack the decoy instead of you. When destroyed, the decoy '
                   'explodes into a ring of damaging projectiles.'
-            : 'Deploys $element control traps and seekers that deny space and '
-                  'pull enemy movement into prepared zones instead of relying on raw burst.',
+            : 'Deploys $element seekers and control pieces that redirect enemy '
+                  'movement, create pressure windows, and support the family\'s '
+                  'bait-and-punish style instead of relying on raw burst.',
         icon: isDecoy ? Icons.sports_kabaddi : Icons.warning_amber,
         tags: [
-          isDecoy ? 'DECOY' : 'MINES',
-          isDecoy ? 'TAUNT' : 'STATIONARY',
-          isDecoy ? 'EXPLODES' : 'AREA DENIAL',
+          isDecoy ? 'DECOY' : 'SEEKERS',
+          isDecoy ? 'TAUNT' : 'CONTROL',
+          isDecoy ? 'EXPLODES' : 'REDIRECT',
           element.toUpperCase(),
         ],
       );
@@ -1705,22 +1953,161 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         description:
             'Heals self, applies a blessing-over-time, and deploys a $element '
             'guardian pattern. Depending on the element, the constructs may '
-            'escort the ship, intercept threats, set snares, stalk targets, '
-            'or establish control zones before expiring.',
+            'escort the ship, intercept threats, mend ship health, peel melee '
+            'pressure, stalk targets, or establish control zones before expiring.',
         icon: Icons.favorite,
         tags: ['HEAL', 'ORBITAL', 'BLESSING', element.toUpperCase()],
       );
     case 'Mystic':
+      final (subtitle, desc, tags) = switch (element) {
+        'Fire' => (
+          'Supernova Collapse • Beauty scales count • Long cooldown',
+          'Erupts an expanding ring of fire orbs that orbit outward, then '
+              'collapse inward with aggressive homing. A massive core orb '
+              'detonates at the center, splitting into cluster fragments. '
+              'Higher Beauty spawns more ring orbs for a bigger supernova.',
+          ['BURST', 'CLUSTER', 'HOMING'],
+        ),
+        'Lava' => (
+          'Cataclysm Moons • Strength scales count • Long cooldown',
+          'Launches massive slow-moving piercing boulders that plow through '
+              'everything in their path, leaving damaging lava trails and '
+              'splitting into cluster detonations on impact. '
+              'Higher Strength spawns more boulders.',
+          ['PIERCING', 'TRAIL', 'CLUSTER'],
+        ),
+        'Lightning' => (
+          'Storm Lattice • Intelligence scales count • Long cooldown',
+          'Fires a fan of rapid zigzag bolts with extreme bounce counts that '
+              'chain through groups of enemies. Short-lived but fills the '
+              'screen with arcing electricity. '
+              'Higher Intelligence spawns more bolts.',
+          ['BOUNCE', 'CHAIN', 'HOMING'],
+        ),
+        'Water' => (
+          'Tidal Crescent • Beauty scales count • Long cooldown',
+          'Sweeps two crescent waves from both flanks that converge on the '
+              'target in a pincer formation. Each wave projectile homes in and '
+              'leaves trailing water damage. '
+              'Higher Beauty adds more projectiles per wave.',
+          ['HOMING', 'TRAIL', 'PINCER'],
+        ),
+        'Ice' => (
+          'Glacier Crown • Intelligence scales count • Long cooldown',
+          'Forms a crown of ice pillars orbiting the caster as a defensive '
+              'barrier for 2 seconds, then launches them outward as piercing '
+              'lances that split into frost clusters. '
+              'Higher Intelligence adds more pillars.',
+          ['PIERCING', 'CLUSTER', 'BARRIER'],
+        ),
+        'Steam' => (
+          'Whiteout Veil • Intelligence scales count • Long cooldown',
+          'Deploys a fog zone of stationary snare clouds that massively slow '
+              'enemies, plus turret orbs that orbit inside the fog and fire '
+              'homing shots. Area denial + sustained damage. '
+              'Higher Intelligence adds more fog nodes and turrets.',
+          ['SNARE', 'TURRET', 'AREA DENIAL'],
+        ),
+        'Earth' => (
+          'Monolith Constellation • Strength scales count • Long cooldown',
+          'Summons massive orbiting stone decoy pillars that taunt enemies '
+              'away from you. When destroyed, each pillar explodes into a ring '
+              'of shrapnel. A defensive powerhouse. '
+              'Higher Strength summons more pillars.',
+          ['DECOY', 'TAUNT', 'EXPLODES'],
+        ),
+        'Mud' => (
+          'Mire Eclipse • Strength scales count • Long cooldown',
+          'Creates a massive stationary snare zone at the target, then '
+              'launches heavy homing mud slugs that pierce through enemies and '
+              'leave persistent slowing trails. Locks down an area. '
+              'Higher Strength sends more slugs.',
+          ['SNARE', 'PIERCING', 'TRAIL'],
+        ),
+        'Dust' => (
+          'Sirocco Halo • Beauty scales count • Long cooldown',
+          'Unleashes a golden spiral swarm of tiny fast projectiles that '
+              'bounce between enemies. Death by a thousand cuts — clears out '
+              'groups of smaller enemies. '
+              'Higher Beauty spawns a denser swarm.',
+          ['SWARM', 'BOUNCE', 'HOMING'],
+        ),
+        'Crystal' => (
+          'Prism Cathedral • Beauty scales count • Long cooldown',
+          'Fires prismatic shards that pierce, bounce between enemies, and '
+              'split into cluster fragments on each hit — creating chain '
+              'reaction explosions that multiply through groups. '
+              'Higher Beauty launches more shards.',
+          ['PIERCING', 'BOUNCE', 'CLUSTER'],
+        ),
+        'Air' => (
+          'Cyclone Halo • Intelligence scales count • Long cooldown',
+          'Deploys a ship-following orbital ring of interceptor orbs that '
+              'block enemy projectiles AND deal damage on contact. A defensive '
+              'and offensive shield that moves with you. '
+              'Higher Intelligence adds more interceptors.',
+          ['INTERCEPT', 'ORBITAL', 'DEFENSE'],
+        ),
+        'Plant' => (
+          'Verdant Procession • Strength scales count • Long cooldown',
+          'Plants a line of vine turrets toward the target. Each turret fires '
+              'homing thorns for the duration, creating a sustained DPS lane. '
+              'Higher Strength plants more turrets.',
+          ['TURRET', 'HOMING', 'SUSTAINED'],
+        ),
+        'Poison' => (
+          'Venom Halo • Intelligence scales count • Long cooldown',
+          'Deploys orbiting poison clouds that follow your ship, snaring '
+              'enemies that pass through and leaving persistent toxic trails. '
+              'An area denial ring that poisons everything nearby. '
+              'Higher Intelligence adds more clouds.',
+          ['SNARE', 'TRAIL', 'AREA DENIAL'],
+        ),
+        'Spirit' => (
+          'Wraith Chorus • Intelligence scales count • Long cooldown',
+          'Launches piercing ghost bolts with extreme homing that '
+              'relentlessly chase targets through any obstacle, leaving '
+              'spectral trails. Pure single-target hunter DPS. '
+              'Higher Intelligence sends more wraiths.',
+          ['PIERCING', 'HOMING', 'HUNTER'],
+        ),
+        'Dark' => (
+          'Eclipse Procession • Strength scales count • Long cooldown',
+          'Places stationary void wells that taunt enemies inward like '
+              'gravitational traps, snare them in place, then detonate in '
+              'massive cluster explosions. '
+              'Higher Strength places more void wells.',
+          ['TAUNT', 'SNARE', 'CLUSTER'],
+        ),
+        'Light' => (
+          'Radiant Crown • Beauty scales count • Long cooldown',
+          'Deploys ship-orbiting turret sentinels that auto-fire homing '
+              'light bolts AND intercept incoming enemy projectiles. The '
+              'ultimate defense + offense orbital. '
+              'Higher Beauty adds more sentinels.',
+          ['TURRET', 'INTERCEPT', 'ORBITAL'],
+        ),
+        'Blood' => (
+          'Crimson Coronation • Strength scales count • Long cooldown',
+          'Launches heavy homing blood orbs that split into clusters and '
+              'leave crimson trails, while granting a massive self-heal and a '
+              'blessing aura. Life-steal fantasy. '
+              'Higher Strength launches more orbs.',
+          ['HOMING', 'HEAL', 'BLESSING'],
+        ),
+        _ => (
+          'Guardian Ultimate • Long cooldown',
+          'Calls a $element guardian ultimate built for single-slot impact. '
+              'Mystic specials stage in orbit first, then resolve into '
+              'elemental signatures.',
+          <String>['GUARDIAN', 'ULTIMATE'],
+        ),
+      };
       return _CosmicSpecialInfo(
-        subtitle: 'Guardian Ultimate • Beauty × 2 • Long cooldown',
-        description:
-            'Calls a $element guardian attack built around long-cooldown power. '
-            'Mystic specials stage in orbit first, then break into premium '
-            'element-specific patterns such as mirrored crescents, splits, '
-            'fragments, rebounds, residue trails, or heavy hunter cores. Each '
-            'element is meant to feel like its own ultimate, not just a recolored orbital.',
+        subtitle: subtitle,
+        description: desc,
         icon: Icons.auto_awesome,
-        tags: ['GUARDIAN', 'ULTIMATE', 'LONG CD', element.toUpperCase()],
+        tags: [...tags, 'LONG CD', element.toUpperCase()],
       );
     default:
       return const _CosmicSpecialInfo(

@@ -158,10 +158,12 @@ class _MiniCirclePainter extends CustomPainter {
       final isMarket =
           poi.type == POIType.harvesterMarket ||
           poi.type == POIType.riftKeyMarket ||
-          poi.type == POIType.cosmicMarket;
+          poi.type == POIType.cosmicMarket ||
+          poi.type == POIType.goldConversion;
       final p = toMini(poi.position);
+      final isSurvivalPortal = poi.type == POIType.survivalPortal;
       final scannerNearby = isScanner && (p - center).distance <= viewR * 0.9;
-      if (!poi.discovered && !isMarket && !scannerNearby) continue;
+      if (!poi.discovered && !isMarket && !scannerNearby && !isSurvivalPortal) continue;
       if ((p - center).distance > viewR + 8) continue;
 
       Color c;
@@ -187,11 +189,17 @@ class _MiniCirclePainter extends CustomPainter {
         case POIType.cosmicMarket:
           c = const Color(0xFF00E5FF);
           break;
+        case POIType.goldConversion:
+          c = const Color(0xFFFFD740);
+          break;
         case POIType.stardustScanner:
           c = const Color(0xFF9CCC65);
           break;
         case POIType.planetScanner:
           c = const Color(0xFF64B5F6);
+          break;
+        case POIType.survivalPortal:
+          c = const Color(0xFF8B5CF6);
           break;
       }
       final r = isScanner ? 3.0 : (isMarket ? 2.6 : 2.1);

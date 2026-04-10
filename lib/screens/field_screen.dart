@@ -2,9 +2,7 @@
 import 'dart:math' as math;
 import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/extraction_hub_screen.dart';
-import 'package:alchemons/screens/harvest_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
-import 'package:alchemons/screens/harvest_screen.dart' show BiomeHarvestScreen;
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/game_card.dart';
 import 'package:flutter/cupertino.dart';

@@ -676,6 +676,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
       InvKeys.alchemySpeedFlux => 'speed_flux',
       InvKeys.alchemyStrengthForge => 'strength_forge',
       InvKeys.alchemyIntelligenceHalo => 'intelligence_halo',
+      InvKeys.alchemyBloodAura => 'blood_aura',
       _ => null,
     };
 

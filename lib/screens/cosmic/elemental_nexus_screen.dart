@@ -25,6 +25,7 @@ import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -282,7 +283,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
                           Text(
                             'GUARANTEE HARVESTER FOUND',
                             style: TextStyle(
-                              fontFamily: 'monospace',
+                              fontFamily: appFontFamily(context),
                               color: Colors.amber.withValues(
                                 alpha: textOpacity,
                               ),
@@ -303,7 +304,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
                           Text(
                             '+1 added to inventory',
                             style: TextStyle(
-                              fontFamily: 'monospace',
+                              fontFamily: appFontFamily(context),
                               color: Colors.white54.withValues(
                                 alpha: textOpacity * 0.8,
                               ),
@@ -433,13 +434,13 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
                       final t = _portalRevealCtrl.value;
                       return Opacity(
                         opacity: t.clamp(0.0, 1.0),
-                        child: const Column(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'ELEMENTAL NEXUS',
                               style: TextStyle(
-                                fontFamily: 'monospace',
+                                fontFamily: appFontFamily(context),
                                 color: Colors.white38,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
@@ -449,7 +450,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
                             Text(
                               'CHOOSE YOUR PATH',
                               style: TextStyle(
-                                fontFamily: 'monospace',
+                                fontFamily: appFontFamily(context),
                                 color: Colors.white70,
                                 fontSize: 18,
                                 fontWeight: FontWeight.w900,
@@ -609,7 +610,7 @@ class _PortalButton extends StatelessWidget {
                 Text(
                   def.element.toUpperCase(),
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: def.color,
                     fontSize: 14,
                     fontWeight: FontWeight.w900,

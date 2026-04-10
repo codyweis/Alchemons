@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'cosmic_screen_styles.dart';
 
@@ -116,10 +117,10 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                const Text(
+                                Text(
                                   'HOME BASE',
                                   style: TextStyle(
-                                    fontFamily: 'monospace',
+                                    fontFamily: appFontFamily(context),
                                     color: CosmicScreenStyles.textPrimary,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -136,6 +137,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
 
                             // ── Planet Composition ──
                             _forgeSection(
+                              context,
                               'PLANET',
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,8 +161,8 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                       const SizedBox(width: 8),
                                       Text(
                                         '${_fmt(totalDeposited)} ELEMENTS',
-                                        style: const TextStyle(
-                                          fontFamily: 'monospace',
+                                        style: TextStyle(
+                                          fontFamily: appFontFamily(context),
                                           color:
                                               CosmicScreenStyles.textSecondary,
                                           fontSize: 10,
@@ -205,10 +207,10 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                   if (sortedMix.isEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 6),
-                                      child: const Text(
+                                      child: Text(
                                         'Deposit elements to change your planet color.',
                                         style: TextStyle(
-                                          fontFamily: 'monospace',
+                                          fontFamily: appFontFamily(context),
                                           color: CosmicScreenStyles.textMuted,
                                           fontSize: 10,
                                           fontStyle: FontStyle.italic,
@@ -223,15 +225,16 @@ class HomePlanetMenuOverlay extends StatelessWidget {
 
                             // ── Element Storage ──
                             _forgeSection(
+                              context,
                               'ELEMENT STORAGE',
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (storageEntries.isEmpty)
-                                    const Text(
+                                    Text(
                                       'No elements stored yet.',
                                       style: TextStyle(
-                                        fontFamily: 'monospace',
+                                        fontFamily: appFontFamily(context),
                                         color: CosmicScreenStyles.textMuted,
                                         fontSize: 10,
                                         fontStyle: FontStyle.italic,
@@ -263,7 +266,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                           child: Text(
                                             '${e.key} ${_fmt(e.value)}',
                                             style: TextStyle(
-                                              fontFamily: 'monospace',
+                                              fontFamily: appFontFamily(context),
                                               color: ec,
                                               fontSize: 9,
                                               fontWeight: FontWeight.w800,
@@ -281,10 +284,12 @@ class HomePlanetMenuOverlay extends StatelessWidget {
 
                             // ── Actions ──
                             _forgeSection(
+                              context,
                               'ACTIONS',
                               Column(
                                 children: [
                                   _homeAction(
+                                    context: context,
                                     icon: Icons.auto_awesome,
                                     label: 'CUSTOMIZE',
                                     onTap: onCustomize,
@@ -292,6 +297,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 8),
                                   _homeAction(
+                                    context: context,
                                     icon: Icons.shield,
                                     label: 'GARRISON',
                                     onTap: onGarrison,
@@ -317,10 +323,10 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                   ),
                                 ),
                                 alignment: Alignment.center,
-                                child: const Text(
+                                child: Text(
                                   'CLOSE',
                                   style: TextStyle(
-                                    fontFamily: 'monospace',
+                                    fontFamily: appFontFamily(context),
                                     color: CosmicScreenStyles.textSecondary,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
@@ -344,7 +350,12 @@ class HomePlanetMenuOverlay extends StatelessWidget {
   }
 
   // ── Forge section with header bar ──
-  Widget _forgeSection(String title, Widget child, {Color? accent}) {
+  Widget _forgeSection(
+    BuildContext context,
+    String title,
+    Widget child, {
+    Color? accent,
+  }) {
     final a = accent ?? CosmicScreenStyles.amber;
     return Container(
       decoration: BoxDecoration(
@@ -375,7 +386,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: a,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
@@ -393,6 +404,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
 
   // ── Forge action button ──
   Widget _homeAction({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
@@ -436,7 +448,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: appFontFamily(context),
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.6,

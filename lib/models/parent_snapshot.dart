@@ -87,6 +87,10 @@ class ParentSnapshot {
     }
 
     final nativeFaction = elementalGroupNameOf(base);
+    final variantFaction = switch (inst.variantFaction?.trim().toLowerCase()) {
+      'bloodborn' => null,
+      _ => inst.variantFaction,
+    };
 
     return ParentSnapshot(
       instanceId: inst.instanceId,
@@ -116,7 +120,7 @@ class ParentSnapshot {
       generationDepth: inst.generationDepth,
       factionLineage: decodeLineage(inst.factionLineageJson),
       nativeFaction: nativeFaction,
-      variantFaction: inst.variantFaction,
+      variantFaction: variantFaction,
       elementLineage: decodeLineage(inst.elementLineageJson),
       familyLineage: decodeLineage(inst.familyLineageJson),
     );

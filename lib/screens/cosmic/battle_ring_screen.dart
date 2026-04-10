@@ -24,6 +24,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -284,7 +285,7 @@ class _BattleRingScreenState extends State<BattleRingScreen>
                                 ? 'PRACTICE ARENA'
                                 : 'BATTLE RING',
                             style: TextStyle(
-                              fontFamily: 'monospace',
+                              fontFamily: appFontFamily(context),
                               color:
                                   (isLegendary
                                           ? Colors.amber
@@ -300,7 +301,7 @@ class _BattleRingScreenState extends State<BattleRingScreen>
                             Text(
                               'LEVEL $levelDisplay / ${BattleRing.maxLevels}',
                               style: TextStyle(
-                                fontFamily: 'monospace',
+                                fontFamily: appFontFamily(context),
                                 color: Colors.white.withValues(
                                   alpha: textOpacity * 0.7,
                                 ),

@@ -9,6 +9,7 @@
 
 import 'dart:async';
 
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -531,6 +532,17 @@ class _ShopScreenState extends State<ShopScreen> {
                         allCurrencies,
                         inventoryByKey,
                         resourceBalances,
+                      ),
+
+                      _buildSectionHeader(
+                        'ALCHEMICAL POWERUPS',
+                        const Color(0xFFB58CFF),
+                        Icons.blur_circular_rounded,
+                      ),
+                      _buildAlchemicalPowerupsRow(
+                        theme,
+                        allCurrencies,
+                        inventoryByKey,
                       ),
 
                       _buildSectionHeader(
@@ -1436,7 +1448,7 @@ class _ShopScreenState extends State<ShopScreen> {
           return const Padding(
             padding: EdgeInsets.all(12),
             child: EmptySection(
-              message: 'No instant items available',
+              message: 'No consumables available',
               icon: Icons.flash_off_rounded,
             ),
           );
@@ -1950,6 +1962,56 @@ class _ShopScreenState extends State<ShopScreen> {
 
   // ── BLACK MARKET BUTTON ────────────────────────────────────────────────────
 
+  // ── ALCHEMICAL POWERUPS ROW ────────────────────────────────────────────────
+
+  Widget _buildAlchemicalPowerupsRow(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+    Map<String, int> inventory,
+  ) {
+    return Consumer<ShopService>(
+      builder: (context, shopService, _) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: AlchemicalPowerupType.values.map((type) {
+              final offerId = type.shopOfferId;
+              final offer = ShopService.allOffers.firstWhere(
+                (o) => o.id == offerId,
+              );
+              final effectiveCost = shopService.getEffectiveCost(offer);
+              final qty = inventory[type.inventoryKey] ?? 0;
+              final canAfford = effectiveCost.entries.every(
+                (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+              );
+              final canPurchase = shopService.canPurchase(offerId);
+              return _ShopPowerupOrb(
+                type: type,
+                qty: qty,
+                canAfford: canAfford,
+                cost: effectiveCost,
+                theme: theme,
+                phaseDelay: Duration(
+                  milliseconds:
+                      AlchemicalPowerupType.values.indexOf(type) * 320,
+                ),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  if (canPurchase) {
+                    _handlePurchase(context, offer, allCurrencies, canAfford);
+                  } else {
+                    _showDetails(context, offer, allCurrencies, canAfford);
+                  }
+                },
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildBlackMarketFloatingButton(BuildContext context, Color accent) {
     return Consumer<BlackMarketService>(
       builder: (context, marketService, child) => AnimatedBlackMarketButton(
@@ -2183,6 +2245,198 @@ class _ShopScreenState extends State<ShopScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Animated powerup orb for shop ─────────────────────────────────────────────
+
+class _ShopPowerupOrb extends StatefulWidget {
+  final AlchemicalPowerupType type;
+  final int qty;
+  final bool canAfford;
+  final Map<String, int> cost;
+  final FactionTheme theme;
+  final Duration phaseDelay;
+  final VoidCallback onTap;
+
+  const _ShopPowerupOrb({
+    required this.type,
+    required this.qty,
+    required this.canAfford,
+    required this.cost,
+    required this.theme,
+    required this.phaseDelay,
+    required this.onTap,
+  });
+
+  @override
+  State<_ShopPowerupOrb> createState() => _ShopPowerupOrbState();
+}
+
+class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _float;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    );
+    _float = Tween<double>(
+      begin: -1.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _pulse = Tween<double>(
+      begin: 0.93,
+      end: 1.07,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    Future<void>.delayed(widget.phaseDelay, () {
+      if (mounted) _ctrl.repeat(reverse: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(widget.theme);
+    final type = widget.type;
+    final goldCost = widget.cost['gold'] ?? 0;
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: SizedBox(
+        width: 76,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _ctrl,
+              builder: (context, _) {
+                return Transform.translate(
+                  offset: Offset(0, _float.value * 5.5),
+                  child: Transform.scale(
+                    scale: _pulse.value,
+                    child: Container(
+                      width: 62,
+                      height: 62,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.white.withValues(alpha: 0.94),
+                            type.color.withValues(alpha: 0.88),
+                            type.glowColor.withValues(alpha: 0.36),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.30, 0.66, 1.0],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: type.glowColor.withValues(
+                              alpha: widget.canAfford
+                                  ? 0.50 + _pulse.value * 0.08
+                                  : 0.18,
+                            ),
+                            blurRadius: widget.canAfford ? 22 : 8,
+                            spreadRadius: widget.canAfford ? 1 : -6,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            // Qty badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: widget.qty > 0
+                    ? type.color.withValues(alpha: 0.14)
+                    : t.bg3,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(
+                  color: widget.qty > 0
+                      ? type.color.withValues(alpha: 0.45)
+                      : t.borderDim,
+                ),
+              ),
+              child: Text(
+                'x${widget.qty}',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: widget.qty > 0 ? type.color : t.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              type.name.toUpperCase(),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: type.color,
+                fontSize: 7,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              type.statKey.toUpperCase(),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.textMuted,
+                fontSize: 7,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            // Cost
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.hexagon_rounded,
+                  color: widget.canAfford
+                      ? const Color(0xFFFFD700)
+                      : t.textMuted,
+                  size: 11,
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  '$goldCost',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: widget.canAfford
+                        ? const Color(0xFFFFD700)
+                        : t.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

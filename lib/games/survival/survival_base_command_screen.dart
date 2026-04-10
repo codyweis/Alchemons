@@ -53,12 +53,26 @@ class _T {
   );
 }
 
+String _fmtNum(int n) {
+  if (n < 1000) return '$n';
+  final s = n.toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  return buf.toString();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SurvivalBaseCommandScreen extends StatefulWidget {
-  const SurvivalBaseCommandScreen({super.key});
+  const SurvivalBaseCommandScreen({super.key, this.hideAbilities = false});
+
+  /// When true, the Base Abilities tab is hidden (used in cosmic survival).
+  final bool hideAbilities;
 
   @override
   State<SurvivalBaseCommandScreen> createState() =>
@@ -75,7 +89,10 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: widget.hideAbilities ? 2 : 3,
+      vsync: this,
+    );
     _loadCurrencies();
   }
 
@@ -112,7 +129,7 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
                     children: [
                       _buildOrbSkinsTab(svc, shopService),
                       _buildGuardianTab(svc),
-                      _buildAbilitiesTab(svc),
+                      if (!widget.hideAbilities) _buildAbilitiesTab(svc),
                     ],
                   ),
                 ),
@@ -188,7 +205,7 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '$_silverBalance',
+                  _fmtNum(_silverBalance),
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     color: Color(0xFFC0C0C0),
@@ -230,13 +247,14 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
           fontWeight: FontWeight.w600,
           letterSpacing: 1.4,
         ),
-        tabs: const [
-          Tab(icon: Icon(Icons.blur_circular_rounded, size: 16), text: 'ORB'),
-          Tab(icon: Icon(Icons.person_rounded, size: 16), text: 'GUARDIANS'),
-          Tab(
-            icon: Icon(Icons.auto_awesome_rounded, size: 16),
-            text: 'ABILITIES',
-          ),
+        tabs: [
+          const Tab(icon: Icon(Icons.blur_circular_rounded, size: 16), text: 'ORB'),
+          const Tab(icon: Icon(Icons.person_rounded, size: 16), text: 'GUARDIANS'),
+          if (!widget.hideAbilities)
+            const Tab(
+              icon: Icon(Icons.auto_awesome_rounded, size: 16),
+              text: 'ABILITIES',
+            ),
         ],
       ),
     );
@@ -341,14 +359,14 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
   String _compactCostLabel(Map<String, int> cost) {
     if (cost.isEmpty) return '0';
     return cost.entries
-        .map((entry) => '${entry.value}${_currencySuffix(entry.key)}')
+        .map((entry) => '${_fmtNum(entry.value)}${_currencySuffix(entry.key)}')
         .join('+');
   }
 
   String _fullCostLabel(Map<String, int> cost) {
     if (cost.isEmpty) return '0';
     return cost.entries
-        .map((entry) => '${entry.value} ${_currencyName(entry.key)}')
+        .map((entry) => '${_fmtNum(entry.value)} ${_currencyName(entry.key)}')
         .join(' + ');
   }
 
@@ -631,7 +649,7 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
           ),
         ),
         content: Text(
-          'Spend $cost silver to upgrade ${def.name}?',
+          'Spend ${_fmtNum(cost)} silver to upgrade ${def.name}?',
           style: TextStyle(
             fontFamily: 'monospace',
             color: _C.textSecondary,
@@ -990,6 +1008,18 @@ class _OrbSkinCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(def.description, style: _T.body),
+                  if (def.ability.isNotEmpty && def.ability != 'No special ability.') ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      def.ability,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: def.primaryColor.withValues(alpha: 0.85),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                   if (isEquipped) ...[
                     const SizedBox(height: 6),
                     Row(
@@ -1155,7 +1185,7 @@ class _UpgradeCard extends StatelessWidget {
                 )
               else
                 _ForgeButton(
-                  label: '$nextCost',
+                  label: _fmtNum(nextCost!),
                   icon: Icons.paid_rounded,
                   onTap: (purchasing || silverBalance < (nextCost ?? 999999))
                       ? null
@@ -1326,7 +1356,7 @@ class _AbilityCard extends StatelessWidget {
                 )
               else
                 _ForgeButton(
-                  label: isUnlocked ? '$nextCost' : 'UNLOCK $nextCost',
+                  label: isUnlocked ? _fmtNum(nextCost!) : 'UNLOCK ${_fmtNum(nextCost!)}',
                   icon: isUnlocked
                       ? Icons.paid_rounded
                       : Icons.lock_open_rounded,

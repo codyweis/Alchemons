@@ -2,6 +2,44 @@ part of 'cosmic_game.dart';
 
 enum _ContestCinematicMode { beauty, speed, strength, intelligence }
 
+void _drawBloodAuraCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final pulse = 0.92 + 0.10 * sin(elapsed * 3.4);
+  final outerR = radius * 1.38 * pulse;
+  canvas.drawCircle(
+    Offset.zero,
+    outerR,
+    Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0x55FF5252).withValues(alpha: 0.42 * opacity),
+          const Color(0x22B71C1C).withValues(alpha: 0.20 * opacity),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset.zero, radius: outerR))
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.28),
+  );
+
+  for (int i = 0; i < 10; i++) {
+    final angle = elapsed * 1.3 + (i / 10) * 2 * pi;
+    final orbitR = radius * (0.62 + 0.28 * sin(elapsed * 1.7 + i));
+    final pos = Offset(cos(angle) * orbitR, sin(angle) * orbitR);
+    final dropletR = radius * (0.06 + 0.03 * sin(elapsed * 2.4 + i));
+    canvas.drawCircle(
+      pos,
+      dropletR,
+      Paint()
+        ..color = const Color(0xFFFF6B6B).withValues(alpha: 0.78 * opacity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, dropletR * 0.8),
+    );
+  }
+}
+
 // In-world prismatic cascade painter helper.
 void _drawPrismaticCascadeCanvas(
   Canvas canvas,
@@ -763,6 +801,9 @@ void _drawAlchemyEffectCanvas({
       break;
     case 'intelligence_halo':
       _drawIntelligenceHaloCanvas(canvas, effectRadius, elapsed, opacity);
+      break;
+    case 'blood_aura':
+      _drawBloodAuraCanvas(canvas, effectRadius, elapsed, opacity);
       break;
     default:
       break;

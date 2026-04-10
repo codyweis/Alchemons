@@ -212,6 +212,15 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await setSetting('feeding_tutorial_seen', '1');
   }
 
+  Future<bool> hasSeenPowerupFeedingTutorial() async {
+    final v = await getSetting('powerup_feeding_tutorial_seen');
+    return v == '1';
+  }
+
+  Future<void> setPowerupFeedingTutorialSeen() async {
+    await setSetting('powerup_feeding_tutorial_seen', '1');
+  }
+
   Future<bool> hasSeenConstellationTutorial() async {
     final v = await getSetting('constellation_tutorial_seen');
     return v == '1';
@@ -268,6 +277,26 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
 
   Future<void> setSurvivalMenuStoryIntroSeen() async {
     await setSetting('survival_menu_story_intro_seen_v2', '1');
+  }
+
+  // =================== COSMIC SURVIVAL PORTAL ===================
+
+  Future<bool> isCosmicSurvivalPortalDiscovered() async {
+    final v = await getSetting('cosmic_survival_portal_discovered');
+    return v == '1';
+  }
+
+  Future<void> setCosmicSurvivalPortalDiscovered() async {
+    await setSetting('cosmic_survival_portal_discovered', '1');
+  }
+
+  Future<bool> hasSeenCosmicSurvivalIntro() async {
+    final v = await getSetting('cosmic_survival_intro_seen_v1');
+    return v == '1';
+  }
+
+  Future<void> setCosmicSurvivalIntroSeen() async {
+    await setSetting('cosmic_survival_intro_seen_v1', '1');
   }
 
   Future<bool> hasSeenBossRelicScreenStoryIntro() async {

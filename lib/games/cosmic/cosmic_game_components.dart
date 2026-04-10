@@ -950,22 +950,143 @@ class PlanetComponent {
     canvas.drawCircle(pos, r, paint);
   }
 
-  // ─── FIRE: corona flares ───
+  // ─── FIRE: blazing star with corona flares & convection ───
   void _drawFirePlanet(Canvas c, Offset p, double r, Color col, double t) {
-    for (var i = 0; i < 6; i++) {
-      final a = t * 0.4 + i * pi / 3;
-      final flareLen = r * (0.4 + 0.2 * sin(t * 2 + i));
-      final fx = p.dx + cos(a) * (r + flareLen * 0.5);
-      final fy = p.dy + sin(a) * (r + flareLen * 0.5);
+    final rng = Random(p.dx.toInt() ^ p.dy.toInt());
+
+    // ── Heat haze atmosphere ──
+    c.drawCircle(
+      p,
+      r * 1.8,
+      Paint()
+        ..color = const Color(
+          0xFFFF6D00,
+        ).withValues(alpha: 0.05 + 0.02 * sin(t * 0.4))
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.6),
+    );
+
+    // ── Corona flares — elongated tongues of fire reaching outward ──
+    for (var i = 0; i < 8; i++) {
+      final a = t * 0.4 + i * pi / 4;
+      final flareLen = r * (0.3 + 0.25 * sin(t * 2 + i * 1.3));
+      final flareW = r * 0.12;
+      final fx = p.dx + cos(a) * r;
+      final fy = p.dy + sin(a) * r;
+      final ex = p.dx + cos(a) * (r + flareLen);
+      final ey = p.dy + sin(a) * (r + flareLen);
+      final perpX = -sin(a);
+      final perpY = cos(a);
+
+      // Soft outer glow
       c.drawCircle(
-        Offset(fx, fy),
-        flareLen * 0.3,
+        Offset((fx + ex) / 2, (fy + ey) / 2),
+        flareLen * 0.4,
         Paint()
-          ..color = const Color(0x50FF6600)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+          ..color = const Color(
+            0xFFFF6600,
+          ).withValues(alpha: 0.12 + 0.06 * sin(t * 3 + i))
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, flareLen * 0.3),
+      );
+
+      // Flare tongue shape
+      final flarePath = Path()
+        ..moveTo(fx + perpX * flareW, fy + perpY * flareW)
+        ..quadraticBezierTo(
+          (fx + ex) / 2 + perpX * flareW * 0.6,
+          (fy + ey) / 2 + perpY * flareW * 0.6,
+          ex,
+          ey,
+        )
+        ..quadraticBezierTo(
+          (fx + ex) / 2 - perpX * flareW * 0.6,
+          (fy + ey) / 2 - perpY * flareW * 0.6,
+          fx - perpX * flareW,
+          fy - perpY * flareW,
+        )
+        ..close();
+      c.drawPath(
+        flarePath,
+        Paint()
+          ..color = const Color(
+            0xFFFF8F00,
+          ).withValues(alpha: 0.25 + 0.1 * sin(t * 2.5 + i))
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
       );
     }
-    _drawSphere(c, p, r, col);
+
+    // ── Base sphere — hot gradient ──
+    final firePaint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(p.dx - r * 0.3, p.dy - r * 0.3),
+        r * 1.5,
+        [
+          const Color(0xFFFFE082), // bright yellow highlight
+          const Color(0xFFFF7043), // mid orange
+          const Color(0xFFBF360C), // deep red shadow
+        ],
+        [0.0, 0.5, 1.0],
+      );
+    c.drawCircle(p, r, firePaint);
+
+    // ── Clip surface detail to planet disc ──
+    c.save();
+    c.clipPath(Path()..addOval(Rect.fromCircle(center: p, radius: r)));
+
+    // ── Convection cells — darker granulation patches ──
+    for (var i = 0; i < 8; i++) {
+      final cAngle = rng.nextDouble() * pi * 2;
+      final cDist = rng.nextDouble() * r * 0.7;
+      final cSize = r * (0.08 + rng.nextDouble() * 0.1);
+      c.drawCircle(
+        Offset(p.dx + cos(cAngle) * cDist, p.dy + sin(cAngle) * cDist),
+        cSize,
+        Paint()
+          ..color = const Color(
+            0xFFBF360C,
+          ).withValues(alpha: 0.2 + 0.05 * sin(t * 0.5 + i))
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, cSize * 0.5),
+      );
+    }
+
+    // ── Bright hotspots — white-yellow eruptions ──
+    for (var i = 0; i < 4; i++) {
+      final hAngle = rng.nextDouble() * pi * 2;
+      final hDist = rng.nextDouble() * r * 0.6;
+      final hx = p.dx + cos(hAngle) * hDist;
+      final hy = p.dy + sin(hAngle) * hDist;
+      final pulse = (0.15 + 0.1 * sin(t * 1.5 + i * 2.3)).clamp(0.0, 0.3);
+      c.drawCircle(
+        Offset(hx, hy),
+        r * 0.06,
+        Paint()
+          ..color = const Color(0xFFFFE082).withValues(alpha: pulse)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.05),
+      );
+    }
+
+    c.restore();
+
+    // ── Terminator shadow ──
+    c.drawCircle(
+      Offset(p.dx + r * 0.35, p.dy + r * 0.25),
+      r,
+      Paint()
+        ..color = const Color(0xFF3E0000).withValues(alpha: 0.2)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.35),
+    );
+
+    // ── Rim glow — warm edge light ──
+    c.drawCircle(
+      p,
+      r,
+      Paint()
+        ..color = const Color(
+          0xFFFF6D00,
+        ).withValues(alpha: 0.1 + 0.04 * sin(t * 0.6))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
   }
 
   // ─── LAVA: tectonic dark sphere with subsurface magma ───
@@ -1386,7 +1507,7 @@ class PlanetComponent {
     );
   }
 
-  // ─── ICE: frozen world with glacial surface detail ───
+  // ─── ICE: frozen world with crystalline rings & aurora shimmer ───
   void _drawIcePlanet(Canvas c, Offset p, double r, Color col, double t) {
     final rng = Random(p.dx.toInt() ^ p.dy.toInt());
 
@@ -1401,15 +1522,45 @@ class PlanetComponent {
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.4),
     );
 
+    // ── Icy Saturn-style ring system (behind planet) ──
+    c.save();
+    c.translate(p.dx, p.dy);
+    c.scale(1.0, 0.25);
+    for (var ring = 0; ring < 3; ring++) {
+      final ringR = r * (1.6 + ring * 0.25);
+      final ringAlpha = 0.12 - ring * 0.03;
+      c.drawCircle(
+        Offset.zero,
+        ringR,
+        Paint()
+          ..color = const Color(0xFFB2EBF2).withValues(alpha: ringAlpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = r * (0.08 - ring * 0.015)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+      );
+    }
+    // Sparkle particles embedded in rings
+    for (var i = 0; i < 12; i++) {
+      final sparkAngle = t * 0.15 * (i.isEven ? 1 : -1) + i * pi / 6;
+      final sparkR = r * (1.55 + (i % 3) * 0.25);
+      final sparkAlpha = (0.4 + 0.3 * sin(t * 3 + i * 2.1)).clamp(0.0, 0.7);
+      c.drawCircle(
+        Offset(cos(sparkAngle) * sparkR, sin(sparkAngle) * sparkR),
+        1.2,
+        Paint()..color = Colors.white.withValues(alpha: sparkAlpha),
+      );
+    }
+    c.restore();
+
     // ── Base sphere — cold blue-white gradient ──
     final icePaint = Paint()
       ..shader = ui.Gradient.radial(
         Offset(p.dx - r * 0.25, p.dy - r * 0.25),
         r * 1.5,
         [
-          const Color(0xFFE0F7FA), // bright ice highlight
-          const Color(0xFF80DEEA), // mid cyan
-          const Color(0xFF26627A), // deep shadow
+          const Color(0xFFE0F7FA),
+          const Color(0xFF80DEEA),
+          const Color(0xFF26627A),
         ],
         [0.0, 0.45, 1.0],
       );
@@ -1419,7 +1570,7 @@ class PlanetComponent {
     c.save();
     c.clipPath(Path()..addOval(Rect.fromCircle(center: p, radius: r)));
 
-    // ── Glacial bands — horizontal ice strata with subtle color variation ──
+    // ── Glacial bands — horizontal ice strata ──
     for (var i = 0; i < 5; i++) {
       final bandY = p.dy - r + (i + 0.5) * (2 * r / 5);
       final bandPath = Path();
@@ -1442,7 +1593,7 @@ class PlanetComponent {
       );
     }
 
-    // ── Crevasses — deep fracture lines in the ice sheet ──
+    // ── Crevasses — deep fracture lines in the ice ──
     for (var i = 0; i < 4; i++) {
       final startAngle = rng.nextDouble() * pi * 2;
       final startDist = rng.nextDouble() * r * 0.3;
@@ -1463,7 +1614,6 @@ class PlanetComponent {
         crevPath.quadraticBezierTo(mx, my, cx, cy);
       }
 
-      // Deep shadow line
       c.drawPath(
         crevPath,
         Paint()
@@ -1474,7 +1624,6 @@ class PlanetComponent {
           ..strokeJoin = StrokeJoin.round
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
       );
-      // Bright edge (refracted light at crack lip)
       c.drawPath(
         crevPath,
         Paint()
@@ -1485,7 +1634,7 @@ class PlanetComponent {
       );
     }
 
-    // ── Polar caps — brighter white regions ──
+    // ── Polar caps ──
     c.drawOval(
       Rect.fromCenter(
         center: Offset(p.dx, p.dy - r * 0.6),
@@ -1509,7 +1658,55 @@ class PlanetComponent {
 
     c.restore();
 
-    // ── Terminator shadow — darken the unlit side ──
+    // ── Icy ring system (in front of planet — upper arc only) ──
+    c.save();
+    c.translate(p.dx, p.dy);
+    c.scale(1.0, 0.25);
+    // Clip to top half so front arc overlaps the planet
+    c.clipRect(Rect.fromLTRB(-r * 3, -r * 3, r * 3, 0));
+    for (var ring = 0; ring < 3; ring++) {
+      final ringR = r * (1.6 + ring * 0.25);
+      final ringAlpha = 0.12 - ring * 0.03;
+      c.drawCircle(
+        Offset.zero,
+        ringR,
+        Paint()
+          ..color = const Color(0xFFB2EBF2).withValues(alpha: ringAlpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = r * (0.08 - ring * 0.015)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+      );
+    }
+    c.restore();
+
+    // ── Aurora shimmer — colored light bands dancing above the poles ──
+    for (var i = 0; i < 3; i++) {
+      final auroraPath = Path();
+      final auroraY = p.dy - r * (0.85 + i * 0.12);
+      final sway = sin(t * (0.8 + i * 0.3)) * r * 0.15;
+      auroraPath.moveTo(p.dx - r * 0.6, auroraY);
+      for (var s = 0; s <= 10; s++) {
+        final frac = s / 10.0;
+        final ax = p.dx - r * 0.6 + frac * r * 1.2;
+        final ay =
+            auroraY + sin(frac * pi * 2 + t * 1.5 + i) * r * 0.08 + sway * frac;
+        auroraPath.lineTo(ax, ay);
+      }
+      // Cycle between cyan, green, and magenta
+      final auroraHue = ((t * 20 + i * 120) % 360).clamp(0.0, 360.0);
+      final auroraColor = HSVColor.fromAHSV(1.0, auroraHue, 0.7, 1.0).toColor();
+      c.drawPath(
+        auroraPath,
+        Paint()
+          ..color = auroraColor.withValues(alpha: 0.12 + 0.06 * sin(t * 2 + i))
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = r * 0.06
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.06),
+      );
+    }
+
+    // ── Terminator shadow ──
     c.drawCircle(
       Offset(p.dx + r * 0.35, p.dy + r * 0.3),
       r,
@@ -1518,7 +1715,7 @@ class PlanetComponent {
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.35),
     );
 
-    // ── Specular highlight — glassy reflection on the sunlit side ──
+    // ── Specular highlight ──
     c.drawOval(
       Rect.fromCenter(
         center: Offset(p.dx - r * 0.3, p.dy - r * 0.3),
@@ -2091,9 +2288,150 @@ class PlanetComponent {
     }
   }
 
-  // ─── CRYSTAL: bright refractive sphere ───
+  // ─── CRYSTAL: bright refractive sphere with facets & prismatic sparkle ───
   void _drawCrystalPlanet(Canvas c, Offset p, double r, Color col, double t) {
-    _drawSphere(c, p, r, col, highlight: 0.6, shadow: 0.3);
+    final rng = Random(p.dx.toInt() ^ p.dy.toInt());
+
+    // ── Prismatic aura — shifting rainbow halo ──
+    final hueShift = (t * 0.3) % 1.0;
+    c.drawCircle(
+      p,
+      r * 1.6,
+      Paint()
+        ..color = HSVColor.fromAHSV(
+          0.05 + 0.02 * sin(t * 0.5),
+          hueShift * 360,
+          0.6,
+          1.0,
+        ).toColor()
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.5),
+    );
+
+    // ── Base sphere — bright teal-white gradient ──
+    final crystalPaint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(p.dx - r * 0.3, p.dy - r * 0.3),
+        r * 1.5,
+        [
+          const Color(0xFFE0F2F1), // bright highlight
+          col,
+          const Color(0xFF004D40), // deep shadow
+        ],
+        [0.0, 0.45, 1.0],
+      );
+    c.drawCircle(p, r, crystalPaint);
+
+    // ── Clip facets & detail to the sphere ──
+    c.save();
+    c.clipPath(Path()..addOval(Rect.fromCircle(center: p, radius: r)));
+
+    // ── Internal facet planes — angular bright/dark patches ──
+    for (var i = 0; i < 6; i++) {
+      final fAngle = rng.nextDouble() * pi * 2;
+      final fDist = rng.nextDouble() * r * 0.6;
+      final fSize = r * (0.15 + rng.nextDouble() * 0.2);
+      final fx = p.dx + cos(fAngle) * fDist;
+      final fy = p.dy + sin(fAngle) * fDist;
+
+      // Diamond-ish facet shape (4-point)
+      final facetPath = Path();
+      for (var v = 0; v < 4; v++) {
+        final va = fAngle + v * pi / 2 + rng.nextDouble() * 0.3;
+        final vr = fSize * (0.6 + rng.nextDouble() * 0.4);
+        final vx = fx + cos(va) * vr;
+        final vy = fy + sin(va) * vr;
+        if (v == 0) {
+          facetPath.moveTo(vx, vy);
+        } else {
+          facetPath.lineTo(vx, vy);
+        }
+      }
+      facetPath.close();
+
+      // Alternating bright/dark facets
+      final facetAlpha = 0.08 + 0.04 * sin(t * 0.8 + i * 1.5);
+      final facetColor = i.isEven
+          ? Colors.white.withValues(alpha: facetAlpha)
+          : const Color(0xFF00695C).withValues(alpha: facetAlpha);
+      c.drawPath(
+        facetPath,
+        Paint()
+          ..color = facetColor
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+      );
+
+      // Facet edge highlight
+      c.drawPath(
+        facetPath,
+        Paint()
+          ..color = Colors.white.withValues(alpha: facetAlpha * 0.6)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.5,
+      );
+    }
+
+    // ── Refraction lines — thin bright lines crossing the surface ──
+    for (var i = 0; i < 4; i++) {
+      final la = rng.nextDouble() * pi;
+      final ld = rng.nextDouble() * r * 0.4;
+      final lx = p.dx + cos(la) * ld;
+      final ly = p.dy + sin(la) * ld;
+      final lineLen = r * (0.4 + rng.nextDouble() * 0.5);
+      c.drawLine(
+        Offset(lx - cos(la) * lineLen, ly - sin(la) * lineLen),
+        Offset(lx + cos(la) * lineLen, ly + sin(la) * lineLen),
+        Paint()
+          ..color = Colors.white.withValues(
+            alpha: 0.1 + 0.05 * sin(t * 1.5 + i),
+          )
+          ..strokeWidth = 0.8
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
+      );
+    }
+
+    c.restore();
+
+    // ── Specular highlight — sharp glassy glint ──
+    c.drawOval(
+      Rect.fromCenter(
+        center: Offset(p.dx - r * 0.3, p.dy - r * 0.3),
+        width: r * 0.45,
+        height: r * 0.2,
+      ),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.25 + 0.08 * sin(t * 0.7))
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.08),
+    );
+
+    // ── Sparkle motes — small bright points that flash ──
+    for (var i = 0; i < 6; i++) {
+      final sparkPhase = t * (2.0 + i * 0.5) + rng.nextDouble() * pi * 2;
+      final sparkBright = sin(sparkPhase).clamp(0.0, 1.0);
+      if (sparkBright < 0.6) continue;
+      final sa = rng.nextDouble() * pi * 2;
+      final sd = r * (0.3 + rng.nextDouble() * 0.65);
+      final sx = p.dx + cos(sa) * sd;
+      final sy = p.dy + sin(sa) * sd;
+      final sparkAlpha = (sparkBright - 0.6) * 2.5;
+      c.drawCircle(
+        Offset(sx, sy),
+        1.5 + sparkAlpha,
+        Paint()
+          ..color = Colors.white.withValues(alpha: sparkAlpha * 0.9)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+      );
+    }
+
+    // ── Rim light — teal edge glow ──
+    c.drawCircle(
+      p,
+      r,
+      Paint()
+        ..color = col.withValues(alpha: 0.12)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+    );
   }
 
   // ─── AIR: ethereal wind sphere with swirling currents ───
@@ -2434,17 +2772,130 @@ class PlanetComponent {
   }
 
   // ─── SPIRIT: ethereal pulsing sphere ───
+  // ─── SPIRIT: ethereal phantom sphere with orbiting wisps & phase shift ───
   void _drawSpiritPlanet(Canvas c, Offset p, double r, Color col, double t) {
-    // Pulsing translucent aura
-    final pulseR = r * (1.0 + 0.08 * sin(t * 2));
+    final rng = Random(p.dx.toInt() ^ p.dy.toInt());
+
+    // ── Phase shift — goes translucent for ~1s every ~8s ──
+    // 8s cycle: 0-6s fully visible, 6-7s fade out, 7-8s fade back in
+    final cycle = t % 8.0;
+    double phaseOpacity;
+    if (cycle < 6.0) {
+      phaseOpacity = 1.0;
+    } else if (cycle < 7.0) {
+      // Fade out over 1s (ease-in)
+      final f = (cycle - 6.0);
+      phaseOpacity = 1.0 - f * f * 0.7; // drops to 0.3
+    } else {
+      // Fade back in over 1s (ease-out)
+      final f = (cycle - 7.0);
+      phaseOpacity = 0.3 + f * (2.0 - f) * 0.35; // rises back to 1.0
+    }
+
+    // ── Layered ethereal aura — multiple translucent halos that breathe ──
+    for (var ring = 0; ring < 3; ring++) {
+      final auraR =
+          r * (1.4 + ring * 0.4) + sin(t * (0.6 - ring * 0.15)) * r * 0.1;
+      final auraAlpha =
+          ((0.06 - ring * 0.015).clamp(0.01, 0.08) +
+              0.02 * sin(t * 1.5 + ring)) *
+          phaseOpacity;
+      c.drawCircle(
+        Offset(
+          p.dx + cos(t * 0.2 + ring * 2.0) * r * 0.08,
+          p.dy + sin(t * 0.25 + ring * 1.5) * r * 0.06,
+        ),
+        auraR,
+        Paint()
+          ..color = col.withValues(alpha: auraAlpha)
+          ..maskFilter = MaskFilter.blur(
+            BlurStyle.normal,
+            r * (0.4 + ring * 0.15),
+          ),
+      );
+    }
+
+    // ── Pulsing translucent core sphere ──
+    final pulseR = r * (1.0 + 0.05 * sin(t * 2));
+    final spiritPaint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(p.dx - r * 0.2, p.dy - r * 0.2),
+        r * 1.4,
+        [
+          const Color(0xFFE8EAF6).withValues(alpha: 0.7 * phaseOpacity),
+          col.withValues(alpha: 0.5 * phaseOpacity),
+          const Color(0xFF1A237E).withValues(alpha: 0.3 * phaseOpacity),
+        ],
+        [0.0, 0.5, 1.0],
+      );
+    c.drawCircle(p, pulseR * 0.85, spiritPaint);
+
+    // ── Inner light — glowing core that shifts ──
+    final coreShift = sin(t * 0.8) * r * 0.1;
+    c.drawCircle(
+      Offset(p.dx + coreShift, p.dy - coreShift * 0.5),
+      r * 0.3,
+      Paint()
+        ..color = Colors.white.withValues(
+          alpha: (0.12 + 0.06 * sin(t * 1.8)) * phaseOpacity,
+        )
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.25),
+    );
+
+    // ── Orbiting spirit wisps — glowing motes that trail ghostly tails ──
+    for (var i = 0; i < 6; i++) {
+      final orbitR = r * (1.2 + 0.3 * sin(i * 1.9));
+      final speed = (0.35 + rng.nextDouble() * 0.2) * (i.isEven ? 1 : -1);
+      final wispAngle = t * speed + i * pi / 3;
+      final bob = sin(t * 1.6 + i * 1.1) * r * 0.12;
+      final wx = p.dx + cos(wispAngle) * orbitR;
+      final wy = p.dy + sin(wispAngle) * orbitR * 0.5 + bob;
+      final wispAlpha =
+          (0.35 + 0.2 * sin(t * 2.5 + i * 1.7)).clamp(0.0, 0.6) * phaseOpacity;
+
+      // Ghost trail — 3 fading afterimages
+      for (var trail = 1; trail <= 3; trail++) {
+        final trailAngle = wispAngle - speed * trail * 0.12;
+        final trailBob = sin(t * 1.6 + i * 1.1 - trail * 0.15) * r * 0.12;
+        final tx = p.dx + cos(trailAngle) * orbitR;
+        final ty = p.dy + sin(trailAngle) * orbitR * 0.5 + trailBob;
+        c.drawCircle(
+          Offset(tx, ty),
+          (3.0 - trail * 0.5) + rng.nextDouble(),
+          Paint()
+            ..color = col.withValues(alpha: wispAlpha * (0.3 - trail * 0.08))
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.0 + trail),
+        );
+      }
+
+      // Wisp glow
+      c.drawCircle(
+        Offset(wx, wy),
+        4.0 + rng.nextDouble() * 2,
+        Paint()
+          ..color = Colors.white.withValues(alpha: wispAlpha * 0.4)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      // Wisp core
+      c.drawCircle(
+        Offset(wx, wy),
+        2.0 + rng.nextDouble(),
+        Paint()..color = Colors.white.withValues(alpha: wispAlpha * 0.8),
+      );
+    }
+
+    // ── Spectral rim — soft pulsing edge glow ──
     c.drawCircle(
       p,
-      pulseR,
+      pulseR * 0.85,
       Paint()
-        ..color = col.withValues(alpha: 0.3)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        ..color = col.withValues(
+          alpha: (0.1 + 0.05 * sin(t * 2.0)) * phaseOpacity,
+        )
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
     );
-    _drawSphere(c, p, r * 0.8, col, highlight: 0.5, shadow: 0.3);
   }
 
   // ─── DARK: void with accretion disk ───
@@ -2506,12 +2957,57 @@ class PlanetComponent {
     _drawSphere(c, p, r, col, highlight: 0.7, shadow: 0.15);
   }
 
-  // ─── BLOOD: pulsing crimson sphere ───
+  // ─── BLOOD: pulsing crimson sphere with veins & heartbeat ───
   void _drawBloodPlanet(Canvas c, Offset p, double r, Color col, double t) {
-    // Heartbeat pulse (brief expand every ~1.5s)
+    // ── Heartbeat pulse (brief expand every ~1.5s) ──
     final beat = pow(sin(t * pi / 0.75).clamp(0.0, 1.0), 8.0) * 0.06;
     final pr = r * (1.0 + beat);
-    _drawSphere(c, p, pr, col, shadow: 0.6);
+
+    // ── Deep red atmospheric haze ──
+    c.drawCircle(
+      p,
+      pr * 1.5,
+      Paint()
+        ..color = const Color(
+          0xFFB71C1C,
+        ).withValues(alpha: 0.06 + 0.03 * beat * 10)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, pr * 0.5),
+    );
+
+    // ── Base sphere — dark crimson gradient ──
+    final bloodPaint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(p.dx - pr * 0.3, p.dy - pr * 0.3),
+        pr * 1.5,
+        [
+          const Color(0xFFEF5350), // bright red highlight
+          const Color(0xFFC62828), // mid crimson
+          const Color(0xFF4A0000), // deep shadow
+        ],
+        [0.0, 0.5, 1.0],
+      );
+    c.drawCircle(p, pr, bloodPaint);
+
+    // ── Terminator shadow ──
+    c.drawCircle(
+      Offset(p.dx + pr * 0.35, p.dy + pr * 0.25),
+      pr,
+      Paint()
+        ..color = const Color(0xFF1A0000).withValues(alpha: 0.25)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, pr * 0.35),
+    );
+
+    // ── Specular highlight ──
+    c.drawOval(
+      Rect.fromCenter(
+        center: Offset(p.dx - pr * 0.3, p.dy - pr * 0.3),
+        width: pr * 0.4,
+        height: pr * 0.18,
+      ),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.1 + 0.04 * sin(t * 0.8))
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, pr * 0.08),
+    );
   }
 
   void _drawDefault(Canvas c, Offset p, double r, Color col) {
@@ -2610,6 +3106,10 @@ class _GarrisonCreature {
   // Blessing state (Kin special)
   double blessingTimer = 0;
   double blessingHealPerTick = 0;
+
+  // Temporary basic-attack haste granted by some specials.
+  double basicHasteTimer = 0;
+  double basicHasteMultiplier = 1.0;
 
   // Movement
   static const double wanderSpeed = 14.0;

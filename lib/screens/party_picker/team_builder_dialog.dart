@@ -39,11 +39,175 @@ class TeamBuilderDialog extends StatefulWidget {
 }
 
 class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
+  static const int _maxSavedTeams = 10;
+
   late AlchemonsDatabase _db;
   List<Map<String, dynamic>> _teams = [];
   bool _loading = true;
   Map<String, CreatureInstance> _instancesById = {};
   Map<String, Creature> _creaturesById = {};
+
+  List<String> get _activeTeamMemberIds =>
+      widget.activeMemberIds ??
+      context
+          .read<SelectedPartyNotifier>()
+          .members
+          .map((m) => m.instanceId)
+          .toList();
+
+  bool _isActiveTeam(List<String> members) {
+    final active = _activeTeamMemberIds;
+    if (members.length != active.length) return false;
+    for (var i = 0; i < members.length; i++) {
+      if (members[i] != active[i]) return false;
+    }
+    return true;
+  }
+
+  Widget _buildTeamSprites(
+    ForgeTokens t,
+    List<String> members, {
+    bool highlight = false,
+  }) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: List.generate(widget.slotCount, (j) {
+          if (j >= members.length) {
+            return Container(
+              width: 42,
+              height: 42,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: t.bg1,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: highlight
+                      ? t.success.withValues(alpha: 0.35)
+                      : t.borderDim,
+                ),
+              ),
+            );
+          }
+
+          final id = members[j];
+          final inst = _instancesById[id];
+          if (inst == null) {
+            return Container(
+              width: 42,
+              height: 42,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: t.bg1,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: highlight
+                      ? t.success.withValues(alpha: 0.35)
+                      : t.borderDim,
+                ),
+              ),
+              child: Icon(Icons.help_outline, color: t.textSecondary, size: 20),
+            );
+          }
+          final creature = _creaturesById[inst.baseId];
+          if (creature == null) {
+            return Container(
+              width: 42,
+              height: 42,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: t.bg1,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: highlight
+                      ? t.success.withValues(alpha: 0.35)
+                      : t.borderDim,
+                ),
+              ),
+              child: Icon(Icons.help_outline, color: t.textSecondary, size: 20),
+            );
+          }
+
+          return Container(
+            margin: const EdgeInsets.only(right: 6),
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              border: highlight
+                  ? Border.all(color: t.success.withValues(alpha: 0.55))
+                  : null,
+            ),
+            child: InstanceSprite(creature: creature, instance: inst, size: 42),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildTeamRow(
+    ForgeTokens t,
+    List<String> members, {
+    required Widget trailing,
+    bool highlight = false,
+    String? label,
+    Color? labelColor,
+    GestureTapCallback? onTap,
+  }) {
+    final accent = labelColor ?? t.success;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: highlight ? t.success.withValues(alpha: 0.12) : t.bg2,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: highlight ? t.success.withValues(alpha: 0.75) : t.borderDim,
+            width: highlight ? 1.4 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              fit: FlexFit.loose,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (label != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle, color: accent, size: 14),
+                          const SizedBox(width: 6),
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: accent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  _buildTeamSprites(t, members, highlight: highlight),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            trailing,
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -104,12 +268,24 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
             .toList();
     if (membersList.isEmpty) return;
 
+    final messenger = ScaffoldMessenger.of(context);
+    if (_teams.length >= _maxSavedTeams) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You can save up to 10 teams. Delete one to add another.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final members = membersList;
     final entry = {'members': members};
     setState(() {
       _teams.add(entry);
     });
-    final messenger = ScaffoldMessenger.of(context);
     await _persist();
     // show a quick confirmation
     messenger.showSnackBar(
@@ -122,9 +298,25 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
 
   Future<void> _applyTeam(int idx) async {
     final t = _teams[idx];
-    final members = (t['members'] as List<dynamic>)
+    final savedMembers = (t['members'] as List<dynamic>)
         .whereType<String>()
         .toList();
+    final members = savedMembers
+        .where((id) => _instancesById.containsKey(id))
+        .take(widget.slotCount)
+        .toList();
+    if (members.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'That saved team no longer has any available creatures.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final partyMembers = members
         .map((id) => PartyMember(instanceId: id))
         .toList();
@@ -132,6 +324,16 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
       widget.onApply!(members);
     } else {
       context.read<SelectedPartyNotifier>().setMembers(partyMembers);
+    }
+    if (members.length != savedMembers.length && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Loaded ${members.length} valid creature${members.length == 1 ? '' : 's'} from that saved team.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
     Navigator.pop(context);
   }
@@ -291,134 +493,71 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Column(
-                children: [
-                  if (_loading) const CircularProgressIndicator(),
-                  if (!_loading && _teams.isEmpty)
-                    Text(
-                      'No saved teams',
-                      style: TextStyle(color: t.textSecondary),
-                    ),
-                  if (!_loading && _teams.isNotEmpty)
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(_teams.length, (i) {
-                        final team = _teams[i];
-                        final members =
-                            (team['members'] as List<dynamic>?)
-                                ?.whereType<String>()
-                                .toList() ??
-                            [];
-                        return Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: Column(
+                    children: [
+                      if (_activeTeamMemberIds.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: t.bg2,
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(color: t.borderDim),
                           ),
-                          child: Row(
-                            children: [
-                              // Sprites row (replace name)
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: List.generate(widget.slotCount, (
-                                      j,
-                                    ) {
-                                      if (j >= members.length) {
-                                        return Container(
-                                          width: 42,
-                                          height: 42,
-                                          margin: const EdgeInsets.only(
-                                            right: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: t.bg1,
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            border: Border.all(
-                                              color: t.borderDim,
-                                            ),
-                                          ),
-                                        );
-                                      }
-
-                                      final id = members[j];
-                                      final inst = _instancesById[id];
-                                      if (inst == null) {
-                                        return Container(
-                                          width: 42,
-                                          height: 42,
-                                          margin: const EdgeInsets.only(
-                                            right: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: t.bg1,
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            border: Border.all(
-                                              color: t.borderDim,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.help_outline,
-                                            color: t.textSecondary,
-                                            size: 20,
-                                          ),
-                                        );
-                                      }
-                                      final creature =
-                                          _creaturesById[inst.baseId];
-                                      if (creature == null) {
-                                        return Container(
-                                          width: 42,
-                                          height: 42,
-                                          margin: const EdgeInsets.only(
-                                            right: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: t.bg1,
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            border: Border.all(
-                                              color: t.borderDim,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.help_outline,
-                                            color: t.textSecondary,
-                                            size: 20,
-                                          ),
-                                        );
-                                      }
-
-                                      return Container(
-                                        margin: const EdgeInsets.only(right: 6),
-                                        width: 42,
-                                        height: 42,
-                                        child: InstanceSprite(
-                                          creature: creature,
-                                          instance: inst,
-                                          size: 42,
-                                        ),
-                                      );
-                                    }),
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => _applyTeam(i),
-                                icon: Icon(Icons.upload, color: t.amber),
-                                tooltip: 'Load team',
-                              ),
-                              IconButton(
+                          child: Text(
+                            'Select a team in the picker to save it here.',
+                            style: TextStyle(color: t.textSecondary),
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildTeamRow(
+                            t,
+                            _activeTeamMemberIds,
+                            highlight: true,
+                            label: 'CURRENT SELECTED TEAM',
+                            labelColor: t.success,
+                            trailing: IconButton(
+                              onPressed: _saveCurrentAs,
+                              icon: Icon(Icons.save_rounded, color: t.amber),
+                              tooltip: 'Save team',
+                            ),
+                          ),
+                        ),
+                      if (_loading) const CircularProgressIndicator(),
+                      if (!_loading && _teams.isEmpty)
+                        Text(
+                          'No saved teams',
+                          style: TextStyle(color: t.textSecondary),
+                        ),
+                      if (!_loading && _teams.isNotEmpty)
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(_teams.length, (i) {
+                            final team = _teams[i];
+                            final members =
+                                (team['members'] as List<dynamic>?)
+                                    ?.whereType<String>()
+                                    .toList() ??
+                                [];
+                            final isActive = _isActiveTeam(members);
+                            return _buildTeamRow(
+                              t,
+                              members,
+                              onTap: () => _applyTeam(i),
+                              highlight: isActive,
+                              label: isActive ? 'DEPLOYED' : null,
+                              labelColor: t.success,
+                              trailing: IconButton(
                                 onPressed: () => _deleteTeam(i),
                                 icon: Icon(
                                   Icons.delete_outline,
@@ -426,63 +565,51 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                                 ),
                                 tooltip: 'Delete team',
                               ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ),
-
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _saveCurrentAs,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: t.success.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(
-                                color: t.success.withValues(alpha: 0.4),
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              'Save Selected Team',
-                              style: TextStyle(
-                                color: t.success,
-                                fontWeight: FontWeight.w800,
-                              ),
+                            );
+                          }),
+                        ),
+                      if (!_loading)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            '${_teams.length} / $_maxSavedTeams saved teams',
+                            style: TextStyle(
+                              color: t.textSecondary,
+                              fontSize: 11,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: t.bg2,
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(color: t.borderDim),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              'Close',
-                              style: TextStyle(
-                                color: t.textSecondary,
-                                fontWeight: FontWeight.w800,
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => Navigator.pop(context),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: t.bg2,
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(color: t.borderDim),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Close',
+                                  style: TextStyle(
+                                    color: t.textSecondary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ],

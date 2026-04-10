@@ -10,7 +10,7 @@ CosmicPartyMember _testMember({required String family}) {
     displayName: 'Test $family',
     element: 'Light',
     family: family,
-    level: 10,
+    level: 5,
     statSpeed: 3.0,
     statIntelligence: 3.0,
     statStrength: 3.0,
@@ -29,7 +29,7 @@ void main() {
         strength: 2.5,
       );
       final maxLevelAtk = CosmicBalance.companionPhysAtk(
-        level: 10,
+        level: 5,
         strength: 2.5,
       );
       final lowLevelHp = CosmicBalance.companionMaxHp(
@@ -38,7 +38,7 @@ void main() {
         intelligence: 2.5,
       );
       final maxLevelHp = CosmicBalance.companionMaxHp(
-        level: 10,
+        level: 5,
         strength: 2.5,
         intelligence: 2.5,
       );
@@ -73,20 +73,20 @@ void main() {
 
     test('stat quality is worth more than late-level progression', () {
       final weakMaxLevelAtk = CosmicBalance.companionPhysAtk(
-        level: 10,
+        level: 5,
         strength: 2.0,
       );
       final strongMidLevelAtk = CosmicBalance.companionPhysAtk(
-        level: 5,
+        level: 3,
         strength: 4.0,
       );
       final weakMaxLevelHp = CosmicBalance.companionMaxHp(
-        level: 10,
+        level: 5,
         strength: 2.0,
         intelligence: 2.0,
       );
       final strongMidLevelHp = CosmicBalance.companionMaxHp(
-        level: 5,
+        level: 3,
         strength: 4.0,
         intelligence: 4.0,
       );
@@ -109,9 +109,9 @@ void main() {
 
     test('arena rolls treat 2-3 as average and 4-5 as exceptional', () {
       expect(CosmicBalance.arenaMinStat(1), closeTo(2.0, 0.001));
-      expect(CosmicBalance.arenaMaxStat(5), inInclusiveRange(3.5, 3.9));
-      expect(CosmicBalance.arenaMinStat(10), closeTo(4.0, 0.001));
-      expect(CosmicBalance.arenaMaxStat(10), closeTo(5.0, 0.001));
+      expect(CosmicBalance.arenaMaxStat(3), inInclusiveRange(3.5, 3.9));
+      expect(CosmicBalance.arenaMinStat(5), closeTo(4.0, 0.001));
+      expect(CosmicBalance.arenaMaxStat(5), closeTo(5.0, 0.001));
     });
 
     test('ship upgrades stay meaningful but bounded', () {
@@ -119,16 +119,16 @@ void main() {
       expect(CosmicBalance.shipDamageMultiplier(5), closeTo(1.6, 0.0001));
     });
 
-    test('boss scaling stays within the level 10 combat ceiling', () {
+    test('boss scaling stays within the level 5 combat ceiling', () {
       expect(CosmicBalance.clampLevel(20), CosmicBalance.maxCombatLevel);
       expect(
-        CosmicBalance.bossHealthScale(10),
+        CosmicBalance.bossHealthScale(5),
         greaterThan(CosmicBalance.bossHealthScale(1)),
       );
       expect(
-        CosmicBalance.bossCollisionDamage(level: 10, type: BossType.warden),
+        CosmicBalance.bossCollisionDamage(level: 5, type: BossType.warden),
         greaterThan(
-          CosmicBalance.bossCollisionDamage(level: 4, type: BossType.gunner),
+          CosmicBalance.bossCollisionDamage(level: 2, type: BossType.gunner),
         ),
       );
     });
@@ -470,11 +470,11 @@ void main() {
         maxHp: 120,
       );
 
-      expect(earth.chargeDamage, lessThanOrEqualTo(95));
-      expect(earth.shieldHp, lessThanOrEqualTo((120 * 0.52).round()));
-      expect(dark.chargeDamage, lessThanOrEqualTo(82));
-      expect(lava.chargeDamage, lessThanOrEqualTo(80));
-      expect(blood.chargeDamage, lessThanOrEqualTo(72));
+      expect(earth.chargeDamage, lessThanOrEqualTo(36));
+      expect(earth.shieldHp, lessThanOrEqualTo((120 * 0.75).round()));
+      expect(dark.chargeDamage, lessThanOrEqualTo(31));
+      expect(lava.chargeDamage, lessThanOrEqualTo(30));
+      expect(blood.chargeDamage, lessThanOrEqualTo(28));
       expect(blood.selfHeal, greaterThan(0));
     });
 

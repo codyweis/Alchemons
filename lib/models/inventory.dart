@@ -443,6 +443,10 @@ class LootBoxConfig {
 // Keys
 class InvKeys {
   static const instantHatch = 'item.instant_hatch';
+  static const powerupSpeed = 'item.powerup.speed';
+  static const powerupIntelligence = 'item.powerup.intelligence';
+  static const powerupStrength = 'item.powerup.strength';
+  static const powerupBeauty = 'item.powerup.beauty';
   static const harvesterStdVolcanic = 'item.harvest_std_volcanic';
   static const harvesterStdOceanic = 'item.harvest_std_oceanic';
   static const harvesterStdVerdant = 'item.harvest_std_verdant';
@@ -459,6 +463,7 @@ class InvKeys {
   static const alchemySpeedFlux = 'alchemy.speed_flux';
   static const alchemyStrengthForge = 'alchemy.strength_forge';
   static const alchemyIntelligenceHalo = 'alchemy.intelligence_halo';
+  static const alchemyBloodAura = 'alchemy.blood_aura';
   static const staminaPotion = 'item.stamina_potion';
   static const bossRefresh = 'item.boss_refresh';
   static const bossSummon = 'item.boss_summon';
@@ -495,6 +500,38 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Instant Fusion Extractor',
       description: 'Complete one active fusion vial instantly.',
       icon: Icons.access_alarms,
+      canUse: false,
+    ),
+    InvKeys.powerupSpeed: InventoryItemDef(
+      key: InvKeys.powerupSpeed,
+      name: 'Velocity Orb',
+      description:
+          'An alchemical powerup that raises Speed up to the specimen\'s potential.',
+      icon: Icons.bolt_rounded,
+      canUse: false,
+    ),
+    InvKeys.powerupIntelligence: InventoryItemDef(
+      key: InvKeys.powerupIntelligence,
+      name: 'Insight Orb',
+      description:
+          'An alchemical powerup that raises Intelligence up to the specimen\'s potential.',
+      icon: Icons.psychology_rounded,
+      canUse: false,
+    ),
+    InvKeys.powerupStrength: InventoryItemDef(
+      key: InvKeys.powerupStrength,
+      name: 'Forge Orb',
+      description:
+          'An alchemical powerup that raises Strength up to the specimen\'s potential.',
+      icon: Icons.fitness_center_rounded,
+      canUse: false,
+    ),
+    InvKeys.powerupBeauty: InventoryItemDef(
+      key: InvKeys.powerupBeauty,
+      name: 'Radiance Orb',
+      description:
+          'An alchemical powerup that raises Beauty up to the specimen\'s potential.',
+      icon: Icons.auto_awesome_rounded,
       canUse: false,
     ),
     InvKeys.harvesterStdVolcanic: InventoryItemDef(
@@ -608,6 +645,13 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'Contest reward effect: a cerebral halo of void-lit focus and adaptive thought.',
       icon: Icons.psychology_rounded,
+    ),
+    InvKeys.alchemyBloodAura: InventoryItemDef(
+      key: InvKeys.alchemyBloodAura,
+      name: 'Blood Aura',
+      description:
+          'Wrap an Alchemon in a blood-red alchemical field with pulsing crimson motes.',
+      icon: Icons.opacity_rounded,
     ),
     InvKeys.staminaPotion: InventoryItemDef(
       key: InvKeys.staminaPotion,

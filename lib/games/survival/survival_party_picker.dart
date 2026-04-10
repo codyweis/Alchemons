@@ -164,7 +164,15 @@ class _ScanlinePainter extends CustomPainter {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class SurvivalFormationSelectorScreen extends StatefulWidget {
-  const SurvivalFormationSelectorScreen({super.key});
+  const SurvivalFormationSelectorScreen({
+    super.key,
+    this.minSquadSize = 4,
+    this.maxSquadSize = 10,
+  });
+
+  final int minSquadSize;
+  final int maxSquadSize;
+
   @override
   State<SurvivalFormationSelectorScreen> createState() =>
       _SurvivalFormationSelectorScreenState();
@@ -185,11 +193,9 @@ class _SurvivalFormationSelectorScreenState
 
   final List<String> _selectedCreatures = [];
 
-  static const int minSquadSize = 4;
-  static const int maxSquadSize = 10;
-
-  bool get _hasMinimumSquad => _selectedCreatures.length >= minSquadSize;
-  int get _remaining => minSquadSize - _selectedCreatures.length;
+  bool get _hasMinimumSquad =>
+      _selectedCreatures.length >= widget.minSquadSize;
+  int get _remaining => widget.minSquadSize - _selectedCreatures.length;
 
   @override
   void dispose() {
@@ -299,7 +305,7 @@ class _SurvivalFormationSelectorScreenState
 
                             final canSelect =
                                 !isSelected &&
-                                _selectedCreatures.length < maxSquadSize &&
+                                _selectedCreatures.length < widget.maxSquadSize &&
                                 !hasSameSpecies &&
                                 !hasMysticAlready;
 
@@ -322,7 +328,7 @@ class _SurvivalFormationSelectorScreenState
                                     ),
                                   );
                                 } else if (_selectedCreatures.length >=
-                                    maxSquadSize) {
+                                    widget.maxSquadSize) {
                                   // Squad full — silent
                                 } else if (hasSameSpecies) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -441,7 +447,7 @@ class _SurvivalFormationSelectorScreenState
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'SELECT $minSquadSize\u2013$maxSquadSize CREATURES',
+                  'SELECT ${widget.minSquadSize}\u2013${widget.maxSquadSize} CREATURES',
                   style: _T.label.copyWith(color: _C.textMuted),
                 ),
               ],
@@ -455,7 +461,7 @@ class _SurvivalFormationSelectorScreenState
                 builder: (_) => TeamBuilderDialog(
                   theme: context.read<FactionTheme>(),
                   storageKey: 'saved_teams_survival',
-                  slotCount: maxSquadSize,
+                  slotCount: widget.maxSquadSize,
                   activeMemberIds: List<String>.from(_selectedCreatures),
                   onApply: (members) {
                     setState(() {
@@ -551,7 +557,7 @@ class _SurvivalFormationSelectorScreenState
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'SQUAD  ${_selectedCreatures.length} / $maxSquadSize',
+                            'SQUAD  ${_selectedCreatures.length} / ${widget.maxSquadSize}',
                             style: _T.label.copyWith(
                               color: _hasMinimumSquad
                                   ? _C.success
@@ -615,10 +621,12 @@ class _SurvivalFormationSelectorScreenState
                         ],
                       ),
                       const SizedBox(height: 10),
-                      // Slot rows — 5 + 5
-                      _buildSlotRow(allInstances, repo, 0, 5),
-                      const SizedBox(height: 6),
-                      _buildSlotRow(allInstances, repo, 5, 10),
+                      // Slot rows — up to maxSquadSize
+                      _buildSlotRow(allInstances, repo, 0, widget.maxSquadSize.clamp(1, 5)),
+                      if (widget.maxSquadSize > 5) ...[
+                        const SizedBox(height: 6),
+                        _buildSlotRow(allInstances, repo, 5, widget.maxSquadSize),
+                      ],
                       const SizedBox(height: 10),
                       // Hint
                       Row(
@@ -680,7 +688,7 @@ class _SurvivalFormationSelectorScreenState
     final instance = instanceId != null
         ? allInstances.where((i) => i.instanceId == instanceId).firstOrNull
         : null;
-    final isRequired = slotIndex < minSquadSize;
+    final isRequired = slotIndex < widget.minSquadSize;
     final isFilled = instance != null;
     final species = isFilled ? repo.getCreatureById(instance.baseId) : null;
 

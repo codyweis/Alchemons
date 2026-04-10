@@ -4,22 +4,41 @@
 // Clean, minimal design for choosing between Survival and Boss Gauntlet
 //
 
-import 'package:alchemons/games/survival/survival_game_screen.dart';
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/screens/boss/boss_intro_screen.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
-class GameModeScreen extends StatelessWidget {
+class GameModeScreen extends StatefulWidget {
   const GameModeScreen({super.key});
 
-  void _navigateToSurvival(BuildContext context) {
-    HapticFeedback.mediumImpact();
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SurvivalGameScreen()));
+  @override
+  State<GameModeScreen> createState() => _GameModeScreenState();
+}
+
+class _GameModeScreenState extends State<GameModeScreen> {
+  bool _survivalUnlocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSurvivalUnlocked();
+  }
+
+  Future<void> _checkSurvivalUnlocked() async {
+    final db = context.read<AlchemonsDatabase>();
+    final unlocked =
+        await db.settingsDao.isCosmicSurvivalPortalDiscovered();
+    if (mounted) {
+      setState(() {
+        _survivalUnlocked = unlocked;
+      });
+    }
   }
 
   void _navigateToBoss(BuildContext context) {
@@ -98,17 +117,27 @@ class GameModeScreen extends StatelessWidget {
 
                       const SizedBox(height: 16),
 
-                      // Survival Card
+                      // Survival Card — locked until cosmic portal discovered
                       Expanded(
-                        child: _ModeCard(
-                          theme: theme,
-                          title: 'Survival',
-                          tagline: 'Endless Waves',
-                          description:
-                              'Defend your orb against endless hordes. Deploy strategically and unlock powerful upgrades as you progress.',
-                          accentColor: const Color(0xFF8B5CF6),
-                          onTap: () => _navigateToSurvival(context),
-                        ),
+                        child: _survivalUnlocked
+                            ? _ModeCard(
+                                theme: theme,
+                                title: 'Survival',
+                                tagline: 'Endless Waves',
+                                description:
+                                    'Defend your orb against endless hordes. Deploy strategically and unlock powerful upgrades as you progress.',
+                                accentColor: const Color(0xFF8B5CF6),
+                                onTap: () {
+                                  HapticFeedback.mediumImpact();
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const CosmicSurvivalScreen(),
+                                    ),
+                                  );
+                                },
+                              )
+                            : _LockedModeCard(theme: theme),
                       ),
                     ],
                   ),
@@ -238,6 +267,121 @@ class _ModeCard extends StatelessWidget {
                   colors: [
                     accentColor.withValues(alpha: 0.5),
                     accentColor.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// LOCKED MODE CARD — Survival not yet discovered via cosmic portal
+// ════════════════════════════════════════════════════════════════════════════
+
+class _LockedModeCard extends StatelessWidget {
+  final FactionTheme theme;
+  const _LockedModeCard({required this.theme});
+
+  static const _accentColor = Color(0xFF8B5CF6);
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: 0.5,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: theme.surface.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _accentColor.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Survival',
+                        style: TextStyle(
+                          color: theme.text.withValues(alpha: 0.5),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Locked',
+                        style: TextStyle(
+                          color: _accentColor.withValues(alpha: 0.5),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.lock_rounded,
+                    color: theme.textMuted,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    'Unlock Survival by exploring the Cosmos',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 14,
+                      height: 1.5,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              height: 2,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(1),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withValues(alpha: 0.06),
+                    Colors.white.withValues(alpha: 0.0),
                   ],
                 ),
               ),

@@ -5,6 +5,16 @@ import 'package:alchemons/models/extraction_vile.dart';
 
 import 'package:flutter/material.dart';
 
+const Color kBloodbornPrimary = Color(0xFF7A0019);
+const Color kBloodbornSecondary = Color(0xFFFF1744);
+const Color kBloodbornFill = Color(0x44FF1744);
+const Color kBloodbornReadyBorder = Color(0xFFFF6B6B);
+
+bool isBloodbornPayload(Map<String, dynamic> payload) {
+  final source = (payload['source'] as String? ?? '').trim().toLowerCase();
+  return source == 'bloodborn';
+}
+
 /// Parse egg's JSON payload safely
 Map<String, dynamic> parseEggPayload(Egg egg) {
   try {
@@ -53,7 +63,7 @@ ElementalGroup getElementalGroupFromPayload(Map<String, dynamic> payload) {
 /// Get display label for the egg
 String getEggLabel(Map<String, dynamic> payload) {
   final source = (payload['source'] as String? ?? '').toLowerCase();
-  if (source == 'vial') {
+  if (source == 'vial' || source == 'bloodborn') {
     final vialName = (payload['vialName'] as String?)?.trim();
     if (vialName != null && vialName.isNotEmpty) {
       return vialName;
@@ -61,7 +71,7 @@ String getEggLabel(Map<String, dynamic> payload) {
   }
 
   final rarity = payload['rarity'] as String? ?? 'Common';
-  if (source == 'vial') {
+  if (source == 'vial' || source == 'bloodborn') {
     final vialRarity = _vialRarityFromCreatureRarity(rarity);
     return vialRarity.label;
   }

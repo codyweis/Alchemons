@@ -1,7 +1,17 @@
 part of 'cosmic_game.dart';
 
+/// Horn family gets bonus HP and DEF since they're the tanks.
+double _familyHpMultiplier(String family) =>
+    family == 'horn' ? 1.30 : 1.0;
+double _familyDefMultiplier(String family) =>
+    family == 'horn' ? 1.20 : 1.0;
+
 extension CosmicGameCompanionsAndContests on CosmicGame {
-  void summonCompanion(CosmicPartyMember member, {double hpFraction = 1.0}) {
+  void summonCompanion(
+    CosmicPartyMember member, {
+    double hpFraction = 1.0,
+    double? initialSpecialCooldown,
+  }) {
     // Block swapping companions during a ring battle — callers may not
     // always check this (UI normally does), so enforce it here.
     if (battleRing.inBattle) return;
@@ -22,13 +32,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     final strength = member.statStrength.toDouble();
     final beauty = member.statBeauty.toDouble();
 
-    final level = CosmicBalance.clampLevel(member.level);
+    final level = CosmicBalance.clampCompanionLevel(member.level);
+    final family = member.family.toLowerCase();
 
-    final maxHp = CosmicBalance.companionMaxHp(
+    final maxHp = (CosmicBalance.companionMaxHp(
       level: level,
       strength: strength,
       intelligence: intel,
-    );
+    ) * _familyHpMultiplier(family)).round();
     final physAtk = CosmicBalance.companionPhysAtk(
       level: level,
       strength: strength,
@@ -37,22 +48,21 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       level: level,
       beauty: beauty,
     );
-    final physDef = CosmicBalance.companionPhysDef(
+    final physDef = (CosmicBalance.companionPhysDef(
       level: level,
       strength: strength,
       intelligence: intel,
-    );
-    final elemDef = CosmicBalance.companionElemDef(
+    ) * _familyDefMultiplier(family)).round();
+    final elemDef = (CosmicBalance.companionElemDef(
       level: level,
       beauty: beauty,
       intelligence: intel,
-    );
+    ) * _familyDefMultiplier(family)).round();
     final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
     final critChance = CosmicBalance.companionCritChance(strength);
     final baseRange = CosmicBalance.companionBaseRange(intel);
 
     // Species-based scale
-    final family = member.family.toLowerCase();
     final specScale = (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
 
     // Place at the ship's current position
@@ -77,6 +87,9 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       critChance: critChance,
       attackRange: _familyAttackRange(family, baseRange),
       specialAbilityRange: _familySpecialRange(family, baseRange),
+      specialCooldown:
+          initialSpecialCooldown?.clamp(0.0, 100.0).toDouble() ??
+          CosmicCompanion.baseSpecialCooldown,
       speciesScale: specScale,
     );
 
@@ -149,13 +162,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     final strength = member.statStrength.toDouble();
     final beauty = member.statBeauty.toDouble();
 
-    final level = CosmicBalance.clampLevel(member.level);
+    final level = CosmicBalance.clampCompanionLevel(member.level);
+    final family = member.family.toLowerCase();
 
-    final maxHp = CosmicBalance.companionMaxHp(
+    final maxHp = (CosmicBalance.companionMaxHp(
       level: level,
       strength: strength,
       intelligence: intel,
-    );
+    ) * _familyHpMultiplier(family)).round();
     final physAtk = CosmicBalance.companionPhysAtk(
       level: level,
       strength: strength,
@@ -164,21 +178,20 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       level: level,
       beauty: beauty,
     );
-    final physDef = CosmicBalance.companionPhysDef(
+    final physDef = (CosmicBalance.companionPhysDef(
       level: level,
       strength: strength,
       intelligence: intel,
-    );
-    final elemDef = CosmicBalance.companionElemDef(
+    ) * _familyDefMultiplier(family)).round();
+    final elemDef = (CosmicBalance.companionElemDef(
       level: level,
       beauty: beauty,
       intelligence: intel,
-    );
+    ) * _familyDefMultiplier(family)).round();
     final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
     final critChance = CosmicBalance.companionCritChance(strength);
     final baseRange = CosmicBalance.companionBaseRange(intel);
 
-    final family = member.family.toLowerCase();
     final specScale = (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
 
     // Use spawnPosition if provided, else default to ring center
@@ -1065,6 +1078,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         damage: max(6.0, comp.elemAtk * 1.5),
         maxHp: comp.maxHp,
         casterPower: comp.member.statIntelligence.toDouble(),
+        casterBeauty: comp.member.statBeauty.toDouble(),
+        casterIntelligence: comp.member.statIntelligence.toDouble(),
         targetPos: opp.position,
       );
       companionProjectiles.addAll(result.projectiles);
@@ -1082,6 +1097,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         damage: max(6.0, opp.elemAtk * 1.5),
         maxHp: opp.maxHp,
         casterPower: opp.member.statIntelligence.toDouble(),
+        casterBeauty: opp.member.statBeauty.toDouble(),
+        casterIntelligence: opp.member.statIntelligence.toDouble(),
         targetPos: comp.position,
       );
       ringOpponentProjectiles.addAll(result.projectiles);
@@ -1099,6 +1116,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         damage: max(6.0, comp.elemAtk * 1.4),
         maxHp: comp.maxHp,
         casterPower: comp.member.statIntelligence.toDouble(),
+        casterBeauty: comp.member.statBeauty.toDouble(),
+        casterIntelligence: comp.member.statIntelligence.toDouble(),
         targetPos: opp.position,
       );
       companionProjectiles.addAll(result.projectiles);
@@ -1116,6 +1135,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         damage: max(6.0, opp.elemAtk * 1.4),
         maxHp: opp.maxHp,
         casterPower: opp.member.statIntelligence.toDouble(),
+        casterBeauty: opp.member.statBeauty.toDouble(),
+        casterIntelligence: opp.member.statIntelligence.toDouble(),
         targetPos: comp.position,
       );
       ringOpponentProjectiles.addAll(result.projectiles);
@@ -1544,8 +1565,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       final specScale =
           (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
       // Derive combat stats from member
-      final atkDmg = 5.0 + m.statStrength * 0.5 + m.level * 0.8;
-      final specialDmg = 8.0 + m.statIntelligence * 0.6 + m.level * 1.0;
+      final atkDmg = 3.0 + m.statStrength * 0.3 + m.level * 0.5;
+      final specialDmg = 3.0 + m.statIntelligence * 0.35 + m.level * 0.45;
       final baseRange =
           CosmicBalance.companionBaseRange(m.statIntelligence) +
           m.statSpeed * 12.0;
