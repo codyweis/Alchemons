@@ -120,6 +120,7 @@ class AlchemonsApp extends StatelessWidget {
 
           return MaterialApp(
             title: 'Alchemons',
+            debugShowCheckedModeBanner: false,
             scaffoldMessengerKey: rootScaffoldMessengerKey,
             themeMode: themeNotifier.themeMode,
             theme: lightThemeData,

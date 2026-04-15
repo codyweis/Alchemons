@@ -1,8 +1,10 @@
 // lib/screens/inventory_screen.dart - REDESIGNED
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
+import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
@@ -51,6 +53,11 @@ class InventoryImageHelper {
     IconData? icon,
     required double size,
   }) {
+    final powerupType = alchemicalPowerupTypeFromInventoryKey(key);
+    if (powerupType != null) {
+      return AlchemicalPowerupOrbSphere(type: powerupType, size: size);
+    }
+
     // 1. Check if it's an alchemy effect using the key prefix
     if (key.startsWith('alchemy.')) {
       final preview = ShopService.getAlchemyEffectPreview(key, size: size);

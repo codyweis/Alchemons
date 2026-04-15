@@ -223,7 +223,7 @@ const kOrbDefenses = [
   PowerUpDef(
     id: 'auto_turret',
     name: 'Auto-Turret',
-    description: 'Orb turret fires faster and harder',
+    description: 'Orb turret fires faster, scales into later waves, and hits visibly',
     icon: '🔧',
     category: PowerUpCategory.orbDefense,
     maxStacks: 3,
@@ -330,7 +330,7 @@ const kRarePerks = [
   PowerUpDef(
     id: 'mirror_shield',
     name: 'Mirror Shield',
-    description: 'Reflect 25% of orb contact damage to attackers',
+    description: 'Reduce orb collision damage by 25% and release a retaliatory pulse',
     icon: '🪞',
     category: PowerUpCategory.rarePerk,
     rarity: PowerUpRarity.rare,
@@ -372,7 +372,7 @@ const kRarePerks = [
   ),
   PowerUpDef(
     id: 'phoenix_rebirth',
-    name: 'Phoenix Rebirth',
+    name: 'Rebirth',
     description: 'One alchemon revives once at full HP',
     icon: '🦅',
     category: PowerUpCategory.rarePerk,
@@ -665,9 +665,9 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
       'keystone_chrono_surge' =>
         '+16% companion speed, +10% cooldown reduction, +20% ship fire rate',
       'keystone_spellbloom' =>
-        '+16% companion attack, +12% cooldown reduction for spell-focused runs',
+        '+16% companion attack, +12% cooldown reduction',
       'keystone_warpath' =>
-        '+22% companion attack and +20% ship damage for assault lines',
+        '+22% companion attack and +20% ship damage',
       _ => def.description,
     };
   }
@@ -707,7 +707,7 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
     },
     'double_cast' => 'Special ability casts twice',
     'chain_lightning' => 'Attacks chain to nearby enemies',
-    'mirror_shield' => 'Reflect 25% orb contact damage',
+    'mirror_shield' => 'Reduce orb collision damage and retaliate',
     'berserker' => 'Double damage below 30% orb HP',
     'elemental_fury' => '+1 elemental splash level',
     'alchemy_siphon' => 'Alchemon kills auto-collect alchemy',
@@ -719,7 +719,7 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
 String? powerUpTotalLabel(OfferedPowerUpChoice choice) {
   final def = choice.def;
   final nextLevel = choice.currentLevel + 1;
-  if (def.isKeystone) return 'Run-defining keystone: only one can be claimed.';
+  if (def.isKeystone) return 'Keystone: only one can be claimed.';
   if (choice.currentLevel <= 0 || def.maxStacks <= 1) return null;
   return switch (def.id) {
     'attack_boost' => '+${18 * nextLevel}% total power',

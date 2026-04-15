@@ -146,6 +146,10 @@ class SurvivalBoss {
   double spreadTimer;
   double summonTimer;
   bool enraged;
+  double spawnIntroTimer;
+  double spawnIntroDuration;
+  Offset? spawnFromPosition;
+  Offset? spawnTargetPosition;
 
   // Constants
   static const double chargeCooldown = 3.0;
@@ -188,9 +192,14 @@ class SurvivalBoss {
     this.spreadTimer = 1.0, // spread soon after spawn
     this.summonTimer = summonCooldown,
     this.enraged = false,
+    this.spawnIntroTimer = 0,
+    this.spawnIntroDuration = 1.2,
+    this.spawnFromPosition,
+    this.spawnTargetPosition,
   });
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
+  bool get isSpawning => spawnIntroTimer > 0;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

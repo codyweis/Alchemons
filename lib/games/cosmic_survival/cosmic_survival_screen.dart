@@ -366,6 +366,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   int _finalKills = 0;
   int _finalScore = 0;
   String _finalTime = '00:00';
+  bool _resolvingGameOver = false;
 
   static const List<_SurvivalTestSlotSpec> _testTeamA = [
     _SurvivalTestSlotSpec(family: 'Horn', element: 'Earth'),
@@ -704,6 +705,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     setState(() {
       _game = game;
       _phase = _Phase.playing;
+      _lootRewardLabel = '';
+      _currencyRewardLabel = '';
+      _finalWave = 0;
+      _finalKills = 0;
+      _finalScore = 0;
+      _finalTime = '00:00';
+      _resolvingGameOver = false;
     });
 
     game.startGame();
@@ -811,8 +819,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   // ── Game Over ──────────────────────────────────────────
 
   void _handleGameOver() {
-    if (!mounted) return;
+    if (!mounted || _resolvingGameOver) return;
     _hudTimer?.cancel();
+    _game?.gamePaused = true;
 
     final wave = _game?.spawner.currentWave ?? 0;
     setState(() {
@@ -820,11 +829,24 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       _finalKills = _game?.stats.kills ?? 0;
       _finalScore = _game?.stats.score ?? 0;
       _finalTime = _game?.stats.formattedTime ?? '00:00';
-      _phase = _Phase.gameOver;
+      _resolvingGameOver = true;
     });
 
-    _saveHighScore();
-    _rollAndShowRewards(wave);
+    unawaited(_completeGameOverSequence(wave));
+  }
+
+  Future<void> _completeGameOverSequence(int wave) async {
+    try {
+      await _saveHighScore();
+      await _rollAndShowRewards(wave);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _phase = _Phase.gameOver;
+          _resolvingGameOver = false;
+        });
+      }
+    }
   }
 
   Future<void> _rollAndShowRewards(int wave) async {
@@ -2087,7 +2109,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'SHIP DESTROYED — GHOST FORM',
+                  'SHIP DESTROYED',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'monospace',

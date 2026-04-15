@@ -9,6 +9,7 @@ import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -586,29 +587,7 @@ Widget _buildOfferPreview(
       orElse: () => AlchemicalPowerupType.speed,
     );
     return Center(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [
-              Colors.white.withValues(alpha: 0.94),
-              type.color.withValues(alpha: 0.88),
-              type.glowColor.withValues(alpha: 0.36),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.30, 0.66, 1.0],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: type.glowColor.withValues(alpha: 0.55),
-              blurRadius: 24,
-              spreadRadius: 4,
-            ),
-          ],
-        ),
-      ),
+      child: AlchemicalPowerupOrbSphere(type: type, size: size),
     );
   }
 

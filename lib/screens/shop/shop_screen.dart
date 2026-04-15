@@ -26,6 +26,7 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
+import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
@@ -2328,32 +2329,14 @@ class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
                   offset: Offset(0, _float.value * 5.5),
                   child: Transform.scale(
                     scale: _pulse.value,
-                    child: Container(
-                      width: 62,
-                      height: 62,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            Colors.white.withValues(alpha: 0.94),
-                            type.color.withValues(alpha: 0.88),
-                            type.glowColor.withValues(alpha: 0.36),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 0.30, 0.66, 1.0],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: type.glowColor.withValues(
-                              alpha: widget.canAfford
-                                  ? 0.50 + _pulse.value * 0.08
-                                  : 0.18,
-                            ),
-                            blurRadius: widget.canAfford ? 22 : 8,
-                            spreadRadius: widget.canAfford ? 1 : -6,
-                          ),
-                        ],
-                      ),
+                    child: AlchemicalPowerupOrbSphere(
+                      type: type,
+                      size: 62,
+                      glowAlpha: widget.canAfford
+                          ? 0.50 + _pulse.value * 0.08
+                          : 0.18,
+                      blurRadius: widget.canAfford ? 22 : 8,
+                      spreadRadius: widget.canAfford ? 1 : -6,
                     ),
                   ),
                 );
