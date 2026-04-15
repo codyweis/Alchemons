@@ -364,6 +364,52 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
     return confirmed == true;
   }
 
+  void _showMarketToast(
+    String message, {
+    required bool success,
+  }) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final tone = success ? const Color(0xFF22C55E) : const Color(0xFFC0392B);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 2),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: t.bg2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: tone.withValues(alpha: 0.65)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                success ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                size: 16,
+                color: tone,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    color: t.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _purchase(_MarketItem item) async {
     final db = context.read<AlchemonsDatabase>();
     final cost = _effectiveCost(item);
@@ -379,13 +425,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
         _carriedShards >= shardCost && silver >= silverCost && gold >= goldCost;
     if (!canAfford) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Not enough resources'),
-          backgroundColor: Colors.red.shade700,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      _showMarketToast('Insufficient resources for this purchase.', success: false);
       return;
     }
 
@@ -409,13 +449,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
     await db.inventoryDao.addItemQty(item.inventoryKey, 1);
     HapticFeedback.heavyImpact();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${item.name} acquired!'),
-        backgroundColor: Colors.green.shade700,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    _showMarketToast('${item.name} acquired.', success: true);
     setState(() {}); // refresh owned counts
   }
 

@@ -114,6 +114,52 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         dateUtc: DateTime.now().toUtc(),
       );
 
+  void _showConversionToast(
+    String message, {
+    required bool success,
+  }) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final tone = success ? const Color(0xFF22C55E) : const Color(0xFFC0392B);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 2),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: t.bg2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: tone.withValues(alpha: 0.65)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                success ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                size: 16,
+                color: tone,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    color: t.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _convert() async {
     final db = context.read<AlchemonsDatabase>();
     final gold = await db.currencyDao.getGoldBalance();
@@ -151,27 +197,16 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
 
     HapticFeedback.heavyImpact();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Converted $_goldCost gold → $_outputAmount $_outputLabel',
-        ),
-        backgroundColor: Colors.green.shade700,
-        duration: const Duration(seconds: 2),
-      ),
+    _showConversionToast(
+      'Converted $_goldCost gold into $_outputAmount $_outputLabel.',
+      success: true,
     );
     setState(() {});
   }
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: Colors.red.shade700,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    _showConversionToast(msg, success: false);
   }
 
   Future<bool> _confirmConversion() async {
@@ -183,11 +218,17 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         backgroundColor: t.bg1,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: _accent.withValues(alpha: 0.35)),
+          side: BorderSide(color: _accent.withValues(alpha: 0.55)),
         ),
         title: Text(
-          'Confirm Conversion',
-          style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w700),
+          'CONFIRM CONVERSION',
+          style: TextStyle(
+            fontFamily: appFontFamily(context),
+            color: t.textPrimary,
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            letterSpacing: 1.1,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -282,14 +323,9 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
 
     HapticFeedback.heavyImpact();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Sold $qty ${resource.biomeLabel.toLowerCase()} matter for $silverPayout silver',
-        ),
-        backgroundColor: Colors.green.shade700,
-        duration: const Duration(seconds: 2),
-      ),
+    _showConversionToast(
+      'Sold $qty ${resource.biomeLabel.toLowerCase()} matter for $silverPayout silver.',
+      success: true,
     );
     setState(() {
       _sellQuantity = qty;
@@ -310,11 +346,17 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         backgroundColor: t.bg1,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: _accent.withValues(alpha: 0.35)),
+          side: BorderSide(color: _accent.withValues(alpha: 0.55)),
         ),
         title: Text(
-          'Confirm Sale',
-          style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w700),
+          'CONFIRM SALE',
+          style: TextStyle(
+            fontFamily: appFontFamily(context),
+            color: t.textPrimary,
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            letterSpacing: 1.1,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,

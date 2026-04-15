@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart' as db;
-import 'dart:math';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';

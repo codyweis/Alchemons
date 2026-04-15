@@ -423,7 +423,11 @@ class _LoadingScreenState extends State<_LoadingScreen> {
         final creature = catalog.getCreatureById(id);
         if (creature?.spriteData != null) {
           try {
-            final provider = AssetImage(creature!.spriteData!.spriteSheetPath);
+            final rawPath = creature!.spriteData!.spriteSheetPath;
+            final assetPath = rawPath.startsWith('assets/')
+                ? rawPath
+                : 'assets/images/$rawPath';
+            final provider = AssetImage(assetPath);
             await precacheImage(provider, context);
             cached++;
 

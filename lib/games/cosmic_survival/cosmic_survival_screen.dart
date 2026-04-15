@@ -676,8 +676,38 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final party = _buildTestParty(specs, teamKey: teamKey);
     if (party == null || party.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not build the requested survival test team.'),
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          content: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: _C.bg2,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _C.danger.withValues(alpha: 0.7)),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: _C.danger,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Could not build the requested survival test team.',
+                    style: TextStyle(
+                      color: _C.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
       return;

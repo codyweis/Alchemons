@@ -23,6 +23,7 @@ class ElementsCapturedPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const warn = Color(0xFFFFB020);
     final lost = breakdown.entries.where((e) => e.value > 0).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -41,7 +42,7 @@ class ElementsCapturedPopup extends StatelessWidget {
               color: const Color(0xF0080D1E),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: Colors.redAccent.withValues(alpha: 0.25),
+                color: warn.withValues(alpha: 0.28),
                 width: 0.9,
               ),
               boxShadow: [
@@ -51,7 +52,7 @@ class ElementsCapturedPopup extends StatelessWidget {
                   offset: const Offset(0, 8),
                 ),
                 BoxShadow(
-                  color: Colors.redAccent.withValues(alpha: 0.08),
+                  color: warn.withValues(alpha: 0.1),
                   blurRadius: 40,
                   spreadRadius: 4,
                 ),
@@ -68,7 +69,7 @@ class ElementsCapturedPopup extends StatelessWidget {
                       width: 3,
                       height: 28,
                       decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.7),
+                        color: warn.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -77,7 +78,7 @@ class ElementsCapturedPopup extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'SUMMON FAILED',
+                          'RESONANCE MISALIGNED',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.95),
                             fontSize: 15,
@@ -88,7 +89,7 @@ class ElementsCapturedPopup extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          'Elements didn\'t match the recipe',
+                          'Element flow drifted from the active recipe',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.35),
                             fontSize: 11,
@@ -117,9 +118,9 @@ class ElementsCapturedPopup extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'PARTICLES LOST',
+                          'PARTICLES DISPERSED',
                           style: TextStyle(
-                            color: Colors.redAccent.withValues(alpha: 0.7),
+                            color: warn.withValues(alpha: 0.75),
                             fontSize: 9,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.5,
@@ -153,7 +154,7 @@ class ElementsCapturedPopup extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      'UNDERSTOOD',
+                      'RECALIBRATE',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.7),
                         fontSize: 12,

@@ -3461,8 +3461,39 @@ class _CosmicScreenState extends State<CosmicScreen>
         ? 'Bloodborn specimen transferred to cold storage'
         : 'Bloodborn specimen placed in incubation chamber ${free.id + 1}';
     if (!mounted) return false;
+    final fc = FC.of(context);
+    final ft = FT(fc);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(freeText), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 2),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: fc.bg2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: fc.success.withValues(alpha: 0.55)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle_rounded, size: 16, color: fc.success),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  freeText,
+                  style: ft.body.copyWith(
+                    color: fc.textPrimary,
+                    fontSize: 13,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
     return true;
   }
@@ -4837,35 +4868,46 @@ class _CosmicScreenState extends State<CosmicScreen>
   }) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Colors.white24),
-        ),
-        title: Text(title, style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: Text(
-          'Cost: $cost',
-          style: TextStyle(color: Colors.white70, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Cancel', style: TextStyle(color: Colors.white54)),
+      builder: (ctx) {
+        final fc = FC.of(ctx);
+        final ft = FT(fc);
+        return AlertDialog(
+          backgroundColor: fc.bg2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: fc.borderDim),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4FC3F7),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+          title: Text(
+            title.toUpperCase(),
+            style: ft.heading.copyWith(fontSize: 15, color: fc.textPrimary),
+          ),
+          content: Text(
+            'Cost: $cost',
+            style: ft.body.copyWith(color: fc.textSecondary, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('Cancel', style: ft.label.copyWith(color: fc.textMuted)),
             ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('Confirm'),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: fc.success,
+                foregroundColor: fc.textPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('Confirm', style: ft.mono.copyWith(color: fc.textPrimary)),
+            ),
+          ],
+        );
+      },
     );
     return result ?? false;
   }

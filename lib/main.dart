@@ -47,9 +47,7 @@ import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Increase Flutter image cache to reduce sprite eviction when navigating
   // between screens that load many creature assets.
@@ -338,10 +336,11 @@ class _AppGateState extends State<AppGate> {
           if (creature?.spriteData == null) return;
 
           try {
-            await precacheImage(
-              AssetImage(creature!.spriteData!.spriteSheetPath),
-              context,
-            );
+            final rawPath = creature!.spriteData!.spriteSheetPath;
+            final assetPath = rawPath.startsWith('assets/')
+                ? rawPath
+                : 'assets/images/$rawPath';
+            await precacheImage(AssetImage(assetPath), context);
             cached++;
           } catch (e) {
             debugPrint('Failed to precache sprite for $id: $e');
@@ -509,11 +508,7 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
       showAppSnack('Account backup restored here. This device is now active.');
     } catch (error) {
       if (!mounted) return;
-      showAppSnack(
-        error.toString(),
-        isError: true,
-        fallbackContext: context,
-      );
+      showAppSnack(error.toString(), isError: true, fallbackContext: context);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -527,11 +522,7 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
       await session.claimCurrentDevice(force: true);
     } catch (error) {
       if (!mounted) return;
-      showAppSnack(
-        error.toString(),
-        isError: true,
-        fallbackContext: context,
-      );
+      showAppSnack(error.toString(), isError: true, fallbackContext: context);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -592,10 +583,7 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
       showAppSnack('New local game started.');
     } catch (error) {
       if (!mounted) return;
-      showAppSnack(
-        error.toString(),
-        isError: true,
-      );
+      showAppSnack(error.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -670,7 +658,9 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
                     children: [
                       FilledButton(
                         onPressed: _busy ? null : _restoreAccountHere,
-                        child: Text(_busy ? 'Working...' : 'Restore Account Here'),
+                        child: Text(
+                          _busy ? 'Working...' : 'Restore Account Here',
+                        ),
                       ),
                       OutlinedButton(
                         onPressed: _busy ? null : _reactivateHere,

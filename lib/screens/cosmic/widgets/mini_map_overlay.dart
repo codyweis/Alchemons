@@ -654,7 +654,7 @@ class _Header extends StatelessWidget {
                             width: 18,
                             height: 1,
                             color: const Color(
-                              0xFF00C6FF,
+                              0xFFF59E0B,
                             ).withValues(alpha: 0.5),
                           ),
                           const SizedBox(width: 5),
@@ -662,7 +662,7 @@ class _Header extends StatelessWidget {
                             'COSMIC NAVIGATION',
                             style: TextStyle(
                               color: const Color(
-                                0xFF00C6FF,
+                                0xFFD6A45A,
                               ).withValues(alpha: 0.55),
                               fontSize: 8,
                               fontWeight: FontWeight.w700,
@@ -675,7 +675,7 @@ class _Header extends StatelessWidget {
                       // Main title with gradient-ish layering
                       ShaderMask(
                         shaderCallback: (bounds) => const LinearGradient(
-                          colors: [Color(0xFFE8F4FF), Color(0xFF8DB8D8)],
+                          colors: [Color(0xFFF3E7D3), Color(0xFFB89B72)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ).createShader(bounds),
@@ -714,20 +714,20 @@ class _Header extends StatelessWidget {
                 _StatChip(
                   icon: Icons.public_rounded,
                   label: '$discoveredCount PLANETS',
-                  color: const Color(0xFF4FC3F7),
+                  color: const Color(0xFFD97706),
                 ),
                 const SizedBox(width: 8),
                 _StatChip(
                   icon: Icons.push_pin_rounded,
                   label: '$markerCount MARKERS',
-                  color: const Color(0xFFA5D6A7),
+                  color: const Color(0xFF0EA5E9),
                 ),
                 const Spacer(),
                 // Tiny coordinate-style decoration
                 Text(
                   '${DateTime.now().millisecondsSinceEpoch % 9999 + 1000} LY',
                   style: TextStyle(
-                    color: const Color(0xFF00C6FF).withValues(alpha: 0.3),
+                    color: const Color(0xFFD6A45A).withValues(alpha: 0.35),
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.4,
@@ -858,20 +858,22 @@ class _MarkerToolbar extends StatelessWidget {
               height: 38,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: markerMode ? Colors.white24 : Colors.white10,
+                color: markerMode
+                    ? const Color(0xFFD97706).withValues(alpha: 0.2)
+                    : const Color(0xFF141820),
                 borderRadius: BorderRadius.circular(8),
-                border: markerMode
-                    ? Border.all(
-                        color: MapMarker.colors[selectedColor],
-                        width: 1.5,
-                      )
-                    : null,
+                border: Border.all(
+                  color: markerMode
+                      ? MapMarker.colors[selectedColor].withValues(alpha: 0.95)
+                      : const Color(0xFF3A3020),
+                  width: markerMode ? 1.5 : 1.0,
+                ),
               ),
               child: Icon(
                 Icons.push_pin,
                 color: markerMode
                     ? MapMarker.colors[selectedColor]
-                    : Colors.white38,
+                    : const Color(0xFF8A7B6A),
                 size: 15,
               ),
             ),
@@ -890,12 +892,15 @@ class _MarkerToolbar extends StatelessWidget {
                   height: 32,
                   decoration: BoxDecoration(
                     color: MapMarker.colors[i].withValues(
-                      alpha: selectedColor == i && markerMode ? 0.9 : 0.35,
+                      alpha: selectedColor == i && markerMode ? 0.86 : 0.28,
                     ),
                     shape: BoxShape.circle,
-                    border: selectedColor == i && markerMode
-                        ? Border.all(color: Colors.white, width: 2)
-                        : null,
+                    border: Border.all(
+                      color: selectedColor == i && markerMode
+                          ? const Color(0xFFE8DCC8)
+                          : const Color(0xFF3A3020),
+                      width: selectedColor == i && markerMode ? 1.8 : 1.0,
+                    ),
                   ),
                 ),
               ),
@@ -916,13 +921,14 @@ class _MarkerToolbar extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white10,
+                  color: const Color(0xFF141820),
                   borderRadius: BorderRadius.circular(7),
+                  border: Border.all(color: const Color(0xFF3A3020)),
                 ),
                 child: const Text(
                   'CLEAR ALL',
                   style: TextStyle(
-                    color: Colors.white38,
+                    color: Color(0xFF8A7B6A),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1,
@@ -1177,14 +1183,19 @@ class _TravelPromptCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B1122).withValues(alpha: 0.96),
+        color: const Color(0xFF141820).withValues(alpha: 0.97),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.4), width: 1.2),
+        border: Border.all(color: accent.withValues(alpha: 0.5), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: 0.22),
-            blurRadius: 18,
+            color: Colors.black.withValues(alpha: 0.55),
+            blurRadius: 16,
             offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: accent.withValues(alpha: 0.12),
+            blurRadius: 22,
+            spreadRadius: 1,
           ),
         ],
       ),
@@ -1211,7 +1222,7 @@ class _TravelPromptCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.94),
+                    color: const Color(0xFFE8DCC8),
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.9,
@@ -1221,7 +1232,7 @@ class _TravelPromptCard extends StatelessWidget {
                 Text(
                   prompt.subtitle.toUpperCase(),
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.45),
+                    color: const Color(0xFF8A7B6A),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
@@ -1243,7 +1254,7 @@ class _TravelPromptCard extends StatelessWidget {
               alignment: Alignment.center,
               child: Icon(
                 Icons.close_rounded,
-                color: Colors.white.withValues(alpha: 0.45),
+                color: const Color(0xFF8A7B6A),
                 size: 18,
               ),
             ),
@@ -1408,7 +1419,7 @@ class _Legend extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: const Color(0xFF1E3A5F).withValues(alpha: 0.5),
+            color: const Color(0xFF3A3020).withValues(alpha: 0.75),
             width: 1,
           ),
         ),
@@ -1420,7 +1431,7 @@ class _Legend extends StatelessWidget {
           Text(
             hint,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.35),
+              color: const Color(0xFF8A7B6A),
               fontSize: 10,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.2,
@@ -1430,7 +1441,7 @@ class _Legend extends StatelessWidget {
           Text(
             'Tip: Long-press the map icon to toggle it.',
             style: TextStyle(
-              color: Colors.amber.withValues(alpha: 0.65),
+              color: const Color(0xFFD6A45A),
               fontSize: 9.5,
               fontWeight: FontWeight.w700,
             ),

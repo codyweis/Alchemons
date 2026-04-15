@@ -284,22 +284,51 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _kCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: payoutColor.withValues(alpha: 0.5)),
+        ),
         title: Text(
-          'Sell ${item.creature.name}?',
-          style: const TextStyle(color: Colors.white),
+          'SELL ${item.creature.name.toUpperCase()}?',
+          style: const TextStyle(
+            color: _kCyan,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.0,
+            fontSize: 14,
+          ),
         ),
         content: Text(
-          'You will receive $displayPrice $payoutLabel.',
-          style: const TextStyle(color: Colors.white70),
+          'Transfer this Alchemon to the market archive for '
+          '$displayPrice $payoutLabel.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.78),
+            fontSize: 13,
+            height: 1.35,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('CANCEL'),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: payoutColor.withValues(alpha: 0.2),
+              foregroundColor: payoutColor,
+              elevation: 0,
+              side: BorderSide(color: payoutColor.withValues(alpha: 0.55)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('SELL', style: TextStyle(color: payoutColor)),
+            child: const Text(
+              'SELL',
+              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.6),
+            ),
           ),
         ],
       ),
