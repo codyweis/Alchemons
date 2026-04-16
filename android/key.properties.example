@@ -1,0 +1,8 @@
+# Copy this file to android/key.properties and replace the placeholder values.
+# `storeFile` is resolved relative to the `android/` directory.
+
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+storeType=pkcs12
+storeFile=upload-keystore.p12

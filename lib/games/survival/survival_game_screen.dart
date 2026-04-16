@@ -2320,20 +2320,20 @@ const List<_FamilyInfo> _familyInfos = [
   _FamilyInfo(
     id: 'Let',
     name: 'Let',
-    role: 'Meteor Caster',
+    role: 'Siege Caster',
     description:
-        'Drops heavy AoE meteors to erase clustered waves. Shines in swarm and boss add phases.',
-    bestPowerups: 'Int Transmute, Empower Meteor, Extra Deploy',
+        'Drops heavy meteor pressure and element-shaped follow-through to control lanes before waves collapse.',
+    bestPowerups: 'Int Transmute, Empower Meteor, lane control',
     assetPath: 'assets/images/creatures/common/LET02_waterlet.png',
     color: Color(0xFF3B82F6),
   ),
   _FamilyInfo(
     id: 'Pip',
     name: 'Pip',
-    role: 'Ricochet Marksman',
+    role: 'Tempo Carry',
     description:
-        'Projectiles bounce between enemies, turning tight packs into free value.',
-    bestPowerups: 'Speed/Int Transmute, Empower Ricochet',
+        'Fast cleanup darts chase leaks and rebound through packs before waves can regroup.',
+    bestPowerups: 'Speed/Int Transmute, Empower Ricochet, tempo drafts',
     assetPath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
     color: Color(0xFFF59E0B),
   ),

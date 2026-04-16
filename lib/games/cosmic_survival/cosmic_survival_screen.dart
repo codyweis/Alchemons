@@ -316,8 +316,15 @@ enum _Phase { intro, teamPicker, playing, gameOver }
 class _SurvivalTestSlotSpec {
   final String family;
   final String element;
+  final int level;
+  final double statValue;
 
-  const _SurvivalTestSlotSpec({required this.family, required this.element});
+  const _SurvivalTestSlotSpec({
+    required this.family,
+    required this.element,
+    this.level = 10,
+    this.statValue = 3.0,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -382,6 +389,72 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     _SurvivalTestSlotSpec(family: 'Mane', element: 'Poison'),
     _SurvivalTestSlotSpec(family: 'Kin', element: 'Crystal'),
     _SurvivalTestSlotSpec(family: 'Horn', element: 'Lava'),
+  ];
+
+  static const List<_SurvivalTestSlotSpec> _testTeamLets = [
+    _SurvivalTestSlotSpec(
+      family: 'Let',
+      element: 'Fire',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Let',
+      element: 'Lava',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Let',
+      element: 'Poison',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Let',
+      element: 'Plant',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Let',
+      element: 'Dark',
+      level: 10,
+      statValue: 3.5,
+    ),
+  ];
+
+  static const List<_SurvivalTestSlotSpec> _testTeamPips = [
+    _SurvivalTestSlotSpec(
+      family: 'Pip',
+      element: 'Fire',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Pip',
+      element: 'Lightning',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Pip',
+      element: 'Crystal',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Pip',
+      element: 'Poison',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Pip',
+      element: 'Air',
+      level: 10,
+      statValue: 3.5,
+    ),
   ];
 
   @override
@@ -655,11 +728,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           imagePath: 'assets/images/${base.image}',
           element: spec.element,
           family: spec.family.toLowerCase(),
-          level: 10,
-          statSpeed: 3.0,
-          statIntelligence: 3.0,
-          statStrength: 3.0,
-          statBeauty: 3.0,
+          level: spec.level,
+          statSpeed: spec.statValue,
+          statIntelligence: spec.statValue,
+          statStrength: spec.statValue,
+          statBeauty: spec.statValue,
           slotIndex: i,
           staminaBars: 3,
           staminaMax: 3,
@@ -689,11 +762,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             ),
             child: const Row(
               children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  size: 16,
-                  color: _C.danger,
-                ),
+                Icon(Icons.warning_amber_rounded, size: 16, color: _C.danger),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1331,6 +1400,20 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       label: 'Test Squad B',
                       icon: Icons.auto_awesome_rounded,
                       onTap: () => _startTestTeam(_testTeamB, 'b'),
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Test Squad Lets',
+                      icon: Icons.public_rounded,
+                      onTap: () => _startTestTeam(_testTeamLets, 'lets'),
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Test Squad Pips',
+                      icon: Icons.bolt_rounded,
+                      onTap: () => _startTestTeam(_testTeamPips, 'pips'),
                       secondary: true,
                     ),
                   ],
@@ -2995,8 +3078,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Let',
     role: 'Siege Caster',
     description:
-        'AoE siege pressure and zone denial for waves that need space management more than raw brawling.',
-    bestPowerups: 'Spellbloom Engine, orb-control lanes, siege scaling',
+        'Long-range meteor pressure with element-specific follow-through: lances, shards, guided finishers, orbiting blades, or persistent control fields.',
+    bestPowerups: 'Spellbloom Engine, Double Cast, lane-control drafts',
     assetPath: 'assets/images/creatures/common/LET02_waterlet.png',
     color: Color(0xFF3B82F6),
   ),
@@ -3005,8 +3088,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Pip',
     role: 'Tempo Carry',
     description:
-        'Fast responders that chain kills and convert elite breeding into faster clears, tighter pacing, and cleaner late waves.',
-    bestPowerups: 'Quicksilver Step, Forged Strikes, Chrono Surge',
+        'Fast cleanup specialists that chase leaks, rebound through packs, and turn elite Speed/Int lines into tighter wave tempo.',
+    bestPowerups: 'Quicksilver Step, Chrono Surge, rebound drafts',
     assetPath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
     color: Color(0xFFEF4444),
   ),

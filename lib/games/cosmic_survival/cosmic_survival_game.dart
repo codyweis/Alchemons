@@ -8,6 +8,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
@@ -104,7 +105,7 @@ class CosmicSurvivalCompanion {
     final factor = (1.0 + (physAtk - 1) * 0.05).clamp(0.5, 3.0);
     final familyMultiplier = switch (member.family.toLowerCase()) {
       'let' => 1.12,
-      'pip' => 0.82,
+      'pip' => 0.90,
       'mane' => 0.92,
       _ => 1.0,
     };
@@ -119,7 +120,7 @@ class CosmicSurvivalCompanion {
     final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0);
     final familyMultiplier = switch (member.family.toLowerCase()) {
       'let' => 1.18,
-      'pip' => 0.78,
+      'pip' => 0.92,
       'mane' => 0.88,
       'mask' => 1.05,
       'mystic' => 1.90,
@@ -262,25 +263,6 @@ class _VfxParticle {
   }
 }
 
-class _AlchemyDrop {
-  Offset position;
-  Offset velocity;
-  double value;
-  double radius;
-  final Color color;
-  double life;
-
-  _AlchemyDrop({
-    required this.position,
-    required this.velocity,
-    required this.value,
-    required this.radius,
-    required this.color,
-  }) : life = 12.0;
-
-  bool get dead => life <= 0;
-}
-
 class _CompanionTargetChoice {
   final Offset position;
   final CosmicSurvivalEnemy? enemy;
@@ -332,10 +314,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const int _maxCompanionProjectiles = 220;
   static const int _maxEnemyProjectiles = 90;
   static const int _maxBossProjectiles = 110;
-  static const int _softAlchemyDropLimit = 36;
-  static const int _maxAlchemyDrops = 72;
   static const double _survivalShipSpeedMultiplier = 1.10;
-  static const double _alchemyPickupMeterMultiplier = 1.20;
+  // Former collectible rewards used a 1.20 pickup value; direct grants are 20% lower.
+  static const double _alchemyMeterGainMultiplier = 0.96;
   static const double _arenaShipPadding = 32.0;
 
   final List<CosmicPartyMember> party;
@@ -387,7 +368,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   // Companion projectiles (uses cosmic game Projectile class)
   final List<Projectile> companionProjectiles = [];
-  final List<_AlchemyDrop> _alchemyDrops = [];
 
   // Ship projectiles (simple)
   final List<ShipProjectile> shipProjectiles = [];
@@ -498,8 +478,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   bool get _reduceSecondaryGlows => _renderPressure >= 170;
   bool get _reduceMinorLabels => enemies.length >= 32 || _renderPressure >= 190;
   bool get _reduceAmbientVfx => _renderPressure >= 220;
-  bool get _reduceAlchemyPickupDetails =>
-      _alchemyDrops.length >= 28 || _renderPressure >= 210;
   bool get _simplifyEnemyRendering =>
       enemies.length >= 30 || _renderPressure >= 200;
   bool get _simplifyProjectileRendering =>
@@ -618,7 +596,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateEnemies(dt, enemyControlBuckets);
     _updateCompanionProjectiles(dt);
     _updateShipProjectiles(dt);
-    _updateAlchemyDrops(dt);
     _updateOrbDefenses(dt);
     _updateDetonation(dt);
     _updateOrbSkinPassives(dt);
@@ -2089,20 +2066,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         (enemy.isElite ? 1.35 : 1.0) *
         (spawner.currentMutator == SurvivalWaveMutator.manaFlux ? 1.18 : 1.0);
     if (grantAlchemyReward && !ship.isDead) {
-      if (sourceSlotIndex != null && powerUps.hasAlchemySiphon) {
-        _grantAlchemy(alchemyValue);
-        _spawnAlchemyPickupBurst(
-          enemy.position,
-          _alchemyDropColorForTier(enemy.tier),
-          count: enemy.isElite ? 8 : 5,
-        );
-      } else {
-        _spawnAlchemyDrop(
-          enemy.position,
-          alchemyValue * _alchemyPickupMeterMultiplier,
-          tier: enemy.tier,
-        );
-      }
+      _grantAlchemy(alchemyValue * _alchemyMeterGainMultiplier);
+      _spawnAlchemyPickupBurst(
+        enemy.position,
+        _alchemyRewardColorForTier(enemy.tier),
+        count: enemy.isElite ? 8 : 5,
+      );
     }
     if (sourceSlotIndex != null) {
       final bloodPactHeal = powerUps.companionBloodPactHealPercent(
@@ -2125,11 +2094,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       for (final other in enemies) {
         if (other.isDead) continue;
         if (_withinRange(other.position, enemy.position, 80)) {
-          _damageEnemy(
-            other,
-            splashDamage,
-            sourceSlotIndex: sourceSlotIndex,
-          );
+          _damageEnemy(other, splashDamage, sourceSlotIndex: sourceSlotIndex);
         }
       }
     }
@@ -2140,66 +2105,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     alchemicalMeter = min(alchemicalMeterMax, alchemicalMeter + value);
   }
 
-  void _spawnAlchemyDrop(
-    Offset position,
-    double value, {
-    required EnemyTier tier,
-  }) {
-    if (value <= 0) return;
-    final color = _alchemyDropColorForTier(tier);
-    final radius = switch (tier) {
-      EnemyTier.wisp => 6.0,
-      EnemyTier.drone => 7.0,
-      EnemyTier.sentinel => 8.0,
-      EnemyTier.phantom => 9.0,
-      EnemyTier.brute => 10.0,
-      EnemyTier.colossus => 12.0,
-    };
-    if (_alchemyDrops.length >= _softAlchemyDropLimit) {
-      _AlchemyDrop? mergeTarget;
-      var bestDistSq = _alchemyDrops.length >= _maxAlchemyDrops
-          ? double.infinity
-          : 54.0 * 54.0;
-      for (final existing in _alchemyDrops) {
-        if (existing.dead) continue;
-        final distSq = _distanceSquared(existing.position, position);
-        if (distSq >= bestDistSq) continue;
-        bestDistSq = distSq;
-        mergeTarget = existing;
-      }
-      if (mergeTarget != null) {
-        mergeTarget.position =
-            Offset.lerp(mergeTarget.position, position, 0.35) ?? position;
-        mergeTarget.value += value;
-        mergeTarget.radius = min(
-          18.0,
-          sqrt(
-            mergeTarget.radius * mergeTarget.radius + radius * radius * 0.65,
-          ),
-        );
-        mergeTarget.life = max(mergeTarget.life, 7.0);
-        mergeTarget.velocity = Offset(
-          mergeTarget.velocity.dx * 0.7 + (_rng.nextDouble() - 0.5) * 24,
-          mergeTarget.velocity.dy * 0.7 + (_rng.nextDouble() - 0.5) * 24,
-        );
-        return;
-      }
-    }
-    _alchemyDrops.add(
-      _AlchemyDrop(
-        position: position,
-        velocity: Offset(
-          (_rng.nextDouble() - 0.5) * 110,
-          (_rng.nextDouble() - 0.5) * 110,
-        ),
-        value: value,
-        radius: radius,
-        color: color,
-      ),
-    );
-  }
-
-  Color _alchemyDropColorForTier(EnemyTier tier) {
+  Color _alchemyRewardColorForTier(EnemyTier tier) {
     return switch (tier) {
       EnemyTier.wisp => const Color(0xFF7DD3FC),
       EnemyTier.drone => const Color(0xFF60A5FA),
@@ -2208,43 +2114,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       EnemyTier.brute => const Color(0xFFF59E0B),
       EnemyTier.colossus => const Color(0xFFFFE082),
     };
-  }
-
-  void _updateAlchemyDrops(double dt) {
-    if (_alchemyDrops.isEmpty) return;
-    final dropPressure = max(0, _alchemyDrops.length - _softAlchemyDropLimit);
-    for (final drop in _alchemyDrops) {
-      drop.life -= dt;
-      drop.velocity = Offset(drop.velocity.dx * 0.92, drop.velocity.dy * 0.92);
-      drop.position += drop.velocity * dt;
-
-      if (ship.isDead) continue;
-
-      final toShip = ship.position - drop.position;
-      final dist = toShip.distance;
-      final lifePressure = ((12.0 - drop.life) / 12.0).clamp(0.0, 1.0);
-      final collectRadius =
-          20 + drop.radius + min(dropPressure * 0.6, 16.0) + lifePressure * 6;
-      if (dist <= collectRadius) {
-        _grantAlchemy(drop.value);
-        drop.life = 0;
-        _spawnAlchemyPickupBurst(drop.position, drop.color, count: 4);
-        continue;
-      }
-      final pullRadius =
-          170 + min(dropPressure * 10.0, 190.0) + lifePressure * 80;
-      if (dist < pullRadius) {
-        final pull = (1 - (dist / pullRadius)).clamp(0.0, 1.0);
-        final norm = dist > 0.001
-            ? Offset(toShip.dx / dist, toShip.dy / dist)
-            : Offset.zero;
-        drop.velocity +=
-            norm *
-            (120 + 280 * pull + dropPressure * 14 + lifePressure * 180) *
-            dt;
-      }
-    }
-    _alchemyDrops.removeWhere((drop) => drop.dead);
   }
 
   void _spawnAlchemyPickupBurst(Offset center, Color color, {int count = 6}) {
@@ -2277,11 +2146,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       for (final other in enemies) {
         if (other.isDead || identical(other, enemy)) continue;
         if (_withinRange(enemy.position, other.position, blastRadius)) {
-          _damageEnemy(
-            other,
-            blastDamage,
-            sourceSlotIndex: sourceSlotIndex,
-          );
+          _damageEnemy(other, blastDamage, sourceSlotIndex: sourceSlotIndex);
         }
       }
       if (_withinRange(enemy.position, orb.position, blastRadius)) {
@@ -2312,13 +2177,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final pulseRadius = 96.0;
     final pulseDamage = max(10.0, incomingDamage * 2.5);
     const reflectColor = Color(0xFFB3E5FC);
-    _spawnBeam(
-      orb.position,
-      impactPos,
-      reflectColor,
-      width: 3.2,
-      life: 0.12,
-    );
+    _spawnBeam(orb.position, impactPos, reflectColor, width: 3.2, life: 0.12);
     _spawnHitSpark(impactPos, reflectColor);
     for (final other in enemies) {
       if (other.isDead) continue;
@@ -2993,21 +2852,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       26.0,
       34.0 + boss.level * 8.0 + boss.radius * 0.45 + spawner.currentWave * 1.6,
     );
-    final fragmentCount = boss.level >= 10 ? 4 : 3;
-    final tier = switch (boss.level) {
-      <= 5 => EnemyTier.sentinel,
-      <= 9 => EnemyTier.brute,
-      _ => EnemyTier.colossus,
-    };
-    for (var i = 0; i < fragmentCount; i++) {
-      final angle = (i / fragmentCount) * 2 * pi + _rng.nextDouble() * 0.25;
-      final offset = Offset(cos(angle), sin(angle)) * (14 + i * 10);
-      _spawnAlchemyDrop(
-        boss.position + offset,
-        (baseValue / fragmentCount) * _alchemyPickupMeterMultiplier,
-        tier: tier,
-      );
-    }
+    _grantAlchemy(baseValue * _alchemyMeterGainMultiplier);
     _spawnAlchemyPickupBurst(boss.position, boss.color, count: 10);
   }
 
@@ -3262,7 +3107,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               damage: p.clusterDamage,
               life: 1.0,
               speedMultiplier: p.speedMultiplier * 0.8,
+              radiusMultiplier: 1.5,
+              piercing: true,
               visualScale: p.visualScale * 0.6,
+              visualStyle: p.visualStyle == ProjectileVisualStyle.letShard
+                  ? ProjectileVisualStyle.letShard
+                  : ProjectileVisualStyle.standard,
               sourceSlotIndex: p.sourceSlotIndex,
               chainLightningCharges: p.chainLightningCharges,
             ),
@@ -3284,6 +3134,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               life: p.trailLife,
               stationary: true,
               radiusMultiplier: 1.5,
+              piercing: true,
+              visualScale: 1.2,
               sourceSlotIndex: p.sourceSlotIndex,
             ),
           );
@@ -3565,7 +3417,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     enemies.removeWhere((enemy) => enemy.isDead);
     enemyProjectiles.clear();
     bossProjectiles.clear();
-    _alchemyDrops.removeWhere((drop) => drop.dead || drop.life < 1.5);
   }
 
   double _distanceSquared(Offset a, Offset b) {
@@ -3635,11 +3486,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         orb.turretTimer -= interval;
         final target = _pickOrbTurretTarget(360);
         if (target != null) {
-          final beamColor = Color.lerp(
-            orb.secondaryColor,
-            Colors.white,
-            0.25,
-          )!;
+          final beamColor = Color.lerp(orb.secondaryColor, Colors.white, 0.25)!;
           _spawnBeam(
             orb.position,
             target.position,
@@ -3647,10 +3494,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             width: 2.4 + powerUps.autoTurretLevel * 0.4,
           );
           _spawnHitSpark(target.position, beamColor);
-          _damageEnemy(
-            target,
-            _orbTurretDamage(powerUps.autoTurretLevel),
-          );
+          _damageEnemy(target, _orbTurretDamage(powerUps.autoTurretLevel));
         }
       }
     }
@@ -3836,13 +3680,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _beamFx.removeAt(0);
     }
     _beamFx.add(
-      _BeamFx(
-        start: start,
-        end: end,
-        color: color,
-        width: width,
-        life: life,
-      ),
+      _BeamFx(start: start, end: end, color: color, width: width, life: life),
     );
   }
 
@@ -4173,22 +4011,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         continue;
       }
       _renderEnemy(canvas, enemy);
-    }
-
-    for (final drop in _alchemyDrops) {
-      if (drop.dead) continue;
-      if (!_isWithinViewport(
-        drop.position,
-        drop.radius * 2.4,
-        cx,
-        cy,
-        cx + viewW,
-        cy + viewH,
-        margin: 20,
-      )) {
-        continue;
-      }
-      _renderAlchemyDrop(canvas, drop);
     }
 
     if (activeBoss != null && !activeBoss!.isDead) {
@@ -4793,96 +4615,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
-  void _renderAlchemyDrop(Canvas canvas, _AlchemyDrop drop) {
-    final pulse =
-        0.86 +
-        0.14 *
-            sin(
-              stats.timeElapsed * 6.4 +
-                  drop.position.dx * 0.02 +
-                  drop.position.dy * 0.015,
-            );
-    final r = drop.radius;
-
-    if (!_reduceSecondaryGlows && !_reduceAlchemyPickupDetails) {
-      canvas.drawCircle(
-        drop.position,
-        r * 1.85,
-        Paint()
-          ..color = drop.color.withValues(alpha: 0.12 * pulse)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.8),
-      );
-    }
-
-    canvas.save();
-    canvas.translate(drop.position.dx, drop.position.dy);
-    canvas.rotate(stats.timeElapsed * 1.4 + drop.position.dx * 0.005);
-
-    final crystalPath = Path()
-      ..moveTo(0, -r * 1.2)
-      ..lineTo(r * 0.78, 0)
-      ..lineTo(0, r * 1.2)
-      ..lineTo(-r * 0.78, 0)
-      ..close();
-    canvas.drawPath(
-      crystalPath,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(0, -r * 1.2),
-          Offset(0, r * 1.2),
-          [
-            Colors.white.withValues(alpha: 0.95 * pulse),
-            drop.color.withValues(alpha: 0.92),
-            Color.lerp(drop.color, Colors.black, 0.25)!.withValues(alpha: 0.9),
-          ],
-          const [0.0, 0.45, 1.0],
-        ),
-    );
-    canvas.drawPath(
-      crystalPath,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.65)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
-
-    if (!_reduceAlchemyPickupDetails) {
-      final frameRadius = r * 1.9;
-      final bracketPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.42 + 0.14 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
-      const bracketLen = 0.55;
-      canvas.drawLine(
-        Offset(-frameRadius, -frameRadius * bracketLen),
-        Offset(-frameRadius, frameRadius * bracketLen),
-        bracketPaint,
-      );
-      canvas.drawLine(
-        Offset(frameRadius, -frameRadius * bracketLen),
-        Offset(frameRadius, frameRadius * bracketLen),
-        bracketPaint,
-      );
-      canvas.drawLine(
-        Offset(-frameRadius * bracketLen, -frameRadius),
-        Offset(frameRadius * bracketLen, -frameRadius),
-        bracketPaint,
-      );
-      canvas.drawLine(
-        Offset(-frameRadius * bracketLen, frameRadius),
-        Offset(frameRadius * bracketLen, frameRadius),
-        bracketPaint,
-      );
-    }
-
-    canvas.drawCircle(
-      Offset.zero,
-      r * 0.22,
-      Paint()..color = Colors.white.withValues(alpha: 0.9 * pulse),
-    );
-    canvas.restore();
-  }
-
   /// Enemy rendering: EXACT SAME visuals as cosmic game per tier.
   void _renderEnemy(Canvas canvas, CosmicSurvivalEnemy enemy) {
     final eColor = elementColor(enemy.element);
@@ -4924,11 +4656,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final barW = r * (enemy.tier == EnemyTier.colossus ? 3.0 : 2.4);
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: Offset(0, -r - 8),
-              width: barW,
-              height: 3,
-            ),
+            Rect.fromCenter(center: Offset(0, -r - 8), width: barW, height: 3),
             const Radius.circular(1.5),
           ),
           Paint()..color = Colors.black.withValues(alpha: 0.55),
@@ -5670,27 +5398,70 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return;
     }
 
+    if (drawLetElementalProjectileVisual(
+      canvas: canvas,
+      projectile: proj,
+      position: proj.position,
+      color: eColor,
+      time: stats.timeElapsed,
+    )) {
+      return;
+    }
+    if (drawPipElementalProjectileVisual(
+      canvas: canvas,
+      projectile: proj,
+      position: proj.position,
+      color: eColor,
+      time: stats.timeElapsed,
+    )) {
+      return;
+    }
+
     switch (proj.visualStyle) {
       case ProjectileVisualStyle.meteor:
-        canvas.drawCircle(
+        final tailLen = 22.0 * proj.visualScale;
+        final tailStart = Offset(
+          proj.position.dx - cos(proj.angle) * tailLen,
+          proj.position.dy - sin(proj.angle) * tailLen,
+        );
+        canvas.drawLine(
+          tailStart,
           proj.position,
-          5 * proj.visualScale,
           Paint()
-            ..color = eColor.withValues(alpha: 0.3)
-            ..maskFilter = MaskFilter.blur(
-              BlurStyle.normal,
-              6 * proj.visualScale,
-            ),
+            ..shader = ui.Gradient.linear(
+              tailStart,
+              proj.position,
+              [
+                eColor.withValues(alpha: 0.02),
+                eColor.withValues(alpha: 0.35),
+                Color.lerp(eColor, Colors.white, 0.35)!,
+              ],
+              const [0.0, 0.6, 1.0],
+            )
+            ..strokeWidth = 7.5 * proj.visualScale
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
         );
         canvas.drawCircle(
           proj.position,
-          3 * proj.visualScale,
-          Paint()..color = eColor.withValues(alpha: 0.8),
+          6.0 * proj.visualScale,
+          Paint()..color = eColor.withValues(alpha: 0.92),
         );
         canvas.drawCircle(
-          proj.position,
-          1.5 * proj.visualScale,
-          Paint()..color = Colors.white.withValues(alpha: 0.7),
+          Offset(
+            proj.position.dx - cos(proj.angle) * (2.5 * proj.visualScale),
+            proj.position.dy - sin(proj.angle) * (2.5 * proj.visualScale),
+          ),
+          3.2 * proj.visualScale,
+          Paint()..color = Color.lerp(eColor, const Color(0xFF2B1A12), 0.55)!,
+        );
+        canvas.drawCircle(
+          Offset(
+            proj.position.dx + cos(proj.angle + 0.6) * (1.8 * proj.visualScale),
+            proj.position.dy + sin(proj.angle + 0.6) * (1.8 * proj.visualScale),
+          ),
+          1.7 * proj.visualScale,
+          Paint()..color = const Color(0xFFFFF2D6).withValues(alpha: 0.85),
         );
 
       case ProjectileVisualStyle.slash:
@@ -5761,10 +5532,80 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
 
       case ProjectileVisualStyle.letShard:
-        canvas.drawCircle(
+        final dir = Offset(cos(proj.angle), sin(proj.angle));
+        final perp = Offset(-dir.dy, dir.dx);
+        final tailLen = 30.0 * proj.visualScale;
+        final tail = proj.position - dir * tailLen;
+
+        canvas.drawLine(
+          tail,
           proj.position,
-          2.5 * proj.visualScale,
-          Paint()..color = eColor.withValues(alpha: 0.8),
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tail,
+              proj.position,
+              [
+                eColor.withValues(alpha: 0.0),
+                eColor.withValues(alpha: 0.16),
+                Color.lerp(eColor, Colors.white, 0.18)!,
+              ],
+              const [0.0, 0.58, 1.0],
+            )
+            ..strokeWidth = 5.4 * proj.visualScale
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+        );
+
+        final shard = Path()
+          ..moveTo(
+            proj.position.dx + dir.dx * (8.5 * proj.visualScale),
+            proj.position.dy + dir.dy * (8.5 * proj.visualScale),
+          )
+          ..lineTo(
+            proj.position.dx + perp.dx * (4.2 * proj.visualScale),
+            proj.position.dy + perp.dy * (4.2 * proj.visualScale),
+          )
+          ..lineTo(
+            proj.position.dx - dir.dx * (6.0 * proj.visualScale),
+            proj.position.dy - dir.dy * (6.0 * proj.visualScale),
+          )
+          ..lineTo(
+            proj.position.dx - perp.dx * (4.2 * proj.visualScale),
+            proj.position.dy - perp.dy * (4.2 * proj.visualScale),
+          )
+          ..close();
+
+        canvas.drawPath(
+          shard,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tail,
+              proj.position + dir * (10.0 * proj.visualScale),
+              [
+                Color.lerp(eColor, const Color(0xFF1A1014), 0.42)!,
+                eColor,
+                Color.lerp(eColor, Colors.white, 0.55)!,
+              ],
+              const [0.0, 0.62, 1.0],
+            ),
+        );
+
+        canvas.drawPath(
+          shard,
+          Paint()
+            ..color = Color.lerp(
+              eColor,
+              Colors.white,
+              0.42,
+            )!.withValues(alpha: 0.8)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1 * proj.visualScale,
+        );
+
+        canvas.drawCircle(
+          proj.position - dir * (1.2 * proj.visualScale),
+          2.4 * proj.visualScale,
+          Paint()..color = const Color(0xFFFFF4DC).withValues(alpha: 0.85),
         );
 
       case ProjectileVisualStyle.standard:

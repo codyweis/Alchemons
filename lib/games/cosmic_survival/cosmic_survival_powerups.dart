@@ -359,18 +359,6 @@ const kRarePerks = [
     favoredFamilies: ['pip', 'mystic', 'wing', 'let'],
   ),
   PowerUpDef(
-    id: 'alchemy_siphon',
-    name: 'Alchemy Siphon',
-    description: 'Alchemon kills auto-collect alchemical drops',
-    icon: '🜂',
-    category: PowerUpCategory.rarePerk,
-    rarity: PowerUpRarity.rare,
-    maxStacks: 1,
-    tags: [PowerUpTag.tempo, PowerUpTag.summonOrbit],
-    favoredFamilies: ['mystic', 'kin', 'wing', 'pip', 'let'],
-    favoredStats: [PowerUpStatFocus.intelligence, PowerUpStatFocus.beauty],
-  ),
-  PowerUpDef(
     id: 'phoenix_rebirth',
     name: 'Rebirth',
     description: 'One alchemon revives once at full HP',
@@ -620,7 +608,6 @@ class PowerUpState {
   bool get hasMirrorShield => has('mirror_shield');
   bool get hasBerserker => has('berserker');
   bool get hasElementalFury => has('elemental_fury');
-  bool get hasAlchemySiphon => has('alchemy_siphon');
   int get elementalFuryLevel => getGlobalStacks('elemental_fury');
   int get timeDilationLevel => getGlobalStacks('time_dilation');
   int get maxActiveCompanions =>
@@ -710,7 +697,6 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
     'mirror_shield' => 'Reduce orb collision damage and retaliate',
     'berserker' => 'Double damage below 30% orb HP',
     'elemental_fury' => '+1 elemental splash level',
-    'alchemy_siphon' => 'Alchemon kills auto-collect alchemy',
     'phoenix_rebirth' => 'Revive once at full HP',
     _ => def.description,
   };

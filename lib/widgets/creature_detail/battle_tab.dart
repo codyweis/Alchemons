@@ -410,19 +410,21 @@ class ImprovedBattleScrollArea extends StatelessWidget {
         );
       case 'Let':
         return const _CosmicFamilyRole(
-          title: 'Artillery Bomber',
+          title: 'Siege Caster',
           description:
-              'Lets fight like bombardiers. They stay back, lob heavy shots, '
-              'and drop meteor-style specials with huge impact bursts, '
-              'fragments, and strong elemental follow-through pressure.',
+              'Lets are long-range siege casters. They stay back, commit to '
+              'lanes, and drop a heavy meteor core followed by distinct '
+              'elemental pressure: lances, shards, orbiting blades, guided '
+              'finishers, or persistent control fields.',
         );
       case 'Pip':
         return const _CosmicFamilyRole(
-          title: 'Skirmish Dart',
+          title: 'Tempo Carry',
           description:
-              'Pips are close-mid skirmishers. They cycle attacks fast, '
-              'pepper targets with tracking darts, and turn specials into '
-              'ricochet pressure that keeps jumping between enemies.',
+              'Pips are fast skirmish finishers. They cycle attacks quickly, '
+              'chase weak or scattered targets, and turn specials into tempo '
+              'bursts: ricochets, pursuit darts, moving snares, quick haste, '
+              'or heavy cleanup shots depending on element.',
         );
       case 'Mane':
         return const _CosmicFamilyRole(
@@ -1537,36 +1539,66 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
     case 'Let':
       bullets.addAll([
         'Lets are siege companions: they commit to lanes, fire from safer distance, and do not want to brawl on top of enemies.',
-        'Their best moments come from controlling approach paths with meteors, wells, walls, or other heavy follow-through pieces.',
+        'Every Let special starts with a heavy meteor identity, then the element decides whether the follow-through becomes lances, shards, homing pressure, orbiting blades, or a real control field.',
       ]);
-      if (['Dark', 'Mud', 'Steam', 'Poison'].contains(normalizedElement)) {
+      if ([
+        'Earth',
+        'Mud',
+        'Steam',
+        'Poison',
+        'Dark',
+      ].contains(normalizedElement)) {
         bullets.add(
-          '$normalizedElement Let is especially control-oriented, so it shines when enemies are funneled through one lane and forced to sit in the setup.',
+          '$normalizedElement Let is one of the anchored field variants, so it shines when enemies are funneled through one lane and forced to sit inside its setup.',
+        );
+      } else if (['Ice', 'Plant'].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Let uses moving snare pressure rather than a static field, so it is better at catching targets while the wave is still shifting.',
         );
       }
       return _CosmicSurvivalNotes(
         summary:
-            'Let behaves like artillery in survival: slower to reposition, heavier on commitment, and best when it can lock down a lane instead of dueling up close.',
+            'Let behaves like siege artillery in survival: slower to reposition, heavier on commitment, and best when it can shape a lane before enemies reach the orb.',
         bullets: bullets,
       );
     case 'Pip':
       bullets.addAll([
         'Pips are cleanup assassins: they dart after weak or spread-out enemies and keep pressure high between larger specials.',
-        'They are valuable for removing messy leftovers so bulkier allies can stay on important threats.',
+        'They are valuable for removing messy leftovers so bulkier allies can stay on important threats, and they should not play like static lane holders.',
       ]);
       if ([
         'Lightning',
         'Air',
         'Crystal',
         'Light',
+        'Fire',
       ].contains(normalizedElement)) {
         bullets.add(
-          '$normalizedElement Pip is one of the better ricochet or rebound variants, so it gets extra value when waves arrive in clumps or staggered packs.',
+          '$normalizedElement Pip is one of the better rebound or speed-chain variants, so it gets extra value when waves arrive in clumps or staggered packs.',
+        );
+      } else if ([
+        'Ice',
+        'Mud',
+        'Plant',
+        'Poison',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Pip adds moving snare pressure to its chase pattern, so it helps catch leaks without becoming a true field-control family.',
+        );
+      } else if ([
+        'Earth',
+        'Lava',
+        'Dark',
+        'Blood',
+        'Spirit',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Pip leans into heavier cleanup shots, trading some volume for stronger pursuit or finishing power.',
         );
       }
       return _CosmicSurvivalNotes(
         summary:
-            'Pip is a fast skirmish finisher in survival. It should feel surgical, opportunistic, and better at picks than at holding the center.',
+            'Pip is a fast tempo finisher in survival. It should feel surgical, opportunistic, and better at picks than at holding the center.',
         bullets: bullets,
       );
     case 'Mane':
@@ -1795,8 +1827,8 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
         subtitle: 'Scales with Strength • Slow artillery shot',
         description:
             'Lobs a compact $element bomb with more heft than a standard bolt. '
-            'Let basics reinforce the artillery role and visually preview the '
-            'family\'s meteor-style specials.',
+            'Let basics reinforce the siege role: slower, heavier lane pressure '
+            'between the family\'s larger element-shaped meteor specials.',
         icon: Icons.south,
       );
     default:
@@ -1865,23 +1897,62 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         'Lava',
         'Air',
       ].contains(element);
+      final fieldElement = [
+        'Earth',
+        'Steam',
+        'Mud',
+        'Poison',
+        'Dark',
+      ].contains(element);
+      final followThrough = switch (element) {
+        'Fire' =>
+          'Fire follows with fast ember lances instead of lingering residue.',
+        'Lightning' => 'Lightning builds a fork lattice with bouncing arcs.',
+        'Ice' => 'Ice sends heavy snaring lances and guided splinters.',
+        'Earth' =>
+          'Earth trades speed for a huge moon-drop and lingering quake plates.',
+        'Spirit' => 'Spirit stages orbiting phantoms before they seek targets.',
+        'Poison' =>
+          'Poison plants toxic bulbs that slow a lane, then releases guided seeds.',
+        'Water' =>
+          'Water opens undertow jaws that collapse inward and help stabilize the ship.',
+        'Lava' =>
+          'Lava throws slow massive magma chunks that split into debris.',
+        'Steam' =>
+          'Steam establishes a pressure wall, then peels cutters away from it.',
+        'Mud' =>
+          'Mud drops bog anchors that heavily slow a lane before heavy slugs follow.',
+        'Dust' =>
+          'Dust throws a wide bouncing sand front across the impact zone.',
+        'Crystal' => 'Crystal launches homing shards that ricochet and split.',
+        'Air' =>
+          'Air spins wind blades around the strike before releasing them.',
+        'Plant' => 'Plant sends seeking vine pods with moving snare pressure.',
+        'Blood' =>
+          'Blood releases heavy homing orbs and converts impact into sustain.',
+        'Dark' =>
+          'Dark punches rupture lances forward, then opens taunting void wells.',
+        'Light' =>
+          'Light crowns the impact with guided motes, finishers, and ship sustain.',
+        _ => 'Element determines the follow-through pattern after impact.',
+      };
       return _CosmicSpecialInfo(
-        subtitle: 'Meteor Strike • Beauty × 2 • Heavy artillery cooldown',
+        subtitle: 'Meteor Strike • Beauty × 2 • Siege follow-through',
         description:
             'Drops a massive $element meteor on the target with a large impact burst. '
             '${hasCluster ? 'The meteor fragments mid-flight, splitting into sub-projectiles. ' : ''}'
-            'Element determines the follow-through, such as shard fans, guided finishers, chain bursts, rupture lines, or other post-impact pressure.',
+            '$followThrough',
         icon: Icons.south,
         tags: [
           'METEOR',
           'IMPACT',
-          'HEAVY',
+          fieldElement ? 'FIELD' : 'SIEGE',
           if (hasCluster) 'CLUSTER',
           element.toUpperCase(),
         ],
       );
     case 'Pip':
-      final hasBounce = [
+      final reboundElement = [
         'Crystal',
         'Lightning',
         'Air',
@@ -1891,17 +1962,62 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         'Dust',
         'Light',
       ].contains(element);
+      final snareElement = ['Ice', 'Mud', 'Plant', 'Poison'].contains(element);
+      final heavyElement = [
+        'Earth',
+        'Lava',
+        'Dark',
+        'Blood',
+        'Spirit',
+      ].contains(element);
+      final followThrough = switch (element) {
+        'Fire' =>
+          'Fire becomes an overheat flurry that also briefly speeds up basic attacks.',
+        'Lightning' =>
+          'Lightning is the fastest chain volley, built for rapid ricochet cleanup.',
+        'Air' =>
+          'Air throws non-homing wind darts that rely on rebound movement instead of lock-on.',
+        'Dust' =>
+          'Dust sprays many tiny sand darts for wide cleanup across messy packs.',
+        'Crystal' =>
+          'Crystal fires piercing prism darts with the strongest bank-shot behavior.',
+        'Light' =>
+          'Light forms a halo of ricochet darts that can intercept threats as it cleans up.',
+        'Water' =>
+          'Water opens inward curling darts that collapse back through a target lane.',
+        'Ice' =>
+          'Ice sends chill darts with moving snare pressure for catching leaks.',
+        'Mud' =>
+          'Mud launches sticky rebound slugs that slow enemies while chasing them.',
+        'Plant' =>
+          'Plant fires vine darts that pierce and lightly snare moving targets.',
+        'Poison' =>
+          'Poison uses venom tag darts with moving slow pressure, without leaving residue fields.',
+        'Earth' =>
+          'Earth trades volume for heavier homing stone darts that finish sturdy targets.',
+        'Lava' =>
+          'Lava launches slow, heavy piercing chunks for high-value cleanup.',
+        'Dark' => 'Dark fires tight piercing shadow darts for lethal pursuit.',
+        'Blood' =>
+          'Blood sends fewer heavy homing darts for focused finishing pressure.',
+        'Spirit' =>
+          'Spirit uses high-guidance phase darts that pierce and reacquire targets.',
+        'Steam' =>
+          'Steam vents short piercing cutter darts through the forward lane.',
+        _ =>
+          'Element determines the tempo pattern, target priority, and rebound behavior.',
+      };
       return _CosmicSpecialInfo(
-        subtitle: 'Ricochet Salvo • Beauty × 2 • Fast cycle skirmish special',
+        subtitle: 'Tempo Salvo • Beauty × 2 • Fast skirmish special',
         description:
-            'Fires a burst of fast $element projectiles that seek out '
-            'different enemies. '
-            '${hasBounce ? 'Projectiles ricochet between enemies on hit, chaining damage. ' : 'Projectiles home toward the nearest enemy with strong tracking. '}'
-            'Element determines count, tracking pattern, and ricochet behavior.',
+            'Fires a burst of fast $element darts for cleanup and target hopping. '
+            '$followThrough',
         icon: Icons.bolt,
         tags: [
-          hasBounce ? 'RICOCHET' : 'HOMING',
-          'MULTI-TARGET',
+          reboundElement ? 'RICOCHET' : 'CHASE',
+          if (snareElement) 'SNARE',
+          if (heavyElement) 'FINISHER',
+          'TEMPO',
           element.toUpperCase(),
         ],
       );

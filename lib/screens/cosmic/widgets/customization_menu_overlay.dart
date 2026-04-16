@@ -558,6 +558,13 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           label: 'AMMO POWER',
           description: 'Increase regular projectile damage.',
           level: widget.customizationState.ammoUpgradeLevel,
+          bonusPercent:
+              ((HomeCustomizationState.damageMultiplier(
+                        widget.customizationState.ammoUpgradeLevel,
+                      ) -
+                      1.0) *
+                  100)
+                  .round(),
           icon: Icons.bolt_rounded,
           onUpgrade: () => widget.onUpgradePowerUp('ammo'),
         ),
@@ -565,6 +572,13 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           label: 'MISSILE POWER',
           description: 'Increase homing missile damage.',
           level: widget.customizationState.missileUpgradeLevel,
+          bonusPercent:
+              ((HomeCustomizationState.missileDamageMultiplier(
+                        widget.customizationState.missileUpgradeLevel,
+                      ) -
+                      1.0) *
+                  100)
+                  .round(),
           icon: Icons.rocket_launch_rounded,
           onUpgrade: () => widget.onUpgradePowerUp('missile'),
         ),
@@ -1307,6 +1321,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     required String label,
     required String description,
     required int level,
+    required int bonusPercent,
     required IconData icon,
     required VoidCallback onUpgrade,
   }) {
@@ -1314,7 +1329,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     final nextCost = maxed ? 0 : HomeCustomizationState.upgradeCosts[level];
     final shards = widget.homePlanet?.astralBank ?? 0;
     final canAfford = !maxed && shards >= nextCost;
-    final pct = (level * 16);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -1344,7 +1358,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 ),
               ),
               Text(
-                '+$pct%',
+                '+$bonusPercent%',
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: maxed

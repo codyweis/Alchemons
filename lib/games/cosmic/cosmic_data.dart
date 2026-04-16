@@ -2433,7 +2433,7 @@ class HomeCustomizationState {
   /// Maximum upgrade level.
   static const int maxUpgradeLevel = 5;
 
-  /// Damage multiplier for a given upgrade level (60% at max).
+  /// Damage multiplier for a given upgrade level (40% at max).
   static double damageMultiplier(int level) =>
       CosmicBalance.shipDamageMultiplier(level);
 
@@ -4114,33 +4114,39 @@ Projectile _scaleLetProjectile(
 }) {
   final impactScale = _specialStatScaleFromBaseline(
     beauty,
-    perPoint: 0.10,
-    min: 0.82,
-    max: 1.18,
+    perPoint: 0.12,
+    min: 0.78,
+    max: 1.28,
   );
   final visualScaleMul = _specialStatScaleFromBaseline(
     beauty,
-    perPoint: 0.14,
-    min: 0.80,
-    max: 1.24,
+    perPoint: 0.18,
+    min: 0.76,
+    max: 1.36,
   );
   final radiusScaleMul = _specialStatScaleFromBaseline(
     beauty,
-    perPoint: 0.10,
-    min: 0.86,
-    max: 1.18,
+    perPoint: 0.16,
+    min: 0.78,
+    max: 1.32,
   );
   final guidanceScale = _specialStatScaleFromBaseline(
     intelligence,
-    perPoint: 0.12,
-    min: 0.82,
-    max: 1.22,
+    perPoint: 0.14,
+    min: 0.78,
+    max: 1.30,
   );
   final durationScale = _specialStatScaleFromBaseline(
     intelligence,
-    perPoint: 0.08,
+    perPoint: 0.13,
+    min: 0.78,
+    max: 1.32,
+  );
+  final falloutScale = _specialStatScaleFromBaseline(
+    intelligence,
+    perPoint: 0.10,
     min: 0.86,
-    max: 1.16,
+    max: 1.24,
   );
   final trapPersistenceScale = _specialTrapPersistenceScale(
     p,
@@ -4161,12 +4167,17 @@ Projectile _scaleLetProjectile(
         ? p.homingStrength * guidanceScale
         : p.homingStrength,
     visualScale: p.visualScale * visualScaleMul * (isMeteorCore ? 1.08 : 1.0),
+    orbitRadius: p.orbitRadius * radiusScaleMul,
+    orbitSpeed: p.orbitSpeed * guidanceScale,
     orbitTime: p.orbitTime * durationScale * trapPersistenceScale,
     trailInterval: p.trailInterval > 0
         ? (p.trailInterval / guidanceScale).clamp(0.05, 0.35)
         : p.trailInterval,
     trailDamage: p.trailDamage * impactScale,
-    trailLife: p.trailLife > 0 ? p.trailLife * durationScale : p.trailLife,
+    trailLife: p.trailLife > 0
+        ? p.trailLife * durationScale * falloutScale
+        : p.trailLife,
+    snareRadius: p.snareRadius * radiusScaleMul,
     clusterCount: scaledClusterCount,
     clusterDamage: p.clusterDamage * impactScale,
   );
@@ -4241,7 +4252,7 @@ CosmicSpecialResult _hornSpecial(
     );
     return _copyProjectile(
       p,
-      damage: p.damage * impactScale,
+      damage: p.damage * impactScale * 0.88,
       life: p.life * durationScale,
       speedMultiplier: p.speedMultiplier * controlScale,
       radiusMultiplier: p.radiusMultiplier * shieldVisualScale,
@@ -5557,6 +5568,28 @@ CosmicSpecialResult _letSpecial(
   final cluster = _letElementCluster(element);
   Offset impactPoint([double dist = 84.0]) =>
       Offset(origin.dx + cos(angle) * dist, origin.dy + sin(angle) * dist);
+  int scaledLetCount(int base, {int min = 2, int max = 18}) {
+    final scale = _specialCountScaleFromBaseline(
+      casterBeauty,
+      casterIntelligence,
+      beautyPerPoint: 0.08,
+      intelligencePerPoint: 0.10,
+      min: 0.78,
+      max: 1.30,
+    );
+    return (base * scale).round().clamp(min, max);
+  }
+
+  final sustainScale = _specialStatScaleFromBaseline(
+    casterBeauty,
+    perPoint: 0.10,
+    min: 0.82,
+    max: 1.20,
+  );
+  var selfHeal = 0;
+  var shipHeal = 0;
+  var blessingTimer = 0.0;
+  var blessingHealPerTick = 0.0;
 
   // Main meteor — always large, always threatening
   projs.add(
@@ -5573,9 +5606,6 @@ CosmicSpecialResult _letSpecial(
       radiusMultiplier: 3.5,
       visualScale: 3.0,
       visualStyle: ProjectileVisualStyle.meteor,
-      trailInterval: 0.08,
-      trailDamage: damage * 0.45,
-      trailLife: 0.7,
       clusterCount: cluster.$1,
       clusterDamage: damage * cluster.$2,
     ),
@@ -5584,11 +5614,12 @@ CosmicSpecialResult _letSpecial(
   // Element secondaries
   switch (element) {
     case 'Fire':
-      // Burning lance: the strike bursts forward into ember lances and a hot
-      // follow-through sweep instead of static craters.
+      // Burning lance: the strike bursts forward into clear ember lances
+      // without leaving extra residue dots behind.
       final center = impactPoint(84);
-      for (var i = 0; i < 6; i++) {
-        final lane = (i - 2.5) * 0.18;
+      final lanceCount = scaledLetCount(6, min: 4, max: 9);
+      for (var i = 0; i < lanceCount; i++) {
+        final lane = (i - (lanceCount - 1) / 2) * 0.18;
         final a = angle + lane;
         projs.add(
           Projectile(
@@ -5604,25 +5635,6 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 1.7,
             piercing: true,
             visualScale: 1.2,
-            trailInterval: 0.14,
-            trailDamage: damage * 0.45,
-            trailLife: 1.0,
-          ),
-        );
-      }
-      for (var i = 0; i < 4; i++) {
-        final a = angle + (i - 1.5) * 0.28;
-        projs.add(
-          Projectile(
-            position: center,
-            angle: a,
-            element: element,
-            damage: damage * 1.1,
-            life: 2.2,
-            speedMultiplier: 1.15,
-            homing: true,
-            homingStrength: 3.0,
-            visualScale: 1.0,
           ),
         );
       }
@@ -5631,8 +5643,9 @@ CosmicSpecialResult _letSpecial(
     case 'Lightning':
       // Fork lattice: impact raises a lightning fork wall that snaps forward in staggered arcs.
       final center = impactPoint(84);
-      for (var i = 0; i < 7; i++) {
-        final lane = (i - 3) * 0.22;
+      final forkCount = scaledLetCount(7, min: 5, max: 10);
+      for (var i = 0; i < forkCount; i++) {
+        final lane = (i - (forkCount - 1) / 2) * 0.22;
         final a = angle + lane;
         projs.add(
           Projectile(
@@ -5646,7 +5659,7 @@ CosmicSpecialResult _letSpecial(
             life: 1.35,
             speedMultiplier: 2.6,
             piercing: true,
-            bounceCount: i.isEven ? 1 : 0,
+            bounceCount: i.isEven ? 3 : 2,
             visualScale: 1.05,
           ),
         );
@@ -5657,8 +5670,9 @@ CosmicSpecialResult _letSpecial(
       // Glacial calving: the strike fractures forward into heavy ice lances,
       // then the splinters keep hunting instead of just lingering as set dressing.
       final center = impactPoint(86);
-      for (var i = 0; i < 4; i++) {
-        final offset = (i - 1.5) * 0.12;
+      final lanceCount = scaledLetCount(4, min: 3, max: 6);
+      for (var i = 0; i < lanceCount; i++) {
+        final offset = (i - (lanceCount - 1) / 2) * 0.12;
         projs.add(
           Projectile(
             position: Offset(
@@ -5668,17 +5682,20 @@ CosmicSpecialResult _letSpecial(
             angle: angle + offset,
             element: element,
             damage: damage * 2.4,
-            life: 2.6,
+            life: 3.6,
             speedMultiplier: 0.62,
             radiusMultiplier: 2.8,
             piercing: true,
             visualScale: 2.1,
             visualStyle: ProjectileVisualStyle.letShard,
+            snareRadius: 92.0,
+            snareMoveMultiplier: 0.42,
           ),
         );
       }
-      for (var i = 0; i < 8; i++) {
-        final a = angle + (i - 3.5) * 0.16;
+      final splinterCount = scaledLetCount(8, min: 6, max: 12);
+      for (var i = 0; i < splinterCount; i++) {
+        final a = angle + (i - (splinterCount - 1) / 2) * 0.16;
         projs.add(
           Projectile(
             position: Offset(center.dx + cos(a) * 20, center.dy + sin(a) * 20),
@@ -5697,7 +5714,7 @@ CosmicSpecialResult _letSpecial(
       break;
 
     case 'Earth':
-      // Moon drop: ENORMOUS single boulder
+      // Moon drop: ENORMOUS single boulder with slow aftershock plates.
       projs[0] = Projectile(
         position: projs[0].position,
         angle: angle,
@@ -5707,19 +5724,43 @@ CosmicSpecialResult _letSpecial(
         speedMultiplier: 0.38,
         radiusMultiplier: 5.0,
         visualScale: 4.0,
+        visualStyle: ProjectileVisualStyle.meteor,
       );
-      break;
-
-    case 'Spirit':
-      // Soul harvest: 5 homing spirit bolts from impact
-      for (var i = 0; i < 5; i++) {
-        final a = angle + (i - 2) * 0.5;
+      final center = impactPoint(84);
+      final quakeCount = scaledLetCount(3, min: 2, max: 4);
+      for (var i = 0; i < quakeCount; i++) {
+        final dist = 24.0 + i * 28.0;
         projs.add(
           Projectile(
             position: Offset(
-              origin.dx + cos(angle) * 80,
-              origin.dy + sin(angle) * 80,
+              center.dx + cos(angle) * dist,
+              center.dy + sin(angle) * dist,
             ),
+            angle: 0,
+            element: element,
+            damage: damage * 1.65,
+            life: 5.8,
+            speedMultiplier: 0.0,
+            stationary: true,
+            radiusMultiplier: 2.8,
+            piercing: true,
+            visualScale: 2.2,
+            snareRadius: 118.0,
+            snareMoveMultiplier: 0.55,
+          ),
+        );
+      }
+      break;
+
+    case 'Spirit':
+      // Soul harvest: phantoms hover at the impact before seeking wounded paths.
+      final spiritCount = scaledLetCount(5, min: 4, max: 8);
+      final center = impactPoint(80);
+      for (var i = 0; i < spiritCount; i++) {
+        final a = angle + (i - (spiritCount - 1) / 2) * 0.5;
+        projs.add(
+          Projectile(
+            position: Offset(center.dx + cos(a) * 18, center.dy + sin(a) * 18),
             angle: a,
             element: element,
             damage: damage * 2.5,
@@ -5727,6 +5768,12 @@ CosmicSpecialResult _letSpecial(
             speedMultiplier: 0.7,
             homing: true,
             homingStrength: 4.5,
+            piercing: true,
+            orbitCenter: center,
+            orbitAngle: a,
+            orbitRadius: 22.0,
+            orbitSpeed: 3.4,
+            orbitTime: 0.65,
             visualScale: 1.4,
           ),
         );
@@ -5737,29 +5784,30 @@ CosmicSpecialResult _letSpecial(
       // Blight bloom: toxic bulbs claim the impact zone, then guided seed shots
       // punish enemies trying to leave the contamination field.
       final center = impactPoint(88);
-      for (var i = 0; i < 4; i++) {
-        final a = angle + (i - 1.5) * 0.44;
+      final bulbCount = scaledLetCount(4, min: 3, max: 6);
+      for (var i = 0; i < bulbCount; i++) {
+        final a = angle + (i - (bulbCount - 1) / 2) * 0.44;
         projs.add(
           Projectile(
             position: Offset(center.dx + cos(a) * 20, center.dy + sin(a) * 20),
             angle: 0,
             element: element,
             damage: damage * 0.95,
-            life: 4.2,
+            life: 6.2,
             speedMultiplier: 0.0,
             stationary: true,
             radiusMultiplier: 2.35,
             piercing: true,
             visualScale: 1.5,
             visualStyle: ProjectileVisualStyle.letShard,
-            trailInterval: 0.22,
-            trailDamage: damage * 0.28,
-            trailLife: 1.1,
+            snareRadius: 124.0,
+            snareMoveMultiplier: 0.36,
           ),
         );
       }
-      for (var i = 0; i < 6; i++) {
-        final a = angle + (i / 5 - 0.5) * (pi * 0.56);
+      final seedCount = scaledLetCount(6, min: 4, max: 9);
+      for (var i = 0; i < seedCount; i++) {
+        final a = angle + (i / (seedCount - 1) - 0.5) * (pi * 0.56);
         projs.add(
           Projectile(
             position: center,
@@ -5780,9 +5828,11 @@ CosmicSpecialResult _letSpecial(
     case 'Water':
       // Undertow gate: two curved water jaws open around impact, then collapse inward.
       final center = impactPoint(88);
-      for (var i = 0; i < 10; i++) {
-        final side = i < 5 ? -1.0 : 1.0;
-        final local = (i % 5) - 2.0;
+      shipHeal = (CosmicBalance.shipMaxHealth * 0.025 * sustainScale).round();
+      final jawRows = scaledLetCount(5, min: 4, max: 7);
+      for (var i = 0; i < jawRows * 2; i++) {
+        final side = i < jawRows ? -1.0 : 1.0;
+        final local = (i % jawRows) - (jawRows - 1) / 2;
         final lane = angle + pi / 2;
         final launch = angle + side * (0.18 + local * 0.10);
         projs.add(
@@ -5800,6 +5850,8 @@ CosmicSpecialResult _letSpecial(
             homing: true,
             homingStrength: 2.2,
             visualScale: 1.45,
+            snareRadius: 88.0,
+            snareMoveMultiplier: 0.64,
           ),
         );
       }
@@ -5807,8 +5859,9 @@ CosmicSpecialResult _letSpecial(
 
     case 'Lava':
       // Volcanic debris: 4 massive slow piercing magma chunks
-      for (var i = 0; i < 4; i++) {
-        final a = angle + (i - 1.5) * 0.55;
+      final chunkCount = scaledLetCount(4, min: 3, max: 5);
+      for (var i = 0; i < chunkCount; i++) {
+        final a = angle + (i - (chunkCount - 1) / 2) * 0.55;
         projs.add(
           Projectile(
             position: Offset(
@@ -5824,6 +5877,8 @@ CosmicSpecialResult _letSpecial(
             piercing: true,
             visualScale: 2.5,
             visualStyle: ProjectileVisualStyle.letShard,
+            clusterCount: 2,
+            clusterDamage: damage * 1.0,
           ),
         );
       }
@@ -5833,8 +5888,9 @@ CosmicSpecialResult _letSpecial(
       // Pressure breach: compressed shells establish a pressure wall, then a
       // smaller set of cutters peel away from the breach.
       final center = impactPoint(92);
-      for (var i = 0; i < 6; i++) {
-        final offset = (i - 2.5) * 0.14;
+      final wallCount = scaledLetCount(6, min: 4, max: 8);
+      for (var i = 0; i < wallCount; i++) {
+        final offset = (i - (wallCount - 1) / 2) * 0.14;
         projs.add(
           Projectile(
             position: Offset(
@@ -5844,20 +5900,20 @@ CosmicSpecialResult _letSpecial(
             angle: 0,
             element: element,
             damage: damage * 1.3,
-            life: 3.0,
+            life: 5.6,
             speedMultiplier: 0.0,
             stationary: true,
             radiusMultiplier: 2.0,
             piercing: true,
             visualScale: 1.5,
-            trailInterval: 0.20,
-            trailDamage: damage * 0.24,
-            trailLife: 0.9,
+            snareRadius: 118.0,
+            snareMoveMultiplier: 0.24,
           ),
         );
       }
-      for (var i = 0; i < 4; i++) {
-        final side = i < 2 ? -1.0 : 1.0;
+      final cutterCount = scaledLetCount(4, min: 3, max: 6);
+      for (var i = 0; i < cutterCount; i++) {
+        final side = i < (cutterCount / 2).ceil() ? -1.0 : 1.0;
         final tier = (i % 2) == 0 ? 0.18 : 0.34;
         final a = angle + side * tier;
         projs.add(
@@ -5884,8 +5940,9 @@ CosmicSpecialResult _letSpecial(
       // Bogslide: mire anchors lock the lane down, then a few heavy slugs
       // hunt anything trying to slip through the muck.
       final center = impactPoint(90);
-      for (var i = 0; i < 4; i++) {
-        final offset = (i - 1.5) * 0.16;
+      final anchorCount = scaledLetCount(4, min: 3, max: 6);
+      for (var i = 0; i < anchorCount; i++) {
+        final offset = (i - (anchorCount - 1) / 2) * 0.16;
         projs.add(
           Projectile(
             position: Offset(
@@ -5895,20 +5952,20 @@ CosmicSpecialResult _letSpecial(
             angle: 0,
             element: element,
             damage: damage * 1.05,
-            life: 4.0,
+            life: 6.0,
             speedMultiplier: 0.0,
             stationary: true,
             radiusMultiplier: 2.7,
             piercing: true,
             visualScale: 1.8,
-            trailInterval: 0.18,
-            trailDamage: damage * 0.34,
-            trailLife: 1.3,
+            snareRadius: 150.0,
+            snareMoveMultiplier: 0.24,
           ),
         );
       }
-      for (var i = 0; i < 4; i++) {
-        final a = angle + (i - 1.5) * 0.18;
+      final slugCount = scaledLetCount(4, min: 3, max: 6);
+      for (var i = 0; i < slugCount; i++) {
+        final a = angle + (i - (slugCount - 1) / 2) * 0.18;
         projs.add(
           Projectile(
             position: center,
@@ -5929,8 +5986,9 @@ CosmicSpecialResult _letSpecial(
     case 'Dust':
       // Haboob burst: a wide sand front strips across the impact zone.
       final center = impactPoint(86);
-      for (var i = 0; i < 12; i++) {
-        final arcT = (i / 11) - 0.5;
+      final grainCount = scaledLetCount(12, min: 8, max: 16);
+      for (var i = 0; i < grainCount; i++) {
+        final arcT = (i / (grainCount - 1)) - 0.5;
         final a = angle + arcT * (pi * 0.95);
         projs.add(
           Projectile(
@@ -5942,6 +6000,7 @@ CosmicSpecialResult _letSpecial(
             speedMultiplier: 1.45,
             radiusMultiplier: 1.4,
             piercing: true,
+            bounceCount: 1,
             visualScale: 0.8,
           ),
         );
@@ -5950,8 +6009,9 @@ CosmicSpecialResult _letSpecial(
 
     case 'Crystal':
       // Starfall: 7 homing crystal shards
-      for (var i = 0; i < 7; i++) {
-        final a = angle + (i - 3) * 0.38;
+      final shardCount = scaledLetCount(7, min: 5, max: 10);
+      for (var i = 0; i < shardCount; i++) {
+        final a = angle + (i - (shardCount - 1) / 2) * 0.38;
         projs.add(
           Projectile(
             position: Offset(
@@ -5966,6 +6026,9 @@ CosmicSpecialResult _letSpecial(
             homing: true,
             homingStrength: 3.5,
             visualScale: 1.2,
+            bounceCount: 2,
+            clusterCount: 2,
+            clusterDamage: damage * 0.8,
           ),
         );
       }
@@ -5974,8 +6037,9 @@ CosmicSpecialResult _letSpecial(
     case 'Air':
       // Cyclone burst: wind blades orbit the strike before peeling away.
       final center = impactPoint(80);
-      for (var i = 0; i < 8; i++) {
-        final a = i * (pi * 2 / 8);
+      final bladeCount = scaledLetCount(8, min: 6, max: 12);
+      for (var i = 0; i < bladeCount; i++) {
+        final a = i * (pi * 2 / bladeCount);
         projs.add(
           Projectile(
             position: Offset(center.dx + cos(a) * 28, center.dy + sin(a) * 28),
@@ -5990,9 +6054,10 @@ CosmicSpecialResult _letSpecial(
             orbitAngle: a,
             orbitRadius: 28.0,
             orbitSpeed: 5.8,
-            orbitTime: 0.85,
+            orbitTime: 1.05,
             radiusMultiplier: 1.6,
             visualScale: 1.1,
+            bounceCount: 1,
           ),
         );
       }
@@ -6002,32 +6067,33 @@ CosmicSpecialResult _letSpecial(
       // Seed bombardment: impact seeds whip outward into seeking vine pods
       // instead of relying on rooted traps.
       final center = impactPoint(88);
-      for (var i = 0; i < 6; i++) {
-        final a = angle + (i - 2.5) * 0.20;
+      final podCount = scaledLetCount(6, min: 4, max: 9);
+      for (var i = 0; i < podCount; i++) {
+        final a = angle + (i - (podCount - 1) / 2) * 0.20;
         projs.add(
           Projectile(
             position: Offset(
-              center.dx + cos(a + pi / 2) * (i - 2.5) * 8,
-              center.dy + sin(a + pi / 2) * (i - 2.5) * 8,
+              center.dx + cos(a + pi / 2) * (i - (podCount - 1) / 2) * 8,
+              center.dy + sin(a + pi / 2) * (i - (podCount - 1) / 2) * 8,
             ),
             angle: a,
             element: element,
             damage: damage * 1.5,
-            life: 3.0,
+            life: 4.0,
             speedMultiplier: 0.85,
             radiusMultiplier: 1.9,
             piercing: true,
             homing: true,
             homingStrength: 3.6,
             visualScale: 1.2,
-            trailInterval: 0.20,
-            trailDamage: damage * 0.26,
-            trailLife: 1.4,
+            snareRadius: 82.0,
+            snareMoveMultiplier: 0.72,
           ),
         );
       }
-      for (var i = 0; i < 4; i++) {
-        final side = i < 2 ? -1.0 : 1.0;
+      final vineCount = scaledLetCount(4, min: 3, max: 6);
+      for (var i = 0; i < vineCount; i++) {
+        final side = i < (vineCount / 2).ceil() ? -1.0 : 1.0;
         final tier = (i % 2) == 0 ? 0.18 : 0.34;
         final a = angle + side * tier;
         projs.add(
@@ -6051,9 +6117,13 @@ CosmicSpecialResult _letSpecial(
       break;
 
     case 'Blood':
-      // Bloodburst: 3 heavy homing blood orbs
-      for (var i = 0; i < 3; i++) {
-        final a = angle + (i - 1) * 0.32;
+      // Bloodburst: heavy homing blood orbs that return life through the impact pulse.
+      selfHeal = (damage * 5.5 * sustainScale).round();
+      blessingTimer = 2.2;
+      blessingHealPerTick = damage * 0.10 * sustainScale;
+      final orbCount = scaledLetCount(3, min: 2, max: 5);
+      for (var i = 0; i < orbCount; i++) {
+        final a = angle + (i - (orbCount - 1) / 2) * 0.32;
         projs.add(
           Projectile(
             position: Offset(
@@ -6078,8 +6148,9 @@ CosmicSpecialResult _letSpecial(
       // Void collapse: rupture lances punch through, while anchored wells
       // hold the impact zone and force enemies to commit.
       final center = impactPoint(82);
-      for (var i = 0; i < 5; i++) {
-        final offset = (i - 2) * 0.16;
+      final lanceCount = scaledLetCount(5, min: 4, max: 7);
+      for (var i = 0; i < lanceCount; i++) {
+        final offset = (i - (lanceCount - 1) / 2) * 0.16;
         projs.add(
           Projectile(
             position: Offset(
@@ -6094,14 +6165,12 @@ CosmicSpecialResult _letSpecial(
             radiusMultiplier: 2.1,
             piercing: true,
             visualScale: 1.7,
-            trailInterval: 0.16,
-            trailDamage: damage * 0.42,
-            trailLife: 1.2,
           ),
         );
       }
-      for (var i = 0; i < 3; i++) {
-        final side = i - 1;
+      final wellCount = scaledLetCount(3, min: 3, max: 5);
+      for (var i = 0; i < wellCount; i++) {
+        final side = i - (wellCount - 1) / 2;
         projs.add(
           Projectile(
             position: Offset(
@@ -6111,16 +6180,17 @@ CosmicSpecialResult _letSpecial(
             angle: 0,
             element: element,
             damage: damage * 1.45,
-            life: 4.1,
+            life: 6.4,
             speedMultiplier: 0.0,
             stationary: true,
             radiusMultiplier: 2.2,
             piercing: true,
             visualScale: 1.9,
             visualStyle: ProjectileVisualStyle.letShard,
-            trailInterval: 0.18,
-            trailDamage: damage * 0.38,
-            trailLife: 1.1,
+            tauntRadius: 260.0,
+            tauntStrength: 2.2,
+            snareRadius: 112.0,
+            snareMoveMultiplier: 0.30,
           ),
         );
       }
@@ -6130,8 +6200,12 @@ CosmicSpecialResult _letSpecial(
       // Celestial crown: radiant motes briefly crown the impact, then collapse
       // inward and descend as guided finishers.
       final center = impactPoint(90);
-      for (var i = 0; i < 10; i++) {
-        final a = i * (pi * 2 / 10);
+      shipHeal = (CosmicBalance.shipMaxHealth * 0.035 * sustainScale).round();
+      blessingTimer = 2.8;
+      blessingHealPerTick = damage * 0.08 * sustainScale;
+      final moteCount = scaledLetCount(10, min: 7, max: 14);
+      for (var i = 0; i < moteCount; i++) {
+        final a = i * (pi * 2 / moteCount);
         projs.add(
           Projectile(
             position: Offset(center.dx + cos(a) * 34, center.dy + sin(a) * 34),
@@ -6149,11 +6223,14 @@ CosmicSpecialResult _letSpecial(
             orbitTime: 0.55,
             visualScale: 0.95,
             radiusMultiplier: 1.35,
+            interceptRadius: 18.0,
+            interceptCharges: 1,
           ),
         );
       }
-      for (var i = 0; i < 4; i++) {
-        final a = angle + (i - 1.5) * 0.22;
+      final finisherCount = scaledLetCount(4, min: 3, max: 6);
+      for (var i = 0; i < finisherCount; i++) {
+        final a = angle + (i - (finisherCount - 1) / 2) * 0.22;
         projs.add(
           Projectile(
             position: center,
@@ -6184,7 +6261,13 @@ CosmicSpecialResult _letSpecial(
     );
   });
 
-  return CosmicSpecialResult(projectiles: scaledProjectiles);
+  return CosmicSpecialResult(
+    projectiles: scaledProjectiles,
+    selfHeal: selfHeal,
+    shipHeal: shipHeal,
+    blessingTimer: blessingTimer,
+    blessingHealPerTick: blessingHealPerTick,
+  );
 }
 
 (int, double) _letElementCluster(String element) => switch (element) {
@@ -6226,6 +6309,10 @@ CosmicSpecialResult _pipSpecial(
     double trailInterval = 0,
     double trailDamageMultiplier = 0,
     double trailLife = 0,
+    double snareRadius = 0,
+    double snareMoveMultiplier = 1,
+    double interceptRadius = 0,
+    int interceptCharges = 0,
   }) {
     return Projectile(
       position: position,
@@ -6243,6 +6330,10 @@ CosmicSpecialResult _pipSpecial(
       trailInterval: trailInterval,
       trailDamage: damage * trailDamageMultiplier,
       trailLife: trailLife,
+      snareRadius: snareRadius,
+      snareMoveMultiplier: snareMoveMultiplier,
+      interceptRadius: interceptRadius,
+      interceptCharges: interceptCharges,
       visualStyle: ProjectileVisualStyle.dart,
     );
   }
@@ -6299,7 +6390,7 @@ CosmicSpecialResult _pipSpecial(
     );
     return _copyProjectile(
       p,
-      damage: p.damage * impactScale,
+      damage: p.damage * impactScale * 0.86,
       life: p.life * durationScale,
       speedMultiplier: p.speedMultiplier * guidanceScale,
       radiusMultiplier: p.radiusMultiplier * visualScaleMul,
@@ -6332,6 +6423,224 @@ CosmicSpecialResult _pipSpecial(
   });
 
   switch (element) {
+    case 'Fire':
+      final center = Offset(
+        origin.dx + cos(baseAngle) * 30,
+        origin.dy + sin(baseAngle) * 30,
+      );
+      final localCount = scaledCount(6, min: 4, max: 8);
+      return CosmicSpecialResult(
+        basicHasteTimer: 1.2,
+        basicHasteMultiplier: 0.88,
+        projectiles: List.generate(localCount, (i) {
+          final t = i - (localCount - 1) / 2;
+          final a = baseAngle + t * 0.13;
+          return scalePipProjectile(
+            dart(
+              position: Offset(
+                center.dx + cos(a + pi / 2) * t * 5,
+                center.dy + sin(a + pi / 2) * t * 5,
+              ),
+              angle: a,
+              damageMultiplier: 0.90,
+              life: 1.65,
+              speed: 2.15,
+              homingStrength: 3.4,
+              visualScale: 0.82,
+              bounceCount: 1,
+            ),
+          );
+        }),
+      );
+    case 'Lightning':
+      final localCount = scaledCount(10, min: 7, max: 13);
+      return CosmicSpecialResult(
+        projectiles: List.generate(localCount, (i) {
+          final t = i - (localCount - 1) / 2;
+          final a = baseAngle + t * 0.10;
+          return scalePipProjectile(
+            dart(
+              position: Offset(
+                origin.dx + cos(baseAngle) * (18 + i * 3),
+                origin.dy + sin(baseAngle) * (18 + i * 3),
+              ),
+              angle: a,
+              damageMultiplier: 1.02,
+              life: 1.35,
+              speed: 2.65,
+              homingStrength: 3.2,
+              visualScale: 0.74,
+              radiusMultiplier: 0.9,
+              piercing: true,
+              bounceCount: 4,
+            ),
+          );
+        }),
+      );
+    case 'Ice':
+      final center = Offset(
+        origin.dx + cos(baseAngle) * 28,
+        origin.dy + sin(baseAngle) * 28,
+      );
+      final localCount = scaledCount(5, min: 4, max: 7);
+      return CosmicSpecialResult(
+        projectiles: List.generate(localCount, (i) {
+          final t = i - (localCount - 1) / 2;
+          final a = baseAngle + t * 0.14;
+          return scalePipProjectile(
+            dart(
+              position: Offset(
+                center.dx + cos(a + pi / 2) * t * 9,
+                center.dy + sin(a + pi / 2) * t * 9,
+              ),
+              angle: a,
+              damageMultiplier: 1.48,
+              life: 2.9,
+              speed: 1.16,
+              homingStrength: 3.7,
+              visualScale: 1.02,
+              radiusMultiplier: 1.15,
+              bounceCount: 2,
+              snareRadius: 64.0,
+              snareMoveMultiplier: 0.66,
+            ),
+          );
+        }),
+      );
+    case 'Crystal':
+      final center = Offset(
+        origin.dx + cos(baseAngle) * 32,
+        origin.dy + sin(baseAngle) * 32,
+      );
+      final localCount = scaledCount(6, min: 5, max: 8);
+      return CosmicSpecialResult(
+        projectiles: List.generate(localCount, (i) {
+          final a = baseAngle + (i - (localCount - 1) / 2) * 0.22;
+          return scalePipProjectile(
+            dart(
+              position: Offset(
+                center.dx + cos(a) * 10,
+                center.dy + sin(a) * 10,
+              ),
+              angle: a,
+              damageMultiplier: 1.34,
+              life: 2.6,
+              speed: 1.55,
+              homingStrength: 4.2,
+              visualScale: 1.0,
+              piercing: true,
+              bounceCount: 5,
+            ),
+          );
+        }),
+      );
+    case 'Lava':
+      final localCount = scaledCount(4, min: 3, max: 5);
+      return CosmicSpecialResult(
+        projectiles: List.generate(localCount, (i) {
+          final t = i - (localCount - 1) / 2;
+          final a = baseAngle + t * 0.26;
+          return scalePipProjectile(
+            dart(
+              position: Offset(
+                origin.dx + cos(baseAngle) * 26 + cos(a + pi / 2) * t * 11,
+                origin.dy + sin(baseAngle) * 26 + sin(a + pi / 2) * t * 11,
+              ),
+              angle: a,
+              damageMultiplier: 2.25,
+              life: 2.75,
+              speed: 0.92,
+              homingStrength: 3.6,
+              visualScale: 1.45,
+              radiusMultiplier: 1.75,
+              piercing: true,
+            ),
+          );
+        }),
+      );
+    case 'Mud':
+      final center = Offset(
+        origin.dx + cos(baseAngle) * 26,
+        origin.dy + sin(baseAngle) * 26,
+      );
+      final localCount = scaledCount(5, min: 4, max: 7);
+      return CosmicSpecialResult(
+        projectiles: List.generate(localCount, (i) {
+          final t = i - (localCount - 1) / 2;
+          final a = baseAngle + t * 0.18;
+          return scalePipProjectile(
+            dart(
+              position: Offset(
+                center.dx + cos(a + pi / 2) * t * 8,
+                center.dy + sin(a + pi / 2) * t * 8,
+              ),
+              angle: a,
+              damageMultiplier: 1.32,
+              life: 3.0,
+              speed: 0.98,
+              homingStrength: 3.8,
+              visualScale: 1.05,
+              radiusMultiplier: 1.35,
+              bounceCount: 1,
+              snareRadius: 72.0,
+              snareMoveMultiplier: 0.70,
+            ),
+          );
+        }),
+      );
+    case 'Plant':
+      final center = Offset(
+        origin.dx + cos(baseAngle) * 30,
+        origin.dy + sin(baseAngle) * 30,
+      );
+      final localCount = scaledCount(6, min: 4, max: 9);
+      return CosmicSpecialResult(
+        projectiles: List.generate(localCount, (i) {
+          final t = i - (localCount - 1) / 2;
+          final a = baseAngle + t * 0.16;
+          return scalePipProjectile(
+            dart(
+              position: Offset(
+                center.dx + cos(a + pi / 2) * t * 7,
+                center.dy + sin(a + pi / 2) * t * 7,
+              ),
+              angle: a,
+              damageMultiplier: 1.24,
+              life: 3.25,
+              speed: 1.22,
+              homingStrength: 4.4,
+              visualScale: 0.98,
+              piercing: true,
+              bounceCount: 1,
+              snareRadius: 58.0,
+              snareMoveMultiplier: 0.76,
+            ),
+          );
+        }),
+      );
+    case 'Spirit':
+      final localCount = scaledCount(4, min: 3, max: 6);
+      return CosmicSpecialResult(
+        projectiles: List.generate(localCount, (i) {
+          final a = baseAngle + (i - (localCount - 1) / 2) * 0.22;
+          return scalePipProjectile(
+            dart(
+              position: Offset(
+                origin.dx + cos(baseAngle) * 24 + cos(a + pi / 2) * i * 5,
+                origin.dy + sin(baseAngle) * 24 + sin(a + pi / 2) * i * 5,
+              ),
+              angle: a,
+              damageMultiplier: 1.86,
+              life: 3.7,
+              speed: 1.18,
+              homingStrength: 6.0,
+              visualScale: 1.08,
+              piercing: true,
+              bounceCount: 2,
+            ),
+          );
+        }),
+      );
     case 'Dust':
       final center = Offset(
         origin.dx + cos(baseAngle) * 26,
@@ -6548,9 +6857,10 @@ CosmicSpecialResult _pipSpecial(
               speed: 1.0,
               homingStrength: 4.2,
               visualScale: 0.98,
-              trailInterval: 0.18,
-              trailDamageMultiplier: 0.34,
-              trailLife: 1.6,
+              piercing: true,
+              bounceCount: 1,
+              snareRadius: 50.0,
+              snareMoveMultiplier: 0.78,
             ),
           );
         }),
@@ -6575,6 +6885,8 @@ CosmicSpecialResult _pipSpecial(
               visualScale: 0.9,
               bounceCount: 4,
               piercing: true,
+              interceptRadius: 24.0,
+              interceptCharges: 1,
             ),
           );
         }),
@@ -10271,7 +10583,7 @@ List<Projectile> createFamilyBasicAttack({
           position: Offset(origin.dx + cos(a) * 14, origin.dy + sin(a) * 14),
           angle: a,
           element: element,
-          damage: damage * 0.42 * kDamageScale,
+          damage: damage * 0.30 * kDamageScale,
           speedMultiplier: 1.75,
           life: 1.25,
           homing: true,
@@ -11307,7 +11619,7 @@ class CosmicCompanion with HasEffects {
     final factor = (1.0 + (physAtk - 1) * 0.05).clamp(0.5, 3.0);
     final familyMultiplier = switch (member.family.toLowerCase()) {
       'let' => 1.12,
-      'pip' => 0.82,
+      'pip' => 0.90,
       'mane' => 0.92,
       _ => 1.0,
     };
@@ -11322,7 +11634,7 @@ class CosmicCompanion with HasEffects {
     final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0);
     final familyMultiplier = switch (member.family.toLowerCase()) {
       'let' => 1.18,
-      'pip' => 0.78,
+      'pip' => 0.92,
       'mane' => 0.88,
       'mask' => 1.05,
       'mystic' => 1.90,
