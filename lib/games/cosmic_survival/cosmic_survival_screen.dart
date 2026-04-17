@@ -457,6 +457,204 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     ),
   ];
 
+  static const List<_SurvivalTestSlotSpec> _testTeamManes = [
+    _SurvivalTestSlotSpec(
+      family: 'Mane',
+      element: 'Fire',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mane',
+      element: 'Lightning',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mane',
+      element: 'Earth',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mane',
+      element: 'Plant',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mane',
+      element: 'Blood',
+      level: 10,
+      statValue: 3.5,
+    ),
+  ];
+
+  static const List<_SurvivalTestSlotSpec> _testTeamHorns = [
+    _SurvivalTestSlotSpec(
+      family: 'Horn',
+      element: 'Earth',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Horn',
+      element: 'Lava',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Horn',
+      element: 'Steam',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Horn',
+      element: 'Crystal',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Horn',
+      element: 'Light',
+      level: 10,
+      statValue: 3.5,
+    ),
+  ];
+
+  static const List<_SurvivalTestSlotSpec> _testTeamMasks = [
+    _SurvivalTestSlotSpec(
+      family: 'Mask',
+      element: 'Dark',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mask',
+      element: 'Poison',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mask',
+      element: 'Crystal',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mask',
+      element: 'Light',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mask',
+      element: 'Air',
+      level: 10,
+      statValue: 3.5,
+    ),
+  ];
+
+  static const List<_SurvivalTestSlotSpec> _testTeamWings = [
+    _SurvivalTestSlotSpec(
+      family: 'Wing',
+      element: 'Lightning',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Wing',
+      element: 'Lava',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Wing',
+      element: 'Water',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Wing',
+      element: 'Plant',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Wing',
+      element: 'Spirit',
+      level: 10,
+      statValue: 3.5,
+    ),
+  ];
+
+  static const List<_SurvivalTestSlotSpec> _testTeamKins = [
+    _SurvivalTestSlotSpec(
+      family: 'Kin',
+      element: 'Light',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Kin',
+      element: 'Crystal',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Kin',
+      element: 'Water',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Kin',
+      element: 'Air',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Kin',
+      element: 'Earth',
+      level: 10,
+      statValue: 3.5,
+    ),
+  ];
+
+  static const List<_SurvivalTestSlotSpec> _testTeamMystics = [
+    _SurvivalTestSlotSpec(
+      family: 'Mystic',
+      element: 'Fire',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mystic',
+      element: 'Steam',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mystic',
+      element: 'Earth',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mystic',
+      element: 'Air',
+      level: 10,
+      statValue: 3.5,
+    ),
+    _SurvivalTestSlotSpec(
+      family: 'Mystic',
+      element: 'Blood',
+      level: 10,
+      statValue: 3.5,
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -1414,6 +1612,48 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       label: 'Test Squad Pips',
                       icon: Icons.bolt_rounded,
                       onTap: () => _startTestTeam(_testTeamPips, 'pips'),
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Test Squad Manes',
+                      icon: Icons.waves_rounded,
+                      onTap: () => _startTestTeam(_testTeamManes, 'manes'),
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Test Squad Horns',
+                      icon: Icons.shield_rounded,
+                      onTap: () => _startTestTeam(_testTeamHorns, 'horns'),
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Test Squad Masks',
+                      icon: Icons.theater_comedy_rounded,
+                      onTap: () => _startTestTeam(_testTeamMasks, 'masks'),
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Test Squad Wings',
+                      icon: Icons.flight_takeoff_rounded,
+                      onTap: () => _startTestTeam(_testTeamWings, 'wings'),
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Test Squad Kins',
+                      icon: Icons.favorite_rounded,
+                      onTap: () => _startTestTeam(_testTeamKins, 'kins'),
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Test Squad Mystics',
+                      icon: Icons.auto_awesome_rounded,
+                      onTap: () => _startTestTeam(_testTeamMystics, 'mystics'),
                       secondary: true,
                     ),
                   ],
@@ -3098,8 +3338,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Mane',
     role: 'Barrage Bruiser',
     description:
-        'Sustained pressure dealers that love Speed and Strength, especially when waves start collapsing into closer-range fights.',
-    bestPowerups: 'Forged Strikes, Blood Pact, tempo lanes',
+        'Medium-range slash bruisers that carve forward lanes, stagger pushes, and reward Strength/Speed without chasing like Pips.',
+    bestPowerups: 'Forged Strikes, Blood Pact, lane tempo',
     assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
     color: Color(0xFFF59E0B),
   ),
@@ -3108,7 +3348,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Horn',
     role: 'Frontline Bastion',
     description:
-        'Orb defense specialists that hold the line, punish rushdown, and convert strong Strength into reliable survival value.',
+        'Close-range shield chargers that body-block lanes, taunt rushdowns, and turn strong Strength into reliable orb protection.',
     bestPowerups: 'Forgeplate, Orb Tempering, Bulwark Orders',
     assetPath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
     color: Color(0xFF10B981),

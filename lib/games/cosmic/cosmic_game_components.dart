@@ -3102,6 +3102,10 @@ class _GarrisonCreature {
   double chargeTimer = 0;
   Offset? chargeTarget;
   double chargeDamage = 0;
+  double chargeSpeedMultiplier = 1.0;
+  double chargeSweepRadius = 48.0;
+  double chargeOvershootDistance = 80.0;
+  double chargeFinalSweepRadius = 68.0;
 
   // Blessing state (Kin special)
   double blessingTimer = 0;

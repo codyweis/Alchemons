@@ -368,7 +368,7 @@ void main() {
     });
 
     test(
-      'water ice steam air dust and light horns use forward impact geometry',
+      'water ice steam air dust and light horns use non-seeking impact geometry',
       () {
         final water = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
@@ -430,10 +430,254 @@ void main() {
         expect(air.projectiles.length, 6);
         expect(air.projectiles.every((p) => p.position.dx > 0), isTrue);
         expect(dust.projectiles.length, 14);
-        expect(light.projectiles.length, 6);
-        expect(light.projectiles.every((p) => p.homing), isTrue);
+        expect(light.projectiles.length, 3);
+        expect(light.projectiles.every((p) => p.stationary), isTrue);
+        expect(light.projectiles.every((p) => !p.homing), isTrue);
+        expect(light.projectiles.every((p) => p.interceptCharges >= 2), isTrue);
       },
     );
+
+    test('horn elements produce distinct frontline guard signatures', () {
+      const elements = [
+        'Fire',
+        'Lava',
+        'Lightning',
+        'Water',
+        'Ice',
+        'Steam',
+        'Earth',
+        'Mud',
+        'Dust',
+        'Crystal',
+        'Air',
+        'Plant',
+        'Poison',
+        'Spirit',
+        'Dark',
+        'Light',
+        'Blood',
+      ];
+
+      final signatures = <String>{};
+      for (final element in elements) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'horn',
+          element: element,
+          damage: 10,
+          maxHp: 120,
+        );
+        final totalInterceptions = result.projectiles.fold<int>(
+          0,
+          (sum, p) => sum + p.interceptCharges,
+        );
+        final maxSnare = result.projectiles
+            .map((p) => p.snareRadius)
+            .reduce(max);
+        final maxTaunt = result.projectiles
+            .map((p) => p.tauntRadius)
+            .reduce(max);
+        final maxRadius = result.projectiles
+            .map((p) => p.radiusMultiplier)
+            .reduce(max);
+        final totalBounces = result.projectiles.fold<int>(
+          0,
+          (sum, p) => sum + p.bounceCount,
+        );
+        final totalClusters = result.projectiles.fold<int>(
+          0,
+          (sum, p) => sum + p.clusterCount,
+        );
+        final turretCount = result.projectiles
+            .where((p) => p.turretInterval > 0)
+            .length;
+
+        expect(result.shieldHp, greaterThan(0));
+        expect(result.chargeTimer, greaterThan(0));
+        expect(result.chargeDamage, greaterThan(0));
+        expect(
+          result.projectiles.every(
+            (p) => p.visualStyle == ProjectileVisualStyle.hornImpact,
+          ),
+          isTrue,
+        );
+        expect(result.projectiles.every((p) => !p.homing), isTrue);
+        signatures.add(
+          [
+            result.projectiles.length,
+            result.projectiles.where((p) => p.piercing).length,
+            result.projectiles.where((p) => p.homing).length,
+            result.projectiles.where((p) => p.stationary).length,
+            result.projectiles.where((p) => p.trailInterval > 0).length,
+            result.projectiles.where((p) => p.decoy).length,
+            result.projectiles.where((p) => p.orbitCenter != null).length,
+            turretCount,
+            totalBounces,
+            totalClusters,
+            totalInterceptions,
+            maxSnare.round(),
+            maxTaunt.round(),
+            maxRadius.round(),
+            result.shieldHp,
+            (result.chargeTimer * 100).round(),
+            (result.chargeSpeedMultiplier * 100).round(),
+            result.chargeSweepRadius.round(),
+            result.chargeOvershootDistance.round(),
+            result.chargeFinalSweepRadius.round(),
+            result.selfHeal,
+            result.shipHeal,
+          ].join('/'),
+        );
+      }
+
+      expect(signatures.length, elements.length);
+    });
+
+    test('horn guard tools are readable and element-specific', () {
+      final earth = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'horn',
+        element: 'Earth',
+        damage: 10,
+        maxHp: 120,
+      );
+      final mud = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'horn',
+        element: 'Mud',
+        damage: 10,
+        maxHp: 120,
+      );
+      final light = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'horn',
+        element: 'Light',
+        damage: 10,
+        maxHp: 120,
+      );
+      final crystal = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'horn',
+        element: 'Crystal',
+        damage: 10,
+        maxHp: 120,
+      );
+
+      expect(earth.projectiles.any((p) => p.tauntRadius >= 240), isTrue);
+      expect(earth.projectiles.any((p) => p.snareRadius >= 130), isTrue);
+      expect(mud.projectiles.any((p) => p.snareRadius >= 140), isTrue);
+      expect(
+        light.projectiles.fold<int>(0, (sum, p) => sum + p.interceptCharges),
+        greaterThanOrEqualTo(6),
+      );
+      expect(light.projectiles.every((p) => p.stationary), isTrue);
+      expect(light.projectiles.any((p) => p.interceptRadius >= 70), isTrue);
+      expect(
+        crystal.projectiles.fold<int>(0, (sum, p) => sum + p.interceptCharges),
+        greaterThanOrEqualTo(5),
+      );
+      expect(crystal.projectiles.every((p) => p.orbitCenter != null), isTrue);
+      expect(light.shipHeal, greaterThan(0));
+    });
+
+    test(
+      'horn elemental drops use different mechanics, not one generic field',
+      () {
+        CosmicSpecialResult horn(String element) => createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'horn',
+          element: element,
+          damage: 10,
+          maxHp: 120,
+        );
+
+        final fire = horn('Fire');
+        final lava = horn('Lava');
+        final lightning = horn('Lightning');
+        final steam = horn('Steam');
+        final earth = horn('Earth');
+        final mud = horn('Mud');
+        final crystal = horn('Crystal');
+        final plant = horn('Plant');
+        final light = horn('Light');
+
+        expect(fire.projectiles.any((p) => p.trailInterval > 0), isTrue);
+        expect(lava.projectiles.any((p) => p.clusterCount > 0), isTrue);
+        expect(lightning.projectiles.any((p) => p.bounceCount > 0), isTrue);
+        expect(steam.projectiles.any((p) => p.turretInterval > 0), isTrue);
+        expect(earth.projectiles.any((p) => p.decoy), isTrue);
+        expect(mud.projectiles.any((p) => p.trailInterval > 0), isTrue);
+        expect(mud.projectiles.every((p) => !p.stationary), isTrue);
+        expect(crystal.projectiles.any((p) => p.orbitCenter != null), isTrue);
+        expect(plant.projectiles.any((p) => p.turretInterval > 0), isTrue);
+        expect(light.projectiles.any((p) => p.interceptCharges >= 2), isTrue);
+      },
+    );
+
+    test('horn charge profiles change the charge itself by element', () {
+      CosmicSpecialResult horn(String element) => createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'horn',
+        element: element,
+        damage: 10,
+        maxHp: 120,
+      );
+
+      final lightning = horn('Lightning');
+      final air = horn('Air');
+      final earth = horn('Earth');
+      final mud = horn('Mud');
+      final dust = horn('Dust');
+      final light = horn('Light');
+      final lava = horn('Lava');
+
+      expect(lightning.chargeSpeedMultiplier, greaterThan(1.7));
+      expect(air.chargeOvershootDistance, greaterThan(160));
+      expect(dust.chargeOvershootDistance, greaterThan(150));
+      expect(earth.chargeSpeedMultiplier, lessThan(0.65));
+      expect(earth.chargeSweepRadius, greaterThan(90));
+      expect(mud.chargeSweepRadius, greaterThan(85));
+      expect(light.chargeFinalSweepRadius, greaterThan(110));
+      expect(lava.chargeFinalSweepRadius, greaterThan(100));
+
+      final profiles =
+          [
+            'Fire',
+            'Lava',
+            'Lightning',
+            'Water',
+            'Ice',
+            'Steam',
+            'Earth',
+            'Mud',
+            'Dust',
+            'Crystal',
+            'Air',
+            'Plant',
+            'Poison',
+            'Spirit',
+            'Dark',
+            'Light',
+            'Blood',
+          ].map((element) {
+            final result = horn(element);
+            return [
+              (result.chargeSpeedMultiplier * 100).round(),
+              result.chargeSweepRadius.round(),
+              result.chargeOvershootDistance.round(),
+              result.chargeFinalSweepRadius.round(),
+            ].join('/');
+          }).toSet();
+
+      expect(profiles.length, greaterThanOrEqualTo(14));
+    });
 
     test('horn output budgets stay bounded after the authored pass', () {
       final earth = createCosmicSpecialAbility(
@@ -555,6 +799,33 @@ void main() {
       expect(
         pip.effectiveSpecialCooldown,
         greaterThan(let.effectiveSpecialCooldown * 0.74),
+      );
+    });
+
+    test('initial companion special cooldown uses effective cooldown', () {
+      final mane = _testCompanion(family: 'mane');
+
+      mane.primeSpecialCooldown();
+      expect(
+        mane.specialCooldown,
+        closeTo(mane.effectiveSpecialCooldown, 0.001),
+      );
+
+      mane.primeSpecialCooldown(
+        savedCooldown: CosmicCompanion.baseSpecialCooldown,
+      );
+      expect(
+        mane.specialCooldown,
+        closeTo(mane.effectiveSpecialCooldown, 0.001),
+      );
+
+      mane.primeSpecialCooldown(savedCooldown: 2);
+      expect(mane.specialCooldown, closeTo(2, 0.001));
+
+      mane.primeSpecialCooldown(cooldownMultiplier: 0.5);
+      expect(
+        mane.specialCooldown,
+        closeTo(mane.effectiveSpecialCooldown * 0.5, 0.001),
       );
     });
 
@@ -680,76 +951,194 @@ void main() {
       }
     });
 
-    test(
-      'water steam plant poison air and light manes use distinct barrage lanes',
-      () {
-        final water = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'mane',
-          element: 'Water',
-          damage: 10,
-          maxHp: 120,
-        );
-        final steam = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'mane',
-          element: 'Steam',
-          damage: 10,
-          maxHp: 120,
-        );
-        final plant = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'mane',
-          element: 'Plant',
-          damage: 10,
-          maxHp: 120,
-        );
-        final poison = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'mane',
-          element: 'Poison',
-          damage: 10,
-          maxHp: 120,
-        );
-        final air = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'mane',
-          element: 'Air',
-          damage: 10,
-          maxHp: 120,
-        );
-        final light = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'mane',
-          element: 'Light',
-          damage: 10,
-          maxHp: 120,
-        );
+    test('mane elements produce distinct frontal technique signatures', () {
+      const elements = [
+        'Fire',
+        'Lava',
+        'Lightning',
+        'Water',
+        'Ice',
+        'Steam',
+        'Earth',
+        'Mud',
+        'Dust',
+        'Crystal',
+        'Air',
+        'Plant',
+        'Poison',
+        'Spirit',
+        'Dark',
+        'Light',
+        'Blood',
+      ];
 
-        expect(water.projectiles.length, 6);
-        expect(water.projectiles.any((p) => p.position.dy > 0), isTrue);
-        expect(water.projectiles.any((p) => p.position.dy < 0), isTrue);
-        expect(steam.projectiles.length, 6);
-        expect(steam.projectiles.every((p) => p.life >= 2.6), isTrue);
-        expect(plant.projectiles.length, 6);
-        expect(plant.projectiles.any((p) => p.position.dy > 0), isTrue);
-        expect(plant.projectiles.any((p) => p.position.dy < 0), isTrue);
-        expect(poison.projectiles.length, 5);
-        expect(
-          poison.projectiles.map((p) => p.position.dy).toSet().length,
-          greaterThanOrEqualTo(5),
+      final signatures = <String>{};
+      for (final element in elements) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'mane',
+          element: element,
+          damage: 10,
+          maxHp: 100,
         );
-        expect(air.projectiles.length, 7);
-        expect(light.projectiles.length, 6);
-        expect(light.projectiles.every((p) => p.piercing), isTrue);
-      },
-    );
+        final snares = result.projectiles.where((p) => p.snareRadius > 0);
+        final intercepts = result.projectiles.fold<int>(
+          0,
+          (sum, p) => sum + p.interceptCharges,
+        );
+        final maxSpeed = result.projectiles
+            .map((p) => p.speedMultiplier)
+            .reduce(max);
+        final maxRadius = result.projectiles
+            .map((p) => p.radiusMultiplier)
+            .reduce(max);
+        final maxLife = result.projectiles.map((p) => p.life).reduce(max);
+
+        expect(result.projectiles.every((p) => p.trailInterval == 0), isTrue);
+        expect(result.projectiles.every((p) => p.bounceCount == 0), isTrue);
+        expect(
+          result.projectiles.every(
+            (p) => p.visualStyle == ProjectileVisualStyle.slash,
+          ),
+          isTrue,
+        );
+        signatures.add(
+          [
+            result.projectiles.length,
+            result.projectiles.where((p) => p.piercing).length,
+            result.projectiles.where((p) => p.homing).length,
+            result.projectiles.where((p) => p.stationary).length,
+            snares.length,
+            intercepts,
+            (maxSpeed * 100).round(),
+            (maxRadius * 100).round(),
+            (maxLife * 10).round(),
+            result.selfHeal,
+            result.basicHasteTimer > 0 ? 1 : 0,
+            (result.basicHasteMultiplier * 100).round(),
+          ].join('/'),
+        );
+      }
+
+      expect(signatures.length, elements.length);
+    });
+
+    test('water steam plant poison air and light manes keep lane roles', () {
+      final water = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Water',
+        damage: 10,
+        maxHp: 120,
+      );
+      final steam = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Steam',
+        damage: 10,
+        maxHp: 120,
+      );
+      final plant = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Plant',
+        damage: 10,
+        maxHp: 120,
+      );
+      final poison = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Poison',
+        damage: 10,
+        maxHp: 120,
+      );
+      final air = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Air',
+        damage: 10,
+        maxHp: 120,
+      );
+      final light = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Light',
+        damage: 10,
+        maxHp: 120,
+      );
+
+      expect(water.projectiles.length, 6);
+      expect(water.projectiles.any((p) => p.position.dy > 0), isTrue);
+      expect(water.projectiles.any((p) => p.position.dy < 0), isTrue);
+      expect(water.projectiles.any((p) => p.snareRadius > 0), isTrue);
+      expect(steam.projectiles.length, 6);
+      expect(steam.projectiles.every((p) => p.piercing), isTrue);
+      expect(steam.projectiles.any((p) => p.snareRadius > 0), isTrue);
+      expect(plant.projectiles.length, 6);
+      expect(plant.projectiles.any((p) => p.position.dy > 0), isTrue);
+      expect(plant.projectiles.any((p) => p.position.dy < 0), isTrue);
+      expect(plant.projectiles.any((p) => p.snareRadius > 0), isTrue);
+      expect(poison.projectiles.length, 5);
+      expect(
+        poison.projectiles.map((p) => p.position.dy).toSet().length,
+        greaterThanOrEqualTo(5),
+      );
+      expect(poison.projectiles.every((p) => p.piercing), isTrue);
+      expect(air.projectiles.length, 7);
+      expect(air.projectiles.every((p) => p.piercing), isTrue);
+      expect(light.projectiles.length, 6);
+      expect(light.projectiles.every((p) => p.piercing), isTrue);
+      expect(
+        light.projectiles.fold<int>(0, (sum, p) => sum + p.interceptCharges),
+        1,
+      );
+    });
+
+    test('mane control reads larger and lasts long enough to notice', () {
+      const controlMinimums = {
+        'Water': (80.0, 2.7),
+        'Lava': (95.0, 3.1),
+        'Steam': (105.0, 3.4),
+        'Earth': (120.0, 4.0),
+        'Mud': (130.0, 3.5),
+        'Plant': (105.0, 3.4),
+        'Ice': (105.0, 3.2),
+        'Poison': (95.0, 3.2),
+        'Dark': (85.0, 2.8),
+        'Blood': (78.0, 3.1),
+      };
+
+      for (final entry in controlMinimums.entries) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'mane',
+          element: entry.key,
+          damage: 10,
+          maxHp: 120,
+        );
+        final controls = result.projectiles
+            .where((p) => p.snareRadius > 0)
+            .toList();
+
+        expect(controls, isNotEmpty);
+        expect(
+          controls.map((p) => p.snareRadius).reduce(max),
+          greaterThanOrEqualTo(entry.value.$1),
+        );
+        expect(
+          controls.map((p) => p.life).reduce(max),
+          greaterThanOrEqualTo(entry.value.$2),
+        );
+      }
+    });
 
     test('mane output budgets stay bounded after the authored pass', () {
       final earth = createCosmicSpecialAbility(
@@ -803,6 +1192,187 @@ void main() {
         result.projectiles.any((p) => !p.stationary && (p.decoy || p.homing)),
         isTrue,
       );
+    });
+
+    test('mask elements produce distinct bait and trap signatures', () {
+      const elements = [
+        'Fire',
+        'Lava',
+        'Lightning',
+        'Water',
+        'Ice',
+        'Steam',
+        'Earth',
+        'Mud',
+        'Dust',
+        'Crystal',
+        'Air',
+        'Plant',
+        'Poison',
+        'Spirit',
+        'Dark',
+        'Light',
+        'Blood',
+      ];
+
+      final signatures = <String>{};
+      for (final element in elements) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'mask',
+          element: element,
+          damage: 10,
+          maxHp: 100,
+          targetPos: const Offset(90, 0),
+        );
+        final totalExplosions = result.projectiles.fold<int>(
+          0,
+          (sum, p) => sum + p.deathExplosionCount,
+        );
+        final totalBounces = result.projectiles.fold<int>(
+          0,
+          (sum, p) => sum + p.bounceCount,
+        );
+        final maxSnare = result.projectiles
+            .map((p) => p.snareRadius)
+            .reduce(max);
+        final maxTaunt = result.projectiles
+            .map((p) => p.tauntRadius)
+            .reduce(max);
+
+        expect(
+          result.projectiles.any((p) => p.decoy || p.tauntRadius > 0),
+          isTrue,
+        );
+        expect(
+          result.projectiles.every(
+            (p) => p.visualStyle == ProjectileVisualStyle.sigil,
+          ),
+          isTrue,
+        );
+
+        signatures.add(
+          [
+            result.projectiles.length,
+            result.projectiles.where((p) => p.stationary).length,
+            result.projectiles.where((p) => p.decoy).length,
+            result.projectiles.where((p) => p.homing).length,
+            result.projectiles.where((p) => p.piercing).length,
+            totalExplosions,
+            totalBounces,
+            maxSnare.round(),
+            maxTaunt.round(),
+          ].join('/'),
+        );
+      }
+
+      expect(signatures.length, greaterThanOrEqualTo(14));
+    });
+
+    test('wing specials keep beam identity with distinct follow-through', () {
+      const elements = [
+        'Fire',
+        'Lava',
+        'Lightning',
+        'Water',
+        'Ice',
+        'Steam',
+        'Earth',
+        'Mud',
+        'Dust',
+        'Crystal',
+        'Air',
+        'Plant',
+        'Poison',
+        'Spirit',
+        'Dark',
+        'Light',
+        'Blood',
+      ];
+
+      final signatures = <String>{};
+      for (final element in elements) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'wing',
+          element: element,
+          damage: 10,
+          maxHp: 100,
+          targetPos: const Offset(120, 0),
+        );
+        final primary = result.projectiles.first;
+        final trailCount = result.projectiles
+            .where((p) => p.trailInterval > 0)
+            .length;
+        final homingCount = result.projectiles.where((p) => p.homing).length;
+        final piercingCount = result.projectiles
+            .where((p) => p.piercing)
+            .length;
+        final maxRadius = result.projectiles
+            .map((p) => p.radiusMultiplier)
+            .reduce(max);
+        final maxSpeed = result.projectiles
+            .map((p) => p.speedMultiplier)
+            .reduce(max);
+        final maxLife = result.projectiles.map((p) => p.life).reduce(max);
+
+        expect(primary.piercing, isTrue);
+        expect(primary.visualScale, greaterThanOrEqualTo(2.5));
+        expect(result.projectiles.length, greaterThan(1));
+
+        signatures.add(
+          [
+            result.projectiles.length,
+            trailCount,
+            homingCount,
+            piercingCount,
+            (maxRadius * 10).round(),
+            (maxSpeed * 10).round(),
+            (maxLife * 10).round(),
+          ].join('/'),
+        );
+      }
+
+      expect(signatures.length, greaterThanOrEqualTo(14));
+    });
+
+    test('wing elements expose readable beam subtypes', () {
+      CosmicSpecialResult wing(String element) => createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'wing',
+        element: element,
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(120, 0),
+      );
+
+      final lightning = wing('Lightning');
+      final lava = wing('Lava');
+      final earth = wing('Earth');
+      final poison = wing('Poison');
+      final water = wing('Water');
+      final spirit = wing('Spirit');
+      final dust = wing('Dust');
+
+      expect(
+        lightning.projectiles.where((p) => p.piercing).length,
+        greaterThan(4),
+      );
+      expect(lava.projectiles.any((p) => p.trailInterval > 0), isTrue);
+      expect(
+        earth.projectiles.map((p) => p.radiusMultiplier).reduce(max),
+        greaterThanOrEqualTo(3),
+      );
+      expect(poison.projectiles.any((p) => p.trailInterval > 0), isTrue);
+      expect(water.projectiles.where((p) => p.homing).length, greaterThan(4));
+      expect(
+        spirit.projectiles.where((p) => p.homing && p.piercing).length,
+        greaterThanOrEqualTo(2),
+      );
+      expect(dust.projectiles.length, greaterThanOrEqualTo(7));
     });
 
     test('kin specials keep the cycling guardian-orb feel', () {

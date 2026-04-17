@@ -1264,6 +1264,7 @@ class _EndingProjectileFx {
           ProjectileVisualStyle.letShard => 16.0,
           ProjectileVisualStyle.dart => 12.0,
           ProjectileVisualStyle.slash => 26.0,
+          ProjectileVisualStyle.hornImpact => 20.0,
           ProjectileVisualStyle.sigil => 20.0,
           ProjectileVisualStyle.kinOrbital => 18.0,
           ProjectileVisualStyle.mysticOrbital => 22.0,

@@ -49,6 +49,10 @@ class CosmicSurvivalCompanion {
   double chargeTimer;
   Offset? chargeTarget;
   double chargeDamage;
+  double chargeSpeedMultiplier;
+  double chargeSweepRadius;
+  double chargeOvershootDistance;
+  double chargeFinalSweepRadius;
   Set<int>? chargeHitIds;
   double blessingTimer;
   double blessingHealPerTick;
@@ -87,6 +91,10 @@ class CosmicSurvivalCompanion {
     this.chargeTimer = 0,
     this.chargeTarget,
     this.chargeDamage = 0,
+    this.chargeSpeedMultiplier = 1.0,
+    this.chargeSweepRadius = 15.0,
+    this.chargeOvershootDistance = 80.0,
+    this.chargeFinalSweepRadius = 28.0,
     this.blessingTimer = 0,
     this.blessingHealPerTick = 0,
     this.basicHasteTimer = 0,
@@ -127,6 +135,17 @@ class CosmicSurvivalCompanion {
       _ => 1.0,
     };
     return (base / factor) * familyMultiplier;
+  }
+
+  void primeSpecialCooldown({
+    double? savedCooldown,
+    double cooldownMultiplier = 1.0,
+  }) {
+    specialCooldown = normalizedCompanionSpecialCooldown(
+      effectiveCooldown: effectiveSpecialCooldown,
+      savedCooldown: savedCooldown,
+      cooldownMultiplier: cooldownMultiplier,
+    );
   }
 
   void takeDamage(int dmg) {
@@ -878,13 +897,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final dir = comp.chargeTarget! - comp.position;
         final dist = dir.distance;
         if (dist > 5) {
-          final step = CosmicSurvivalCompanion.chargeSpeed * dt;
+          final step =
+              CosmicSurvivalCompanion.chargeSpeed *
+              comp.chargeSpeedMultiplier *
+              dt;
           comp.position += (dir / dist) * min(step, dist);
+          comp.angle = atan2(dir.dy, dir.dx);
           // Damage enemies touched during charge
           for (final e in enemies) {
             if (e.isDead) continue;
             final d = (e.position - comp.position).distance;
-            if (d < e.radius + 15 &&
+            if (d < e.radius + comp.chargeSweepRadius &&
                 !(comp.chargeHitIds?.contains(e.hashCode) ?? false)) {
               comp.chargeHitIds?.add(e.hashCode);
               _damageEnemy(e, comp.chargeDamage, sourceSlotIndex: slotIndex);
@@ -893,6 +916,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
       }
       if (comp.chargeTimer <= 0) {
+        for (final e in enemies) {
+          if (e.isDead) continue;
+          final d = (e.position - comp.position).distance;
+          if (d < e.radius + comp.chargeFinalSweepRadius &&
+              !(comp.chargeHitIds?.contains(e.hashCode) ?? false)) {
+            comp.chargeHitIds?.add(e.hashCode);
+            _damageEnemy(e, comp.chargeDamage, sourceSlotIndex: slotIndex);
+          }
+        }
         comp.chargeTarget = null;
         comp.chargeHitIds = null;
       }
@@ -919,9 +951,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final dir = ship.position - comp.position;
         final norm = Offset(dir.dx / dist, dir.dy / dist);
         final moveSpeed = 160.0 * powerUps.companionSpeedMultiplier(slotIndex);
+        final step = min(moveSpeed * dt, max(0.0, dist - 92.0));
         comp.position = Offset(
-          comp.position.dx + norm.dx * moveSpeed * dt,
-          comp.position.dy + norm.dy * moveSpeed * dt,
+          comp.position.dx + norm.dx * step,
+          comp.position.dy + norm.dy * step,
         );
         _setCompanionAngle(comp, atan2(norm.dy, norm.dx), 0.22);
       }
@@ -947,17 +980,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               (0.10 + dt * 0.25).clamp(0.10, 0.28),
             ) ??
             moveTarget;
-        final dir = moveTarget - comp.position;
+        final steeringTarget = comp.anchor;
+        final dir = steeringTarget - comp.position;
         final dist = dir.distance;
-        if (dist > 10) {
+        if (dist > 6) {
           final norm = Offset(dir.dx / dist, dir.dy / dist);
           final moveSpeed =
               120.0 *
               _familyMovementSpeedMultiplier(comp.member.family) *
               powerUps.companionSpeedMultiplier(slotIndex);
+          final step = min(moveSpeed * dt, dist);
           comp.position = Offset(
-            comp.position.dx + norm.dx * moveSpeed * dt,
-            comp.position.dy + norm.dy * moveSpeed * dt,
+            comp.position.dx + norm.dx * step,
+            comp.position.dy + norm.dy * step,
           );
           _setCompanionAngle(comp, atan2(norm.dy, norm.dx), 0.18);
         }
@@ -1085,15 +1120,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         _applyCompanionSpecialSupportEffects(comp, result);
         if (result.chargeTimer > 0) {
           comp.chargeDamage = result.chargeDamage;
+          comp.chargeSpeedMultiplier = result.chargeSpeedMultiplier;
+          comp.chargeSweepRadius = result.chargeSweepRadius;
+          comp.chargeOvershootDistance = result.chargeOvershootDistance;
+          comp.chargeFinalSweepRadius = result.chargeFinalSweepRadius;
           comp.chargeHitIds = <int>{};
           final dir = attackTarget - comp.position;
           final dist = dir.distance;
           if (dist > 1) {
-            final overshoot = attackTarget + (dir / dist) * 80.0;
+            final overshoot =
+                attackTarget + (dir / dist) * comp.chargeOvershootDistance;
             comp.chargeTarget = overshoot;
             final travelTime =
                 (overshoot - comp.position).distance /
-                CosmicSurvivalCompanion.chargeSpeed;
+                (CosmicSurvivalCompanion.chargeSpeed *
+                    comp.chargeSpeedMultiplier);
             comp.chargeTimer = (travelTime + 0.15).clamp(0.3, 3.0);
           } else {
             comp.chargeTarget = attackTarget;
@@ -1577,8 +1618,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final startHpFrac = companionHpFraction[slotIndex] ?? 1.0;
     final startHp = (maxHp * startHpFrac).round().clamp(1, maxHp);
+    final savedSpecialCooldown = companionSpecialCooldown[slotIndex];
 
-    activeCompanions[slotIndex] = CosmicSurvivalCompanion(
+    final companion = CosmicSurvivalCompanion(
       member: member,
       position: ship.position,
       anchor: ship.position,
@@ -1593,10 +1635,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       attackRange: _familyAttackRange(family, baseRange),
       specialAbilityRange: _familySpecialRange(family, baseRange),
       tethered: tetherModeEnabled && tetheredCompanionSlot == null,
-      specialCooldown:
-          companionSpecialCooldown[slotIndex]?.clamp(0.0, 100.0) ??
-          CosmicSurvivalCompanion.baseSpecialCooldown,
     );
+    companion.primeSpecialCooldown(
+      savedCooldown: savedSpecialCooldown,
+      cooldownMultiplier:
+          1.0 - powerUps.companionCooldownReduction(slotIndex).clamp(0.0, 0.5),
+    );
+    activeCompanions[slotIndex] = companion;
+    companionSpecialCooldown[slotIndex] = companion.specialCooldown;
     if (tetherModeEnabled) {
       tetheredCompanionSlot ??= slotIndex;
       for (final entry in activeCompanions.entries) {
@@ -5357,6 +5403,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (_simplifyProjectileRendering) {
       final radius = switch (proj.visualStyle) {
         ProjectileVisualStyle.meteor => 3.6 * proj.visualScale,
+        ProjectileVisualStyle.hornImpact => 3.4 * proj.visualScale,
         ProjectileVisualStyle.kinOrbital ||
         ProjectileVisualStyle.mysticOrbital => 3.2 * proj.visualScale,
         ProjectileVisualStyle.slash => 2.4 * proj.visualScale,
@@ -5408,6 +5455,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return;
     }
     if (drawPipElementalProjectileVisual(
+      canvas: canvas,
+      projectile: proj,
+      position: proj.position,
+      color: eColor,
+      time: stats.timeElapsed,
+    )) {
+      return;
+    }
+    if (drawManeElementalProjectileVisual(
+      canvas: canvas,
+      projectile: proj,
+      position: proj.position,
+      color: eColor,
+      time: stats.timeElapsed,
+    )) {
+      return;
+    }
+    if (drawHornElementalProjectileVisual(
       canvas: canvas,
       projectile: proj,
       position: proj.position,
@@ -5496,6 +5561,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
 
       case ProjectileVisualStyle.sigil:
+      case ProjectileVisualStyle.hornImpact:
         final pulse = 0.7 + 0.3 * sin(stats.timeElapsed * 4);
         canvas.drawCircle(
           proj.position,
@@ -5674,13 +5740,29 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Charge trail
     if (comp.chargeTimer > 0) {
+      final chargeWidth = (comp.chargeSweepRadius / 48.0).clamp(0.70, 2.20);
+      final trailScale = (comp.chargeOvershootDistance / 80.0).clamp(
+        0.65,
+        2.10,
+      );
       canvas.drawCircle(
         Offset.zero,
-        28,
+        28 * chargeWidth,
         Paint()
           ..color = ec.withValues(alpha: 0.35)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
       );
+      for (var t = 0; t < 4; t++) {
+        final trailAngle = comp.angle + pi;
+        final trailDist = (7.0 + t * 7.0) * trailScale;
+        canvas.drawCircle(
+          Offset(cos(trailAngle) * trailDist, sin(trailAngle) * trailDist),
+          (5.0 - t) * chargeWidth,
+          Paint()
+            ..color = ec.withValues(alpha: (1.0 - t / 4.0) * 0.34)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+      }
     }
 
     // Sprite rendering (same as cosmic game)

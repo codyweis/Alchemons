@@ -2340,10 +2340,10 @@ const List<_FamilyInfo> _familyInfos = [
   _FamilyInfo(
     id: 'Mane',
     name: 'Mane',
-    role: 'Barrage DPS',
+    role: 'Barrage Bruiser',
     description:
-        'Rapid-fire elemental volleys in a cone. Shreds clustered enemies with sustained damage.',
-    bestPowerups: 'Speed/Beauty Transmute, Empower Barrage',
+        'Medium-range slash pressure that carves forward lanes and staggers clustered pushes.',
+    bestPowerups: 'Speed/Strength Transmute, Empower Barrage',
     assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
     color: Color(0xFFEF4444),
   ),
@@ -2360,10 +2360,10 @@ const List<_FamilyInfo> _familyInfos = [
   _FamilyInfo(
     id: 'Horn',
     name: 'Horn',
-    role: 'Frontline Tank',
+    role: 'Frontline Bastion',
     description:
-        'Bulky guardians that hold the line with protective Novas. Knocks enemies back.',
-    bestPowerups: 'HP Transmute, Extra Deploy, Empower Nova',
+        'Bulky shield chargers that hold close lanes, body-block rushdowns, and protect the orb.',
+    bestPowerups: 'HP Transmute, Extra Deploy, Empower Charge',
     assetPath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
     color: Color(0xFF10B981),
   ),

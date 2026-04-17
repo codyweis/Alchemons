@@ -1981,17 +1981,25 @@ class CosmicGame extends FlameGame with PanDetector {
               final toTarget = comp.chargeTarget! - comp.position;
               final dist = toTarget.distance;
               if (dist > 10) {
-                final step = CosmicCompanion.chargeSpeed * dt;
+                final step =
+                    CosmicCompanion.chargeSpeed *
+                    comp.chargeSpeedMultiplier *
+                    dt;
                 comp.position += (toTarget / dist) * min(step, dist);
                 comp.angle = atan2(toTarget.dy, toTarget.dx);
-                _resolveCompanionChargeImpact(comp, startPos, comp.position);
+                _resolveCompanionChargeImpact(
+                  comp,
+                  startPos,
+                  comp.position,
+                  sweepRadius: comp.chargeSweepRadius,
+                );
               } else {
                 // Arrived at overshoot point — final AoE sweep and stop.
                 _resolveCompanionChargeImpact(
                   comp,
                   startPos,
                   comp.position,
-                  sweepRadius: 68.0,
+                  sweepRadius: comp.chargeFinalSweepRadius,
                 );
                 comp.chargeTimer = 0;
                 comp.chargeTarget = null;
@@ -2151,18 +2159,24 @@ class CosmicGame extends FlameGame with PanDetector {
               if (result.shieldHp > 0) comp.shieldHp = result.shieldHp;
               if (result.chargeTimer > 0) {
                 comp.chargeDamage = result.chargeDamage;
+                comp.chargeSpeedMultiplier = result.chargeSpeedMultiplier;
+                comp.chargeSweepRadius = result.chargeSweepRadius;
+                comp.chargeOvershootDistance = result.chargeOvershootDistance;
+                comp.chargeFinalSweepRadius = result.chargeFinalSweepRadius;
                 comp.chargeHitIds = <int>{};
-                // Overshoot: charge to a point 80px past the target so the
-                // horn punches through and lands on the far side.
+                // Overshoot varies per element so Horn charges read differently.
                 final dir = targetPos - comp.position;
                 final dist = dir.distance;
                 if (dist > 1) {
-                  final overshootTarget = targetPos + (dir / dist) * 80.0;
+                  final overshootTarget =
+                      targetPos + (dir / dist) * comp.chargeOvershootDistance;
                   comp.chargeTarget = overshootTarget;
-                  // Timer = time to reach overshoot + small buffer, capped
-                  // by the ability's chargeTimer as a speed feel factor.
+                  // Timer = time to reach overshoot + small buffer.
                   final travelDist = (overshootTarget - comp.position).distance;
-                  final travelTime = travelDist / CosmicCompanion.chargeSpeed;
+                  final travelTime =
+                      travelDist /
+                      (CosmicCompanion.chargeSpeed *
+                          comp.chargeSpeedMultiplier);
                   comp.chargeTimer = (travelTime + 0.15).clamp(0.3, 3.0);
                 } else {
                   comp.chargeTarget = targetPos;
@@ -2315,7 +2329,8 @@ class CosmicGame extends FlameGame with PanDetector {
             final toTarget = opp.chargeTarget! - opp.position;
             final dist = toTarget.distance;
             if (dist > 10) {
-              final step = CosmicCompanion.chargeSpeed * dt;
+              final step =
+                  CosmicCompanion.chargeSpeed * opp.chargeSpeedMultiplier * dt;
               opp.position += (toTarget / dist) * min(step, dist);
               opp.angle = atan2(toTarget.dy, toTarget.dx);
             } else {
@@ -2400,6 +2415,10 @@ class CosmicGame extends FlameGame with PanDetector {
               if (result.chargeTimer > 0) {
                 opp.chargeTimer = result.chargeTimer;
                 opp.chargeDamage = result.chargeDamage;
+                opp.chargeSpeedMultiplier = result.chargeSpeedMultiplier;
+                opp.chargeSweepRadius = result.chargeSweepRadius;
+                opp.chargeOvershootDistance = result.chargeOvershootDistance;
+                opp.chargeFinalSweepRadius = result.chargeFinalSweepRadius;
                 opp.chargeTarget = comp.position;
               }
               if (result.selfHeal > 0) {
@@ -2505,6 +2524,17 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       } else if (p.stationary) {
         // no movement
+        if (p.turretInterval > 0 &&
+            activeCompanion != null &&
+            activeCompanion!.isAlive) {
+          p.turretTimer += dt;
+          if (p.turretTimer >= p.turretInterval) {
+            p.turretTimer -= p.turretInterval;
+            ringOpponentProjectiles.add(
+              _createEscortTurretShot(p, activeCompanion!.position),
+            );
+          }
+        }
       } else if (!transferringToOrbit) {
         p.position = Offset(
           p.position.dx + cos(p.angle) * pSpeed * dt,
@@ -2736,6 +2766,16 @@ class CosmicGame extends FlameGame with PanDetector {
       } else if (p.stationary) {
         // Stationary projectiles don't move (mines, lingering clouds)
         // no position change
+        if (p.turretInterval > 0) {
+          p.turretTimer += dt;
+          if (p.turretTimer >= p.turretInterval) {
+            p.turretTimer -= p.turretInterval;
+            final target = _nearestEscortTarget(p.position);
+            if (target != null) {
+              companionProjectiles.add(_createEscortTurretShot(p, target));
+            }
+          }
+        }
       } else if (!transferringToShip) {
         p.position = Offset(
           p.position.dx + cos(p.angle) * pSpeed * dt,
@@ -3018,14 +3058,14 @@ class CosmicGame extends FlameGame with PanDetector {
             final toTarget = g.chargeTarget! - g.position;
             final dist = toTarget.distance;
             if (dist > 10) {
-              final step = 400.0 * dt;
+              final step = 400.0 * g.chargeSpeedMultiplier * dt;
               g.position += (toTarget / dist) * min(step, dist);
               g.faceAngle = atan2(toTarget.dy, toTarget.dx);
               // Damage enemies along the charge path
               for (final e in enemies) {
                 if (e.dead) continue;
                 final d = _distanceToSegment(e.position, startPos, g.position);
-                if (d < e.radius + 48) {
+                if (d < e.radius + g.chargeSweepRadius) {
                   e.health -= g.chargeDamage;
                   _spawnHitSpark(e.position, elementColor(g.member.element));
                   if (!e.provoked) _provokePackOf(e);
@@ -3037,7 +3077,7 @@ class CosmicGame extends FlameGame with PanDetector {
                   startPos,
                   g.position,
                 );
-                if (d < activeBoss!.radius + 48) {
+                if (d < activeBoss!.radius + g.chargeSweepRadius) {
                   activeBoss!.health -= g.chargeDamage;
                   _spawnHitSpark(g.position, elementColor(g.member.element));
                 }
@@ -3161,14 +3201,20 @@ class CosmicGame extends FlameGame with PanDetector {
             if (result.shieldHp > 0) g.shieldHp = result.shieldHp;
             if (result.chargeTimer > 0) {
               g.chargeDamage = result.chargeDamage;
-              // Overshoot: charge past the target so horn punches through.
+              g.chargeSpeedMultiplier = result.chargeSpeedMultiplier;
+              g.chargeSweepRadius = result.chargeSweepRadius;
+              g.chargeOvershootDistance = result.chargeOvershootDistance;
+              g.chargeFinalSweepRadius = result.chargeFinalSweepRadius;
+              // Overshoot varies per element so Horn charges read differently.
               final dir = targetPos - g.position;
               final dist = dir.distance;
               if (dist > 1) {
-                final overshootTarget = targetPos + (dir / dist) * 80.0;
+                final overshootTarget =
+                    targetPos + (dir / dist) * g.chargeOvershootDistance;
                 g.chargeTarget = overshootTarget;
                 final travelDist = (overshootTarget - g.position).distance;
-                final travelTime = travelDist / 400.0;
+                final travelTime =
+                    travelDist / (400.0 * g.chargeSpeedMultiplier);
                 g.chargeTimer = (travelTime + 0.15).clamp(0.3, 3.0);
               } else {
                 g.chargeTarget = targetPos;
@@ -5747,16 +5793,21 @@ class CosmicGame extends FlameGame with PanDetector {
 
           // ── Charge trail (Horn charging) ──
           if (g.chargeTimer > 0) {
+            final chargeWidth = (g.chargeSweepRadius / 48.0).clamp(0.70, 2.20);
+            final trailScale = (g.chargeOvershootDistance / 80.0).clamp(
+              0.65,
+              2.10,
+            );
             for (var t = 0; t < 4; t++) {
               final trailAngle = g.faceAngle + pi;
-              final trailDist = 6.0 + t * 6.0;
+              final trailDist = (6.0 + t * 6.0) * trailScale;
               final tAlpha = (1.0 - t / 4.0) * 0.4;
               canvas.drawCircle(
                 Offset(
                   cos(trailAngle) * trailDist,
                   sin(trailAngle) * trailDist,
                 ),
-                (4.0 - t) * g.spriteScale,
+                (4.0 - t) * g.spriteScale * chargeWidth,
                 Paint()
                   ..color = eColor.withValues(alpha: tAlpha)
                   ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
@@ -7240,6 +7291,24 @@ class CosmicGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
+      if (drawManeElementalProjectileVisual(
+        canvas: canvas,
+        projectile: cp,
+        position: cpp,
+        color: projColor,
+        time: _elapsed,
+      )) {
+        continue;
+      }
+      if (drawHornElementalProjectileVisual(
+        canvas: canvas,
+        projectile: cp,
+        position: cpp,
+        color: projColor,
+        time: _elapsed,
+      )) {
+        continue;
+      }
 
       if (cp.decoy && cp.decoyHp > 0 && cp.stationary) {
         final pulse = 0.72 + 0.28 * sin(cp.life * 4.5);
@@ -8515,13 +8584,18 @@ class CosmicGame extends FlameGame with PanDetector {
 
       // ── Charge trail (Horn charging) ──
       if (comp.isCharging) {
+        final chargeWidth = (comp.chargeSweepRadius / 48.0).clamp(0.70, 2.20);
+        final trailScale = (comp.chargeOvershootDistance / 80.0).clamp(
+          0.65,
+          2.10,
+        );
         for (var t = 0; t < 5; t++) {
           final trailAngle = comp.angle + pi; // behind companion
-          final trailDist = 8.0 + t * 8.0;
+          final trailDist = (8.0 + t * 8.0) * trailScale;
           final tAlpha = (1.0 - t / 5.0) * 0.5 * opacity;
           canvas.drawCircle(
             Offset(cos(trailAngle) * trailDist, sin(trailAngle) * trailDist),
-            (5.0 - t) * animScale,
+            (5.0 - t) * animScale * chargeWidth,
             Paint()
               ..color = eColor.withValues(alpha: tAlpha)
               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),

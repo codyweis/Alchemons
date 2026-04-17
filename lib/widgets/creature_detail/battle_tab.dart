@@ -394,11 +394,12 @@ class ImprovedBattleScrollArea extends StatelessWidget {
     switch (family) {
       case 'Horn':
         return const _CosmicFamilyRole(
-          title: 'Charge Bruiser',
+          title: 'Frontline Bastion',
           description:
               'Horns force close fights. They push into short range, soak '
-              'pressure with shields, and convert specials into real charge '
-              'impacts that slam through targets instead of hovering at range.',
+              'pressure with shields, and convert specials into charge impacts, '
+              'body-blocking zones, taunts, slows, and interceptions that hold '
+              'danger in front of the team.',
         );
       case 'Wing':
         return const _CosmicFamilyRole(
@@ -428,11 +429,12 @@ class ImprovedBattleScrollArea extends StatelessWidget {
         );
       case 'Mane':
         return const _CosmicFamilyRole(
-          title: 'Suppression Barrage',
+          title: 'Barrage Bruiser',
           description:
-              'Manes are forward pressure gunners. They step into medium '
-              'range and unload dense frontal volleys that suppress lanes and '
-              'punish clustered enemies without wasting shots behind them.',
+              'Manes are martial barrage bruisers. They step into medium '
+              'range and convert element into forward techniques: cleaves, '
+              'cross-cuts, pressure lanes, readable staggers, and tempo combos that '
+              'punish whatever is directly in front of them.',
         );
       case 'Kin':
         return const _CosmicFamilyRole(
@@ -1340,7 +1342,7 @@ class _DynamicSpecialAbilityCardState
       case 'Pip':
         return 'Frenzy';
       case 'Mane':
-        return 'Entangle';
+        return 'Barrage Volley';
       case 'Mask':
         return 'Hex Field';
       case 'Horn':
@@ -1502,8 +1504,8 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
   switch (normalizedFamily) {
     case 'Horn':
       bullets.addAll([
-        'Horns are the bruiser family in survival: they push forward, intercept orb threats, and fight closer than most companions.',
-        'Shield-heavy Horn variants buy time for the whole defense line and are best when lanes are collapsing into the orb.',
+        'Horns are the frontline bastion family in survival: they push forward, intercept orb threats, and fight closer than most companions.',
+        'Shield-heavy Horn variants buy time for the whole defense line, while taunt, slow, and intercept variants keep pressure pointed at the front.',
       ]);
       if ([
         'Earth',
@@ -1514,6 +1516,24 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
       ].contains(normalizedElement)) {
         bullets.add(
           '$normalizedElement Horn leans especially hard into anchor duty with heavier body-blocking, sturdier pressure, or longer frontline presence.',
+        );
+      } else if ([
+        'Light',
+        'Crystal',
+        'Lightning',
+        'Air',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Horn is more of a guard-response variant, using interceptions or fast peel to stop priority threats before they reach the orb.',
+        );
+      } else if ([
+        'Water',
+        'Steam',
+        'Plant',
+        'Poison',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Horn adds lane control or recovery to the charge, helping the frontline stabilize without replacing dedicated support.',
         );
       }
       return _CosmicSurvivalNotes(
@@ -1603,17 +1623,39 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
       );
     case 'Mane':
       bullets.addAll([
-        'Manes are tempo brawlers: they step up, unload a barrage window, then keep the lane under pressure with fast follow-ups.',
-        'They are better at forward suppression than at hard defense, so they feel best when your team already has some frontline stability.',
+        'Manes are barrage bruisers: they step up, carve a forward lane, then keep pressure on enemies trying to push through it.',
+        'They are better at short-range suppression than at hard defense, so they feel best when your team already has anchors or escorts behind them.',
       ]);
-      if (['Poison', 'Fire', 'Lightning', 'Dust'].contains(normalizedElement)) {
+      if (['Fire', 'Lightning', 'Air', 'Dust'].contains(normalizedElement)) {
         bullets.add(
-          '$normalizedElement Mane emphasizes tempo and barrage volume, which makes it especially good at keeping regular waves from rebuilding momentum.',
+          '$normalizedElement Mane emphasizes quick combo pressure and lane clearing, which makes it especially good at breaking regular waves before they settle.',
+        );
+      } else if ([
+        'Ice',
+        'Steam',
+        'Earth',
+        'Mud',
+        'Plant',
+        'Poison',
+        'Dark',
+        'Lava',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Mane adds readable forward control to its slashes, slowing or staggering enemies without becoming a full battlefield-control caster.',
+        );
+      } else if ([
+        'Blood',
+        'Spirit',
+        'Crystal',
+        'Light',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Mane focuses on disciplined finishers, parries, or phase-cuts while staying pointed into the forward lane.',
         );
       }
       return _CosmicSurvivalNotes(
         summary:
-            'Mane is an offense-first pressure family in survival. It wins by keeping targets under constant frontal tempo instead of by anchoring or escorting.',
+            'Mane is an offense-first bruiser family in survival. It wins by turning medium range into a controlled forward lane instead of by anchoring, orbiting, or chasing leaks.',
         bullets: bullets,
       );
     case 'Kin':
@@ -1642,8 +1684,8 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
       );
     case 'Mystic':
       bullets.addAll([
-        'Mystics are high-impact control casters: they place major battlefield pieces and care more about cast quality than constant uptime.',
-        'They are strongest when the fight gives them time to establish orbitals, control zones, sentinels, or trap patterns.',
+        'Mystics are premium ultimate casters: they care more about landing one fight-shaping special than constant uptime.',
+        'They are strongest when the fight gives them time to establish collapses, control zones, sentinels, trap patterns, or hunter swarms.',
       ]);
       if ([
         'Steam',
@@ -1656,6 +1698,17 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
         bullets.add(
           '$normalizedElement Mystic is especially survival-relevant because it creates defensive orbitals, interception, taunt control, or long-lived denial space.',
         );
+      } else if ([
+        'Fire',
+        'Lightning',
+        'Crystal',
+        'Dust',
+        'Lava',
+        'Spirit',
+      ].contains(normalizedElement)) {
+        bullets.add(
+          '$normalizedElement Mystic is the more offensive ultimate style, using collapse burst, chain pressure, heavy projectiles, or hunter damage to swing a wave.',
+        );
       } else if (normalizedElement == 'Blood') {
         bullets.add(
           'Blood Mystic adds sustain on top of its control pattern, making it one of the safest long-run mystic picks.',
@@ -1663,7 +1716,7 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
       }
       return _CosmicSurvivalNotes(
         summary:
-            'Mystic is the premium control family in survival. It should feel deliberate, setup-heavy, and capable of reshaping the battlefield with one special.',
+            'Mystic is the premium ultimate family in survival. It should feel deliberate, setup-heavy, and capable of reshaping the battlefield with one special.',
         bullets: bullets,
       );
     case 'Mask':
@@ -1862,29 +1915,140 @@ class _CosmicSpecialInfo {
 _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
   switch (family) {
     case 'Horn':
+      final anchorElement = [
+        'Earth',
+        'Lava',
+        'Mud',
+        'Ice',
+        'Steam',
+      ].contains(element);
+      final interceptElement = [
+        'Light',
+        'Crystal',
+        'Lightning',
+        'Air',
+      ].contains(element);
+      final sustainElement = ['Water', 'Blood'].contains(element);
+      final followThrough = switch (element) {
+        'Fire' =>
+          'Fire is a fast blaze ram that over-commits through the target lane, leaving a burning wake instead of a wall.',
+        'Lava' =>
+          'Lava is a slow molten plow whose boulders leave magma trails and split into slag after impact.',
+        'Lightning' =>
+          'Lightning trades shield size for the quickest snap-charge and bouncing parry rods.',
+        'Water' =>
+          'Water uses a medium surf shove with a wider finishing crash and a small ship heal.',
+        'Ice' =>
+          'Ice lumbers in with a broad glacial body-check and plants one of the hardest frontal slows.',
+        'Steam' =>
+          'Steam pops forward with a pressure-burst charge, then leaves taunting vents that keep firing pressure puffs.',
+        'Earth' =>
+          'Earth is the fortress variant: the slowest, widest charge, ending in taunting stone bulwarks that can break apart.',
+        'Mud' =>
+          'Mud drags a wide, short charge through the lane with crawling sludge that leaves slow trails.',
+        'Dust' =>
+          'Dust is a long skitter-charge with low shield, narrow contact, and quick disruption.',
+        'Crystal' =>
+          'Crystal takes a measured guard step, then spins orbiting mirror plates that intercept and refract hits.',
+        'Air' =>
+          'Air is the longest gale dash, cutting through the lane with light interception and peel.',
+        'Plant' =>
+          'Plant advances slowly and roots a thorn hedge that acts like a short-lived turret line.',
+        'Poison' =>
+          'Poison makes a guarded venom shove, leaving fangs and toxic choke points where it lands.',
+        'Spirit' =>
+          'Spirit phase-slips farther through the target and leaves guarded plates in the impact lane.',
+        'Dark' =>
+          'Dark is a sharp execution ram: quick, narrow, and built to taunt enemies into a tight kill lane.',
+        'Light' =>
+          'Light takes a short guardian step and plants wide radiant ward plates for parries, lane control, and ship healing.',
+        'Blood' =>
+          'Blood is a heavy sustain body-slam, converting a short crash into self-heal and blood bulwarks.',
+        _ =>
+          'Element changes how the Horn protects the front line after impact.',
+      };
       return _CosmicSpecialInfo(
-        subtitle: 'Shield Charge • Beauty × 2 • Close-range finisher',
+        subtitle: 'Shield Charge • Beauty × 2 • Frontline impact',
         description:
-            'Raises a shield, erupts with an elemental burst, then commits to '
-            'a real impact charge. Horn specials are built to connect in melee '
-            'and punish targets with a bruiser-style crash instead of just a dash animation.',
+            'Raises a shield, erupts with an elemental guard burst, then '
+            'commits to a real impact charge. $followThrough',
         icon: Icons.shield,
-        tags: ['SHIELD', 'CHARGE', 'NOVA', element.toUpperCase()],
+        tags: [
+          'SHIELD',
+          'CHARGE',
+          if (anchorElement) 'ANCHOR',
+          if (interceptElement) 'INTERCEPT',
+          if (sustainElement) 'SUSTAIN',
+          element.toUpperCase(),
+        ],
       );
     case 'Wing':
       final hasTrail = ['Lava', 'Fire', 'Plant'].contains(element);
+      final hunterElement = [
+        'Crystal',
+        'Water',
+        'Ice',
+        'Dark',
+        'Blood',
+        'Steam',
+        'Mud',
+        'Plant',
+        'Poison',
+        'Spirit',
+        'Light',
+      ].contains(element);
+      final heavyElement = ['Earth', 'Lava', 'Mud'].contains(element);
+      final followThrough = switch (element) {
+        'Lightning' =>
+          'Lightning forks into a rapid chain web of piercing side bolts.',
+        'Crystal' =>
+          'Crystal refracts from the beam tip into guided prism shards.',
+        'Fire' =>
+          'Fire widens into a sweeping inferno line with a burning trail.',
+        'Ice' =>
+          'Ice leaves freezing anchors, then throws back-fanning splinters.',
+        'Dark' =>
+          'Dark rakes the lane with rupture lances before execution seekers peel out.',
+        'Blood' =>
+          'Blood fires fewer heavier hunter bolts after the primary crimson lance.',
+        'Water' =>
+          'Water sends undertow ribbons that hook back inward through the beam lane.',
+        'Lava' =>
+          'Lava becomes an eruption trench of slow massive piercing chunks.',
+        'Steam' =>
+          'Steam pulses shells down the lane, then releases drifting cutter shots.',
+        'Earth' =>
+          'Earth trades speed for a few enormous boulder beams with the widest body.',
+        'Mud' =>
+          'Mud rakes the lane with bog slugs and sticky guided glob follow-up.',
+        'Dust' =>
+          'Dust sandblasts a wide scatter of very fast short-lived shards.',
+        'Air' =>
+          'Air drills forward with fast spiraling wind bolts around the beam.',
+        'Plant' =>
+          'Plant grows guided vine tendrils from the beam for pursuit pressure.',
+        'Poison' =>
+          'Poison rides the beam with venom spines, then feeds guided toxins through the lane.',
+        'Spirit' =>
+          'Spirit sends piercing reaper hunters that keep the long-range execution feel.',
+        'Light' =>
+          'Light bursts from the tip into radiant guided motes for cleanup.',
+        _ =>
+          'Element determines the beam follow-through: chains, refractions, hunters, or scatter effects.',
+      };
       return _CosmicSpecialInfo(
         subtitle: 'Piercing Beam • Beauty × 2 • Long-range line attack',
         description:
             'Fires a powerful $element beam that pierces through all enemies in its path. '
             '${hasTrail ? 'Leaves a lingering $element damage trail behind the beam. ' : ''}'
-            'Element determines secondary follow-through — chains, refractions, '
-            'hunters, or scatter effects.',
+            '$followThrough',
         icon: Icons.arrow_forward,
         tags: [
           'PIERCING',
           'BEAM',
           if (hasTrail) 'TRAIL',
+          if (hunterElement) 'HUNTER',
+          if (heavyElement) 'HEAVY',
           element.toUpperCase(),
         ],
       );
@@ -2022,17 +2186,78 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         ],
       );
     case 'Mane':
+      final controlElement = [
+        'Ice',
+        'Steam',
+        'Earth',
+        'Mud',
+        'Plant',
+        'Poison',
+        'Dark',
+        'Lava',
+        'Water',
+      ].contains(element);
+      final tempoElement = [
+        'Fire',
+        'Lightning',
+        'Air',
+        'Dust',
+      ].contains(element);
+      final finisherElement = ['Blood', 'Spirit', 'Crystal'].contains(element);
+      final followThrough = switch (element) {
+        'Fire' =>
+          'Fire becomes a flameblade combo with a brief basic-attack tempo push.',
+        'Lightning' =>
+          'Lightning is a fast piercing step-cut sequence, not a ricochet chain.',
+        'Air' => 'Air sweeps a wide windblade cone for fast lane clearing.',
+        'Dust' =>
+          'Dust throws a broad sandblade fan that clears messy clusters without bouncing.',
+        'Water' =>
+          'Water uses crossing tide-cuts that visibly slow enemies in the lane.',
+        'Steam' =>
+          'Steam vents pressure slashes that pierce and briefly choke movement.',
+        'Plant' =>
+          'Plant lashes vine-cuts that catch enemies with short forward snares.',
+        'Poison' =>
+          'Poison applies venom edge pressure with readable slow cuts instead of residue fields.',
+        'Ice' =>
+          'Ice uses heavier chill cleaves and frost follow-through to slow a push.',
+        'Earth' =>
+          'Earth adds guard-break slabs and short fault plates for staggered pressure.',
+        'Mud' =>
+          'Mud uses heavy stumbling cross-cuts that slow enemies trying to pass.',
+        'Lava' =>
+          'Lava trades volume for heavy molten cleaves with brief stagger pressure.',
+        'Dark' =>
+          'Dark is a tight forward void-cut package for focused suppression.',
+        'Blood' =>
+          'Blood uses lifesteal spear-cuts and disciplined follow-through slashes.',
+        'Spirit' =>
+          'Spirit phases one guided center cut through a mostly straight barrage.',
+        'Crystal' =>
+          'Crystal uses precise prism cuts and refracted piercing follow-ups.',
+        'Light' =>
+          'Light adds a disciplined parry cut that can intercept one threat.',
+        _ =>
+          'Element changes the forward technique while keeping Mane focused on lane pressure.',
+      };
       return _CosmicSpecialInfo(
-        subtitle: 'Barrage Volley • Beauty × 2 • Forward suppression burst',
+        subtitle: 'Barrage Volley • Beauty × 2 • Martial lane pressure',
         description:
-            'Unloads a dense forward $element barrage meant to suppress what is '
-            'in front of the Mane. Element changes spread, bolt weight, tempo, '
-            'and follow-through, but the move stays focused on frontal pressure.',
+            'Unloads a forward $element slash technique meant to suppress what '
+            'is directly in front of the Mane. $followThrough',
         icon: Icons.waves,
-        tags: ['BARRAGE', 'SUPPRESSION', element.toUpperCase()],
+        tags: [
+          'BARRAGE',
+          if (tempoElement) 'TEMPO',
+          if (controlElement) 'STAGGER',
+          if (finisherElement) 'FINISHER',
+          if (element == 'Light') 'PARRY',
+          element.toUpperCase(),
+        ],
       );
     case 'Mask':
-      final isDecoy = [
+      final decoyElement = [
         'Earth',
         'Lava',
         'Crystal',
@@ -2044,35 +2269,163 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         'Light',
         'Blood',
       ].contains(element);
+      final snareElement = [
+        'Dark',
+        'Mud',
+        'Steam',
+        'Poison',
+        'Air',
+        'Ice',
+      ].contains(element);
+      final reboundElement = [
+        'Lightning',
+        'Dust',
+        'Crystal',
+        'Light',
+      ].contains(element);
+      final followThrough = switch (element) {
+        'Earth' =>
+          'Earth uses the toughest monolith lure: it taunts, soaks hits, then breaks into a boulder punishment.',
+        'Lava' =>
+          'Lava drops volatile idols that drag attention before erupting into heavy molten bursts.',
+        'Crystal' =>
+          'Crystal uses prism decoys and bouncing shards to punish enemies that take the bait.',
+        'Spirit' =>
+          'Spirit sends phantom lures and phase seekers, splitting attention across several false targets.',
+        'Dark' =>
+          'Dark builds the strongest void well, pulling enemies into a snaring lure before execution pressure arrives.',
+        'Water' =>
+          'Water uses bubble decoys and guided splashes to pull pressure away from the ship.',
+        'Ice' =>
+          'Ice traps enemies in freezing lures, then follows with slow heavy shards.',
+        'Plant' =>
+          'Plant grows vine constructs that taunt enemies before thorn pods punish the cluster.',
+        'Light' =>
+          'Light creates beacon decoys and ricochet motes, a cleaner defensive misdirection pattern.',
+        'Blood' =>
+          'Blood plants a tougher obelisk lure backed by fewer, heavier blood punishers.',
+        'Fire' =>
+          'Fire skips durable decoys for an inferno bait burst: many fast seekers punish anything that turns toward the trap.',
+        'Lightning' =>
+          'Lightning turns the trap into a tesla chain, using fast bouncing seekers to scramble clustered enemies.',
+        'Steam' =>
+          'Steam relies more on pressure traps and slow vents than on raw seeker volume.',
+        'Mud' =>
+          'Mud is the bog-control trap, locking movement first and punishing escape attempts second.',
+        'Dust' =>
+          'Dust scatters caltrop motes, using fast ricochets to break enemy formation.',
+        'Poison' =>
+          'Poison establishes contamination traps first, then sends guided toxins through slowed targets.',
+        'Air' =>
+          'Air uses gust lures to break formation, then dives wind blades onto displaced enemies.',
+        _ =>
+          'Element changes the bait pattern, trap pressure, and punishment style.',
+      };
       return _CosmicSpecialInfo(
-        subtitle: isDecoy
+        subtitle: decoyElement
             ? 'Decoy Totem • Beauty × 2 • Control setup'
             : 'Seeker Swarm • Beauty × 2 • Control setup',
-        description: isDecoy
-            ? 'Deploys $element decoy totems that taunt nearby enemies. Enemies '
-                  'attack the decoy instead of you. When destroyed, the decoy '
-                  'explodes into a ring of damaging projectiles.'
-            : 'Deploys $element seekers and control pieces that redirect enemy '
-                  'movement, create pressure windows, and support the family\'s '
-                  'bait-and-punish style instead of relying on raw burst.',
-        icon: isDecoy ? Icons.sports_kabaddi : Icons.warning_amber,
+        description:
+            'Deploys $element misdirection pieces that make enemies choose bad '
+            'targets, bad paths, or bad timing. $followThrough',
+        icon: decoyElement ? Icons.sports_kabaddi : Icons.warning_amber,
         tags: [
-          isDecoy ? 'DECOY' : 'SEEKERS',
-          isDecoy ? 'TAUNT' : 'CONTROL',
-          isDecoy ? 'EXPLODES' : 'REDIRECT',
+          decoyElement ? 'DECOY' : 'SEEKERS',
+          if (snareElement) 'SNARE',
+          if (reboundElement) 'REBOUND',
+          decoyElement ? 'TAUNT' : 'CONTROL',
+          decoyElement ? 'EXPLODES' : 'REDIRECT',
           element.toUpperCase(),
         ],
       );
     case 'Kin':
+      final escortElement = ['Light', 'Water', 'Crystal'].contains(element);
+      final controlElement = [
+        'Air',
+        'Ice',
+        'Steam',
+        'Earth',
+        'Mud',
+        'Plant',
+        'Poison',
+      ].contains(element);
+      final pressureElement = [
+        'Dark',
+        'Fire',
+        'Lightning',
+        'Spirit',
+        'Lava',
+        'Blood',
+        'Dust',
+      ].contains(element);
+      final followThrough = switch (element) {
+        'Light' =>
+          'Light is the pure guardian escort: long ship-orbiting wards '
+              'that intercept threats and provide the strongest healing.',
+        'Water' =>
+          'Water keeps escort wards near the ship, adding steady healing, '
+              'interception, and soft turret pressure.',
+        'Crystal' =>
+          'Crystal deploys ship escort sentries that pierce and fire from '
+              'orbit while adding a small ship heal.',
+        'Air' =>
+          'Air transfers wind decoys to the fight, taunting and snaring '
+              'enemies away from the ship.',
+        'Earth' =>
+          'Earth sends sturdy guardian stones forward as taunting decoys '
+              'with interception and slow turret pressure.',
+        'Mud' =>
+          'Mud creates forward bog guardians that taunt and slow enemies '
+              'for a longer control window.',
+        'Steam' =>
+          'Steam creates pressure decoys that hard-snare enemies while '
+              'venting small turret shots.',
+        'Ice' =>
+          'Ice places chill guardians that slow a target area and fire '
+              'slower control shots.',
+        'Plant' =>
+          'Plant grows vine guardians that taunt, lightly snare, and fire '
+              'guided support thorns.',
+        'Poison' =>
+          'Poison sets contamination guardians that slow an area and feed '
+              'guided toxin shots.',
+        'Spirit' =>
+          'Spirit sends piercing phase guardians with strong homing support '
+              'fire.',
+        'Dark' =>
+          'Dark leans into offensive guardian hunters, transferring to the '
+              'fight and firing high-guidance shots.',
+        'Fire' =>
+          'Fire creates aggressive guardian embers that transfer forward '
+              'and add rapid turret pressure.',
+        'Lightning' =>
+          'Lightning creates fast guardian sparks with high turret tempo.',
+        'Lava' =>
+          'Lava deploys slower heavy guardians with bigger impact shots.',
+        'Blood' =>
+          'Blood uses sustain guardians that taunt, pierce, and pressure '
+              'while supporting self-heal.',
+        'Dust' =>
+          'Dust sends lightweight distraction guardians that disrupt and '
+              'pepper the target area.',
+        _ =>
+          'Element changes whether the guardian pieces escort, intercept, '
+              'taunt, snare, heal, or pressure enemies.',
+      };
       return _CosmicSpecialInfo(
-        subtitle: 'Blessing Pulse • Beauty × 2 • Heal + guardian orbit',
+        subtitle: 'Blessing Pulse • Beauty × 2 • Guardian support',
         description:
-            'Heals self, applies a blessing-over-time, and deploys a $element '
-            'guardian pattern. Depending on the element, the constructs may '
-            'escort the ship, intercept threats, mend ship health, peel melee '
-            'pressure, stalk targets, or establish control zones before expiring.',
+            'Heals self, applies a blessing-over-time, and deploys $element '
+            'guardian pieces. $followThrough',
         icon: Icons.favorite,
-        tags: ['HEAL', 'ORBITAL', 'BLESSING', element.toUpperCase()],
+        tags: [
+          'HEAL',
+          'BLESSING',
+          if (escortElement) 'ESCORT',
+          if (controlElement) 'CONTROL',
+          if (pressureElement) 'PRESSURE',
+          element.toUpperCase(),
+        ],
       );
     case 'Mystic':
       final (subtitle, desc, tags) = switch (element) {
@@ -2212,10 +2565,10 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
           ['HOMING', 'HEAL', 'BLESSING'],
         ),
         _ => (
-          'Guardian Ultimate • Long cooldown',
+          'Guardian Ultimate • Single-slot impact • Long cooldown',
           'Calls a $element guardian ultimate built for single-slot impact. '
-              'Mystic specials stage in orbit first, then resolve into '
-              'elemental signatures.',
+              'Element decides whether it becomes a collapse, zone, sentinel '
+              'ring, trap, turret lane, heavy projectile, or hunter swarm.',
           <String>['GUARDIAN', 'ULTIMATE'],
         ),
       };
@@ -2223,7 +2576,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         subtitle: subtitle,
         description: desc,
         icon: Icons.auto_awesome,
-        tags: [...tags, 'LONG CD', element.toUpperCase()],
+        tags: [...tags, 'ULTIMATE', 'LONG CD', element.toUpperCase()],
       );
     default:
       return const _CosmicSpecialInfo(

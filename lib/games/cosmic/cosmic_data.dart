@@ -3802,6 +3802,7 @@ enum ProjectileVisualStyle {
   letShard,
   dart,
   slash,
+  hornImpact,
   sigil,
   kinOrbital,
   mysticOrbital,
@@ -3822,6 +3823,10 @@ class CosmicSpecialResult {
   final int shieldHp;
   final double chargeTimer;
   final double chargeDamage;
+  final double chargeSpeedMultiplier;
+  final double chargeSweepRadius;
+  final double chargeOvershootDistance;
+  final double chargeFinalSweepRadius;
   final int selfHeal;
   final int shipHeal;
   final double blessingTimer;
@@ -3834,6 +3839,10 @@ class CosmicSpecialResult {
     this.shieldHp = 0,
     this.chargeTimer = 0,
     this.chargeDamage = 0,
+    this.chargeSpeedMultiplier = 1.0,
+    this.chargeSweepRadius = 48.0,
+    this.chargeOvershootDistance = 80.0,
+    this.chargeFinalSweepRadius = 68.0,
     this.selfHeal = 0,
     this.shipHeal = 0,
     this.blessingTimer = 0,
@@ -4250,6 +4259,14 @@ CosmicSpecialResult _hornSpecial(
       min: 0.88,
       max: 1.16,
     );
+    final countScale = _specialCountScaleFromBaseline(
+      casterBeauty,
+      casterIntelligence,
+      beautyPerPoint: 0.04,
+      intelligencePerPoint: 0.05,
+      min: 0.85,
+      max: 1.22,
+    );
     return _copyProjectile(
       p,
       damage: p.damage * impactScale * 0.88,
@@ -4260,6 +4277,31 @@ CosmicSpecialResult _hornSpecial(
           ? p.homingStrength * controlScale
           : p.homingStrength,
       visualScale: p.visualScale * shieldVisualScale,
+      snareRadius: p.snareRadius * shieldVisualScale,
+      tauntRadius: p.tauntRadius * shieldVisualScale,
+      interceptRadius: p.interceptRadius * shieldVisualScale,
+      trailInterval: p.trailInterval > 0
+          ? (p.trailInterval / controlScale).clamp(0.07, 0.35).toDouble()
+          : p.trailInterval,
+      trailDamage: p.trailDamage * impactScale,
+      trailLife: p.trailLife > 0 ? p.trailLife * durationScale : p.trailLife,
+      turretInterval: p.turretInterval > 0
+          ? (p.turretInterval / controlScale).clamp(0.45, 1.8).toDouble()
+          : p.turretInterval,
+      turretDamage: p.turretDamage * impactScale,
+      turretHomingStrength: p.turretHomingStrength > 0
+          ? p.turretHomingStrength * controlScale
+          : p.turretHomingStrength,
+      decoyHp: p.decoyHp * shieldVisualScale,
+      deathExplosionCount: p.deathExplosionCount > 0
+          ? (p.deathExplosionCount * countScale).round().clamp(1, 12)
+          : p.deathExplosionCount,
+      deathExplosionDamage: p.deathExplosionDamage * impactScale,
+      deathExplosionRadius: p.deathExplosionRadius * shieldVisualScale,
+      clusterCount: p.clusterCount > 0
+          ? (p.clusterCount * countScale).round().clamp(1, 8)
+          : p.clusterCount,
+      clusterDamage: p.clusterDamage * impactScale,
     );
   }
 
@@ -4295,7 +4337,14 @@ CosmicSpecialResult _hornSpecial(
           .clamp(0.2, 1.6)
           .toDouble(),
       chargeDamage: result.chargeDamage * impactScale,
+      chargeSpeedMultiplier: (result.chargeSpeedMultiplier * controlScale)
+          .clamp(0.45, 2.10)
+          .toDouble(),
+      chargeSweepRadius: result.chargeSweepRadius * guardScale,
+      chargeOvershootDistance: result.chargeOvershootDistance,
+      chargeFinalSweepRadius: result.chargeFinalSweepRadius * guardScale,
       selfHeal: (result.selfHeal * sustainScale).round(),
+      shipHeal: (result.shipHeal * sustainScale).round(),
       blessingTimer: result.blessingTimer,
       blessingHealPerTick: result.blessingHealPerTick,
       basicHasteTimer: result.basicHasteTimer,
@@ -4314,6 +4363,27 @@ CosmicSpecialResult _hornSpecial(
     bool pierce = false,
     bool home = false,
     double homeStr = 0,
+    double snareRadius = 0,
+    double snareMoveMultiplier = 1.0,
+    double tauntRadius = 0,
+    double tauntStrength = 0,
+    double interceptRadius = 0,
+    int interceptCharges = 0,
+    bool stationary = false,
+    int bounceCount = 0,
+    double trailInterval = 0,
+    double trailDamage = 0,
+    double trailLife = 0,
+    int clusterCount = 0,
+    double clusterDamage = 0,
+    double turretInterval = 0,
+    double turretDamage = 0,
+    double turretHomingStrength = 0,
+    double turretSpeedMultiplier = 1.0,
+    double decoyHp = 0,
+    int deathExplosionCount = 0,
+    double deathExplosionDamage = 0,
+    double deathExplosionRadius = 1.5,
   }) {
     final scaledN = scaledCount(n, min: 3, max: 18);
     return List.generate(scaledN, (i) {
@@ -4327,9 +4397,32 @@ CosmicSpecialResult _hornSpecial(
         speedMultiplier: speed,
         radiusMultiplier: radius,
         visualScale: vs,
+        visualStyle: ProjectileVisualStyle.hornImpact,
         piercing: pierce,
         homing: home,
         homingStrength: homeStr,
+        snareRadius: snareRadius,
+        snareMoveMultiplier: snareMoveMultiplier,
+        tauntRadius: tauntRadius,
+        tauntStrength: tauntStrength,
+        interceptRadius: interceptRadius,
+        interceptCharges: interceptCharges,
+        stationary: stationary,
+        bounceCount: bounceCount,
+        trailInterval: trailInterval,
+        trailDamage: trailDamage,
+        trailLife: trailLife,
+        clusterCount: clusterCount,
+        clusterDamage: clusterDamage,
+        turretInterval: turretInterval,
+        turretDamage: turretDamage,
+        turretHomingStrength: turretHomingStrength,
+        turretSpeedMultiplier: turretSpeedMultiplier,
+        decoy: decoyHp > 0,
+        decoyHp: decoyHp,
+        deathExplosionCount: deathExplosionCount,
+        deathExplosionDamage: deathExplosionDamage,
+        deathExplosionRadius: deathExplosionRadius,
       );
     });
   }
@@ -4344,6 +4437,27 @@ CosmicSpecialResult _hornSpecial(
     double vs = 1.2,
     double radius = 1.3,
     bool pierce = false,
+    double snareRadius = 0,
+    double snareMoveMultiplier = 1.0,
+    double tauntRadius = 0,
+    double tauntStrength = 0,
+    double interceptRadius = 0,
+    int interceptCharges = 0,
+    bool stationary = false,
+    int bounceCount = 0,
+    double trailInterval = 0,
+    double trailDamage = 0,
+    double trailLife = 0,
+    int clusterCount = 0,
+    double clusterDamage = 0,
+    double turretInterval = 0,
+    double turretDamage = 0,
+    double turretHomingStrength = 0,
+    double turretSpeedMultiplier = 1.0,
+    double decoyHp = 0,
+    int deathExplosionCount = 0,
+    double deathExplosionDamage = 0,
+    double deathExplosionRadius = 1.5,
   }) {
     final scaledN = scaledCount(n, min: 3, max: 18);
     final scaledConeSpread = scaledSpread(spread);
@@ -4359,7 +4473,30 @@ CosmicSpecialResult _hornSpecial(
         speedMultiplier: speed,
         radiusMultiplier: radius,
         visualScale: vs,
+        visualStyle: ProjectileVisualStyle.hornImpact,
         piercing: pierce,
+        snareRadius: snareRadius,
+        snareMoveMultiplier: snareMoveMultiplier,
+        tauntRadius: tauntRadius,
+        tauntStrength: tauntStrength,
+        interceptRadius: interceptRadius,
+        interceptCharges: interceptCharges,
+        stationary: stationary,
+        bounceCount: bounceCount,
+        trailInterval: trailInterval,
+        trailDamage: trailDamage,
+        trailLife: trailLife,
+        clusterCount: clusterCount,
+        clusterDamage: clusterDamage,
+        turretInterval: turretInterval,
+        turretDamage: turretDamage,
+        turretHomingStrength: turretHomingStrength,
+        turretSpeedMultiplier: turretSpeedMultiplier,
+        decoy: decoyHp > 0,
+        decoyHp: decoyHp,
+        deathExplosionCount: deathExplosionCount,
+        deathExplosionDamage: deathExplosionDamage,
+        deathExplosionRadius: deathExplosionRadius,
       );
     });
   }
@@ -4377,6 +4514,27 @@ CosmicSpecialResult _hornSpecial(
     bool pierce = false,
     bool home = false,
     double homeStr = 0,
+    double snareRadius = 0,
+    double snareMoveMultiplier = 1.0,
+    double tauntRadius = 0,
+    double tauntStrength = 0,
+    double interceptRadius = 0,
+    int interceptCharges = 0,
+    bool stationary = false,
+    int bounceCount = 0,
+    double trailInterval = 0,
+    double trailDamage = 0,
+    double trailLife = 0,
+    int clusterCount = 0,
+    double clusterDamage = 0,
+    double turretInterval = 0,
+    double turretDamage = 0,
+    double turretHomingStrength = 0,
+    double turretSpeedMultiplier = 1.0,
+    double decoyHp = 0,
+    int deathExplosionCount = 0,
+    double deathExplosionDamage = 0,
+    double deathExplosionRadius = 1.5,
   }) {
     final lateral = baseAngle + pi / 2;
     final scaledN = scaledCount(n, min: 3, max: 18);
@@ -4404,9 +4562,32 @@ CosmicSpecialResult _hornSpecial(
         speedMultiplier: speed,
         radiusMultiplier: radius,
         visualScale: vs,
+        visualStyle: ProjectileVisualStyle.hornImpact,
         piercing: pierce,
         homing: home,
         homingStrength: homeStr,
+        snareRadius: snareRadius,
+        snareMoveMultiplier: snareMoveMultiplier,
+        tauntRadius: tauntRadius,
+        tauntStrength: tauntStrength,
+        interceptRadius: interceptRadius,
+        interceptCharges: interceptCharges,
+        stationary: stationary,
+        bounceCount: bounceCount,
+        trailInterval: trailInterval,
+        trailDamage: trailDamage,
+        trailLife: trailLife,
+        clusterCount: clusterCount,
+        clusterDamage: clusterDamage,
+        turretInterval: turretInterval,
+        turretDamage: turretDamage,
+        turretHomingStrength: turretHomingStrength,
+        turretSpeedMultiplier: turretSpeedMultiplier,
+        decoy: decoyHp > 0,
+        decoyHp: decoyHp,
+        deathExplosionCount: deathExplosionCount,
+        deathExplosionDamage: deathExplosionDamage,
+        deathExplosionRadius: deathExplosionRadius,
       );
     });
   }
@@ -4420,6 +4601,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.45).round(),
           chargeTimer: 0.55,
           chargeDamage: damage * 1.8,
+          chargeSpeedMultiplier: 1.25,
+          chargeSweepRadius: 42.0,
+          chargeOvershootDistance: 120.0,
+          chargeFinalSweepRadius: 60.0,
           projectiles: cone(
             8,
             pi * 0.40,
@@ -4428,6 +4613,11 @@ CosmicSpecialResult _hornSpecial(
             speed: 1.4,
             vs: 1.5,
             radius: 1.4,
+            tauntRadius: 190.0,
+            tauntStrength: 1.2,
+            trailInterval: 0.12,
+            trailDamage: damage * 0.28,
+            trailLife: 0.75,
           ),
         ),
       );
@@ -4439,6 +4629,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.65).round(),
           chargeTimer: 1.1,
           chargeDamage: damage * 2.4,
+          chargeSpeedMultiplier: 0.65,
+          chargeSweepRadius: 84.0,
+          chargeOvershootDistance: 55.0,
+          chargeFinalSweepRadius: 110.0,
           projectiles: ring(
             5,
             3.0,
@@ -4447,26 +4641,43 @@ CosmicSpecialResult _hornSpecial(
             radius: 3.1,
             vs: 2.5,
             pierce: true,
+            snareRadius: 118.0,
+            snareMoveMultiplier: 0.70,
+            tauntRadius: 230.0,
+            tauntStrength: 1.8,
+            trailInterval: 0.22,
+            trailDamage: damage * 0.34,
+            trailLife: 1.15,
+            clusterCount: 3,
+            clusterDamage: damage * 0.48,
           ),
         ),
       );
 
     case 'Lightning':
-      // Instant teleport charge, 16 homing sparks
+      // Instant peel charge — forked parry rods snap forward from the shield.
       return finalize(
         CosmicSpecialResult(
           shieldHp: (maxHp * 0.28).round(),
           chargeTimer: 0.25,
           chargeDamage: damage * 1.5,
-          projectiles: ring(
-            16,
-            1.2,
-            life: 1.2,
-            speed: 2.5,
-            radius: 1.0,
-            vs: 0.9,
-            home: true,
-            homeStr: 5.0,
+          chargeSpeedMultiplier: 1.85,
+          chargeSweepRadius: 36.0,
+          chargeOvershootDistance: 150.0,
+          chargeFinalSweepRadius: 52.0,
+          projectiles: brace(
+            10,
+            72.0,
+            1.1,
+            forward: 40.0,
+            angleSpread: 0.58,
+            life: 0.95,
+            speed: 2.7,
+            radius: 1.05,
+            vs: 1.0,
+            interceptRadius: 30.0,
+            interceptCharges: 1,
+            bounceCount: 2,
           ),
         ),
       );
@@ -4478,6 +4689,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.50).round(),
           chargeTimer: 0.75,
           chargeDamage: damage * 1.8,
+          chargeSpeedMultiplier: 0.95,
+          chargeSweepRadius: 64.0,
+          chargeOvershootDistance: 100.0,
+          chargeFinalSweepRadius: 92.0,
           projectiles: brace(
             6,
             52.0,
@@ -4488,7 +4703,10 @@ CosmicSpecialResult _hornSpecial(
             speed: 1.0,
             vs: 1.35,
             radius: 1.5,
+            snareRadius: 88.0,
+            snareMoveMultiplier: 0.78,
           ),
+          shipHeal: max(1, (CosmicBalance.shipMaxHealth * 0.025).round()),
         ),
       );
 
@@ -4499,6 +4717,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.60).round(),
           chargeTimer: 0.9,
           chargeDamage: damage * 2.2,
+          chargeSpeedMultiplier: 0.72,
+          chargeSweepRadius: 78.0,
+          chargeOvershootDistance: 45.0,
+          chargeFinalSweepRadius: 112.0,
           projectiles: brace(
             5,
             64.0,
@@ -4510,6 +4732,9 @@ CosmicSpecialResult _hornSpecial(
             vs: 2.0,
             radius: 2.6,
             pierce: true,
+            snareRadius: 128.0,
+            snareMoveMultiplier: 0.48,
+            stationary: true,
           ),
         ),
       );
@@ -4521,6 +4746,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.42).round(),
           chargeTimer: 0.65,
           chargeDamage: damage * 1.6,
+          chargeSpeedMultiplier: 1.10,
+          chargeSweepRadius: 70.0,
+          chargeOvershootDistance: 70.0,
+          chargeFinalSweepRadius: 100.0,
           projectiles: brace(
             6,
             44.0,
@@ -4532,6 +4761,14 @@ CosmicSpecialResult _hornSpecial(
             radius: 2.8,
             vs: 2.2,
             pierce: true,
+            tauntRadius: 210.0,
+            tauntStrength: 1.4,
+            snareRadius: 104.0,
+            snareMoveMultiplier: 0.62,
+            stationary: true,
+            turretInterval: 0.82,
+            turretDamage: damage * 0.20,
+            turretSpeedMultiplier: 1.15,
           ),
         ),
       );
@@ -4543,6 +4780,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.75).round(),
           chargeTimer: 1.4,
           chargeDamage: damage * 2.9,
+          chargeSpeedMultiplier: 0.55,
+          chargeSweepRadius: 96.0,
+          chargeOvershootDistance: 35.0,
+          chargeFinalSweepRadius: 124.0,
           projectiles: ring(
             4,
             3.2,
@@ -4551,6 +4792,15 @@ CosmicSpecialResult _hornSpecial(
             radius: 3.4,
             vs: 2.7,
             pierce: true,
+            snareRadius: 140.0,
+            snareMoveMultiplier: 0.58,
+            tauntRadius: 260.0,
+            tauntStrength: 2.2,
+            stationary: true,
+            decoyHp: maxHp * 0.18,
+            deathExplosionCount: 6,
+            deathExplosionDamage: damage * 0.45,
+            deathExplosionRadius: 2.4,
           ),
         ),
       );
@@ -4563,6 +4813,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.58).round(),
           chargeTimer: 1.0,
           chargeDamage: damage * 2.1,
+          chargeSpeedMultiplier: 0.62,
+          chargeSweepRadius: 92.0,
+          chargeOvershootDistance: 40.0,
+          chargeFinalSweepRadius: 118.0,
           projectiles: cone(
             6,
             pi * 0.65,
@@ -4572,6 +4826,11 @@ CosmicSpecialResult _hornSpecial(
             vs: 2.3,
             radius: 2.8,
             pierce: true,
+            snareRadius: 150.0,
+            snareMoveMultiplier: 0.45,
+            trailInterval: 0.20,
+            trailDamage: damage * 0.22,
+            trailLife: 1.6,
           ),
         ),
       );
@@ -4583,6 +4842,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.22).round(),
           chargeTimer: 0.40,
           chargeDamage: damage * 1.3,
+          chargeSpeedMultiplier: 1.55,
+          chargeSweepRadius: 34.0,
+          chargeOvershootDistance: 155.0,
+          chargeFinalSweepRadius: 48.0,
           projectiles: cone(
             14,
             pi * 0.80,
@@ -4591,27 +4854,52 @@ CosmicSpecialResult _hornSpecial(
             speed: 2.2,
             radius: 0.95,
             vs: 0.72,
+            snareRadius: 66.0,
+            snareMoveMultiplier: 0.82,
+            bounceCount: 1,
           ),
         ),
       );
 
     case 'Crystal':
-      // Reflective shield — 8 homing crystal shards
+      // Reflective bulwark — a ring of crystal mirrors catches incoming fire.
+      final mirrorCount = scaledCount(6, min: 5, max: 8);
       return finalize(
         CosmicSpecialResult(
           shieldHp: (maxHp * 0.55).round(),
           chargeTimer: 0.70,
           chargeDamage: damage * 1.8,
-          projectiles: ring(
-            8,
-            1.8,
-            life: 3.0,
-            speed: 1.0,
-            radius: 1.8,
-            vs: 1.4,
-            home: true,
-            homeStr: 3.5,
-          ),
+          chargeSpeedMultiplier: 0.90,
+          chargeSweepRadius: 72.0,
+          chargeOvershootDistance: 65.0,
+          chargeFinalSweepRadius: 100.0,
+          projectiles: List.generate(mirrorCount, (i) {
+            final a = i * (pi * 2 / mirrorCount);
+            return Projectile(
+              position: Offset(
+                origin.dx + cos(a) * 42,
+                origin.dy + sin(a) * 42,
+              ),
+              angle: a,
+              element: element,
+              damage: damage * 1.0,
+              life: 3.8,
+              speedMultiplier: 0.0,
+              radiusMultiplier: 2.0,
+              visualScale: 1.8,
+              visualStyle: ProjectileVisualStyle.hornImpact,
+              piercing: true,
+              orbitCenter: origin,
+              orbitAngle: a,
+              orbitRadius: 42.0,
+              orbitSpeed: 1.35,
+              orbitTime: 3.8,
+              holdOrbit: true,
+              interceptRadius: 48.0,
+              interceptCharges: 1,
+              bounceCount: 1,
+            );
+          }),
         ),
       );
 
@@ -4622,6 +4910,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.30).round(),
           chargeTimer: 0.30,
           chargeDamage: damage * 1.3,
+          chargeSpeedMultiplier: 1.70,
+          chargeSweepRadius: 38.0,
+          chargeOvershootDistance: 170.0,
+          chargeFinalSweepRadius: 54.0,
           projectiles: brace(
             6,
             60.0,
@@ -4632,101 +4924,91 @@ CosmicSpecialResult _hornSpecial(
             speed: 1.9,
             radius: 1.25,
             vs: 1.0,
+            interceptRadius: 22.0,
+            interceptCharges: 1,
           ),
         ),
       );
 
     case 'Plant':
-      // Thorn phalanx — the ram grows a forward hedge of lashers plus
-      // heavier pursuit thorns that keep pressure on retreating targets.
-      final vines = brace(
-        6,
-        48.0,
-        1.65,
-        forward: 46.0,
-        angleSpread: 0.28,
-        life: 2.7,
-        speed: 0.92,
-        vs: 1.35,
-        radius: 1.7,
-        pierce: true,
-      );
-      final thornCount = scaledCount(4, min: 3, max: 6);
-      final thorns = List.generate(thornCount, (i) {
-        final side = i < (thornCount / 2).ceil() ? -1.0 : 1.0;
-        final tier = i % 2 == 0 ? 0.16 : 0.32;
-        final a = baseAngle + side * tier;
-        return Projectile(
-          position: Offset(
-            origin.dx +
-                cos(baseAngle) * 24 +
-                cos(baseAngle + pi / 2) * side * 18,
-            origin.dy +
-                sin(baseAngle) * 24 +
-                sin(baseAngle + pi / 2) * side * 18,
-          ),
-          angle: a,
-          element: element,
-          damage: damage * 1.55,
-          life: 3.1,
-          speedMultiplier: 0.86,
-          radiusMultiplier: 1.8,
-          piercing: true,
-          homing: true,
-          homingStrength: 3.2,
-          visualScale: 1.45,
-        );
-      });
+      // Thorn phalanx — the ram grows a rooted hedge across the charge lane.
       return finalize(
         CosmicSpecialResult(
           shieldHp: (maxHp * 0.65).round(),
           chargeTimer: 0.85,
           chargeDamage: damage * 1.7,
-          projectiles: [...vines, ...thorns],
+          chargeSpeedMultiplier: 0.75,
+          chargeSweepRadius: 76.0,
+          chargeOvershootDistance: 55.0,
+          chargeFinalSweepRadius: 105.0,
+          projectiles: brace(
+            7,
+            68.0,
+            1.35,
+            forward: 46.0,
+            angleSpread: 0.12,
+            life: 4.1,
+            speed: 0.16,
+            vs: 1.35,
+            radius: 2.2,
+            pierce: true,
+            snareRadius: 126.0,
+            snareMoveMultiplier: 0.52,
+            stationary: true,
+            turretInterval: 1.05,
+            turretDamage: damage * 0.26,
+            turretSpeedMultiplier: 0.95,
+          ),
         ),
       );
 
     case 'Poison':
-      // Venom crash — the ram ruptures into toxic fangs and follow-through
-      // seekers instead of parking as slow poison zones.
-      final fangs = brace(
-        5,
-        42.0,
-        1.35,
-        forward: 44.0,
-        angleSpread: 0.18,
-        life: 2.5,
-        speed: 0.88,
-        radius: 1.9,
-        vs: 1.55,
-        pierce: true,
-      );
-      final seekerCount = scaledCount(4, min: 3, max: 6);
+      // Venom barricade — toxic fangs remain in the lane as a guarded choke.
+      final cloudCount = scaledCount(4, min: 3, max: 6);
       return finalize(
         CosmicSpecialResult(
           shieldHp: (maxHp * 0.38).round(),
           chargeTimer: 0.75,
           chargeDamage: damage * 1.5,
+          chargeSpeedMultiplier: 0.85,
+          chargeSweepRadius: 66.0,
+          chargeOvershootDistance: 75.0,
+          chargeFinalSweepRadius: 98.0,
           projectiles: [
-            ...fangs,
-            ...List.generate(seekerCount, (i) {
-              final offset = i - (seekerCount - 1) / 2;
-              final a = baseAngle + offset * 0.18;
+            ...brace(
+              5,
+              42.0,
+              1.3,
+              forward: 44.0,
+              angleSpread: 0.18,
+              life: 2.5,
+              speed: 0.82,
+              radius: 1.9,
+              vs: 1.55,
+              pierce: true,
+              snareRadius: 102.0,
+              snareMoveMultiplier: 0.60,
+            ),
+            ...List.generate(cloudCount, (i) {
+              final offset = i - (cloudCount - 1) / 2;
+              final lateral = baseAngle + pi / 2;
               return Projectile(
                 position: Offset(
-                  origin.dx + cos(baseAngle) * 28,
-                  origin.dy + sin(baseAngle) * 28,
+                  origin.dx + cos(baseAngle) * 56 + cos(lateral) * offset * 18,
+                  origin.dy + sin(baseAngle) * 56 + sin(lateral) * offset * 18,
                 ),
-                angle: a,
+                angle: baseAngle,
                 element: element,
-                damage: damage * 1.5,
-                life: 3.4,
-                speedMultiplier: 0.78,
-                radiusMultiplier: 1.95,
+                damage: damage * 1.0,
+                life: 4.0,
+                speedMultiplier: 0.0,
+                radiusMultiplier: 2.35,
                 piercing: true,
-                homing: true,
-                homingStrength: 3.8,
-                visualScale: 1.4,
+                stationary: true,
+                visualScale: 1.75,
+                visualStyle: ProjectileVisualStyle.hornImpact,
+                snareRadius: 118.0,
+                snareMoveMultiplier: 0.56,
               );
             }),
           ],
@@ -4734,22 +5016,29 @@ CosmicSpecialResult _hornSpecial(
       );
 
     case 'Spirit':
-      // Ethereal bastion — 4 powerful homing spirit seekers, phase-through
+      // Ethereal bastion — phase plates hang in the impact lane and intercept.
       return finalize(
         CosmicSpecialResult(
           shieldHp: (maxHp * 0.38).round(),
           chargeTimer: 0.60,
           chargeDamage: damage * 1.8,
-          projectiles: ring(
+          chargeSpeedMultiplier: 1.35,
+          chargeSweepRadius: 40.0,
+          chargeOvershootDistance: 135.0,
+          chargeFinalSweepRadius: 62.0,
+          projectiles: brace(
             4,
-            2.5,
-            life: 4.0,
-            speed: 0.8,
-            radius: 1.8,
-            vs: 1.6,
-            home: true,
-            homeStr: 5.0,
+            54.0,
+            1.55,
+            forward: 52.0,
+            angleSpread: 0.20,
+            life: 3.8,
+            speed: 0.20,
+            radius: 2.0,
+            vs: 1.7,
             pierce: true,
+            interceptRadius: 38.0,
+            interceptCharges: 1,
           ),
         ),
       );
@@ -4762,6 +5051,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.42).round(),
           chargeTimer: 0.40,
           chargeDamage: damage * 2.5,
+          chargeSpeedMultiplier: 1.45,
+          chargeSweepRadius: 44.0,
+          chargeOvershootDistance: 125.0,
+          chargeFinalSweepRadius: 58.0,
           projectiles: cone(
             7,
             pi * 0.32,
@@ -4770,50 +5063,73 @@ CosmicSpecialResult _hornSpecial(
             speed: 2.0,
             vs: 1.1,
             radius: 1.3,
+            tauntRadius: 180.0,
+            tauntStrength: 1.0,
           ),
         ),
       );
 
     case 'Light':
-      // Radiant guard — a forward halo breaks into guiding lances.
+      // Radiant guard — stationary ward plates form a parry gate.
       return finalize(
         CosmicSpecialResult(
-          shieldHp: (maxHp * 0.38).round(),
-          chargeTimer: 0.55,
-          chargeDamage: damage * 1.3,
+          shieldHp: (maxHp * 0.46).round(),
+          chargeTimer: 0.65,
+          chargeDamage: damage * 1.15,
+          chargeSpeedMultiplier: 0.82,
+          chargeSweepRadius: 82.0,
+          chargeOvershootDistance: 50.0,
+          chargeFinalSweepRadius: 118.0,
           projectiles: brace(
-            6,
-            56.0,
-            0.95,
-            forward: 52.0,
-            angleSpread: 0.38,
-            life: 2.4,
-            speed: 1.4,
-            radius: 1.15,
-            vs: 0.95,
-            home: true,
-            homeStr: 3.5,
+            3,
+            58.0,
+            0.9,
+            forward: 50.0,
+            angleSpread: 0.04,
+            life: 4.2,
+            speed: 0.0,
+            radius: 2.45,
+            vs: 1.9,
+            pierce: true,
+            stationary: true,
+            snareRadius: 96.0,
+            snareMoveMultiplier: 0.70,
+            tauntRadius: 230.0,
+            tauntStrength: 1.2,
+            interceptRadius: 72.0,
+            interceptCharges: 2,
           ),
+          shipHeal: max(1, (CosmicBalance.shipMaxHealth * 0.035).round()),
         ),
       );
 
     case 'Blood':
-      // Crimson fortress — 3 heavy homing blood orbs + meaningful self heal
+      // Crimson fortress — anchored blood bulwarks pull threat into the tank.
       return finalize(
         CosmicSpecialResult(
           shieldHp: (maxHp * 0.50).round(),
           chargeTimer: 0.70,
           chargeDamage: damage * 2.2,
+          chargeSpeedMultiplier: 0.70,
+          chargeSweepRadius: 88.0,
+          chargeOvershootDistance: 45.0,
+          chargeFinalSweepRadius: 112.0,
           selfHeal: (maxHp * 0.18).round(),
           projectiles: ring(
             3,
-            2.9,
-            life: 3.1,
-            speed: 0.8,
-            radius: 2.2,
-            vs: 1.8,
-            home: true,
-            homeStr: 4.0,
+            2.1,
+            life: 3.5,
+            speed: 0.0,
+            radius: 2.75,
+            vs: 2.1,
+            pierce: true,
+            stationary: true,
+            tauntRadius: 220.0,
+            tauntStrength: 1.5,
+            decoyHp: maxHp * 0.10,
+            deathExplosionCount: 4,
+            deathExplosionDamage: damage * 0.34,
+            deathExplosionRadius: 1.8,
           ),
         ),
       );
@@ -4824,6 +5140,10 @@ CosmicSpecialResult _hornSpecial(
           shieldHp: (maxHp * 0.45).round(),
           chargeTimer: 0.70,
           chargeDamage: damage * 1.8,
+          chargeSpeedMultiplier: 1.0,
+          chargeSweepRadius: 58.0,
+          chargeOvershootDistance: 80.0,
+          chargeFinalSweepRadius: 80.0,
           projectiles: ring(
             8,
             1.8,
@@ -7042,6 +7362,10 @@ CosmicSpecialResult _maneSpecial(
     double trailInterval = 0,
     double trailDamage = 0,
     double trailLife = 0,
+    double snareRadius = 0,
+    double snareMoveMultiplier = 1,
+    double interceptRadius = 0,
+    int interceptCharges = 0,
   }) {
     return Projectile(
       position: position,
@@ -7060,6 +7384,10 @@ CosmicSpecialResult _maneSpecial(
       trailInterval: trailInterval,
       trailDamage: trailDamage,
       trailLife: trailLife,
+      snareRadius: snareRadius,
+      snareMoveMultiplier: snareMoveMultiplier,
+      interceptRadius: interceptRadius,
+      interceptCharges: interceptCharges,
       visualStyle: ProjectileVisualStyle.slash,
     );
   }
@@ -7127,6 +7455,7 @@ CosmicSpecialResult _maneSpecial(
       visualScale: p.visualScale * visualScaleMul,
       trailDamage: p.trailDamage * impactScale,
       trailLife: p.trailLife * durationScale,
+      snareRadius: p.snareRadius * visualScaleMul,
     );
   }
 
@@ -7186,41 +7515,44 @@ CosmicSpecialResult _maneSpecial(
       final sideCount = scaledCount(2, min: 2, max: 3);
       return finalize(
         CosmicSpecialResult(
+          basicHasteTimer: 1.4,
+          basicHasteMultiplier: 0.86,
           projectiles: [
             ...List.generate(arcCount, (i) {
               final t = arcCount > 1 ? (i / (arcCount - 1)) - 0.5 : 0.0;
               final a = baseAngle + t * (pi * 0.72);
+              final centerIndex = ((arcCount - 1) / 2).round();
               return slash(
                 position: Offset(
                   center.dx + cos(baseAngle + pi / 2) * t * 24,
                   center.dy + sin(baseAngle + pi / 2) * t * 24,
                 ),
                 angle: a,
-                damageMultiplier: i == 3 ? 1.6 : 1.22,
-                life: 1.75,
-                speed: 1.45,
-                visualScale: i == 3 ? 1.15 : 0.92,
-                trailInterval: 0.12,
-                trailDamage: damage * 0.38,
-                trailLife: 1.35,
+                damageMultiplier: i == centerIndex ? 1.45 : 1.06,
+                life: 1.55,
+                speed: 1.62,
+                visualScale: i == centerIndex ? 1.14 : 0.92,
+                piercing: i == centerIndex,
               );
             }),
             ...List.generate(sideCount, (i) {
               final side = i == 0 ? -1.0 : 1.0;
-              final a = baseAngle + side * 0.22;
+              final a = baseAngle + side * 0.16;
               return slash(
                 position: Offset(
                   center.dx + cos(baseAngle + pi / 2) * side * 18,
                   center.dy + sin(baseAngle + pi / 2) * side * 18,
                 ),
                 angle: a,
-                damageMultiplier: 1.0,
-                life: 2.1,
-                speed: 1.0,
-                visualScale: 1.08,
+                damageMultiplier: 0.74,
+                life: 3.2,
+                speed: 1.25,
+                visualScale: 1.35,
                 stationary: true,
                 piercing: true,
-                radiusMultiplier: 1.85,
+                radiusMultiplier: 2.05,
+                snareRadius: 76.0,
+                snareMoveMultiplier: 0.88,
               );
             }),
           ],
@@ -7244,10 +7576,10 @@ CosmicSpecialResult _maneSpecial(
                 angle: a,
                 damageMultiplier: 1.35,
                 life: 1.35,
-                speed: 2.2,
+                speed: 2.35,
                 visualScale: 0.86,
                 piercing: true,
-                bounceCount: 1,
+                radiusMultiplier: 0.92,
               );
             }),
             ...List.generate(seekCount, (i) {
@@ -7260,12 +7592,11 @@ CosmicSpecialResult _maneSpecial(
                   forkOrigin.dy + sin(baseAngle + pi / 2) * side * 12,
                 ),
                 angle: a,
-                damageMultiplier: 1.05,
-                life: 1.7,
-                speed: 1.45,
+                damageMultiplier: 0.96,
+                life: 1.45,
+                speed: 1.85,
                 visualScale: 0.78,
-                homing: true,
-                homingStrength: 4.2,
+                piercing: true,
               );
             }),
           ],
@@ -7308,13 +7639,15 @@ CosmicSpecialResult _maneSpecial(
                   origin.dy + sin(baseAngle) * dist,
                 ),
                 angle: baseAngle,
-                damageMultiplier: 1.18,
-                life: 2.4,
+                damageMultiplier: 0.92,
+                life: 4.4,
                 speed: 1.0,
-                visualScale: 1.55,
+                visualScale: 1.75,
                 stationary: true,
                 piercing: true,
-                radiusMultiplier: 2.2,
+                radiusMultiplier: 2.45,
+                snareRadius: 132.0,
+                snareMoveMultiplier: 0.58,
               );
             }),
           ],
@@ -7341,9 +7674,41 @@ CosmicSpecialResult _maneSpecial(
               ),
               angle: baseAngle + side * (0.10 + tier * 0.06),
               damageMultiplier: 1.35,
-              life: 2.0,
+              life: 2.85,
               speed: 1.25,
               visualScale: 1.0,
+              piercing: tier == 0,
+              snareRadius: 86.0,
+              snareMoveMultiplier: 0.78,
+            );
+          }),
+        ),
+      );
+    case 'Lava':
+      final impact = Offset(
+        origin.dx + cos(baseAngle) * 24,
+        origin.dy + sin(baseAngle) * 24,
+      );
+      final cleaveCount = scaledCount(4, min: 3, max: 5);
+      return finalize(
+        CosmicSpecialResult(
+          projectiles: List.generate(cleaveCount, (i) {
+            final t = i - (cleaveCount - 1) / 2;
+            final a = baseAngle + t * 0.18;
+            return slash(
+              position: Offset(
+                impact.dx + cos(baseAngle + pi / 2) * t * 16,
+                impact.dy + sin(baseAngle + pi / 2) * t * 16,
+              ),
+              angle: a,
+              damageMultiplier: 2.15,
+              life: 3.35,
+              speed: 0.72,
+              visualScale: 1.72,
+              piercing: true,
+              radiusMultiplier: 1.85,
+              snareRadius: 104.0,
+              snareMoveMultiplier: 0.72,
             );
           }),
         ),
@@ -7369,9 +7734,43 @@ CosmicSpecialResult _maneSpecial(
               ),
               angle: baseAngle + side * 0.05,
               damageMultiplier: 1.2,
-              life: 2.6,
-              speed: 0.95,
+              life: 3.6,
+              speed: 1.06,
               visualScale: 1.15,
+              piercing: true,
+              snareRadius: 112.0,
+              snareMoveMultiplier: 0.68,
+            );
+          }),
+        ),
+      );
+    case 'Mud':
+      final center = Offset(
+        origin.dx + cos(baseAngle) * 20,
+        origin.dy + sin(baseAngle) * 20,
+      );
+      final localCount = scaledCount(5, min: 4, max: 7);
+      return finalize(
+        CosmicSpecialResult(
+          basicHasteTimer: 1.6,
+          basicHasteMultiplier: 0.86,
+          projectiles: List.generate(localCount, (i) {
+            final t = i - (localCount - 1) / 2;
+            final side = i.isEven ? -1.0 : 1.0;
+            return slash(
+              position: Offset(
+                center.dx + cos(baseAngle + pi / 2) * t * 10,
+                center.dy + sin(baseAngle + pi / 2) * t * 10,
+              ),
+              angle: baseAngle + side * (0.08 + t.abs() * 0.03),
+              damageMultiplier: 1.48,
+              life: 3.8,
+              speed: 0.78,
+              visualScale: 1.36,
+              piercing: true,
+              radiusMultiplier: 1.5,
+              snareRadius: 140.0,
+              snareMoveMultiplier: 0.48,
             );
           }),
         ),
@@ -7393,9 +7792,12 @@ CosmicSpecialResult _maneSpecial(
               ),
               angle: baseAngle + side * (0.18 - tier * 0.06),
               damageMultiplier: 1.45,
-              life: 2.8,
+              life: 3.7,
               speed: 0.95,
               visualScale: 1.08,
+              piercing: tier == 0,
+              snareRadius: 112.0,
+              snareMoveMultiplier: 0.58,
             );
           }),
         ),
@@ -7424,6 +7826,8 @@ CosmicSpecialResult _maneSpecial(
                 visualScale: 1.05,
                 piercing: true,
                 radiusMultiplier: 1.15,
+                snareRadius: 98.0,
+                snareMoveMultiplier: 0.58,
               );
             }),
             ...List.generate(seekCount, (i) {
@@ -7435,11 +7839,12 @@ CosmicSpecialResult _maneSpecial(
                 ),
                 angle: baseAngle + side * 0.14,
                 damageMultiplier: 1.0,
-                life: 2.6,
-                speed: 0.82,
+                life: 3.4,
+                speed: 0.78,
                 visualScale: 1.18,
-                homing: true,
-                homingStrength: 2.6,
+                piercing: true,
+                snareRadius: 118.0,
+                snareMoveMultiplier: 0.50,
               );
             }),
           ],
@@ -7462,11 +7867,14 @@ CosmicSpecialResult _maneSpecial(
                 center.dx + cos(baseAngle + pi / 2) * lane,
                 center.dy + sin(baseAngle + pi / 2) * lane,
               ),
-              angle: baseAngle + (i - 2) * 0.08,
-              damageMultiplier: 1.35,
-              life: 3.1,
-              speed: 0.82,
+              angle: baseAngle + (i - (localCount - 1) / 2) * 0.08,
+              damageMultiplier: 1.18,
+              life: 3.5,
+              speed: 0.92,
               visualScale: 1.15,
+              piercing: true,
+              snareRadius: 102.0,
+              snareMoveMultiplier: 0.56,
             );
           }),
         ),
@@ -7490,6 +7898,7 @@ CosmicSpecialResult _maneSpecial(
               life: 1.45,
               speed: 1.9,
               visualScale: 0.82,
+              piercing: true,
             );
           }),
         ),
@@ -7518,8 +7927,8 @@ CosmicSpecialResult _maneSpecial(
               speed: 1.08,
               visualScale: 1.02,
               piercing: true,
-              homing: true,
-              homingStrength: 3.1,
+              homing: i == localCount ~/ 2,
+              homingStrength: 2.4,
             );
           }),
         ),
@@ -7543,11 +7952,13 @@ CosmicSpecialResult _maneSpecial(
                 focus.dy + sin(baseAngle + pi / 2) * t * 14,
               ),
               angle: a,
-              damageMultiplier: 2.1,
-              life: 1.9,
+              damageMultiplier: 1.9,
+              life: 2.95,
               speed: 1.35,
               visualScale: 1.1,
               piercing: true,
+              snareRadius: 92.0,
+              snareMoveMultiplier: 0.66,
             );
           }),
         ),
@@ -7589,11 +8000,12 @@ CosmicSpecialResult _maneSpecial(
                 ),
                 angle: a,
                 damageMultiplier: 1.5,
-                life: 2.8,
+                life: 3.35,
                 speed: 0.88,
                 visualScale: 1.4,
-                homing: true,
-                homingStrength: 3.4,
+                piercing: true,
+                snareRadius: 84.0,
+                snareMoveMultiplier: 0.72,
               );
             }),
           ],
@@ -7622,8 +8034,8 @@ CosmicSpecialResult _maneSpecial(
               life: 1.5,
               speed: 1.75,
               visualScale: 0.72,
-              bounceCount: 1,
               radiusMultiplier: 0.9,
+              piercing: true,
             );
           }),
         ),
@@ -7647,10 +8059,11 @@ CosmicSpecialResult _maneSpecial(
                 position: prism,
                 angle: a,
                 damageMultiplier: 1.7,
-                life: 2.0,
+                life: 2.55,
                 speed: 1.05,
-                visualScale: 0.98,
+                visualScale: 1.12,
                 piercing: true,
+                radiusMultiplier: 1.05,
               );
             }),
             ...List.generate(seekCount, (i) {
@@ -7663,11 +8076,11 @@ CosmicSpecialResult _maneSpecial(
                 ),
                 angle: a,
                 damageMultiplier: 1.08,
-                life: 2.5,
+                life: 3.05,
                 speed: 1.0,
-                visualScale: 0.9,
-                homing: true,
-                homingStrength: 2.9,
+                visualScale: 1.02,
+                piercing: true,
+                radiusMultiplier: 0.92,
               );
             }),
           ],
@@ -7693,10 +8106,12 @@ CosmicSpecialResult _maneSpecial(
               ),
               angle: baseAngle + t * (pi * 0.35),
               damageMultiplier: 1.1,
-              life: 2.1,
+              life: 2.85,
               speed: 1.45,
               visualScale: 0.95,
               piercing: true,
+              interceptRadius: 42.0,
+              interceptCharges: i == localCount ~/ 2 ? 1 : 0,
             );
           }),
         ),
@@ -8450,6 +8865,7 @@ CosmicSpecialResult _maskSpecial(
             homingStrength: 4.5,
             piercing: true,
             bounceCount: 3,
+            visualStyle: ProjectileVisualStyle.sigil,
           ),
         );
       }
@@ -8504,6 +8920,7 @@ CosmicSpecialResult _maskSpecial(
             homingStrength: 3.5,
             bounceCount: 2,
             visualScale: 0.7,
+            visualStyle: ProjectileVisualStyle.sigil,
           ),
         );
       }
@@ -10440,23 +10857,23 @@ String cosmicSpecialAbilityName(String family, String element) {
       };
     case 'mane':
       return switch (element) {
-        'Fire' => 'Spiraling Inferno',
-        'Lava' => 'Volcanic Barrage',
-        'Lightning' => 'Tempest Barrage',
-        'Water' => 'Tsunami Barrage',
-        'Ice' => 'Blizzard',
-        'Steam' => 'Geyser Barrage',
-        'Earth' => 'Earthquake',
-        'Mud' => 'Quagmire Barrage',
-        'Dust' => 'Desert Storm',
-        'Crystal' => 'Prism Barrage',
-        'Air' => 'Tornado',
-        'Plant' => 'Overgrowth',
-        'Poison' => 'Miasma',
-        'Spirit' => 'Spirit Whirlwind',
-        'Dark' => 'Dark Vortex',
-        'Light' => 'Light Nova',
-        'Blood' => 'Exsanguination',
+        'Fire' => 'Flameblade Combo',
+        'Lava' => 'Molten Cleave',
+        'Lightning' => 'Stormstep Cuts',
+        'Water' => 'Tidecross Volley',
+        'Ice' => 'Frostguard Cleave',
+        'Steam' => 'Pressure Vent Cuts',
+        'Earth' => 'Faultline Guardbreak',
+        'Mud' => 'Bogbreaker Combo',
+        'Dust' => 'Sandblade Fan',
+        'Crystal' => 'Prism Edge',
+        'Air' => 'Windblade Sweep',
+        'Plant' => 'Vine Lariat',
+        'Poison' => 'Venom Edge',
+        'Spirit' => 'Phaseblade Rush',
+        'Dark' => 'Voidcut Drive',
+        'Light' => 'Radiant Parry',
+        'Blood' => 'Bloodedge Rush',
         _ => 'Barrage Volley',
       };
     case 'mask':
@@ -11474,6 +11891,18 @@ class CosmicPartyMember {
   });
 }
 
+double normalizedCompanionSpecialCooldown({
+  required double effectiveCooldown,
+  double? savedCooldown,
+  double cooldownMultiplier = 1.0,
+}) {
+  final effective = (effectiveCooldown * cooldownMultiplier)
+      .clamp(0.0, 100.0)
+      .toDouble();
+  final saved = savedCooldown?.clamp(0.0, 100.0).toDouble();
+  return saved == null ? effective : min(saved, effective);
+}
+
 /// Runtime state for a summoned (active) party alchemon in cosmic space.
 class CosmicCompanion with HasEffects {
   final CosmicPartyMember member;
@@ -11539,6 +11968,10 @@ class CosmicCompanion with HasEffects {
 
   /// Charge speed multiplier.
   static const double chargeSpeed = 400.0;
+  double chargeSpeedMultiplier;
+  double chargeSweepRadius;
+  double chargeOvershootDistance;
+  double chargeFinalSweepRadius;
 
   /// Charge damage dealt on impact.
   double chargeDamage;
@@ -11586,6 +12019,10 @@ class CosmicCompanion with HasEffects {
     this.chargeTimer = 0,
     this.chargeTarget,
     this.chargeDamage = 0,
+    this.chargeSpeedMultiplier = 1.0,
+    this.chargeSweepRadius = 48.0,
+    this.chargeOvershootDistance = 80.0,
+    this.chargeFinalSweepRadius = 68.0,
     this.blessingTimer = 0,
     this.blessingHealPerTick = 0,
     this.basicHasteTimer = 0,
@@ -11641,6 +12078,17 @@ class CosmicCompanion with HasEffects {
       _ => 1.0,
     };
     return (base / factor) * familyMultiplier;
+  }
+
+  void primeSpecialCooldown({
+    double? savedCooldown,
+    double cooldownMultiplier = 1.0,
+  }) {
+    specialCooldown = normalizedCompanionSpecialCooldown(
+      effectiveCooldown: effectiveSpecialCooldown,
+      savedCooldown: savedCooldown,
+      cooldownMultiplier: cooldownMultiplier,
+    );
   }
 
   double _maybeModifyStat(String name, num base) {

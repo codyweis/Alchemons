@@ -342,6 +342,548 @@ bool drawPipElementalProjectileVisual({
   return true;
 }
 
+bool drawManeElementalProjectileVisual({
+  required ui.Canvas canvas,
+  required Projectile projectile,
+  required ui.Offset position,
+  required ui.Color color,
+  required double time,
+}) {
+  final element = projectile.element;
+  if (element == null ||
+      projectile.visualStyle != ProjectileVisualStyle.slash) {
+    return false;
+  }
+
+  final vs = projectile.visualScale.clamp(0.75, 2.6).toDouble();
+  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
+  final perp = ui.Offset(-dir.dy, dir.dx);
+  final len = (projectile.stationary ? 24.0 : 17.0) * vs;
+  final start = position - dir * len;
+  final end = position + dir * len;
+  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
+  final pulse = 0.72 + 0.28 * sin(time * 5.5 + projectile.life * 2.0);
+
+  void drawCoreSlash({
+    double width = 3.0,
+    double glowWidth = 8.0,
+    double alpha = 0.86,
+  }) {
+    canvas.drawLine(
+      start,
+      end,
+      ui.Paint()
+        ..color = color.withValues(alpha: 0.18 * pulse)
+        ..strokeWidth = glowWidth * vs
+        ..strokeCap = ui.StrokeCap.round
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7),
+    );
+    canvas.drawLine(
+      start,
+      end,
+      ui.Paint()
+        ..color = color.withValues(alpha: alpha)
+        ..strokeWidth = width * vs
+        ..strokeCap = ui.StrokeCap.round,
+    );
+    canvas.drawLine(
+      position - dir * len * 0.55,
+      end,
+      ui.Paint()
+        ..color = white.withValues(alpha: 0.55)
+        ..strokeWidth = max(1.0, width * 0.36) * vs
+        ..strokeCap = ui.StrokeCap.round,
+    );
+  }
+
+  void drawControlRead({double scale = 1.0}) {
+    if (projectile.snareRadius <= 0 &&
+        !projectile.stationary &&
+        projectile.interceptCharges <= 0) {
+      return;
+    }
+    final radius = projectile.snareRadius > 0
+        ? (projectile.snareRadius * 0.32).clamp(18.0, 54.0) * scale
+        : (22.0 * vs * scale);
+    canvas.drawCircle(
+      position,
+      radius,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.4 * vs
+        ..color = color.withValues(alpha: 0.28 * pulse),
+    );
+    canvas.drawLine(
+      position - perp * radius * 0.85,
+      position + perp * radius * 0.85,
+      ui.Paint()
+        ..color = color.withValues(alpha: 0.14 * pulse)
+        ..strokeWidth = 3.0 * vs
+        ..strokeCap = ui.StrokeCap.round
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6),
+    );
+  }
+
+  switch (element) {
+    case 'Fire':
+      drawCoreSlash(width: 3.4, glowWidth: 10.0, alpha: 0.9);
+      for (var i = 0; i < 3; i++) {
+        final t = (i - 1) * 0.35;
+        final flame = ui.Path()
+          ..moveTo(
+            start.dx + perp.dx * t * 10 * vs,
+            start.dy + perp.dy * t * 10 * vs,
+          )
+          ..quadraticBezierTo(
+            position.dx + perp.dx * (8 + i * 2) * vs,
+            position.dy + perp.dy * (8 + i * 2) * vs,
+            end.dx,
+            end.dy,
+          );
+        canvas.drawPath(
+          flame,
+          ui.Paint()
+            ..color = const ui.Color(0xFFFFD28A).withValues(alpha: 0.34)
+            ..style = ui.PaintingStyle.stroke
+            ..strokeWidth = 1.3 * vs
+            ..strokeCap = ui.StrokeCap.round,
+        );
+      }
+      drawControlRead(scale: 1.05);
+      break;
+    case 'Lightning':
+      final bolt = ui.Path()
+        ..moveTo(start.dx, start.dy)
+        ..lineTo(
+          position.dx - dir.dx * 7 * vs + perp.dx * 5 * vs,
+          position.dy - dir.dy * 7 * vs + perp.dy * 5 * vs,
+        )
+        ..lineTo(
+          position.dx + dir.dx * 2 * vs - perp.dx * 4 * vs,
+          position.dy + dir.dy * 2 * vs - perp.dy * 4 * vs,
+        )
+        ..lineTo(end.dx, end.dy);
+      canvas.drawPath(
+        bolt,
+        ui.Paint()
+          ..color = white.withValues(alpha: 0.92)
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 2.4 * vs
+          ..strokeCap = ui.StrokeCap.round
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 2),
+      );
+      break;
+    case 'Water':
+      for (final side in [-1.0, 1.0]) {
+        final ribbon = ui.Path()
+          ..moveTo(start.dx, start.dy)
+          ..quadraticBezierTo(
+            position.dx + perp.dx * side * 14 * vs,
+            position.dy + perp.dy * side * 14 * vs,
+            end.dx,
+            end.dy,
+          );
+        canvas.drawPath(
+          ribbon,
+          ui.Paint()
+            ..color = color.withValues(alpha: 0.46)
+            ..style = ui.PaintingStyle.stroke
+            ..strokeWidth = 2.0 * vs
+            ..strokeCap = ui.StrokeCap.round,
+        );
+      }
+      drawControlRead(scale: 1.0);
+      break;
+    case 'Ice':
+      drawCoreSlash(width: 3.1, glowWidth: 8.4, alpha: 0.76);
+      _drawFrostStar(canvas, position, white, 11.0 * vs, vs, time);
+      drawControlRead(scale: 1.08);
+      break;
+    case 'Steam':
+      drawCoreSlash(width: 2.8, glowWidth: 7.0, alpha: 0.72);
+      for (var i = 0; i < 4; i++) {
+        final drift = i.toDouble();
+        canvas.drawCircle(
+          position -
+              dir * (10.0 - drift * 4.0) * vs +
+              perp * sin(time * 2.5 + drift) * 8.0 * vs,
+          (5.0 + drift) * vs,
+          ui.Paint()
+            ..color = color.withValues(alpha: 0.13)
+            ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7),
+        );
+      }
+      drawControlRead(scale: 1.05);
+      break;
+    case 'Earth':
+      drawCoreSlash(width: 5.0, glowWidth: 11.0, alpha: 0.82);
+      _drawCrackedPlate(canvas, position, color, 18.0 * vs, vs, time);
+      drawControlRead(scale: 1.12);
+      break;
+    case 'Lava':
+      drawCoreSlash(width: 5.6, glowWidth: 13.0, alpha: 0.88);
+      canvas.drawLine(
+        start + perp * 4.0 * vs,
+        end - perp * 4.0 * vs,
+        ui.Paint()
+          ..color = const ui.Color(0xFFFFE0A0).withValues(alpha: 0.58)
+          ..strokeWidth = 1.7 * vs
+          ..strokeCap = ui.StrokeCap.round,
+      );
+      drawControlRead(scale: 1.08);
+      break;
+    case 'Mud':
+      drawCoreSlash(width: 5.4, glowWidth: 12.0, alpha: 0.78);
+      canvas.drawOval(
+        ui.Rect.fromCenter(
+          center: position,
+          width: 30.0 * vs,
+          height: 17.0 * vs,
+        ),
+        ui.Paint()
+          ..color = color.withValues(alpha: 0.16)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7),
+      );
+      drawControlRead(scale: 1.18);
+      break;
+    case 'Dust':
+      drawCoreSlash(width: 2.1, glowWidth: 7.0, alpha: 0.66);
+      for (var i = 0; i < 9; i++) {
+        final a = time * 1.5 + i * pi * 2 / 9;
+        canvas.drawCircle(
+          position + ui.Offset(cos(a), sin(a)) * (7.0 + i) * vs,
+          1.1 * vs,
+          ui.Paint()..color = color.withValues(alpha: 0.40),
+        );
+      }
+      break;
+    case 'Crystal':
+      drawCoreSlash(width: 3.2, glowWidth: 8.5, alpha: 0.82);
+      _drawCrystalSigil(canvas, position, color, 12.0 * vs, vs, time);
+      break;
+    case 'Air':
+      _drawAirSwirl(canvas, position, color, 18.0 * vs, vs, time);
+      drawCoreSlash(width: 2.2, glowWidth: 7.5, alpha: 0.64);
+      break;
+    case 'Plant':
+      drawCoreSlash(width: 3.2, glowWidth: 9.0, alpha: 0.78);
+      _drawVinePatch(canvas, position, color, 15.0 * vs, vs, time);
+      drawControlRead(scale: 1.12);
+      break;
+    case 'Poison':
+      drawCoreSlash(width: 3.6, glowWidth: 10.0, alpha: 0.74);
+      canvas.drawCircle(
+        position,
+        18.0 * vs * pulse,
+        ui.Paint()
+          ..color = color.withValues(alpha: 0.14)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 9),
+      );
+      drawControlRead(scale: 1.10);
+      break;
+    case 'Spirit':
+      drawCoreSlash(width: 3.0, glowWidth: 9.0, alpha: 0.72);
+      _drawSpiritHalo(canvas, position, color, 14.0 * vs, vs, time);
+      break;
+    case 'Dark':
+      drawCoreSlash(width: 4.1, glowWidth: 11.0, alpha: 0.76);
+      canvas.drawCircle(
+        position,
+        17.0 * vs,
+        ui.Paint()
+          ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.52)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8),
+      );
+      drawControlRead(scale: 1.06);
+      break;
+    case 'Light':
+      drawCoreSlash(width: 3.4, glowWidth: 9.0, alpha: 0.86);
+      _drawLightCrown(canvas, position, color, 13.0 * vs, vs, time);
+      drawControlRead(scale: 1.0);
+      break;
+    case 'Blood':
+      drawCoreSlash(width: 4.8, glowWidth: 11.0, alpha: 0.84);
+      canvas.drawCircle(
+        position,
+        12.0 * vs * pulse,
+        ui.Paint()
+          ..color = color.withValues(alpha: 0.18)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8),
+      );
+      drawControlRead(scale: 1.0);
+      break;
+    default:
+      drawCoreSlash();
+      drawControlRead();
+  }
+
+  if (projectile.interceptCharges > 0) {
+    canvas.drawCircle(
+      position,
+      20.0 * vs,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.6 * vs
+        ..color = white.withValues(alpha: 0.55 * pulse),
+    );
+  }
+
+  return true;
+}
+
+bool drawHornElementalProjectileVisual({
+  required ui.Canvas canvas,
+  required Projectile projectile,
+  required ui.Offset position,
+  required ui.Color color,
+  required double time,
+}) {
+  final element = projectile.element;
+  if (element == null ||
+      projectile.visualStyle != ProjectileVisualStyle.hornImpact) {
+    return false;
+  }
+
+  final vs = projectile.visualScale.clamp(0.75, 3.1).toDouble();
+  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
+  final perp = ui.Offset(-dir.dy, dir.dx);
+  final pulse = 0.72 + 0.28 * sin(time * 4.2 + projectile.life * 1.8);
+  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
+  final radius = (7.0 * projectile.radiusMultiplier * vs).clamp(7.0, 34.0);
+  final tailLen = (projectile.stationary ? 5.0 : 18.0) * vs;
+  final tail = position - dir * tailLen;
+
+  void drawRamCore({double width = 5.0, double glow = 12.0}) {
+    if (!projectile.stationary) {
+      canvas.drawLine(
+        tail,
+        position,
+        ui.Paint()
+          ..color = color.withValues(alpha: 0.22)
+          ..strokeWidth = glow * vs
+          ..strokeCap = ui.StrokeCap.round
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8),
+      );
+    }
+    final head = ui.Path()
+      ..moveTo(
+        position.dx + dir.dx * radius * 0.95,
+        position.dy + dir.dy * radius * 0.95,
+      )
+      ..lineTo(
+        position.dx - dir.dx * radius * 0.55 + perp.dx * radius * 0.72,
+        position.dy - dir.dy * radius * 0.55 + perp.dy * radius * 0.72,
+      )
+      ..lineTo(
+        position.dx - dir.dx * radius * 0.25,
+        position.dy - dir.dy * radius * 0.25,
+      )
+      ..lineTo(
+        position.dx - dir.dx * radius * 0.55 - perp.dx * radius * 0.72,
+        position.dy - dir.dy * radius * 0.55 - perp.dy * radius * 0.72,
+      )
+      ..close();
+    canvas.drawPath(
+      head,
+      ui.Paint()
+        ..color = color.withValues(alpha: 0.88)
+        ..maskFilter = ui.MaskFilter.blur(ui.BlurStyle.normal, width * 0.18),
+    );
+    canvas.drawPath(
+      head,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = max(1.0, width * 0.26) * vs
+        ..color = white.withValues(alpha: 0.64),
+    );
+  }
+
+  void drawGuardRings() {
+    final snareR = projectile.snareRadius > 0
+        ? (projectile.snareRadius * 0.25).clamp(14.0, 62.0)
+        : 0.0;
+    final tauntR = projectile.tauntRadius > 0
+        ? (projectile.tauntRadius * 0.15).clamp(18.0, 68.0)
+        : 0.0;
+    final interceptR = projectile.interceptRadius > 0
+        ? (projectile.interceptRadius * 0.72).clamp(16.0, 52.0)
+        : 0.0;
+    final guardR = max(snareR, max(tauntR, interceptR));
+    if (guardR <= 0) return;
+
+    canvas.drawCircle(
+      position,
+      guardR * pulse,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.5 * vs
+        ..color = color.withValues(alpha: 0.30),
+    );
+    if (projectile.tauntRadius > 0) {
+      canvas.drawCircle(
+        position,
+        guardR * 0.58,
+        ui.Paint()
+          ..color = color.withValues(alpha: 0.09)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 10),
+      );
+    }
+    if (projectile.interceptCharges > 0) {
+      for (var i = 0; i < 4; i++) {
+        final a = time * 1.8 + i * pi / 2;
+        canvas.drawLine(
+          position + ui.Offset(cos(a), sin(a)) * guardR * 0.55,
+          position + ui.Offset(cos(a), sin(a)) * guardR,
+          ui.Paint()
+            ..color = white.withValues(alpha: 0.46)
+            ..strokeWidth = 1.4 * vs
+            ..strokeCap = ui.StrokeCap.round,
+        );
+      }
+    }
+  }
+
+  switch (element) {
+    case 'Lightning':
+      drawRamCore(width: 3.2, glow: 8.0);
+      for (var i = 0; i < 2; i++) {
+        final side = i == 0 ? -1.0 : 1.0;
+        canvas.drawLine(
+          tail + perp * side * 5.0 * vs,
+          position + dir * 5.0 * vs - perp * side * 4.0 * vs,
+          ui.Paint()
+            ..color = white.withValues(alpha: 0.62)
+            ..strokeWidth = 1.2 * vs
+            ..strokeCap = ui.StrokeCap.round,
+        );
+      }
+      break;
+    case 'Water':
+      drawRamCore(width: 4.2, glow: 10.0);
+      for (final side in [-1.0, 1.0]) {
+        final path = ui.Path()
+          ..moveTo(tail.dx, tail.dy)
+          ..quadraticBezierTo(
+            position.dx + perp.dx * side * 12.0 * vs,
+            position.dy + perp.dy * side * 12.0 * vs,
+            position.dx + dir.dx * 8.0 * vs,
+            position.dy + dir.dy * 8.0 * vs,
+          );
+        canvas.drawPath(
+          path,
+          ui.Paint()
+            ..color = color.withValues(alpha: 0.34)
+            ..style = ui.PaintingStyle.stroke
+            ..strokeWidth = 1.7 * vs
+            ..strokeCap = ui.StrokeCap.round,
+        );
+      }
+      break;
+    case 'Ice':
+      drawRamCore(width: 5.8, glow: 12.0);
+      _drawFrostStar(canvas, position, white, radius * 1.25, vs, time);
+      break;
+    case 'Steam':
+      drawRamCore(width: 5.6, glow: 13.0);
+      for (var i = 0; i < 4; i++) {
+        final drift = i.toDouble();
+        canvas.drawCircle(
+          position + perp * sin(time * 2.2 + drift) * 8.0 * vs,
+          (6.0 + drift) * vs,
+          ui.Paint()
+            ..color = color.withValues(alpha: 0.12)
+            ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8),
+        );
+      }
+      break;
+    case 'Earth':
+      drawRamCore(width: 7.0, glow: 15.0);
+      _drawCrackedPlate(canvas, position, color, radius * 1.4, vs, time);
+      break;
+    case 'Lava':
+      drawRamCore(width: 7.2, glow: 16.0);
+      canvas.drawCircle(
+        position + dir * 2.0 * vs - perp * 2.0 * vs,
+        2.4 * vs,
+        ui.Paint()..color = const ui.Color(0xFFFFE0A0).withValues(alpha: 0.78),
+      );
+      break;
+    case 'Mud':
+      drawRamCore(width: 7.0, glow: 15.0);
+      canvas.drawOval(
+        ui.Rect.fromCenter(
+          center: position,
+          width: radius * 2.2,
+          height: radius * 1.25,
+        ),
+        ui.Paint()
+          ..color = color.withValues(alpha: 0.18)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8),
+      );
+      break;
+    case 'Dust':
+      drawRamCore(width: 3.0, glow: 8.0);
+      _drawDustCloud(canvas, position, color, radius * 1.2, vs, time);
+      break;
+    case 'Crystal':
+      drawRamCore(width: 4.8, glow: 10.0);
+      _drawCrystalSigil(canvas, position, color, radius * 1.1, vs, time);
+      break;
+    case 'Air':
+      drawRamCore(width: 3.5, glow: 9.0);
+      _drawAirSwirl(canvas, position, color, radius * 1.15, vs, time);
+      break;
+    case 'Plant':
+      drawRamCore(width: 5.2, glow: 12.0);
+      _drawVinePatch(canvas, position, color, radius * 1.1, vs, time);
+      break;
+    case 'Poison':
+      drawRamCore(width: 5.2, glow: 12.0);
+      canvas.drawCircle(
+        position,
+        radius * 1.35,
+        ui.Paint()
+          ..color = color.withValues(alpha: 0.12)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 9),
+      );
+      break;
+    case 'Spirit':
+      drawRamCore(width: 4.5, glow: 11.0);
+      _drawSpiritHalo(canvas, position, color, radius * 1.25, vs, time);
+      break;
+    case 'Dark':
+      drawRamCore(width: 5.2, glow: 13.0);
+      canvas.drawCircle(
+        position,
+        radius * 1.1,
+        ui.Paint()
+          ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.48)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8),
+      );
+      break;
+    case 'Light':
+      drawRamCore(width: 4.5, glow: 11.0);
+      _drawLightCrown(canvas, position, color, radius * 1.2, vs, time);
+      break;
+    case 'Blood':
+      drawRamCore(width: 5.5, glow: 13.0);
+      canvas.drawCircle(
+        position,
+        radius * 0.8 * pulse,
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 1.6 * vs
+          ..color = white.withValues(alpha: 0.48),
+      );
+      break;
+    default:
+      drawRamCore();
+  }
+
+  drawGuardRings();
+  return true;
+}
+
 bool drawLetElementalProjectileVisual({
   required ui.Canvas canvas,
   required Projectile projectile,

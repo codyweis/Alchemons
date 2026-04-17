@@ -1,10 +1,8 @@
 part of 'cosmic_game.dart';
 
 /// Horn family gets bonus HP and DEF since they're the tanks.
-double _familyHpMultiplier(String family) =>
-    family == 'horn' ? 1.30 : 1.0;
-double _familyDefMultiplier(String family) =>
-    family == 'horn' ? 1.20 : 1.0;
+double _familyHpMultiplier(String family) => family == 'horn' ? 1.30 : 1.0;
+double _familyDefMultiplier(String family) => family == 'horn' ? 1.20 : 1.0;
 
 extension CosmicGameCompanionsAndContests on CosmicGame {
   void summonCompanion(
@@ -35,11 +33,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     final level = CosmicBalance.clampCompanionLevel(member.level);
     final family = member.family.toLowerCase();
 
-    final maxHp = (CosmicBalance.companionMaxHp(
-      level: level,
-      strength: strength,
-      intelligence: intel,
-    ) * _familyHpMultiplier(family)).round();
+    final maxHp =
+        (CosmicBalance.companionMaxHp(
+                  level: level,
+                  strength: strength,
+                  intelligence: intel,
+                ) *
+                _familyHpMultiplier(family))
+            .round();
     final physAtk = CosmicBalance.companionPhysAtk(
       level: level,
       strength: strength,
@@ -48,16 +49,22 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       level: level,
       beauty: beauty,
     );
-    final physDef = (CosmicBalance.companionPhysDef(
-      level: level,
-      strength: strength,
-      intelligence: intel,
-    ) * _familyDefMultiplier(family)).round();
-    final elemDef = (CosmicBalance.companionElemDef(
-      level: level,
-      beauty: beauty,
-      intelligence: intel,
-    ) * _familyDefMultiplier(family)).round();
+    final physDef =
+        (CosmicBalance.companionPhysDef(
+                  level: level,
+                  strength: strength,
+                  intelligence: intel,
+                ) *
+                _familyDefMultiplier(family))
+            .round();
+    final elemDef =
+        (CosmicBalance.companionElemDef(
+                  level: level,
+                  beauty: beauty,
+                  intelligence: intel,
+                ) *
+                _familyDefMultiplier(family))
+            .round();
     final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
     final critChance = CosmicBalance.companionCritChance(strength);
     final baseRange = CosmicBalance.companionBaseRange(intel);
@@ -73,7 +80,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       maxHp,
     );
 
-    activeCompanion = CosmicCompanion(
+    final companion = CosmicCompanion(
       member: member,
       position: placePos,
       anchor: placePos,
@@ -87,11 +94,10 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       critChance: critChance,
       attackRange: _familyAttackRange(family, baseRange),
       specialAbilityRange: _familySpecialRange(family, baseRange),
-      specialCooldown:
-          initialSpecialCooldown?.clamp(0.0, 100.0).toDouble() ??
-          CosmicCompanion.baseSpecialCooldown,
       speciesScale: specScale,
     );
+    companion.primeSpecialCooldown(savedCooldown: initialSpecialCooldown);
+    activeCompanion = companion;
 
     // Attach a demo effect instance based on loaded prototypes (one per companion).
     try {
@@ -165,11 +171,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     final level = CosmicBalance.clampCompanionLevel(member.level);
     final family = member.family.toLowerCase();
 
-    final maxHp = (CosmicBalance.companionMaxHp(
-      level: level,
-      strength: strength,
-      intelligence: intel,
-    ) * _familyHpMultiplier(family)).round();
+    final maxHp =
+        (CosmicBalance.companionMaxHp(
+                  level: level,
+                  strength: strength,
+                  intelligence: intel,
+                ) *
+                _familyHpMultiplier(family))
+            .round();
     final physAtk = CosmicBalance.companionPhysAtk(
       level: level,
       strength: strength,
@@ -178,16 +187,22 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       level: level,
       beauty: beauty,
     );
-    final physDef = (CosmicBalance.companionPhysDef(
-      level: level,
-      strength: strength,
-      intelligence: intel,
-    ) * _familyDefMultiplier(family)).round();
-    final elemDef = (CosmicBalance.companionElemDef(
-      level: level,
-      beauty: beauty,
-      intelligence: intel,
-    ) * _familyDefMultiplier(family)).round();
+    final physDef =
+        (CosmicBalance.companionPhysDef(
+                  level: level,
+                  strength: strength,
+                  intelligence: intel,
+                ) *
+                _familyDefMultiplier(family))
+            .round();
+    final elemDef =
+        (CosmicBalance.companionElemDef(
+                  level: level,
+                  beauty: beauty,
+                  intelligence: intel,
+                ) *
+                _familyDefMultiplier(family))
+            .round();
     final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
     final critChance = CosmicBalance.companionCritChance(strength);
     final baseRange = CosmicBalance.companionBaseRange(intel);
