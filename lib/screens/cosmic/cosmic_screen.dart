@@ -160,7 +160,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Joystick toggle (on by default)
   bool _showJoystick = true;
-  bool _largeJoystick = false;
+  bool _largeJoystick = true;
 
   // Tap-to-shoot toggle (off by default)
   bool _tapToShoot = false;
@@ -453,7 +453,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Load joystick preference
     _showJoystick = prefs.getBool('cosmic_joystick_enabled') ?? true;
-    _largeJoystick = prefs.getBool('cosmic_large_joystick') ?? false;
+    _largeJoystick = prefs.getBool('cosmic_large_joystick') ?? true;
 
     // Load tap-to-shoot preference
     _tapToShoot = prefs.getBool('cosmic_tap_to_shoot') ?? false;

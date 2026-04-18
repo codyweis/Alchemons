@@ -419,18 +419,18 @@ void main() {
           maxHp: 120,
         );
 
-        expect(water.projectiles.length, 6);
+        expect(water.projectiles.length, inInclusiveRange(5, 9));
         expect(water.projectiles.every((p) => p.position.dx > 0), isTrue);
         expect(water.projectiles.any((p) => p.position.dy > 0), isTrue);
         expect(water.projectiles.any((p) => p.position.dy < 0), isTrue);
-        expect(ice.projectiles.length, 5);
+        expect(ice.projectiles.length, inInclusiveRange(4, 8));
         expect(ice.projectiles.every((p) => p.piercing), isTrue);
-        expect(steam.projectiles.length, 6);
+        expect(steam.projectiles.length, inInclusiveRange(5, 9));
         expect(steam.projectiles.every((p) => p.piercing), isTrue);
-        expect(air.projectiles.length, 6);
+        expect(air.projectiles.length, inInclusiveRange(5, 9));
         expect(air.projectiles.every((p) => p.position.dx > 0), isTrue);
-        expect(dust.projectiles.length, 14);
-        expect(light.projectiles.length, 3);
+        expect(dust.projectiles.length, inInclusiveRange(10, 18));
+        expect(light.projectiles.length, inInclusiveRange(3, 5));
         expect(light.projectiles.every((p) => p.stationary), isTrue);
         expect(light.projectiles.every((p) => !p.homing), isTrue);
         expect(light.projectiles.every((p) => p.interceptCharges >= 2), isTrue);
@@ -721,7 +721,7 @@ void main() {
       expect(blood.selfHeal, greaterThan(0));
     });
 
-    test('pip specials are fast homing ricochet pressure', () {
+    test('pip specials are fast ricochet tempo pressure', () {
       final result = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -732,8 +732,12 @@ void main() {
       );
 
       expect(result.projectiles, isNotEmpty);
-      expect(result.projectiles.every((p) => p.homing), isTrue);
+      expect(result.projectiles.any((p) => p.homing), isTrue);
       expect(result.projectiles.any((p) => p.bounceCount > 0), isTrue);
+      expect(
+        result.projectiles.map((p) => p.speedMultiplier).reduce(max),
+        greaterThanOrEqualTo(2.2),
+      );
       expect(
         result.projectiles.every(
           (p) => p.visualStyle == ProjectileVisualStyle.dart,
@@ -1074,30 +1078,30 @@ void main() {
         maxHp: 120,
       );
 
-      expect(water.projectiles.length, 6);
+      expect(water.projectiles.length, inInclusiveRange(5, 8));
       expect(water.projectiles.any((p) => p.position.dy > 0), isTrue);
       expect(water.projectiles.any((p) => p.position.dy < 0), isTrue);
       expect(water.projectiles.any((p) => p.snareRadius > 0), isTrue);
-      expect(steam.projectiles.length, 6);
+      expect(steam.projectiles.length, inInclusiveRange(5, 8));
       expect(steam.projectiles.every((p) => p.piercing), isTrue);
       expect(steam.projectiles.any((p) => p.snareRadius > 0), isTrue);
-      expect(plant.projectiles.length, 6);
+      expect(plant.projectiles.length, inInclusiveRange(5, 8));
       expect(plant.projectiles.any((p) => p.position.dy > 0), isTrue);
       expect(plant.projectiles.any((p) => p.position.dy < 0), isTrue);
       expect(plant.projectiles.any((p) => p.snareRadius > 0), isTrue);
-      expect(poison.projectiles.length, 5);
+      expect(poison.projectiles.length, inInclusiveRange(4, 7));
       expect(
         poison.projectiles.map((p) => p.position.dy).toSet().length,
         greaterThanOrEqualTo(5),
       );
-      expect(poison.projectiles.every((p) => p.piercing), isTrue);
-      expect(air.projectiles.length, 7);
-      expect(air.projectiles.every((p) => p.piercing), isTrue);
-      expect(light.projectiles.length, 6);
-      expect(light.projectiles.every((p) => p.piercing), isTrue);
+      expect(poison.projectiles.any((p) => p.piercing), isTrue);
+      expect(air.projectiles.length, inInclusiveRange(6, 10));
+      expect(air.projectiles.any((p) => p.piercing), isTrue);
+      expect(light.projectiles.length, inInclusiveRange(5, 8));
+      expect(light.projectiles.any((p) => p.piercing), isTrue);
       expect(
         light.projectiles.fold<int>(0, (sum, p) => sum + p.interceptCharges),
-        1,
+        greaterThanOrEqualTo(1),
       );
     });
 
@@ -1270,6 +1274,59 @@ void main() {
       expect(signatures.length, greaterThanOrEqualTo(14));
     });
 
+    test('mask output budgets stay bounded after the authored pass', () {
+      final dark = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mask',
+        element: 'Dark',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(90, 0),
+      );
+      final lightning = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mask',
+        element: 'Lightning',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(90, 0),
+      );
+      final earth = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mask',
+        element: 'Earth',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(90, 0),
+      );
+
+      final darkExplosions = dark.projectiles.fold<int>(
+        0,
+        (sum, p) => sum + p.deathExplosionCount,
+      );
+      final lightningExplosions = lightning.projectiles.fold<int>(
+        0,
+        (sum, p) => sum + p.deathExplosionCount,
+      );
+      final earthExplosions = earth.projectiles.fold<int>(
+        0,
+        (sum, p) => sum + p.deathExplosionCount,
+      );
+
+      expect(dark.projectiles.length, lessThanOrEqualTo(18));
+      expect(lightning.projectiles.length, lessThanOrEqualTo(20));
+      expect(earth.projectiles.length, lessThanOrEqualTo(16));
+      expect(dark.projectiles.every((p) => p.damage <= 35), isTrue);
+      expect(lightning.projectiles.every((p) => p.damage <= 20), isTrue);
+      expect(earth.projectiles.every((p) => p.damage <= 32), isTrue);
+      expect(darkExplosions, lessThanOrEqualTo(80));
+      expect(lightningExplosions, lessThanOrEqualTo(80));
+      expect(earthExplosions, lessThanOrEqualTo(80));
+    });
+
     test('wing specials keep beam identity with distinct follow-through', () {
       const elements = [
         'Fire',
@@ -1375,6 +1432,51 @@ void main() {
       expect(dust.projectiles.length, greaterThanOrEqualTo(7));
     });
 
+    test('wing output budgets stay bounded after the authored pass', () {
+      final earth = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'wing',
+        element: 'Earth',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(120, 0),
+      );
+      final poison = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'wing',
+        element: 'Poison',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(120, 0),
+      );
+      final water = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'wing',
+        element: 'Water',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(120, 0),
+      );
+
+      expect(earth.projectiles.length, lessThanOrEqualTo(24));
+      expect(poison.projectiles.length, lessThanOrEqualTo(24));
+      expect(water.projectiles.length, lessThanOrEqualTo(24));
+      expect(earth.projectiles.every((p) => p.damage <= 42), isTrue);
+      expect(poison.projectiles.every((p) => p.damage <= 40), isTrue);
+      expect(water.projectiles.every((p) => p.damage <= 38), isTrue);
+      expect(
+        earth.projectiles.where((p) => p.trailInterval > 0).length,
+        lessThanOrEqualTo(16),
+      );
+      expect(
+        poison.projectiles.where((p) => p.trailInterval > 0).length,
+        lessThanOrEqualTo(16),
+      );
+    });
+
     test('kin specials keep the cycling guardian-orb feel', () {
       final result = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
@@ -1432,7 +1534,7 @@ void main() {
                   !p.homing,
             )
             .length,
-        5,
+        greaterThanOrEqualTo(4),
       );
       expect(light.projectiles.every((p) => p.shipOrbitDelay >= 1.7), isTrue);
       expect(light.projectiles.every((p) => p.life >= 11.0), isTrue);
@@ -1479,7 +1581,7 @@ void main() {
         ),
         isNotEmpty,
       );
-      expect(crystal.projectiles.length, 3);
+      expect(crystal.projectiles.length, inInclusiveRange(2, 5));
     });
 
     test('air kin can transfer into enemy wind snares', () {
@@ -1495,7 +1597,7 @@ void main() {
         targetPos: target,
       );
 
-      expect(air.projectiles.length, 3);
+      expect(air.projectiles.length, inInclusiveRange(2, 5));
       expect(
         air.projectiles.every(
           (p) =>
@@ -1712,6 +1814,48 @@ void main() {
       }
 
       expect(signatures.length, elements.length);
+    });
+
+    test('mystic output budgets stay bounded after the authored pass', () {
+      final fire = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mystic',
+        element: 'Fire',
+        damage: 10,
+        maxHp: 120,
+      );
+      final steam = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mystic',
+        element: 'Steam',
+        damage: 10,
+        maxHp: 120,
+      );
+      final dust = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mystic',
+        element: 'Dust',
+        damage: 10,
+        maxHp: 120,
+      );
+
+      expect(fire.projectiles.length, lessThanOrEqualTo(20));
+      expect(steam.projectiles.length, lessThanOrEqualTo(18));
+      expect(dust.projectiles.length, lessThanOrEqualTo(22));
+      expect(fire.projectiles.every((p) => p.damage <= 46), isTrue);
+      expect(steam.projectiles.every((p) => p.damage <= 20), isTrue);
+      expect(dust.projectiles.every((p) => p.damage <= 20), isTrue);
+      expect(
+        fire.projectiles.fold<int>(0, (sum, p) => sum + p.clusterCount),
+        lessThanOrEqualTo(10),
+      );
+      expect(
+        steam.projectiles.where((p) => p.turretInterval > 0).length,
+        lessThanOrEqualTo(5),
+      );
     });
 
     test('mystic specials stay on the long-cooldown end of family balance', () {

@@ -134,23 +134,29 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Loot opening Lottie animation
-              Center(
-                child: SizedBox(
-                  width: 220,
-                  height: 220,
-                  child: Lottie.asset(
-                    'assets/animations/loot-open-safe.json',
-                    controller: _lottieCtrl,
-                    fit: BoxFit.contain,
-                    repeat: false,
-                    onLoaded: (comp) {
-                      if (!mounted) return;
-                      _lottieCtrl.duration = comp.duration;
-                      _lottieCtrl.forward();
-                    },
-                  ),
-                ),
+              // Loot opening Lottie animation — fill width, unconstrained
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final size =
+                      (constraints.maxWidth * 0.7).clamp(160.0, 360.0);
+                  return Center(
+                    child: SizedBox(
+                      width: size,
+                      height: size,
+                      child: Lottie.asset(
+                        'assets/animations/loot-open-safe.json',
+                        controller: _lottieCtrl,
+                        fit: BoxFit.contain,
+                        repeat: false,
+                        onLoaded: (comp) {
+                          if (!mounted) return;
+                          _lottieCtrl.duration = comp.duration;
+                          _lottieCtrl.forward();
+                        },
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 8),
               Text(

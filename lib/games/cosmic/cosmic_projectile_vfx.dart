@@ -28,17 +28,18 @@ bool drawPipElementalProjectileVisual({
   final tail = position - dir * tailLen;
   final pulse = 0.72 + 0.28 * sin(time * 7.0 + projectile.life * 2.0);
   final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.45)!;
+  final fillPaint = ui.Paint();
+  final strokePaint = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round;
+  final linePaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
 
   void drawTail({double width = 3.2, double alpha = 0.26}) {
-    canvas.drawLine(
-      tail,
-      position,
-      ui.Paint()
-        ..color = color.withValues(alpha: alpha)
-        ..strokeWidth = width * vs
-        ..strokeCap = ui.StrokeCap.round
-        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
-    );
+    linePaint
+      ..color = color.withValues(alpha: alpha)
+      ..strokeWidth = width * vs
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4);
+    canvas.drawLine(tail, position, linePaint);
   }
 
   void drawDartHead({double length = 6.0, double width = 4.0}) {
@@ -49,12 +50,10 @@ bool drawPipElementalProjectileVisual({
       ..lineTo(back.dx + perp.dx * width * vs, back.dy + perp.dy * width * vs)
       ..lineTo(back.dx - perp.dx * width * vs, back.dy - perp.dy * width * vs)
       ..close();
-    canvas.drawPath(path, ui.Paint()..color = color.withValues(alpha: 0.92));
-    canvas.drawCircle(
-      tip,
-      1.3 * vs,
-      ui.Paint()..color = white.withValues(alpha: 0.82),
-    );
+    fillPaint.color = color.withValues(alpha: 0.92);
+    canvas.drawPath(path, fillPaint);
+    fillPaint.color = white.withValues(alpha: 0.82);
+    canvas.drawCircle(tip, 1.3 * vs, fillPaint);
   }
 
   switch (element) {
@@ -62,11 +61,11 @@ bool drawPipElementalProjectileVisual({
       drawTail(width: 5.0, alpha: 0.34);
       for (var i = 0; i < 2; i++) {
         final offset = (i == 0 ? -1.0 : 1.0) * 3.0 * vs;
+        fillPaint.color = const ui.Color(0xFFFFD28A).withValues(alpha: 0.62);
         canvas.drawCircle(
           tail + perp * offset + dir * (i * 3.0 * vs),
           1.8 * vs,
-          ui.Paint()
-            ..color = const ui.Color(0xFFFFD28A).withValues(alpha: 0.62),
+          fillPaint,
         );
       }
       drawDartHead(length: 6.6, width: 3.4);
@@ -85,11 +84,9 @@ bool drawPipElementalProjectileVisual({
         ..lineTo(position.dx, position.dy);
       canvas.drawPath(
         bolt,
-        ui.Paint()
+        strokePaint
           ..color = white.withValues(alpha: 0.92)
-          ..style = ui.PaintingStyle.stroke
           ..strokeWidth = 1.8 * vs
-          ..strokeCap = ui.StrokeCap.round
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 2),
       );
       drawDartHead(length: 5.2, width: 3.2);
@@ -109,11 +106,10 @@ bool drawPipElementalProjectileVisual({
           );
         canvas.drawPath(
           path,
-          ui.Paint()
+          strokePaint
             ..color = color.withValues(alpha: 0.38)
-            ..style = ui.PaintingStyle.stroke
             ..strokeWidth = 1.4 * vs
-            ..strokeCap = ui.StrokeCap.round,
+            ..maskFilter = null,
         );
       }
       drawDartHead(length: 5.8, width: 3.4);
@@ -143,16 +139,18 @@ bool drawPipElementalProjectileVisual({
       canvas.drawCircle(
         position,
         4.8 * vs,
-        ui.Paint()..color = color.withValues(alpha: 0.82),
+        fillPaint..color = color.withValues(alpha: 0.82),
       );
       for (var i = 0; i < 3; i++) {
         final a = time * 0.2 + i * pi * 2 / 3;
+        linePaint
+          ..color = white.withValues(alpha: 0.30)
+          ..strokeWidth = 0.8 * vs
+          ..maskFilter = null;
         canvas.drawLine(
           position,
           position + ui.Offset(cos(a), sin(a)) * 5.2 * vs,
-          ui.Paint()
-            ..color = white.withValues(alpha: 0.30)
-            ..strokeWidth = 0.8 * vs,
+          linePaint,
         );
       }
       break;
@@ -161,19 +159,19 @@ bool drawPipElementalProjectileVisual({
       canvas.drawCircle(
         position,
         5.4 * vs,
-        ui.Paint()..color = color.withValues(alpha: 0.90),
+        fillPaint..color = color.withValues(alpha: 0.90),
       );
       canvas.drawCircle(
         position + dir * 1.6 * vs - perp * 1.2 * vs,
         1.8 * vs,
-        ui.Paint()..color = const ui.Color(0xFFFFE0A0).withValues(alpha: 0.78),
+        fillPaint..color = const ui.Color(0xFFFFE0A0).withValues(alpha: 0.78),
       );
       break;
     case 'Mud':
       drawTail(width: 4.8, alpha: 0.24);
       canvas.drawOval(
         ui.Rect.fromCenter(center: position, width: 9.0 * vs, height: 6.0 * vs),
-        ui.Paint()..color = color.withValues(alpha: 0.86),
+        fillPaint..color = color.withValues(alpha: 0.86),
       );
       break;
     case 'Dust':
@@ -183,7 +181,7 @@ bool drawPipElementalProjectileVisual({
         canvas.drawCircle(
           position - dir * 4.0 * vs + ui.Offset(cos(a), sin(a)) * 4.2 * vs,
           0.85 * vs,
-          ui.Paint()..color = color.withValues(alpha: 0.42),
+          fillPaint..color = color.withValues(alpha: 0.42),
         );
       }
       drawDartHead(length: 4.8, width: 2.7);
@@ -208,11 +206,12 @@ bool drawPipElementalProjectileVisual({
           position.dy - perp.dy * 4.0 * vs,
         )
         ..close();
-      canvas.drawPath(path, ui.Paint()..color = color.withValues(alpha: 0.82));
+      fillPaint.color = color.withValues(alpha: 0.82);
+      canvas.drawPath(path, fillPaint);
       canvas.drawCircle(
         position + dir * 1.8 * vs,
         1.4 * vs,
-        ui.Paint()..color = white.withValues(alpha: 0.8),
+        fillPaint..color = white.withValues(alpha: 0.8),
       );
       break;
     case 'Air':
@@ -232,11 +231,10 @@ bool drawPipElementalProjectileVisual({
         }
         canvas.drawPath(
           path,
-          ui.Paint()
+          strokePaint
             ..color = color.withValues(alpha: 0.30)
-            ..style = ui.PaintingStyle.stroke
             ..strokeWidth = 1.1 * vs
-            ..strokeCap = ui.StrokeCap.round,
+            ..maskFilter = null,
         );
       }
       drawDartHead(length: 5.0, width: 2.8);
@@ -253,11 +251,10 @@ bool drawPipElementalProjectileVisual({
         );
       canvas.drawPath(
         vine,
-        ui.Paint()
+        strokePaint
           ..color = color.withValues(alpha: 0.50)
-          ..style = ui.PaintingStyle.stroke
           ..strokeWidth = 1.8 * vs
-          ..strokeCap = ui.StrokeCap.round,
+          ..maskFilter = null,
       );
       drawDartHead(length: 5.8, width: 3.2);
       break;
@@ -266,15 +263,14 @@ bool drawPipElementalProjectileVisual({
       canvas.drawCircle(
         position,
         5.2 * vs * pulse,
-        ui.Paint()
+        fillPaint
           ..color = color.withValues(alpha: 0.24)
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 5),
       );
-      canvas.drawCircle(
-        position + perp * 2.2 * vs,
-        1.3 * vs,
-        ui.Paint()..color = const ui.Color(0xFFD98CFF).withValues(alpha: 0.65),
-      );
+      fillPaint
+        ..color = const ui.Color(0xFFD98CFF).withValues(alpha: 0.65)
+        ..maskFilter = null;
+      canvas.drawCircle(position + perp * 2.2 * vs, 1.3 * vs, fillPaint);
       drawDartHead(length: 5.4, width: 3.4);
       break;
     case 'Spirit':
@@ -287,7 +283,7 @@ bool drawPipElementalProjectileVisual({
       canvas.drawCircle(
         position,
         6.2 * vs,
-        ui.Paint()
+        fillPaint
           ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.70)
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
       );
@@ -303,12 +299,14 @@ bool drawPipElementalProjectileVisual({
       canvas.drawCircle(
         position,
         5.8 * vs,
-        ui.Paint()..color = color.withValues(alpha: 0.84),
+        fillPaint
+          ..color = color.withValues(alpha: 0.84)
+          ..maskFilter = null,
       );
       canvas.drawCircle(
         position + dir * 1.5 * vs,
         1.8 * vs,
-        ui.Paint()..color = const ui.Color(0xFFFFB4B4).withValues(alpha: 0.68),
+        fillPaint..color = const ui.Color(0xFFFFB4B4).withValues(alpha: 0.68),
       );
       break;
     default:
@@ -317,25 +315,27 @@ bool drawPipElementalProjectileVisual({
   }
 
   if (projectile.bounceCount > 0 || projectile.interceptCharges > 0) {
+    strokePaint
+      ..color = white.withValues(
+        alpha: projectile.interceptCharges > 0 ? 0.46 : 0.26,
+      )
+      ..strokeWidth = 0.9 * vs
+      ..maskFilter = null;
     canvas.drawCircle(
       position,
       (6.5 + projectile.bounceCount.clamp(0, 4)) * vs,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 0.9 * vs
-        ..color = white.withValues(
-          alpha: projectile.interceptCharges > 0 ? 0.46 : 0.26,
-        ),
+      strokePaint,
     );
   }
   if (projectile.snareRadius > 0) {
+    strokePaint
+      ..color = color.withValues(alpha: 0.26)
+      ..strokeWidth = 1.0 * vs
+      ..maskFilter = null;
     canvas.drawCircle(
       position,
       (projectile.snareRadius * 0.13).clamp(5.5, 12.0) * vs,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.0 * vs
-        ..color = color.withValues(alpha: 0.26),
+      strokePaint,
     );
   }
 
@@ -363,37 +363,32 @@ bool drawManeElementalProjectileVisual({
   final end = position + dir * len;
   final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
   final pulse = 0.72 + 0.28 * sin(time * 5.5 + projectile.life * 2.0);
+  final fillPaint = ui.Paint();
+  final strokePaint = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round;
+  final linePaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
 
   void drawCoreSlash({
     double width = 3.0,
     double glowWidth = 8.0,
     double alpha = 0.86,
   }) {
-    canvas.drawLine(
-      start,
-      end,
-      ui.Paint()
-        ..color = color.withValues(alpha: 0.18 * pulse)
-        ..strokeWidth = glowWidth * vs
-        ..strokeCap = ui.StrokeCap.round
-        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7),
-    );
-    canvas.drawLine(
-      start,
-      end,
-      ui.Paint()
-        ..color = color.withValues(alpha: alpha)
-        ..strokeWidth = width * vs
-        ..strokeCap = ui.StrokeCap.round,
-    );
-    canvas.drawLine(
-      position - dir * len * 0.55,
-      end,
-      ui.Paint()
-        ..color = white.withValues(alpha: 0.55)
-        ..strokeWidth = max(1.0, width * 0.36) * vs
-        ..strokeCap = ui.StrokeCap.round,
-    );
+    linePaint
+      ..color = color.withValues(alpha: 0.18 * pulse)
+      ..strokeWidth = glowWidth * vs
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7);
+    canvas.drawLine(start, end, linePaint);
+    linePaint
+      ..color = color.withValues(alpha: alpha)
+      ..strokeWidth = width * vs
+      ..maskFilter = null;
+    canvas.drawLine(start, end, linePaint);
+    linePaint
+      ..color = white.withValues(alpha: 0.55)
+      ..strokeWidth = max(1.0, width * 0.36) * vs
+      ..maskFilter = null;
+    canvas.drawLine(position - dir * len * 0.55, end, linePaint);
   }
 
   void drawControlRead({double scale = 1.0}) {
@@ -405,22 +400,19 @@ bool drawManeElementalProjectileVisual({
     final radius = projectile.snareRadius > 0
         ? (projectile.snareRadius * 0.32).clamp(18.0, 54.0) * scale
         : (22.0 * vs * scale);
-    canvas.drawCircle(
-      position,
-      radius,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.4 * vs
-        ..color = color.withValues(alpha: 0.28 * pulse),
-    );
+    strokePaint
+      ..color = color.withValues(alpha: 0.28 * pulse)
+      ..strokeWidth = 1.4 * vs
+      ..maskFilter = null;
+    canvas.drawCircle(position, radius, strokePaint);
+    linePaint
+      ..color = color.withValues(alpha: 0.14 * pulse)
+      ..strokeWidth = 3.0 * vs
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6);
     canvas.drawLine(
       position - perp * radius * 0.85,
       position + perp * radius * 0.85,
-      ui.Paint()
-        ..color = color.withValues(alpha: 0.14 * pulse)
-        ..strokeWidth = 3.0 * vs
-        ..strokeCap = ui.StrokeCap.round
-        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6),
+      linePaint,
     );
   }
 
@@ -442,11 +434,10 @@ bool drawManeElementalProjectileVisual({
           );
         canvas.drawPath(
           flame,
-          ui.Paint()
+          strokePaint
             ..color = const ui.Color(0xFFFFD28A).withValues(alpha: 0.34)
-            ..style = ui.PaintingStyle.stroke
             ..strokeWidth = 1.3 * vs
-            ..strokeCap = ui.StrokeCap.round,
+            ..maskFilter = null,
         );
       }
       drawControlRead(scale: 1.05);
@@ -465,11 +456,9 @@ bool drawManeElementalProjectileVisual({
         ..lineTo(end.dx, end.dy);
       canvas.drawPath(
         bolt,
-        ui.Paint()
+        strokePaint
           ..color = white.withValues(alpha: 0.92)
-          ..style = ui.PaintingStyle.stroke
           ..strokeWidth = 2.4 * vs
-          ..strokeCap = ui.StrokeCap.round
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 2),
       );
       break;
@@ -485,11 +474,10 @@ bool drawManeElementalProjectileVisual({
           );
         canvas.drawPath(
           ribbon,
-          ui.Paint()
+          strokePaint
             ..color = color.withValues(alpha: 0.46)
-            ..style = ui.PaintingStyle.stroke
             ..strokeWidth = 2.0 * vs
-            ..strokeCap = ui.StrokeCap.round,
+            ..maskFilter = null,
         );
       }
       drawControlRead(scale: 1.0);
@@ -508,7 +496,7 @@ bool drawManeElementalProjectileVisual({
               dir * (10.0 - drift * 4.0) * vs +
               perp * sin(time * 2.5 + drift) * 8.0 * vs,
           (5.0 + drift) * vs,
-          ui.Paint()
+          fillPaint
             ..color = color.withValues(alpha: 0.13)
             ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7),
         );
@@ -525,10 +513,10 @@ bool drawManeElementalProjectileVisual({
       canvas.drawLine(
         start + perp * 4.0 * vs,
         end - perp * 4.0 * vs,
-        ui.Paint()
+        linePaint
           ..color = const ui.Color(0xFFFFE0A0).withValues(alpha: 0.58)
           ..strokeWidth = 1.7 * vs
-          ..strokeCap = ui.StrokeCap.round,
+          ..maskFilter = null,
       );
       drawControlRead(scale: 1.08);
       break;
@@ -540,7 +528,7 @@ bool drawManeElementalProjectileVisual({
           width: 30.0 * vs,
           height: 17.0 * vs,
         ),
-        ui.Paint()
+        fillPaint
           ..color = color.withValues(alpha: 0.16)
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7),
       );
@@ -553,7 +541,9 @@ bool drawManeElementalProjectileVisual({
         canvas.drawCircle(
           position + ui.Offset(cos(a), sin(a)) * (7.0 + i) * vs,
           1.1 * vs,
-          ui.Paint()..color = color.withValues(alpha: 0.40),
+          fillPaint
+            ..color = color.withValues(alpha: 0.40)
+            ..maskFilter = null,
         );
       }
       break;
@@ -575,7 +565,7 @@ bool drawManeElementalProjectileVisual({
       canvas.drawCircle(
         position,
         18.0 * vs * pulse,
-        ui.Paint()
+        fillPaint
           ..color = color.withValues(alpha: 0.14)
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 9),
       );
@@ -590,7 +580,7 @@ bool drawManeElementalProjectileVisual({
       canvas.drawCircle(
         position,
         17.0 * vs,
-        ui.Paint()
+        fillPaint
           ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.52)
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8),
       );
@@ -606,7 +596,7 @@ bool drawManeElementalProjectileVisual({
       canvas.drawCircle(
         position,
         12.0 * vs * pulse,
-        ui.Paint()
+        fillPaint
           ..color = color.withValues(alpha: 0.18)
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8),
       );
@@ -618,14 +608,11 @@ bool drawManeElementalProjectileVisual({
   }
 
   if (projectile.interceptCharges > 0) {
-    canvas.drawCircle(
-      position,
-      20.0 * vs,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.6 * vs
-        ..color = white.withValues(alpha: 0.55 * pulse),
-    );
+    strokePaint
+      ..color = white.withValues(alpha: 0.55 * pulse)
+      ..strokeWidth = 1.6 * vs
+      ..maskFilter = null;
+    canvas.drawCircle(position, 20.0 * vs, strokePaint);
   }
 
   return true;
@@ -884,6 +871,122 @@ bool drawHornElementalProjectileVisual({
   return true;
 }
 
+bool drawMaskElementalProjectileVisual({
+  required ui.Canvas canvas,
+  required Projectile projectile,
+  required ui.Offset position,
+  required ui.Color color,
+  required double time,
+}) {
+  if (projectile.visualStyle != ProjectileVisualStyle.sigil) {
+    return false;
+  }
+
+  final element = projectile.element;
+  if (element == null) return false;
+
+  final hasMaskSignals =
+      projectile.decoy ||
+      projectile.tauntRadius > 0 ||
+      projectile.snareRadius > 0 ||
+      projectile.deathExplosionCount > 0;
+  if (!hasMaskSignals) return false;
+
+  final vs = projectile.visualScale.clamp(0.72, 2.8).toDouble();
+  final pulse = 0.72 + 0.28 * sin(time * 4.3 + projectile.life * 1.7);
+  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
+  final coreR = (3.8 * vs * projectile.radiusMultiplier.clamp(0.8, 2.2))
+      .clamp(3.8, 16.0)
+      .toDouble();
+  final tauntR = projectile.tauntRadius > 0
+      ? (projectile.tauntRadius * 0.16).clamp(20.0, 98.0) * vs
+      : 0.0;
+  final snareR = projectile.snareRadius > 0
+      ? (projectile.snareRadius * 0.22).clamp(16.0, 86.0) * vs
+      : 0.0;
+  final controlR = max(tauntR, snareR);
+
+  final softGlow = ui.Paint()
+    ..color = color.withValues(alpha: 0.16 * pulse)
+    ..maskFilter = ui.MaskFilter.blur(ui.BlurStyle.normal, 6.0 * vs);
+  final fillPaint = ui.Paint();
+  final linePaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
+  final ring = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round;
+
+  canvas.drawCircle(position, coreR * 2.1, softGlow);
+
+  // Star-sigil core so mask attacks read as traps/lures instead of darts.
+  final points = List<ui.Offset>.generate(8, (i) {
+    final angle = time * 0.22 + i * pi / 4;
+    final r = i.isEven ? coreR * 1.35 : coreR * 0.68;
+    return position + ui.Offset(cos(angle), sin(angle)) * r;
+  });
+  final sigil = ui.Path()..moveTo(points.first.dx, points.first.dy);
+  for (var i = 1; i < points.length; i++) {
+    sigil.lineTo(points[i].dx, points[i].dy);
+  }
+  sigil.close();
+
+  fillPaint.color = color.withValues(alpha: 0.78);
+  canvas.drawPath(sigil, fillPaint);
+  fillPaint.color = white.withValues(alpha: 0.72 * pulse);
+  canvas.drawCircle(position, coreR * 0.58, fillPaint);
+
+  if (projectile.decoy) {
+    ring
+      ..color = color.withValues(alpha: 0.44 * pulse)
+      ..strokeWidth = 1.4 * vs;
+    canvas.drawCircle(position, coreR * 1.9, ring);
+  }
+
+  if (snareR > 0) {
+    ring
+      ..color = color.withValues(alpha: 0.24 * pulse)
+      ..strokeWidth = 1.25 * vs;
+    canvas.drawCircle(position, snareR, ring);
+    for (var i = 0; i < 6; i++) {
+      final a = -time * 0.6 + i * (pi * 2 / 6);
+      final inner = position + ui.Offset(cos(a), sin(a)) * (snareR * 0.75);
+      final outer = position + ui.Offset(cos(a), sin(a)) * snareR;
+      linePaint
+        ..color = color.withValues(alpha: 0.28 * pulse)
+        ..strokeWidth = 1.0 * vs;
+      canvas.drawLine(inner, outer, linePaint);
+    }
+  }
+
+  if (tauntR > 0) {
+    ring
+      ..color = white.withValues(alpha: 0.34 * pulse)
+      ..strokeWidth = 1.55 * vs;
+    canvas.drawCircle(position, tauntR, ring);
+    final tickCount = 8;
+    for (var i = 0; i < tickCount; i++) {
+      final a = time * 0.48 + i * (pi * 2 / tickCount);
+      final inner = position + ui.Offset(cos(a), sin(a)) * (tauntR * 0.82);
+      final outer = position + ui.Offset(cos(a), sin(a)) * tauntR;
+      linePaint
+        ..color = white.withValues(alpha: 0.42 * pulse)
+        ..strokeWidth = 1.15 * vs;
+      canvas.drawLine(inner, outer, linePaint);
+    }
+  }
+
+  if (projectile.deathExplosionCount > 0 || controlR > 0) {
+    final burstR = (controlR > 0 ? controlR * 0.58 : coreR * 4.2)
+        .clamp(coreR * 2.3, 64.0 * vs)
+        .toDouble();
+    ring
+      ..color = color.withValues(alpha: 0.20 * pulse)
+      ..strokeWidth = 1.0 * vs;
+    canvas.drawCircle(position, burstR, ring);
+  }
+
+  return true;
+}
+
 bool drawLetElementalProjectileVisual({
   required ui.Canvas canvas,
   required Projectile projectile,
@@ -911,6 +1014,163 @@ bool drawLetElementalProjectileVisual({
 
   _drawLetElementOverlay(canvas, projectile, position, color, element, time);
   return false;
+}
+
+void drawProjectileRoleOverlay({
+  required ui.Canvas canvas,
+  required Projectile projectile,
+  required ui.Offset position,
+  required ui.Color color,
+  required double time,
+}) {
+  final element = projectile.element;
+  if (element == null) return;
+
+  final vs = projectile.visualScale
+      .clamp(
+        0.75,
+        projectile.visualStyle == ProjectileVisualStyle.mysticOrbital
+            ? 3.5
+            : 2.8,
+      )
+      .toDouble();
+  final pulse = 0.76 + 0.24 * sin(time * 4.4 + projectile.life * 1.3);
+  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.45)!;
+
+  if (projectile.tauntRadius > 0) {
+    final tauntR = (projectile.tauntRadius * 0.14).clamp(16.0, 84.0) * vs;
+    final ring = ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.25 * vs
+      ..strokeCap = ui.StrokeCap.round
+      ..color = white.withValues(alpha: 0.34 * pulse);
+    canvas.drawCircle(position, tauntR, ring);
+    for (var i = 0; i < 8; i++) {
+      final a = time * 0.7 + i * pi * 2 / 8;
+      final inner = position + ui.Offset(cos(a), sin(a)) * (tauntR * 0.82);
+      final outer = position + ui.Offset(cos(a), sin(a)) * tauntR;
+      canvas.drawLine(
+        inner,
+        outer,
+        ui.Paint()
+          ..color = white.withValues(alpha: 0.42 * pulse)
+          ..strokeWidth = 1.0 * vs
+          ..strokeCap = ui.StrokeCap.round,
+      );
+    }
+  }
+
+  if (projectile.snareRadius > 0) {
+    final snareR = (projectile.snareRadius * 0.17).clamp(14.0, 74.0) * vs;
+    canvas.drawCircle(
+      position,
+      snareR,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.0 * vs
+        ..color = color.withValues(alpha: 0.24 * pulse),
+    );
+
+    if (element == 'Ice') {
+      for (var i = 0; i < 6; i++) {
+        final a = i * pi / 3 + time * 0.12;
+        final inner = position + ui.Offset(cos(a), sin(a)) * (snareR * 0.44);
+        final outer = position + ui.Offset(cos(a), sin(a)) * snareR;
+        canvas.drawLine(
+          inner,
+          outer,
+          ui.Paint()
+            ..color = const ui.Color(0xFFE9FBFF).withValues(alpha: 0.5 * pulse)
+            ..strokeWidth = 1.0 * vs
+            ..strokeCap = ui.StrokeCap.round,
+        );
+      }
+    }
+  }
+
+  if (projectile.interceptCharges > 0) {
+    final guardR = (10.0 + projectile.interceptCharges * 1.8) * vs;
+    final sweep = pi * 0.45;
+    final arcPaint = ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.4 * vs
+      ..strokeCap = ui.StrokeCap.round
+      ..color = white.withValues(alpha: 0.52 * pulse);
+    for (var i = 0; i < 3; i++) {
+      final start = time * 0.7 + i * pi * 2 / 3;
+      canvas.drawArc(
+        ui.Rect.fromCircle(center: position, radius: guardR),
+        start,
+        sweep,
+        false,
+        arcPaint,
+      );
+    }
+  }
+
+  if (projectile.turretInterval > 0) {
+    final turretR = (6.0 + projectile.radiusMultiplier * 2.2) * vs;
+    final path = ui.Path();
+    for (var i = 0; i < 4; i++) {
+      final a = time * 0.85 + i * pi / 2 + pi / 4;
+      final p = position + ui.Offset(cos(a), sin(a)) * turretR;
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(
+      path,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.1 * vs
+        ..color = color.withValues(alpha: 0.34 * pulse),
+    );
+  }
+
+  final isHealingOrbit =
+      (projectile.visualStyle == ProjectileVisualStyle.kinOrbital ||
+          projectile.visualStyle == ProjectileVisualStyle.mysticOrbital) &&
+      (projectile.followShipOrbit ||
+          projectile.transferToShipOrbit ||
+          projectile.holdOrbit ||
+          projectile.turretInterval > 0) &&
+      (element == 'Light' ||
+          element == 'Water' ||
+          element == 'Plant' ||
+          element == 'Blood' ||
+          element == 'Steam');
+  if (isHealingOrbit) {
+    final healColor = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
+    final rise = (time * 18.0) % (10.0 * vs);
+    for (var i = 0; i < 3; i++) {
+      final x = (i - 1) * 3.5 * vs;
+      final y = -rise - i * 2.8 * vs;
+      canvas.drawCircle(
+        position + ui.Offset(x, y),
+        0.95 * vs,
+        ui.Paint()
+          ..color = healColor.withValues(alpha: 0.55 - i * 0.1)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 2),
+      );
+    }
+    final crossPaint = ui.Paint()
+      ..color = healColor.withValues(alpha: 0.42 * pulse)
+      ..strokeWidth = 1.0 * vs
+      ..strokeCap = ui.StrokeCap.round;
+    canvas.drawLine(
+      position + ui.Offset(0, -3.0 * vs),
+      position + ui.Offset(0, 3.0 * vs),
+      crossPaint,
+    );
+    canvas.drawLine(
+      position + ui.Offset(-3.0 * vs, 0),
+      position + ui.Offset(3.0 * vs, 0),
+      crossPaint,
+    );
+  }
 }
 
 void _drawLetFallout(

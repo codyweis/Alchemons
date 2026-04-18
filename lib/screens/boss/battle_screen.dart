@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/games/boss/components/boss_attack_graphx_overlay.dart';
 import 'package:alchemons/games/boss/battle_game.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
@@ -37,6 +38,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   late final FC _fc = FC(_battleFactionTheme);
   late BattleGame game;
   late final AnimationController _bossNameController;
+  late final BossAttackGraphxOverlayController _bossAttackGraphxController;
   int? selectedCreatureIndex;
   final Map<int, int> _slotShakeNonce = <int, int>{};
   final List<_BattleFeedEntry> battleFeed = [];
@@ -45,6 +47,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   @override
   void initState() {
     super.initState();
+    _bossAttackGraphxController = BossAttackGraphxOverlayController();
     _bossNameController = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: 1100),
@@ -99,6 +102,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
             selectedCreatureIndex = null;
           }
         });
+        _spawnBossAttackGraphx(event);
         if (selectedCreatureIndex == null) {
           _selectFirstReadyCreature();
         }
@@ -122,6 +126,30 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     setState(() {
       _slotShakeNonce[index] = (_slotShakeNonce[index] ?? 0) + 1;
     });
+  }
+
+  void _spawnBossAttackGraphx(BossAttackExecutedEvent event) {
+    if (!mounted) return;
+    final size = MediaQuery.sizeOf(context);
+    final totalTargets = math.max(1, widget.playerTeam.length);
+    final slot = event.targetIndex.clamp(0, totalTargets - 1);
+    final spacing = size.width / (totalTargets + 1);
+    final targetX = spacing * (slot + 1);
+    final targetY = size.height * 0.76;
+    final origin = Offset(size.width * 0.5, size.height * 0.33);
+    final target = Offset(targetX, targetY);
+
+    _bossAttackGraphxController.spawn(
+      BossAttackGraphxEvent(
+        element: widget.boss.types.isNotEmpty
+            ? widget.boss.types.first
+            : 'Dark',
+        origin: origin,
+        target: target,
+        isCritical: event.result.isCritical,
+        damage: event.result.damage,
+      ),
+    );
   }
 
   void _addToFeed(
@@ -443,6 +471,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
 
   @override
   void dispose() {
+    _bossAttackGraphxController.dispose();
     _bossNameController.dispose();
     _feedScrollController.dispose();
     super.dispose();
@@ -477,6 +506,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               child: Stack(
                 children: [
                   GameWidget(game: game),
+                  BossAttackGraphxOverlay(
+                    controller: _bossAttackGraphxController,
+                  ),
                   Column(
                     children: [_buildTopHud(), Spacer(), _buildBottomDock()],
                   ),

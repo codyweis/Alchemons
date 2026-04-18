@@ -78,21 +78,21 @@ class AttackAnimations {
   ) {
     switch (family) {
       case 'Let':
-        return SpritestrikAnimation(element);
+        return LetMeteorAnimation(element);
       case 'Pip':
-        return PipFuryAnimation(element);
+        return PipFrenzyAnimation(element);
       case 'Mane':
-        return ManeTrickAnimation(element);
+        return ManeEntangleAnimation(element);
       case 'Horn':
-        return HornGuardAnimation();
+        return HornFortressAnimation();
       case 'Mask':
-        return MaskCurseAnimation(element);
+        return MaskHexFieldAnimation(element);
       case 'Wing':
-        return WingAssaultAnimation(element);
+        return WingPiercingBeamAnimation(element);
       case 'Kin':
-        return KinBlessingAnimation(element);
+        return KinSanctuaryAnimation(element);
       case 'Mystic':
-        return MysticPowerAnimation(element);
+        return MysticOrbitalsAnimation(element);
       default:
         return _getElementalAnimation(element, MoveType.elemental);
     }
@@ -536,25 +536,33 @@ class WaterAnimation extends AttackAnimation {
       container.add(drop);
     }
 
-    // Splash streaks at base
-    for (int i = 0; i < 10; i++) {
-      final angle = (i / 10) * 2 * pi;
-      final len = 18.0 + rng.nextDouble() * 20;
-      final streak = RectangleComponent(
-        size: Vector2(len, 2),
+    // Splash orb jets at base — small orbs racing outward along the ground
+    for (int i = 0; i < 14; i++) {
+      final angle = (i / 14) * 2 * pi;
+      final dist = 28.0 + rng.nextDouble() * 22;
+      final jet = CircleComponent(
+        radius: 2.2 + rng.nextDouble() * 1.8,
         position: targetPosition.clone(),
-        angle: angle,
-        anchor: Anchor.centerLeft,
-        paint: Paint()..color = Colors.cyan.withValues(alpha: 0.7),
+        anchor: Anchor.center,
+        paint: Paint()..color = Colors.cyan.withValues(alpha: 0.82),
       );
-      streak.add(
+      jet.add(
         MoveEffect.by(
-          Vector2(cos(angle) * 35, sin(angle) * 35),
-          EffectController(duration: 0.28, curve: Curves.easeOut),
+          Vector2(cos(angle) * dist, sin(angle) * dist),
+          EffectController(duration: 0.22, curve: Curves.easeOut),
         ),
       );
-      streak.add(RemoveEffect(delay: 0.28));
-      container.add(streak);
+      jet.add(RemoveEffect(delay: 0.28));
+      container.add(jet);
+      // Trailing micro-drop
+      final micro = CircleComponent(
+        radius: 1.2 + rng.nextDouble() * 1.0,
+        position: targetPosition + Vector2(cos(angle) * dist * 0.5, sin(angle) * dist * 0.5),
+        anchor: Anchor.center,
+        paint: Paint()..color = Colors.lightBlue.withValues(alpha: 0.60),
+      );
+      micro.add(RemoveEffect(delay: 0.20));
+      container.add(micro);
     }
 
     return container;
@@ -672,27 +680,31 @@ class AirAnimation extends AttackAnimation {
       container.add(ring);
     }
 
-    // Razor wind streaks slicing through target
-    for (int i = 0; i < 6; i++) {
-      final blade = (i / 6) * pi;
-      final len = 90.0 + rng.nextDouble() * 60;
-      final streak = RectangleComponent(
-        size: Vector2(len, 2),
-        position:
-            targetPosition +
-            Vector2(cos(blade + pi) * len / 2, sin(blade + pi) * len / 2),
-        angle: blade,
-        anchor: Anchor.centerLeft,
-        paint: Paint()..color = Colors.white.withValues(alpha: 0.6),
-      );
-      streak.add(
-        ScaleEffect.to(
-          Vector2.all(0),
-          EffectController(duration: 0.4, curve: Curves.easeIn),
-        ),
-      );
-      streak.add(RemoveEffect(delay: 0.4));
-      container.add(streak);
+    // Razor wind shreds — tight particle bursts fired along each blade axis
+    for (int i = 0; i < 8; i++) {
+      final blade = (i / 8) * pi;
+      // Two opposing jets per axis create a through-cut feel
+      for (final sign in [-1.0, 1.0]) {
+        final shreds = 5 + rng.nextInt(4);
+        for (int j = 0; j < shreds; j++) {
+          final spread = (rng.nextDouble() - 0.5) * 0.18;
+          final dist = 40.0 + rng.nextDouble() * 80;
+          final shred = CircleComponent(
+            radius: 1.0 + rng.nextDouble() * 1.8,
+            position: targetPosition.clone(),
+            anchor: Anchor.center,
+            paint: Paint()..color = Colors.white.withValues(alpha: 0.55 + rng.nextDouble() * 0.25),
+          );
+          shred.add(
+            MoveEffect.by(
+              Vector2(cos(blade + spread) * dist * sign, sin(blade + spread) * dist * sign),
+              EffectController(duration: 0.30 + rng.nextDouble() * 0.12, curve: Curves.easeOut),
+            ),
+          );
+          shred.add(RemoveEffect(delay: 0.42));
+          container.add(shred);
+        }
+      }
     }
 
     // Debris flung in all directions
@@ -1216,27 +1228,47 @@ class MudAnimation extends AttackAnimation {
     final container = Component();
     final rng = Random();
 
-    // Heavy splat circle flattening horizontally
-    final splat = RectangleComponent(
-      size: Vector2(60, 18),
-      position: targetPosition + Vector2(0, 10),
+    // Heavy impact ring: expanding circle at ground level
+    for (int r = 0; r < 2; r++) {
+      final ring = CircleComponent(
+        radius: 10,
+        position: targetPosition,
+        anchor: Anchor.center,
+        paint: Paint()
+          ..color = const Color(0xFF8B7355).withValues(alpha: 0.72 - r * 0.18)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4.0 - r * 1.2,
+      );
+      ring.add(
+        ScaleEffect.to(
+          Vector2.all(4.2 + r * 1.8),
+          EffectController(duration: 0.30 + r * 0.08, curve: Curves.easeOut),
+        ),
+      );
+      ring.add(RemoveEffect(delay: 0.38 + r * 0.08));
+      container.add(ring);
+    }
+    // Dense center blob that pulses and shrinks
+    final blob = CircleComponent(
+      radius: 18,
+      position: targetPosition + Vector2(0, 4),
       anchor: Anchor.center,
-      paint: Paint()..color = const Color(0xFF8B7355).withValues(alpha: 0.8),
+      paint: Paint()..color = const Color(0xFF8B7355).withValues(alpha: 0.70),
     );
-    splat.add(
+    blob.add(
       ScaleEffect.to(
-        Vector2(2.8, 1.2),
-        EffectController(duration: 0.25, curve: Curves.easeOut),
+        Vector2.all(1.6),
+        EffectController(duration: 0.18, curve: Curves.easeOut),
       ),
     );
-    splat.add(
+    blob.add(
       ScaleEffect.to(
         Vector2.all(0),
-        EffectController(duration: 0.4, curve: Curves.easeIn),
+        EffectController(duration: 0.30, curve: Curves.easeIn),
       ),
     );
-    splat.add(RemoveEffect(delay: 0.65));
-    container.add(splat);
+    blob.add(RemoveEffect(delay: 0.50));
+    container.add(blob);
 
     // Mud chunks fling outward at low angles
     for (int i = 0; i < 14; i++) {
@@ -1712,26 +1744,48 @@ class BloodAnimation extends AttackAnimation {
       }
     }
 
-    // Splatter pattern at base
-    for (int i = 0; i < 8; i++) {
-      final angle = (i / 8) * 2 * pi;
-      final len = 10.0 + rng.nextDouble() * 14;
-      final splat = RectangleComponent(
-        size: Vector2(len, 2.5),
+    // Impact burst ring: orbs erupting outward at impact point
+    for (int i = 0; i < 14; i++) {
+      final angle = (i / 14) * 2 * pi;
+      final dist = 18.0 + rng.nextDouble() * 28;
+      final orb = CircleComponent(
+        radius: 2.5 + rng.nextDouble() * 2.5,
         position: targetPosition.clone(),
-        angle: angle,
-        anchor: Anchor.centerLeft,
-        paint: Paint()..color = Colors.red.shade900.withValues(alpha: 0.75),
+        anchor: Anchor.center,
+        paint: Paint()
+          ..color = [
+            Colors.red.shade900,
+            Colors.red.shade700,
+            const Color(0xFF8B0000),
+          ][rng.nextInt(3)].withValues(alpha: 0.88),
       );
-      splat.add(
+      orb.add(
         MoveEffect.by(
-          Vector2(cos(angle) * 30, sin(angle) * 30),
-          EffectController(duration: 0.22, curve: Curves.easeOut),
+          Vector2(cos(angle) * dist, sin(angle) * dist),
+          EffectController(duration: 0.20, curve: Curves.easeOut),
         ),
       );
-      splat.add(RemoveEffect(delay: 0.22));
-      container.add(splat);
+      orb.add(RemoveEffect(delay: 0.24));
+      container.add(orb);
     }
+    // Crimson impact flash ring
+    final ring = CircleComponent(
+      radius: 14,
+      position: targetPosition,
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.red.shade800.withValues(alpha: 0.65)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5,
+    );
+    ring.add(
+      ScaleEffect.to(
+        Vector2.all(3.8),
+        EffectController(duration: 0.26, curve: Curves.easeOut),
+      ),
+    );
+    ring.add(RemoveEffect(delay: 0.28));
+    container.add(ring);
 
     return container;
   }
@@ -1790,92 +1844,175 @@ class GenericAnimation extends AttackAnimation {
 // SPECIAL ABILITY ANIMATIONS (8 families)
 // ============================================
 
-class SpritestrikAnimation extends AttackAnimation {
+class LetMeteorAnimation extends AttackAnimation {
   final String element;
-  SpritestrikAnimation(this.element);
+  LetMeteorAnimation(this.element);
 
   @override
   Component createEffect(Vector2 targetPosition) {
     final container = Component();
     final rng = Random();
+    final elementColor = _specialElementColor(element);
+    final warmCore =
+        Color.lerp(elementColor, Colors.white, 0.45) ?? Colors.white;
 
-    // Three rapid slash marks in quick succession at different angles
-    final slashAngles = [pi * 0.8, pi * 1.0, pi * 1.2];
-    for (int s = 0; s < 3; s++) {
-      final slashAngle = slashAngles[s];
-      final slashLen = 70.0 + rng.nextDouble() * 30;
-      final offset = Vector2(-12.0 + s * 12, -8.0 + s * 8);
+    final meteorStart = targetPosition + Vector2(0, -150);
+    const descendTime = 0.28;
 
-      // Outer glow slash
-      final glowSlash = RectangleComponent(
-        size: Vector2(slashLen, 6),
-        position: targetPosition + offset,
-        angle: slashAngle,
-        anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withValues(alpha: 0.5),
-      );
-      glowSlash.add(
-        ScaleEffect.to(Vector2(1.0, 3.0), EffectController(duration: 0.05)),
-      );
-      glowSlash.add(
-        ScaleEffect.to(
-          Vector2.all(0),
-          EffectController(duration: 0.2, curve: Curves.easeIn),
+    final warningRing = CircleComponent(
+      radius: 12,
+      position: targetPosition.clone(),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = elementColor.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    warningRing.add(
+      ScaleEffect.to(
+        Vector2.all(2.3),
+        EffectController(duration: descendTime, curve: Curves.easeOut),
+      ),
+    );
+    warningRing.add(RemoveEffect(delay: descendTime));
+    container.add(warningRing);
+
+    final tail = RectangleComponent(
+      size: Vector2(8, 120),
+      position: meteorStart.clone(),
+      anchor: Anchor.bottomCenter,
+      paint: Paint()..color = elementColor.withValues(alpha: 0.45),
+    );
+    tail.add(
+      MoveEffect.to(
+        targetPosition.clone(),
+        EffectController(duration: descendTime, curve: Curves.easeIn),
+      ),
+    );
+    tail.add(RemoveEffect(delay: descendTime + 0.04));
+    container.add(tail);
+
+    final meteor = CircleComponent(
+      radius: 13,
+      position: meteorStart,
+      anchor: Anchor.center,
+      paint: Paint()..color = warmCore,
+    );
+    meteor.add(
+      MoveEffect.to(
+        targetPosition.clone(),
+        EffectController(duration: descendTime, curve: Curves.easeIn),
+      ),
+    );
+    meteor.add(
+      ScaleEffect.to(
+        Vector2.all(1.35),
+        EffectController(duration: descendTime, curve: Curves.easeIn),
+      ),
+    );
+    meteor.add(RemoveEffect(delay: descendTime + 0.02));
+    container.add(meteor);
+
+    final impactCore = CircleComponent(
+      radius: 18,
+      position: targetPosition.clone(),
+      anchor: Anchor.center,
+      paint: Paint()..color = warmCore.withValues(alpha: 0.9),
+    );
+    impactCore.add(
+      ScaleEffect.to(
+        Vector2.all(2.2),
+        EffectController(
+          startDelay: descendTime,
+          duration: 0.22,
+          curve: Curves.easeOut,
         ),
-      );
-      glowSlash.add(RemoveEffect(delay: 0.25));
-      container.add(glowSlash);
+      ),
+    );
+    impactCore.add(RemoveEffect(delay: descendTime + 0.24));
+    container.add(impactCore);
 
-      // Sharp core slash
-      final coreSlash = RectangleComponent(
-        size: Vector2(slashLen, 2),
-        position: targetPosition + offset,
-        angle: slashAngle,
+    final craterRing = CircleComponent(
+      radius: 24,
+      position: targetPosition.clone(),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = elementColor.withValues(alpha: 0.82)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
+    );
+    craterRing.add(
+      ScaleEffect.to(
+        Vector2.all(2.8),
+        EffectController(
+          startDelay: descendTime,
+          duration: 0.30,
+          curve: Curves.easeOut,
+        ),
+      ),
+    );
+    craterRing.add(RemoveEffect(delay: descendTime + 0.32));
+    container.add(craterRing);
+
+    final debrisCount = 14;
+    for (int i = 0; i < debrisCount; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final dist = 24.0 + rng.nextDouble() * 58.0;
+      final debris = RectangleComponent(
+        size: Vector2(3 + rng.nextDouble() * 3, 8 + rng.nextDouble() * 6),
+        position: targetPosition.clone(),
+        angle: a,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = [
-            Colors.white,
-            Colors.cyan.shade200,
-            Colors.yellow.shade200,
-          ][s],
+          ..color = (i.isEven ? elementColor : warmCore).withValues(
+            alpha: 0.88,
+          ),
       );
-      coreSlash.add(
-        ScaleEffect.to(
-          Vector2.all(0),
-          EffectController(duration: 0.22, curve: Curves.easeIn),
+      debris.add(
+        MoveEffect.by(
+          Vector2(cos(a) * dist, sin(a) * dist),
+          EffectController(
+            startDelay: descendTime,
+            duration: 0.34,
+            curve: Curves.easeOut,
+          ),
         ),
       );
-      coreSlash.add(RemoveEffect(delay: 0.22));
-      container.add(coreSlash);
+      debris.add(RemoveEffect(delay: descendTime + 0.36));
+      container.add(debris);
     }
 
-    // Impact sparks from the hits
-    for (int i = 0; i < 16; i++) {
-      final angle = rng.nextDouble() * 2 * pi;
-      final dist = 25.0 + rng.nextDouble() * 45;
-      final spark = CircleComponent(
-        radius: 1.5 + rng.nextDouble() * 2,
+    for (int i = 0; i < 3; i++) {
+      final aftershock = CircleComponent(
+        radius: 20 + i * 10,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withValues(alpha: 0.8),
+        paint: Paint()
+          ..color = elementColor.withValues(alpha: 0.40 - i * 0.10)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.6 - i * 0.5,
       );
-      spark.add(
-        MoveEffect.by(
-          Vector2(cos(angle) * dist, sin(angle) * dist),
-          EffectController(duration: 0.3, curve: Curves.easeOut),
+      aftershock.add(
+        ScaleEffect.to(
+          Vector2.all(2.1 + i * 0.35),
+          EffectController(
+            startDelay: descendTime + i * 0.06,
+            duration: 0.24,
+            curve: Curves.easeOut,
+          ),
         ),
       );
-      spark.add(RemoveEffect(delay: 0.3));
-      container.add(spark);
+      aftershock.add(RemoveEffect(delay: descendTime + 0.27 + i * 0.06));
+      container.add(aftershock);
     }
 
     return container;
   }
 }
 
-class PipFuryAnimation extends AttackAnimation {
+class PipFrenzyAnimation extends AttackAnimation {
   final String element;
-  PipFuryAnimation(this.element);
+  PipFrenzyAnimation(this.element);
 
   @override
   Component createEffect(Vector2 targetPosition) {
@@ -1990,94 +2127,110 @@ class PipFuryAnimation extends AttackAnimation {
   }
 }
 
-class ManeTrickAnimation extends AttackAnimation {
+class ManeEntangleAnimation extends AttackAnimation {
   final String element;
-  ManeTrickAnimation(this.element);
+  ManeEntangleAnimation(this.element);
 
   @override
   Component createEffect(Vector2 targetPosition) {
     final container = Component();
     final rng = Random();
+    final elementColor = _specialElementColor(element);
+    final nourishColor =
+        Color.lerp(elementColor, Colors.lightGreenAccent, 0.35) ??
+        Colors.lightGreenAccent;
 
-    // Illusion trick: three ghost-images offset around the real hit
-    final offsets = [Vector2(-28, -14), Vector2(28, -14), Vector2(0, 0)];
-
-    for (int g = 0; g < 3; g++) {
-      final ghostPos = targetPosition + offsets[g];
-      final isReal = g == 2;
-      final alpha = isReal ? 0.85 : 0.35;
-
-      // Ghost silhouette ring
-      final ghost = CircleComponent(
-        radius: 22,
-        position: ghostPos,
+    // Entangle strands converge on the target from multiple angles.
+    for (int i = 0; i < 8; i++) {
+      final a = (i / 8) * 2 * pi;
+      final start = targetPosition + Vector2(cos(a) * 95, sin(a) * 70);
+      final strand = RectangleComponent(
+        size: Vector2(3.5, 62),
+        position: start,
+        angle: a + pi / 2,
         anchor: Anchor.center,
-        paint: Paint()
-          ..color = Colors.purple.withValues(alpha: alpha)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5,
+        paint: Paint()..color = elementColor.withValues(alpha: 0.82),
       );
-      ghost.add(
-        ScaleEffect.to(
-          Vector2.all(isReal ? 2.0 : 1.5),
-          EffectController(duration: 0.35, curve: Curves.easeOut),
+      strand.add(
+        MoveEffect.to(
+          targetPosition + Vector2(cos(a) * 8, sin(a) * 8),
+          EffectController(duration: 0.34, curve: Curves.easeIn),
         ),
       );
-      ghost.add(RemoveEffect(delay: 0.35));
-      container.add(ghost);
-
-      // Ghost scatter particles
-      for (int i = 0; i < (isReal ? 16 : 8); i++) {
-        final angle = rng.nextDouble() * 2 * pi;
-        final dist = 20.0 + rng.nextDouble() * 45;
-        final particle = CircleComponent(
-          radius: 2 + rng.nextDouble() * 2,
-          position: ghostPos.clone(),
-          anchor: Anchor.center,
-          paint: Paint()
-            ..color = [
-              Colors.purple,
-              Colors.deepPurple.shade300,
-              Colors.pinkAccent.shade100,
-            ][rng.nextInt(3)].withValues(alpha: alpha * 0.8),
-        );
-        particle.add(
-          MoveEffect.by(
-            Vector2(cos(angle) * dist, sin(angle) * dist),
-            EffectController(duration: 0.4, curve: Curves.easeOut),
-          ),
-        );
-        particle.add(RemoveEffect(delay: 0.4));
-        container.add(particle);
-      }
+      strand.add(
+        ScaleEffect.to(
+          Vector2(0.65, 1.15),
+          EffectController(duration: 0.34, curve: Curves.easeIn),
+        ),
+      );
+      strand.add(RemoveEffect(delay: 0.38));
+      container.add(strand);
     }
 
-    // Confusion swirl rings connecting the three ghosts
-    for (int r = 0; r < 3; r++) {
-      final swirl = CircleComponent(
-        radius: 6,
-        position: targetPosition,
-        anchor: Anchor.center,
-        paint: Paint()
-          ..color = Colors.purple.shade300.withValues(alpha: 0.5)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
+    // Snare ring to read the lock/control role.
+    final snareRing = CircleComponent(
+      radius: 14,
+      position: targetPosition.clone(),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = elementColor.withValues(alpha: 0.72)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    snareRing.add(
+      ScaleEffect.to(
+        Vector2.all(3.3),
+        EffectController(duration: 0.36, curve: Curves.easeOut),
+      ),
+    );
+    snareRing.add(RemoveEffect(delay: 0.38));
+    container.add(snareRing);
+
+    // Root-like spikes indicate suppression at impact.
+    for (int i = 0; i < 10; i++) {
+      final a = (i / 10) * 2 * pi;
+      final spike = RectangleComponent(
+        size: Vector2(3, 20 + rng.nextDouble() * 10),
+        position: targetPosition + Vector2(cos(a) * 18, sin(a) * 18),
+        angle: a,
+        anchor: Anchor.bottomCenter,
+        paint: Paint()..color = elementColor.withValues(alpha: 0.78),
       );
-      swirl.add(
+      spike.add(
         ScaleEffect.to(
-          Vector2.all(6.0 + r * 2.5),
-          EffectController(duration: 0.45 + r * 0.05, curve: Curves.easeOut),
+          Vector2.all(0),
+          EffectController(duration: 0.28, curve: Curves.easeIn),
         ),
       );
-      swirl.add(RemoveEffect(delay: 0.5 + r * 0.05));
-      container.add(swirl);
+      spike.add(RemoveEffect(delay: 0.28));
+      container.add(spike);
+    }
+
+    // Nourish motes rise to represent ally regen support.
+    for (int i = 0; i < 18; i++) {
+      final mote = CircleComponent(
+        radius: 2 + rng.nextDouble() * 2,
+        position:
+            targetPosition +
+            Vector2(-30 + rng.nextDouble() * 60, -4 + rng.nextDouble() * 12),
+        anchor: Anchor.center,
+        paint: Paint()..color = nourishColor.withValues(alpha: 0.8),
+      );
+      mote.add(
+        MoveEffect.by(
+          Vector2((rng.nextDouble() - 0.5) * 24, -38 - rng.nextDouble() * 24),
+          EffectController(duration: 0.52, curve: Curves.easeOut),
+        ),
+      );
+      mote.add(RemoveEffect(delay: 0.56));
+      container.add(mote);
     }
 
     return container;
   }
 }
 
-class HornGuardAnimation extends AttackAnimation {
+class HornFortressAnimation extends AttackAnimation {
   @override
   Component createEffect(Vector2 targetPosition) {
     final container = Component();
@@ -2152,9 +2305,9 @@ class HornGuardAnimation extends AttackAnimation {
   }
 }
 
-class MaskCurseAnimation extends AttackAnimation {
+class MaskHexFieldAnimation extends AttackAnimation {
   final String element;
-  MaskCurseAnimation(this.element);
+  MaskHexFieldAnimation(this.element);
 
   @override
   Component createEffect(Vector2 targetPosition) {
@@ -2248,112 +2401,115 @@ class MaskCurseAnimation extends AttackAnimation {
   }
 }
 
-class WingAssaultAnimation extends AttackAnimation {
+class WingPiercingBeamAnimation extends AttackAnimation {
   final String element;
-  WingAssaultAnimation(this.element);
+  WingPiercingBeamAnimation(this.element);
 
   @override
   Component createEffect(Vector2 targetPosition) {
     final container = Component();
     final rng = Random();
+    final elementColor = _specialElementColor(element);
+    final coreColor =
+        Color.lerp(elementColor, Colors.white, 0.40) ?? Colors.white;
 
-    // Feather barrage: fan of feather-shaped streak lines
-    for (int i = 0; i < 9; i++) {
-      final fanAngle = -pi * 0.55 + (i / 8) * pi * 1.1;
-      final featherLen = 50.0 + rng.nextDouble() * 35;
-      final startPos =
-          targetPosition +
-          Vector2(
-            cos(fanAngle) * (featherLen + 20),
-            sin(fanAngle) * (featherLen + 20),
-          );
+    // Main piercing lance body.
+    final beam = RectangleComponent(
+      size: Vector2(330, 9),
+      position: targetPosition + Vector2(-165, 0),
+      anchor: Anchor.centerLeft,
+      paint: Paint()..color = elementColor.withValues(alpha: 0.72),
+    );
+    beam.add(
+      ScaleEffect.to(
+        Vector2(1.0, 0.0),
+        EffectController(duration: 0.28, curve: Curves.easeIn),
+      ),
+    );
+    beam.add(RemoveEffect(delay: 0.3));
+    container.add(beam);
 
-      // Feather shaft
-      final shaft = RectangleComponent(
-        size: Vector2(2.5, featherLen),
-        position: startPos,
-        angle: fanAngle + pi / 2,
-        anchor: Anchor.center,
-        paint: Paint()
-          ..color = [
-            Colors.orange.shade300,
-            Colors.amber,
-            Colors.yellow.shade600,
-          ][i % 3].withValues(alpha: 0.85),
+    // Bright beam core communicates focused penetration.
+    final core = RectangleComponent(
+      size: Vector2(350, 3),
+      position: targetPosition + Vector2(-175, 0),
+      anchor: Anchor.centerLeft,
+      paint: Paint()..color = coreColor.withValues(alpha: 0.92),
+    );
+    core.add(
+      ScaleEffect.to(
+        Vector2(1.0, 0.0),
+        EffectController(duration: 0.25, curve: Curves.easeIn),
+      ),
+    );
+    core.add(RemoveEffect(delay: 0.28));
+    container.add(core);
+
+    // Two offset rail lanes add the slicing "lance" feel.
+    for (final y in [-7.0, 7.0]) {
+      final rail = RectangleComponent(
+        size: Vector2(260, 2.2),
+        position: targetPosition + Vector2(-130, y),
+        anchor: Anchor.centerLeft,
+        paint: Paint()..color = elementColor.withValues(alpha: 0.58),
       );
-      shaft.add(
-        MoveEffect.to(
-          targetPosition + Vector2(cos(fanAngle) * 8, sin(fanAngle) * 8),
-          EffectController(duration: 0.28, curve: Curves.easeIn),
+      rail.add(
+        ScaleEffect.to(
+          Vector2(1.0, 0.0),
+          EffectController(duration: 0.27, curve: Curves.easeIn),
         ),
       );
-      shaft.add(RemoveEffect(delay: 0.28));
-      container.add(shaft);
-
-      // Feather barb (shorter perpendicular rect)
-      final barb = RectangleComponent(
-        size: Vector2(featherLen * 0.4, 1.5),
-        position: startPos + Vector2(cos(fanAngle) * 10, sin(fanAngle) * 10),
-        angle: fanAngle,
-        anchor: Anchor.center,
-        paint: Paint()..color = Colors.orange.shade100.withValues(alpha: 0.6),
-      );
-      barb.add(
-        MoveEffect.to(
-          targetPosition + Vector2(cos(fanAngle) * 10, sin(fanAngle) * 10),
-          EffectController(duration: 0.28, curve: Curves.easeIn),
-        ),
-      );
-      barb.add(RemoveEffect(delay: 0.28));
-      container.add(barb);
+      rail.add(RemoveEffect(delay: 0.3));
+      container.add(rail);
     }
 
-    // Wind impact burst at landing
-    final windBurst = CircleComponent(
+    // Impact focal burst at the strike point.
+    final impact = CircleComponent(
       radius: 16,
-      position: targetPosition,
+      position: targetPosition.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.orange.withValues(alpha: 0.55)
+        ..color = elementColor.withValues(alpha: 0.68)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
     );
-    windBurst.add(
+    impact.add(
       ScaleEffect.to(
-        Vector2.all(3.5),
-        EffectController(duration: 0.35, curve: Curves.easeOut),
+        Vector2.all(3.2),
+        EffectController(duration: 0.30, curve: Curves.easeOut),
       ),
     );
-    windBurst.add(RemoveEffect(delay: 0.35));
-    container.add(windBurst);
+    impact.add(RemoveEffect(delay: 0.32));
+    container.add(impact);
 
-    // Scatter sparks
-    for (int i = 0; i < 18; i++) {
-      final angle = rng.nextDouble() * 2 * pi;
-      final dist = 35.0 + rng.nextDouble() * 70;
-      final spark = CircleComponent(
-        radius: 2 + rng.nextDouble() * 2.5,
-        position: targetPosition.clone(),
+    // Piercing shards continue past the target to imply beam over-penetration.
+    for (int i = 0; i < 12; i++) {
+      final dir = -0.12 + rng.nextDouble() * 0.24;
+      final travel = 34 + rng.nextDouble() * 78;
+      final shard = RectangleComponent(
+        size: Vector2(2.2, 10 + rng.nextDouble() * 8),
+        position: targetPosition + Vector2(-8 + rng.nextDouble() * 10, 0),
+        angle: dir,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.orange.withValues(alpha: 0.75),
+        paint: Paint()..color = coreColor.withValues(alpha: 0.82),
       );
-      spark.add(
+      shard.add(
         MoveEffect.by(
-          Vector2(cos(angle) * dist, sin(angle) * dist),
-          EffectController(duration: 0.4, curve: Curves.easeOut),
+          Vector2(cos(dir) * travel, sin(dir) * travel),
+          EffectController(duration: 0.3, curve: Curves.easeOut),
         ),
       );
-      spark.add(RemoveEffect(delay: 0.4));
-      container.add(spark);
+      shard.add(RemoveEffect(delay: 0.32));
+      container.add(shard);
     }
 
     return container;
   }
 }
 
-class KinBlessingAnimation extends AttackAnimation {
+class KinSanctuaryAnimation extends AttackAnimation {
   final String element;
-  KinBlessingAnimation(this.element);
+  KinSanctuaryAnimation(this.element);
 
   @override
   Component createEffect(Vector2 targetPosition) {
@@ -2445,9 +2601,9 @@ class KinBlessingAnimation extends AttackAnimation {
   }
 }
 
-class MysticPowerAnimation extends AttackAnimation {
+class MysticOrbitalsAnimation extends AttackAnimation {
   final String element;
-  MysticPowerAnimation(this.element);
+  MysticOrbitalsAnimation(this.element);
 
   @override
   Component createEffect(Vector2 targetPosition) {

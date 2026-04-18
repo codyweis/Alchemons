@@ -5288,12 +5288,15 @@ CosmicSpecialResult _wingSpecial(
             ),
             angle: a,
             element: element,
-            damage: damage * 1.2,
-            life: 1.8,
-            speedMultiplier: 1.2,
+            damage: damage * 1.32,
+            life: 2.0,
+            speedMultiplier: 1.3,
             homing: true,
-            homingStrength: 3.5,
-            visualScale: 1.0,
+            homingStrength: 3.9,
+            visualScale: 1.08,
+            radiusMultiplier: 1.15,
+            interceptRadius: 22.0,
+            interceptCharges: 1,
           ),
         );
       }
@@ -5553,6 +5556,33 @@ CosmicSpecialResult _wingSpecial(
             radiusMultiplier: 3.0,
             visualScale: 2.5,
             piercing: true,
+          ),
+        );
+      }
+      final fissureCount = scaledCount(2, min: 2, max: 3);
+      for (var i = 0; i < fissureCount; i++) {
+        final side = i == 0 ? -1.0 : 1.0;
+        final a = baseAngle + side * 0.14;
+        projs.add(
+          Projectile(
+            position: Offset(
+              origin.dx +
+                  cos(baseAngle) * 76 +
+                  cos(baseAngle + pi / 2) * side * 20,
+              origin.dy +
+                  sin(baseAngle) * 76 +
+                  sin(baseAngle + pi / 2) * side * 20,
+            ),
+            angle: a,
+            element: element,
+            damage: damage * 1.05,
+            life: 3.2,
+            speedMultiplier: 0.52,
+            radiusMultiplier: 2.35,
+            visualScale: 2.0,
+            piercing: true,
+            snareRadius: 88.0,
+            snareMoveMultiplier: 0.62,
           ),
         );
       }
@@ -9090,6 +9120,7 @@ CosmicSpecialResult _kinSpecial(
     'Light' => (CosmicBalance.shipMaxHealth * 0.08 * healScale).round(),
     'Water' => (CosmicBalance.shipMaxHealth * 0.05 * healScale).round(),
     'Crystal' => (CosmicBalance.shipMaxHealth * 0.03 * healScale).round(),
+    'Steam' => max(1, (CosmicBalance.shipMaxHealth * 0.02 * healScale).round()),
     _ => 0,
   };
   final power = casterPower.clamp(1.0, 5.0);
@@ -9155,12 +9186,12 @@ double _kinElementHealPercent(String e) => switch (e) {
   'Blood' => 0.35,
   'Spirit' => 0.30,
   'Ice' => 0.28,
-  'Steam' => 0.28,
+  'Steam' => 0.30,
   'Earth' => 0.25,
   'Crystal' => 0.25,
   'Air' => 0.22,
   'Mud' => 0.22,
-  'Poison' => 0.18,
+  'Poison' => 0.21,
   'Fire' => 0.18,
   'Lightning' => 0.18,
   'Lava' => 0.15,
@@ -9204,10 +9235,10 @@ double _kinElementOrbDamage(String e) => switch (e) {
   'Lightning' => 1.8,
   'Water' => 1.8,
   'Ice' => 1.8,
-  'Steam' => 1.6,
+  'Steam' => 1.8,
   'Mud' => 1.6,
   'Plant' => 1.6,
-  'Poison' => 1.5,
+  'Poison' => 1.7,
   'Air' => 1.4,
   'Dust' => 1.2,
   'Light' => 1.4,
@@ -9657,7 +9688,7 @@ List<Projectile> _kinElementExtraProjectiles(
         count: _kinScaledOrbCount(power, base: 2, at3: 3, at4: 4),
         origin: origin,
         element: element,
-        damage: damage * 0.24,
+        damage: damage * 0.30,
         orbitRadius: 58.0,
         orbitSpeed: 3.8,
         spinUp: mediumSpin,
@@ -9666,14 +9697,14 @@ List<Projectile> _kinElementExtraProjectiles(
         transferSpeed: 0.8,
         decoy: true,
         decoyHp: 2.5 + power * 0.5,
-        tauntRadius: 96.0,
+        tauntRadius: 110.0,
         tauntStrength: 5.8,
         snareRadius: 124.0,
         snareMoveMultiplier: 0.18,
         radiusMultiplier: 1.5,
-        visualScale: 1.3,
+        visualScale: 1.38,
         turretInterval: 1.0,
-        turretDamage: damage * 0.14,
+        turretDamage: damage * 0.19,
         turretSpeedMultiplier: 0.68,
       );
     case 'Earth':
@@ -9796,20 +9827,20 @@ List<Projectile> _kinElementExtraProjectiles(
         count: _kinScaledOrbCount(power, base: 2, at3: 3, at4: 4),
         origin: origin,
         element: element,
-        damage: damage * 0.24,
+        damage: damage * 0.30,
         orbitRadius: 60.0,
         orbitSpeed: 3.0,
         spinUp: mediumSpin,
         activeDuration: mediumDuration + 1.2,
         transferOrbitCenter: target,
         transferSpeed: 0.82,
-        snareRadius: 100.0,
-        snareMoveMultiplier: 0.82,
+        snareRadius: 118.0,
+        snareMoveMultiplier: 0.66,
         radiusMultiplier: 1.6,
-        visualScale: 1.22,
+        visualScale: 1.3,
         turretInterval: 1.25,
-        turretDamage: damage * 0.16,
-        turretHomingStrength: 2.6,
+        turretDamage: damage * 0.22,
+        turretHomingStrength: 3.4,
         turretSpeedMultiplier: 0.78,
       );
     case 'Spirit':
@@ -9998,6 +10029,7 @@ CosmicSpecialResult _mysticSpecial(
   }
 
   Projectile scaleMysticProjectile(Projectile p, {bool isCore = false}) {
+    const mysticVisualBoost = 1.265;
     final impactScale = _specialStatScaleFromBaseline(
       casterBeauty,
       perPoint: 0.12,
@@ -10039,9 +10071,15 @@ CosmicSpecialResult _mysticSpecial(
       damage: p.damage * impactScale * (isCore ? 1.08 : 1.0),
       life: p.life * durationScale * trapPersistenceScale,
       speedMultiplier: p.speedMultiplier * controlScale,
-      radiusMultiplier: p.radiusMultiplier * visualScaleMul,
+      radiusMultiplier: p.radiusMultiplier * visualScaleMul * 1.08,
       homingStrength: p.homingStrength * controlScale,
-      visualScale: p.visualScale * visualScaleMul * (isCore ? 1.08 : 1.0),
+      visualScale:
+          (p.visualScale *
+                  visualScaleMul *
+                  1.14 *
+                  mysticVisualBoost *
+                  (isCore ? 1.08 : 1.0))
+              .clamp(0.95, 5.1),
       orbitSpeed: p.orbitSpeed * controlScale,
       orbitTime: p.orbitTime * durationScale * trapPersistenceScale,
       bounceCount: p.bounceCount > 0
@@ -10075,26 +10113,32 @@ CosmicSpecialResult _mysticSpecial(
   }
 
   final projs = <Projectile>[];
+  var selfHeal = 0;
+  var shipHeal = 0;
+  var blessingTimer = 0.0;
+  var blessingHealPerTick = 0.0;
   switch (element) {
     // ── FIRE: Supernova Collapse ──
-    // Expanding ring of orbs orbit outward, then reverse collapse inward.
-    // High burst if enemies are caught in the center during implosion.
-    // Beauty drives ring size (spectacle).
+    // Ring orbs charge up in a tight orbit at origin (visible spinning ring),
+    // then blast outward and snap back inward as a fiery shockwave.
+    // Beauty drives ring count (spectacle).
     case 'Fire':
       final ringCount = scaledCount(casterBeauty, 6, min: 4, max: 9);
       for (var i = 0; i < ringCount; i++) {
         final a = baseAngle + i * (pi * 2 / ringCount);
-        // Outer ring — expands then homes aggressively
+        // Phase 1: tight fast spin at origin (1.0s charge-up ring)
+        // Phase 2: negative orbitSpeed kicks in after orbitTime → expands out
+        // Phase 3: homing snaps them back inward hard
         projs.add(
           orb(
             angle: a,
-            orbitRadius: 18,
+            orbitRadius: 22,
             damageMultiplier: 1.8,
-            life: 5.0,
-            orbitSpeed: -5.5, // negative = expanding outward
-            orbitTime: 1.8,
-            homingStrength: 5.8, // snaps inward hard after orbit
-            speedMultiplier: 1.65,
+            life: 6.2,
+            orbitSpeed: 8.0, // fast spin forms visible ring at launch
+            orbitTime: 1.0, // holds the ring for 1s before launching
+            homingStrength: 5.8,
+            speedMultiplier: 1.7,
             radiusMultiplier: 1.8,
             visualScale: 1.4,
             trailInterval: 0.10,
@@ -10103,15 +10147,15 @@ CosmicSpecialResult _mysticSpecial(
           ),
         );
       }
-      // Core detonation orb — slow, massive, stays near origin
+      // Core detonation orb — pulses at center while ring charges, then fires
       projs.add(
         orb(
           angle: baseAngle,
           orbitRadius: 0,
           damageMultiplier: 3.5,
-          life: 6.0,
+          life: 6.5,
           orbitSpeed: 0,
-          orbitTime: 3.5, // sits at center for 3.5s
+          orbitTime: 4.0,
           homingStrength: 2.0,
           speedMultiplier: 0.3,
           radiusMultiplier: 3.2,
@@ -10165,11 +10209,11 @@ CosmicSpecialResult _mysticSpecial(
             position: Offset(origin.dx + cos(a) * 14, origin.dy + sin(a) * 14),
             angle: a,
             element: element,
-            damage: damage * 1.1,
+            damage: damage * 1.25,
             life: 3.0,
             speedMultiplier: 2.8,
             radiusMultiplier: 1.1,
-            visualScale: 0.9,
+            visualScale: 1.08,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
             homing: true,
             homingStrength: 3.2,
@@ -10263,13 +10307,13 @@ CosmicSpecialResult _mysticSpecial(
             ),
             angle: a,
             element: element,
-            damage: damage * 0.8,
+            damage: damage * 0.95,
             life: 9.0,
             stationary: true,
             radiusMultiplier: 2.8,
-            visualScale: 2.2,
+            visualScale: 2.35,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
-            snareRadius: 140.0,
+            snareRadius: 152.0,
             snareMoveMultiplier: 0.18,
           ),
         );
@@ -10283,23 +10327,26 @@ CosmicSpecialResult _mysticSpecial(
             position: fogCenter,
             angle: a,
             element: element,
-            damage: damage * 1.2,
+            damage: damage * 1.35,
             life: 9.0,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
-            visualScale: 1.0,
-            radiusMultiplier: 1.2,
+            visualScale: 1.2,
+            radiusMultiplier: 1.4,
             orbitCenter: fogCenter,
             orbitAngle: a,
             orbitRadius: 36,
             orbitSpeed: 3.5,
             holdOrbit: true,
             turretInterval: 0.65,
-            turretDamage: damage * 1.3,
+            turretDamage: damage * 1.75,
             turretHomingStrength: 4.0,
             turretSpeedMultiplier: 1.4,
           ),
         );
       }
+      shipHeal = max(1, (CosmicBalance.shipMaxHealth * 0.03).round());
+      blessingTimer = 2.8;
+      blessingHealPerTick = 0.08;
       break;
 
     // ── EARTH: Monolith Constellation ──
@@ -10342,12 +10389,12 @@ CosmicSpecialResult _mysticSpecial(
             orbitSpeed: 2.2,
             holdOrbit: true,
             decoy: true,
-            decoyHp: 22,
+            decoyHp: 26,
             deathExplosionCount: 8,
-            deathExplosionDamage: damage * 1.8,
+            deathExplosionDamage: damage * 2.0,
             deathExplosionRadius: 2.0,
-            tauntRadius: 400.0,
-            tauntStrength: 3.5,
+            tauntRadius: 440.0,
+            tauntStrength: 4.3,
           ),
         );
       }
@@ -10430,11 +10477,11 @@ CosmicSpecialResult _mysticSpecial(
             position: Offset(origin.dx + cos(a) * r, origin.dy + sin(a) * r),
             angle: a,
             element: element,
-            damage: damage * 0.6,
+            damage: damage * 0.75,
             life: 4.0,
             speedMultiplier: 2.2,
-            radiusMultiplier: 0.9,
-            visualScale: 0.7,
+            radiusMultiplier: 1.0,
+            visualScale: 0.9,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
             homing: true,
             homingStrength: 2.5,
@@ -10487,11 +10534,11 @@ CosmicSpecialResult _mysticSpecial(
             position: Offset(origin.dx + cos(a) * 38, origin.dy + sin(a) * 38),
             angle: a,
             element: element,
-            damage: damage * 1.2,
+            damage: damage * 1.45,
             life: 9.0,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
-            visualScale: 1.1,
-            radiusMultiplier: 1.5,
+            visualScale: 1.35,
+            radiusMultiplier: 1.7,
             orbitCenter: origin,
             orbitAngle: a,
             orbitRadius: 38,
@@ -10499,7 +10546,9 @@ CosmicSpecialResult _mysticSpecial(
             holdOrbit: true,
             followShipOrbit: true,
             interceptRadius: 55.0,
-            interceptCharges: 4,
+            interceptCharges: 5,
+            snareRadius: 72.0,
+            snareMoveMultiplier: 0.62,
           ),
         );
       }
@@ -10522,19 +10571,25 @@ CosmicSpecialResult _mysticSpecial(
             position: pos,
             angle: baseAngle,
             element: element,
-            damage: damage * 1.0,
+            damage: damage * 1.1,
             life: 9.0,
             stationary: true,
             radiusMultiplier: 1.8,
-            visualScale: 1.5,
+            visualScale: 1.75,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
-            turretInterval: 0.6,
-            turretDamage: damage * 1.6,
+            turretInterval: 0.56,
+            turretDamage: damage * 1.9,
             turretHomingStrength: 4.5,
             turretSpeedMultiplier: 1.3,
           ),
         );
       }
+      shipHeal = max(
+        shipHeal,
+        max(1, (CosmicBalance.shipMaxHealth * 0.035).round()),
+      );
+      blessingTimer = max(blessingTimer, 4.5);
+      blessingHealPerTick = max(blessingHealPerTick, damage * 0.10);
       break;
 
     // ── POISON: Venom Halo ──
@@ -10549,16 +10604,16 @@ CosmicSpecialResult _mysticSpecial(
           orb(
             angle: a,
             orbitRadius: 50,
-            damageMultiplier: 1.4,
+            damageMultiplier: 1.5,
             life: 5.5,
             orbitSpeed: 3.2,
             orbitTime: 99,
             homingStrength: 0,
             speedMultiplier: 0,
             radiusMultiplier: 2.2,
-            visualScale: 1.8,
+            visualScale: 1.9,
             trailInterval: 0.22,
-            trailDamageMultiplier: 0.8,
+            trailDamageMultiplier: 0.9,
             trailLife: 3.0,
             snareRadius: 110.0,
             snareMoveMultiplier: 0.35,
@@ -10676,44 +10731,64 @@ CosmicSpecialResult _mysticSpecial(
             position: Offset(origin.dx + cos(a) * 42, origin.dy + sin(a) * 42),
             angle: a,
             element: element,
-            damage: damage * 1.0,
+            damage: damage * 1.15,
             life: 10.0,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
-            visualScale: 1.2,
-            radiusMultiplier: 1.4,
+            visualScale: 1.35,
+            radiusMultiplier: 1.5,
             orbitCenter: origin,
             orbitAngle: a,
             orbitRadius: 42,
             orbitSpeed: 4.0,
             holdOrbit: true,
             followShipOrbit: true,
-            turretInterval: 0.75,
-            turretDamage: damage * 1.2,
+            turretInterval: 0.65,
+            turretDamage: damage * 1.4,
             turretHomingStrength: 4.5,
             turretSpeedMultiplier: 1.5,
-            interceptRadius: 45.0,
-            interceptCharges: 2,
+            interceptRadius: 50.0,
+            interceptCharges: 3,
           ),
         );
       }
+      shipHeal = max(
+        shipHeal,
+        max(1, (CosmicBalance.shipMaxHealth * 0.05).round()),
+      );
+      blessingTimer = max(blessingTimer, 3.8);
+      blessingHealPerTick = max(blessingHealPerTick, damage * 0.07);
       break;
 
     // ── BLOOD: Crimson Coronation ──
-    // Heavy damage orbs + massive self-heal + blessing aura. Life-steal
-    // fantasy — sacrifice nothing, gain everything.
+    // Orbs materialize AT the target and orbit it briefly before hunting —
+    // a "marking" effect. Trails leave persistent blood pools.
     // Strength drives orb count (blood force).
     case 'Blood':
       final orbCount = scaledCount(casterStrength, 3, min: 2, max: 5);
+      // Target point: 90px forward along cast direction
+      final bloodTarget = Offset(
+        origin.dx + cos(baseAngle) * 90,
+        origin.dy + sin(baseAngle) * 90,
+      );
       for (var i = 0; i < orbCount; i++) {
-        final a = baseAngle + (i - (orbCount - 1) / 2) * 0.35;
+        final a = baseAngle + i * (pi * 2 / orbCount);
         projs.add(
           Projectile(
-            position: Offset(origin.dx + cos(a) * 18, origin.dy + sin(a) * 18),
+            position: Offset(
+              bloodTarget.dx + cos(a) * 28,
+              bloodTarget.dy + sin(a) * 28,
+            ),
             angle: a,
             element: element,
             damage: damage * 2.4,
-            life: 6.5,
-            speedMultiplier: 0.85,
+            life: 7.0,
+            // Orbit the target point briefly, then launch outward to hunt
+            orbitCenter: bloodTarget,
+            orbitAngle: a,
+            orbitRadius: 28,
+            orbitSpeed: -4.8, // slow reverse spin — ominous circling
+            orbitTime: 1.4, // orbit target for 1.4s before hunting
+            speedMultiplier: 0.9,
             radiusMultiplier: 2.0,
             visualScale: 1.7,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
@@ -10722,11 +10797,18 @@ CosmicSpecialResult _mysticSpecial(
             clusterCount: 3,
             clusterDamage: damage * 0.7,
             trailInterval: 0.18,
-            trailDamage: damage * 0.7,
-            trailLife: 2.5,
+            trailDamage: damage * 0.8,
+            trailLife: 3.5, // longer blood pools
           ),
         );
       }
+      selfHeal = max(selfHeal, (damage * 5.2).round());
+      shipHeal = max(
+        shipHeal,
+        max(1, (CosmicBalance.shipMaxHealth * 0.04).round()),
+      );
+      blessingTimer = max(blessingTimer, 9.0);
+      blessingHealPerTick = max(blessingHealPerTick, 0.025);
       break;
 
     default:
@@ -10754,16 +10836,13 @@ CosmicSpecialResult _mysticSpecial(
         p.clusterCount >= 3;
     return scaleMysticProjectile(p, isCore: isCore);
   });
-  // Blood Mystic gets a life-steal heal + blessing aura
-  if (element == 'Blood') {
-    return CosmicSpecialResult(
-      projectiles: scaledProjectiles,
-      selfHeal: (damage * 5.0).round(),
-      blessingTimer: 9.0,
-      blessingHealPerTick: 0.025,
-    );
-  }
-  return CosmicSpecialResult(projectiles: scaledProjectiles);
+  return CosmicSpecialResult(
+    projectiles: scaledProjectiles,
+    selfHeal: selfHeal,
+    shipHeal: shipHeal,
+    blessingTimer: blessingTimer,
+    blessingHealPerTick: blessingHealPerTick,
+  );
 }
 
 // ─────────────────────────────────────────────────────────

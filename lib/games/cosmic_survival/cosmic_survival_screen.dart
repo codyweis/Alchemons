@@ -354,7 +354,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   SurvivalHighScoreData? _highScore;
   bool _showPauseMenu = false;
   bool _showJoystick = true;
-  bool _largeJoystick = false;
+  bool _largeJoystick = true;
 
   // Power-up selection state
   List<OfferedPowerUpChoice> _powerUpChoices = [];
@@ -370,8 +370,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       <_WaveAnnouncementData>[];
 
   // Game over reward info
-  String _lootRewardLabel = '';
-  String _currencyRewardLabel = '';
+  List<LootOpeningEntry> _gameOverRewardEntries = [];
   int _finalWave = 0;
   int _finalKills = 0;
   int _finalScore = 0;
@@ -1005,11 +1004,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       upgradeState: upgradeSvc.state,
     );
 
+    _bossAnnouncementTimer?.cancel();
+    _waveAnnouncementTimer?.cancel();
     setState(() {
       _game = game;
       _phase = _Phase.playing;
-      _lootRewardLabel = '';
-      _currencyRewardLabel = '';
+      _gameOverRewardEntries = [];
+      _powerUpChoices = [];
+      _bossAnnouncement = null;
+      _waveAnnouncementTitle = null;
+      _waveAnnouncementSubtitle = null;
+      _pendingWaveAnnouncements.clear();
       _finalWave = 0;
       _finalKills = 0;
       _finalScore = 0;
@@ -1179,13 +1184,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           );
         }),
       );
-      _lootRewardLabel = openedRewards
-          .map((entry) {
-            final def = registry[entry.key];
-            return '${def?.name ?? entry.key} x${entry.value}';
-          })
-          .join(', ');
-
       final powerupRewards = rollCosmicSurvivalPowerupRewards(wave, rng);
       if (powerupRewards.isNotEmpty) {
         for (final reward in powerupRewards) {
@@ -1202,15 +1200,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             );
           }),
         );
-        final powerupLabel = powerupRewards
-            .map((entry) {
-              final type = alchemicalPowerupTypeFromInventoryKey(entry.key);
-              return '${type?.name ?? entry.key} x${entry.value}';
-            })
-            .join(', ');
-        _lootRewardLabel = _lootRewardLabel.isEmpty
-            ? powerupLabel
-            : '$_lootRewardLabel, $powerupLabel';
       }
 
       final currencyRewards = LootBoxConfig.rollSurvivalBonusCurrency(
@@ -1241,10 +1230,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           ),
         );
       }
-      _currencyRewardLabel =
-          '+$silver silver${gold > 0 ? ', +$gold gold' : ''}';
     } else {
-      _lootRewardLabel = 'No loot cache recovered';
       final pitySilver = 50 + rng.nextInt(51);
       await db.currencyDao.addSilver(pitySilver);
       popupEntries.add(
@@ -1255,10 +1241,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           color: const Color(0xFFB0BEC5),
         ),
       );
-      _currencyRewardLabel = '+$pitySilver silver';
     }
 
     if (!mounted) return;
+    _gameOverRewardEntries = List.from(popupEntries);
     if (popupEntries.isNotEmpty) {
       await showLootOpeningDialog(context: context, entries: popupEntries);
     }
@@ -1293,12 +1279,33 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     _game = null;
     _mysticOverlayController.clear();
     _hudTimer?.cancel();
+    _bossAnnouncementTimer?.cancel();
+    _waveAnnouncementTimer?.cancel();
     _showPauseMenu = false;
     if (_party != null) {
       _startGame(_party!);
     } else {
-      setState(() => _phase = _Phase.teamPicker);
+      _newTeam();
     }
+  }
+
+  void _newTeam() {
+    _game = null;
+    _party = null;
+    _mysticOverlayController.clear();
+    _hudTimer?.cancel();
+    _bossAnnouncementTimer?.cancel();
+    _waveAnnouncementTimer?.cancel();
+    setState(() {
+      _phase = _Phase.teamPicker;
+      _powerUpChoices = [];
+      _showPauseMenu = false;
+      _bossAnnouncement = null;
+      _waveAnnouncementTitle = null;
+      _waveAnnouncementSubtitle = null;
+      _pendingWaveAnnouncements.clear();
+      _resolvingGameOver = false;
+    });
   }
 
   void _exit() {
@@ -1312,6 +1319,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     setState(() {
       _showPauseMenu = !_showPauseMenu;
       game.gamePaused = _showPauseMenu;
+    });
+  }
+
+  void _cycleZoomLevel() {
+    final game = _game;
+    if (game == null || _showPauseMenu || _powerUpChoices.isNotEmpty) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      game.cycleZoomLevel();
     });
   }
 
@@ -2465,19 +2481,19 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF0E1117).withValues(alpha: 0.88),
+              color: const Color(0xFF0E1117).withValues(alpha: 0.42),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _C.teal.withValues(alpha: 0.45)),
+              border: Border.all(color: _C.teal.withValues(alpha: 0.28)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'SHIP DESTROYED',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: _C.teal,
+                    color: _C.teal.withValues(alpha: 0.55),
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 2,
@@ -2489,9 +2505,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     child: Text(
                       'RESPAWN IN ${game.shipRespawnRemaining.ceil()}s',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
-                        color: _C.textPrimary,
+                        color: _C.textPrimary.withValues(alpha: 0.58),
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.6,
@@ -2509,6 +2525,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   // ── HUD ────────────────────────────────────────────────
 
   Widget _buildHud(CosmicSurvivalGame game) {
+    final zoomIcon = switch (game.currentZoomLevel) {
+      0 => Icons.zoom_out_map_rounded,
+      2 => Icons.zoom_in_map_rounded,
+      _ => Icons.center_focus_strong_rounded,
+    };
     return Positioned(
       top: 0,
       left: 0,
@@ -2531,6 +2552,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     : Icons.pause_rounded,
                 color: _C.accent,
                 onTap: _togglePauseMenu,
+              ),
+              const SizedBox(width: 8),
+              _HudIconButton(
+                icon: zoomIcon,
+                color: _C.teal,
+                onTap: _cycleZoomLevel,
               ),
               const SizedBox(width: 8),
               // Ship HP
@@ -2921,65 +2948,76 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                         ),
                       ),
                     ),
-                    child: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
+                    child: Row(
                       children: [
-                        const Text(
-                          'DISABLE ANALOG',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: _C.textSecondary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
+                        Expanded(
+                          child: Row(
+                            children: [
+                              const Text(
+                                'JOYSTICK',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: _C.textSecondary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const Spacer(),
+                              SizedBox(
+                                height: 24,
+                                child: Switch.adaptive(
+                                  value: _showJoystick,
+                                  activeThumbColor: _C.accent,
+                                  onChanged: (v) async {
+                                    setState(() {
+                                      _showJoystick = v;
+                                      if (!v) game.setJoystickInput(Offset.zero);
+                                    });
+                                    final prefs =
+                                        await SharedPreferences.getInstance();
+                                    await prefs.setBool(
+                                      'cosmic_survival_joystick_enabled',
+                                      v,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        SizedBox(
-                          height: 24,
-                          child: Switch.adaptive(
-                            value: !_showJoystick,
-                            activeThumbColor: _C.accent,
-                            onChanged: (v) async {
-                              final enabled = !v;
-                              setState(() {
-                                _showJoystick = enabled;
-                                game.setJoystickInput(Offset.zero);
-                              });
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              await prefs.setBool(
-                                'cosmic_survival_joystick_enabled',
-                                enabled,
-                              );
-                            },
-                          ),
-                        ),
-                        const Text(
-                          'LARGE STICK',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: _C.textSecondary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        SizedBox(
-                          height: 24,
-                          child: Switch.adaptive(
-                            value: _largeJoystick,
-                            activeThumbColor: _C.accent,
-                            onChanged: (v) async {
-                              setState(() => _largeJoystick = v);
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              await prefs.setBool(
-                                'cosmic_survival_large_joystick',
-                                v,
-                              );
-                            },
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              const Text(
+                                'LARGE',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: _C.textSecondary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const Spacer(),
+                              SizedBox(
+                                height: 24,
+                                child: Switch.adaptive(
+                                  value: _largeJoystick,
+                                  activeThumbColor: _C.accent,
+                                  onChanged: (v) async {
+                                    setState(() => _largeJoystick = v);
+                                    final prefs =
+                                        await SharedPreferences.getInstance();
+                                    await prefs.setBool(
+                                      'cosmic_survival_large_joystick',
+                                      v,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -3277,40 +3315,352 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   // ── Game Over Phase ────────────────────────────────────
 
   Widget _buildGameOver() {
-    return LandscapeDialog(
-      title: 'ORB DESTROYED',
-      message: _buildGameOverStatsMessage(),
-      kind: LandscapeDialogKind.danger,
-      icon: Icons.bubble_chart,
-      primaryLabel: 'DEPLOY AGAIN',
-      onPrimary: _replay,
-      secondaryLabel: 'NEW TEAM',
-      onSecondary: () {
-        _game = null;
-        _party = null;
-        _mysticOverlayController.clear();
-        setState(() => _phase = _Phase.teamPicker);
-      },
+    const frame = Color(0xFFFF9BA3);
+    const amber = Color(0xFFFFAA00);
+
+    Widget statChip(String label, String value) => Expanded(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.10),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 9,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    void showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
+      showDialog<void>(
+        context: ctx,
+        builder: (dialogCtx) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            constraints: const BoxConstraints(maxWidth: 320),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0E1117),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: entry.color.withValues(alpha: 0.5),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: entry.color.withValues(alpha: 0.18),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: entry.color.withValues(alpha: 0.12),
+                    border: Border.all(
+                      color: entry.color.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Icon(entry.icon, color: entry.color, size: 30),
+                ),
+                const SizedBox(height: 16),
+                if (entry.name != null)
+                  Text(
+                    entry.name!.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Text(
+                  entry.label,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: entry.color,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () => Navigator.pop(dialogCtx),
+                  child: Container(
+                    width: double.infinity,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: entry.color.withValues(alpha: 0.5),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'CLOSE',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: entry.color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black.withValues(alpha: 0.96),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Title
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.bubble_chart, color: frame, size: 26),
+                      const SizedBox(width: 12),
+                      Text(
+                        'ORB DESTROYED',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: frame,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w300,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    height: 1,
+                    color: frame.withValues(alpha: 0.3),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Stat chips
+                  Row(
+                    children: [
+                      statChip('WAVE', '$_finalWave'),
+                      statChip('KILLS', '$_finalKills'),
+                      statChip('SCORE', '$_finalScore'),
+                      statChip('TIME', _finalTime),
+                    ],
+                  ),
+
+                  if (_gameOverRewardEntries.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Container(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'REWARDS  —  TAP FOR DETAILS',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: amber.withValues(alpha: 0.55),
+                        fontSize: 9,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...(_gameOverRewardEntries.map(
+                      (entry) => Builder(
+                        builder: (ctx) => GestureDetector(
+                          onTap: () => showRewardDetail(ctx, entry),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: entry.color.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(
+                                color: entry.color.withValues(alpha: 0.22),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: entry.color.withValues(alpha: 0.12),
+                                    border: Border.all(
+                                      color: entry.color.withValues(alpha: 0.35),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    entry.icon,
+                                    color: entry.color,
+                                    size: 18,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Text(
+                                    entry.name?.toUpperCase() ?? '',
+                                    style: TextStyle(
+                                      fontFamily: 'monospace',
+                                      color: Colors.white.withValues(
+                                        alpha: 0.85,
+                                      ),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  entry.label,
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: entry.color,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: entry.color.withValues(alpha: 0.45),
+                                  size: 16,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    )),
+                  ],
+
+                  const SizedBox(height: 20),
+
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _newTeam,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              width: 1.2,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                          child: const Text(
+                            'NEW TEAM',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _replay,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: BorderSide(color: frame, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                          child: const Text(
+                            'DEPLOY AGAIN',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
-  String _buildGameOverStatsMessage() {
-    final stats = <String>[];
-    stats.add('WAVE: $_finalWave');
-    stats.add('KILLS: $_finalKills');
-    stats.add('SCORE: $_finalScore');
-    stats.add('TIME: $_finalTime');
-    if (_lootRewardLabel.isNotEmpty) {
-      stats.add('LOOT: $_lootRewardLabel');
-    }
-    if (_currencyRewardLabel.isNotEmpty) {
-      stats.add('BONUS: $_currencyRewardLabel');
-    }
-    return stats.join('\n');
-    // ─────────────────────────────────────────────────────────────────────────────
-    // HUD WIDGETS
-    // ─────────────────────────────────────────────────────────────────────────────
-  }
+  // ─────────────────────────────────────────────────────────────────────────────
+  // HUD WIDGETS
+  // ─────────────────────────────────────────────────────────────────────────────
 }
 
 class _ScanlinePainter extends CustomPainter {

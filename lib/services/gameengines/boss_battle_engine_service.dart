@@ -362,7 +362,7 @@ class BattleMove {
       survivalArchetype: 'Meteor',
       battleSpecialName: 'Meteor Strike',
       summary:
-          'Heavy elemental burst that scorches a single target with lingering damage.',
+          'Heavy elemental meteor burst with a deterministic rider payload (debuff, DoT, defense, or sustain by element).',
     ),
     'Pip': FamilyMoveStyle(
       family: 'Pip',
@@ -373,7 +373,7 @@ class BattleMove {
     ),
     'Mane': FamilyMoveStyle(
       family: 'Mane',
-      survivalArchetype: 'Entangle',
+      survivalArchetype: 'Barrage Volley',
       battleSpecialName: 'Entangle',
       summary:
           'Ensnares the enemy, weakening them while nourishing allies with regen.',
@@ -410,7 +410,7 @@ class BattleMove {
       survivalArchetype: 'Arcane Orbitals',
       battleSpecialName: 'Arcane Orbitals',
       summary:
-          'Summons arcane projectiles that strike repeatedly with unpredictable elemental effects.',
+          'Summons arcane projectiles that strike repeatedly, then trigger a deterministic element payload.',
     ),
   };
 
