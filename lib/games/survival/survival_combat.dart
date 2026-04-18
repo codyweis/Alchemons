@@ -113,6 +113,11 @@ class SurvivalUnit {
         break;
 
       case 'mystic':
+        // Rare guardian: high durability and special power, slightly slower.
+        statStrength += 1.1;
+        statBeauty += 1.0;
+        statIntelligence += 0.6;
+        statSpeed -= 0.1;
         break;
 
       case 'mask':

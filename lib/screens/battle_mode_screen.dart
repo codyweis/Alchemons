@@ -1,7 +1,7 @@
 // lib/screens/game_mode_screen.dart
 //
 // GAME MODE SELECTION SCREEN
-// Clean, minimal design for choosing between Survival and Boss Gauntlet
+// Clean, minimal design for choosing between Cosmic Survival and Boss Gauntlet
 //
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -32,8 +32,7 @@ class _GameModeScreenState extends State<GameModeScreen> {
 
   Future<void> _checkSurvivalUnlocked() async {
     final db = context.read<AlchemonsDatabase>();
-    final unlocked =
-        await db.settingsDao.isCosmicSurvivalPortalDiscovered();
+    final unlocked = await db.settingsDao.isCosmicSurvivalPortalDiscovered();
     if (mounted) {
       setState(() {
         _survivalUnlocked = unlocked;
@@ -117,15 +116,15 @@ class _GameModeScreenState extends State<GameModeScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Survival Card — locked until cosmic portal discovered
+                      // Cosmic Survival card — locked until cosmic portal discovered
                       Expanded(
                         child: _survivalUnlocked
                             ? _ModeCard(
                                 theme: theme,
-                                title: 'Survival',
+                                title: 'Cosmic Survival',
                                 tagline: 'Endless Waves',
                                 description:
-                                    'Defend your orb against endless hordes. Deploy strategically and unlock powerful upgrades as you progress.',
+                                    'Defend your orb through the cosmic portal. Deploy strategically and unlock powerful upgrades as you progress.',
                                 accentColor: const Color(0xFF8B5CF6),
                                 onTap: () {
                                   HapticFeedback.mediumImpact();

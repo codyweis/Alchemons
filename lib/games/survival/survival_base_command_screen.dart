@@ -1,8 +1,9 @@
 // lib/games/survival/survival_base_command_screen.dart
 //
-// Base Command — persistent survival upgrade screen.
+// Base Command — persistent cosmic survival upgrade screen.
 // Three sections: Orb Skins, Guardian Power-ups, Base Abilities.
-// Follows the scorched-metal forge aesthetic of the survival mode UI.
+// The legacy standalone survival runtime has been removed; this shared upgrade
+// panel remains for cosmic survival progression.
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
@@ -12,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS (identical to survival_game_screen)
+// DESIGN TOKENS
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _C {
@@ -248,8 +249,14 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
           letterSpacing: 1.4,
         ),
         tabs: [
-          const Tab(icon: Icon(Icons.blur_circular_rounded, size: 16), text: 'ORB'),
-          const Tab(icon: Icon(Icons.person_rounded, size: 16), text: 'GUARDIANS'),
+          const Tab(
+            icon: Icon(Icons.blur_circular_rounded, size: 16),
+            text: 'ORB',
+          ),
+          const Tab(
+            icon: Icon(Icons.person_rounded, size: 16),
+            text: 'GUARDIANS',
+          ),
           if (!widget.hideAbilities)
             const Tab(
               icon: Icon(Icons.auto_awesome_rounded, size: 16),
@@ -1008,7 +1015,8 @@ class _OrbSkinCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(def.description, style: _T.body),
-                  if (def.ability.isNotEmpty && def.ability != 'No special ability.') ...[
+                  if (def.ability.isNotEmpty &&
+                      def.ability != 'No special ability.') ...[
                     const SizedBox(height: 4),
                     Text(
                       def.ability,
@@ -1356,7 +1364,9 @@ class _AbilityCard extends StatelessWidget {
                 )
               else
                 _ForgeButton(
-                  label: isUnlocked ? _fmtNum(nextCost!) : 'UNLOCK ${_fmtNum(nextCost!)}',
+                  label: isUnlocked
+                      ? _fmtNum(nextCost!)
+                      : 'UNLOCK ${_fmtNum(nextCost!)}',
                   icon: isUnlocked
                       ? Icons.paid_rounded
                       : Icons.lock_open_rounded,

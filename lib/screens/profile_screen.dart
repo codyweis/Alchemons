@@ -1,7 +1,7 @@
 // lib/screens/profile_screen.dart
 //
 // REDESIGNED PROFILE / SETTINGS SCREEN
-// Aesthetic: Scorched Forge — matches boss_intro_screen / survival_game_screen
+// Aesthetic: Scorched Forge — matches boss and battle-mode forge surfaces
 // Dark metal panels, amber reagent accents, monospace tactical typography.
 
 import 'package:alchemons/database/alchemons_db.dart';

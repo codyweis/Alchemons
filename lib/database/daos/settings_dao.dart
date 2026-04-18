@@ -281,13 +281,39 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
 
   // =================== COSMIC SURVIVAL PORTAL ===================
 
+  bool _isTruthySetting(String? value) {
+    if (value == null) return false;
+    final normalized = value.trim().toLowerCase();
+    return normalized == '1' || normalized == 'true' || normalized == 'yes';
+  }
+
+  int _intSetting(String? value) => int.tryParse(value?.trim() ?? '') ?? 0;
+
   Future<bool> isCosmicSurvivalPortalDiscovered() async {
     final v = await getSetting('cosmic_survival_portal_discovered');
-    return v == '1';
+    if (_isTruthySetting(v)) return true;
+
+    final bestWave = _intSetting(await getSetting('cosmic_survival_best_wave'));
+    final highScore = _intSetting(
+      await getSetting('cosmic_survival_high_score'),
+    );
+    if (bestWave > 0 || highScore > 0) return true;
+
+    final legacyHighScore = await db.getSurvivalHighScore();
+    return (legacyHighScore?.bestWave ?? 0) > 0 ||
+        (legacyHighScore?.bestScore ?? 0) > 0;
   }
 
   Future<void> setCosmicSurvivalPortalDiscovered() async {
     await setSetting('cosmic_survival_portal_discovered', '1');
+  }
+
+  Future<void> reconcileCosmicSurvivalPortalDiscovery() async {
+    final raw = await getSetting('cosmic_survival_portal_discovered');
+    if (_isTruthySetting(raw)) return;
+    if (await isCosmicSurvivalPortalDiscovered()) {
+      await setCosmicSurvivalPortalDiscovered();
+    }
   }
 
   Future<bool> hasSeenCosmicSurvivalIntro() async {

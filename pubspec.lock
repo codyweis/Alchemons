@@ -432,6 +432,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.2"
+  graphx:
+    dependency: "direct main"
+    description:
+      name: graphx
+      sha256: f1cb23fb1bca163c626453dcfe8f19f53e4d97536da8bfd09df01bc3ab0d82bd
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.14"
   http:
     dependency: transitive
     description:

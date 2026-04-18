@@ -9,6 +9,7 @@ import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic_survival/components/mystic_graphx_overlay.dart';
 import 'package:alchemons/games/cosmic_survival/components/powerup_selection_overlay.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
@@ -344,6 +345,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   List<CosmicPartyMember>? _party;
   Timer? _hudTimer;
   final ValueNotifier<int> _liveUiTick = ValueNotifier<int>(0);
+  final MysticGraphxOverlayController _mysticOverlayController =
+      MysticGraphxOverlayController();
   late final PageController _familyPageController;
   double _familyPage = 0;
   final Set<String> _expandedFamilyCards = <String>{};
@@ -675,6 +678,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     _hudTimer?.cancel();
     _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
+    _mysticOverlayController.dispose();
     _liveUiTick.dispose();
     _familyPageController.dispose();
     super.dispose();
@@ -990,12 +994,14 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   void _startGame(List<CosmicPartyMember> party) {
     final upgradeSvc = context.read<SurvivalUpgradeService>();
+    _mysticOverlayController.clear();
 
     final game = CosmicSurvivalGame(
       party: party,
       onGameOver: _handleGameOver,
       onWaveIntermission: _handleWaveIntermission,
       onBossSpawn: _handleBossSpawn,
+      onMysticSpecialCast: _mysticOverlayController.spawn,
       upgradeState: upgradeSvc.state,
     );
 
@@ -1285,6 +1291,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   void _replay() {
     _game = null;
+    _mysticOverlayController.clear();
     _hudTimer?.cancel();
     _showPauseMenu = false;
     if (_party != null) {
@@ -2177,6 +2184,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           backgroundBuilder: (_) => Container(color: Colors.transparent),
         ),
 
+        Positioned.fill(
+          child: MysticGraphxOverlay(controller: _mysticOverlayController),
+        ),
+
         _buildLivePlayOverlay(game),
 
         // Joystick (bottom left)
@@ -2989,55 +3000,84 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final party = _party;
     if (party == null || party.isEmpty) return const SizedBox.shrink();
 
+    final tethered = game.companionTethered;
     return Positioned(
       right: 12,
       top: 100,
       child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Tether toggle
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                if (game.companionTethered) {
-                  game.clearCompanionTether();
-                } else {
-                  game.tetherClosestCompanionToShip();
-                }
-                setState(() {});
-              },
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: game.companionTethered
-                      ? _C.accent.withValues(alpha: 0.22)
-                      : _C.panelBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: game.companionTethered
-                        ? _C.accent
-                        : _C.textSecondary.withValues(alpha: 0.3),
-                    width: 1.5,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xCC0A0E17),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.06),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Tether / Follow toggle
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  if (tethered) {
+                    game.clearCompanionTether();
+                  } else {
+                    game.tetherClosestCompanionToShip();
+                  }
+                  setState(() {});
+                },
+                child: Container(
+                  width: 44,
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  decoration: BoxDecoration(
+                    color: tethered
+                        ? _C.teal.withValues(alpha: 0.20)
+                        : Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: tethered
+                          ? _C.teal
+                          : _C.textSecondary.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        tethered
+                            ? Icons.link_rounded
+                            : Icons.link_off_rounded,
+                        color: tethered ? _C.teal : _C.textSecondary,
+                        size: 18,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        tethered ? 'FOLLOW' : 'FREE',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 7,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: tethered
+                              ? _C.teal
+                              : _C.textSecondary.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Icon(
-                  game.companionTethered
-                      ? Icons.gps_fixed_rounded
-                      : Icons.link_off,
-                  color: game.companionTethered ? _C.accent : _C.textSecondary,
-                  size: 20,
-                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            // 5 companion slots
-            for (var i = 0; i < party.length; i++) ...[
-              _buildCompanionSlot(game, party[i], i),
-              if (i < party.length - 1) const SizedBox(height: 6),
+              const SizedBox(height: 6),
+              // 5 companion slots
+              for (var i = 0; i < party.length; i++) ...[
+                _buildCompanionSlot(game, party[i], i),
+                if (i < party.length - 1) const SizedBox(height: 6),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -3211,7 +3251,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     ),
                   ),
                   child: const Icon(
-                    Icons.gps_fixed_rounded,
+                    Icons.link_rounded,
                     size: 8,
                     color: Colors.white,
                   ),
@@ -3248,6 +3288,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       onSecondary: () {
         _game = null;
         _party = null;
+        _mysticOverlayController.clear();
         setState(() => _phase = _Phase.teamPicker);
       },
     );

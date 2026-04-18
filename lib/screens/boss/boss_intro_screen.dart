@@ -1,7 +1,7 @@
 // lib/screens/boss_battle_screen.dart
 //
 // REDESIGNED BOSS BATTLE SCREEN
-// Aesthetic: Scorched Forge — matches survival_game_screen redesign
+// Aesthetic: Scorched Forge — matches the battle-mode forge surfaces
 // Dark metal, amber/gold reagent accents, monospace tactical typography
 //
 // NOTE (IMPORTANT):
@@ -43,7 +43,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'dart:math';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS  (shared aesthetic with survival_game_screen)
+// DESIGN TOKENS
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _C {

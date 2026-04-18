@@ -62,6 +62,8 @@ class CosmicSurvivalCompanion {
   double doubleCastTimer;
   Offset? doubleCastTargetPos;
   double doubleCastAngle;
+  // Sticky target — reduces frame-to-frame target switching jitter
+  CosmicSurvivalEnemy? stickyTarget;
 
   static const double baseSpecialCooldown = 12.5;
   static const double baseBasicCooldown = 1.5;
@@ -125,16 +127,23 @@ class CosmicSurvivalCompanion {
 
   double get effectiveSpecialCooldown {
     final base = baseSpecialCooldown / cooldownReduction;
-    final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0);
+    // For mystic: cap the stat-scaling factor so high elemAtk can't collapse
+    // the cooldown. Other families keep the full 0.5–6.0 range.
+    final isMystic = member.family.toLowerCase() == 'mystic';
+    final factorCap = isMystic ? 2.2 : 6.0;
+    final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, factorCap);
     final familyMultiplier = switch (member.family.toLowerCase()) {
       'let' => 1.18,
       'pip' => 0.92,
       'mane' => 0.88,
       'mask' => 1.05,
-      'mystic' => 1.90,
+      'mystic' => 2.6,
       _ => 1.0,
     };
-    return (base / factor) * familyMultiplier;
+    final cd = (base / factor) * familyMultiplier;
+    // Mystic specials: hard floor so cooldown-reduction stacking can't drop
+    // below this regardless of upgrades or power-ups applied elsewhere.
+    return isMystic ? cd.clamp(18.0, double.infinity) : cd;
   }
 
   void primeSpecialCooldown({
@@ -325,6 +334,20 @@ class _BeamFx {
   }
 }
 
+class MysticSpecialCastEvent {
+  final Offset originScreen;
+  final Offset? targetScreen;
+  final String element;
+  final bool isEcho;
+
+  const MysticSpecialCastEvent({
+    required this.originScreen,
+    this.targetScreen,
+    required this.element,
+    this.isEcho = false,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // MAIN GAME
 // ---------------------------------------------------------------------------
@@ -337,11 +360,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // Former collectible rewards used a 1.20 pickup value; direct grants are 20% lower.
   static const double _alchemyMeterGainMultiplier = 0.96;
   static const double _arenaShipPadding = 32.0;
+  static const double _orbCoreRadius = 72.0;
+  static const double _orbGlowRadius = 112.0;
+  static const double _orbInnerRuneRadius = 96.0;
+  static const double _orbOuterRuneRadius = 124.0;
+  static const double _orbShieldRadius = 136.0;
+  static const double _orbHpRingRadius = 112.0;
+  static const double _orbAlchemyRingRadius = 160.0;
+  static const double _orbGravityRadius = 720.0;
+  static const double _orbShipOrbitRadius = 270.0;
 
   final List<CosmicPartyMember> party;
   final VoidCallback onGameOver;
   final VoidCallback? onWaveIntermission;
   final void Function(SurvivalBoss boss)? onBossSpawn;
+  final void Function(MysticSpecialCastEvent event)? onMysticSpecialCast;
   final SurvivalUpgradeState upgradeState;
   String? shipSkin;
 
@@ -478,9 +511,32 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required this.onGameOver,
     this.onWaveIntermission,
     this.onBossSpawn,
+    this.onMysticSpecialCast,
     this.shipSkin,
     SurvivalUpgradeState? upgradeState,
   }) : upgradeState = upgradeState ?? SurvivalUpgradeState();
+
+  Offset worldToScreen(Offset world) => Offset(
+    (world.dx - camX) * _currentZoom,
+    (world.dy - camY) * _currentZoom,
+  );
+
+  void _emitMysticSpecialCast({
+    required CosmicSurvivalCompanion companion,
+    required Offset origin,
+    required Offset? target,
+    bool isEcho = false,
+  }) {
+    if (companion.member.family.toLowerCase() != 'mystic') return;
+    onMysticSpecialCast?.call(
+      MysticSpecialCastEvent(
+        originScreen: worldToScreen(origin),
+        targetScreen: target != null ? worldToScreen(target) : null,
+        element: companion.member.element,
+        isEcho: isEcho,
+      ),
+    );
+  }
 
   @override
   Color backgroundColor() => const Color(0xFF020010);
@@ -562,7 +618,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
 
     ship = CosmicSurvivalShip(
-      position: const Offset(-80, 0),
+      position: const Offset(-270, 0),
       speed: 180 * _survivalShipSpeedMultiplier,
     );
 
@@ -706,11 +762,31 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _updateShip(double dt) {
+    if (ship.isDead) {
+      ship.fireTimer = 0;
+      ship.hitFlash = 0;
+      _shipRespawnTimer += dt;
+      if (_shipRespawnTimer >= _shipRespawnDelay) {
+        ship.isDead = false;
+        ship.currentHp = ship.maxHp * 0.5;
+        ship.position = _clampToArena(
+          orb.position + const Offset(-_orbShipOrbitRadius, 0),
+          padding: _arenaShipPadding,
+        );
+        _dragTarget = ship.position;
+        _shipRespawnTimer = 0;
+      }
+      return;
+    }
+
+    var shipIsIdle = false;
+
     if (_joystickInput.distance > 0.1) {
       ship.angle = atan2(_joystickInput.dy, _joystickInput.dx);
+      final inputScale = _joystickInput.distance.clamp(0.0, 1.0);
       ship.position = Offset(
-        ship.position.dx + cos(ship.angle) * ship.speed * dt,
-        ship.position.dy + sin(ship.angle) * ship.speed * dt,
+        ship.position.dx + cos(ship.angle) * ship.speed * inputScale * dt,
+        ship.position.dy + sin(ship.angle) * ship.speed * inputScale * dt,
       );
       _dragTarget = null;
     } else if (_dragTarget != null) {
@@ -725,23 +801,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ship.position.dy + ny * move,
         );
         ship.angle = atan2(ny, nx);
+      } else {
+        shipIsIdle = true;
       }
+    } else {
+      shipIsIdle = true;
     }
 
+    _applyOrbGravityToShip(dt, shipIsIdle: shipIsIdle);
     ship.position = _clampToArena(ship.position, padding: _arenaShipPadding);
-
-    if (ship.isDead) {
-      ship.fireTimer = 0;
-      ship.hitFlash = 0;
-      // Ship respawn timer
-      _shipRespawnTimer += dt;
-      if (_shipRespawnTimer >= _shipRespawnDelay) {
-        ship.isDead = false;
-        ship.currentHp = ship.maxHp * 0.5;
-        _shipRespawnTimer = 0;
-      }
-      return;
-    }
 
     // Auto-fire at nearest enemy or boss
     ship.fireTimer += dt;
@@ -764,6 +832,37 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     ship.hitFlash = (ship.hitFlash - dt * 4).clamp(0, 1);
+  }
+
+  void _applyOrbGravityToShip(double dt, {required bool shipIsIdle}) {
+    final toOrb = orb.position - ship.position;
+    final dist = toOrb.distance;
+    if (dist <= 0.001) return;
+
+    final dir = Offset(toOrb.dx / dist, toOrb.dy / dist);
+    final gravityFalloff = (1 - (dist / _orbGravityRadius)).clamp(0.0, 1.0);
+    if (gravityFalloff > 0) {
+      final pull = 18.0 * gravityFalloff * gravityFalloff;
+      ship.position += dir * pull * dt;
+    }
+
+    final minOrbitDistance = _orbAlchemyRingRadius + 56.0;
+    if (dist < minOrbitDistance) {
+      ship.position = orb.position - dir * minOrbitDistance;
+      _dragTarget = ship.position;
+      return;
+    }
+
+    if (!shipIsIdle || dist > _orbGravityRadius) return;
+
+    final radialError = dist - _orbShipOrbitRadius;
+    final radialSpeed = radialError.clamp(-90.0, 90.0) * 0.82;
+    final tangent = Offset(-dir.dy, dir.dx);
+    final orbitSpeed = 52.0 + 8.0 * sin(stats.timeElapsed * 0.7);
+
+    ship.position += (dir * radialSpeed + tangent * orbitSpeed) * dt;
+    ship.angle = atan2(tangent.dy, tangent.dx);
+    _dragTarget = ship.position;
   }
 
   void _fireShipAt(Offset targetPos) {
@@ -874,6 +973,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     for (final entry in activeCompanions.entries) {
       final targetChoice = _pickCompanionTargetChoice(entry.value);
+      entry.value.stickyTarget = targetChoice?.enemy;
       _updateSingleCompanion(dt, entry.key, entry.value, targetChoice);
     }
   }
@@ -977,7 +1077,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             Offset.lerp(
               comp.anchor,
               moveTarget,
-              (0.10 + dt * 0.25).clamp(0.10, 0.28),
+              (0.06 + dt * 0.12).clamp(0.06, 0.14),
             ) ??
             moveTarget;
         final steeringTarget = comp.anchor;
@@ -998,6 +1098,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
       }
     }
+
+    // Clamp companion within arena bounds
+    comp.position = _clampToArena(comp.position, padding: 25);
+    comp.anchor = _clampToArena(comp.anchor, padding: 25);
 
     // Find nearest enemy or boss for attacks
     final attackTarget = targetChoice?.position;
@@ -1039,14 +1143,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
         companionProjectiles.addAll(result2.projectiles);
         _applyCompanionSpecialSupportEffects(comp, result2);
-        _spawnHitSpark(comp.position, elementColor(comp.member.element));
+        _emitMysticSpecialCast(
+          companion: comp,
+          origin: comp.position,
+          target: comp.doubleCastTargetPos,
+          isEcho: true,
+        );
+        if (comp.member.family.toLowerCase() != 'mystic') {
+          _spawnHitSpark(comp.position, elementColor(comp.member.element));
+        }
         comp.doubleCastTargetPos = null;
       }
     }
 
     if (attackTarget != null) {
       final toTarget = attackTarget - comp.position;
-      _setCompanionAngle(comp, atan2(toTarget.dy, toTarget.dx), 0.28);
+      _setCompanionAngle(comp, atan2(toTarget.dy, toTarget.dx), 0.12);
 
       // Basic attack - family-specific projectiles (same as cosmic game)
       if (comp.basicCooldown <= 0 && distToTarget <= comp.attackRange) {
@@ -1153,7 +1265,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           comp.doubleCastAngle = comp.angle;
         }
 
-        _spawnHitSpark(comp.position, elementColor(comp.member.element));
+        _emitMysticSpecialCast(
+          companion: comp,
+          origin: comp.position,
+          target: attackTarget,
+        );
+        if (comp.member.family.toLowerCase() != 'mystic') {
+          _spawnHitSpark(comp.position, elementColor(comp.member.element));
+        }
       }
     } else if (!comp.tethered) {
       final drift = comp.anchor - comp.position;
@@ -1240,6 +1359,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           if (enemy.role == CosmicEnemyRole.shooter) score += 70;
           if (enemy.target == CosmicEnemyTarget.orb) score += 90;
       }
+      // Sticky target bonus: prefer continuing to attack the same enemy
+      if (identical(enemy, comp.stickyTarget)) score += 65;
 
       if (score > bestEnemyScore) {
         bestEnemyScore = score;
@@ -1315,7 +1436,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (dist < desiredRange * 0.72) {
           return comp.position - norm * 50;
         }
-        return idleAnchor;
+        return comp.anchor; // hold position in preferred range band
       case 'pip':
         return targetPos - norm * desiredRange;
       case 'mane':
@@ -3199,7 +3320,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           enemy.radius + hitRadius,
         )) {
           _damageEnemy(enemy, p.damage, sourceSlotIndex: p.sourceSlotIndex);
-          _spawnHitSpark(p.position, elementColor(p.element ?? 'Fire'));
+          _spawnProjectileHitSpark(p);
           _triggerChainLightning(
             sourceEnemy: enemy,
             origin: p.position,
@@ -3236,7 +3357,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (d < activeBoss!.radius + hitRadius) {
           damageBoss(p.damage, attackElement: p.element);
           p.hitBoss = true;
-          _spawnHitSpark(p.position, elementColor(p.element ?? 'Fire'));
+          _spawnProjectileHitSpark(p);
           if (!p.piercing) consumed = true;
         }
       }
@@ -3696,6 +3817,32 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   // == VFX =================================================================
 
+  void _spawnProjectileHitSpark(Projectile projectile) {
+    final color = elementColor(projectile.element ?? 'Fire');
+    if (projectile.visualStyle != ProjectileVisualStyle.mysticOrbital) {
+      _spawnHitSpark(projectile.position, color);
+      return;
+    }
+
+    if (_vfx.length >= 150) return;
+    final count = _reduceAmbientVfx ? 1 : 2;
+    for (var i = 0; i < count; i++) {
+      final a = projectile.angle + pi + (_rng.nextDouble() - 0.5) * 1.2;
+      final spd = 26 + _rng.nextDouble() * 42;
+      _vfx.add(
+        _VfxParticle(
+          x: projectile.position.dx,
+          y: projectile.position.dy,
+          vx: cos(a) * spd,
+          vy: sin(a) * spd,
+          size: 1.0 + _rng.nextDouble() * 1.2,
+          life: 0.16 + _rng.nextDouble() * 0.14,
+          color: color.withValues(alpha: 0.72),
+        ),
+      );
+    }
+  }
+
   void _spawnHitSpark(Offset pos, Color color) {
     if (_vfx.length >= 150) return;
     for (var i = 0; i < 6; i++) {
@@ -4041,6 +4188,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       maxY: cy + viewH,
     );
     _renderArenaBoundary(canvas);
+    _renderOrbGravityField(canvas);
     _renderOrb(canvas);
 
     for (final enemy in enemies) {
@@ -4289,12 +4437,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           .clamp(0.18, 0.52);
       canvas.drawCircle(
         center,
-        34,
+        _orbShieldRadius,
         Paint()
           ..color = const Color(0xFF7FDBFF).withValues(alpha: shieldAlpha)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+          ..strokeWidth = 5.0,
       );
     }
 
@@ -4305,16 +4452,51 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? const Color(0xFFFFEA00)
         : const Color(0xFFE53935);
     canvas.drawArc(
-      Rect.fromCenter(center: p, width: 56, height: 56),
+      Rect.fromCircle(center: p, radius: _orbHpRingRadius),
       -pi / 2,
       2 * pi * hpFrac,
       false,
       Paint()
         ..color = hpColor
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
+        ..strokeWidth = 5.5
         ..strokeCap = StrokeCap.round,
     );
+  }
+
+  void _renderOrbGravityField(Canvas canvas) {
+    final center = orb.position;
+    final elapsed = stats.timeElapsed;
+    final fieldPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    for (var i = 0; i < 4; i++) {
+      final radius = _orbShipOrbitRadius + i * 92.0;
+      final alpha = max(0.035, 0.12 - i * 0.022);
+      final rotation = elapsed * (0.18 + i * 0.035) + i * pi / 5;
+      final sweep = pi * (0.28 + i * 0.035);
+      fieldPaint
+        ..color = orb.glowColor.withValues(alpha: alpha)
+        ..strokeWidth = max(1.0, 2.4 - i * 0.28);
+
+      for (var segment = 0; segment < 5; segment++) {
+        final start = rotation + segment * (2 * pi / 5);
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: radius),
+          start,
+          sweep,
+          false,
+          fieldPaint,
+        );
+      }
+    }
+
+    final orbitPaint = Paint()
+      ..color = orb.secondaryColor.withValues(alpha: 0.16)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8;
+    canvas.drawCircle(center, _orbShipOrbitRadius, orbitPaint);
   }
 
   void _renderArenaBoundary(Canvas canvas) {
@@ -4356,17 +4538,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _renderDefaultOrb(Canvas canvas, Offset center, double elapsed) {
-    canvas.drawCircle(
+    _drawOrbLayeredGlow(
+      canvas,
       center,
-      28,
-      Paint()
-        ..color = orb.glowColor.withValues(alpha: 0.18)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+      orb.glowColor,
+      radius: _orbGlowRadius,
+      alpha: 0.28,
     );
     _renderOrbRuneRing(
       canvas,
       center,
-      radius: 24,
+      radius: _orbInnerRuneRadius,
       speed: 0.5,
       segments: 3,
       color: orb.primaryColor.withValues(alpha: 0.52),
@@ -4374,18 +4556,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _renderOrbRuneRing(
       canvas,
       center,
-      radius: 31,
+      radius: _orbOuterRuneRadius,
       speed: -0.3,
       segments: 5,
       color: orb.secondaryColor.withValues(alpha: 0.44),
     );
     canvas.drawCircle(
       center,
-      18,
+      _orbCoreRadius,
       Paint()
         ..shader = ui.Gradient.radial(
           center,
-          20,
+          _orbCoreRadius * 1.1,
           [
             Colors.white.withValues(alpha: 0.92),
             orb.primaryColor.withValues(alpha: 0.88),
@@ -4397,23 +4579,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _renderFrozenNexusOrb(Canvas canvas, Offset center, double elapsed) {
-    canvas.drawCircle(
+    _drawOrbLayeredGlow(
+      canvas,
       center,
-      32,
-      Paint()
-        ..color = orb.glowColor.withValues(alpha: 0.14)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+      orb.glowColor,
+      radius: _orbGlowRadius * 1.08,
+      alpha: 0.22,
     );
     for (var i = 0; i < 6; i++) {
       final angle = elapsed * 0.4 + (i * pi / 3);
-      final dist = 25.0 + sin(elapsed * 1.5 + i) * 2;
+      final dist = _orbInnerRuneRadius + sin(elapsed * 1.5 + i) * 8;
       final sx = center.dx + cos(angle) * dist;
       final sy = center.dy + sin(angle) * dist;
       final shard = Path()
-        ..moveTo(sx, sy - 5)
-        ..lineTo(sx + 2.5, sy + 1)
-        ..lineTo(sx, sy + 5)
-        ..lineTo(sx - 2.5, sy + 1)
+        ..moveTo(sx, sy - 16)
+        ..lineTo(sx + 8, sy + 3)
+        ..lineTo(sx, sy + 16)
+        ..lineTo(sx - 8, sy + 3)
         ..close();
       canvas.drawPath(
         shard,
@@ -4422,11 +4604,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     canvas.drawCircle(
       center,
-      18,
+      _orbCoreRadius,
       Paint()
         ..shader = ui.Gradient.radial(
           center,
-          20,
+          _orbCoreRadius * 1.1,
           [Colors.white, orb.primaryColor, orb.secondaryColor],
           const [0.0, 0.35, 1.0],
         ),
@@ -4435,24 +4617,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _renderPhantomWispOrb(Canvas canvas, Offset center, double elapsed) {
     final flicker = 0.5 + 0.3 * sin(elapsed * 3.0) + 0.2 * sin(elapsed * 7.1);
-    for (var i = 3; i >= 1; i--) {
-      canvas.drawCircle(
-        center,
-        18.0 + i * 8,
-        Paint()
-          ..color = orb.glowColor.withValues(alpha: 0.06 * i * flicker)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8.0 + i * 6),
-      );
-    }
-    final drift1 = Offset(sin(elapsed * 2.0) * 2.5, cos(elapsed * 1.5) * 2.0);
-    final drift2 = Offset(cos(elapsed * 2.5) * 2.0, sin(elapsed * 1.8) * 2.5);
+    _drawOrbLayeredGlow(
+      canvas,
+      center,
+      orb.glowColor,
+      radius: _orbGlowRadius * 1.18,
+      alpha: 0.24 * flicker,
+    );
+    final drift1 = Offset(sin(elapsed * 2.0) * 10, cos(elapsed * 1.5) * 8);
+    final drift2 = Offset(cos(elapsed * 2.5) * 8, sin(elapsed * 1.8) * 10);
     canvas.drawCircle(
       center + drift1,
-      17,
+      _orbCoreRadius * 0.94,
       Paint()
         ..shader = ui.Gradient.radial(
           center + drift1,
-          18,
+          _orbCoreRadius,
           [
             Colors.white.withValues(alpha: flicker * 0.8),
             orb.primaryColor.withValues(alpha: flicker * 0.6),
@@ -4463,19 +4643,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
     canvas.drawCircle(
       center + drift2,
-      15,
-      Paint()
-        ..color = orb.glowColor.withValues(alpha: flicker * 0.22)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+      _orbCoreRadius * 0.83,
+      Paint()..color = orb.glowColor.withValues(alpha: flicker * 0.22),
     );
     _renderOrbRuneRing(
       canvas,
       center,
-      radius: 28,
+      radius: _orbOuterRuneRadius * 0.9,
       speed: 0.2,
       segments: 8,
       color: orb.glowColor.withValues(alpha: 0.24 * flicker),
-      strokeWidth: 1.4,
+      strokeWidth: 3.0,
     );
   }
 
@@ -4490,26 +4668,28 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         1.0,
       ).toColor(),
     );
+    final glowColors = sweepColors
+        .map((color) => color.withValues(alpha: 0.22))
+        .toList();
     canvas.drawCircle(
       center,
-      28,
+      _orbGlowRadius,
       Paint()
         ..shader = ui.Gradient.sweep(
           center,
-          [...sweepColors, sweepColors.first],
+          [...glowColors, glowColors.first],
           const [0.0, 0.14, 0.28, 0.42, 0.56, 0.70, 0.84, 1.0],
           TileMode.clamp,
           0,
           2 * pi,
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+        ),
     );
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(elapsed * 0.3);
     final path = Path();
     const facets = 8;
-    const facetRadius = 18.0;
+    const facetRadius = _orbCoreRadius;
     for (var i = 0; i <= facets; i++) {
       final a = (i / facets) * 2 * pi;
       final r = i.isEven ? facetRadius : facetRadius * 0.75;
@@ -4545,23 +4725,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _renderVerdantBloomOrb(Canvas canvas, Offset center, double elapsed) {
-    canvas.drawCircle(
+    _drawOrbLayeredGlow(
+      canvas,
       center,
-      30,
-      Paint()
-        ..color = orb.glowColor.withValues(
-          alpha: 0.20 + 0.06 * sin(elapsed * 1.5),
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+      orb.glowColor,
+      radius: _orbGlowRadius * 1.12,
+      alpha: 0.28 + 0.06 * sin(elapsed * 1.5),
     );
     for (var ring = 0; ring < 2; ring++) {
-      final baseRadius = ring == 0 ? 22.0 : 29.0;
+      final baseRadius = ring == 0
+          ? _orbInnerRuneRadius * 0.92
+          : _orbOuterRuneRadius * 0.94;
       final speed = ring == 0 ? 0.25 : -0.2;
       final vinePath = Path();
       const segments = 32;
       for (var i = 0; i <= segments; i++) {
         final a = (i / segments) * 2 * pi + elapsed * speed;
-        final wobble = sin(a * 4 + elapsed * 2) * 1.8;
+        final wobble = sin(a * 4 + elapsed * 2) * 7.2;
         final r = baseRadius + wobble;
         final x = center.dx + cos(a) * r;
         final y = center.dy + sin(a) * r;
@@ -4576,10 +4756,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         Paint()
           ..color = const Color(0xFF228B22).withValues(alpha: 0.55)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.8,
+          ..strokeWidth = 3.4,
       );
     }
-    final coreRadius = 17.5 * (1.0 + 0.08 * sin(elapsed * 3.0));
+    final coreRadius = _orbCoreRadius * (1.0 + 0.08 * sin(elapsed * 3.0));
     canvas.drawCircle(
       center,
       coreRadius,
@@ -4593,6 +4773,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
+  void _drawOrbLayeredGlow(
+    Canvas canvas,
+    Offset center,
+    Color color, {
+    required double radius,
+    double alpha = 0.22,
+    int layers = 5,
+  }) {
+    for (var i = layers; i >= 1; i--) {
+      final t = i / layers;
+      final layerAlpha = alpha * (layers - i + 1) / layers * 0.35;
+      canvas.drawCircle(
+        center,
+        radius * t,
+        Paint()..color = color.withValues(alpha: layerAlpha),
+      );
+    }
+  }
+
   void _renderOrbRuneRing(
     Canvas canvas,
     Offset center, {
@@ -4600,7 +4799,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required double speed,
     required int segments,
     required Color color,
-    double strokeWidth = 1.8,
+    double strokeWidth = 3.2,
   }) {
     canvas.save();
     canvas.translate(center.dx, center.dy);
@@ -4625,14 +4824,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _renderOrbAlchemyRing(Canvas canvas, Offset center, double alchemyFrac) {
-    final rect = Rect.fromCircle(center: center, radius: 40);
+    final rect = Rect.fromCircle(center: center, radius: _orbAlchemyRingRadius);
     canvas.drawCircle(
       center,
-      40,
+      _orbAlchemyRingRadius,
       Paint()
         ..color = const Color(0xFF3A2E5A).withValues(alpha: 0.26)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4,
+        ..strokeWidth = 7,
     );
     final gradient = ui.Gradient.sweep(
       center,
@@ -4656,7 +4855,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       Paint()
         ..shader = gradient
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4
+        ..strokeWidth = 7
         ..strokeCap = StrokeCap.round,
     );
   }
@@ -5400,12 +5599,37 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _renderCompanionProjectile(Canvas canvas, Projectile proj) {
     final eColor = elementColor(proj.element ?? 'Fire');
 
+    if (proj.visualStyle == ProjectileVisualStyle.mysticOrbital) {
+      final dir = Offset(cos(proj.angle), sin(proj.angle));
+      final radius = (1.65 * proj.visualScale).clamp(1.4, 4.4).toDouble();
+      final core = Paint()..color = eColor.withValues(alpha: 0.76);
+      canvas.drawCircle(proj.position, radius, core);
+      if (!_simplifyProjectileRendering) {
+        canvas.drawLine(
+          proj.position - dir * radius * 2.2,
+          proj.position,
+          Paint()
+            ..color = eColor.withValues(alpha: 0.24)
+            ..strokeWidth = max(1.0, radius * 0.72)
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawCircle(
+          proj.position,
+          radius * 2.2,
+          Paint()
+            ..color = eColor.withValues(alpha: 0.16)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.8,
+        );
+      }
+      return;
+    }
+
     if (_simplifyProjectileRendering) {
       final radius = switch (proj.visualStyle) {
         ProjectileVisualStyle.meteor => 3.6 * proj.visualScale,
         ProjectileVisualStyle.hornImpact => 3.4 * proj.visualScale,
-        ProjectileVisualStyle.kinOrbital ||
-        ProjectileVisualStyle.mysticOrbital => 3.2 * proj.visualScale,
+        ProjectileVisualStyle.kinOrbital => 3.2 * proj.visualScale,
         ProjectileVisualStyle.slash => 2.4 * proj.visualScale,
         _ => 2.8 * proj.visualScale,
       };

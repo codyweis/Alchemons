@@ -28,25 +28,26 @@ class SaveTransferService {
   const SaveTransferService(this.db);
 
   Future<String> exportSaveCode({required String ownerAccountId}) async {
+    await db.settingsDao.reconcileCosmicSurvivalPortalDiscovery();
+
     final prefs = await SharedPreferences.getInstance();
     final tables = <String, List<Map<String, dynamic>>>{};
 
     for (final table in db.allTables) {
       try {
-        final rows = await db.customSelect(
-          'SELECT * FROM "${table.actualTableName}"',
-          readsFrom: {table},
-        ).get();
+        final rows = await db
+            .customSelect(
+              'SELECT * FROM "${table.actualTableName}"',
+              readsFrom: {table},
+            )
+            .get();
 
         tables[table.actualTableName] = rows
             .map(
               (row) => row.data.map(
                 (key, value) => MapEntry(
                   key,
-                  _encodeValue(
-                    value,
-                    context: '${table.actualTableName}.$key',
-                  ),
+                  _encodeValue(value, context: '${table.actualTableName}.$key'),
                 ),
               ),
             )
@@ -70,10 +71,7 @@ class SaveTransferService {
         continue;
       }
       try {
-        preferences[key] = _encodeValue(
-          prefs.get(key),
-          context: 'prefs.$key',
-        );
+        preferences[key] = _encodeValue(prefs.get(key), context: 'prefs.$key');
       } on SaveTransferException {
         rethrow;
       } catch (error) {
@@ -105,7 +103,9 @@ class SaveTransferService {
   }) async {
     final trimmed = rawCode.trim();
     if (!trimmed.startsWith(_prefix) && !trimmed.startsWith(_legacyPrefix)) {
-      throw const SaveTransferException('Save code is missing the expected header.');
+      throw const SaveTransferException(
+        'Save code is missing the expected header.',
+      );
     }
 
     late final Map<String, dynamic> payload;
@@ -119,7 +119,8 @@ class SaveTransferService {
     final rawTables = payload['tables'];
     final rawPreferences = payload['preferences'];
     final payloadOwnerAccountId = payload['ownerAccountId'];
-    if (rawTables is! Map<String, dynamic> || rawPreferences is! Map<String, dynamic>) {
+    if (rawTables is! Map<String, dynamic> ||
+        rawPreferences is! Map<String, dynamic>) {
       throw const SaveTransferException('Save code is missing required data.');
     }
     if (payloadOwnerAccountId is! String || payloadOwnerAccountId.isEmpty) {
@@ -139,7 +140,9 @@ class SaveTransferService {
 
     for (final tableName in rawTables.keys) {
       if (!tableByName.containsKey(tableName)) {
-        throw SaveTransferException('Save code contains an unknown table: $tableName');
+        throw SaveTransferException(
+          'Save code contains an unknown table: $tableName',
+        );
       }
     }
 
@@ -154,7 +157,9 @@ class SaveTransferService {
           final table = tableByName[entry.key]!;
           final rows = entry.value;
           if (rows is! List) {
-            throw SaveTransferException('Table ${entry.key} has invalid row data.');
+            throw SaveTransferException(
+              'Table ${entry.key} has invalid row data.',
+            );
           }
 
           final columnsByName = <String, GeneratedColumn<Object>>{
@@ -182,7 +187,10 @@ class SaveTransferService {
               variables.add(_variableForValue(decoded));
             }
 
-            final placeholders = List.filled(columnNames.length, '?').join(', ');
+            final placeholders = List.filled(
+              columnNames.length,
+              '?',
+            ).join(', ');
             final quotedColumns = columnNames
                 .map((name) => '"$name"')
                 .join(', ');
@@ -214,6 +222,8 @@ class SaveTransferService {
       }
       await _writePreference(prefs, entry.key, _decodeValue(entry.value));
     }
+
+    await db.settingsDao.reconcileCosmicSurvivalPortalDiscovery();
   }
 
   dynamic _encodeValue(Object? value, {required String context}) {
@@ -227,16 +237,10 @@ class SaveTransferService {
       };
     }
     if (value is Uint8List) {
-      return <String, dynamic>{
-        'type': 'bytes',
-        'value': base64Encode(value),
-      };
+      return <String, dynamic>{'type': 'bytes', 'value': base64Encode(value)};
     }
     if (value is List<String>) {
-      return <String, dynamic>{
-        'type': 'string_list',
-        'value': value,
-      };
+      return <String, dynamic>{'type': 'string_list', 'value': value};
     }
     if (value is List) {
       return <String, dynamic>{
@@ -261,10 +265,14 @@ class SaveTransferService {
         case 'bytes':
           return base64Decode(value['value'] as String);
         case 'string_list':
-          return (value['value'] as List).map((item) => item.toString()).toList();
+          return (value['value'] as List)
+              .map((item) => item.toString())
+              .toList();
       }
     }
-    throw const SaveTransferException('Save code contains an unsupported value.');
+    throw const SaveTransferException(
+      'Save code contains an unsupported value.',
+    );
   }
 
   Future<void> _writePreference(
@@ -320,12 +328,16 @@ class SaveTransferService {
 
   String _decodePayload(String rawCode) {
     if (rawCode.startsWith(_prefix)) {
-      final compressedBytes = base64Url.decode(rawCode.substring(_prefix.length));
+      final compressedBytes = base64Url.decode(
+        rawCode.substring(_prefix.length),
+      );
       final jsonBytes = GZipDecoder().decodeBytes(compressedBytes);
       return utf8.decode(jsonBytes);
     }
 
-    final legacyBytes = base64Url.decode(rawCode.substring(_legacyPrefix.length));
+    final legacyBytes = base64Url.decode(
+      rawCode.substring(_legacyPrefix.length),
+    );
     return utf8.decode(Uint8List.fromList(legacyBytes));
   }
 }
