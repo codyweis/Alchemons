@@ -368,27 +368,83 @@ bool drawManeElementalProjectileVisual({
     ..style = ui.PaintingStyle.stroke
     ..strokeCap = ui.StrokeCap.round;
   final linePaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
+  final groundedRadius = projectile.snareRadius > 0
+      ? (projectile.snareRadius * 0.36).clamp(26.0, 96.0) * vs
+      : (24.0 * projectile.radiusMultiplier.clamp(1.0, 3.4) * vs);
 
   void drawCoreSlash({
     double width = 3.0,
     double glowWidth = 8.0,
     double alpha = 0.86,
+    double lengthScale = 1.0,
+    double bend = 0.0,
   }) {
+    final resolvedLengthScale = projectile.stationary
+        ? lengthScale * 0.58
+        : lengthScale;
+    final resolvedBend = projectile.stationary ? bend + 5.0 : bend;
+    final control = position + perp * resolvedBend * vs;
+    final adjustedStart = position - dir * len * resolvedLengthScale;
+    final adjustedEnd = position + dir * len * resolvedLengthScale;
+    final slashPath = ui.Path()
+      ..moveTo(adjustedStart.dx, adjustedStart.dy)
+      ..quadraticBezierTo(control.dx, control.dy, adjustedEnd.dx, adjustedEnd.dy);
     linePaint
       ..color = color.withValues(alpha: 0.18 * pulse)
       ..strokeWidth = glowWidth * vs
       ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 7);
-    canvas.drawLine(start, end, linePaint);
+    canvas.drawPath(slashPath, linePaint);
     linePaint
       ..color = color.withValues(alpha: alpha)
       ..strokeWidth = width * vs
       ..maskFilter = null;
-    canvas.drawLine(start, end, linePaint);
+    canvas.drawPath(slashPath, linePaint);
     linePaint
       ..color = white.withValues(alpha: 0.55)
       ..strokeWidth = max(1.0, width * 0.36) * vs
       ..maskFilter = null;
-    canvas.drawLine(position - dir * len * 0.55, end, linePaint);
+    canvas.drawLine(position - dir * len * 0.28, adjustedEnd, linePaint);
+  }
+
+  void drawGroundPatch() {
+    if (!projectile.stationary) return;
+
+    switch (element) {
+      case 'Earth':
+      case 'Mud':
+      case 'Lava':
+        _drawCrackedPlate(
+          canvas,
+          position,
+          color,
+          groundedRadius,
+          vs,
+          time,
+        );
+        break;
+      case 'Plant':
+        _drawVinePatch(canvas, position, color, groundedRadius * 0.82, vs, time);
+        break;
+      case 'Fire':
+      case 'Poison':
+      default:
+        canvas.drawOval(
+          ui.Rect.fromCenter(
+            center: position,
+            width: groundedRadius * 2.0,
+            height: groundedRadius * 1.35,
+          ),
+          fillPaint..color = color.withValues(alpha: 0.20),
+        );
+        canvas.drawCircle(
+          position,
+          groundedRadius * 0.82,
+          strokePaint
+            ..color = color.withValues(alpha: 0.34)
+            ..strokeWidth = 1.5 * vs
+            ..maskFilter = null,
+        );
+    }
   }
 
   void drawControlRead({double scale = 1.0}) {
@@ -397,9 +453,11 @@ bool drawManeElementalProjectileVisual({
         projectile.interceptCharges <= 0) {
       return;
     }
-    final radius = projectile.snareRadius > 0
-        ? (projectile.snareRadius * 0.32).clamp(18.0, 54.0) * scale
-        : (22.0 * vs * scale);
+    final radius = projectile.stationary
+      ? groundedRadius * 0.92 * scale
+      : projectile.snareRadius > 0
+      ? (projectile.snareRadius * 0.32).clamp(18.0, 54.0) * scale
+      : (22.0 * vs * scale);
     strokePaint
       ..color = color.withValues(alpha: 0.28 * pulse)
       ..strokeWidth = 1.4 * vs
@@ -418,6 +476,7 @@ bool drawManeElementalProjectileVisual({
 
   switch (element) {
     case 'Fire':
+      drawGroundPatch();
       drawCoreSlash(width: 3.4, glowWidth: 10.0, alpha: 0.9);
       for (var i = 0; i < 3; i++) {
         final t = (i - 1) * 0.35;
@@ -504,9 +563,16 @@ bool drawManeElementalProjectileVisual({
       drawControlRead(scale: 1.05);
       break;
     case 'Earth':
-      drawCoreSlash(width: 5.0, glowWidth: 11.0, alpha: 0.82);
-      _drawCrackedPlate(canvas, position, color, 18.0 * vs, vs, time);
-      drawControlRead(scale: 1.12);
+      drawGroundPatch();
+      drawCoreSlash(
+        width: 4.2,
+        glowWidth: 8.5,
+        alpha: 0.72,
+        lengthScale: 0.74,
+        bend: 3.8,
+      );
+      _drawCrackedPlate(canvas, position, color, 26.0 * vs, vs, time);
+      drawControlRead(scale: 1.30);
       break;
     case 'Lava':
       drawCoreSlash(width: 5.6, glowWidth: 13.0, alpha: 0.88);
@@ -521,6 +587,7 @@ bool drawManeElementalProjectileVisual({
       drawControlRead(scale: 1.08);
       break;
     case 'Mud':
+      drawGroundPatch();
       drawCoreSlash(width: 5.4, glowWidth: 12.0, alpha: 0.78);
       canvas.drawOval(
         ui.Rect.fromCenter(
@@ -556,23 +623,57 @@ bool drawManeElementalProjectileVisual({
       drawCoreSlash(width: 2.2, glowWidth: 7.5, alpha: 0.64);
       break;
     case 'Plant':
-      drawCoreSlash(width: 3.2, glowWidth: 9.0, alpha: 0.78);
+      drawGroundPatch();
+      drawCoreSlash(
+        width: 2.6,
+        glowWidth: 7.4,
+        alpha: 0.68,
+        lengthScale: 0.92,
+        bend: 8.0,
+      );
       _drawVinePatch(canvas, position, color, 15.0 * vs, vs, time);
+      drawCoreSlash(
+        width: 2.1,
+        glowWidth: 6.2,
+        alpha: 0.50,
+        lengthScale: 0.70,
+        bend: -7.2,
+      );
       drawControlRead(scale: 1.12);
       break;
     case 'Poison':
-      drawCoreSlash(width: 3.6, glowWidth: 10.0, alpha: 0.74);
+      drawGroundPatch();
+      drawCoreSlash(
+        width: 2.8,
+        glowWidth: 8.0,
+        alpha: 0.64,
+        lengthScale: 0.86,
+        bend: 11.0,
+      );
       canvas.drawCircle(
         position,
-        18.0 * vs * pulse,
+        21.0 * vs * pulse,
         fillPaint
           ..color = color.withValues(alpha: 0.14)
           ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 9),
       );
+      drawCoreSlash(
+        width: 1.9,
+        glowWidth: 5.5,
+        alpha: 0.44,
+        lengthScale: 0.66,
+        bend: -9.0,
+      );
       drawControlRead(scale: 1.10);
       break;
     case 'Spirit':
-      drawCoreSlash(width: 3.0, glowWidth: 9.0, alpha: 0.72);
+      drawCoreSlash(
+        width: 2.4,
+        glowWidth: 7.2,
+        alpha: 0.62,
+        lengthScale: 0.90,
+        bend: 6.0,
+      );
       _drawSpiritHalo(canvas, position, color, 14.0 * vs, vs, time);
       break;
     case 'Dark':
@@ -1508,21 +1609,45 @@ void _drawCrackedPlate(
   double vs,
   double time,
 ) {
-  canvas.drawCircle(
-    position,
-    radius,
-    ui.Paint()..color = color.withValues(alpha: 0.18),
-  );
-  for (var i = 0; i < 5; i++) {
-    final a = time * 0.04 + i * pi * 2 / 5;
-    canvas.drawLine(
-      position + ui.Offset(cos(a), sin(a)) * radius * 0.18,
-      position + ui.Offset(cos(a + 0.12), sin(a + 0.12)) * radius,
-      ui.Paint()
-        ..color = const ui.Color(0xFFD7C1A5).withValues(alpha: 0.34)
-        ..strokeWidth = 1.0 * vs
-        ..strokeCap = ui.StrokeCap.round,
-    );
+  final plateFill = ui.Paint()..color = color.withValues(alpha: 0.16);
+  final crustStroke = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeWidth = 1.0 * vs
+    ..color = const ui.Color(0xFFE0C7A6).withValues(alpha: 0.44)
+    ..strokeCap = ui.StrokeCap.round;
+  final debrisPaint = ui.Paint()..color = color.withValues(alpha: 0.26);
+
+  final pulse = 0.90 + 0.10 * sin(time * 1.4);
+  final outer = ui.Path();
+  final points = 9;
+  for (var i = 0; i < points; i++) {
+    final a = (i / points) * pi * 2 + time * 0.03;
+    final jitter = (i.isEven ? 1.0 : 0.82) * pulse;
+    final p = position + ui.Offset(cos(a), sin(a)) * radius * jitter;
+    if (i == 0) {
+      outer.moveTo(p.dx, p.dy);
+    } else {
+      outer.lineTo(p.dx, p.dy);
+    }
+  }
+  outer.close();
+  canvas.drawPath(outer, plateFill);
+  canvas.drawPath(outer, crustStroke);
+
+  for (var i = 0; i < 7; i++) {
+    final a = time * 0.05 + i * pi * 2 / 7;
+    final mid = position + ui.Offset(cos(a), sin(a)) * radius * 0.18;
+    final tip = position + ui.Offset(cos(a + 0.16), sin(a + 0.16)) * radius;
+    final crack = ui.Path()
+      ..moveTo(position.dx + cos(a) * radius * 0.05, position.dy + sin(a) * radius * 0.05)
+      ..quadraticBezierTo(mid.dx, mid.dy, tip.dx, tip.dy);
+    canvas.drawPath(crack, crustStroke);
+  }
+
+  for (var i = 0; i < 6; i++) {
+    final a = time * 0.12 + i * pi * 2 / 6;
+    final p = position + ui.Offset(cos(a), sin(a)) * radius * (0.34 + (i % 2) * 0.28);
+    canvas.drawCircle(p, (1.1 + (i % 3) * 0.45) * vs, debrisPaint);
   }
 }
 

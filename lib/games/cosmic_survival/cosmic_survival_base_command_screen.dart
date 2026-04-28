@@ -1,4 +1,4 @@
-// lib/games/survival/survival_base_command_screen.dart
+// lib/games/cosmic_survival/cosmic_survival_base_command_screen.dart
 //
 // Base Command — persistent cosmic survival upgrade screen.
 // Three sections: Orb Skins, Guardian Power-ups, Base Abilities.
@@ -69,18 +69,22 @@ String _fmtNum(int n) {
 // MAIN SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
-class SurvivalBaseCommandScreen extends StatefulWidget {
-  const SurvivalBaseCommandScreen({super.key, this.hideAbilities = false});
+class CosmicSurvivalBaseCommandScreen extends StatefulWidget {
+  const CosmicSurvivalBaseCommandScreen({
+    super.key,
+    this.hideAbilities = false,
+  });
 
   /// When true, the Base Abilities tab is hidden (used in cosmic survival).
   final bool hideAbilities;
 
   @override
-  State<SurvivalBaseCommandScreen> createState() =>
-      _SurvivalBaseCommandScreenState();
+  State<CosmicSurvivalBaseCommandScreen> createState() =>
+      _CosmicSurvivalBaseCommandScreenState();
 }
 
-class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
+class _CosmicSurvivalBaseCommandScreenState
+    extends State<CosmicSurvivalBaseCommandScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _silverBalance = 0;

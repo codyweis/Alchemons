@@ -8,6 +8,7 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
@@ -179,7 +180,7 @@ class InstanceCard extends StatelessWidget {
               Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
 
               Padding(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -193,7 +194,7 @@ class InstanceCard extends StatelessWidget {
                                   ? InstanceSprite(
                                       creature: species,
                                       instance: instance,
-                                      size: 72,
+                                      size: 90,
                                     )
                                   : Image.asset(
                                       species.image,
@@ -518,7 +519,10 @@ class _GeneticsBlock extends StatelessWidget {
           const SizedBox(height: 3),
         ],
         if (variant.isNotEmpty) ...[
-          _MiniRow(color: t.teal, label: _displayVariantFaction(variant)),
+          _MiniRow(
+            color: FactionColors.of(_displayVariantFaction(variant)),
+            label: _displayVariantFaction(variant).toUpperCase(),
+          ),
           const SizedBox(height: 2),
         ],
         _MiniRow(color: t.amberBright, label: _sizeName().toUpperCase()),
@@ -630,17 +634,25 @@ class _MiniRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        Container(
+          width: 4,
+          height: 4,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 5),
         Flexible(
           fit: FlexFit.loose,
           child: Text(
             label,
             style: TextStyle(
               fontFamily: 'monospace',
-              color: t.textPrimary,
+              color: color,
               fontSize: 9,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,

@@ -1304,7 +1304,10 @@ class _OverviewTab extends StatelessWidget {
           _buildSpriteHero(c),
           if (instance != null) ...[
             const SizedBox(height: 10),
-            _StaminaRestoreButton(instanceId: instance!.instanceId),
+            _StaminaRestoreButton(
+              instanceId: instance!.instanceId,
+              creatureName: creature.name,
+            ),
           ],
           const SizedBox(height: 20),
 
@@ -1645,122 +1648,149 @@ class _HeroStaminaBadge extends StatelessWidget {
 
 class _StaminaRestoreButton extends StatelessWidget {
   final String instanceId;
-  const _StaminaRestoreButton({required this.instanceId});
+  final String creatureName;
+  const _StaminaRestoreButton({
+    required this.instanceId,
+    required this.creatureName,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
     final db = context.read<AlchemonsDatabase>();
-    return StreamBuilder<List<InventoryItem>>(
-      stream: db.inventoryDao.watchItemInventory(),
-      builder: (context, snapshot) {
-        int qty = 0;
-        for (final item in snapshot.data ?? []) {
-          if (item.key == InvKeys.staminaPotion) {
-            qty = item.qty;
-            break;
-          }
-        }
-        if (qty <= 0) return const SizedBox.shrink();
+    return StreamBuilder<CreatureInstance?>(
+      stream: db.creatureDao.watchInstanceById(instanceId),
+      builder: (context, instSnap) {
+        final inst = instSnap.data;
+        if (inst == null) return const SizedBox.shrink();
+        final stamina = context.read<StaminaService>();
+        final state = stamina.computeState(inst);
+        if (state.bars >= state.max) return const SizedBox.shrink();
 
-        return Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: GestureDetector(
-            onTap: () => _use(context),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: c.amberDim.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: c.borderAccent, width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: c.amber.withValues(alpha: 0.10),
-                    blurRadius: 10,
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.local_drink_rounded,
-                    color: c.amberBright,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'RESTORE STAMINA',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: c.amberBright,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.4,
+        return StreamBuilder<List<InventoryItem>>(
+          stream: db.inventoryDao.watchItemInventory(),
+          builder: (context, snapshot) {
+            int qty = 0;
+            for (final item in snapshot.data ?? []) {
+              if (item.key == InvKeys.staminaPotion) {
+                qty = item.qty;
+                break;
+              }
+            }
+            if (qty <= 0) return const SizedBox.shrink();
+
+            return Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: GestureDetector(
+                onTap: () => _use(context, qty),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.local_drink_rounded,
+                      color: c.amberBright,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Restore Stamina',
+                        style: TextStyle(
+                          color: c.amberBright,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: c.bg2,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: c.borderAccent, width: 1),
-                    ),
-                    child: Text(
+                    Text(
                       '×$qty',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: c.amber,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
+                        color: c.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: c.textMuted,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  Future<void> _use(BuildContext context) async {
+  Future<void> _use(BuildContext context, int qty) async {
     final c = _C.of(context);
     final db = context.read<AlchemonsDatabase>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: c.bg1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        title: Text(
+          'Restore Stamina?',
+          style: TextStyle(
+            color: c.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          'Use 1 stamina potion on $creatureName? ($qty remaining)',
+          style: TextStyle(
+            color: c.textSecondary,
+            fontSize: 13,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dCtx).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: c.textMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dCtx).pop(true),
+            child: Text(
+              'Restore',
+              style: TextStyle(
+                color: c.amberBright,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
     await db.inventoryDao.addItemQty(InvKeys.staminaPotion, -1);
-    final staminaService = StaminaService(db);
-    await staminaService.restoreToFull(instanceId);
+    await StaminaService(db).restoreToFull(instanceId);
     if (context.mounted) {
-      final backgroundColor = c.amber;
-      final foregroundColor = c.onColor(backgroundColor);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.local_drink_rounded, color: foregroundColor, size: 16),
-              const SizedBox(width: 8),
-              Text(
-                'STAMINA RESTORED',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: foregroundColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
+          content: Text(
+            'Stamina restored!',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: c.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          backgroundColor: backgroundColor,
+          backgroundColor: c.bg1,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(3),
-            side: BorderSide(color: c.borderAccent, width: 1),
+            borderRadius: BorderRadius.circular(10),
           ),
           duration: const Duration(seconds: 2),
         ),

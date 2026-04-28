@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,9 @@ class MiniMapOverlay extends StatefulWidget {
     required this.onGoHome,
     required this.onClose,
     required this.onMarkersChanged,
+    this.tutorialTargetPos,
+    this.tutorialTargetColor,
+    this.tutorialTargetLabel,
     this.debugShowAllContestArenasOnMap = false,
     this.debugEnableContestArenaTeleport = false,
   });
@@ -39,6 +43,9 @@ class MiniMapOverlay extends StatefulWidget {
   final VoidCallback onGoHome;
   final VoidCallback onClose;
   final void Function(List<MapMarker> markers) onMarkersChanged;
+  final Offset? tutorialTargetPos;
+  final Color? tutorialTargetColor;
+  final String? tutorialTargetLabel;
   final bool debugShowAllContestArenasOnMap;
   final bool debugEnableContestArenaTeleport;
 
@@ -544,6 +551,9 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                   onLongPress: _handleLongPress,
                   onViewportReady: _primeMapTransform,
                   showAllContestArenas: widget.debugShowAllContestArenasOnMap,
+                  tutorialTargetPos: widget.tutorialTargetPos,
+                  tutorialTargetColor: widget.tutorialTargetColor,
+                  tutorialTargetLabel: widget.tutorialTargetLabel,
                 ),
               ),
               if (_travelPrompt != null)
@@ -1315,6 +1325,9 @@ class _MapView extends StatefulWidget {
     required this.onLongPress,
     required this.onViewportReady,
     required this.showAllContestArenas,
+    this.tutorialTargetPos,
+    this.tutorialTargetColor,
+    this.tutorialTargetLabel,
   });
 
   final CosmicWorld world;
@@ -1327,6 +1340,9 @@ class _MapView extends StatefulWidget {
   final void Function({required double viewportSize, required double scale})
   onViewportReady;
   final bool showAllContestArenas;
+  final Offset? tutorialTargetPos;
+  final Color? tutorialTargetColor;
+  final String? tutorialTargetLabel;
 
   @override
   State<_MapView> createState() => _MapViewState();
@@ -1334,6 +1350,25 @@ class _MapView extends StatefulWidget {
 
 class _MapViewState extends State<_MapView> {
   double _lastFitSize = -1;
+  int _pulseTick = 0;
+  Timer? _pulseTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+      if (!mounted) return;
+      setState(() {
+        _pulseTick++;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _pulseTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1384,6 +1419,10 @@ class _MapViewState extends State<_MapView> {
                           showAllContestArenasOnMap:
                               widget.showAllContestArenas,
                           markers: widget.markers,
+                          tutorialTargetPos: widget.tutorialTargetPos,
+                          tutorialTargetColor: widget.tutorialTargetColor,
+                          tutorialTargetLabel: widget.tutorialTargetLabel,
+                          pulseTick: _pulseTick,
                         ),
                       ),
                     ),
@@ -1976,6 +2015,10 @@ class _MiniMapPainter extends CustomPainter {
     required this.discoveredPlanetCount,
     this.showAllContestArenasOnMap = false,
     this.markers = const [],
+    this.tutorialTargetPos,
+    this.tutorialTargetColor,
+    this.tutorialTargetLabel,
+    this.pulseTick = 0,
   });
 
   final CosmicWorld world;
@@ -1986,6 +2029,10 @@ class _MiniMapPainter extends CustomPainter {
   final int discoveredPlanetCount;
   final bool showAllContestArenasOnMap;
   final List<MapMarker> markers;
+  final Offset? tutorialTargetPos;
+  final Color? tutorialTargetColor;
+  final String? tutorialTargetLabel;
+  final int pulseTick;
 
   static final _tpCache = <int, TextPainter>{};
 
@@ -2658,6 +2705,41 @@ class _MiniMapPainter extends CustomPainter {
       }
     }
 
+    if (tutorialTargetPos != null) {
+      final targetPos = tutorialTargetPos! * scale;
+      final color = tutorialTargetColor ?? const Color(0xFF8B5CF6);
+      final pulse = 0.55 + 0.45 * sin(pulseTick * 0.42);
+      final outerRadius = 10.0 + pulse * 8.0;
+
+      canvas
+        ..drawCircle(targetPos, outerRadius, _glowPaint(color, 0.28, 10))
+        ..drawCircle(
+          targetPos,
+          6.4 + pulse * 2.0,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = color.withValues(alpha: 0.92),
+        )
+        ..drawCircle(
+          targetPos,
+          3.0,
+          Paint()..color = Colors.white.withValues(alpha: 0.95),
+        );
+
+      if (showPoiLabels && tutorialTargetLabel != null) {
+        _paintLabel(
+          canvas,
+          tutorialTargetLabel!,
+          color,
+          0.95,
+          targetPos,
+          9,
+          fontSize: 7,
+        );
+      }
+    }
+
     // Ship
     final shipScaled = shipPos * scale;
     canvas
@@ -2672,6 +2754,10 @@ class _MiniMapPainter extends CustomPainter {
     if (discoveredPlanetCount != old.discoveredPlanetCount) return true;
     if (showAllContestArenasOnMap != old.showAllContestArenasOnMap) return true;
     if (!identical(markers, old.markers)) return true;
+    if (tutorialTargetPos != old.tutorialTargetPos) return true;
+    if (tutorialTargetColor != old.tutorialTargetColor) return true;
+    if (tutorialTargetLabel != old.tutorialTargetLabel) return true;
+    if (pulseTick != old.pulseTick) return true;
     // Only repaint when ship has moved a visible amount on the minimap.
     return (shipPos - old.shipPos).distance * scale > 0.5;
   }

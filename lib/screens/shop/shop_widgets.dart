@@ -9,6 +9,7 @@ import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:flutter/material.dart';
@@ -1310,7 +1311,7 @@ class MarketplaceGrid extends StatelessWidget {
           child: GridView.count(
             shrinkWrap: true, // IMPORTANT
             physics: const NeverScrollableScrollPhysics(), // IMPORTANT
-            crossAxisCount: 2,
+            crossAxisCount: responsiveCrossAxisCount(context, phoneCols: 2),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.6,
@@ -1375,7 +1376,7 @@ class FarmUnlockSection extends StatelessWidget {
           child: GridView.count(
             shrinkWrap: true, // IMPORTANT
             physics: const NeverScrollableScrollPhysics(), // IMPORTANT
-            crossAxisCount: 2,
+            crossAxisCount: responsiveCrossAxisCount(context, phoneCols: 2),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.8,

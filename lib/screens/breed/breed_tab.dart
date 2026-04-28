@@ -588,106 +588,76 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  // empty avatar ring (inactive state)
+  // empty avatar — alchemical summoning circle
   Widget _buildEmptyAvatar(FactionTheme theme) {
     final primary = Theme.of(context).colorScheme.primary;
 
     return SizedBox(
-      width: 96,
-      height: 96,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // base circle / placeholder
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: theme.border.withValues(alpha: .4),
-                width: 2,
-              ),
-              gradient: RadialGradient(
-                colors: [
-                  theme.surfaceAlt.withValues(alpha: .2),
-                  Colors.transparent,
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: primary.withValues(alpha: .2),
-                  blurRadius: 16,
-                  spreadRadius: 2,
-                ),
-              ],
+      width: 104,
+      height: 104,
+      child: AnimatedBuilder(
+        animation: _emptyFuseController,
+        builder: (context, _) {
+          return CustomPaint(
+            painter: _SummoningCirclePainter(
+              color: theme.border.withValues(alpha: .45),
+              accentColor: primary,
+              glowColor: primary.withValues(alpha: .06),
+              progress: _emptyFuseController.value,
+              showOrbit: true,
             ),
-            child: Icon(
-              Icons.help_center_rounded,
-              color: theme.textMuted.withValues(alpha: .3),
-              size: 32,
+            child: Center(
+              child: Icon(
+                Icons.help_center_rounded,
+                color: theme.textMuted.withValues(alpha: .25),
+                size: 28,
+              ),
             ),
-          ),
-
-          // spinning fuse ring
-          AnimatedBuilder(
-            animation: _emptyFuseController,
-            builder: (context, _) {
-              final angle = _emptyFuseController.value * 2 * math.pi;
-
-              return Transform.rotate(
-                angle: angle,
-                child: CustomPaint(
-                  size: const Size(96, 96),
-                  painter: _FuseArcPainter(
-                    color: primary,
-                    thickness: 3,
-                    sweepRadians: math.pi / 2,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  // live animated sprite, slightly enlarged but nicely framed
+  // live animated sprite inside summoning circle frame
   Widget _buildCreatureAvatar(
     Creature base,
     CreatureInstance inst,
     Genetics? genetics,
   ) {
-    return Container(
-      width: 96,
-      height: 96,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.black.withValues(alpha: .3),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: .08),
-          width: 1,
+    final typeColor = BreedConstants.getTypeColor(base.types.first);
+    return SizedBox(
+      width: 104,
+      height: 104,
+      child: CustomPaint(
+        painter: _SummoningCirclePainter(
+          color: typeColor.withValues(alpha: .5),
+          accentColor: typeColor,
+          glowColor: typeColor.withValues(alpha: .08),
+          progress: 0,
+          showOrbit: false,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .6),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+        child: Center(
+          child: SizedBox(
+            width: 68,
+            height: 68,
+            child: base.spriteData != null
+                ? Transform.scale(
+                    scale: 1.4,
+                    child: InstanceSprite(
+                      creature: base,
+                      instance: inst,
+                      size: 64,
+                    ),
+                  )
+                : Icon(
+                    Icons.image_not_supported_rounded,
+                    color: Colors.white.withValues(alpha: .4),
+                    size: 32,
+                  ),
           ),
-        ],
+        ),
       ),
-      alignment: Alignment.center,
-      child: base.spriteData != null
-          ? Transform.scale(
-              scale: 1.4,
-              child: InstanceSprite(creature: base, instance: inst, size: 72),
-            )
-          : Icon(
-              Icons.image_not_supported_rounded,
-              color: Colors.white.withValues(alpha: .4),
-              size: 32,
-            ),
     );
   }
 
@@ -972,7 +942,7 @@ class _BreedingTabState extends State<BreedingTab>
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: theme.surfaceAlt.withValues(alpha: .5),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: theme.accent.withValues(alpha: .5),
             width: 1,
@@ -1035,7 +1005,7 @@ class _BreedingTabState extends State<BreedingTab>
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: theme.surfaceAlt.withValues(alpha: .3),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: theme.border.withValues(alpha: .4),
             width: 1,
@@ -1648,40 +1618,188 @@ class _HalfCircleClipper extends CustomClipper<Path> {
   }
 }
 
-class _FuseArcPainter extends CustomPainter {
+class _SummoningCirclePainter extends CustomPainter {
   final Color color;
-  final double thickness;
-  final double sweepRadians;
+  final Color accentColor;
+  final Color glowColor;
+  final double progress;
+  final bool showOrbit;
 
-  _FuseArcPainter({
+  _SummoningCirclePainter({
     required this.color,
-    required this.thickness,
-    this.sweepRadians = math.pi / 3,
+    required this.accentColor,
+    required this.glowColor,
+    required this.progress,
+    this.showOrbit = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final strokePaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = thickness
-      ..strokeCap = StrokeCap.round;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final center = Offset(cx, cy);
+    final outerR = cx - 4;
+    final innerR = outerR * 0.78;
 
-    final rect = Rect.fromLTWH(
-      thickness / 2,
-      thickness / 2,
-      size.width - thickness,
-      size.height - thickness,
+    // --- Subtle radial glow ---
+    final glowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [glowColor, glowColor.withValues(alpha: 0)],
+      ).createShader(Rect.fromCircle(center: center, radius: innerR));
+    canvas.drawCircle(center, innerR, glowPaint);
+
+    // --- Outer circle ---
+    canvas.drawCircle(
+      center,
+      outerR,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
     );
 
-    const double startAngle = 0;
-    canvas.drawArc(rect, startAngle, sweepRadians, false, strokePaint);
+    // --- Inner circle ---
+    canvas.drawCircle(
+      center,
+      innerR,
+      Paint()
+        ..color = color.withValues(alpha: color.a * 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8,
+    );
+
+    // --- Inscribed hexagon on outer circle ---
+    final hexPaint = Paint()
+      ..color = color.withValues(alpha: color.a * 0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
+    final hexPath = Path();
+    for (int i = 0; i < 6; i++) {
+      final angle = (i / 6) * 2 * math.pi - math.pi / 2;
+      final x = cx + outerR * math.cos(angle);
+      final y = cy + outerR * math.sin(angle);
+      if (i == 0) {
+        hexPath.moveTo(x, y);
+      } else {
+        hexPath.lineTo(x, y);
+      }
+    }
+    hexPath.close();
+    canvas.drawPath(hexPath, hexPaint);
+
+    // --- Two overlapping triangles (Star of David / transmutation seal) ---
+    final triPaint = Paint()
+      ..color = accentColor.withValues(alpha: accentColor.a * 0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9;
+
+    // Triangle pointing up
+    final triUpPath = Path();
+    for (int i = 0; i < 3; i++) {
+      final angle = (i / 3) * 2 * math.pi - math.pi / 2;
+      final x = cx + innerR * math.cos(angle);
+      final y = cy + innerR * math.sin(angle);
+      if (i == 0) {
+        triUpPath.moveTo(x, y);
+      } else {
+        triUpPath.lineTo(x, y);
+      }
+    }
+    triUpPath.close();
+    canvas.drawPath(triUpPath, triPaint);
+
+    // Triangle pointing down
+    final triDownPath = Path();
+    for (int i = 0; i < 3; i++) {
+      final angle = (i / 3) * 2 * math.pi + math.pi / 2;
+      final x = cx + innerR * math.cos(angle);
+      final y = cy + innerR * math.sin(angle);
+      if (i == 0) {
+        triDownPath.moveTo(x, y);
+      } else {
+        triDownPath.lineTo(x, y);
+      }
+    }
+    triDownPath.close();
+    canvas.drawPath(triDownPath, triPaint);
+
+    // --- Small tick marks at 12 positions on outer ring ---
+    final tickPaint = Paint()
+      ..color = color.withValues(alpha: color.a * 0.5)
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+
+    for (int i = 0; i < 12; i++) {
+      final angle = (i / 12) * 2 * math.pi - math.pi / 2;
+      final isCardinal = i % 3 == 0;
+      final len = isCardinal ? 4.0 : 2.0;
+      final from = Offset(
+        cx + outerR * math.cos(angle),
+        cy + outerR * math.sin(angle),
+      );
+      final to = Offset(
+        cx + (outerR + len) * math.cos(angle),
+        cy + (outerR + len) * math.sin(angle),
+      );
+      canvas.drawLine(from, to, tickPaint);
+    }
+
+    // --- Small diamond runes at 4 cardinal points (outside ring) ---
+    final runePaint = Paint()
+      ..color = accentColor.withValues(alpha: accentColor.a * 0.4)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 4; i++) {
+      final angle = (i / 4) * 2 * math.pi - math.pi / 2;
+      final dx = cx + (outerR + 7) * math.cos(angle);
+      final dy = cy + (outerR + 7) * math.sin(angle);
+      final d = Path()
+        ..moveTo(dx, dy - 2.2)
+        ..lineTo(dx + 1.3, dy)
+        ..lineTo(dx, dy + 2.2)
+        ..lineTo(dx - 1.3, dy)
+        ..close();
+      canvas.drawPath(d, runePaint);
+    }
+
+    // --- Orbiting particle with trail (empty state) ---
+    if (showOrbit) {
+      final angle = progress * 2 * math.pi;
+      final orbitR = (outerR + innerR) / 2;
+
+      // Main dot with glow
+      final orbX = cx + orbitR * math.cos(angle);
+      final orbY = cy + orbitR * math.sin(angle);
+      canvas.drawCircle(
+        Offset(orbX, orbY),
+        2.5,
+        Paint()
+          ..color = accentColor
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+      );
+
+      // Fading trail
+      for (int t = 1; t <= 6; t++) {
+        final ta = angle - t * 0.15;
+        final tx = cx + orbitR * math.cos(ta);
+        final ty = cy + orbitR * math.sin(ta);
+        canvas.drawCircle(
+          Offset(tx, ty),
+          2.0 - t * 0.25,
+          Paint()
+            ..color = accentColor.withValues(
+              alpha: accentColor.a * (1.0 - t / 7),
+            ),
+        );
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(_FuseArcPainter oldDelegate) {
-    return oldDelegate.color != color ||
-        oldDelegate.thickness != thickness ||
-        oldDelegate.sweepRadians != sweepRadians;
-  }
+  bool shouldRepaint(_SummoningCirclePainter old) =>
+      old.progress != progress ||
+      old.showOrbit != showOrbit ||
+      old.color != color ||
+      old.accentColor != accentColor;
 }

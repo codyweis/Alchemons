@@ -1,5 +1,6 @@
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 
 class OpeningWildernessService {
@@ -155,5 +156,6 @@ class OpeningWildernessService {
     await settings.deleteSetting(captureSceneKey);
     await settings.deleteSetting(allowedScenesKey);
     await settings.setSetting(activeKey, '0');
+    await CosmicMemoryTutorialService.markHarvestTutorialCompleted(settings);
   }
 }

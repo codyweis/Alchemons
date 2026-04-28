@@ -22,9 +22,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       returnCompanion();
     }
 
-    // Build stats from SurvivalUnit formulas, but scaled DOWN for cosmic
-    // mode where enemies have no DEF (survival enemies reduce damage via
-    // armour — here every point of physAtk is raw damage).
+    // Build compact companion stats for cosmic mode, where enemies have no DEF
+    // and every point of physAtk is raw damage.
     final speed = member.statSpeed.toDouble();
     final intel = member.statIntelligence.toDouble();
     final strength = member.statStrength.toDouble();

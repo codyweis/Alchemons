@@ -106,6 +106,7 @@ class CosmicGame extends FlameGame with PanDetector {
   int? _planetScannerTargetIndex;
 
   late ShipComponent ship;
+  bool runtimeReady = false;
   // Loaded effect prototypes from assets
   List<Effect> _loadedEffectPrototypes = [];
   final List<PlanetComponent> planetComps = [];
@@ -327,6 +328,7 @@ class CosmicGame extends FlameGame with PanDetector {
   bool sandboxMode = false;
   Offset? sandboxAreaCenter;
   Offset? sandboxReturnPosition;
+  double? sandboxArenaRadius;
   static const double sandboxAreaRevealRadius = 900.0;
   final Random sandboxRng = Random(0x5A4E4442);
 
@@ -412,10 +414,34 @@ class CosmicGame extends FlameGame with PanDetector {
   final List<VfxShockRing> vfxRings = [];
 
   // Camera offset (ship is always centred; camera follows ship)
-  // Zoom < 1 shows more of the world (0.85 = 15% zoom-out).
-  static const double cameraZoom = 0.85;
-  double get camX => ship.pos.dx - size.x / (2 * cameraZoom);
-  double get camY => ship.pos.dy - size.y / (2 * cameraZoom);
+  // Three zoom presets: current (closest), medium, wide.
+  static const double _zoomClose = 0.85;
+  static const double _zoomMid = 0.60;
+  static const double _zoomFar = 0.42;
+  static const List<double> _zoomPresets = [_zoomClose, _zoomMid, _zoomFar];
+  int _zoomLevelIndex = 0;
+  double _currentZoom = _zoomClose;
+  double _zoomAnimFrom = _zoomClose;
+  double _zoomAnimTo = _zoomClose;
+  double _zoomAnimTimer = 0;
+  static const double _zoomAnimDuration = 0.42;
+  bool _zoomAnimComplete = true;
+
+  /// Current zoom level index (0 = close, 1 = mid, 2 = far).
+  int get currentZoomLevel => _zoomLevelIndex;
+
+  double get cameraZoom => _currentZoom;
+
+  void cycleZoomLevel() {
+    _zoomLevelIndex = (_zoomLevelIndex + 1) % _zoomPresets.length;
+    _zoomAnimFrom = _currentZoom;
+    _zoomAnimTo = _zoomPresets[_zoomLevelIndex];
+    _zoomAnimTimer = 0;
+    _zoomAnimComplete = false;
+  }
+
+  double get camX => ship.pos.dx - size.x / (2 * _currentZoom);
+  double get camY => ship.pos.dy - size.y / (2 * _currentZoom);
 
   // ── lifecycle ──────────────────────────────────────────
 
@@ -515,6 +541,8 @@ class CosmicGame extends FlameGame with PanDetector {
       );
     } catch (e) {
       // ignore - optional
+    } finally {
+      runtimeReady = true;
     }
   }
 
@@ -655,6 +683,11 @@ class CosmicGame extends FlameGame with PanDetector {
       _ => 400.0,
     };
     return max(engageRange + 150.0, floor);
+  }
+
+  double _effectiveCombatAcquireRange(double baseRange) {
+    if (!sandboxMode || sandboxArenaRadius == null) return baseRange;
+    return max(baseRange, sandboxArenaRadius! * 2.0 + 160.0);
   }
 
   double _preferredCombatDistance({
@@ -952,6 +985,18 @@ class CosmicGame extends FlameGame with PanDetector {
     super.update(dt);
     _elapsed += dt;
 
+    // ── zoom animation ──
+    if (!_zoomAnimComplete) {
+      _zoomAnimTimer += dt;
+      final t = (_zoomAnimTimer / _zoomAnimDuration).clamp(0.0, 1.0);
+      final ease = 1.0 - pow(1.0 - t, 3).toDouble(); // ease-out cubic
+      _currentZoom = _zoomAnimFrom + (_zoomAnimTo - _zoomAnimFrom) * ease;
+      if (t >= 1.0) {
+        _currentZoom = _zoomAnimTo;
+        _zoomAnimComplete = true;
+      }
+    }
+
     if (_beautyContestCinematicActive) {
       _updateBeautyContestCinematic(dt);
       return;
@@ -1146,6 +1191,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // ── wrap ship position ──
     ship.pos = _wrap(ship.pos);
+    _clampShipToSandboxArena();
 
     // ── reveal fog ──
     _revealAround(ship.pos, 280);
@@ -1893,6 +1939,7 @@ class CosmicGame extends FlameGame with PanDetector {
         final dx = (comp.position.dx - ship.pos.dx).abs();
         final dy = (comp.position.dy - ship.pos.dy).abs();
         if (!battleRing.inBattle &&
+            sandboxArenaRadius == null &&
             (dx > size.x / (2 * cameraZoom) + margin ||
                 dy > size.y / (2 * cameraZoom) + margin)) {
           comp.returning = true;
@@ -2040,6 +2087,9 @@ class CosmicGame extends FlameGame with PanDetector {
             attackRange: comp.attackRange,
             specialRange: comp.specialAbilityRange,
           );
+          final effectiveAcquireRange = _effectiveCombatAcquireRange(
+            acquireRange,
+          );
           final holdDistance = _combatHoldDistance(
             family: family,
             attackRange: comp.attackRange,
@@ -2048,7 +2098,7 @@ class CosmicGame extends FlameGame with PanDetector {
             specialCooldown: comp.specialCooldown,
           );
           CosmicEnemy? nearestEnemy;
-          double nearestDist = acquireRange;
+          double nearestDist = effectiveAcquireRange;
 
           // During ring battle, prioritise the ring opponent
           bool targetIsRingOpponent = false;
@@ -2084,7 +2134,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
           if (targetIsRingOpponent ||
               nearestEnemy != null ||
-              (activeBoss != null && nearestDist < acquireRange)) {
+              (activeBoss != null && nearestDist < effectiveAcquireRange)) {
             final targetPos = targetIsRingOpponent
                 ? battleRingOpponent!.position
                 : (nearestEnemy?.position ?? activeBoss!.position);
@@ -2115,6 +2165,11 @@ class CosmicGame extends FlameGame with PanDetector {
               final step = chaseSpeed * dt;
               comp.position +=
                   (toTarget / distToTarget) * min(step, distToTarget);
+            }
+            // Advance anchor with companion while chasing so the wander
+            // soft-pull doesn't oppose combat movement.
+            if (distToTarget > holdDistance) {
+              comp.anchorPosition = comp.position;
             }
             if (ringDuelActive || distToTarget > holdDistance) {
               final refreshed = targetPos - comp.position;
@@ -2862,6 +2917,20 @@ class CosmicGame extends FlameGame with PanDetector {
         final edy = p.position.dy - enemy.position.dy;
         final hitR = enemy.radius + hitRadius;
         if (edx * edx + edy * edy < hitR * hitR) {
+          if (p.spawnLetElementalOnImpact) {
+            companionProjectiles.addAll(
+              createLetImpactFollowupProjectiles(
+                impactPosition: enemy.position,
+                baseAngle: p.angle,
+                element: p.element ?? 'Fire',
+                damage: p.letFollowupDamageSeed > 0
+                    ? p.letFollowupDamageSeed
+                    : (p.damage * 0.34),
+                casterBeauty: p.letCasterBeauty,
+                casterIntelligence: p.letCasterIntelligence,
+              ),
+            );
+          }
           // Piercing projectiles deal reduced damage after first hit
           final pierceFalloff = p.piercing
               ? pow(0.7, p.pierceCount).toDouble()
@@ -2936,6 +3005,20 @@ class CosmicGame extends FlameGame with PanDetector {
           final bdy = cp.position.dy - boss.position.dy;
           if (bdx * bdx + bdy * bdy <
               (boss.radius + hitRadius) * (boss.radius + hitRadius)) {
+            if (cp.spawnLetElementalOnImpact) {
+              companionProjectiles.addAll(
+                createLetImpactFollowupProjectiles(
+                  impactPosition: boss.position,
+                  baseAngle: cp.angle,
+                  element: cp.element ?? 'Fire',
+                  damage: cp.letFollowupDamageSeed > 0
+                      ? cp.letFollowupDamageSeed
+                      : (cp.damage * 0.34),
+                  casterBeauty: cp.letCasterBeauty,
+                  casterIntelligence: cp.letCasterIntelligence,
+                ),
+              );
+            }
             final pierceFalloff = cp.piercing
                 ? pow(0.7, cp.pierceCount).toDouble()
                 : 1.0;
@@ -2978,6 +3061,20 @@ class CosmicGame extends FlameGame with PanDetector {
           final hitRadius = Projectile.radius * cp.radiusMultiplier;
           if (rdx * rdx + rdy * rdy <
               (rm.radius + hitRadius) * (rm.radius + hitRadius)) {
+            if (cp.spawnLetElementalOnImpact) {
+              companionProjectiles.addAll(
+                createLetImpactFollowupProjectiles(
+                  impactPosition: rm.position,
+                  baseAngle: cp.angle,
+                  element: cp.element ?? 'Fire',
+                  damage: cp.letFollowupDamageSeed > 0
+                      ? cp.letFollowupDamageSeed
+                      : (cp.damage * 0.34),
+                  casterBeauty: cp.letCasterBeauty,
+                  casterIntelligence: cp.letCasterIntelligence,
+                ),
+              );
+            }
             final pierceFalloff = cp.piercing
                 ? pow(0.7, cp.pierceCount).toDouble()
                 : 1.0;
@@ -3013,6 +3110,20 @@ class CosmicGame extends FlameGame with PanDetector {
         final odx = cp.position.dx - opp.position.dx;
         final ody = cp.position.dy - opp.position.dy;
         if (odx * odx + ody * ody < (15 + hitRadius) * (15 + hitRadius)) {
+          if (cp.spawnLetElementalOnImpact) {
+            companionProjectiles.addAll(
+              createLetImpactFollowupProjectiles(
+                impactPosition: opp.position,
+                baseAngle: cp.angle,
+                element: cp.element ?? 'Fire',
+                damage: cp.letFollowupDamageSeed > 0
+                    ? cp.letFollowupDamageSeed
+                    : (cp.damage * 0.34),
+                casterBeauty: cp.letCasterBeauty,
+                casterIntelligence: cp.letCasterIntelligence,
+              ),
+            );
+          }
           final pierceFalloff = cp.piercing
               ? pow(0.7, cp.pierceCount).toDouble()
               : 1.0;
@@ -3127,7 +3238,10 @@ class CosmicGame extends FlameGame with PanDetector {
           specialRange: g.specialRange,
         );
         CosmicEnemy? nearestEnemy;
-        double nearestDist = acquireRange;
+        final effectiveAcquireRange = _effectiveCombatAcquireRange(
+          acquireRange,
+        );
+        double nearestDist = effectiveAcquireRange;
         for (final e in enemies) {
           if (e.dead) continue;
           final d = (e.position - g.position).distance;
@@ -3147,7 +3261,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
         final hasCombatTarget =
             nearestEnemy != null ||
-            (activeBoss != null && nearestDist < acquireRange);
+            (activeBoss != null && nearestDist < effectiveAcquireRange);
 
         if (hasCombatTarget) {
           // ── Chase & attack ──
@@ -3514,7 +3628,13 @@ class CosmicGame extends FlameGame with PanDetector {
         if (edy < -wh / 2) edy += wh;
         final hitR = e.radius + 14; // ship collision radius ~14
         if (edx * edx + edy * edy < hitR * hitR) {
-          final contactDmg = CosmicBalance.enemyShipContactDamage(e.tier);
+          final variantMult = switch (e.variant) {
+            CosmicEnemyVariant.crusher => 1.45,
+            CosmicEnemyVariant.pouncer => 0.9,
+            CosmicEnemyVariant.standard => 1.0,
+          };
+          final contactDmg =
+              CosmicBalance.enemyShipContactDamage(e.tier) * variantMult;
           _damageShip(contactDmg);
           e.dead = true;
           _spawnKillVfx(e.position, elementColor(e.element), e.radius, false);
@@ -6363,9 +6483,23 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       final eColor = elementColor(e.element);
+      final variantScale = switch (e.variant) {
+        CosmicEnemyVariant.crusher => 1.12,
+        CosmicEnemyVariant.pouncer => 0.92,
+        CosmicEnemyVariant.standard => 1.0,
+      };
+      final variantYScale = switch (e.variant) {
+        CosmicEnemyVariant.crusher => 0.92,
+        CosmicEnemyVariant.pouncer => 1.12,
+        CosmicEnemyVariant.standard => 1.0,
+      };
 
       canvas.save();
       canvas.translate(ep.dx, ep.dy);
+      if (e.variant != CosmicEnemyVariant.standard) {
+        canvas.rotate(e.angle * 0.08);
+        canvas.scale(variantScale, variantYScale);
+      }
 
       // Outer elemental aura
       canvas.drawCircle(

@@ -1,13 +1,11 @@
 // ignore_for_file: unused_element
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/survival/special_attacks/ability_config.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 
 class ImprovedBattleScrollArea extends StatelessWidget {
@@ -25,23 +23,13 @@ class ImprovedBattleScrollArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
-    final unit = SurvivalUnit(
-      id: 'view_battle',
-      name: creature.name,
-      types: creature.types,
-      family: creature.mutationFamily ?? 'Unknown',
-      level: instance.level,
-      statSpeed: instance.statSpeed,
-      statIntelligence: instance.statIntelligence,
-      statStrength: instance.statStrength,
-      statBeauty: instance.statBeauty,
-    );
+    final family = creature.mutationFamily ?? 'Unknown';
 
     final bossProfile = BattleCombatant(
       id: 'view_boss',
       name: creature.name,
       types: creature.types,
-      family: unit.family,
+      family: family,
       statSpeed: instance.statSpeed,
       statIntelligence: instance.statIntelligence,
       statStrength: instance.statStrength,
@@ -51,7 +39,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
     final battleSpecialMove = BattleMove.getSpecialMoveForCombatant(
       bossProfile,
     );
-    final battleBasicMove = BattleMove.getBasicMove(unit.family);
+    final battleBasicMove = BattleMove.getBasicMove(family);
 
     return DefaultTabController(
       length: 2,
@@ -89,7 +77,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _buildExploreTab(unit, fc),
+                _buildExploreTab(family, creature.types, fc),
                 _buildBossTab(bossProfile, battleBasicMove, battleSpecialMove),
               ],
             ),
@@ -111,7 +99,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _BattleSection(
-            title: 'Boss Combat Profile',
+            title: 'Combat Profile',
             color: FC.orange,
             child: _BossCombatProfileCard(
               profile: bossProfile,
@@ -131,9 +119,8 @@ class ImprovedBattleScrollArea extends StatelessWidget {
   // EXPLORE TAB — Cosmic / Exploration mode companion abilities
   // ─────────────────────────────────────────────────────────────────────────
 
-  Widget _buildExploreTab(SurvivalUnit unit, FC fc) {
-    final family = unit.family;
-    final element = unit.types.firstOrNull ?? 'Normal';
+  Widget _buildExploreTab(String family, List<String> types, FC fc) {
+    final element = types.firstOrNull ?? 'Normal';
     final ft = FT(fc);
 
     return SingleChildScrollView(
@@ -143,33 +130,33 @@ class ImprovedBattleScrollArea extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _BattleSection(
-            title: 'Companion Role',
+            title: 'Role',
             color: fc.amber,
             child: _exploreRoleCard(family, element, fc, ft),
           ),
           const SizedBox(height: 20),
           _BattleSection(
-            title: 'Basic Attack',
+            title: 'Basic',
             color: fc.amber,
             child: _exploreBasicCard(family, element, fc, ft),
           ),
           const SizedBox(height: 20),
           _BattleSection(
-            title: 'Special Attack',
+            title: 'Special',
             color: fc.amber,
             child: _exploreSpecialCard(family, element, fc, ft),
           ),
           const SizedBox(height: 20),
           _BattleSection(
-            title: 'Cosmic Survival',
+            title: 'Survival',
             color: fc.amber,
             child: _buildExploreSurvivalCard(family, element, fc),
           ),
           const SizedBox(height: 20),
           _BattleSection(
-            title: 'Stat Effects',
+            title: 'Stats',
             color: fc.amber,
-            child: const _ExploreStatEffectsCard(),
+            child: _ExploreStatEffectsCard(family: family),
           ),
         ],
       ),
@@ -178,54 +165,31 @@ class ImprovedBattleScrollArea extends StatelessWidget {
 
   Widget _exploreRoleCard(String family, String element, FC fc, FT ft) {
     final role = _cosmicFamilyRole(family);
-    final icon = _exploreFamilyIcon(family);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Text(
+          role.title.toUpperCase(),
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: fc.textPrimary,
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _ExpandableDetail(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: fc.amber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: fc.borderAccent),
-              ),
-              child: Icon(icon, color: fc.amberBright, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${family.toUpperCase()} COMPANION',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textPrimary,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 12,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  Text(
-                    role.title,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.amberBright,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+            Text(
+              role.description,
+              style: TextStyle(
+                color: fc.textSecondary,
+                fontSize: 11,
+                height: 1.4,
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 10),
-        Text(
-          role.description,
-          style: TextStyle(color: fc.textSecondary, fontSize: 11, height: 1.4),
         ),
       ],
     );
@@ -236,50 +200,37 @@ class ImprovedBattleScrollArea extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Text(
+          basicInfo.name.toUpperCase(),
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: fc.textPrimary,
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
+            letterSpacing: 0.8,
+          ),
+        ),
+        Text(
+          basicInfo.subtitle,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: fc.textSecondary,
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _ExpandableDetail(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: fc.amber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: fc.borderAccent),
-              ),
-              child: Icon(basicInfo.icon, color: fc.amberBright, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    basicInfo.name.toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textPrimary,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 12,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  Text(
-                    basicInfo.subtitle,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textSecondary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+            Text(
+              basicInfo.description,
+              style: TextStyle(
+                color: fc.textSecondary,
+                fontSize: 11,
+                height: 1.4,
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 10),
-        Text(
-          basicInfo.description,
-          style: TextStyle(color: fc.textSecondary, fontSize: 11, height: 1.4),
         ),
       ],
     );
@@ -291,103 +242,40 @@ class ImprovedBattleScrollArea extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Text(
+          abilityName.toUpperCase(),
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: fc.textPrimary,
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
+            letterSpacing: 0.8,
+          ),
+        ),
+        Text(
+          specialInfo.subtitle,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: fc.textSecondary,
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _ExpandableDetail(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: fc.amber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: fc.borderAccent),
-              ),
-              child: Icon(specialInfo.icon, color: fc.amberBright, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    abilityName.toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textPrimary,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 12,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  Text(
-                    specialInfo.subtitle,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textSecondary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+            Text(
+              specialInfo.description,
+              style: TextStyle(
+                color: fc.textSecondary,
+                fontSize: 11,
+                height: 1.4,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        Text(
-          specialInfo.description,
-          style: TextStyle(color: fc.textSecondary, fontSize: 11, height: 1.4),
-        ),
-        if (specialInfo.tags.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: specialInfo.tags.map((tag) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: fc.amber.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: fc.borderDim),
-                ),
-                child: Text(
-                  tag,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                    color: fc.amberBright,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
       ],
     );
-  }
-
-  static IconData _exploreFamilyIcon(String family) {
-    switch (family) {
-      case 'Let':
-        return Icons.south;
-      case 'Pip':
-        return Icons.bolt;
-      case 'Mane':
-        return Icons.waves;
-      case 'Mask':
-        return Icons.warning_amber;
-      case 'Horn':
-        return Icons.shield;
-      case 'Wing':
-        return Icons.arrow_forward;
-      case 'Kin':
-        return Icons.favorite;
-      case 'Mystic':
-        return Icons.auto_awesome;
-      default:
-        return Icons.star;
-    }
   }
 
   static _CosmicFamilyRole _cosmicFamilyRole(String family) {
@@ -397,7 +285,8 @@ class ImprovedBattleScrollArea extends StatelessWidget {
           title: 'Frontline Bastion',
           description:
               'Horns force close fights. They push into short range, soak '
-              'pressure with shields, and convert specials into charge impacts, '
+              'pressure with shields, trade some raw damage for durability, '
+              'and convert specials into charge impacts, '
               'body-blocking zones, taunts, slows, and interceptions that hold '
               'danger in front of the team.',
         );
@@ -425,7 +314,8 @@ class ImprovedBattleScrollArea extends StatelessWidget {
               'Pips are fast skirmish finishers. They cycle attacks quickly, '
               'chase weak or scattered targets, and turn specials into tempo '
               'bursts: ricochets, pursuit darts, moving snares, quick haste, '
-              'or heavy cleanup shots depending on element.',
+              'or heavy cleanup shots depending on element. They excel at wave '
+              'cleanup but are less efficient into bosses than most families.',
         );
       case 'Mane':
         return const _CosmicFamilyRole(
@@ -509,6 +399,64 @@ class _BattleSection extends StatelessWidget {
   }
 }
 
+class _ExpandableDetail extends StatefulWidget {
+  final List<Widget> children;
+  const _ExpandableDetail({required this.children});
+  @override
+  State<_ExpandableDetail> createState() => _ExpandableDetailState();
+}
+
+class _ExpandableDetailState extends State<_ExpandableDetail> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 14,
+                  color: fc.textMuted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _expanded ? 'LESS' : 'DETAILS',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 8,
+                    color: fc.textMuted,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: widget.children,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 Widget _buildExploreSurvivalCard(String family, String element, FC fc) {
   final notes = _cosmicSurvivalNotes(family, element);
   final accent = _survivalAccentColor(element);
@@ -544,29 +492,33 @@ Widget _buildExploreSurvivalCard(String family, String element, FC fc) {
       ),
       if (notes.bullets.isNotEmpty) ...[
         const SizedBox(height: 10),
-        for (final bullet in notes.bullets) ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 5),
-                child: Icon(Icons.circle, size: 5, color: accent),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  bullet,
-                  style: TextStyle(
-                    color: fc.textSecondary,
-                    fontSize: 10.5,
-                    height: 1.35,
+        _ExpandableDetail(
+          children: [
+            for (final bullet in notes.bullets) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Icon(Icons.circle, size: 5, color: accent),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      bullet,
+                      style: TextStyle(
+                        color: fc.textSecondary,
+                        fontSize: 10.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              if (bullet != notes.bullets.last) const SizedBox(height: 8),
             ],
-          ),
-          if (bullet != notes.bullets.last) const SizedBox(height: 8),
-        ],
+          ],
+        ),
       ],
     ],
   );
@@ -645,18 +597,6 @@ class _BossCombatProfileCard extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         _moveLine('Special Unlock', 'Level 5', fc),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.only(left: 90),
-          child: Text(
-            'Boss mode uses commitment cooldowns: specials lock longer and cooldown recovery comes from basic attacks and certain abilities.',
-            style: TextStyle(
-              color: fc.textSecondary,
-              fontSize: 11,
-              height: 1.3,
-            ),
-          ),
-        ),
         const SizedBox(height: 10),
         Text(
           'STAT SCALING',
@@ -709,24 +649,6 @@ class _BossCombatProfileCard extends StatelessWidget {
                 title: 'Physical Core',
                 effect: 'Raises max HP, physical attack, and physical defense.',
                 fc: fc,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Cooldown scaling note: only SPD affects baseline cooldown recovery tiers in Boss mode.',
-                style: TextStyle(
-                  color: fc.textSecondary,
-                  fontSize: 10,
-                  height: 1.3,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'SPD tiers: +1 recovery at 2.0, +1 at 3.0, +1 at 4.0, +1 at 4.8.',
-                style: TextStyle(
-                  color: fc.textMuted,
-                  fontSize: 10,
-                  height: 1.3,
-                ),
               ),
             ],
           ),
@@ -861,624 +783,6 @@ class _BossCombatProfileCard extends StatelessWidget {
   }
 }
 
-// ===============================================
-// DYNAMIC BASIC ATTACK CARD
-// ===============================================
-class _DynamicBasicAttackCard extends StatelessWidget {
-  final SurvivalUnit unit;
-
-  const _DynamicBasicAttackCard({required this.unit});
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final element = unit.types.firstOrNull ?? 'Normal';
-    final cooldown = (1.5 / unit.cooldownReduction).toStringAsFixed(1);
-    final passiveEffect = AbilitySystemConfig.getPassiveEffectDescription(
-      element,
-    );
-    final elemColor = _getElementColor(element);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: fc.amber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: fc.borderAccent),
-              ),
-              child: Icon(Icons.star_border, color: fc.amberBright, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ELEMENTAL PROJECTILE',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textPrimary,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 12,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  Text(
-                    'Cooldown: ${cooldown}s • Scales with Speed',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textSecondary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Fires elemental projectiles at enemies. Basic damage scales with Strength, elemental damage with Beauty, attack speed with Speed, and range with Intelligence.',
-          style: TextStyle(color: fc.textSecondary, fontSize: 11, height: 1.4),
-        ),
-        const SizedBox(height: 12),
-
-        // Dynamic Passive Effect
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: fc.bg3,
-            borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: elemColor.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              Icon(_getPassiveIcon(element), size: 12, color: elemColor),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  passiveEffect,
-                  style: TextStyle(
-                    color: fc.textPrimary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 8),
-        _DamagePreview(unit: unit),
-      ],
-    );
-  }
-
-  Color _getElementColor(String element) {
-    switch (element) {
-      case 'Fire':
-      case 'Lava':
-        return Colors.deepOrange;
-      case 'Water':
-      case 'Ice':
-      case 'Steam':
-        return Colors.blue;
-      case 'Earth':
-      case 'Mud':
-      case 'Crystal':
-        return Colors.brown;
-      case 'Air':
-      case 'Dust':
-      case 'Lightning':
-        return Colors.cyan;
-      case 'Plant':
-      case 'Poison':
-        return Colors.green;
-      case 'Spirit':
-      case 'Dark':
-        return Colors.deepPurple;
-      case 'Light':
-        return const Color(0xFFB45309);
-      case 'Blood':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getPassiveIcon(String element) {
-    switch (element) {
-      case 'Fire':
-      case 'Lava':
-        return Icons.local_fire_department;
-      case 'Water':
-      case 'Ice':
-        return Icons.water_drop;
-      case 'Lightning':
-        return Icons.bolt;
-      case 'Earth':
-        return Icons.terrain;
-      case 'Plant':
-        return Icons.eco;
-      case 'Poison':
-        return Icons.science;
-      case 'Air':
-        return Icons.air;
-      default:
-        return Icons.circle;
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DAMAGE PREVIEW
-// ─────────────────────────────────────────────────────────────────────────────
-class _DamagePreview extends StatelessWidget {
-  final SurvivalUnit unit;
-  const _DamagePreview({required this.unit});
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: fc.amberDim.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: fc.borderAccent),
-      ),
-      child: Row(
-        children: [
-          _statChip('DMG', '${unit.physAtk}', Icons.gavel, fc),
-          const SizedBox(width: 8),
-          _statChip('ELEM', '${unit.elemAtk}', Icons.auto_awesome, fc),
-          const SizedBox(width: 8),
-          _statChip(
-            'RNG',
-            unit.attackRange.toStringAsFixed(0),
-            Icons.my_location,
-            fc,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statChip(String label, String value, IconData icon, FC fc) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(
-          color: fc.bg3,
-          borderRadius: BorderRadius.circular(2),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 11, color: fc.amberDim),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: fc.textMuted,
-                fontSize: 8,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              value,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: fc.textPrimary,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DYNAMIC SPECIAL ABILITY CARD (3-TIER SYSTEM)
-// ─────────────────────────────────────────────────────────────────────────────
-class _DynamicSpecialAbilityCard extends StatefulWidget {
-  final SurvivalUnit unit;
-  const _DynamicSpecialAbilityCard({required this.unit});
-  @override
-  State<_DynamicSpecialAbilityCard> createState() =>
-      _DynamicSpecialAbilityCardState();
-}
-
-class _DynamicSpecialAbilityCardState
-    extends State<_DynamicSpecialAbilityCard> {
-  int _selectedRank = 1;
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final ft = FT(fc);
-    final family = widget.unit.family;
-    final element = widget.unit.types.firstOrNull ?? 'Normal';
-    final baseDescription = AbilitySystemConfig.getAbilityDescription(
-      family,
-      element,
-      0,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: fc.amber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: fc.borderAccent),
-              ),
-              child: Icon(
-                _getFamilyIcon(family),
-                color: fc.amberBright,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _getFamilyAbilityName(family).toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textPrimary,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 12,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  Text(
-                    'Scales with Beauty \u2022 3 elemental upgrades',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textSecondary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          baseDescription,
-          style: TextStyle(color: fc.textSecondary, fontSize: 11, height: 1.4),
-        ),
-        const SizedBox(height: 16),
-        Text('ELEMENTAL MASTERY', style: ft.label),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _rankButton(1, 'I', 'UNLOCK', fc),
-            const SizedBox(width: 8),
-            _rankButton(2, 'II', 'POWER', fc),
-            const SizedBox(width: 8),
-            _rankButton(3, 'III', 'ULTIMATE', fc),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _rankDescriptionBox(family, element, fc),
-      ],
-    );
-  }
-
-  Widget _rankButton(int rank, String label, String? subtitle, FC fc) {
-    final isSelected = _selectedRank == rank;
-    final isUltimate = rank == 3;
-    final activeColor = isUltimate ? fc.amberGlow : fc.amber;
-
-    return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => _selectedRank = rank),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? activeColor.withValues(alpha: 0.15) : fc.bg3,
-            borderRadius: BorderRadius.circular(2),
-            border: Border.all(
-              color: isSelected
-                  ? activeColor.withValues(alpha: 0.8)
-                  : fc.borderDim,
-              width: isSelected ? 1.0 : 0.8,
-            ),
-          ),
-          child: Column(
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: isSelected ? activeColor : fc.textMuted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: isSelected
-                        ? activeColor.withValues(alpha: 0.8)
-                        : fc.textMuted,
-                    fontSize: 7,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _rankDescriptionBox(String family, String element, FC fc) {
-    final description = AbilitySystemConfig.getAbilityDescription(
-      family,
-      element,
-      _selectedRank,
-    );
-    final isUltimate = _selectedRank == 3;
-    final tierLabel = _getTierLabel(_selectedRank);
-    final activeColor = isUltimate ? fc.amberGlow : fc.amber;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: activeColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: activeColor.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: activeColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(2),
-              border: Border.all(color: activeColor.withValues(alpha: 0.4)),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  _getRomanNumeral(_selectedRank),
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: activeColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  tierLabel,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: activeColor.withValues(alpha: 0.7),
-                    fontSize: 6,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              description,
-              style: TextStyle(
-                color: fc.textPrimary,
-                fontSize: 11,
-                height: 1.4,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getRomanNumeral(int rank) {
-    switch (rank) {
-      case 1:
-        return 'I';
-      case 2:
-        return 'II';
-      case 3:
-        return 'III';
-      default:
-        return '';
-    }
-  }
-
-  String _getTierLabel(int rank) {
-    switch (rank) {
-      case 1:
-        return 'UNLOCK';
-      case 2:
-        return 'POWER';
-      case 3:
-        return 'ULTIMATE';
-      default:
-        return '';
-    }
-  }
-
-  String _getFamilyAbilityName(String family) {
-    switch (family) {
-      case 'Let':
-        return 'Meteor Strike';
-      case 'Pip':
-        return 'Frenzy';
-      case 'Mane':
-        return 'Barrage Volley';
-      case 'Mask':
-        return 'Hex Field';
-      case 'Horn':
-        return 'Fortress';
-      case 'Wing':
-        return 'Piercing Beam';
-      case 'Kin':
-        return 'Sanctuary';
-      case 'Mystic':
-        return 'Arcane Orbitals';
-      default:
-        return 'Special Ability';
-    }
-  }
-
-  IconData _getFamilyIcon(String family) {
-    switch (family) {
-      case 'Let':
-        return Icons.south;
-      case 'Pip':
-        return Icons.bolt;
-      case 'Mane':
-        return Icons.waves;
-      case 'Mask':
-        return Icons.warning_amber;
-      case 'Horn':
-        return Icons.shield;
-      case 'Wing':
-        return Icons.arrow_forward;
-      case 'Kin':
-        return Icons.favorite;
-      case 'Mystic':
-        return Icons.auto_awesome;
-      default:
-        return Icons.star;
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STAT EFFECTS CARD
-// ─────────────────────────────────────────────────────────────────────────────
-class _StatEffectsCard extends StatelessWidget {
-  const _StatEffectsCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _statEffect(
-          icon: Icons.favorite,
-          stat: 'Max HP',
-          effect: 'Guardian survivability and health pool',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.gavel,
-          stat: 'Strength',
-          effect: 'Basic attack physical damage',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.psychology,
-          stat: 'Intelligence',
-          effect: 'Attack range and cooldown reduction',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.auto_awesome,
-          stat: 'Beauty',
-          effect: 'Elemental damage and ability power',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.speed,
-          stat: 'Speed',
-          effect: 'Attack speed (from base stats)',
-          fc: fc,
-        ),
-      ],
-    );
-  }
-
-  Widget _statEffect({
-    required IconData icon,
-    required String stat,
-    required String effect,
-    required FC fc,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: fc.amberDim.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(2),
-          ),
-          child: Icon(icon, size: 12, color: fc.amber),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                stat.toUpperCase(),
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.textPrimary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              Text(
-                effect,
-                style: TextStyle(
-                  color: fc.textSecondary,
-                  fontSize: 10,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // COSMIC FAMILY ROLE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1505,6 +809,7 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
     case 'Horn':
       bullets.addAll([
         'Horns are the frontline bastion family in survival: they push forward, intercept orb threats, and fight closer than most companions.',
+        'Horn identity includes a deliberate tradeoff: lower outgoing damage for stronger damage soaking and frontline uptime.',
         'Shield-heavy Horn variants buy time for the whole defense line, while taunt, slow, and intercept variants keep pressure pointed at the front.',
       ]);
       if ([
@@ -1538,7 +843,7 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
       }
       return _CosmicSurvivalNotes(
         summary:
-            'Horn plays as an aggressive tank in cosmic survival: it wants to stand in front of danger, absorb pressure, and crash into priority threats.',
+            'Horn plays as an aggressive tank in cosmic survival: it stands in front of danger, takes reduced incoming damage, and gives up some DPS to hold the line.',
         bullets: bullets,
       );
     case 'Wing':
@@ -1584,6 +889,7 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
     case 'Pip':
       bullets.addAll([
         'Pips are cleanup assassins: they dart after weak or spread-out enemies and keep pressure high between larger specials.',
+        'Pip identity is speed-first tempo: strong wave picks and chase pressure, but reduced boss damage compared with most families.',
         'They are valuable for removing messy leftovers so bulkier allies can stay on important threats, and they should not play like static lane holders.',
       ]);
       if ([
@@ -1618,44 +924,56 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
       }
       return _CosmicSurvivalNotes(
         summary:
-            'Pip is a fast tempo finisher in survival. It should feel surgical, opportunistic, and better at picks than at holding the center.',
+            'Pip is a fast tempo finisher in survival. It should feel surgical and opportunistic, strongest in wave cleanup and intentionally weaker in boss races.',
         bullets: bullets,
       );
     case 'Mane':
       bullets.addAll([
-        'Manes are barrage bruisers: they step up, carve a forward lane, then keep pressure on enemies trying to push through it.',
-        'They are better at short-range suppression than at hard defense, so they feel best when your team already has anchors or escorts behind them.',
+        'Manes are offense-first barrage bruisers: they step up and fire active forward cut patterns instead of setting traps.',
+        'They are best when paired with a true anchor behind them, because Mane wins by pressure cadence and lane carving, not by bunker control.',
       ]);
-      if (['Fire', 'Lightning', 'Air', 'Dust'].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Mane emphasizes quick combo pressure and lane clearing, which makes it especially good at breaking regular waves before they settle.',
-        );
-      } else if ([
-        'Ice',
-        'Steam',
-        'Earth',
-        'Mud',
-        'Plant',
-        'Poison',
-        'Dark',
-        'Lava',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Mane adds readable forward control to its slashes, slowing or staggering enemies without becoming a full battlefield-control caster.',
-        );
-      } else if ([
-        'Blood',
-        'Spirit',
-        'Crystal',
-        'Light',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Mane focuses on disciplined finishers, parries, or phase-cuts while staying pointed into the forward lane.',
-        );
-      }
+      final elementDetail = switch (normalizedElement) {
+        'Water' =>
+          'Water Mane uses dual crossing tide-cuts, creating an X-shaped pressure lane that slows pushes from two angles.',
+        'Steam' =>
+          'Steam Mane fires a two-beat sequence: fast openers followed by heavier delayed pressure cuts.',
+        'Plant' =>
+          'Plant Mane fires a core slash lane that forks into branch cuts, giving it a distinctive split-pressure rhythm.',
+        'Poison' =>
+          'Poison Mane leans into drifting venom slashes with longer duration and visible lane denial without becoming static.',
+        'Crystal' =>
+          'Crystal Mane is a disciplined 3-lance prism burst with refracted side follow-ups for precise pierce pressure.',
+        'Blood' =>
+          'Blood Mane uses two heavy spear-cuts plus a center finisher, with sustain tied into that focused burst.',
+        'Dark' =>
+          'Dark Mane is a narrow suppression package: fewer lanes, heavier cuts, stronger focused control.',
+        'Earth' =>
+          'Earth Mane advances with marching slab-cuts that stagger forward in sequence and hold lane leverage.',
+        'Fire' =>
+          'Fire Mane is a high-tempo advancing arc burst meant to shred regular waves before they settle.',
+        'Lightning' =>
+          'Lightning Mane emphasizes fast fork cuts with a guided center line for aggressive chase-through pressure.',
+        'Air' =>
+          'Air Mane is a wide split-sweep style with speed-first lane clear and high forward tempo.',
+        'Dust' =>
+          'Dust Mane throws the broadest fan pattern in the family, flooding lanes with rapid low-mass cuts.',
+        'Ice' =>
+          'Ice Mane favors heavier chill cleaves with firmer slowing follow-through in a tight frontal lane.',
+        'Mud' =>
+          'Mud Mane applies stumbling heavy cross-cuts that drag enemy movement while still pressing forward.',
+        'Lava' =>
+          'Lava Mane trades volume for hotter, heavier cleaves that spike frontline pressure.',
+        'Spirit' =>
+          'Spirit Mane keeps a disciplined barrage but threads a guided center finisher through it.',
+        'Light' =>
+          'Light Mane adds a disciplined parry-intercept line on top of forward pressure cuts.',
+        _ =>
+          '$normalizedElement Mane keeps the offense-first lane pressure pattern with an element-specific firing cadence.',
+      };
+      bullets.add(elementDetail);
       return _CosmicSurvivalNotes(
         summary:
-            'Mane is an offense-first bruiser family in survival. It wins by turning medium range into a controlled forward lane instead of by anchoring, orbiting, or chasing leaks.',
+            'Mane is an offense-first bruiser family in survival. It wins through active forward slash patterns and element-specific firing signatures rather than trap setups.',
         bullets: bullets,
       );
     case 'Kin':
@@ -1806,7 +1124,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Mane':
       return _CosmicBasicInfo(
         name: '$element Twin Volley',
-        subtitle: 'Scales with Strength • 2 forward slashes',
+        subtitle: '2 forward slashes',
         description:
             'Fires two forward $element shots with slight spread. The basic '
             'attack is built for lane pressure and consistent frontal damage, '
@@ -1816,7 +1134,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Horn':
       return _CosmicBasicInfo(
         name: '$element Ram Shot',
-        subtitle: 'Scales with Strength • Heavy close-range projectile',
+        subtitle: 'Heavy close-range projectile',
         description:
             'Launches a large, slow $element projectile with an oversized '
             'hitbox. Horn basics hit hard up close and help keep pressure on '
@@ -1826,7 +1144,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Mask':
       return _CosmicBasicInfo(
         name: '$element Probe Bolt',
-        subtitle: 'Scales with Strength • Fast piercing setup shot',
+        subtitle: 'Fast piercing setup shot',
         description:
             'Fires a quick piercing $element bolt to tag targets in a line. '
             'Mask basics are light pressure tools that set up the family\'s '
@@ -1836,7 +1154,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Wing':
       return _CosmicBasicInfo(
         name: '$element Feather Burst',
-        subtitle: 'Scales with Strength • 2 rapid pursuit shots',
+        subtitle: '2 rapid pursuit shots',
         description:
             'Unleashes two quick $element bolts in succession. Wing basics '
             'keep damage flowing while the companion stays mobile and looks '
@@ -1846,7 +1164,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Kin':
       return _CosmicBasicInfo(
         name: '$element Guided Bolt',
-        subtitle: 'Scales with Strength • Reliable homing support fire',
+        subtitle: 'Reliable homing support fire',
         description:
             'Fires a slower $element bolt that homes toward the nearest '
             'enemy, steering mid-flight. Deals 110% damage and rarely '
@@ -1857,7 +1175,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Mystic':
       return _CosmicBasicInfo(
         name: '$element Arcane Triad',
-        subtitle: 'Scales with Strength • 3 spread bolts',
+        subtitle: '3 spread bolts',
         description:
             'Releases three small $element bolts in a spread. Mystic basics '
             'hold space between ultimates, but the family\'s real power is in '
@@ -1867,7 +1185,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Pip':
       return _CosmicBasicInfo(
         name: '$element Dart Burst',
-        subtitle: 'Scales with Strength • 3 fast tracking darts',
+        subtitle: '3 fast tracking darts',
         description:
             'Fires a quick burst of small $element darts. Pip basics are '
             'built for high uptime, target pressure, and staying active '
@@ -1877,7 +1195,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Let':
       return _CosmicBasicInfo(
         name: '$element Bomb',
-        subtitle: 'Scales with Strength • Slow artillery shot',
+        subtitle: 'Slow artillery shot',
         description:
             'Lobs a compact $element bomb with more heft than a standard bolt. '
             'Let basics reinforce the siege role: slower, heavier lane pressure '
@@ -1887,7 +1205,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     default:
       return _CosmicBasicInfo(
         name: '$element Bolt',
-        subtitle: 'Scales with Strength • Auto-targets nearest',
+        subtitle: 'Auto-targets nearest',
         description:
             'Fires a $element projectile at the nearest enemy within range. '
             'Damage is based on Strength. Attack speed scales with Speed stat.',
@@ -1968,7 +1286,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
           'Element changes how the Horn protects the front line after impact.',
       };
       return _CosmicSpecialInfo(
-        subtitle: 'Shield Charge • Beauty × 2 • Frontline impact',
+        subtitle: 'Shield Charge • Frontline impact',
         description:
             'Raises a shield, erupts with an elemental guard burst, then '
             'commits to a real impact charge. $followThrough',
@@ -2037,7 +1355,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
           'Element determines the beam follow-through: chains, refractions, hunters, or scatter effects.',
       };
       return _CosmicSpecialInfo(
-        subtitle: 'Piercing Beam • Beauty × 2 • Long-range line attack',
+        subtitle: 'Piercing Beam • Long-range line attack',
         description:
             'Fires a powerful $element beam that pierces through all enemies in its path. '
             '${hasTrail ? 'Leaves a lingering $element damage trail behind the beam. ' : ''}'
@@ -2101,7 +1419,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         _ => 'Element determines the follow-through pattern after impact.',
       };
       return _CosmicSpecialInfo(
-        subtitle: 'Meteor Strike • Beauty × 2 • Siege follow-through',
+        subtitle: 'Meteor Strike • Siege follow-through',
         description:
             'Drops a massive $element meteor on the target with a large impact burst. '
             '${hasCluster ? 'The meteor fragments mid-flight, splitting into sub-projectiles. ' : ''}'
@@ -2172,7 +1490,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
           'Element determines the tempo pattern, target priority, and rebound behavior.',
       };
       return _CosmicSpecialInfo(
-        subtitle: 'Tempo Salvo • Beauty × 2 • Fast skirmish special',
+        subtitle: 'Tempo Salvo • Fast skirmish special',
         description:
             'Fires a burst of fast $element darts for cleanup and target hopping. '
             '$followThrough',
@@ -2206,43 +1524,42 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       final finisherElement = ['Blood', 'Spirit', 'Crystal'].contains(element);
       final followThrough = switch (element) {
         'Fire' =>
-          'Fire becomes a flameblade combo with a brief basic-attack tempo push.',
+          'Fire is an advancing flame-arc burst with a high-tempo follow-through.',
         'Lightning' =>
-          'Lightning is a fast piercing step-cut sequence, not a ricochet chain.',
-        'Air' => 'Air sweeps a wide windblade cone for fast lane clearing.',
-        'Dust' =>
-          'Dust throws a broad sandblade fan that clears messy clusters without bouncing.',
+          'Lightning is a fast fork-cut package with a guided center lane.',
+        'Air' =>
+          'Air sweeps the widest split cone for speed-first lane clearing.',
+        'Dust' => 'Dust floods lanes with a high-count sandblade fan.',
         'Water' =>
-          'Water uses crossing tide-cuts that visibly slow enemies in the lane.',
+          'Water fires dual crossing tide-cuts that form a distinct X-lane slow.',
         'Steam' =>
-          'Steam vents pressure slashes that pierce and briefly choke movement.',
+          'Steam fires a two-beat slash sequence: quick opener into delayed pressure cuts.',
         'Plant' =>
-          'Plant lashes vine-cuts that catch enemies with short forward snares.',
+          'Plant opens a core lane and forks into branch cuts for split pressure.',
         'Poison' =>
-          'Poison applies venom edge pressure with readable slow cuts instead of residue fields.',
+          'Poison uses drifting long-life venom slashes with stronger lane denial.',
         'Ice' =>
-          'Ice uses heavier chill cleaves and frost follow-through to slow a push.',
+          'Ice keeps heavier chill cleaves with firmer frontal slow pressure.',
         'Earth' =>
-          'Earth adds guard-break slabs and short fault plates for staggered pressure.',
+          'Earth advances in marching slab-cuts that stagger the lane step by step.',
         'Mud' =>
-          'Mud uses heavy stumbling cross-cuts that slow enemies trying to pass.',
-        'Lava' =>
-          'Lava trades volume for heavy molten cleaves with brief stagger pressure.',
+          'Mud uses heavy stumbling cross-cuts to drag movement in front of it.',
+        'Lava' => 'Lava is lower-volume, heavier molten cleave pressure.',
         'Dark' =>
-          'Dark is a tight forward void-cut package for focused suppression.',
+          'Dark is a narrow, high-pressure suppression line with heavier cuts.',
         'Blood' =>
-          'Blood uses lifesteal spear-cuts and disciplined follow-through slashes.',
+          'Blood fires twin spear-cuts plus a central finisher and sustain payoff.',
         'Spirit' =>
-          'Spirit phases one guided center cut through a mostly straight barrage.',
+          'Spirit threads a guided center finisher through a disciplined barrage.',
         'Crystal' =>
-          'Crystal uses precise prism cuts and refracted piercing follow-ups.',
+          'Crystal is a fixed 3-lance prism burst with refracted side follow-ups.',
         'Light' =>
-          'Light adds a disciplined parry cut that can intercept one threat.',
+          'Light adds a disciplined parry lane that can intercept one threat.',
         _ =>
           'Element changes the forward technique while keeping Mane focused on lane pressure.',
       };
       return _CosmicSpecialInfo(
-        subtitle: 'Barrage Volley • Beauty × 2 • Martial lane pressure',
+        subtitle: 'Barrage Volley • Martial lane pressure',
         description:
             'Unloads a forward $element slash technique meant to suppress what '
             'is directly in front of the Mane. $followThrough',
@@ -2323,8 +1640,8 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       };
       return _CosmicSpecialInfo(
         subtitle: decoyElement
-            ? 'Decoy Totem • Beauty × 2 • Control setup'
-            : 'Seeker Swarm • Beauty × 2 • Control setup',
+            ? 'Decoy Totem • Control setup'
+            : 'Seeker Swarm • Control setup',
         description:
             'Deploys $element misdirection pieces that make enemies choose bad '
             'targets, bad paths, or bad timing. $followThrough',
@@ -2413,7 +1730,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
               'taunt, snare, heal, or pressure enemies.',
       };
       return _CosmicSpecialInfo(
-        subtitle: 'Blessing Pulse • Beauty × 2 • Guardian support',
+        subtitle: 'Blessing Pulse • Guardian support',
         description:
             'Heals self, applies a blessing-over-time, and deploys $element '
             'guardian pieces. $followThrough',
@@ -2580,7 +1897,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       );
     default:
       return const _CosmicSpecialInfo(
-        subtitle: 'Beauty × 2 • 30s cooldown',
+        subtitle: '30s cooldown',
         description:
             'Unleashes a burst of elemental energy at 2× damage. '
             'Cooldown is reduced by Speed.',
@@ -2593,58 +1910,129 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
 // EXPLORE STAT EFFECTS CARD
 // ─────────────────────────────────────────────────────────────────────────────
 class _ExploreStatEffectsCard extends StatelessWidget {
-  const _ExploreStatEffectsCard();
+  final String family;
+  const _ExploreStatEffectsCard({required this.family});
 
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
+    final lines = _familyStatEffectLines(family);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _statEffect(
-          icon: Icons.favorite,
-          stat: 'STR + INT → HP',
-          effect: 'Both power and intelligence feed companion durability',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.gps_fixed,
-          stat: 'Strength → Basic DMG',
-          effect: 'Increases basic projectile damage',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.auto_awesome,
-          stat: 'Beauty → Special DMG',
-          effect: 'Raises special attack power, including guardian ultimates',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.radar,
-          stat: 'Intelligence → Range',
-          effect: 'Increases attack reach and supports survivability scaling',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.speed,
-          stat: 'Speed → Cooldowns',
-          effect: 'Reduces time between attacks and specials',
-          fc: fc,
-        ),
-        const SizedBox(height: 8),
-        _statEffect(
-          icon: Icons.shield,
-          stat: 'Stats → Defence',
-          effect:
-              'Strength helps physical defence, Beauty helps elemental defence',
-          fc: fc,
-        ),
+        for (var i = 0; i < lines.length; i++) ...[
+          _statEffect(
+            icon: lines[i].icon,
+            stat: lines[i].stat,
+            effect: lines[i].effect,
+            fc: fc,
+          ),
+          if (i < lines.length - 1) const SizedBox(height: 8),
+        ],
       ],
     );
+  }
+
+  List<_StatEffectLine> _familyStatEffectLines(String family) {
+    final f = family.toLowerCase();
+    final common = <_StatEffectLine>[
+      const _StatEffectLine(
+        icon: Icons.favorite,
+        stat: 'STR + INT -> HP',
+        effect: 'Both strength and intelligence feed companion durability',
+      ),
+      const _StatEffectLine(
+        icon: Icons.gps_fixed,
+        stat: 'Strength -> Basic DMG',
+        effect: 'Increases basic projectile damage',
+      ),
+      const _StatEffectLine(
+        icon: Icons.speed,
+        stat: 'Speed -> Cooldowns',
+        effect: 'Reduces time between attacks and specials',
+      ),
+      const _StatEffectLine(
+        icon: Icons.trending_up,
+        stat: 'Run Upgrades -> Scaling',
+        effect: 'In-run upgrades can push special scaling above base stats',
+      ),
+    ];
+
+    final familySpecific = switch (f) {
+      'kin' => const [
+        _StatEffectLine(
+          icon: Icons.shield,
+          stat: 'Kin Special Scaling',
+          effect:
+              'Support effects scale best when both Beauty and Intelligence are high',
+        ),
+      ],
+      'let' => const [
+        _StatEffectLine(
+          icon: Icons.auto_awesome,
+          stat: 'Let Special Scaling',
+          effect:
+              'Meteor follow-ups scale with Beauty + Intelligence and trigger on impact',
+        ),
+      ],
+      'wing' => const [
+        _StatEffectLine(
+          icon: Icons.radar,
+          stat: 'Wing Special Scaling',
+          effect:
+              'Long-range special control scales mainly with Intelligence + Beauty',
+        ),
+      ],
+      'horn' => const [
+        _StatEffectLine(
+          icon: Icons.shield,
+          stat: 'Horn Special Scaling',
+          effect:
+              'Shield/charge special scaling favors Strength + Intelligence',
+        ),
+      ],
+      'mane' => const [
+        _StatEffectLine(
+          icon: Icons.bolt,
+          stat: 'Mane Special Scaling',
+          effect: 'Bruiser special scaling favors Strength with Beauty support',
+        ),
+      ],
+      'mask' => const [
+        _StatEffectLine(
+          icon: Icons.theater_comedy,
+          stat: 'Mask Special Scaling',
+          effect:
+              'Control/trap special scaling favors Intelligence with Beauty support',
+        ),
+      ],
+      'pip' => const [
+        _StatEffectLine(
+          icon: Icons.flash_on,
+          stat: 'Pip Special Scaling',
+          effect:
+              'Tempo special scaling favors tactical stats and attack cadence',
+        ),
+      ],
+      'mystic' => const [
+        _StatEffectLine(
+          icon: Icons.auto_awesome,
+          stat: 'Mystic Special Scaling',
+          effect:
+              'Core spell output scales with Beauty + Intelligence; high Strength boosts burst',
+        ),
+      ],
+      _ => const [
+        _StatEffectLine(
+          icon: Icons.auto_awesome,
+          stat: 'Special Scaling',
+          effect:
+              'Special strength scales with family-specific stat combinations',
+        ),
+      ],
+    };
+
+    return [...familySpecific, ...common];
   }
 
   Widget _statEffect({
@@ -2692,4 +2080,16 @@ class _ExploreStatEffectsCard extends StatelessWidget {
       ],
     );
   }
+}
+
+class _StatEffectLine {
+  final IconData icon;
+  final String stat;
+  final String effect;
+
+  const _StatEffectLine({
+    required this.icon,
+    required this.stat,
+    required this.effect,
+  });
 }

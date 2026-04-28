@@ -19,9 +19,11 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 
 String _normalizeAllInstancesPrefsScope(String value) {
   return value.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');
@@ -856,8 +858,8 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       padding: const EdgeInsets.fromLTRB(5, 0, 5, 24),
                       itemCount: instances.length,
                       gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
+                          SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: responsiveCrossAxisCount(context, phoneCols: 2),
                             childAspectRatio: 1,
                             crossAxisSpacing: 8,
                             mainAxisSpacing: 8,
@@ -898,9 +900,24 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                             activeSortBy: _sortBy,
                             isSelected: isSelected,
                             selectionNumber: selectionNumber,
-                            onTap: () => _handleInstanceTap(inst),
+                            onTap: () {
+                              if (widget.selectionMode) {
+                                _handleInstanceTap(inst);
+                              } else if (widget.onTap != null) {
+                                widget.onTap!(inst);
+                              } else {
+                                showQuickInstanceDialog(
+                                  context: context,
+                                  theme: widget.theme,
+                                  creature: creature,
+                                  instance: inst,
+                                );
+                              }
+                            },
                             onLongPress: () {
-                              if (!widget.selectionMode) {
+                              if (widget.selectionMode) {
+                                widget.onLongPress?.call();
+                              } else if (widget.onTap != null) {
                                 showQuickInstanceDialog(
                                   context: context,
                                   theme: widget.theme,
@@ -908,7 +925,12 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                                   instance: inst,
                                 );
                               } else {
-                                widget.onLongPress?.call();
+                                CreatureDetailsDialog.show(
+                                  context,
+                                  creature,
+                                  true,
+                                  instanceId: inst.instanceId,
+                                );
                               }
                             },
                           ),

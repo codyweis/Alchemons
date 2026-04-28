@@ -14,12 +14,16 @@ enum CosmicEnemyRole { striker, orbiter, shooter, hunter }
 
 enum CosmicEnemyTarget { orb, ship, companion }
 
+enum SurvivalEnemyVariant { standard, orbBreaker, siegeShooter }
+
 enum SurvivalBossDiscipline {
   standard,
   artillery,
   trickster,
   duelist,
   conductor,
+  siegebreaker,
+  riftcaller,
 }
 
 enum SurvivalWavePattern {
@@ -53,6 +57,7 @@ enum SurvivalWaveMutator {
 
 class CosmicSurvivalEnemy {
   Offset position;
+  Offset knockbackVelocity;
   double angle;
   double hp;
   final double maxHp;
@@ -62,6 +67,7 @@ class CosmicSurvivalEnemy {
   final EnemyTier tier;
   final String element;
   final CosmicEnemyRole role;
+  final SurvivalEnemyVariant variant;
   CosmicEnemyTarget target;
   bool isDead;
   double hitFlash;
@@ -73,6 +79,7 @@ class CosmicSurvivalEnemy {
 
   CosmicSurvivalEnemy({
     required this.position,
+    this.knockbackVelocity = Offset.zero,
     this.angle = 0,
     required this.hp,
     required this.maxHp,
@@ -82,6 +89,7 @@ class CosmicSurvivalEnemy {
     required this.tier,
     required this.element,
     required this.role,
+    this.variant = SurvivalEnemyVariant.standard,
     required this.target,
     this.isDead = false,
     this.hitFlash = 0,
@@ -151,6 +159,10 @@ class SurvivalBoss {
   Offset? spawnFromPosition;
   Offset? spawnTargetPosition;
 
+  // Titanic trait state
+  double colossalTraitTimer;
+  double colossalTraitAuxTimer;
+
   // Constants
   static const double chargeCooldown = 3.0;
   static const double chargeDashDuration = 0.6;
@@ -196,6 +208,8 @@ class SurvivalBoss {
     this.spawnIntroDuration = 1.2,
     this.spawnFromPosition,
     this.spawnTargetPosition,
+    this.colossalTraitTimer = 0,
+    this.colossalTraitAuxTimer = 0,
   });
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
@@ -552,6 +566,14 @@ class CosmicSurvivalSpawner {
     final tier = _tierForWave(currentWave);
     final element = _kElements[_rng.nextInt(_kElements.length)];
     final role = _roleForWave(currentWave, tier);
+    final variant = switch (role) {
+      CosmicEnemyRole.shooter when _rng.nextDouble() < 0.36 =>
+        SurvivalEnemyVariant.siegeShooter,
+      CosmicEnemyRole.striker || CosmicEnemyRole.orbiter
+          when (tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
+              _rng.nextDouble() < 0.34 => SurvivalEnemyVariant.orbBreaker,
+      _ => SurvivalEnemyVariant.standard,
+    };
 
     // Spawn outside view
     final margin = max(viewW, viewH) * 0.55;
@@ -592,18 +614,34 @@ class CosmicSurvivalSpawner {
         (currentMutator == SurvivalWaveMutator.orbSiege ? 1.08 : 1.0) *
         (currentMutator == SurvivalWaveMutator.shatteredSpace ? 1.10 : 1.0) *
         (eliteAffix == SurvivalEliteAffix.vampiric ? 1.10 : 1.0);
+    final variantHpMult = switch (variant) {
+      SurvivalEnemyVariant.orbBreaker => 1.22,
+      SurvivalEnemyVariant.siegeShooter => 0.92,
+      SurvivalEnemyVariant.standard => 1.0,
+    };
+    final variantSpeedMult = switch (variant) {
+      SurvivalEnemyVariant.orbBreaker => 0.84,
+      SurvivalEnemyVariant.siegeShooter => 0.95,
+      SurvivalEnemyVariant.standard => 1.0,
+    };
+    final variantDamageMult = switch (variant) {
+      SurvivalEnemyVariant.orbBreaker => 1.2,
+      SurvivalEnemyVariant.siegeShooter => 1.16,
+      SurvivalEnemyVariant.standard => 1.0,
+    };
 
     return CosmicSurvivalEnemy(
       position: pos,
       angle: angle + pi,
-      hp: baseHp,
-      maxHp: baseHp,
-      speed: baseSpeed,
-      damage: baseDamage,
+      hp: baseHp * variantHpMult,
+      maxHp: baseHp * variantHpMult,
+      speed: baseSpeed * variantSpeedMult,
+      damage: baseDamage * variantDamageMult,
       radius: tierRadius(tier) * (isElite ? 1.3 : 1.0),
       tier: tier,
       element: element,
       role: role,
+      variant: variant,
       target: _initialTargetForRole(role),
       isElite: isElite,
       eliteAffix: eliteAffix,
@@ -712,14 +750,22 @@ class CosmicSurvivalSpawner {
   /// Create a boss for a boss wave.
   SurvivalBoss? createBossForWave(int wave, Offset spawnPos) {
     if (kBossTemplates.isEmpty) return null;
-    final template = kBossTemplates[_rng.nextInt(kBossTemplates.length)];
+    final titanicPool = kBossTemplates.where((t) => t.isTitanic).toList();
+    final forceTitanic = wave == 25 || wave == 50;
+    final template = forceTitanic && titanicPool.isNotEmpty
+      ? titanicPool[_rng.nextInt(titanicPool.length)]
+      : pickBossTemplate(_rng, titanicChance: 0.06);
     final bossLevel = (wave ~/ 5).clamp(1, 20);
-    final hpScale = 1.0 + (bossLevel - 1) * 0.38;
-    final speedScale = 1.0 + (bossLevel - 1) * 0.04;
+    final hpScale =
+      (1.0 + (bossLevel - 1) * 0.38) * (template.isTitanic ? 2.5 : 1.0);
+    final speedScale =
+      (1.0 + (bossLevel - 1) * 0.04) * (template.isTitanic ? 0.84 : 1.0);
     final hp = template.health * 16 * hpScale;
-    final speed = (template.speed * speedScale).clamp(60.0, double.infinity);
+    final speed = (template.speed * speedScale).clamp(45.0, double.infinity);
     final type = template.preferredType ?? bossTypeForLevel(bossLevel);
     final discipline = switch (wave) {
+      >= 35 when wave % 35 == 0 => SurvivalBossDiscipline.riftcaller,
+      >= 30 when wave % 30 == 0 => SurvivalBossDiscipline.siegebreaker,
       >= 25 when wave % 25 == 0 => SurvivalBossDiscipline.conductor,
       >= 20 when wave % 20 == 0 => SurvivalBossDiscipline.duelist,
       >= 15 when wave % 15 == 0 => SurvivalBossDiscipline.trickster,

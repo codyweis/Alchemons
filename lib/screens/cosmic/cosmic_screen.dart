@@ -28,6 +28,7 @@ import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/poison/poison_scene.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/services/breeding_config.dart';
+import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
@@ -60,7 +61,9 @@ import 'widgets/contest_arena_overlays.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 
 class CosmicScreen extends StatefulWidget {
-  const CosmicScreen({super.key});
+  const CosmicScreen({super.key, this.memoryTutorial = false});
+
+  final bool memoryTutorial;
 
   @override
   State<CosmicScreen> createState() => _CosmicScreenState();
@@ -76,6 +79,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       'cosmic_planet_recipe_arrival_intro_seen_v1';
   static const _cosmicIntroPromptedKey = 'cosmic_intro_prompted_v1';
   static const _cosmicIntroCompletedKey = 'cosmic_intro_completed_v1';
+    static const _cosmicSurvivalIntroCompletedKey =
+      'cosmic_survival_intro_completed_v1';
 
   late int _worldSeed;
   late CosmicWorld _world;
@@ -84,17 +89,17 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _showMiniMap = false;
   bool _showPinnedMiniMap = true;
   bool _topHudCollapsed = false;
-  String? _pinnedRecipeElement;
-  CosmicSummonResult? _summonResult;
-  bool _arcaneUnlocked = false;
+    String? _pinnedRecipeElement;
+    CosmicSummonResult? _summonResult;
+    bool _arcaneUnlocked = false;
 
-  // Recipe & storage state
-  CosmicPlanet? _nearPlanet;
-  bool _showingPlanetRecipeArrivalIntro = false;
-  CosmicRecipeState _recipeState = CosmicRecipeState.fresh();
-  ElementStorage _elementStorage = ElementStorage();
-  bool _showElementsCaptured = false;
-  Map<String, double> _capturedBreakdown = {};
+    // Recipe & storage state
+    CosmicPlanet? _nearPlanet;
+    bool _showingPlanetRecipeArrivalIntro = false;
+    CosmicRecipeState _recipeState = CosmicRecipeState.fresh();
+    ElementStorage _elementStorage = ElementStorage();
+    bool _showElementsCaptured = false;
+    Map<String, double> _capturedBreakdown = {};
 
   // Star dust state
   Set<int> _collectedDust = {};
@@ -195,8 +200,13 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _showPartyPicker = false;
   bool _showGarrisonPicker = false;
   bool _runningCosmicIntro = false;
+  bool _runningSurvivalIntro = false;
   bool _awaitingShipMenuTap = false;
   bool _awaitingBuildHomeTap = false;
+  bool _awaitingSurvivalMapTap = false;
+  bool _survivalMapTapped = false;
+  bool _survivalGuidanceActive = false;
+  bool _survivalIntroCompleted = false;
 
   // Cosmic party state
   int _cosmicPartySlotsUnlocked = 0;
@@ -231,6 +241,42 @@ class _CosmicScreenState extends State<CosmicScreen>
   EnemyTier _sandboxEnemyTier = EnemyTier.sentinel;
   EnemyBehavior _sandboxEnemyBehavior = EnemyBehavior.aggressive;
   BossTemplate _sandboxBossTemplate = kBossTemplates.first;
+
+  bool get _homeBuildTutorialLock =>
+      !widget.memoryTutorial &&
+      _homePlanet == null &&
+      (_runningCosmicIntro || _awaitingShipMenuTap || _awaitingBuildHomeTap);
+
+  bool get _survivalSignalTutorialActive =>
+      !widget.memoryTutorial &&
+      !_survivalIntroCompleted &&
+      (_awaitingSurvivalMapTap || _survivalGuidanceActive);
+
+  SpacePOI? get _survivalPortalPoi {
+    final game = _game;
+    if (game == null) return null;
+    for (final poi in game.spacePOIs) {
+      if (poi.type == POIType.survivalPortal) return poi;
+    }
+    return null;
+  }
+
+  Offset? get _survivalTutorialTargetPos =>
+      _survivalSignalTutorialActive ? _survivalPortalPoi?.position : null;
+
+  String? _memoryTutorialPrompt;
+  bool _memoryTutorialStarted = false;
+  bool _memoryAwaitingSummon = false;
+  bool _memoryAwaitingFlight = false;
+  bool _memoryAwaitingTetherToggle = false;
+  bool _memoryTetherLessonVisible = false;
+  bool _memoryCombatStarted = false;
+  bool _memoryBossSpawned = false;
+  bool _memoryCompleting = false;
+  Offset? _memoryFlightStart;
+  Timer? _memorySpawnTimer;
+  Timer? _memoryMonitorTimer;
+  Timer? _memoryStepTimer;
 
   // Meter animation
   late AnimationController _meterPulse;
@@ -357,9 +403,13 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Load / create world seed
     final prefs = await SharedPreferences.getInstance();
-    _worldSeed =
-        prefs.getInt(_seedKey) ?? DateTime.now().millisecondsSinceEpoch;
-    await prefs.setInt(_seedKey, _worldSeed);
+    if (widget.memoryTutorial) {
+      _worldSeed = 0xA1C3E7;
+    } else {
+      _worldSeed =
+          prefs.getInt(_seedKey) ?? DateTime.now().millisecondsSinceEpoch;
+      await prefs.setInt(_seedKey, _worldSeed);
+    }
 
     _world = CosmicWorld.generate(seed: _worldSeed);
 
@@ -406,7 +456,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Load collected star dust
     final dustRaw = prefs.getString(_dustPrefsKey);
-    if (dustRaw != null) {
+    if (!widget.memoryTutorial && dustRaw != null) {
       _collectedDust = StarDust.deserialiseCollected(dustRaw);
     }
 
@@ -438,7 +488,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Load home planet
     final homeRaw = prefs.getString(_homePlanetPrefsKey);
-    if (homeRaw != null) {
+    if (!widget.memoryTutorial && homeRaw != null) {
       _homePlanet = HomePlanet.deserialise(homeRaw);
     }
 
@@ -457,10 +507,17 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Load tap-to-shoot preference
     _tapToShoot = prefs.getBool('cosmic_tap_to_shoot') ?? false;
-    _game?.tapToShootMode = _tapToShoot;
 
     // Load boost toggle mode preference
     _boostToggleMode = prefs.getBool('cosmic_boost_toggle') ?? false;
+
+    if (widget.memoryTutorial) {
+      _showJoystick = true;
+      _largeJoystick = true;
+      _tapToShoot = false;
+      _boostToggleMode = false;
+      _showPinnedMiniMap = false;
+    }
 
     // Load fuel state
     final fuelRaw = prefs.getString('cosmic_ship_fuel');
@@ -557,8 +614,12 @@ class _CosmicScreenState extends State<CosmicScreen>
       initialOptions: _customizationState.options,
       initialAmmoId: _customizationState.activeAmmo?.id,
     );
-    game.activeWeaponId = _customizationState.activeWeapon;
-    game.hasMissiles = _customizationState.hasMissiles;
+    game.tapToShootMode = widget.memoryTutorial ? false : _tapToShoot;
+    game.activeWeaponId = widget.memoryTutorial
+        ? 'equip_machinegun'
+        : _customizationState.activeWeapon;
+    game.hasMissiles =
+        !widget.memoryTutorial && _customizationState.hasMissiles;
     game.activeShipSkin = _customizationState.activeShipSkin;
     // Restore power-up levels
     game.ammoUpgradeLevel = _customizationState.ammoUpgradeLevel;
@@ -639,7 +700,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       }
     }
     _game = game;
-    await _saveBloodRingState();
+    if (!widget.memoryTutorial) {
+      await _saveBloodRingState();
+    }
 
     if (savedFog != null) {
       // Defer restoring fog until after onLoad
@@ -679,7 +742,9 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     if (mounted) setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (mounted && widget.memoryTutorial) {
+        unawaited(_startMemoryTutorial());
+      } else if (mounted) {
         unawaited(_maybeRunCosmicIntro());
       }
     });
@@ -760,6 +825,11 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   Future<void> _initCosmicParty() async {
     if (!mounted) return;
+    if (widget.memoryTutorial) {
+      await _initMemoryTutorialParty();
+      return;
+    }
+
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
     final slots = await db.settingsDao.getCosmicPartySlotsUnlocked();
@@ -826,6 +896,57 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
+  Future<void> _initMemoryTutorialParty() async {
+    final db = context.read<AlchemonsDatabase>();
+    final catalog = context.read<CreatureCatalog>();
+    final instances = await db.creatureDao.listAllInstances();
+
+    if (!mounted) return;
+    if (instances.isEmpty) {
+      setState(() {
+        _cosmicPartySlotsUnlocked = 0;
+        _partyMembers = const [];
+      });
+      return;
+    }
+
+    final inst = instances.first;
+    final base = catalog.getCreatureById(inst.baseId);
+    final typeName = (base?.types.isNotEmpty ?? false)
+        ? base!.types.first
+        : 'Spirit';
+    final family = base?.mutationFamily ?? 'kin';
+    final name = inst.nickname ?? base?.name ?? inst.baseId;
+    final sheet = base?.spriteData != null ? sheetFromCreature(base!) : null;
+    final visuals = visualsFromInstance(base, inst);
+
+    setState(() {
+      _cosmicPartySlotsUnlocked = 1;
+      _partyMembers = [
+        CosmicPartyMember(
+          instanceId: inst.instanceId,
+          baseId: inst.baseId,
+          displayName: name,
+          imagePath: base?.image != null
+              ? 'assets/images/${base!.image}'
+              : null,
+          element: typeName,
+          family: family,
+          level: 10,
+          statSpeed: 2.0,
+          statIntelligence: 2.0,
+          statStrength: 2.0,
+          statBeauty: 2.0,
+          slotIndex: 0,
+          staminaBars: max(1, inst.staminaBars),
+          staminaMax: max(1, inst.staminaMax),
+          spriteSheet: sheet,
+          spriteVisuals: visuals,
+        ),
+      ];
+    });
+  }
+
   Future<void> _handleAssignPartySlot(int slotIndex, String instanceId) async {
     if (!mounted) return;
     // Block if already stationed in garrison
@@ -868,6 +989,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Future<void> _handlePartySlotLongPress(int slotIndex) async {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_isNearHome) {
       _openPartyPickerFromSlotButton();
       return;
@@ -969,6 +1094,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Future<void> _handleSummonCompanionAsync(int slotIndex) async {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_game == null || slotIndex >= _partyMembers.length) return;
     // Block swapping companions during a ring battle
     if (_game!.battleRing.inBattle) {
@@ -1029,6 +1158,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       initialSpecialCooldown: _companionSpecialCooldown[slotIndex] ?? 0.0,
     );
     setState(() => _activeCompanionSlot = slotIndex);
+    _onMemoryCompanionSummoned();
   }
 
   void _handleReturnCompanion() {
@@ -1255,6 +1385,194 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
+  Future<void> _startMemoryTutorial() async {
+    if (_memoryTutorialStarted || !mounted || _game == null) return;
+    _memoryTutorialStarted = true;
+
+    final game = _game!;
+    for (var i = 0; i < 60 && mounted && !game.runtimeReady; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    if (!mounted || !game.runtimeReady) return;
+
+    if (_partyMembers.isEmpty) {
+      await _initMemoryTutorialParty();
+    }
+    if (!mounted) return;
+
+    game.setSandboxMode(
+      enabled: true,
+      center: _sandboxAreaCenter,
+      arenaRadius: 720,
+    );
+    _companionTethered = true;
+    game.companionTethered = true;
+    game.pauseEngine();
+
+    await LandscapeDialog.show(
+      context,
+      title: '',
+      message: 'Is this a memory?',
+      typewriter: true,
+      kind: LandscapeDialogKind.info,
+      showIcon: false,
+      primaryLabel: 'Continue',
+      barrierDismissible: false,
+    );
+
+    if (!mounted) return;
+    game.resumeEngine();
+    setState(() {
+      _memoryAwaitingSummon = true;
+      _memoryTutorialPrompt =
+          'Tap an Alchemon slot on the right to summon it into the field.';
+    });
+  }
+
+  void _onMemoryCompanionSummoned() {
+    if (!widget.memoryTutorial ||
+        !_memoryAwaitingSummon ||
+        _memoryCombatStarted) {
+      return;
+    }
+    _memoryAwaitingSummon = false;
+    _memoryAwaitingFlight = true;
+    _memoryFlightStart = _game?.ship.pos;
+    setState(() {
+      _memoryTutorialPrompt =
+          'Good. Fly with your Alchemon for a moment. It follows while the magnet is active.';
+    });
+    _watchMemoryFlightWithCompanion();
+  }
+
+  void _watchMemoryFlightWithCompanion() {
+    _memoryStepTimer?.cancel();
+    _memoryStepTimer = Timer.periodic(const Duration(milliseconds: 200), (
+      timer,
+    ) {
+      final game = _game;
+      final start = _memoryFlightStart;
+      if (!mounted || !widget.memoryTutorial || game == null || start == null) {
+        timer.cancel();
+        return;
+      }
+      if (!_memoryAwaitingFlight || game.activeCompanion == null) return;
+      if ((game.ship.pos - start).distance < 150) return;
+
+      timer.cancel();
+      setState(() {
+        _memoryAwaitingFlight = false;
+        _memoryAwaitingTetherToggle = true;
+        _memoryTetherLessonVisible = true;
+        _memoryTutorialPrompt =
+            'Now tap the magnet button to disable following. Your Alchemon will hold its ground and fight from there.';
+      });
+    });
+  }
+
+  void _onMemoryTetherToggled() {
+    if (!widget.memoryTutorial ||
+        !_memoryAwaitingTetherToggle ||
+        _companionTethered ||
+        _memoryCombatStarted) {
+      return;
+    }
+    setState(() {
+      _memoryAwaitingTetherToggle = false;
+      _memoryTetherLessonVisible = false;
+      _memoryCombatStarted = true;
+      _memoryTutorialPrompt =
+          'Your Alchemon attacks on its own. Special abilities use cooldowns: watch the number over the slot. When it clears, the ability can trigger again.';
+    });
+    _beginMemoryCombatWave();
+  }
+
+  void _beginMemoryCombatWave() {
+    final game = _game;
+    if (game == null) return;
+
+    var spawned = 0;
+    const totalEnemies = 20;
+    _memorySpawnTimer?.cancel();
+    _memorySpawnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _game == null) {
+        timer.cancel();
+        return;
+      }
+      if (spawned >= totalEnemies) {
+        timer.cancel();
+        _watchMemoryCombatWave();
+        return;
+      }
+      _game!.spawnSandboxEnemy(
+        tier: EnemyTier.drone,
+        element: 'Spirit',
+        behavior: EnemyBehavior.aggressive,
+        count: 1,
+      );
+      spawned++;
+      if (spawned >= totalEnemies) {
+        timer.cancel();
+        _watchMemoryCombatWave();
+      }
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _watchMemoryCombatWave() {
+    _memoryMonitorTimer?.cancel();
+    _memoryMonitorTimer = Timer.periodic(const Duration(milliseconds: 500), (
+      timer,
+    ) {
+      final game = _game;
+      if (!mounted || game == null) {
+        timer.cancel();
+        return;
+      }
+      if (!_memoryBossSpawned && game.enemies.isEmpty) {
+        _memoryBossSpawned = true;
+        setState(() {
+          _memoryTutorialPrompt =
+              'A larger shadow is forming. Break it, then the memory will release you.';
+        });
+        game.spawnSandboxBoss(
+          template: const BossTemplate(
+            name: 'Memory Warden',
+            element: 'Spirit',
+            radius: 30,
+            health: 18,
+            speed: 22,
+            preferredType: BossType.gunner,
+          ),
+          level: 1,
+        );
+      }
+    });
+  }
+
+  Future<void> _completeMemoryTutorial() async {
+    if (_memoryCompleting || !mounted) return;
+    _memoryCompleting = true;
+    _memoryStepTimer?.cancel();
+    _memorySpawnTimer?.cancel();
+    _memoryMonitorTimer?.cancel();
+    _game?.pauseEngine();
+    setState(() {
+      _memoryTutorialPrompt = null;
+    });
+
+    _showQuote('The memory folds inward.');
+
+    final db = context.read<AlchemonsDatabase>();
+    await CosmicMemoryTutorialService.markCompleted(db.settingsDao);
+    await Future.delayed(const Duration(seconds: 5));
+
+    if (!mounted) return;
+    if (Navigator.of(context).canPop()) {
+      await VoidPortal.pop<void>(context, config: VoidPortalConfig.cinematic);
+    }
+  }
+
   /// Persist the active companion's current HP fraction before returning it.
   void _saveCompanionHp() {
     final comp = _game?.activeCompanion;
@@ -1431,6 +1749,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _periodicSave() {
+    if (widget.memoryTutorial) return;
     final now = DateTime.now();
     if (now.difference(_lastSave) > _saveInterval) {
       _lastSave = now;
@@ -1511,6 +1830,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Future<void> _saveTriggeredQuotes() async {
+    if (widget.memoryTutorial) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _quotesPrefsKey,
@@ -1532,6 +1852,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Future<void> _saveFogState() async {
+    if (widget.memoryTutorial) return;
     if (_game == null) return;
     final prefs = await SharedPreferences.getInstance();
     final state = _game!.getFogState(_worldSeed);
@@ -1623,6 +1944,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _handleRiftTap() async {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_game == null || !_game!.isNearRift) return;
     final rift = _game!.nearestRift;
     if (rift == null) return;
@@ -1694,6 +2019,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _handleNexusTap() async {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_game == null || !_game!.isNearNexus) return;
     HapticFeedback.heavyImpact();
 
@@ -1761,6 +2090,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _handlePocketPortalTap() {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_game == null || _nearPocketPortalElement == null) return;
     final element = _nearPocketPortalElement!;
     HapticFeedback.heavyImpact();
@@ -2723,6 +3056,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Future<void> _handleContestArenaTap() async {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_game == null || _nearContestArena == null) return;
     if (_activeCompanionSlot == null) {
       _showQuote('Summon a companion first to enter a contest.');
@@ -2856,6 +3193,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   };
 
   void _handleBattleRingTap() async {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_game == null || !_game!.isNearBattleRing) return;
     HapticFeedback.heavyImpact();
 
@@ -3576,6 +3917,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Future<void> _handleBloodRingTap() async {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_game == null || !_game!.isNearBloodRing || _runningBloodEnding) return;
     HapticFeedback.heavyImpact();
 
@@ -3653,6 +3998,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   void _onBossDefeated(String bossName) {
     if (!mounted) return;
     HapticFeedback.heavyImpact();
+    if (widget.memoryTutorial) {
+      unawaited(_completeMemoryTutorial());
+      return;
+    }
     _showQuote('$bossName defeated!');
   }
 
@@ -3747,6 +4096,11 @@ class _CosmicScreenState extends State<CosmicScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _nearMarketPOI = poi);
+      if (!_survivalIntroCompleted &&
+          _survivalGuidanceActive &&
+          poi?.type == POIType.survivalPortal) {
+        unawaited(_completeSurvivalSignalTutorial());
+      }
     });
   }
 
@@ -3765,6 +4119,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _openMarketShop() {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_nearMarketPOI == null || _game == null) return;
     if (_nearMarketPOI!.type == POIType.survivalPortal) {
       _enterSurvivalPortal();
@@ -3829,6 +4187,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   void _enterSurvivalPortal() {
     if (_game == null) return;
     HapticFeedback.mediumImpact();
+    if (_survivalGuidanceActive && !_survivalIntroCompleted) {
+      unawaited(_completeSurvivalSignalTutorial());
+    }
     // Persist portal discovery
     final db = context.read<AlchemonsDatabase>();
     db.settingsDao.setCosmicSurvivalPortalDiscovered();
@@ -3877,16 +4238,87 @@ class _CosmicScreenState extends State<CosmicScreen>
     await prefs.setBool(_cosmicIntroCompletedKey, true);
   }
 
+  Future<void> _markSurvivalIntroComplete() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_cosmicSurvivalIntroCompletedKey, true);
+    _survivalIntroCompleted = true;
+  }
+
+  Future<void> _startSurvivalSignalTutorial() async {
+    if (_runningSurvivalIntro || !mounted || _survivalIntroCompleted) return;
+    _runningSurvivalIntro = true;
+    try {
+      await LandscapeDialog.show(
+        context,
+        title: 'Signal Detected',
+        message:
+            'Something is triggering alchemical data on the map. Open your mini map and find the blinking signal.',
+        typewriter: true,
+        kind: LandscapeDialogKind.info,
+        showIcon: false,
+        primaryLabel: 'Open Map',
+        barrierDismissible: false,
+      );
+      if (!mounted) return;
+      setState(() {
+        _awaitingSurvivalMapTap = true;
+        _survivalMapTapped = false;
+        _survivalGuidanceActive = false;
+      });
+    } finally {
+      _runningSurvivalIntro = false;
+    }
+  }
+
+  Future<void> _runPostMapSurvivalGuidancePrompt() async {
+    if (!mounted || _survivalIntroCompleted || _survivalGuidanceActive) return;
+    await LandscapeDialog.show(
+      context,
+      title: 'Trace The Source',
+      message:
+          "Find where this energy is coming from. Follow your mini map guidance to the signal.",
+      typewriter: true,
+      kind: LandscapeDialogKind.info,
+      showIcon: false,
+      primaryLabel: 'Track Signal',
+      barrierDismissible: false,
+    );
+    if (!mounted) return;
+    setState(() {
+      _survivalGuidanceActive = true;
+    });
+    _showQuote('Follow the blinking signal to the Survival Portal.');
+  }
+
+  Future<void> _completeSurvivalSignalTutorial() async {
+    if (_survivalIntroCompleted || !mounted) return;
+    setState(() {
+      _awaitingSurvivalMapTap = false;
+      _survivalMapTapped = false;
+      _survivalGuidanceActive = false;
+    });
+    await _markSurvivalIntroComplete();
+    await _markCosmicIntroComplete();
+    if (!mounted) return;
+    _showQuote('Signal source confirmed: Survival Portal unlocked.');
+  }
+
   Future<void> _maybeRunCosmicIntro() async {
     if (_runningCosmicIntro || !mounted || _game == null) return;
 
     final prefs = await SharedPreferences.getInstance();
     final prompted = prefs.getBool(_cosmicIntroPromptedKey) ?? false;
     final completed = prefs.getBool(_cosmicIntroCompletedKey) ?? false;
-    if (completed) return;
+    _survivalIntroCompleted =
+        prefs.getBool(_cosmicSurvivalIntroCompletedKey) ?? false;
+    if (completed && _survivalIntroCompleted) return;
 
     if (_homePlanet != null) {
-      await _markCosmicIntroComplete();
+      if (!_survivalIntroCompleted) {
+        await _startSurvivalSignalTutorial();
+      } else {
+        await _markCosmicIntroComplete();
+      }
       return;
     }
 
@@ -3915,9 +4347,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (!mounted) return;
       await LandscapeDialog.show(
         context,
-        title: 'Discover the Cosmos',
+        title: 'Establish Home Base',
         message:
-            'Discover the secrets of the alchemical world. Planets, competitions, and markets await discovery. Tap mini map for discovered progress and teleport to discovered planets.',
+          'Fly around and choose where you want to anchor your home base. Most systems stay locked until home is built.',
         typewriter: true,
         kind: LandscapeDialogKind.info,
         showIcon: false,
@@ -3941,14 +4373,15 @@ class _CosmicScreenState extends State<CosmicScreen>
       context,
       title: 'Home Established',
       message:
-          'Upgrade your ship and home base while at home. Collect resources and shards from planets and enemies to unlock special upgrades for the planet and your ship. Teleport to your home planet from your mini map.',
+          'Home base online. Collect elemental resources and cosmic dust to unlock tons of ship and base upgrades.',
       typewriter: true,
       kind: LandscapeDialogKind.info,
       showIcon: false,
       primaryLabel: 'Continue',
       barrierDismissible: false,
     );
-    await _markCosmicIntroComplete();
+    if (!mounted) return;
+    await _startSurvivalSignalTutorial();
   }
 
   bool _handleBuildHomePlanet() {
@@ -4295,6 +4728,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       onTap: () {
         setState(() => _companionTethered = !_companionTethered);
         _game?.companionTethered = _companionTethered;
+        _onMemoryTetherToggled();
         HapticFeedback.selectionClick();
       },
       child: AnimatedContainer(
@@ -4542,34 +4976,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                         color: Color(0xFFE53935),
                         size: 28,
                       ),
-                    // HP bar (when not full and not dead)
-                    if (!isDead && hpFrac < 1.0)
-                      Positioned(
-                        bottom: 2,
-                        left: 4,
-                        right: 4,
-                        child: Container(
-                          height: 3,
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                          alignment: Alignment.centerLeft,
-                          child: FractionallySizedBox(
-                            widthFactor: hpFrac,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: hpFrac > 0.5
-                                    ? const Color(0xFF00E676)
-                                    : hpFrac > 0.25
-                                    ? const Color(0xFFFFAB00)
-                                    : const Color(0xFFE53935),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
                     // Stamina dots (top of slot)
                     if (!isDead && member.staminaMax > 0)
                       Positioned(
@@ -4627,6 +5033,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _startShootingMissiles() {
+    if (widget.memoryTutorial) return;
     _isShootingMissiles = true;
     _game?.shootingMissiles = true;
     HapticFeedback.selectionClick();
@@ -4640,6 +5047,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _startBoosting() {
+    if (widget.memoryTutorial) return;
     if (!_customizationState.hasBooster) return;
     _isBoosting = true;
     _game?.boosting = true;
@@ -4666,7 +5074,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// Returns -1 if outside both.
   /// Column layout: [MISSILE(50)] [gap(10)] [BULLETS(50)] — or just [BULLETS(50)].
   int _weaponSlotAtY(double localY) {
-    if (_customizationState.hasMissiles) {
+    final hasMissileSlot =
+        !widget.memoryTutorial && _customizationState.hasMissiles;
+    if (hasMissileSlot) {
       if (localY >= 0 && localY < 50) return 1; // missiles (top)
       if (localY >= 60 && localY < 110) return 0; // bullets (below)
     } else {
@@ -4888,7 +5298,10 @@ class _CosmicScreenState extends State<CosmicScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text('Cancel', style: ft.label.copyWith(color: fc.textMuted)),
+              child: Text(
+                'Cancel',
+                style: ft.label.copyWith(color: fc.textMuted),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -4903,7 +5316,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
               ),
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text('Confirm', style: ft.mono.copyWith(color: fc.textPrimary)),
+              child: Text(
+                'Confirm',
+                style: ft.mono.copyWith(color: fc.textPrimary),
+              ),
             ),
           ],
         );
@@ -5710,6 +6126,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _handleMeterTap() {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (_game == null) return;
     final meter = _game!.meter;
     if (meter.total <= 0) return;
@@ -5733,6 +6153,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     try {
       unawaited(context.read<AudioController>().playHomeMusic());
     } catch (_) {}
+    _memoryStepTimer?.cancel();
+    _memorySpawnTimer?.cancel();
+    _memoryMonitorTimer?.cancel();
     _companionCooldownUiTimer?.cancel();
     _meterPulse.dispose();
     _quoteFade.dispose();
@@ -5741,21 +6164,36 @@ class _CosmicScreenState extends State<CosmicScreen>
     _bloodRitualCtrl.dispose();
     _screenShakeCtrl.dispose();
     // Auto-save fog on exit
-    _saveFogState();
-    _saveBloodRingState();
+    if (!widget.memoryTutorial) {
+      _saveFogState();
+      _saveBloodRingState();
+    }
     super.dispose();
   }
 
   void _toggleMiniMap() {
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
     if (!_showMiniMap) {
       _game?.pauseEngine();
-      setState(() => _showMiniMap = true);
+      setState(() {
+        _showMiniMap = true;
+        if (_awaitingSurvivalMapTap) {
+          _awaitingSurvivalMapTap = false;
+          _survivalMapTapped = true;
+        }
+      });
       _miniMapCtrl.forward(from: 0.0);
     } else {
       _miniMapCtrl.reverse().then((_) {
         if (!mounted) return;
         _game?.resumeEngine();
         setState(() => _showMiniMap = false);
+        if (_survivalMapTapped && !_survivalGuidanceActive) {
+          unawaited(_runPostMapSurvivalGuidancePrompt());
+        }
       });
     }
   }
@@ -5766,6 +6204,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (!mounted) return;
       _game?.resumeEngine();
       setState(() => _showMiniMap = false);
+      if (_survivalMapTapped && !_survivalGuidanceActive) {
+        unawaited(_runPostMapSurvivalGuidancePrompt());
+      }
     });
   }
 
@@ -6001,6 +6442,11 @@ class _CosmicScreenState extends State<CosmicScreen>
     final mapColumnTop = (_topHudCollapsed ? 0.0 : baseMapColumnTop)
         .clamp(0.0, 400.0)
         .toDouble();
+    final isMemoryTutorial = widget.memoryTutorial;
+    final showCosmicHud = !isMemoryTutorial;
+    final showJoystickControl = isMemoryTutorial || _showJoystick;
+    final largeJoystickControl = isMemoryTutorial || _largeJoystick;
+    final tutorialTargetPos = _survivalTutorialTargetPos;
 
     return PopScope(
       canPop: false,
@@ -6023,7 +6469,8 @@ class _CosmicScreenState extends State<CosmicScreen>
               Positioned.fill(child: GameWidget(game: _game!)),
 
               // ── Tap-to-shoot full-screen listener ──
-              if (_tapToShoot &&
+              if (showCosmicHud &&
+                  _tapToShoot &&
                   !_anyOverlayOpen &&
                   _summonResult == null &&
                   !_showMiniMap)
@@ -6038,7 +6485,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Map button (hidden when pinned mini-map is active) ──
-              if (_summonResult == null &&
+              if (showCosmicHud &&
+                  _summonResult == null &&
                   !_anyOverlayOpen &&
                   !_showPinnedMiniMap &&
                   !_awaitingShipMenuTap)
@@ -6071,15 +6519,23 @@ class _CosmicScreenState extends State<CosmicScreen>
                             color: Colors.black54,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: _showPinnedMiniMap
+                              color: _awaitingSurvivalMapTap
+                                  ? const Color(0xFF8B5CF6)
+                                  : _showPinnedMiniMap
                                   ? const Color(0xFFFFB300)
                                   : Colors.white24,
-                              width: _showPinnedMiniMap ? 1.5 : 1,
+                              width: _awaitingSurvivalMapTap
+                                  ? 2
+                                  : _showPinnedMiniMap
+                                  ? 1.5
+                                  : 1,
                             ),
                           ),
                           child: Icon(
                             Icons.map_rounded,
-                            color: _showPinnedMiniMap
+                            color: _awaitingSurvivalMapTap
+                                ? const Color(0xFFB39DDB)
+                                : _showPinnedMiniMap
                                 ? const Color(0xFFFFB300)
                                 : Colors.white60,
                             size: 20,
@@ -6091,7 +6547,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Pinned mini-map replaces the map icon slot ──
-              if (_showPinnedMiniMap &&
+              if (showCosmicHud &&
+                  _showPinnedMiniMap &&
                   _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
@@ -6106,12 +6563,14 @@ class _CosmicScreenState extends State<CosmicScreen>
                       game: _game!,
                       onTap: _toggleMiniMap,
                       onLongPress: _togglePinnedMiniMap,
+                      tutorialTargetPos: tutorialTargetPos,
                     ),
                   ),
                 ),
 
               // ── Space Market Hub ──
-              if (_nearMarketPOI != null &&
+              if (showCosmicHud &&
+                  _nearMarketPOI != null &&
                   _nearPlanet == null &&
                   !_isNearHome &&
                   _summonResult == null &&
@@ -6236,7 +6695,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Virtual joystick (bottom-left) ──
-              if (_showJoystick &&
+              if (showJoystickControl &&
                   _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
@@ -6245,7 +6704,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   left: 12,
                   child: SafeArea(
                     child: VirtualJoystick(
-                      sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
+                      sizeMultiplier: largeJoystickControl ? 1.35 : 1.0,
                       onDirectionChanged: (dir) {
                         _game?.joystickDirection = dir;
                       },
@@ -6254,7 +6713,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Planet recipe HUD (moved to top safe-area, compact)
-              if (hudPlanet != null &&
+              if (showCosmicHud &&
+                  hudPlanet != null &&
                   !_isNearHome &&
                   _summonResult == null &&
                   !_showElementsCaptured &&
@@ -6487,7 +6947,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Top HUD ──
-              if (!_anyOverlayOpen)
+              if (showCosmicHud && !_anyOverlayOpen)
                 Positioned(
                   top: 0,
                   left: 0,
@@ -6503,7 +6963,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                       dustCount: _collectedDust.length,
                       wallet: _game!.shipWallet,
                       onSettings: () =>
-                          setState(() => _showSettingsMenu = true),
+                          _homeBuildTutorialLock
+                          ? _showQuote('Build your home base first.')
+                          : setState(() => _showSettingsMenu = true),
                       onMiniMap: _toggleMiniMap,
                       onMeterTap: _handleMeterTap,
                       showMeter: _nearPlanet == null || _isNearHome,
@@ -6512,13 +6974,18 @@ class _CosmicScreenState extends State<CosmicScreen>
                         if (_topHudCollapsed == collapsed) return;
                         setState(() => _topHudCollapsed = collapsed);
                       },
+                      zoomLevel: _game!.currentZoomLevel,
+                      onZoomCycle: () {
+                        _game!.cycleZoomLevel();
+                        setState(() {});
+                      },
                     ),
                   ),
                 ),
 
               // ── Home planet HUD ──
               // ── Mini-map overlay (animated open/close) ──
-              if (_showMiniMap || _miniMapCtrl.isAnimating)
+              if (showCosmicHud && (_showMiniMap || _miniMapCtrl.isAnimating))
                 Positioned.fill(
                   child: AnimatedBuilder(
                     animation: _miniMapCtrl,
@@ -6538,6 +7005,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                         game: _game!,
                         theme: theme,
                         markers: _mapMarkers,
+                        tutorialTargetPos: tutorialTargetPos,
+                        tutorialTargetColor: const Color(0xFF8B5CF6),
+                        tutorialTargetLabel: 'SIGNAL',
                         hasHomePlanet: _homePlanet != null,
                         debugShowAllContestArenasOnMap:
                             _contestDebugShowAllOnMap,
@@ -6602,7 +7072,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Elements captured popup ──
-              if (_showElementsCaptured)
+              if (showCosmicHud && _showElementsCaptured)
                 Positioned.fill(
                   child: ElementsCapturedPopup(
                     breakdown: _capturedBreakdown,
@@ -6614,7 +7084,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Home planet menu overlay ──
-              if (_showHomeMenu && _homePlanet != null)
+              if (showCosmicHud && _showHomeMenu && _homePlanet != null)
                 Positioned.fill(
                   child: HomePlanetMenuOverlay(
                     homePlanet: _homePlanet!,
@@ -6632,7 +7102,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Customization menu overlay ──
-              if (_showCustomizationMenu)
+              if (showCosmicHud && _showCustomizationMenu)
                 Positioned.fill(
                   child: CustomizationMenuOverlay(
                     customizationState: _customizationState,
@@ -6662,7 +7132,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Chamber picker overlay ──
-              if (_showChamberPicker)
+              if (showCosmicHud && _showChamberPicker)
                 Positioned.fill(
                   child: ChamberPickerOverlay(
                     chambers: _game?.orbitalChambers ?? [],
@@ -6673,7 +7143,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Party picker overlay ──
-              if (_showPartyPicker)
+              if (showCosmicHud && _showPartyPicker)
                 Positioned.fill(
                   child: CosmicPartyPickerOverlay(
                     slotsUnlocked: _cosmicPartySlotsUnlocked,
@@ -6692,7 +7162,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Garrison picker overlay ──
-              if (_showGarrisonPicker)
+              if (showCosmicHud && _showGarrisonPicker)
                 Positioned.fill(
                   child: CosmicPartyPickerOverlay(
                     title: 'HOME GARRISON',
@@ -6737,8 +7207,47 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
+              if (widget.memoryTutorial && _memoryTutorialPrompt != null)
+                Positioned(
+                  left: 18,
+                  right: 18,
+                  top: 18 + MediaQuery.of(context).padding.top,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 13,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.86),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF9FA8DA).withValues(alpha: 0.7),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            blurRadius: 18,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        _memoryTutorialPrompt!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
               // ── Rift portal button ──
-              if (_game != null &&
+              if (showCosmicHud &&
+                  _game != null &&
                   _isNearRift &&
                   _game!.nearestRift != null &&
                   _summonResult == null &&
@@ -6796,7 +7305,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Blood Ring button ──
-              if (_game != null &&
+              if (showCosmicHud &&
+                  _game != null &&
                   _isNearBloodRing &&
                   _summonResult == null &&
                   !_showMiniMap &&
@@ -6881,7 +7391,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Trait Contest button ──
-              if (_game != null &&
+              if (showCosmicHud &&
+                  _game != null &&
                   _nearContestArena != null &&
                   _nearMarketPOI == null &&
                   !_isNearBattleRing &&
@@ -6969,7 +7480,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Battle Ring button ──
-              if (_game != null &&
+              if (showCosmicHud &&
+                  _game != null &&
                   _isNearBattleRing &&
                   !_game!.battleRing.inBattle &&
                   _summonResult == null &&
@@ -7056,7 +7568,8 @@ class _CosmicScreenState extends State<CosmicScreen>
 
               // ── Elemental Nexus button (enter from normal world) ──
               // Hidden once the player has completed the nexus (harvester awarded).
-              if (_game != null &&
+              if (showCosmicHud &&
+                  _game != null &&
                   _isNearNexus &&
                   !(_game!.inNexusPocket) &&
                   !_game!.elementalNexus.harvesterAwarded &&
@@ -7137,7 +7650,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Pocket portal button (inside pocket dimension) ──
-              if (_game != null &&
+              if (showCosmicHud &&
+                  _game != null &&
                   _game!.inNexusPocket &&
                   _nearPocketPortalElement != null &&
                   !_anyOverlayOpen)
@@ -7197,7 +7711,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Exit pocket button (top-left, inside pocket dimension) ──
-              if (_game != null && _game!.inNexusPocket && !_anyOverlayOpen)
+              if (showCosmicHud &&
+                  _game != null &&
+                  _game!.inNexusPocket &&
+                  !_anyOverlayOpen)
                 Positioned(
                   top: 0,
                   left: 0,
@@ -7253,11 +7770,13 @@ class _CosmicScreenState extends State<CosmicScreen>
               // Companion HUD moved: small health bars are shown above each
               // companion slot button below (no floating HUD).
               // ── Home Base + Deposit buttons (bottom center, near home) ──
-              if (_homePlanet != null)
+              if (showCosmicHud && _homePlanet != null)
                 Positioned(
                   bottom: 20,
-                  left: _showJoystick ? (_largeJoystick ? 146.0 : 120.0) : 0,
-                  right: _showJoystick ? 74 : 0,
+                  left: showJoystickControl
+                      ? (largeJoystickControl ? 146.0 : 120.0)
+                      : 0,
+                  right: showJoystickControl ? 74 : 0,
                   child: AnimatedOpacity(
                     opacity:
                         (_isNearHome &&
@@ -7288,7 +7807,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 !_anyOverlayOpen),
                         child: SafeArea(
                           child: Center(
-                            child: _showJoystick
+                            child: showJoystickControl
                                 ? Column(
                                     mainAxisSize: MainAxisSize.min,
                                     crossAxisAlignment:
@@ -7556,11 +8075,14 @@ class _CosmicScreenState extends State<CosmicScreen>
               // ── SHIP button (bottom center, hidden when near home) ──
               Positioned(
                 bottom: 20,
-                left: _showJoystick ? (_largeJoystick ? 146.0 : 120.0) : 0,
-                right: _showJoystick ? 74 : 0,
+                left: showJoystickControl
+                    ? (largeJoystickControl ? 146.0 : 120.0)
+                    : 0,
+                right: showJoystickControl ? 74 : 0,
                 child: AnimatedOpacity(
                   opacity:
-                      (!_isNearHome &&
+                      (showCosmicHud &&
+                          !_isNearHome &&
                           _summonResult == null &&
                           !_showMiniMap &&
                           !_anyOverlayOpen)
@@ -7569,7 +8091,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                   duration: const Duration(milliseconds: 350),
                   child: AnimatedSlide(
                     offset:
-                        (!_isNearHome &&
+                        (showCosmicHud &&
+                            !_isNearHome &&
                             _summonResult == null &&
                             !_showMiniMap &&
                             !_anyOverlayOpen)
@@ -7579,6 +8102,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     curve: Curves.easeOutCubic,
                     child: IgnorePointer(
                       ignoring:
+                          !showCosmicHud ||
                           _isNearHome ||
                           _summonResult != null ||
                           _showMiniMap ||
@@ -7595,7 +8119,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                   bottom: 20,
                   right: 12,
                   child: AnimatedOpacity(
-                    opacity: _nearPlanet != null && !_isNearHome ? 0.25 : 1.0,
+                    opacity: isMemoryTutorial
+                        ? 1.0
+                        : (_nearPlanet != null && !_isNearHome ? 0.25 : 1.0),
                     duration: const Duration(milliseconds: 300),
                     child: SafeArea(
                       child: Column(
@@ -7603,7 +8129,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           // Boost button
-                          if (_customizationState.hasBooster)
+                          if (showCosmicHud && _customizationState.hasBooster)
                             GestureDetector(
                               onTapDown: _boostToggleMode
                                   ? null
@@ -7641,7 +8167,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 ),
                               ),
                             ),
-                          if (_customizationState.hasBooster)
+                          if (showCosmicHud && _customizationState.hasBooster)
                             const SizedBox(height: 14),
                           // Weapon buttons (slide-to-switch)
                           Listener(
@@ -7653,7 +8179,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                               key: _weaponColumnKey,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (_customizationState.hasMissiles)
+                                if (showCosmicHud &&
+                                    _customizationState.hasMissiles)
                                   Container(
                                     width: 50,
                                     height: 50,
@@ -7696,9 +8223,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                                       ],
                                     ),
                                   ),
-                                if (_customizationState.hasMissiles)
+                                if (showCosmicHud &&
+                                    _customizationState.hasMissiles)
                                   const SizedBox(height: 10),
-                                if (!_tapToShoot)
+                                if (isMemoryTutorial || !_tapToShoot)
                                   Container(
                                     width: 50,
                                     height: 50,
@@ -7733,7 +8261,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
-              if (_awaitingShipMenuTap &&
+              if (showCosmicHud &&
+                  _awaitingShipMenuTap &&
                   _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
@@ -7778,6 +8307,52 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
+              if (showCosmicHud &&
+                  _awaitingSurvivalMapTap &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  left: 72,
+                  top: mapColumnTop + 8,
+                  child: IgnorePointer(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 250),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(
+                            0xFF8B5CF6,
+                          ).withValues(alpha: 0.75),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF8B5CF6,
+                            ).withValues(alpha: 0.25),
+                            blurRadius: 18,
+                          ),
+                        ],
+                      ),
+                      child: const Text(
+                        'Open the mini map and locate the blinking signal.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
               // ── Companion column (stacked on right side) ──
               if (_summonResult == null &&
                   !_showMiniMap &&
@@ -7787,19 +8362,26 @@ class _CosmicScreenState extends State<CosmicScreen>
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOut,
                   right: 12,
-                  top:
-                      120 + (_nearPlanet != null && !_isNearHome ? 240.0 : 0.0),
+                  top: isMemoryTutorial
+                      ? 88
+                      : 120 +
+                            (_nearPlanet != null && !_isNearHome ? 240.0 : 0.0),
                   child: SafeArea(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (kDebugMode) ...[
+                        if (showCosmicHud && kDebugMode) ...[
                           _buildSandboxButton(),
                           const SizedBox(height: 10),
                         ],
-                        _buildSlowModeButton(),
-                        const SizedBox(height: 10),
-                        if (_activeCompanionSlot != null) ...[
+                        if (showCosmicHud) ...[
+                          _buildSlowModeButton(),
+                          const SizedBox(height: 10),
+                        ],
+                        if ((showCosmicHud ||
+                                (isMemoryTutorial &&
+                                    _memoryTetherLessonVisible)) &&
+                            _activeCompanionSlot != null) ...[
                           _buildCompanionTetherButton(),
                           const SizedBox(height: 10),
                         ],
@@ -7882,7 +8464,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Ship menu overlay ──
-              if (_showShipMenu)
+              if (showCosmicHud && _showShipMenu)
                 ShipMenuOverlay(
                   hasHomePlanet: _homePlanet != null,
                   meterFill: _game?.meter.fillPct ?? 0,
@@ -7960,7 +8542,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Settings overlay ──
-              if (_showSettingsMenu)
+              if (showCosmicHud && _showSettingsMenu)
                 _CosmicSettingsOverlay(
                   joystickEnabled: _showJoystick,
                   largeJoystickEnabled: _largeJoystick,
@@ -8002,7 +8584,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   },
                 ),
 
-              if (_showSandboxPanel)
+              if (showCosmicHud && _showSandboxPanel)
                 Positioned.fill(
                   child: _CosmicSandboxOverlay(
                     creatures: _sandboxCreatures(

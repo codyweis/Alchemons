@@ -153,7 +153,7 @@ Generated from authored text found in the repo.
 
 ## Survival Mode Intro
 
-- Source: `lib/games/survival/survival_game_screen.dart`
+- Source: `lib/games/cosmic_survival/cosmic_survival_screen.dart`
 - Reachability: Reachable once on first entry to the survival menu.
 
 - [Dialog] A Test?

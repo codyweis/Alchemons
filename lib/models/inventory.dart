@@ -394,8 +394,18 @@ class LootBoxConfig {
   }
 
   static Map<String, int> rollSurvivalBonusCurrency(int wave, Random rng) {
-    final difficulty = wave.clamp(1, 60);
-    final silver = 75 + (difficulty * 12) + rng.nextInt(101);
+    // Minimums: w10=100, w15=150, w20=250, w30=500.
+    final int base = wave < 10
+        ? 50 + wave * 5
+        : wave < 15
+        ? 100 + (wave - 10) * 10   // 100 → 150
+        : wave < 20
+        ? 150 + (wave - 15) * 20   // 150 → 250
+        : wave < 30
+        ? 250 + (wave - 20) * 25   // 250 → 500
+        : 500 + (wave - 30) * 30;  // 500+ beyond w30
+    final variance = rng.nextInt((base * 0.25).ceil().clamp(1, 300));
+    final silver = base + variance;
 
     var gold = 0;
     final goldChance = wave >= 40

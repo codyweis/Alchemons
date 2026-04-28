@@ -13,12 +13,14 @@ class CosmicMiniMapCircle extends StatefulWidget {
     required this.game,
     required this.onTap,
     required this.onLongPress,
+    this.tutorialTargetPos,
   });
 
   final CosmicWorld world;
   final CosmicGame game;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final Offset? tutorialTargetPos;
 
   @override
   State<CosmicMiniMapCircle> createState() => _CosmicMiniMapCircleState();
@@ -80,6 +82,7 @@ class _CosmicMiniMapCircleState extends State<CosmicMiniMapCircle> {
                   painter: _MiniCirclePainter(
                     world: widget.world,
                     game: widget.game,
+                    tutorialTargetPos: widget.tutorialTargetPos,
                     repaint: _repaintTick,
                   ),
                 ),
@@ -93,10 +96,16 @@ class _CosmicMiniMapCircleState extends State<CosmicMiniMapCircle> {
 }
 
 class _MiniCirclePainter extends CustomPainter {
-  _MiniCirclePainter({required this.world, required this.game, super.repaint});
+  _MiniCirclePainter({
+    required this.world,
+    required this.game,
+    this.tutorialTargetPos,
+    super.repaint,
+  });
 
   final CosmicWorld world;
   final CosmicGame game;
+  final Offset? tutorialTargetPos;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -333,6 +342,52 @@ class _MiniCirclePainter extends CustomPainter {
       }
     }
 
+    if (tutorialTargetPos != null) {
+      final tp = toMini(tutorialTargetPos!);
+      final dv = tp - center;
+      final dist = dv.distance;
+      final pulse =
+          0.55 + 0.45 * sin(DateTime.now().millisecondsSinceEpoch / 180.0);
+      const targetColor = Color(0xFF8B5CF6);
+
+      if (dist <= viewR - 6) {
+        canvas.drawCircle(
+          tp,
+          3.0 + pulse * 1.5,
+          Paint()..color = targetColor.withValues(alpha: 0.9),
+        );
+        canvas.drawCircle(
+          tp,
+          6.2 + pulse * 2.0,
+          Paint()
+            ..color = targetColor.withValues(alpha: 0.35)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1,
+        );
+      } else if (dist > 0.001) {
+        final dir = Offset(dv.dx / dist, dv.dy / dist);
+        final edge = center + dir * (viewR - 5);
+        final perp = Offset(-dir.dy, dir.dx);
+
+        final tip = edge;
+        final back = edge - dir * 8;
+        final tri = Path()
+          ..moveTo(tip.dx, tip.dy)
+          ..lineTo(back.dx + perp.dx * 3.6, back.dy + perp.dy * 3.6)
+          ..lineTo(back.dx - perp.dx * 3.6, back.dy - perp.dy * 3.6)
+          ..close();
+        canvas.drawPath(tri, Paint()..color = targetColor.withValues(alpha: 0.9));
+        canvas.drawCircle(
+          edge,
+          4.0 + pulse * 2.0,
+          Paint()
+            ..color = targetColor.withValues(alpha: 0.32)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0,
+        );
+      }
+    }
+
     for (final whirl in game.galaxyWhirls) {
       if (whirl.state == WhirlState.completed) continue;
       final p = toMini(whirl.position);
@@ -424,5 +479,7 @@ class _MiniCirclePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MiniCirclePainter oldDelegate) =>
-      world != oldDelegate.world || game != oldDelegate.game;
+      world != oldDelegate.world ||
+      game != oldDelegate.game ||
+      tutorialTargetPos != oldDelegate.tutorialTargetPos;
 }

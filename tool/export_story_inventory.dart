@@ -242,7 +242,7 @@ String _buildStoryInventoryMarkdown() {
     ),
     const StorySection(
       title: 'Survival Mode Intro',
-      source: 'lib/games/survival/survival_game_screen.dart',
+      source: 'lib/games/cosmic_survival/cosmic_survival_screen.dart',
       reachability: 'Reachable once on first entry to the survival menu.',
       items: [
         '[Dialog] A Test?',

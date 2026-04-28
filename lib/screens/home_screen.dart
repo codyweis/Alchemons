@@ -10,8 +10,10 @@ import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/battle_mode_screen.dart';
 import 'package:alchemons/screens/boss/boss_intro_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
+import 'package:alchemons/screens/cosmic/cosmic_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
+import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_points_widget.dart';
 import 'package:alchemons/screens/mystic_altar/mystic_altar_screen.dart';
 import 'package:alchemons/data/boss_data.dart';
@@ -23,6 +25,7 @@ import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
@@ -551,6 +554,8 @@ class _HomeScreenState extends State<HomeScreen>
       false; // prevents double-fire from didUpdateWidget + didPopNext
   bool _arcanePortalUnlocked = false;
   bool _isAppInForeground = true;
+  bool _memoryTutorialLaunching = false;
+  bool _memoryStoryShowing = false;
 
   bool _isInitialized = false;
 
@@ -624,6 +629,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         await _checkFieldTutorial();
         await _refreshNotificationsNow();
+        await _maybeRunCosmicMemoryHomeEvent();
       }
     });
   }
@@ -650,7 +656,8 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (widget.isActive) {
         // 🔄 Always sync from DB when Home becomes active
-        _checkFieldTutorial();
+        async.unawaited(_checkFieldTutorial());
+        async.unawaited(_maybeRunCosmicMemoryHomeEvent());
       }
     }
   }
@@ -661,7 +668,8 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (widget.isActive) {
       // 🔄 When returning to Home, sync from DB
-      _checkFieldTutorial();
+      async.unawaited(_checkFieldTutorial());
+      async.unawaited(_maybeRunCosmicMemoryHomeEvent());
     }
   }
 
@@ -2051,6 +2059,91 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       _shakeController.forward(from: 0.0);
     } catch (_) {}
+  }
+
+  Future<void> _playHomeShakeFor(Duration duration) async {
+    final previousDuration = _shakeController.duration;
+    try {
+      _shakeController.duration = const Duration(milliseconds: 450);
+      _shakeController.repeat(reverse: true);
+      await Future.delayed(duration);
+    } finally {
+      if (mounted) {
+        _shakeController
+          ..stop()
+          ..value = 0.0
+          ..duration = previousDuration;
+      }
+    }
+  }
+
+  Future<void> _maybeRunCosmicMemoryHomeEvent() async {
+    if (!mounted ||
+        !widget.isActive ||
+        _isFieldTutorialActive ||
+        _memoryTutorialLaunching ||
+        _memoryStoryShowing) {
+      return;
+    }
+
+    final db = context.read<AlchemonsDatabase>();
+    final settings = db.settingsDao;
+    final storyPending = await CosmicMemoryTutorialService.consumeStoryPending(
+      settings,
+    );
+    if (!mounted || !widget.isActive) return;
+
+    if (storyPending) {
+      _memoryStoryShowing = true;
+      try {
+        await LandscapeDialog.show(
+          context,
+          title: '',
+          message:
+              'Am I beginning to remember? But what is remembrance without truth, if not illusion.',
+          typewriter: true,
+          kind: LandscapeDialogKind.info,
+          icon: Icons.auto_awesome,
+          primaryLabel: 'Continue',
+          barrierDismissible: false,
+        );
+      } finally {
+        _memoryStoryShowing = false;
+      }
+      return;
+    }
+
+    final ownedInstanceCount = (await db.creatureDao.listAllInstances()).length;
+    await CosmicMemoryTutorialService.recoverPendingForExistingProfile(
+      settings,
+      ownedInstanceCount: ownedInstanceCount,
+    );
+    if (!mounted || !widget.isActive) return;
+
+    final pending = await CosmicMemoryTutorialService.isHomePortalPending(
+      settings,
+    );
+    if (!mounted || !widget.isActive || !pending) return;
+
+    _memoryTutorialLaunching = true;
+    try {
+      await _playHomeShakeFor(const Duration(seconds: 3));
+      if (!mounted || !widget.isActive) return;
+
+      await CosmicMemoryTutorialService.markHomePortalLaunched(settings);
+      if (!mounted || !widget.isActive) return;
+      await VoidPortal.push<void>(
+        context,
+        page: const CosmicScreen(memoryTutorial: true),
+        config: VoidPortalConfig.cinematic,
+      );
+    } finally {
+      _memoryTutorialLaunching = false;
+    }
+
+    if (mounted && widget.isActive) {
+      async.unawaited(_maybeRunCosmicMemoryHomeEvent());
+    }
   }
 
   /// One-time migration: grant trait keys for bosses already beaten before

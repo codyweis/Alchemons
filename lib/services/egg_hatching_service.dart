@@ -13,6 +13,7 @@ import 'package:alchemons/screens/breed/utils/breed_utils.dart';
 import 'package:alchemons/screens/breeding_milestones_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
+import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -486,6 +487,9 @@ class EggHatching {
 
     // Clear egg & cache
     await db.incubatorDao.clearEgg(slot.id);
+    await CosmicMemoryTutorialService.recordExtractionIfEligible(
+      db.settingsDao,
+    );
     if (slot.resultCreatureId != null) {
       undiscoveredCache.remove(slot.resultCreatureId!);
     }

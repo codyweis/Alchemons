@@ -683,47 +683,14 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
             ],
           ),
           const SizedBox(height: 7),
-          Row(
-            children: [
-              Text(
-                '$unlocked / $total',
-                style: TextStyle(
-                  color: theme.primary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'skills',
-                style: TextStyle(
-                  color: _ConstellationPalette.textMuted,
-                  fontSize: 10,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${(progress * 100).round()}%',
-                style: TextStyle(
-                  color: _ConstellationPalette.teal,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 4,
-                    backgroundColor: _ConstellationPalette.bg3,
-                    valueColor: AlwaysStoppedAnimation(theme.primary),
-                  ),
-                ),
-              ),
-            ],
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 4,
+              backgroundColor: _ConstellationPalette.bg3,
+              valueColor: AlwaysStoppedAnimation(theme.primary),
+            ),
           ),
         ],
       ),
@@ -774,11 +741,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
 
   Widget _buildTreeInfo(FactionTheme theme, Set<String> unlockedSkills) {
     final accent = _getTreeAccentColor(theme, _selectedTree);
-    final (treeUnlocked, treeTotal) = _getTreeProgress(
-      _selectedTree,
-      unlockedSkills,
-    );
-    final treeProgress = treeTotal > 0 ? treeUnlocked / treeTotal : 0.0;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
@@ -821,61 +783,65 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                _ConstellationIconButton(
-                  theme: theme,
-                  icon: Icons.lightbulb_outline_rounded,
-                  onTap: () => _showEarnPointsDialog(theme),
-                  iconColor: accent,
-                ),
-                const SizedBox(width: 6),
-                _ConstellationIconButton(
-                  theme: theme,
-                  icon: Icons.chat_bubble_outline_rounded,
-                  iconColor: _ConstellationPalette.teal,
-                  onTap: () => _game?.revealAllQuotes(),
-                ),
-              ],
+                ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               children: [
-                Text(
-                  '$treeUnlocked / $treeTotal',
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  ' skills',
-                  style: TextStyle(
-                    color: _ConstellationPalette.textMuted,
-                    fontSize: 10,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  treeUnlocked == treeTotal ? 'MAXED' : 'ACTIVE',
-                  style: TextStyle(
-                    color: treeUnlocked == treeTotal
-                        ? _ConstellationPalette.success
-                        : _ConstellationPalette.teal,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _showEarnPointsDialog(theme),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: _ConstellationPalette.bg2,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _ConstellationPalette.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.lightbulb_outline_rounded, size: 13, color: accent),
+                          const SizedBox(width: 6),
+                          Text(
+                            'How to Earn',
+                            style: TextStyle(
+                              color: _ConstellationPalette.textSoft,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: treeProgress,
-                      minHeight: 4,
-                      backgroundColor: _ConstellationPalette.bg3,
-                      valueColor: AlwaysStoppedAnimation(accent),
+                  child: GestureDetector(
+                    onTap: () => _game?.revealAllQuotes(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: _ConstellationPalette.bg2,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _ConstellationPalette.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.chat_bubble_outline_rounded, size: 13, color: _ConstellationPalette.teal),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Quotes',
+                            style: TextStyle(
+                              color: _ConstellationPalette.textSoft,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1761,23 +1727,12 @@ class _ConstellationTreeButton extends StatelessWidget {
                 fontFamily: 'monospace',
                 color: selected
                     ? _ConstellationPalette.text
-                    : _ConstellationPalette.text,
+                    : _ConstellationPalette.textMuted,
                 fontSize: 9,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.7,
               ),
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              '$unlocked / $total',
-              style: TextStyle(
-                color: selected
-                    ? _ConstellationPalette.text
-                    : _ConstellationPalette.textMuted,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-              ),
             ),
             const SizedBox(height: 5),
             ClipRRect(

@@ -28,6 +28,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
@@ -1207,8 +1208,8 @@ class _CreatureGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverGrid(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: responsiveCrossAxisCount(context),
         crossAxisSpacing: 1,
         mainAxisSpacing: 1,
         childAspectRatio: .88,

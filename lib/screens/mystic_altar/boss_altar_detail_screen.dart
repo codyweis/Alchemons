@@ -15,10 +15,10 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,7 +194,9 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
     if (!_isBloodBoss || !mounted) return;
     final hasSeenBloodIntro =
-        await db.settingsDao.getSetting('blood_mystic_relic_story_intro_seen_v1') ==
+        await db.settingsDao.getSetting(
+          'blood_mystic_relic_story_intro_seen_v1',
+        ) ==
         '1';
     if (hasSeenBloodIntro || !mounted) return;
 
@@ -224,8 +226,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
   bool get _allWitnessed =>
       !_isBloodBoss ||
-      (_bloodWitnesses.isNotEmpty &&
-          _bloodWitnesses.every((w) => w.completed));
+      (_bloodWitnesses.isNotEmpty && _bloodWitnesses.every((w) => w.completed));
 
   int get _witnessRemaining =>
       _bloodWitnesses.where((w) => !w.completed).length;
@@ -243,7 +244,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       SnackBar(
         content: Text(
           msg,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+          style: TextStyle(fontFamily: appFontFamily(context), fontSize: 11),
         ),
         backgroundColor: _C.surface,
         behavior: SnackBarBehavior.floating,
@@ -752,7 +753,8 @@ class _TopBar extends StatelessWidget {
               children: [
                 Text(
                   (mystic?.name ?? boss.name).toUpperCase(),
-                  style: GoogleFonts.cinzelDecorative(
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
                     color: elColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -761,8 +763,8 @@ class _TopBar extends StatelessWidget {
                 ),
                 Text(
                   '${boss.element.toUpperCase()} MYSTIC RITUAL',
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
                     color: _C.muted,
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
@@ -812,7 +814,7 @@ class _TopBar extends StatelessWidget {
                 Text(
                   hasKey ? traitName.toUpperCase() : 'KEY MISSING',
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: hasKey ? _C.success : _C.danger,
                     fontSize: 8,
                     fontWeight: FontWeight.w700,
@@ -1246,7 +1248,7 @@ class _SlotNodeState extends State<_SlotNode>
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: appFontFamily(context),
                 color: widget.isFilled
                     ? widget.elColor
                     : (widget.isSelected
@@ -1335,7 +1337,7 @@ class _CenterMystic extends StatelessWidget {
             child: Text(
               mystic?.name.toUpperCase() ?? 'MYSTIC',
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: appFontFamily(context),
                 color: elColor.withValues(alpha: 0.65),
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
@@ -1492,10 +1494,7 @@ class _BottomBar extends StatelessWidget {
               ),
 
             if (witnesses.isNotEmpty) ...[
-              _WitnessSection(
-                witnesses: witnesses,
-                pulse: pulse.value,
-              ),
+              _WitnessSection(witnesses: witnesses, pulse: pulse.value),
               const SizedBox(height: 12),
             ],
 
@@ -1545,7 +1544,7 @@ class _BottomBar extends StatelessWidget {
                                     ? '${selectedName.toUpperCase()} · PLACED'
                                     : 'PLACE  ${selectedName.toUpperCase()}',
                                 style: TextStyle(
-                                  fontFamily: 'monospace',
+                                  fontFamily: appFontFamily(context),
                                   color: selectedFilled ? _C.success : elColor,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
@@ -1580,8 +1579,8 @@ class _BottomBar extends StatelessWidget {
                       : !allFilled
                       ? '${total - filled} OFFERING SLOTS REMAINING'
                       : '$witnessRemaining WITNESS${witnessRemaining == 1 ? '' : 'ES'} REMAINING',
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
                     color: _C.muted,
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
@@ -1635,7 +1634,7 @@ class _BottomBar extends StatelessWidget {
                               Text(
                                 'PERFORM RITUAL',
                                 style: TextStyle(
-                                  fontFamily: 'monospace',
+                                  fontFamily: appFontFamily(context),
                                   color: canSummon ? elColor : _C.muted,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w800,
@@ -1678,8 +1677,8 @@ class _WitnessSection extends StatelessWidget {
         children: [
           Text(
             'WITNESSES  $completed / ${witnesses.length}',
-            style: const TextStyle(
-              fontFamily: 'monospace',
+            style: TextStyle(
+              fontFamily: appFontFamily(context),
               color: _C.sub,
               fontSize: 10,
               fontWeight: FontWeight.w800,
@@ -1737,7 +1736,7 @@ class _WitnessChip extends StatelessWidget {
           Text(
             witness.label.toUpperCase(),
             style: TextStyle(
-              fontFamily: 'monospace',
+              fontFamily: appFontFamily(context),
               color: witness.completed ? Colors.white : _C.sub,
               fontSize: 8.5,
               fontWeight: FontWeight.w700,
@@ -1853,8 +1852,8 @@ class _InstancePickerSheet extends StatelessWidget {
                   const SizedBox(width: 10),
                   Text(
                     'SELECT ${species.name.toUpperCase()}',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
                       color: _C.text,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -1870,7 +1869,7 @@ class _InstancePickerSheet extends StatelessWidget {
               child: Text(
                 'Choose which specimen to commit to the ritual.',
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: appFontFamily(context),
                   color: _C.muted,
                   fontSize: 9,
                   letterSpacing: 0.5,
@@ -1929,8 +1928,8 @@ class _InstancePickerSheet extends StatelessWidget {
                                   Text(
                                     (inst.nickname ?? species.name)
                                         .toUpperCase(),
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
+                                    style: TextStyle(
+                                      fontFamily: appFontFamily(context),
                                       color: _C.text,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
@@ -1939,8 +1938,8 @@ class _InstancePickerSheet extends StatelessWidget {
                                   const SizedBox(height: 2),
                                   Text(
                                     'LVL ${inst.level}  ·  ${species.rarity.toUpperCase()}',
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
+                                    style: TextStyle(
+                                      fontFamily: appFontFamily(context),
                                       color: _C.muted,
                                       fontSize: 8,
                                     ),
@@ -1964,7 +1963,7 @@ class _InstancePickerSheet extends StatelessWidget {
                               child: Text(
                                 'SELECT',
                                 style: TextStyle(
-                                  fontFamily: 'monospace',
+                                  fontFamily: appFontFamily(context),
                                   color: elColor,
                                   fontSize: 7,
                                   fontWeight: FontWeight.w700,
@@ -2041,8 +2040,8 @@ class _GameDialog extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
+                      style: TextStyle(
+                        fontFamily: appFontFamily(context),
                         color: _C.text,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -2112,7 +2111,7 @@ class _Btn extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontFamily: 'monospace',
+            fontFamily: appFontFamily(context),
             color: color,
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -2213,7 +2212,8 @@ class _SuccessDialogState extends State<_SuccessDialog>
                   const SizedBox(height: 18),
                   Text(
                     'RITUAL COMPLETE',
-                    style: GoogleFonts.cinzelDecorative(
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
                       color: el,
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -2224,8 +2224,8 @@ class _SuccessDialogState extends State<_SuccessDialog>
                   Text(
                     '${widget.boss.name.toUpperCase()} HAS BEEN SUMMONED',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
                       color: _C.muted,
                       fontSize: 9,
                       letterSpacing: 2,

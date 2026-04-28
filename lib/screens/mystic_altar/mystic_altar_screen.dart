@@ -14,10 +14,10 @@ import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/mystic_altar/boss_altar_detail_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -326,7 +326,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
       SnackBar(
         content: Text(
           msg,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+          style: TextStyle(fontFamily: appFontFamily(context), fontSize: 11),
         ),
         backgroundColor: _C.surface,
         behavior: SnackBarBehavior.floating,
@@ -468,17 +468,18 @@ class _Header extends StatelessWidget {
               children: [
                 Text(
                   'MYSTIC ALTAR',
-                  style: GoogleFonts.cinzelDecorative(
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
                     color: _C.text,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 2,
                   ),
                 ),
-                const Text(
+                Text(
                   'SPIN · SELECT · SUMMON',
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: appFontFamily(context),
                     color: _C.muted,
                     fontSize: 8,
                     letterSpacing: 2,
@@ -1025,7 +1026,8 @@ class _InfoPanel extends StatelessWidget {
                   children: [
                     Text(
                       mysticName.toUpperCase(),
-                      style: GoogleFonts.cinzelDecorative(
+                      style: TextStyle(
+                        fontFamily: appFontFamily(context),
                         color: unlocked ? elColor : _C.muted,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -1047,7 +1049,7 @@ class _InfoPanel extends StatelessWidget {
                         Text(
                           _statusText(unlocked, complete, tn),
                           style: TextStyle(
-                            fontFamily: 'monospace',
+                            fontFamily: appFontFamily(context),
                             color: _statusColor(elColor, unlocked, complete),
                             fontSize: 8,
                             fontWeight: FontWeight.w600,
@@ -1113,7 +1115,7 @@ class _InfoPanel extends StatelessWidget {
                               : (relicPlaced ? 'ENTER' : 'PLACE'))
                         : 'LOCKED',
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: appFontFamily(context),
                       color: unlocked
                           ? elColor
                           : _C.muted.withValues(alpha: 0.35),
@@ -1250,7 +1252,8 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
                   const SizedBox(height: 14),
                   Text(
                     'PLACE RELIC',
-                    style: GoogleFonts.cinzelDecorative(
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
                       color: _C.text,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -1324,7 +1327,7 @@ class _Btn extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontFamily: 'monospace',
+            fontFamily: appFontFamily(context),
             color: color,
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -1644,7 +1647,8 @@ class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
                     Text(
                       'ARCANE PORTAL',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.cinzelDecorative(
+                      style: TextStyle(
+                        fontFamily: appFontFamily(context),
                         color: _C.voidGlow,
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
@@ -1655,7 +1659,8 @@ class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
                     Text(
                       'DISCOVERED',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.cinzelDecorative(
+                      style: TextStyle(
+                        fontFamily: appFontFamily(context),
                         color: _C.text,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -1670,7 +1675,7 @@ class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
                       'across all wilderness biomes.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: appFontFamily(context),
                         color: _C.sub,
                         fontSize: 11,
                         height: 1.5,
@@ -1696,7 +1701,8 @@ class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
                         ),
                         child: Text(
                           'CONTINUE',
-                          style: GoogleFonts.cinzelDecorative(
+                          style: TextStyle(
+                            fontFamily: appFontFamily(context),
                             color: _C.voidGlow,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

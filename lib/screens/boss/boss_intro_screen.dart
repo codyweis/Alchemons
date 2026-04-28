@@ -1077,8 +1077,10 @@ class _BossBattleScreenState extends State<BossBattleScreen>
   }
 
   Widget _buildPartyMemberCard(CreatureInstance instance, Creature creature) {
-    final bars = instance.staminaBars.clamp(0, instance.staminaMax);
-    final maxBars = instance.staminaMax;
+    final stamina = context.read<StaminaService>();
+    final state = stamina.computeState(instance);
+    final bars = state.bars.clamp(0, state.max);
+    final maxBars = state.max;
     final isEmpty = bars == 0;
     final isLow = bars == 1 && maxBars > 1;
     final staminaColor = isEmpty
@@ -1569,6 +1571,22 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     );
     if (!mounted) return;
     final theme = context.read<FactionTheme>();
+
+    // Preload sprite sheets so the battle screen doesn't stutter on entry.
+    final imagePaths = <String>[
+      if (bossCombatant.sheetDef != null)
+        'assets/images/${bossCombatant.sheetDef!.path}',
+      for (final c in playerTeam)
+        if (c.sheetDef != null) 'assets/images/${c.sheetDef!.path}',
+    ];
+    for (final p in imagePaths) {
+      if (mounted) {
+        precacheImage(AssetImage(p), context);
+      }
+    }
+    // Give the image cache a moment to start decoding.
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
 
     final victory = await Navigator.push<bool>(
       context,

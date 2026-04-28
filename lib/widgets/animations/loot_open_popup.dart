@@ -10,12 +10,16 @@ class LootOpeningEntry {
   final String label;
   final String? name;
   final Color color;
+  final String? imagePath;
+  final Widget Function(double size)? visualBuilder;
 
   const LootOpeningEntry({
     required this.icon,
     required this.label,
     this.name,
     required this.color,
+    this.imagePath,
+    this.visualBuilder,
   });
 }
 
@@ -194,7 +198,19 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                                 width: 1,
                               ),
                             ),
-                            child: Icon(e.icon, color: e.color, size: 22),
+                            child: e.imagePath != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.asset(
+                                      e.imagePath!,
+                                      width: 36,
+                                      height: 36,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  )
+                                : e.visualBuilder != null
+                                ? Center(child: e.visualBuilder!(36))
+                                : Icon(e.icon, color: e.color, size: 22),
                           ),
                           const SizedBox(width: 18),
                           Column(

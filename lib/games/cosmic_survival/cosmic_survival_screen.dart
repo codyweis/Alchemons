@@ -15,9 +15,10 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
-import 'package:alchemons/games/survival/survival_base_command_screen.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_base_command_screen.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/cosmic/widgets/virtual_joystick.dart';
@@ -1060,6 +1061,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             _game!.powerUps,
             _game!.spawner.currentWave,
             party: party,
+            defeatedCompanionSlots: _game!.defeatedCompanionSlots,
           );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _powerUpChoices = choices);
@@ -1176,11 +1178,19 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       popupEntries.addAll(
         openedRewards.map((entry) {
           final def = registry[entry.key];
+          final imagePath = InventoryImageHelper.getImage(entry.key);
           return LootOpeningEntry(
             icon: def?.icon ?? Icons.inventory_2_rounded,
             name: def?.name ?? entry.key,
             label: 'x${entry.value}',
             color: _C.accent,
+            imagePath: imagePath,
+            visualBuilder: (size) => InventoryImageHelper.getVisualWidget(
+              key: entry.key,
+              assetName: imagePath,
+              icon: def?.icon,
+              size: size,
+            ),
           );
         }),
       );
@@ -1192,53 +1202,48 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         popupEntries.addAll(
           powerupRewards.map((entry) {
             final type = alchemicalPowerupTypeFromInventoryKey(entry.key);
+            final imagePath = InventoryImageHelper.getImage(entry.key);
             return LootOpeningEntry(
               icon: type?.icon ?? Icons.blur_on_rounded,
               name: type?.name ?? entry.key,
               label: 'x${entry.value}',
               color: type?.color ?? _C.accent,
+              imagePath: imagePath,
+              visualBuilder: (size) => InventoryImageHelper.getVisualWidget(
+                key: entry.key,
+                assetName: imagePath,
+                icon: type?.icon,
+                size: size,
+              ),
             );
           }),
         );
       }
+    }
 
-      final currencyRewards = LootBoxConfig.rollSurvivalBonusCurrency(
-        wave,
-        rng,
-      );
-      final silver = currencyRewards['silver'] ?? 0;
-      final gold = currencyRewards['gold'] ?? 0;
-      if (silver > 0) {
-        await db.currencyDao.addSilver(silver);
-        popupEntries.add(
-          LootOpeningEntry(
-            icon: Icons.monetization_on_rounded,
-            name: 'Silver',
-            label: '+$silver',
-            color: const Color(0xFFB0BEC5),
-          ),
-        );
-      }
-      if (gold > 0) {
-        await db.currencyDao.addGold(gold);
-        popupEntries.add(
-          LootOpeningEntry(
-            icon: Icons.stars_rounded,
-            name: 'Gold',
-            label: '+$gold',
-            color: _C.accent,
-          ),
-        );
-      }
-    } else {
-      final pitySilver = 50 + rng.nextInt(51);
-      await db.currencyDao.addSilver(pitySilver);
+    // Currency always granted regardless of loot box roll.
+    final currencyRewards = LootBoxConfig.rollSurvivalBonusCurrency(wave, rng);
+    final silver = currencyRewards['silver'] ?? 0;
+    final gold = currencyRewards['gold'] ?? 0;
+    if (silver > 0) {
+      await db.currencyDao.addSilver(silver);
       popupEntries.add(
         LootOpeningEntry(
           icon: Icons.monetization_on_rounded,
           name: 'Silver',
-          label: '+$pitySilver',
+          label: '+$silver',
           color: const Color(0xFFB0BEC5),
+        ),
+      );
+    }
+    if (gold > 0) {
+      await db.currencyDao.addGold(gold);
+      popupEntries.add(
+        LootOpeningEntry(
+          icon: Icons.stars_rounded,
+          name: 'Gold',
+          label: '+$gold',
+          color: _C.accent,
         ),
       );
     }
@@ -1599,9 +1604,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const SurvivalBaseCommandScreen(
-                              hideAbilities: true,
-                            ),
+                            builder: (_) =>
+                                const CosmicSurvivalBaseCommandScreen(
+                                  hideAbilities: true,
+                                ),
                           ),
                         );
                       },
@@ -1820,6 +1826,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _EtchedDivider(label: 'SPECIES ROSTER'),
+        const SizedBox(height: 8),
+        const Text(
+          'Special strength rises with stats: under 1.0 is weak, 1-2 is low, 2-3 is steady, 3-4 is strong, 4.0-4.6 is elite, and 4.6+ is peak. Kin needs both Beauty + Intelligence to scale fully.',
+          style: TextStyle(color: _C.textSecondary, fontSize: 10, height: 1.35),
+        ),
         const SizedBox(height: 14),
         AnimatedContainer(
           duration: const Duration(milliseconds: 160),
@@ -2206,20 +2217,28 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
         _buildLivePlayOverlay(game),
 
-        // Joystick (bottom left)
-        if (game.isLoaded && _showJoystick)
-          Positioned(
-            bottom: 20,
-            left: 12,
-            child: SafeArea(
-              child: VirtualJoystick(
-                sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
-                onDirectionChanged: (dir) {
-                  game.setJoystickInput(dir ?? Offset.zero);
-                },
+        // Joystick (bottom left). Re-check `game.isLoaded` on live ticks so
+        // enabled joystick appears as soon as the game finishes loading.
+        ValueListenableBuilder<int>(
+          valueListenable: _liveUiTick,
+          builder: (_, __, ___) {
+            if (!game.isLoaded || !_showJoystick) {
+              return const SizedBox.shrink();
+            }
+            return Positioned(
+              bottom: 20,
+              left: 12,
+              child: SafeArea(
+                child: VirtualJoystick(
+                  sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
+                  onDirectionChanged: (dir) {
+                    game.setJoystickInput(dir ?? Offset.zero);
+                  },
+                ),
               ),
-            ),
-          ),
+            );
+          },
+        ),
         // Power-up selection overlay
         if (_powerUpChoices.isNotEmpty)
           PowerUpSelectionOverlay(
@@ -2972,7 +2991,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                   onChanged: (v) async {
                                     setState(() {
                                       _showJoystick = v;
-                                      if (!v) game.setJoystickInput(Offset.zero);
+                                      if (!v) {
+                                        game.setJoystickInput(Offset.zero);
+                                      }
                                     });
                                     final prefs =
                                         await SharedPreferences.getInstance();
@@ -3048,9 +3069,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           decoration: BoxDecoration(
             color: const Color(0xCC0A0E17),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.06),
-            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3085,9 +3104,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        tethered
-                            ? Icons.link_rounded
-                            : Icons.link_off_rounded,
+                        tethered ? Icons.link_rounded : Icons.link_off_rounded,
                         color: tethered ? _C.teal : _C.textSecondary,
                         size: 18,
                       ),
@@ -3319,44 +3336,44 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     const amber = Color(0xFFFFAA00);
 
     Widget statChip(String label, String value) => Expanded(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.10),
-                width: 1,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.10),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: Colors.white.withValues(alpha: 0.45),
-                    fontSize: 9,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 9,
+                letterSpacing: 1.5,
+              ),
             ),
-          ),
-        );
+          ],
+        ),
+      ),
+    );
 
     void showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
       showDialog<void>(
@@ -3395,7 +3412,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       width: 1.5,
                     ),
                   ),
-                  child: Icon(entry.icon, color: entry.color, size: 30),
+                  child: entry.visualBuilder != null
+                      ? Center(child: entry.visualBuilder!(48))
+                      : Icon(entry.icon, color: entry.color, size: 30),
                 ),
                 const SizedBox(height: 16),
                 if (entry.name != null)
@@ -3486,10 +3505,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Container(
-                    height: 1,
-                    color: frame.withValues(alpha: 0.3),
-                  ),
+                  Container(height: 1, color: frame.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
 
                   // Stat chips
@@ -3546,15 +3562,19 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     shape: BoxShape.circle,
                                     color: entry.color.withValues(alpha: 0.12),
                                     border: Border.all(
-                                      color: entry.color.withValues(alpha: 0.35),
+                                      color: entry.color.withValues(
+                                        alpha: 0.35,
+                                      ),
                                       width: 1,
                                     ),
                                   ),
-                                  child: Icon(
-                                    entry.icon,
-                                    color: entry.color,
-                                    size: 18,
-                                  ),
+                                  child: entry.visualBuilder != null
+                                      ? Center(child: entry.visualBuilder!(28))
+                                      : Icon(
+                                          entry.icon,
+                                          color: entry.color,
+                                          size: 18,
+                                        ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -3709,8 +3729,9 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Let',
     role: 'Siege Caster',
     description:
-        'Long-range meteor pressure with element-specific follow-through: lances, shards, guided finishers, orbiting blades, or persistent control fields.',
-    bestPowerups: 'Spellbloom Engine, Double Cast, lane-control drafts',
+        'Long-range element casters that shower enemies with meteors. Elemental follow-ups now trigger on meteor impact and scale with Beauty + Intelligence.',
+    bestPowerups:
+        'Spellbloom (keystone), Double Cast, Chrono Grit | Threshold focus: Beauty + Intelligence',
     assetPath: 'assets/images/creatures/common/LET02_waterlet.png',
     color: Color(0xFF3B82F6),
   ),
@@ -3719,8 +3740,9 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Pip',
     role: 'Tempo Carry',
     description:
-        'Fast cleanup specialists that chase leaks, rebound through packs, and turn elite Speed/Int lines into tighter wave tempo.',
-    bestPowerups: 'Quicksilver Step, Chrono Surge, rebound drafts',
+        'Fast agile attackers that chase leaks and clean up packs. Special output scales with tactical stats and ramps hard at high stat values.',
+    bestPowerups:
+        'Warpath (keystone), Quicksilver Step, Chrono Grit | Threshold focus: Intelligence + Beauty proxy',
     assetPath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
     color: Color(0xFFEF4444),
   ),
@@ -3729,8 +3751,9 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Mane',
     role: 'Barrage Bruiser',
     description:
-        'Medium-range slash bruisers that carve forward lanes, stagger pushes, and reward Strength/Speed without chasing like Pips.',
-    bestPowerups: 'Forged Strikes, Blood Pact, lane tempo',
+        'Mid-range slash fighters that carve through lanes with consistent pressure. Special riders improve sharply as Strength climbs.',
+    bestPowerups:
+        'Warpath (keystone), Forged Strikes, Blood Pact | Threshold focus: Strength + Beauty support',
     assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
     color: Color(0xFFF59E0B),
   ),
@@ -3739,8 +3762,9 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Horn',
     role: 'Frontline Bastion',
     description:
-        'Close-range shield chargers that body-block lanes, taunt rushdowns, and turn strong Strength into reliable orb protection.',
-    bestPowerups: 'Forgeplate, Orb Tempering, Bulwark Orders',
+        'Tanky close-range chargers that body-block for the orb. Defensive riders (shield/charge package) unlock reliably at mid-to-high stat values.',
+    bestPowerups:
+        'Bastion Heart (keystone), Forged Strikes, Forgeplate | Threshold focus: Strength + Intelligence',
     assetPath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
     color: Color(0xFF10B981),
   ),
@@ -3749,8 +3773,9 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Mask',
     role: 'Tactical Duelist',
     description:
-        'Precision utility fighters that reposition well and reward smart tempo/control drafting.',
-    bestPowerups: 'Chrono Grit, Quicksilver Step, control lanes',
+        'Versatile duelists with control utility. Special consistency scales with tactical stats, with stronger utility riders at high stats.',
+    bestPowerups:
+        'Chrono Surge (keystone), Forgeplate, Chrono Grit | Threshold focus: Intelligence + Beauty',
     assetPath: 'assets/images/creatures/rare/MSK01_firemask.png',
     color: Color(0xFF8B5CF6),
   ),
@@ -3759,8 +3784,9 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Wing',
     role: 'Sniper Control',
     description:
-        'Long-range pressure that removes shooters and bosses from a safe distance. Great on high Intelligence and Beauty lines.',
-    bestPowerups: 'Chrono Grit, Double Cast, Arc Storm answers',
+        'High-range snipers that delete shooters and boss lanes. Special uptime and control scale with Intelligence + Beauty.',
+    bestPowerups:
+        'Spellbloom (keystone), Double Cast, Chrono Grit | Threshold focus: Intelligence + Beauty',
     assetPath: 'assets/images/creatures/legendary/WNG03_earthwing.png',
     color: Color(0xFF06B6D4),
   ),
@@ -3769,8 +3795,9 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Kin',
     role: 'Support Anchor',
     description:
-        'Stabilizes formations with utility, sustain, and tactical control. Premium Intelligence and Beauty show up immediately here.',
-    bestPowerups: 'Regeneration Field, Shield Pulse, Spellbloom Engine',
+        'Durable utility companions that sustain the team and stabilize waves. Kin uses a hard dual gate: both Beauty and Intelligence must be high for full support output.',
+    bestPowerups:
+        'Bastion Heart (keystone), Regeneration Field, Shield Pulse | Threshold focus: Beauty + Intelligence (both)',
     assetPath: 'assets/images/creatures/legendary/KIN16_lightkin.png',
     color: Color(0xFF14B8A6),
   ),
@@ -3779,8 +3806,9 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     name: 'Mystic',
     role: 'Spell Engine',
     description:
-        'High-risk special-cast monsters that explode once keystones and control tools line up around their stat profile.',
-    bestPowerups: 'Double Cast, Spellbloom Engine, special-cast lanes',
+        'Powerful casters with the highest elemental multiplier. Core spell tiers use Beauty + Intelligence, while high Strength adds burst bias at top thresholds.',
+    bestPowerups:
+        'Spellbloom (keystone), Double Cast, Chrono Grit | Threshold focus: Beauty + Intelligence, Strength for burst',
     assetPath: 'assets/images/creatures/mystic/MYS14_spiritmystic.png',
     color: Color(0xFFA855F7),
   ),

@@ -229,19 +229,15 @@ class _AllSpecimensPageState extends State<AllSpecimensPage>
               _currentSelection = selected;
             },
             onConfirmSelection: widget.onConfirmSelection,
-            onTap: (inst) async {
-              final navigator = Navigator.of(context);
-              final shouldSelect =
-                  await widget.onWillSelectInstance?.call(inst) ?? true;
-              if (!mounted || !shouldSelect) return;
-
-              if (widget.popOnSelect) {
-                navigator.pop(inst);
-                return;
-              }
-
-              widget.onInstanceTap?.call(inst);
-            },
+            onTap: widget.popOnSelect
+                ? (inst) async {
+                    final navigator = Navigator.of(context);
+                    final shouldSelect =
+                        await widget.onWillSelectInstance?.call(inst) ?? true;
+                    if (!mounted || !shouldSelect) return;
+                    navigator.pop(inst);
+                  }
+                : null,
           ),
         ),
       ),

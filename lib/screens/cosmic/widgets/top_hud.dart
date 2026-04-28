@@ -19,6 +19,8 @@ class TopHud extends StatefulWidget {
     this.showMeter = true,
     this.collapsed = false,
     this.onCollapsedChanged,
+    this.zoomLevel = 0,
+    this.onZoomCycle,
   });
 
   final FactionTheme theme;
@@ -35,6 +37,8 @@ class TopHud extends StatefulWidget {
   final bool showMeter;
   final bool collapsed;
   final ValueChanged<bool>? onCollapsedChanged;
+  final int zoomLevel;
+  final VoidCallback? onZoomCycle;
 
   @override
   State<TopHud> createState() => TopHudState();
@@ -229,6 +233,34 @@ class TopHudState extends State<TopHud> {
                   ),
                   const SizedBox(width: 6),
                 ],
+                // Zoom button — circle
+                if (widget.onZoomCycle != null)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: widget.onZoomCycle,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          width: 0.7,
+                        ),
+                      ),
+                      child: Icon(
+                        switch (widget.zoomLevel) {
+                          0 => Icons.center_focus_strong_rounded,
+                          1 => Icons.zoom_out_map_rounded,
+                          _ => Icons.zoom_in_map_rounded,
+                        },
+                        color: const Color(0xFF4DD0E1),
+                        size: 15,
+                      ),
+                    ),
+                  ),
+                if (widget.onZoomCycle != null) const SizedBox(width: 6),
                 // Collapse button — circle
                 GestureDetector(
                   onTap: () => _setCollapsed(true),

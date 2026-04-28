@@ -31,6 +31,13 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay> {
     final showingKeystones = widget.choices.any(
       (choice) => choice.def.isKeystone,
     );
+    final sharedChoiceGroup = widget.choices.isNotEmpty
+        ? widget.choices.first.def.choiceGroup
+        : null;
+    final isThisOrThatOffer =
+        widget.choices.length == 2 &&
+        sharedChoiceGroup != null &&
+        widget.choices.every((choice) => choice.def.choiceGroup == sharedChoiceGroup);
     return Container(
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.76),
@@ -70,6 +77,8 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay> {
               Text(
                 showingKeystones
                     ? 'WAVE ${widget.currentWave} KEYSTONE'
+                    : isThisOrThatOffer
+                    ? 'THIS OR THAT'
                     : 'ALCHEMICAL SURGE',
                 style: const TextStyle(
                   fontFamily: 'monospace',
@@ -82,8 +91,10 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay> {
               const SizedBox(height: 4),
               Text(
                 showingKeystones
-                    ? 'Choose a run-defining keystone for this survival.'
-                    : 'Choose one upgrade for the next push.',
+                    ? 'Choose exactly one Keystone path. Unpicked paths are removed for this run. Guardian specials now scale with stats.'
+                    : isThisOrThatOffer
+                    ? 'Choose one doctrine. The other path is removed for this run.'
+                    : 'Choose one upgrade for the next push. Reminder: guardian specials scale by stat thresholds (Kin needs Beauty + Intelligence).',
                 style: const TextStyle(color: Color(0xFF8A7B6A), fontSize: 11),
               ),
               const SizedBox(height: 14),
@@ -148,11 +159,20 @@ class _PowerUpCard extends StatelessWidget {
     final def = choice.def;
     final rarity = def.rarity;
     final accent = _rarityColor(rarity);
+    final systemLabel = _powerUpSystemLabel(def);
+    final systemIcon = _powerUpSystemIcon(def);
     final isCompanion = def.scope == PowerUpScope.companion;
     final offeredName = choice.targetName;
     final nextLevel = choice.currentLevel + 1;
     final incrementLabel = powerUpIncrementLabel(choice);
     final totalLabel = powerUpTotalLabel(choice);
+    final keystoneEffects = def.isKeystone
+      ? incrementLabel
+          .split(',')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList()
+      : const <String>[];
 
     return GestureDetector(
       onTap: onTap,
@@ -185,11 +205,7 @@ class _PowerUpCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: accent.withValues(alpha: 0.28)),
                   ),
-                  child: Icon(
-                    _categoryIcon(def.category),
-                    color: accent,
-                    size: 16,
-                  ),
+                  child: Icon(systemIcon, color: accent, size: 16),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -226,28 +242,59 @@ class _PowerUpCard extends StatelessWidget {
                         runSpacing: 4,
                         children: [
                           _MiniTag(label: _rarityLabel(rarity), color: accent),
+                          if (!def.isKeystone)
+                            _MiniTag(
+                              label: systemLabel,
+                              color: const Color(0xFF9FB3C8),
+                            ),
                           if (def.isKeystone)
                             const _MiniTag(
                               label: 'KEYSTONE',
                               color: Color(0xFFD97706),
                             ),
-                          if (isCompanion && offeredName != null)
-                            _MiniTag(
-                              label: offeredName.toUpperCase(),
-                              color: const Color(0xFF9FB3C8),
-                            ),
+
                         ],
                       ),
                       const SizedBox(height: 7),
                       Text(
-                        incrementLabel,
+                        def.description,
                         style: const TextStyle(
-                          color: Color(0xFFE8DCC8),
-                          fontSize: 11.5,
-                          height: 1.3,
-                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF9FA8B5),
+                          fontSize: 10,
+                          height: 1.25,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
+                      const SizedBox(height: 6),
+                      if (def.isKeystone)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final effect in keystoneEffects)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 2),
+                                child: Text(
+                                  '+ $effect',
+                                  style: const TextStyle(
+                                    color: Color(0xFFE8DCC8),
+                                    fontSize: 11.3,
+                                    height: 1.25,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        )
+                      else
+                        Text(
+                          incrementLabel,
+                          style: const TextStyle(
+                            color: Color(0xFFE8DCC8),
+                            fontSize: 11.5,
+                            height: 1.3,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       if (totalLabel != null) ...[
                         const SizedBox(height: 3),
                         Text(
@@ -311,12 +358,33 @@ class _MiniTag extends StatelessWidget {
   }
 }
 
-IconData _categoryIcon(PowerUpCategory category) => switch (category) {
-  PowerUpCategory.statBoost => Icons.trending_up_rounded,
-  PowerUpCategory.shipWeapon => Icons.rocket_launch_rounded,
-  PowerUpCategory.orbDefense => Icons.shield_rounded,
-  PowerUpCategory.rarePerk => Icons.auto_awesome_rounded,
-};
+IconData _powerUpSystemIcon(PowerUpDef def) {
+  if (def.isKeystone) return Icons.account_tree_rounded;
+  return switch (def.category) {
+    PowerUpCategory.shipWeapon => Icons.rocket_launch_rounded,
+    PowerUpCategory.orbDefense => Icons.blur_circular_rounded,
+    PowerUpCategory.statBoost => def.scope == PowerUpScope.companion
+        ? Icons.pets_rounded
+        : Icons.groups_rounded,
+    PowerUpCategory.rarePerk => def.scope == PowerUpScope.companion
+        ? Icons.person_rounded
+        : Icons.auto_awesome_rounded,
+  };
+}
+
+String _powerUpSystemLabel(PowerUpDef def) {
+  if (def.isKeystone) return 'DOCTRINE';
+  return switch (def.category) {
+    PowerUpCategory.shipWeapon => 'SHIP',
+    PowerUpCategory.orbDefense => 'ORB',
+    PowerUpCategory.statBoost => def.scope == PowerUpScope.companion
+        ? 'COMPANION'
+        : 'GLOBAL',
+    PowerUpCategory.rarePerk => def.scope == PowerUpScope.companion
+        ? 'COMPANION'
+        : 'GLOBAL',
+  };
+}
 
 Color _rarityColor(PowerUpRarity rarity) => switch (rarity) {
   PowerUpRarity.common => const Color(0xFFD97706),

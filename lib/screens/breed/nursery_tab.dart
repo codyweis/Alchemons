@@ -6,6 +6,7 @@ import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
 import 'package:alchemons/widgets/nursery/non_ready_hatch_widget.dart';
@@ -352,8 +353,8 @@ class _NurseryTabState extends State<NurseryTab> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: responsiveCrossAxisCount(context, phoneCols: 2),
         childAspectRatio: 0.85,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,

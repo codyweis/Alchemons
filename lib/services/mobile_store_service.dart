@@ -60,7 +60,7 @@ class MobileStoreService extends ChangeNotifier {
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_celestial',
-      title: 'Celestial Reserve',
+      title: 'Celestial',
       subtitle: 'Heavy stockpile for long-form progression.',
       goldAmount: 500,
       badge: 'PREMIUM',

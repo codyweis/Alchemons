@@ -37,6 +37,7 @@ class PowerUpDef {
   final List<String> favoredFamilies;
   final List<PowerUpStatFocus> favoredStats;
   final bool isKeystone;
+  final String? choiceGroup;
 
   const PowerUpDef({
     required this.id,
@@ -54,6 +55,7 @@ class PowerUpDef {
     this.favoredFamilies = const [],
     this.favoredStats = const [],
     this.isKeystone = false,
+    this.choiceGroup,
   });
 }
 
@@ -61,7 +63,7 @@ const kCompanionStatBoosts = [
   PowerUpDef(
     id: 'attack_boost',
     name: 'Forged Strikes',
-    description: '+18% attack for one alchemon',
+    description: '+18% Strength scaling for one alchemon',
     icon: '⚔️',
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
@@ -73,7 +75,7 @@ const kCompanionStatBoosts = [
   PowerUpDef(
     id: 'defense_boost',
     name: 'Forgeplate',
-    description: '+16% defense for one alchemon',
+    description: '+16% Intelligence scaling for one alchemon',
     icon: '🛡️',
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
@@ -98,7 +100,7 @@ const kCompanionStatBoosts = [
   PowerUpDef(
     id: 'hp_boost',
     name: 'Vital Ember',
-    description: '+22% max HP for one alchemon',
+    description: '+22% durability scaling for one alchemon',
     icon: '❤️',
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
@@ -110,7 +112,7 @@ const kCompanionStatBoosts = [
   PowerUpDef(
     id: 'cooldown_reduction',
     name: 'Chrono Grit',
-    description: '-8% cooldown for one alchemon',
+    description: '+8% Speed-based cadence for one alchemon',
     icon: '⏱️',
     category: PowerUpCategory.statBoost,
     rarity: PowerUpRarity.uncommon,
@@ -126,7 +128,7 @@ const kGlobalStatBoosts = [
   PowerUpDef(
     id: 'command_attack',
     name: 'War Banner',
-    description: '+6% attack to all alchemons',
+    description: '+6% Strength scaling to all alchemons',
     icon: '🚩',
     category: PowerUpCategory.statBoost,
     maxStacks: 3,
@@ -136,7 +138,7 @@ const kGlobalStatBoosts = [
   PowerUpDef(
     id: 'command_defense',
     name: 'Bulwark Orders',
-    description: '+6% defense to all alchemons',
+    description: '+6% Intelligence scaling to all alchemons',
     icon: '🧱',
     category: PowerUpCategory.statBoost,
     maxStacks: 3,
@@ -205,6 +207,38 @@ const kShipWeapons = [
     rarity: PowerUpRarity.rare,
     maxStacks: 1,
     tags: [PowerUpTag.control],
+  ),
+  PowerUpDef(
+    id: 'missile_launcher',
+    name: 'Missile Launcher',
+    description: 'Ship periodically launches heavy homing missiles',
+    icon: '🛰️',
+    category: PowerUpCategory.shipWeapon,
+    rarity: PowerUpRarity.rare,
+    maxStacks: 3,
+    choiceGroup: 'ship_arsenal_doctrine',
+    tags: [PowerUpTag.basicAttack, PowerUpTag.chainExecute],
+  ),
+  PowerUpDef(
+    id: 'rapid_turret',
+    name: 'Fast Turret',
+    description: 'Ship auto-turret zaps nearby enemies at high cadence',
+    icon: '🛞',
+    category: PowerUpCategory.shipWeapon,
+    rarity: PowerUpRarity.uncommon,
+    maxStacks: 3,
+    choiceGroup: 'ship_arsenal_doctrine',
+    tags: [PowerUpTag.tempo, PowerUpTag.control],
+  ),
+  PowerUpDef(
+    id: 'kinetic_overdrive',
+    name: 'Kinetic Overdrive',
+    description: 'Ship rounds gain speed, lifetime, and impact',
+    icon: '🧲',
+    category: PowerUpCategory.shipWeapon,
+    rarity: PowerUpRarity.uncommon,
+    maxStacks: 3,
+    tags: [PowerUpTag.basicAttack],
   ),
 ];
 
@@ -376,8 +410,7 @@ const kKeystonePowerUps = [
   PowerUpDef(
     id: 'keystone_bastion_heart',
     name: 'Bastion Heart',
-    description:
-        'Orb fortress run: heavy orb and guardian scaling for defense cores',
+    description: 'Fortress path: harden orb and guardians',
     icon: '🏛️',
     category: PowerUpCategory.rarePerk,
     rarity: PowerUpRarity.legendary,
@@ -391,8 +424,7 @@ const kKeystonePowerUps = [
   PowerUpDef(
     id: 'keystone_chrono_surge',
     name: 'Chrono Surge',
-    description:
-        'Tempo run: faster companions, faster casts, faster ship pressure',
+    description: 'Tempo path: accelerate movement, cadence, and fire',
     icon: '🕰️',
     category: PowerUpCategory.rarePerk,
     rarity: PowerUpRarity.legendary,
@@ -405,9 +437,8 @@ const kKeystonePowerUps = [
   ),
   PowerUpDef(
     id: 'keystone_spellbloom',
-    name: 'Spellbloom Engine',
-    description:
-        'Caster run: stronger alchemon output with amplified spell cadence',
+    name: 'Spellbloom',
+    description: 'Caster path: amplify spell rhythm and output',
     icon: '🌌',
     category: PowerUpCategory.rarePerk,
     rarity: PowerUpRarity.legendary,
@@ -420,9 +451,8 @@ const kKeystonePowerUps = [
   ),
   PowerUpDef(
     id: 'keystone_warpath',
-    name: 'Warpath Doctrine',
-    description:
-        'Assault run: boosted pressure for attack-forward teams and carry lines',
+    name: 'Warpath',
+    description: 'Assault path: amplify frontline pressure',
     icon: '⚔️',
     category: PowerUpCategory.rarePerk,
     rarity: PowerUpRarity.legendary,
@@ -448,6 +478,7 @@ class PowerUpState {
   final Map<int, Map<String, int>> _companionStacks = {};
   final Set<int> _phoenixUsed = {};
   final List<AppliedPowerUp> _history = [];
+  final Map<String, String> _choiceSelections = {};
 
   List<AppliedPowerUp> get history => List.unmodifiable(_history);
 
@@ -482,6 +513,10 @@ class PowerUpState {
     if (def.id == 'homing_missiles' && getGlobalStacks('rocket_barrage') > 0) {
       return false;
     }
+    if (def.choiceGroup != null) {
+      final selected = _choiceSelections[def.choiceGroup!];
+      if (selected != null && selected != def.id) return false;
+    }
     if (def.scope == PowerUpScope.companion) {
       if (companionCount <= 0) return false;
       if (targetSlot != null) {
@@ -507,6 +542,11 @@ class PowerUpState {
   }
 
   bool apply(PowerUpDef def, {int? targetSlot, String? targetName}) {
+    if (def.choiceGroup != null) {
+      final selected = _choiceSelections[def.choiceGroup!];
+      if (selected != null && selected != def.id) return false;
+      _choiceSelections.putIfAbsent(def.choiceGroup!, () => def.id);
+    }
     if (def.scope == PowerUpScope.companion) {
       if (targetSlot == null) return false;
       final slotStacks = _companionStacks.putIfAbsent(targetSlot, () => {});
@@ -594,6 +634,9 @@ class PowerUpState {
   double get fireRateMultiplier =>
       1.0 + getGlobalStacks('fire_rate') * 0.22 + (hasChronoSurge ? 0.20 : 0.0);
   bool get hasHomingMissiles => has('homing_missiles');
+  int get missileLauncherLevel => getGlobalStacks('missile_launcher');
+  int get rapidTurretLevel => getGlobalStacks('rapid_turret');
+  int get kineticOverdriveLevel => getGlobalStacks('kinetic_overdrive');
   int get spreadShotLevel => getGlobalStacks('spread_shot');
   int get rocketBarrageLevel => getGlobalStacks('rocket_barrage');
   bool get hasRocketBarrage => rocketBarrageLevel > 0;
@@ -648,24 +691,24 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
   if (def.isKeystone) {
     return switch (def.id) {
       'keystone_bastion_heart' =>
-        '+20% orb HP, +12% companion defense, +14% companion HP',
+        'Orb Durability +20%, Intelligence scaling +12%, Vitality scaling +14%',
       'keystone_chrono_surge' =>
-        '+16% companion speed, +10% cooldown reduction, +20% ship fire rate',
+        'Speed scaling +16%, Speed cadence +10%, Ship tempo +20%',
       'keystone_spellbloom' =>
-        '+16% companion attack, +12% cooldown reduction',
+        'Beauty scaling +16%, Speed cadence +12%',
       'keystone_warpath' =>
-        '+22% companion attack and +20% ship damage',
+        'Strength scaling +22%, Ship impact scaling +20%',
       _ => def.description,
     };
   }
   return switch (def.id) {
-    'attack_boost' => '+18% power boost',
-    'defense_boost' => '+16% defense boost',
+    'attack_boost' => '+18% Strength scaling',
+    'defense_boost' => '+16% Intelligence scaling',
     'speed_boost' => '+14% speed boost',
-    'hp_boost' => '+22% max HP boost',
-    'cooldown_reduction' => '-8% cooldown',
-    'command_attack' => '+6% team power boost',
-    'command_defense' => '+6% team defense boost',
+    'hp_boost' => '+22% durability scaling',
+    'cooldown_reduction' => '+8% Speed cadence',
+    'command_attack' => '+6% team Strength scaling',
+    'command_defense' => '+6% team Intelligence scaling',
     'orb_vitality' => '+10% orb max HP',
     'fire_rate' => '+22% ship fire rate',
     'spread_shot' => '+2 side shots',
@@ -674,8 +717,19 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
       2 => 'Rockets deal 5.5x damage / 90 splash radius',
       _ => 'Rockets deal 7.0x damage / 115 radius + twin rockets',
     },
-    'ship_damage' => '+18% ship damage',
+    'ship_damage' => '+18% ship impact scaling',
     'homing_missiles' => 'Ship shots gain homing',
+    'missile_launcher' => switch (nextLevel) {
+      1 => 'Unlock periodic heavy missile strikes',
+      2 => 'Missiles launch faster and hit harder',
+      _ => 'Twin missile salvos and larger blast radius',
+    },
+    'rapid_turret' => switch (nextLevel) {
+      1 => 'Unlock rapid auto-turret beam support',
+      2 => 'Turret cadence and damage increased',
+      _ => 'High cadence beam pressure with heavy hits',
+    },
+    'kinetic_overdrive' => '+10% ship round impact, speed, and lifetime',
     'shield_pulse' => '+1 shield pulse level',
     'auto_turret' => '+1 auto-turret level',
     'regen_field' => '+1 regeneration field level',
@@ -695,7 +749,7 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
     'double_cast' => 'Special ability casts twice',
     'chain_lightning' => 'Attacks chain to nearby enemies',
     'mirror_shield' => 'Reduce orb collision damage and retaliate',
-    'berserker' => 'Double damage below 30% orb HP',
+    'berserker' => 'Double impact output below 30% orb HP',
     'elemental_fury' => '+1 elemental splash level',
     'phoenix_rebirth' => 'Revive once at full HP',
     _ => def.description,
@@ -708,16 +762,27 @@ String? powerUpTotalLabel(OfferedPowerUpChoice choice) {
   if (def.isKeystone) return 'Keystone: only one can be claimed.';
   if (choice.currentLevel <= 0 || def.maxStacks <= 1) return null;
   return switch (def.id) {
-    'attack_boost' => '+${18 * nextLevel}% total power',
-    'defense_boost' => '+${16 * nextLevel}% total defense',
+    'attack_boost' => '+${18 * nextLevel}% total Strength scaling',
+    'defense_boost' => '+${16 * nextLevel}% total Intelligence scaling',
     'speed_boost' => '+${14 * nextLevel}% total speed',
-    'hp_boost' => '+${22 * nextLevel}% total max HP',
-    'cooldown_reduction' => '-${8 * nextLevel}% total cooldown',
-    'command_attack' => '+${6 * nextLevel}% total team power',
-    'command_defense' => '+${6 * nextLevel}% total team defense',
+    'hp_boost' => '+${22 * nextLevel}% total durability scaling',
+    'cooldown_reduction' => '+${8 * nextLevel}% total Speed cadence',
+    'command_attack' => '+${6 * nextLevel}% total team Strength scaling',
+    'command_defense' => '+${6 * nextLevel}% total team Intelligence scaling',
     'orb_vitality' => '+${10 * nextLevel}% total orb max HP',
     'fire_rate' => '+${22 * nextLevel}% total ship fire rate',
-    'ship_damage' => '+${18 * nextLevel}% total ship damage',
+    'ship_damage' => '+${18 * nextLevel}% total ship impact scaling',
+    'kinetic_overdrive' => '+${10 * nextLevel}% total ballistic scaling',
+    'missile_launcher' => switch (nextLevel) {
+      2 => 'Missile support: faster cycle + higher burst',
+      3 => 'Missile support: twin salvo doctrine online',
+      _ => null,
+    },
+    'rapid_turret' => switch (nextLevel) {
+      2 => 'Turret support: faster beam cadence',
+      3 => 'Turret support: max cadence + heavy beam',
+      _ => null,
+    },
     'rocket_barrage' => switch (nextLevel) {
       2 => 'Rockets: 5.5x damage, 90 splash radius',
       3 => 'Rockets: 7.0x damage, 115 radius, twin launch',
@@ -840,6 +905,16 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
 }) {
   final rng = Random(wave * 37 + 11);
   final companionCount = party.length;
+
+  final exclusiveFork = _buildExclusiveThisOrThatChoice(
+    state,
+    wave,
+    party,
+    rng,
+    defeatedCompanionSlots,
+  );
+  if (exclusiveFork.isNotEmpty) return exclusiveFork;
+
   final available = kAllPowerUps
       .where(
         (def) => state.canApply(
@@ -928,6 +1003,45 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
   }
 
   return chosen;
+}
+
+List<OfferedPowerUpChoice> _buildExclusiveThisOrThatChoice(
+  PowerUpState state,
+  int wave,
+  List<CosmicPartyMember> party,
+  Random rng,
+  Set<int> defeatedCompanionSlots,
+) {
+  if (wave < 5 || wave % 6 != 0) return const [];
+
+  const group = 'ship_arsenal_doctrine';
+  final groupDefs = kAllPowerUps
+      .where((def) => def.choiceGroup == group)
+      .toList(growable: false);
+  if (groupDefs.length < 2) return const [];
+
+  final canOfferAll = groupDefs.every(
+    (def) => state.canApply(
+      def,
+      companionCount: party.length,
+      defeatedCompanionSlots: defeatedCompanionSlots,
+    ),
+  );
+  if (!canOfferAll) return const [];
+
+  final picks = groupDefs
+      .map(
+        (def) => _buildOfferedChoice(
+          def,
+          state,
+          party,
+          rng,
+          defeatedCompanionSlots,
+        ),
+      )
+      .toList();
+  picks.shuffle(rng);
+  return picks;
 }
 
 OfferedPowerUpChoice _buildOfferedChoice(

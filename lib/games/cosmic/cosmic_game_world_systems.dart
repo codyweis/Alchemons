@@ -126,6 +126,17 @@ extension CosmicGameWorldSystems on CosmicGame {
         break;
     }
     final element = _randomEnemyElement(rng);
+    final variant = switch (tier) {
+      EnemyTier.brute || EnemyTier.colossus
+        when (behavior == EnemyBehavior.aggressive ||
+          behavior == EnemyBehavior.territorial) &&
+          rng.nextDouble() < 0.22 => CosmicEnemyVariant.crusher,
+      EnemyTier.drone || EnemyTier.phantom
+        when (behavior == EnemyBehavior.aggressive ||
+          behavior == EnemyBehavior.stalking) &&
+          rng.nextDouble() < 0.28 => CosmicEnemyVariant.pouncer,
+      _ => CosmicEnemyVariant.standard,
+    };
 
     // Position depends on behavior
     Offset pos;
@@ -179,8 +190,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       default:
         // Aggressive / drifting — spawn at viewport edge
         final angle = rng.nextDouble() * pi * 2;
-        final vw = size.x / CosmicGame.cameraZoom;
-        final vh = size.y / CosmicGame.cameraZoom;
+        final vw = size.x / cameraZoom;
+        final vh = size.y / cameraZoom;
         final edgeDist = sqrt(vw * vw + vh * vh) * 0.55;
         pos = _wrap(
           Offset(
@@ -189,6 +200,26 @@ extension CosmicGameWorldSystems on CosmicGame {
           ),
         );
     }
+
+    final baseHealth = CosmicBalance.enemyBaseHealth(tier);
+    final baseSpeed = switch (tier) {
+      EnemyTier.drone => 90 + rng.nextDouble() * 50,
+      EnemyTier.wisp => 60 + rng.nextDouble() * 40,
+      EnemyTier.sentinel => 35 + rng.nextDouble() * 25,
+      EnemyTier.phantom => 45 + rng.nextDouble() * 30,
+      EnemyTier.brute => 20 + rng.nextDouble() * 15,
+      EnemyTier.colossus => 12 + rng.nextDouble() * 8,
+    };
+    final healthMult = switch (variant) {
+      CosmicEnemyVariant.crusher => 1.45,
+      CosmicEnemyVariant.pouncer => 0.84,
+      CosmicEnemyVariant.standard => 1.0,
+    };
+    final speedMult = switch (variant) {
+      CosmicEnemyVariant.crusher => 0.82,
+      CosmicEnemyVariant.pouncer => 1.28,
+      CosmicEnemyVariant.standard => 1.0,
+    };
 
     enemies.add(
       CosmicEnemy(
@@ -203,18 +234,12 @@ extension CosmicGameWorldSystems on CosmicGame {
           EnemyTier.brute => 20 + rng.nextDouble() * 8,
           EnemyTier.colossus => 30 + rng.nextDouble() * 12,
         },
-        health: CosmicBalance.enemyBaseHealth(tier),
-        speed: switch (tier) {
-          EnemyTier.drone => 90 + rng.nextDouble() * 50,
-          EnemyTier.wisp => 60 + rng.nextDouble() * 40,
-          EnemyTier.sentinel => 35 + rng.nextDouble() * 25,
-          EnemyTier.phantom => 45 + rng.nextDouble() * 30,
-          EnemyTier.brute => 20 + rng.nextDouble() * 15,
-          EnemyTier.colossus => 12 + rng.nextDouble() * 8,
-        },
+        health: baseHealth * healthMult,
+        speed: baseSpeed * speedMult,
         angle: rng.nextDouble() * pi * 2,
         driftTimer: rng.nextDouble() * 4,
         behavior: behavior,
+        variant: variant,
         homePos: homePos,
         aggroRadius: aggroRadius,
         stalkDistance: 400 + rng.nextDouble() * 300,
@@ -222,17 +247,25 @@ extension CosmicGameWorldSystems on CosmicGame {
     );
   }
 
-  void setSandboxMode({required bool enabled, Offset? center}) {
+  void setSandboxMode({
+    required bool enabled,
+    Offset? center,
+    double? arenaRadius,
+  }) {
     if (enabled) {
       if (!sandboxMode) {
         sandboxReturnPosition = ship.pos;
       }
       sandboxMode = true;
       sandboxAreaCenter = center ?? sandboxAreaCenter;
+      sandboxArenaRadius = arenaRadius;
       clearSandboxHostiles();
       if (sandboxAreaCenter != null) {
         teleportTo(sandboxAreaCenter!);
-        _revealAround(sandboxAreaCenter!, CosmicGame.sandboxAreaRevealRadius);
+        final revealRadius = arenaRadius == null
+            ? CosmicGame.sandboxAreaRevealRadius
+            : min(CosmicGame.sandboxAreaRevealRadius, arenaRadius + 160.0);
+        _revealAround(sandboxAreaCenter!, revealRadius);
       }
       shipHealth = CosmicGame.shipMaxHealth;
       _shipDead = false;
@@ -263,6 +296,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       final returnPos = sandboxReturnPosition;
       sandboxReturnPosition = null;
       sandboxAreaCenter = null;
+      sandboxArenaRadius = null;
       if (returnPos != null) {
         teleportTo(returnPos);
       }
@@ -271,6 +305,41 @@ extension CosmicGameWorldSystems on CosmicGame {
       _respawnTimer = 0;
       _shipInvincible = 0.75;
     }
+  }
+
+  void _clampShipToSandboxArena() {
+    final center = sandboxAreaCenter;
+    if (!sandboxMode || center == null) return;
+    final radius = sandboxArenaRadius;
+    if (radius == null || radius <= 0) return;
+
+    final delta = ship.pos - center;
+    final distance = delta.distance;
+    if (distance <= radius) return;
+
+    final direction = distance <= 0.001
+        ? Offset(cos(ship.angle), sin(ship.angle))
+        : delta / distance;
+    ship.pos = _wrap(center + direction * radius);
+    _dragTarget = ship.pos;
+  }
+
+  Offset _clampToSandboxArena(Offset position, {double margin = 56.0}) {
+    final center = sandboxAreaCenter;
+    final radius = sandboxArenaRadius;
+    if (!sandboxMode || center == null || radius == null || radius <= margin) {
+      return _wrap(position);
+    }
+
+    final delta = position - center;
+    final distance = delta.distance;
+    final maxDistance = radius - margin;
+    if (distance <= maxDistance) return _wrap(position);
+
+    final direction = distance <= 0.001
+        ? Offset(cos(ship.angle), sin(ship.angle))
+        : delta / distance;
+    return _wrap(center + direction * maxDistance);
   }
 
   void clearSandboxHostiles() {
@@ -323,11 +392,12 @@ extension CosmicGameWorldSystems on CosmicGame {
     for (var i = 0; i < spawnCount; i++) {
       final angle = sandboxRng.nextDouble() * pi * 2;
       final distance = 160.0 + sandboxRng.nextDouble() * 170.0;
-      final pos = _wrap(
+      final pos = _clampToSandboxArena(
         Offset(
           ship.pos.dx + cos(angle) * distance,
           ship.pos.dy + sin(angle) * distance,
         ),
+        margin: 70,
       );
       enemies.add(
         CosmicEnemy(
@@ -395,25 +465,49 @@ extension CosmicGameWorldSystems on CosmicGame {
   void spawnSandboxBoss({required BossTemplate template, required int level}) {
     final rng = Random();
     final safeLevel = CosmicBalance.clampLevel(level);
-    final angle = rng.nextDouble() * pi * 2;
-    final distance = 320.0;
-    final pos = _wrap(
-      Offset(
-        ship.pos.dx + cos(angle) * distance,
-        ship.pos.dy + sin(angle) * distance,
-      ),
-    );
-
     final healthScale = CosmicBalance.bossHealthScale(safeLevel);
     final speedScale = CosmicBalance.bossSpeedScale(safeLevel);
     final radiusBonus = CosmicBalance.bossRadiusBonus(safeLevel);
+    final bossRadius = template.radius + radiusBonus;
+    final Offset pos;
+    final angle = rng.nextDouble() * pi * 2;
+
+    if (sandboxMode &&
+        sandboxAreaCenter != null &&
+        sandboxArenaRadius != null) {
+      final center = sandboxAreaCenter!;
+      final shipDelta = ship.pos - center;
+      final shipDistance = shipDelta.distance;
+      final spawnAngle = shipDistance > 1.0
+          ? atan2(shipDelta.dy, shipDelta.dx)
+          : angle;
+      final spawnDistance = min(
+        300.0,
+        max(160.0, sandboxArenaRadius! - bossRadius - 100.0),
+      );
+      pos = _clampToSandboxArena(
+        Offset(
+          center.dx + cos(spawnAngle) * spawnDistance,
+          center.dy + sin(spawnAngle) * spawnDistance,
+        ),
+        margin: bossRadius + 90,
+      );
+    } else {
+      const distance = 320.0;
+      pos = _wrap(
+        Offset(
+          ship.pos.dx + cos(angle) * distance,
+          ship.pos.dy + sin(angle) * distance,
+        ),
+      );
+    }
 
     activeBoss = CosmicBoss(
       position: pos,
       name: template.name,
       element: template.element,
       level: safeLevel,
-      radius: template.radius + radiusBonus,
+      radius: bossRadius,
       maxHealth: template.health * healthScale,
       speed: template.speed * speedScale,
       angle: rng.nextDouble() * pi * 2,
@@ -1249,6 +1343,26 @@ extension CosmicGameWorldSystems on CosmicGame {
         break;
     }
 
+    // Variant overlays add encounter diversity without introducing new tiers.
+    if (e.variant == CosmicEnemyVariant.crusher) {
+      var diff = toShip - e.angle;
+      while (diff > pi) {
+        diff -= pi * 2;
+      }
+      while (diff < -pi) {
+        diff += pi * 2;
+      }
+      e.angle += diff * 2.2 * dt;
+      moveSpeedMult *= distToShip < 250 ? 1.18 : 0.92;
+    } else if (e.variant == CosmicEnemyVariant.pouncer) {
+      if (e.driftTimer <= 0) {
+        final side = Random().nextBool() ? 1.0 : -1.0;
+        e.angle += side * (0.65 + Random().nextDouble() * 0.55);
+        e.driftTimer = 0.35 + Random().nextDouble() * 0.55;
+      }
+      moveSpeedMult *= 1.2;
+    }
+
     // Move
     e.position = _wrap(
       Offset(
@@ -1355,6 +1469,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       speed: lair.template.speed * speedScale,
       angle: Random().nextDouble() * pi * 2,
       forcedType: lair.template.preferredType,
+      isTitanic: lair.template.isTitanic,
+      colossalTrait: lair.template.colossalTrait,
     );
     onBossSpawned?.call(
       '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${lair.template.name}',
@@ -1398,7 +1514,7 @@ extension CosmicGameWorldSystems on CosmicGame {
 
   void _spawnBoss() {
     final rng = Random();
-    final template = kBossTemplates[rng.nextInt(kBossTemplates.length)];
+    final template = pickBossTemplate(rng, titanicChance: 0.05);
     final lvl = rng.nextInt(5) + 1; // random level 1-5
 
     // Spawn near the matching element's planet
@@ -1428,6 +1544,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       speed: template.speed * speedScale,
       angle: rng.nextDouble() * pi * 2,
       forcedType: template.preferredType,
+      isTitanic: template.isTitanic,
+      colossalTrait: template.colossalTrait,
     );
     onBossSpawned?.call(
       '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${template.name}',
@@ -1440,11 +1558,11 @@ extension CosmicGameWorldSystems on CosmicGame {
     if (activeBoss != null) return; // don't override an active boss
 
     final rng = Random();
-    // Find a template matching the planet's element, fallback to random
-    final matching = kBossTemplates.where((t) => t.element == planet.element);
-    final template = matching.isNotEmpty
-        ? matching.elementAt(rng.nextInt(matching.length))
-        : kBossTemplates[rng.nextInt(kBossTemplates.length)];
+    final template = pickBossTemplate(
+      rng,
+      preferredElement: planet.element,
+      titanicChance: 0.025,
+    );
 
     // Level = number of discovered planets, capped to the combat level range.
     final discovered = world_.planets.where((p) => p.discovered).length;
@@ -1472,6 +1590,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       speed: template.speed * speedScale,
       angle: rng.nextDouble() * pi * 2,
       forcedType: template.preferredType,
+      isTitanic: template.isTitanic,
+      colossalTrait: template.colossalTrait,
     );
     onBossSpawned?.call(
       '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${template.name}',
@@ -1528,6 +1648,119 @@ extension CosmicGameWorldSystems on CosmicGame {
         _updateCarrierBoss(boss, dt, toShip, dist);
       case BossType.warden:
         _updateWardenBoss(boss, dt, toShip, dist);
+    }
+
+    _updateTitanicBossTrait(boss, dt, toShip, dist);
+  }
+
+  void _updateTitanicBossTrait(
+    CosmicBoss boss,
+    double dt,
+    double toShip,
+    double dist,
+  ) {
+    if (!boss.isTitanic || boss.colossalTrait == null) return;
+
+    switch (boss.colossalTrait!) {
+      case ColossalTrait.gravityWell:
+        if (dist < 600) {
+          final strength = (1.0 - (dist / 600)).clamp(0.0, 1.0);
+          final pull = (28.0 + 40.0 * strength) * dt;
+          final away = Offset(cos(toShip), sin(toShip));
+          ship.pos = _wrap(
+            Offset(ship.pos.dx - away.dx * pull, ship.pos.dy - away.dy * pull),
+          );
+          if (activeCompanion != null && activeCompanion!.isAlive) {
+            final cdx = boss.position.dx - activeCompanion!.position.dx;
+            final cdy = boss.position.dy - activeCompanion!.position.dy;
+            final cd = sqrt(cdx * cdx + cdy * cdy);
+            if (cd > 0.001) {
+              final cpull = (22.0 + 30.0 * strength) * dt;
+              activeCompanion!.position = _wrap(
+                Offset(
+                  activeCompanion!.position.dx + (cdx / cd) * cpull,
+                  activeCompanion!.position.dy + (cdy / cd) * cpull,
+                ),
+              );
+            }
+          }
+        }
+
+        boss.colossalTraitTimer -= dt;
+        if (boss.colossalTraitTimer <= 0) {
+          boss.colossalTraitTimer = 2.4;
+          const count = 8;
+          for (var i = 0; i < count; i++) {
+            final a = (i / count) * pi * 2 + boss.phaseTimer * 0.35;
+            bossProjectiles.add(
+              BossProjectile(
+                position: boss.position,
+                angle: a,
+                element: boss.element,
+                damage: CosmicBalance.bossProjectileDamage(
+                  level: boss.level,
+                  type: boss.type,
+                ) *
+                    0.92,
+                speed: 170,
+                radius: 6.4,
+                life: 3.4,
+              ),
+            );
+          }
+        }
+
+      case ColossalTrait.riftStorm:
+        boss.colossalTraitTimer -= dt;
+        if (boss.colossalTraitTimer <= 0) {
+          boss.colossalTraitTimer = 3.1;
+          final targetAngle = toShip;
+          for (var i = 0; i < 3; i++) {
+            final ringAngle = boss.phaseTimer * 0.7 + i * (2 * pi / 3);
+            final rift = _wrap(
+              boss.position + Offset(cos(ringAngle) * 170, sin(ringAngle) * 170),
+            );
+            for (final offset in [-0.16, 0.0, 0.16]) {
+              bossProjectiles.add(
+                BossProjectile(
+                  position: rift,
+                  angle: targetAngle + offset,
+                  element: boss.element,
+                  damage: CosmicBalance.bossProjectileDamage(
+                    level: boss.level,
+                    type: boss.type,
+                  ) *
+                      0.86,
+                  speed: 245,
+                  radius: 5.2,
+                  life: 3.0,
+                ),
+              );
+            }
+            _spawnHitSpark(rift, elementColor(boss.element));
+          }
+        }
+
+      case ColossalTrait.novaPulse:
+        boss.colossalTraitTimer -= dt;
+        if (boss.colossalTraitTimer <= 0) {
+          boss.colossalTraitTimer = 4.2;
+          final pulseDamage = CosmicBalance.bossProjectileDamage(
+            level: boss.level,
+            type: boss.type,
+          );
+          final pulseRadius = boss.radius * 2.1;
+          _spawnKillVfx(boss.position, elementColor(boss.element), pulseRadius, true);
+          if (dist <= pulseRadius + 20) {
+            _damageShip(pulseDamage * 1.15);
+          }
+          if (activeCompanion != null && activeCompanion!.isAlive) {
+            final compDist = (activeCompanion!.position - boss.position).distance;
+            if (compDist <= pulseRadius + 14) {
+              activeCompanion!.takeDamage((pulseDamage * 1.1).round());
+            }
+          }
+        }
     }
   }
 
@@ -2220,10 +2453,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           // Boss projectile damage is ship-scale (~1-2). Scale up to
           // companion-scale so it's meaningful against companion defenses.
           final scaledDmg = bp.damage * 30.0;
-          final dmg = max(
-            1,
-            (scaledDmg * 100 / (100 + comp.elemDef)).round(),
-          );
+          final dmg = max(1, (scaledDmg * 100 / (100 + comp.elemDef)).round());
           comp.takeDamage(dmg);
           _spawnHitSpark(comp.position, elementColor(bp.element));
           bossProjectiles.removeAt(i);

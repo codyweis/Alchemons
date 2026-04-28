@@ -8,6 +8,9 @@
 //
 
 import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:graphx/graphx.dart';
 
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/constants/element_resources.dart';
@@ -29,6 +32,7 @@ import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
@@ -670,7 +674,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: responsiveCrossAxisCount(context),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.75,
@@ -685,9 +689,9 @@ class _ShopScreenState extends State<ShopScreen> {
     return Consumer<MobileStoreService>(
       builder: (context, store, _) {
         final packs = store.packDefinitions;
-        final goldAccent = t.readableAccent(const Color(0xFFFFD700));
 
         Future<void> buyPack(String productId) async {
+          final goldAccent = t.readableAccent(const Color(0xFFFFD700));
           final started = await store.purchaseGoldPack(productId);
           if (!context.mounted) return;
           _toast(
@@ -714,229 +718,14 @@ class _ShopScreenState extends State<ShopScreen> {
           );
         }
 
-        final cards = packs.map((pack) {
-          final product = store.productFor(pack.productId);
-          final priceLabel =
-              product?.price ?? (store.isLoading ? '...' : 'Unavailable');
-          final canBuy = product != null && store.storeAvailable;
-          final pending = store.isPurchasePending(pack.productId);
-          final accent = t.readableAccent(switch (pack.badge) {
-            'STARTER' => const Color(0xFFFFE082),
-            'POPULAR' => const Color(0xFFFFD54F),
-            'VALUE' => const Color(0xFFFFB300),
-            _ => const Color(0xFFFF8F00),
-          });
-          final cardGradient = theme.isDark
-              ? [
-                  const Color(0xFF1C1510).withValues(alpha: 0.98),
-                  const Color(0xFF0E0B08).withValues(alpha: 0.98),
-                ]
-              : [
-                  theme.surfaceAlt.withValues(alpha: 0.98),
-                  theme.surface.withValues(alpha: 0.98),
-                ];
-          final mutedTextColor = theme.isDark
-              ? Colors.white.withValues(alpha: 0.82)
-              : t.textSecondary;
-          final disabledBgColor = theme.isDark
-              ? Colors.white.withValues(alpha: 0.04)
-              : t.bg2;
-          final disabledBorderColor = theme.isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : t.borderDim;
-          final disabledTextColor = theme.isDark
-              ? Colors.white.withValues(alpha: 0.4)
-              : t.textMuted;
-
-          return GestureDetector(
-            onTap: canBuy && !pending ? () => buyPack(pack.productId) : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: accent.withValues(alpha: canBuy ? 0.55 : 0.2),
-                ),
-                gradient: LinearGradient(
-                  colors: cardGradient,
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    right: -16,
-                    top: -16,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: accent.withValues(alpha: 0.08),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(99),
-                            border: Border.all(
-                              color: accent.withValues(alpha: 0.28),
-                            ),
-                          ),
-                          child: Text(
-                            pack.badge,
-                            style: TextStyle(
-                              color: accent,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          style: TextStyle(
-                            color: accent,
-                            fontSize: 28,
-                            height: 0.95,
-                            fontWeight: FontWeight.w900,
-                          ),
-                          '${pack.goldAmount}',
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: mutedTextColor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.6,
-                          ),
-                          'GOLD',
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          pack.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: t.textPrimary,
-                            fontSize: 12,
-                            height: 1.1,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: canBuy
-                                ? accent.withValues(alpha: 0.14)
-                                : disabledBgColor,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: canBuy
-                                  ? accent.withValues(alpha: 0.35)
-                                  : disabledBorderColor,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (pending)
-                                SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      accent,
-                                    ),
-                                  ),
-                                )
-                              else
-                                Icon(
-                                  Icons.shopping_bag_rounded,
-                                  size: 14,
-                                  color: canBuy ? accent : disabledTextColor,
-                                ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  pending ? 'PROCESSING' : priceLabel,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: canBuy ? accent : disabledTextColor,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (store.lastError != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                child: Text(
-                  store.lastError!,
-                  style: TextStyle(
-                    color: t.danger,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            if (store.isLoading)
-              const Padding(
-                padding: EdgeInsets.all(20),
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 0.9,
-                  children: cards,
-                ),
-              ),
-          ],
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          child: _GoldVaultDeck(
+            packs: packs,
+            store: store,
+            theme: theme,
+            onBuy: buyPack,
+          ),
         );
       },
     );
@@ -1014,7 +803,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: responsiveCrossAxisCount(context),
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
             childAspectRatio: 0.85,
@@ -1209,7 +998,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: responsiveCrossAxisCount(context),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.75,
@@ -1354,7 +1143,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: responsiveCrossAxisCount(context),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.75,
@@ -1423,7 +1212,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: responsiveCrossAxisCount(context),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.75,
@@ -1495,7 +1284,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: responsiveCrossAxisCount(context),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.8,
@@ -1570,7 +1359,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: responsiveCrossAxisCount(context),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.8,
@@ -1703,7 +1492,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: responsiveCrossAxisCount(context),
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.75,
@@ -2424,4 +2213,1033 @@ class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GOLD VAULT — Modern card deck with GraphX particle backdrop
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _GoldVaultDeck extends StatefulWidget {
+  const _GoldVaultDeck({
+    required this.packs,
+    required this.store,
+    required this.theme,
+    required this.onBuy,
+  });
+
+  final List<GoldPackDefinition> packs;
+  final MobileStoreService store;
+  final FactionTheme theme;
+  final Future<void> Function(String productId) onBuy;
+
+  @override
+  State<_GoldVaultDeck> createState() => _GoldVaultDeckState();
+}
+
+class _GoldVaultDeckState extends State<_GoldVaultDeck>
+    with TickerProviderStateMixin {
+  late final AnimationController _shimmerCtrl;
+  late final AnimationController _floatCtrl;
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    )..repeat();
+    _floatCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    _floatCtrl.dispose();
+    super.dispose();
+  }
+
+  static const _tierColors = [
+    Color(0xFFCD7F32), // bronze
+    Color(0xFFC0C0C0), // silver
+    Color(0xFFFFD700), // gold
+    Color(0xFFFFF8DC), // celestial
+  ];
+
+  static const _tierGlows = [
+    Color(0xFFE8A860),
+    Color(0xFFE0E8F0),
+    Color(0xFFFFE680),
+    Color(0xFFFFFDE0),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(widget.theme);
+
+    if (widget.packs.isEmpty) {
+      return const EmptySection(
+        message: 'No gold packs available',
+        icon: Icons.account_balance_wallet_outlined,
+      );
+    }
+
+    final selected = widget.packs[_selectedIndex];
+    final product = widget.store.productFor(selected.productId);
+    final pending = widget.store.isPurchasePending(selected.productId);
+    final canBuy =
+        product != null && widget.store.storeAvailable && !pending;
+    final price =
+        product?.price ?? (widget.store.isLoading ? '...' : 'Unavailable');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ── Orb row with GraphX particles ──
+        SizedBox(
+          height: 140,
+          child: Stack(
+            children: [
+              // GraphX particle backdrop
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: IgnorePointer(
+                    child: SceneBuilderWidget(
+                      autoSize: true,
+                      builder: () => SceneController(
+                        front: _GoldMoteScene(),
+                        config: SceneConfig.autoRender,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Orb card row
+              Row(
+                children: [
+                  for (var i = 0; i < widget.packs.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    Expanded(
+                      child: _GoldOrbCard(
+                        pack: widget.packs[i],
+                        selected: i == _selectedIndex,
+                        color: _tierColors[i % _tierColors.length],
+                        glow: _tierGlows[i % _tierGlows.length],
+                        tier: _GoldOrbTier.values[i % _GoldOrbTier.values.length],
+                        motion: _GoldOrbMotion.values[i % _GoldOrbMotion.values.length],
+                        shimmer: _shimmerCtrl,
+                        floatAnim: _floatCtrl,
+                        delayPhase: i / math.max(1, widget.packs.length),
+                        theme: widget.theme,
+                        onTap: () {
+                          if (i != _selectedIndex) {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedIndex = i);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        if (widget.store.lastError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              widget.store.lastError!,
+              style: TextStyle(
+                color: t.danger,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+
+        const SizedBox(height: 10),
+
+        // ── Detail / buy strip ──
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 260),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          child: _GoldBuyStrip(
+            key: ValueKey(selected.productId),
+            pack: selected,
+            priceLabel: price,
+            pending: pending,
+            canBuy: canBuy,
+            accent: _tierColors[_selectedIndex % _tierColors.length],
+            glow: _tierGlows[_selectedIndex % _tierGlows.length],
+            theme: widget.theme,
+            shimmer: _shimmerCtrl,
+            onBuy: () => widget.onBuy(selected.productId),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Orb tier & motion enums ──────────────────────────────────────────────────
+
+enum _GoldOrbTier { bronze, silver, gold, celestial }
+
+enum _GoldOrbMotion { tide, helix, wobble, pulse }
+
+// ── Individual gold orb card ─────────────────────────────────────────────────
+
+class _GoldOrbCard extends StatelessWidget {
+  const _GoldOrbCard({
+    required this.pack,
+    required this.selected,
+    required this.color,
+    required this.glow,
+    required this.tier,
+    required this.motion,
+    required this.shimmer,
+    required this.floatAnim,
+    required this.delayPhase,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final GoldPackDefinition pack;
+  final bool selected;
+  final Color color;
+  final Color glow;
+  final _GoldOrbTier tier;
+  final _GoldOrbMotion motion;
+  final Animation<double> shimmer;
+  final Animation<double> floatAnim;
+  final double delayPhase;
+  final FactionTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        height: 140,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.6)
+                : t.borderDim.withValues(alpha: 0.25),
+            width: selected ? 1.4 : 0.6,
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: selected
+                ? [
+                    color.withValues(alpha: 0.10),
+                    color.withValues(alpha: 0.04),
+                  ]
+                : [
+                    t.bg2.withValues(alpha: 0.45),
+                    t.bg2.withValues(alpha: 0.2),
+                  ],
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: glow.withValues(alpha: 0.22),
+                    blurRadius: 20,
+                    spreadRadius: -2,
+                  ),
+                ]
+              : null,
+        ),
+        child: AnimatedBuilder(
+          animation: shimmer,
+          builder: (context, child) {
+            return Stack(
+              children: [
+                if (selected)
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CustomPaint(
+                        painter: _ShimmerSweepPainter(
+                          t: shimmer.value,
+                          color: glow,
+                        ),
+                      ),
+                    ),
+                  ),
+                child!,
+              ],
+            );
+          },
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // ── Floating animated orb ──
+              SizedBox(
+                height: 80,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final orbSize = constraints.maxWidth.clamp(48.0, 62.0);
+                    return AnimatedBuilder(
+                      animation: floatAnim,
+                      builder: (context, child) {
+                        final phase = floatAnim.value * 2 * math.pi +
+                            delayPhase * math.pi;
+                        final pulse = 0.5 + 0.5 * math.sin(phase);
+
+                        final dx = switch (motion) {
+                          _GoldOrbMotion.tide =>
+                            math.cos(phase * 0.7) * 1.6,
+                          _GoldOrbMotion.helix =>
+                            math.sin(phase * 1.3) * 2.8,
+                          _GoldOrbMotion.wobble =>
+                            math.sin(phase * 1.4) * 2.0,
+                          _GoldOrbMotion.pulse => 0.0,
+                        };
+                        final dy = switch (motion) {
+                          _GoldOrbMotion.tide =>
+                            math.sin(phase) * 4.8,
+                          _GoldOrbMotion.helix =>
+                            math.cos(phase * 1.6) * 3.2,
+                          _GoldOrbMotion.wobble =>
+                            math.sin(phase * 0.6) * 4.2,
+                          _GoldOrbMotion.pulse =>
+                            math.sin(phase * 0.8) * 2.4,
+                        };
+                        final rotation = switch (motion) {
+                          _GoldOrbMotion.wobble =>
+                            math.sin(phase) * 0.06,
+                          _ => 0.0,
+                        };
+                        final scale = switch (motion) {
+                          _GoldOrbMotion.pulse =>
+                            (selected ? 1.0 : 0.92) +
+                                (pulse * (selected ? 0.08 : 0.04)),
+                          _ =>
+                            (selected ? 1.0 : 0.92) +
+                                (math.sin(phase) * 0.03),
+                        };
+
+                        return Transform.translate(
+                          offset: Offset(dx, dy),
+                          child: Transform.rotate(
+                            angle: rotation,
+                            child: Transform.scale(
+                              scale: scale,
+                              child: child,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // The orb
+                          _GoldOrbCore(
+                            tier: tier,
+                            size: orbSize,
+                            selected: selected,
+                            energy: floatAnim,
+                          ),
+                          // Gold amount badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.48),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: color.withValues(alpha: 0.35),
+                                width: 0.6,
+                              ),
+                            ),
+                            child: Text(
+                              '${pack.goldAmount}',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: const Color(0xFFFFF1A8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.3,
+                                shadows: [
+                                  Shadow(
+                                    color: glow.withValues(alpha: 0.6),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 4),
+              // ── Title ──
+              Text(
+                pack.title.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: selected ? t.textPrimary : t.textSecondary,
+                  fontSize: 8,
+                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 2),
+              // ── Badge pill ──
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 1.5,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: selected ? 0.18 : 0.08),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  pack.badge,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: selected ? color : t.textMuted,
+                    fontSize: 6,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Orb core renderer ────────────────────────────────────────────────────────
+
+class _GoldOrbCore extends StatelessWidget {
+  const _GoldOrbCore({
+    required this.tier,
+    required this.size,
+    required this.selected,
+    required this.energy,
+  });
+
+  final _GoldOrbTier tier;
+  final double size;
+  final bool selected;
+  final Animation<double> energy;
+
+  @override
+  Widget build(BuildContext context) {
+    // Celestial tier gets the special painter
+    if (tier == _GoldOrbTier.celestial) {
+      return AnimatedBuilder(
+        animation: energy,
+        builder: (context, _) {
+          return SizedBox(
+            width: size,
+            height: size,
+            child: CustomPaint(
+              painter: _CelestialOrbPainter(
+                t: energy.value,
+                boosted: selected,
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    final coreColor = switch (tier) {
+      _GoldOrbTier.bronze => const Color(0xFFC57A45),
+      _GoldOrbTier.silver => const Color(0xFFCAD4E2),
+      _GoldOrbTier.gold => const Color(0xFFFFCF40),
+      _GoldOrbTier.celestial => const Color(0xFFFFE082),
+    };
+    final glowColor = switch (tier) {
+      _GoldOrbTier.bronze => const Color(0xFFFFB380),
+      _GoldOrbTier.silver => const Color(0xFFF4F7FF),
+      _GoldOrbTier.gold => const Color(0xFFFFE082),
+      _GoldOrbTier.celestial => const Color(0xFFFFF59D),
+    };
+
+    return AnimatedBuilder(
+      animation: energy,
+      builder: (context, _) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // Outer glow ring (pulses)
+            if (selected)
+              SizedBox(
+                width: size * 1.3,
+                height: size * 1.3,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        glowColor.withValues(alpha: 0.18 + energy.value * 0.08),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.4, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            // Main orb sphere
+            SizedBox(
+              width: size,
+              height: size,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.25, -0.3),
+                    colors: [
+                      Colors.white.withValues(
+                        alpha: selected ? 0.95 : 0.82,
+                      ),
+                      coreColor.withValues(alpha: 0.92),
+                      coreColor.withValues(alpha: 0.6),
+                      glowColor.withValues(alpha: 0.3),
+                    ],
+                    stops: const [0.0, 0.3, 0.65, 1.0],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: glowColor.withValues(
+                        alpha: selected ? 0.55 : 0.3,
+                      ),
+                      blurRadius: selected ? 24 : 14,
+                      spreadRadius: selected ? 1 : -3,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Inner metaball blobs
+            IgnorePointer(
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: CustomPaint(
+                  painter: _OrbBlobPainter(
+                    t: energy.value,
+                    color: glowColor,
+                    alpha: selected ? 0.24 : 0.12,
+                  ),
+                ),
+              ),
+            ),
+            // Specular highlight
+            Positioned(
+              top: size * 0.12,
+              left: size * 0.22,
+              child: Container(
+                width: size * 0.22,
+                height: size * 0.14,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(size),
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withValues(
+                        alpha: selected ? 0.7 : 0.45,
+                      ),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Metaball blob painter (internal motion within the orb) ───────────────────
+
+class _OrbBlobPainter extends CustomPainter {
+  const _OrbBlobPainter({
+    required this.t,
+    required this.color,
+    required this.alpha,
+  });
+
+  final double t;
+  final Color color;
+  final double alpha;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = color.withValues(alpha: alpha);
+    final r = size.width / 2;
+    final c = Offset(r, r);
+    final phase = t * 2 * math.pi;
+
+    // Three orbiting blobs inside the sphere
+    canvas.drawCircle(
+      Offset(
+        c.dx + math.cos(phase * 1.2) * (r * 0.26),
+        c.dy + math.sin(phase) * (r * 0.22),
+      ),
+      r * 0.28,
+      p,
+    );
+    canvas.drawCircle(
+      Offset(
+        c.dx + math.cos(phase * 0.9 + 2.1) * (r * 0.20),
+        c.dy + math.sin(phase * 1.1 + 1.4) * (r * 0.22),
+      ),
+      r * 0.20,
+      p,
+    );
+    canvas.drawCircle(
+      Offset(
+        c.dx + math.sin(phase * 0.7 + 3.8) * (r * 0.18),
+        c.dy + math.cos(phase * 1.3 + 0.6) * (r * 0.16),
+      ),
+      r * 0.15,
+      p,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _OrbBlobPainter old) =>
+      old.t != t || old.color != color || old.alpha != alpha;
+}
+
+// ── Celestial orb painter (premium tier — radiant multi-ring) ────────────────
+
+class _CelestialOrbPainter extends CustomPainter {
+  const _CelestialOrbPainter({required this.t, required this.boosted});
+
+  final double t;
+  final bool boosted;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+    final phase = t * 2 * math.pi;
+
+    // Outer pulsing glow
+    if (boosted) {
+      final pulseR = r * (1.15 + math.sin(phase * 0.8) * 0.06);
+      canvas.drawCircle(
+        c,
+        pulseR,
+        Paint()
+          ..color = const Color(0xFFFFF8D6).withValues(alpha: 0.12)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+    }
+
+    // Core radial fill
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.2, -0.25),
+          colors: [
+            const Color(0xFFFFF8D6).withValues(alpha: boosted ? 0.95 : 0.80),
+            const Color(0xFFFFD54F).withValues(alpha: 0.90),
+            const Color(0xFFFFA000).withValues(alpha: 0.55),
+            const Color(0xFFFF8F00).withValues(alpha: 0.20),
+          ],
+          stops: const [0.0, 0.38, 0.72, 1.0],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+
+    // Inner ring stroke
+    canvas.drawCircle(
+      c,
+      r * 0.82,
+      Paint()
+        ..color = const Color(0xFFFFD54F).withValues(alpha: boosted ? 0.28 : 0.16)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+
+    // Specular
+    canvas.drawCircle(
+      Offset(c.dx - r * 0.22, c.dy - r * 0.26),
+      r * 0.18,
+      Paint()
+        ..color = Colors.white.withValues(alpha: boosted ? 0.55 : 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CelestialOrbPainter old) =>
+      old.t != t || old.boosted != boosted;
+}
+
+// ── Buy strip below the cards ────────────────────────────────────────────────
+
+class _GoldBuyStrip extends StatelessWidget {
+  const _GoldBuyStrip({
+    super.key,
+    required this.pack,
+    required this.priceLabel,
+    required this.pending,
+    required this.canBuy,
+    required this.accent,
+    required this.glow,
+    required this.theme,
+    required this.shimmer,
+    required this.onBuy,
+  });
+
+  final GoldPackDefinition pack;
+  final String priceLabel;
+  final bool pending;
+  final bool canBuy;
+  final Color accent;
+  final Color glow;
+  final FactionTheme theme;
+  final Animation<double> shimmer;
+  final VoidCallback onBuy;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    final disabledColor = theme.isDark
+        ? Colors.white.withValues(alpha: 0.35)
+        : t.textMuted;
+
+    return AnimatedBuilder(
+      animation: shimmer,
+      builder: (context, _) {
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: accent.withValues(alpha: 0.35),
+              width: 0.8,
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: theme.isDark
+                  ? [
+                      const Color(0xFF131008).withValues(alpha: 0.95),
+                      const Color(0xFF0A0804).withValues(alpha: 0.95),
+                    ]
+                  : [
+                      theme.surfaceAlt.withValues(alpha: 0.95),
+                      theme.surface.withValues(alpha: 0.95),
+                    ],
+            ),
+          ),
+          child: Stack(
+            children: [
+              // Animated accent line at top
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 2,
+                child: CustomPaint(
+                  painter: _AccentLinePainter(
+                    t: shimmer.value,
+                    color: accent,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                child: Row(
+                  children: [
+                    // Gold amount + title
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                '${pack.goldAmount}G',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: accent,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.3,
+                                  shadows: [
+                                    Shadow(
+                                      color: glow.withValues(alpha: 0.4),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                pack.title,
+                                style: TextStyle(
+                                  color: t.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            pack.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: t.textSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Buy button
+                    GestureDetector(
+                      onTap: canBuy ? onBuy : null,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: canBuy
+                              ? accent.withValues(alpha: 0.16)
+                              : t.bg2,
+                          border: Border.all(
+                            color: canBuy
+                                ? accent.withValues(alpha: 0.5)
+                                : t.borderDim,
+                            width: canBuy ? 1.2 : 0.8,
+                          ),
+                          boxShadow: canBuy
+                              ? [
+                                  BoxShadow(
+                                    color: glow.withValues(alpha: 0.15),
+                                    blurRadius: 10,
+                                    spreadRadius: -2,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: pending
+                            ? SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(accent),
+                                ),
+                              )
+                            : Text(
+                                priceLabel,
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: canBuy ? accent : disabledColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GraphX — floating gold mote particle scene
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _GoldMoteScene extends GSprite {
+  static const int _maxMotes = 28;
+  final math.Random _rng = math.Random();
+  bool _seeded = false;
+
+  @override
+  void addedToStage() {
+    stage!.onEnterFrame.add(_onTick);
+  }
+
+  @override
+  void removedFromStage() {
+    stage?.onEnterFrame.remove(_onTick);
+  }
+
+  void _onTick(dynamic event) {
+    if (!_seeded && stage != null) {
+      _seeded = true;
+      for (var i = 0; i < _maxMotes; i++) {
+        _spawnMote(initial: true);
+      }
+    }
+    // Replenish motes that have been removed
+    while (numChildren < _maxMotes) {
+      _spawnMote(initial: false);
+    }
+  }
+
+  void _spawnMote({required bool initial}) {
+    final sw = stage?.stageWidth ?? 300;
+    final sh = stage?.stageHeight ?? 120;
+
+    final mote = addChild(GShape());
+    final radius = 0.6 + _rng.nextDouble() * 1.8;
+    final alpha = 0.15 + _rng.nextDouble() * 0.35;
+
+    // Alternate between warm gold and white-gold tones
+    final colors = [
+      const Color(0xFFFFD700),
+      const Color(0xFFFFF8DC),
+      const Color(0xFFFFE082),
+      const Color(0xFFFFC107),
+    ];
+    final c = colors[_rng.nextInt(colors.length)];
+
+    mote.graphics
+      ..beginFill(c.withValues(alpha: alpha))
+      ..drawCircle(0, 0, radius)
+      ..endFill();
+
+    final startX = _rng.nextDouble() * sw;
+    final startY = initial ? _rng.nextDouble() * sh : sh + 4;
+    mote.setPosition(startX, startY);
+
+    final endX = startX + (_rng.nextDouble() - 0.5) * 40;
+    final endY = initial
+        ? -4.0
+        : -4.0;
+    final dur = 2.0 + _rng.nextDouble() * 3.5;
+
+    GTween.to(
+      mote,
+      dur,
+      {
+        'x': endX,
+        'y': endY,
+        'alpha': 0.0,
+        'scaleX': 0.3,
+        'scaleY': 0.3,
+      },
+      GVars(
+        ease: GEase.easeInOut,
+        delay: initial ? _rng.nextDouble() * 2.5 : 0,
+        onComplete: () => mote.removeFromParent(true),
+      ),
+    );
+  }
+}
+
+// ── Shimmer sweep painter (diagonal light pass) ──────────────────────────────
+
+class _ShimmerSweepPainter extends CustomPainter {
+  const _ShimmerSweepPainter({required this.t, required this.color});
+  final double t;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sweepX = -size.width * 0.3 + (t * size.width * 1.6);
+    final w = size.width * 0.35;
+    final rect = Rect.fromLTWH(sweepX, 0, w, size.height);
+    final paint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          Colors.transparent,
+          color.withValues(alpha: 0.06),
+          color.withValues(alpha: 0.10),
+          color.withValues(alpha: 0.06),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+      ).createShader(rect);
+    canvas.drawRect(rect, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ShimmerSweepPainter old) =>
+      old.t != t || old.color != color;
+}
+
+// ── Accent line painter (animated top edge glow) ─────────────────────────────
+
+class _AccentLinePainter extends CustomPainter {
+  const _AccentLinePainter({required this.t, required this.color});
+  final double t;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final phase = t * 2 * math.pi;
+    final cx = size.width * (0.3 + 0.4 * (0.5 + 0.5 * math.sin(phase)));
+    final gradient = LinearGradient(
+      colors: [
+        Colors.transparent,
+        color.withValues(alpha: 0.5),
+        color.withValues(alpha: 0.8),
+        color.withValues(alpha: 0.5),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
+    );
+    final rect = Rect.fromCenter(
+      center: Offset(cx, size.height / 2),
+      width: size.width * 0.5,
+      height: size.height,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..shader = gradient.createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _AccentLinePainter old) =>
+      old.t != t || old.color != color;
 }
