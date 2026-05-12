@@ -444,8 +444,8 @@ class _StorageEggCardState extends State<StorageEggCard>
     }
 
     final qualityMultiplier = switch (widget.quality) {
-      CinematicQuality.high => 1.0,
       CinematicQuality.balanced => 0.5,
+      CinematicQuality.performance => 0.0,
     };
     particleCount = (particleCount * qualityMultiplier).round().clamp(0, 8);
 

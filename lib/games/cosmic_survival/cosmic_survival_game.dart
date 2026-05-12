@@ -66,6 +66,22 @@ class CosmicSurvivalCompanion {
   CosmicSurvivalEnemy? stickyTarget;
   double stickyTargetLockTimer;
   Offset steeringVelocity;
+  // Persistent ability state, keyed by family-specific semantics:
+  //   pip+spirit  → kills accumulate; threshold triggers basic-haste empower
+  //   mask+spirit → kills accumulate; threshold triggers AOE wisp burst
+  //   (other families/elements may reuse this slot in future passives)
+  int abilityKillStacks;
+  // Active companion-side damage amp (e.g. Mask+Ice pillar broadcasting).
+  double damageAmpTimer;
+  double damageAmpMultiplier;
+  // Pip+Poison: position of the last basic-attack hit. The next hit
+  // draws a poison line connecting last to current.
+  Offset? lastPipPoisonHitPos;
+  // Horn charges: projectiles deferred to the impact-point so the
+  // burst happens where the ram lands, not where it started.
+  List<Projectile>? pendingChargeBurst;
+  Offset? pendingChargeOrigin;
+  double pendingChargeAngle = 0;
 
   static const double baseSpecialCooldown = 12.5;
   static const double baseBasicCooldown = 1.5;
@@ -109,7 +125,14 @@ class CosmicSurvivalCompanion {
     this.doubleCastAngle = 0,
     this.stickyTargetLockTimer = 0,
     this.steeringVelocity = Offset.zero,
+    this.abilityKillStacks = 0,
+    this.damageAmpTimer = 0,
+    this.damageAmpMultiplier = 1.0,
+    this.lastPipPoisonHitPos,
   }) : currentHp = currentHp ?? maxHp;
+
+  double get damageAmp =>
+      damageAmpTimer > 0 ? damageAmpMultiplier.clamp(1.0, 4.0) : 1.0;
 
   double get hpPercent =>
       maxHp > 0 ? (currentHp / maxHp).clamp(0, 1).toDouble() : 0;
@@ -128,27 +151,79 @@ class CosmicSurvivalCompanion {
     final haste = basicHasteTimer > 0
         ? basicHasteMultiplier.clamp(0.45, 1.0)
         : 1.0;
-    return (base / factor) * familyMultiplier * haste;
+    // Family/element basic-cooldown passives.
+    //   Wing+Dark: auto-attack and laser pulse 2× as fast.
+    //   Pip+Steam: steam-aura keeps basics flowing 35% faster.
+    final familyL = member.family.toLowerCase();
+    final familyElementMul = (familyL == 'wing' && member.element == 'Dark')
+        ? 0.5
+        : (familyL == 'pip' && member.element == 'Steam')
+        ? 0.65
+        : 1.0;
+    return (base / factor) * familyMultiplier * haste * familyElementMul;
   }
 
   double get effectiveSpecialCooldown {
+    final family = member.family.toLowerCase();
+    if (family == 'mask') {
+      return 22.5 *
+          elementalSpecialCooldownMultiplierSurvival(
+            member.family,
+            member.element,
+          );
+    }
+
     final base = baseSpecialCooldown / cooldownReduction;
-    // For mystic: cap the stat-scaling factor so high elemAtk can't collapse
-    // the cooldown. Other families keep the full 0.5–6.0 range.
-    final isMystic = member.family.toLowerCase() == 'mystic';
-    final factorCap = isMystic ? 2.2 : 6.0;
-    final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, factorCap);
-    final familyMultiplier = switch (member.family.toLowerCase()) {
+    final isMystic = family == 'mystic';
+    // Mystics use a dedicated formula: every mystic descends *toward*
+    // 60s as the relevant stat scales up, instead of starting at a
+    // shared floor. Heavier elements have a larger gap to close.
+    if (isMystic) {
+      // statProgress: 0 at baseline, 1 once the stat that scales the
+      // ability has saturated. We blend the survival-specific elemAtk
+      // saturation with cooldownReduction stacking from upgrades.
+      // elemAtk caps at 36 (factor saturation point); cdr above 1.0
+      // counts proportionally.
+      final atkProgress = (elemAtk / 36.0).clamp(0.0, 1.0);
+      final cdrProgress = (cooldownReduction - 1.0).clamp(0.0, 1.0);
+      final statProgress = (atkProgress + cdrProgress).clamp(0.0, 1.0);
+      // Per-element "starting cooldown gap" above the 60s target. Bigger
+      // gap = slower at low stats. All elements meet at 60s when
+      // statProgress reaches 1.0.
+      final lowStatBonus = switch (member.element) {
+        'Air' || 'Dust' => 20.0,
+        'Poison' || 'Mud' || 'Water' => 35.0,
+        'Lightning' || 'Ice' || 'Steam' => 50.0,
+        'Blood' || 'Plant' || 'Fire' => 65.0,
+        'Lava' || 'Crystal' || 'Earth' => 80.0,
+        'Dark' || 'Light' || 'Spirit' => 100.0,
+        _ => 50.0,
+      };
+      // cd = 60 (max-stat target) + element-specific cushion that
+      // melts away as stats / cooldown upgrades scale up.
+      final cd = 60.0 + lowStatBonus * (1.0 - statProgress);
+      return cd;
+    }
+    // Non-mystic: original formula.
+    final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0);
+    final familyMultiplier = switch (family) {
       'let' => 1.18,
       'pip' => 1.18,
       'horn' => 0.85,
-      'mystic' => 2.6,
       _ => 1.0,
     };
-    final cd = (base / factor) * familyMultiplier;
-    // Mystic specials: hard floor so cooldown-reduction stacking can't drop
-    // below this regardless of upgrades or power-ups applied elsewhere.
-    return isMystic ? cd.clamp(18.0, double.infinity) : cd;
+    final elementMultiplier = elementalSpecialCooldownMultiplierSurvival(
+      member.family,
+      member.element,
+    );
+    // Wing+Dark passive: laser pulse 2× as fast.
+    final familyElementMul = family == 'wing' && member.element == 'Dark'
+        ? 0.5
+        : 1.0;
+    return (base / factor) *
+        familyMultiplier *
+        elementMultiplier *
+        familyElementMul;
   }
 
   void primeSpecialCooldown({
@@ -296,6 +371,19 @@ class _VfxParticle {
   }
 }
 
+class _FlowerPickup {
+  Offset position;
+  double life;
+  final int sourceSlotIndex;
+  final double bobPhase;
+  _FlowerPickup({
+    required this.position,
+    required this.sourceSlotIndex,
+    required this.bobPhase,
+  }) : life = 12.0;
+  bool get dead => life <= 0;
+}
+
 class _CompanionTargetChoice {
   final Offset position;
   final CosmicSurvivalEnemy? enemy;
@@ -346,6 +434,31 @@ class _BeamFx {
   }
 }
 
+class _ActiveWingBeam {
+  final WingBeamEffect descriptor;
+  final int sourceSlotIndex;
+  // Mutable so the beam tracks the caster as it moves — a sustained
+  // beam should stay attached to the wing, not a frozen point in space.
+  Offset origin;
+  double angle;
+  double life;
+  double tickTimer;
+  double chargeTimer;
+  int refractionsDone;
+
+  _ActiveWingBeam({
+    required this.descriptor,
+    required this.sourceSlotIndex,
+    required this.origin,
+    required this.angle,
+  }) : life = descriptor.duration,
+       tickTimer = descriptor.tickInterval,
+       chargeTimer = descriptor.chargeTime,
+       refractionsDone = 0;
+
+  bool get dead => life <= 0;
+}
+
 class MysticSpecialCastEvent {
   final Offset originScreen;
   final Offset? targetScreen;
@@ -361,6 +474,18 @@ class MysticSpecialCastEvent {
 }
 
 enum SurvivalVisualQuality { cinematic, balanced, performance }
+
+bool shouldUseReducedCompanionProjectileRendering({
+  required SurvivalVisualQuality quality,
+  required Projectile projectile,
+}) {
+  return switch (quality) {
+    SurvivalVisualQuality.cinematic => false,
+    SurvivalVisualQuality.balanced => false,
+    SurvivalVisualQuality.performance =>
+      !preservesAuthoredCosmicAbilityVisualIdentity(projectile),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // MAIN GAME
@@ -537,6 +662,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final Map<int, double> _companionSpriteScales = {};
   final Map<String, TextPainter> _eliteAffixPainters = {};
   final Map<String, TextPainter> _bossNamePainters = {};
+  final List<_ActiveWingBeam> _activeWingBeams = [];
+  // Wing+Plant flower pickups: dropped on kill, collected by orb on contact.
+  final List<_FlowerPickup> _flowerPickups = [];
   final _ProjectileControlBuckets _projectileControlBuckets =
       _ProjectileControlBuckets();
   final Map<int, List<CosmicSurvivalEnemy>> _enemySpatialGrid =
@@ -550,11 +678,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final Paint _shipProjectilePaint = Paint()..color = const Color(0xFF00E5FF);
   final Paint _shipProjectileGlowPaint = Paint()
     ..color = const Color(0xFF00E5FF).withValues(alpha: 0.2)
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    ..maskFilter = null;
   final Paint _beamPaint = Paint()..strokeCap = StrokeCap.round;
   final Paint _beamGlowPaint = Paint()
     ..strokeCap = StrokeCap.round
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    ..maskFilter = null;
   final Paint _companionProjCorePaint = Paint();
   final Paint _companionProjGlowPaint = Paint();
   final Paint _companionProjLinePaint = Paint()..strokeCap = StrokeCap.round;
@@ -639,11 +767,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // Keep enemy rendering predictable and performant: avoid per-frame blur.
   MaskFilter? _enemyBlur(double sigma) => null;
 
-  bool get _simplifyProjectileRendering => switch (visualQuality) {
-    SurvivalVisualQuality.cinematic => false,
-    SurvivalVisualQuality.balanced => false,
-    SurvivalVisualQuality.performance => true,
-  };
+  bool _useReducedCompanionProjectileRendering(Projectile projectile) {
+    // Companion ability projectiles carry most species/element identity, so
+    // performance mode only simplifies generic shots. Authored species effects
+    // keep their silhouettes while ambient VFX are trimmed by other gates.
+    return shouldUseReducedCompanionProjectileRendering(
+      quality: visualQuality,
+      projectile: projectile,
+    );
+  }
 
   TextPainter _getEliteAffixPainter(String label, Color color) {
     final key = 'elite:$label:${color.toARGB32()}';
@@ -785,6 +917,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateEnemies(dt, _projectileControlBuckets);
     _rebuildEnemySpatialGrid();
     _updateCompanionProjectiles(dt);
+    updatePersistentAbilityEffects(dt);
+    _updateBeamEffects(dt);
+    _updateFlowerPickups(dt);
     _updateShipProjectiles(dt);
     _updateShipAuxWeaponTrees(dt);
     _updateOrbDefenses(dt);
@@ -1080,7 +1215,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final target = _nearestEnemyTo(ship.position, 620);
         final boss = activeBoss;
         final targetPos =
-            target?.position ?? (boss != null && !boss.isDead ? boss.position : null);
+            target?.position ??
+            (boss != null && !boss.isDead ? boss.position : null);
         if (targetPos != null && shipProjectiles.length < 50) {
           final dir = targetPos - ship.position;
           final dist = dir.distance;
@@ -1106,7 +1242,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               shipProjectiles.add(
                 ShipProjectile(
                   position: ship.position,
-                  velocity: Offset(cos(offsetAngle) * speed, sin(offsetAngle) * speed),
+                  velocity: Offset(
+                    cos(offsetAngle) * speed,
+                    sin(offsetAngle) * speed,
+                  ),
                   damage: missileDamage * 0.75,
                   life: 4.4,
                   isHoming: true,
@@ -1243,6 +1382,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _damageEnemy(e, comp.chargeDamage, sourceSlotIndex: slotIndex);
           }
         }
+        // Release the deferred horn projectile burst at the impact
+        // point. Each projectile's start offset is preserved relative
+        // to the original origin, then translated to the new (impact)
+        // origin so cone/ring/brace formations still read correctly.
+        final pending = comp.pendingChargeBurst;
+        if (pending != null && pending.isNotEmpty) {
+          final originDelta = comp.position - (comp.pendingChargeOrigin ?? comp.position);
+          for (final p in pending) {
+            p.position = p.position + originDelta;
+          }
+          _appendCompanionProjectiles(pending);
+          _spawnHitSpark(comp.position, elementColor(comp.member.element));
+        }
+        comp.pendingChargeBurst = null;
+        comp.pendingChargeOrigin = null;
         comp.chargeTarget = null;
         comp.chargeHitIds = null;
       }
@@ -1261,6 +1415,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Haste timer
     if (comp.basicHasteTimer > 0) comp.basicHasteTimer -= dt;
+    if (comp.damageAmpTimer > 0) comp.damageAmpTimer -= dt;
 
     // Movement
     if (comp.tethered) {
@@ -1296,12 +1451,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // surrounded by enemies or caught between competing forces.
         final anchorBlend = (0.04 + dt * 0.08).clamp(0.04, 0.10);
         comp.anchor =
-            Offset.lerp(
-              comp.anchor,
-              moveTarget,
-              anchorBlend,
-            ) ??
-            moveTarget;
+            Offset.lerp(comp.anchor, moveTarget, anchorBlend) ?? moveTarget;
         final steeringTarget = comp.anchor;
         final dir = steeringTarget - comp.position;
         final dist = dir.distance;
@@ -1373,13 +1523,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           damage:
               comp.elemAtk *
               0.70 *
-              powerUps.companionAttackMultiplier(slotIndex),
+              powerUps.companionAttackMultiplier(slotIndex) *
+              comp.damageAmp,
           maxHp: comp.maxHp,
           casterPower: thresholdIntelligence,
           casterBeauty: thresholdBeauty,
           casterIntelligence: thresholdIntelligence,
           casterStrength: thresholdStrength,
           targetPos: comp.doubleCastTargetPos,
+          survivalMode: true,
         );
         for (final projectile in result2.projectiles) {
           projectile.sourceSlotIndex = slotIndex;
@@ -1391,6 +1543,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         }
         _appendCompanionProjectiles(result2.projectiles);
+        _activateWingBeamEffects(
+          result2.beams,
+          sourceSlotIndex: slotIndex,
+          origin: comp.position,
+          angle: comp.doubleCastAngle + 0.15,
+        );
         _applyCompanionSpecialSupportEffects(comp, result2);
         _emitMysticSpecialCast(
           companion: comp,
@@ -1409,8 +1567,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final toTarget = attackTarget - comp.position;
       _setCompanionAngle(comp, atan2(toTarget.dy, toTarget.dx), 0.12);
 
+      // When targeting a boss, count its big hitbox toward the firing
+      // range so companions don't sit silently when the boss is "just
+      // out of attack range" but their projectiles would still hit.
+      final bossBonus = (targetChoice?.isBoss ?? false)
+          ? (activeBoss?.radius ?? 0) + 80
+          : 0.0;
       // Basic attack - family-specific projectiles (same as cosmic game)
-      if (comp.basicCooldown <= 0 && distToTarget <= comp.attackRange) {
+      if (comp.basicCooldown <= 0 &&
+          distToTarget <= comp.attackRange + bossBonus) {
         final cooldown =
             comp.effectiveBasicCooldown *
             (1.0 -
@@ -1424,7 +1589,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           damage:
               comp.physAtk.toDouble() *
               powerUps.companionAttackMultiplier(slotIndex) *
-              (_equippedSkin == OrbBaseSkin.voidforgeOrb ? 1.12 : 1.0),
+              (_equippedSkin == OrbBaseSkin.voidforgeOrb ? 1.12 : 1.0) *
+              comp.damageAmp,
         );
         for (final projectile in basics) {
           projectile.sourceSlotIndex = slotIndex;
@@ -1438,11 +1604,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (comp.member.family.toLowerCase() == 'mystic') {
           comp.specialCooldown -= 0.3;
         }
+        // Pip+Earth passive: each basic shaves a bit off the special cooldown.
+        if (comp.member.family.toLowerCase() == 'pip' &&
+            comp.member.element == 'Earth') {
+          comp.specialCooldown = max(0, comp.specialCooldown - 0.4);
+        }
       }
 
       // Special ability - family x element (same as cosmic game!)
       if (comp.specialCooldown <= 0 &&
-          distToTarget <= comp.specialAbilityRange) {
+          distToTarget <= comp.specialAbilityRange + bossBonus) {
         final thresholdBeauty = _companionThresholdBeauty(comp, slotIndex);
         final thresholdIntelligence = _companionThresholdIntelligence(
           comp,
@@ -1451,8 +1622,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final thresholdStrength = _companionThresholdStrength(comp, slotIndex);
         final cooldown =
             comp.effectiveSpecialCooldown *
-            (1.0 -
-                powerUps.companionCooldownReduction(slotIndex).clamp(0.0, 0.5));
+            _specialCooldownReductionMultiplier(slotIndex, comp.member.family);
         comp.specialCooldown = cooldown;
 
         final result = createCosmicSpecialAbility(
@@ -1464,13 +1634,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               comp.elemAtk *
               1.15 *
               powerUps.companionAttackMultiplier(slotIndex) *
-              (_equippedSkin == OrbBaseSkin.voidforgeOrb ? 1.12 : 1.0),
+              (_equippedSkin == OrbBaseSkin.voidforgeOrb ? 1.12 : 1.0) *
+              comp.damageAmp,
           maxHp: comp.maxHp,
           casterPower: thresholdIntelligence,
           casterBeauty: thresholdBeauty,
           casterIntelligence: thresholdIntelligence,
           casterStrength: thresholdStrength,
           targetPos: attackTarget,
+          survivalMode: true,
         );
         for (final projectile in result.projectiles) {
           projectile.sourceSlotIndex = slotIndex;
@@ -1481,7 +1653,86 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             );
           }
         }
-        _appendCompanionProjectiles(result.projectiles);
+        // Mane+Spirit: per-cast stacking count. Cast 1 fires baseline,
+        // each successive cast adds another full barrage of projectiles
+        // up to 10 total, then resets. abilityKillStacks doubles as the
+        // cast counter for this companion.
+        if (comp.member.family.toLowerCase() == 'mane' &&
+            comp.member.element == 'Spirit') {
+          final stacks = comp.abilityKillStacks.clamp(0, 9);
+          if (stacks > 0) {
+            final base = List<Projectile>.from(result.projectiles);
+            for (var rep = 0; rep < stacks; rep++) {
+              for (final p in base) {
+                final clone = Projectile(
+                  position: p.position,
+                  angle: p.angle + (rep + 1) * 0.06,
+                  element: p.element,
+                  damage: p.damage,
+                  life: p.life,
+                  speedMultiplier: p.speedMultiplier,
+                  radiusMultiplier: p.radiusMultiplier,
+                  visualScale: p.visualScale,
+                  piercing: p.piercing,
+                  homing: p.homing,
+                  homingStrength: p.homingStrength,
+                  visualStyle: p.visualStyle,
+                  sourceSlotIndex: slotIndex,
+                  abilityFamily: p.abilityFamily,
+                  hitEffect: p.hitEffect,
+                  killEffect: p.killEffect,
+                  pierceEffect: p.pierceEffect,
+                  effectPower: p.effectPower,
+                  effectRadius: p.effectRadius,
+                  effectDuration: p.effectDuration,
+                );
+                result.projectiles.add(clone);
+              }
+            }
+          }
+          comp.abilityKillStacks = comp.abilityKillStacks >= 9
+              ? 0
+              : comp.abilityKillStacks + 1;
+        }
+        // Horn charges: hold the projectile burst until the ram lands
+        // on its target. This anchors the spawn at the point of attack
+        // instead of the caster's start position.
+        final isHornCharge =
+            comp.member.family.toLowerCase() == 'horn' &&
+            result.chargeTimer > 0;
+        if (isHornCharge) {
+          // Right-size oversized snare/taunt fields and bump short
+          // stationary lifetimes so each impact reads cleanly.
+          for (final p in result.projectiles) {
+            if (p.snareRadius > 100) p.snareRadius = 100;
+            if (p.tauntRadius > 180) p.tauntRadius = 180;
+            if (p.effectRadius > 110) p.effectRadius = 110;
+            // Stationary fixtures should outlast the wave that walks
+            // into them — bump short lifetimes toward a 2.5s floor.
+            if (p.stationary && p.life < 2.5) {
+              p.life = 2.5;
+            }
+          }
+          comp.pendingChargeBurst = result.projectiles;
+          comp.pendingChargeOrigin = comp.position;
+          comp.pendingChargeAngle = comp.angle;
+          // Cap impact final-sweep so the ram doesn't nuke a 124-radius
+          // bowl on every cast.
+          if (comp.chargeFinalSweepRadius > 80) {
+            comp.chargeFinalSweepRadius = 80;
+          }
+          if (comp.chargeSweepRadius > 70) {
+            comp.chargeSweepRadius = 70;
+          }
+        } else {
+          _appendCompanionProjectiles(result.projectiles);
+        }
+        _activateWingBeamEffects(
+          result.beams,
+          sourceSlotIndex: slotIndex,
+          origin: comp.position,
+          angle: comp.angle,
+        );
 
         // Apply state changes from ability
         _applyCompanionSpecialSupportEffects(comp, result);
@@ -1566,6 +1817,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  double _specialCooldownReductionMultiplier(int slotIndex, String family) {
+    final cap = family.toLowerCase() == 'mask' ? 0.15 : 0.5;
+    return 1.0 - powerUps.companionCooldownReduction(slotIndex).clamp(0.0, cap);
+  }
+
   _CompanionTargetChoice? _pickCompanionTargetChoice(
     CosmicSurvivalCompanion comp,
   ) {
@@ -1624,20 +1880,28 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final boss = activeBoss;
     if (boss != null && !boss.isDead) {
       final bossDist = sqrt(_distanceSquared(boss.position, comp.position));
-      if (bossDist <= maxScan * 1.2) {
-        var bossScore = 180.0 - bossDist;
-        // Let = high boss priority, Pip = low, everyone else = medium
-        if (family == 'let') {
-          bossScore += 140;
-        } else if (family == 'pip') {
-          bossScore += 40;
-        } else {
-          bossScore += 80;
-        }
-        if (boss.hpFraction < 0.45) bossScore += 80;
-        if (bossScore >= bestEnemyScore - 20) {
-          return _CompanionTargetChoice(position: boss.position, isBoss: true);
-        }
+      // Always score the boss regardless of distance — bosses are a
+      // priority target. Only the special-cast distance gate later
+      // prevents firing if truly out of range, but the *intent* should
+      // be to engage the boss.
+      var bossScore = 280.0 - bossDist * 0.35;
+      // Big bonus so boss reliably out-scores regular waves.
+      bossScore += 260;
+      // Family priority on top of the base bonus.
+      if (family == 'let') {
+        bossScore += 200;
+      } else if (family == 'pip') {
+        bossScore += 90;
+      } else {
+        bossScore += 140;
+      }
+      // Low-HP boss = focus down even harder.
+      if (boss.hpFraction < 0.45) bossScore += 120;
+      if (boss.hpFraction < 0.20) bossScore += 160;
+      // When few regular enemies remain, lock onto the boss.
+      if (enemies.where((e) => !e.isDead).length < 4) bossScore += 200;
+      if (bossScore >= bestEnemyScore) {
+        return _CompanionTargetChoice(position: boss.position, isBoss: true);
       }
     }
 
@@ -1735,8 +1999,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final combatOrbDist = (combatPos - orb.position).distance;
       if (combatOrbDist > 0.001) {
         final toOrb = combatPos - orb.position;
-        final normToOrb =
-            Offset(toOrb.dx / combatOrbDist, toOrb.dy / combatOrbDist);
+        final normToOrb = Offset(
+          toOrb.dx / combatOrbDist,
+          toOrb.dy / combatOrbDist,
+        );
         // Hard clamp: can't go below zone min or above zone max + small grace.
         final clampedDist = combatOrbDist.clamp(zone.$1, zone.$2 + 40);
         if ((clampedDist - combatOrbDist).abs() > 1.0) {
@@ -1789,7 +2055,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final otherFamily = other.member.family.toLowerCase();
       final otherZone = _familyPatrolZone(otherFamily);
       final sameZone = myZone != null && otherZone == myZone;
-      final effectiveRadius = sameZone ? separationRadius * 1.3 : separationRadius;
+      final effectiveRadius = sameZone
+          ? separationRadius * 1.3
+          : separationRadius;
       final delta = resolved - other.position;
       final dist = delta.distance;
       if (dist <= 0.001 || dist >= effectiveRadius) continue;
@@ -1827,7 +2095,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int slotIndex,
   ) {
     var value = comp.member.statIntelligence.toDouble();
-    value += powerUps.getCompanionStacks(slotIndex, 'cooldown_reduction') * 0.20;
+    value +=
+        powerUps.getCompanionStacks(slotIndex, 'cooldown_reduction') * 0.20;
     value += powerUps.getGlobalStacks('command_defense') * 0.08;
     if (powerUps.hasChronoSurge) value += 0.30;
     if (powerUps.hasSpellbloomEngine) value += 0.25;
@@ -1875,8 +2144,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final radialWobble = sin(orbitPhase * 0.6) * zoneWidth * 0.3;
       var anchor = Offset(
         fallbackFormationPoint.dx + cos(orbitPhase) * idleRadius,
-        fallbackFormationPoint.dy +
-            sin(orbitPhase * 1.15) * idleRadius * 0.55,
+        fallbackFormationPoint.dy + sin(orbitPhase * 1.15) * idleRadius * 0.55,
       );
       // Push anchor radially in/out within the zone.
       final orbDist = (anchor - orb.position).distance;
@@ -2223,8 +2491,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
     companion.primeSpecialCooldown(
       savedCooldown: savedSpecialCooldown,
-      cooldownMultiplier:
-          1.0 - powerUps.companionCooldownReduction(slotIndex).clamp(0.0, 0.5),
+      cooldownMultiplier: _specialCooldownReductionMultiplier(
+        slotIndex,
+        member.family,
+      ),
     );
     activeCompanions[slotIndex] = companion;
     companionSpecialCooldown[slotIndex] = companion.specialCooldown;
@@ -2372,9 +2642,46 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (enemy.isDead) continue;
 
       enemy.slowTimer = (enemy.slowTimer - dt).clamp(0, 100);
+      if (enemy.slowTimer <= 0) enemy.slowMultiplier = 0.5;
       enemy.hitFlash = (enemy.hitFlash - dt * 4).clamp(0, 1);
       enemy.attackCooldown = max(0, enemy.attackCooldown - dt);
       enemy.retargetTimer = max(0, enemy.retargetTimer - dt);
+      if (enemy.disorientTimer > 0) {
+        enemy.disorientTimer = max(0, enemy.disorientTimer - dt);
+      }
+      // Mane+Plant root tag fades after pierce.
+      if (enemy.maneRootTimer > 0) {
+        enemy.maneRootTimer = max(0, enemy.maneRootTimer - dt);
+        if (enemy.maneRootTimer <= 0) enemy.maneRootSlot = null;
+      }
+      // Pip+Mud trail: emit a slow puff every 0.4s while the trailing
+      // enemy moves. Stationary enemies don't drop puffs.
+      if (enemy.pipMudTrail) {
+        enemy.pipMudTrailTimer -= dt;
+        if (enemy.pipMudTrailTimer <= 0) {
+          enemy.pipMudTrailTimer = 0.42;
+          _appendCompanionProjectile(
+            Projectile(
+              position: enemy.position,
+              angle: 0,
+              element: 'Mud',
+              damage: 0,
+              life: 5.5,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              radiusMultiplier: 1.1,
+              visualScale: 1.0,
+              visualStyle: ProjectileVisualStyle.sigil,
+              abilityFamily: 'pip',
+              tickEffect: AbilityEffectKind.slow,
+              effectPower: 1.0,
+              effectRadius: 38,
+              effectDuration: 1.2,
+            ),
+          );
+        }
+      }
 
       // Smooth knockback integration keeps pulse/Detonation push readable.
       if (enemy.knockbackVelocity.distanceSquared > 0.01) {
@@ -2448,7 +2755,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           enemy.attackCooldown <= 0 &&
           dist < 300 &&
           dist > enemy.radius + 35) {
-        final isSiegeShooter = enemy.variant == SurvivalEnemyVariant.siegeShooter;
+        // Wing+Dust disorient: redirect the shot at the nearest
+        // *other* enemy instead of the orb/ship.
+        var shotAngle = enemy.angle;
+        if (enemy.disorientTimer > 0) {
+          final other = _nearestEnemyTo(enemy.position, 420, exclude: enemy);
+          if (other != null) {
+            shotAngle = atan2(
+              other.position.dy - enemy.position.dy,
+              other.position.dx - enemy.position.dx,
+            );
+          }
+        }
+        final isSiegeShooter =
+            enemy.variant == SurvivalEnemyVariant.siegeShooter;
         enemy.attackCooldown =
             (1.7 - min(enemy.tier.index * 0.12, 0.5)) *
             (isSiegeShooter ? 1.12 : 1.0) *
@@ -2461,8 +2781,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         enemyProjectiles.add(
           SurvivalEnemyProjectile(
             position: enemy.position,
-            angle: enemy.angle,
+            angle: shotAngle,
             element: enemy.element,
+            friendlyFire: enemy.disorientTimer > 0,
             damage:
                 enemy.damage *
                 (isSiegeShooter ? 0.95 : 0.8) *
@@ -2752,10 +3073,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       EnemyTier.brute => 13.0,
       EnemyTier.colossus => 18.0,
     };
+    // Pip+Plant passive: enemies killed grow alchemical meters 50% more.
+    final pipPlantBonus = () {
+      if (sourceSlotIndex == null) return 1.0;
+      final c = activeCompanions[sourceSlotIndex];
+      if (c == null) return 1.0;
+      return (c.member.family.toLowerCase() == 'pip' &&
+              c.member.element == 'Plant')
+          ? 1.50
+          : 1.0;
+    }();
     final alchemyValue =
         meterGain *
         (enemy.isElite ? 1.35 : 1.0) *
-        (spawner.currentMutator == SurvivalWaveMutator.manaFlux ? 1.18 : 1.0);
+        (spawner.currentMutator == SurvivalWaveMutator.manaFlux ? 1.18 : 1.0) *
+        pipPlantBonus;
     if (grantAlchemyReward && !ship.isDead) {
       final alchemyPacingMultiplier =
           _alchemicalKillPacingMultiplier * _alchemicalWaveStabilityMultiplier;
@@ -2778,6 +3110,66 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           orb.maxHp,
           orb.currentHp + companion.maxHp * bloodPactHeal,
         );
+      }
+      // Mane+Plant rooted explosion: if the enemy was tagged by a
+      // Mane+Plant pierce and is still in the root window, blow up.
+      if (enemy.maneRootSlot != null && enemy.maneRootTimer > 0) {
+        const explodeRadius = 130.0;
+        final explodeDamage = (companion?.elemAtk ?? 4) * 1.5;
+        _visitEnemiesNear(enemy.position, explodeRadius, (other) {
+          if (identical(other, enemy)) return false;
+          if (!_withinRange(enemy.position, other.position, explodeRadius)) {
+            return false;
+          }
+          _damageEnemy(
+            other,
+            explodeDamage,
+            sourceSlotIndex: enemy.maneRootSlot,
+          );
+          return false;
+        });
+        _spawnHitSpark(enemy.position, elementColor('Plant'));
+      }
+      // Pip element-on-kill placements (Fire/Dust/Crystal). The
+      // existing AbilityEffectKind path handles instantaneous effects;
+      // these need persistent zones placed at the kill site.
+      _spawnPipKillPlacement(sourceSlotIndex, companion, enemy.position);
+      // Pip+Spirit passive: kills accumulate; at threshold, fire a 6s
+      // "empower" window (basic-haste) and reset the counter.
+      if (companion != null &&
+          companion.member.family.toLowerCase() == 'pip' &&
+          companion.member.element == 'Spirit') {
+        companion.abilityKillStacks++;
+        const spiritThreshold = 8;
+        if (companion.abilityKillStacks >= spiritThreshold) {
+          companion.abilityKillStacks = 0;
+          companion.basicHasteTimer = max(companion.basicHasteTimer, 6.0);
+          companion.basicHasteMultiplier = min(
+            companion.basicHasteMultiplier,
+            0.45,
+          );
+          _spawnHitSpark(companion.position, elementColor('Spirit'));
+        }
+      }
+      // Mask+Spirit passive: enemies killed near a Mask+Spirit companion
+      // drop wisps that the companion gathers; at the threshold they
+      // erupt in a wide burst that damages everything around the orb.
+      if (companion != null &&
+          companion.member.family.toLowerCase() == 'mask' &&
+          companion.member.element == 'Spirit') {
+        companion.abilityKillStacks++;
+        const wispThreshold = 6;
+        if (companion.abilityKillStacks >= wispThreshold) {
+          companion.abilityKillStacks = 0;
+          final burstDamage = companion.elemAtk * 1.6;
+          const burstRadius = 220.0;
+          _visitEnemiesNear(companion.position, burstRadius, (target) {
+            if (target.isDead) return false;
+            _damageEnemy(target, burstDamage, sourceSlotIndex: sourceSlotIndex);
+            return false;
+          });
+          _spawnHitSpark(companion.position, elementColor('Spirit'));
+        }
       }
     }
 
@@ -2950,7 +3342,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
     }
 
-      _updateTitanicBossTraits(dt, boss);
+    _updateTitanicBossTraits(dt, boss);
 
     _applyBossContactDamage(boss, dt);
   }
@@ -3067,7 +3459,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     boss.shootTimer -= dt;
     if (boss.shootTimer <= 0) {
       boss.shootTimer = boss.hpFraction < 0.45 ? 1.1 : 1.55;
-      final target = _nearestCompanionPosition(boss.position) ??
+      final target =
+          _nearestCompanionPosition(boss.position) ??
           (ship.isDead ? orb.position : ship.position);
       final aim = atan2(
         target.dy - boss.position.dy,
@@ -3284,7 +3677,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             final pull = (1.0 - (dist / 540)).clamp(0.0, 1.0);
             final strength = (38.0 + 64.0 * pull) * dt;
             ship.position = _clampToArena(
-              ship.position + Offset(toBoss.dx / dist, toBoss.dy / dist) * strength,
+              ship.position +
+                  Offset(toBoss.dx / dist, toBoss.dy / dist) * strength,
               padding: _arenaShipPadding,
             );
           }
@@ -3297,7 +3691,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           if (dist <= 1 || dist >= 500) continue;
           final pull = (1.0 - (dist / 500)).clamp(0.0, 1.0);
           final strength = (30.0 + 54.0 * pull) * dt;
-          comp.position += Offset(toBoss.dx / dist, toBoss.dy / dist) * strength;
+          comp.position +=
+              Offset(toBoss.dx / dist, toBoss.dy / dist) * strength;
         }
 
         boss.colossalTraitTimer -= dt;
@@ -3942,6 +4337,29 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         continue;
       }
 
+      // Wing+Dust disorient: friendly-fire shots damage other enemies
+      // and ignore the orb/ship/companions entirely.
+      if (proj.friendlyFire) {
+        var consumed = false;
+        _visitEnemiesNear(proj.position, proj.radius + 18, (other) {
+          if (other.isDead) return false;
+          if (!_withinRange(
+            proj.position,
+            other.position,
+            proj.radius + other.radius,
+          )) {
+            return false;
+          }
+          _damageEnemy(other, proj.damage);
+          consumed = true;
+          return true;
+        });
+        if (consumed) {
+          proj.life = 0;
+          continue;
+        }
+      }
+
       if (proj.target == CosmicEnemyTarget.orb) {
         if (_withinRange(proj.position, orb.position, proj.radius + 24)) {
           // Phantom orb dodge chance
@@ -3985,6 +4403,1131 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   // == Companion Projectiles (cosmic game style) ===========================
+
+  void resolveAbilityHit(
+    Projectile projectile,
+    CosmicSurvivalEnemy enemy, {
+    required bool killed,
+  }) {
+    if (projectile.abilityFamily == 'let') {
+      _resolveLetMeteorHit(projectile, enemy, killed: killed);
+      return;
+    }
+    _applyAbilityEffectToEnemy(
+      projectile.hitEffect,
+      enemy,
+      projectile.position,
+      projectile.effectPower,
+      projectile.effectRadius,
+      projectile.effectDuration,
+      sourceSlotIndex: projectile.sourceSlotIndex,
+    );
+    if (killed) resolveAbilityKill(projectile, enemy);
+  }
+
+  void resolveAbilityKill(Projectile projectile, CosmicSurvivalEnemy enemy) {
+    if (projectile.abilityFamily == 'let') {
+      _resolveLetMeteorKill(projectile, enemy.position);
+      return;
+    }
+    _applyAbilityEffectToEnemy(
+      projectile.killEffect,
+      enemy,
+      enemy.position,
+      projectile.effectPower,
+      projectile.effectRadius,
+      projectile.effectDuration,
+      sourceSlotIndex: projectile.sourceSlotIndex,
+    );
+  }
+
+  void _resolveLetMeteorHit(
+    Projectile projectile,
+    CosmicSurvivalEnemy enemy, {
+    required bool killed,
+  }) {
+    final element = projectile.element ?? '';
+    switch (element) {
+      case 'Dust':
+        _spawnLetZone(
+          projectile,
+          enemy.position,
+          element: element,
+          tickEffect: AbilityEffectKind.slow,
+          radius: 130,
+          duration: 4.5,
+          power: projectile.effectPower * 0.25,
+        );
+        break;
+      case 'Lava':
+        _spawnLetZone(
+          projectile,
+          enemy.position,
+          element: element,
+          tickEffect: AbilityEffectKind.burn,
+          radius: 145,
+          duration: 4.2,
+          power: projectile.damage * 0.13,
+        );
+        break;
+      case 'Poison':
+        enemy.slowTimer = max(enemy.slowTimer, 2.2);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.72);
+        enemy.attackCooldown = max(enemy.attackCooldown, 1.4);
+        _damageEnemy(
+          enemy,
+          projectile.damage * 0.20,
+          sourceSlotIndex: projectile.sourceSlotIndex,
+        );
+        _spawnLetZone(
+          projectile,
+          enemy.position,
+          element: element,
+          tickEffect: AbilityEffectKind.poison,
+          radius: 58,
+          duration: 3.8,
+          power: projectile.damage * 0.08,
+          visualScale: 0.95,
+        );
+        break;
+      case 'Earth':
+        _healLowestAllyOrShip(projectile.damage * 0.22);
+        break;
+      case 'Spirit':
+        if (!enemy.isDead && _rng.nextDouble() <= projectile.effectChance) {
+          _damageEnemy(
+            enemy,
+            enemy.hp + 1,
+            sourceSlotIndex: projectile.sourceSlotIndex,
+          );
+          if (enemy.isDead) _resolveLetMeteorKill(projectile, enemy.position);
+        }
+        break;
+      case 'Crystal':
+        enemy.slowTimer = max(enemy.slowTimer, 3.5);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.10);
+        enemy.knockbackVelocity = Offset.zero;
+        break;
+      case 'Lightning':
+        _triggerChainLightning(
+          sourceEnemy: enemy,
+          origin: enemy.position,
+          baseDamage: projectile.damage * 0.58,
+          sourceSlotIndex: projectile.sourceSlotIndex,
+          remainingChains: max(2, projectile.effectCount),
+        );
+        break;
+      case 'Ice':
+        enemy.slowTimer = max(enemy.slowTimer, 3.2);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.05);
+        enemy.knockbackVelocity = Offset.zero;
+        break;
+      case 'Water':
+        _damageEnemiesNear(
+          enemy.position,
+          max(125, projectile.effectRadius),
+          projectile.damage * 0.42,
+          sourceSlotIndex: projectile.sourceSlotIndex,
+          exclude: enemy,
+        );
+        break;
+      default:
+        break;
+    }
+    if (killed) _resolveLetMeteorKill(projectile, enemy.position);
+  }
+
+  void _resolveLetMeteorKill(Projectile projectile, Offset center) {
+    switch (projectile.element) {
+      case 'Air':
+        _visitEnemiesNear(center, max(180, projectile.effectRadius), (enemy) {
+          final dir = enemy.position - center;
+          _applyEnemyKnockback(enemy, dir, 340 + projectile.damage * 5.0);
+          return false;
+        });
+        break;
+      case 'Plant':
+        for (var i = 0; i < 4; i++) {
+          final a = projectile.angle + (i - 1.5) * 0.75;
+          _spawnLetZone(
+            projectile,
+            center + Offset(cos(a), sin(a)) * (28 + i * 8),
+            element: 'Plant',
+            tickEffect: AbilityEffectKind.root,
+            radius: 64,
+            duration: 7.0,
+            power: projectile.damage * 0.18,
+            visualScale: 1.2,
+          );
+        }
+        break;
+      case 'Blood':
+        final drain = projectile.damage * 0.34;
+        _visitEnemiesNear(center, max(170, projectile.effectRadius), (enemy) {
+          if (!_withinRange(
+            center,
+            enemy.position,
+            max(170, projectile.effectRadius),
+          )) {
+            return false;
+          }
+          _damageEnemy(
+            enemy,
+            drain,
+            sourceSlotIndex: projectile.sourceSlotIndex,
+          );
+          _spawnBeam(
+            enemy.position,
+            center,
+            elementColor('Blood'),
+            width: 2.0,
+            life: 0.16,
+          );
+          return false;
+        });
+        _healAllCompanionsAndShip(drain * 0.35);
+        break;
+      case 'Light':
+        _spawnLetZone(
+          projectile,
+          center,
+          element: 'Light',
+          tickEffect: AbilityEffectKind.zoneHeal,
+          radius: 130,
+          duration: 5.5,
+          power: projectile.damage * 0.16,
+          visualScale: 1.7,
+        );
+        break;
+      case 'Fire':
+        _damageEnemiesNear(
+          center,
+          max(185, projectile.effectRadius * 1.45),
+          projectile.damage * 0.72,
+          sourceSlotIndex: projectile.sourceSlotIndex,
+        );
+        _spawnDetonationBurst(
+          center,
+          elementColor('Fire'),
+          max(80, projectile.effectRadius),
+        );
+        break;
+      case 'Dark':
+        // Per design: kill spawns up to 5 follow-up meteors, but those
+        // children must NOT chain again or the cast cascades infinitely.
+        // Children are tagged effectStacks=1 to short-circuit here.
+        if (projectile.effectStacks == 0) {
+          _spawnDarkLetKillMeteors(projectile, center);
+        }
+        break;
+      case 'Steam':
+        _spawnLetZone(
+          projectile,
+          center,
+          element: 'Steam',
+          tickEffect: AbilityEffectKind.geyser,
+          radius: 115,
+          duration: 8.0,
+          power: projectile.damage * 0.10,
+          visualScale: 1.6,
+        );
+        break;
+      case 'Mud':
+        _spawnLetZone(
+          projectile,
+          center,
+          element: 'Mud',
+          tickEffect: AbilityEffectKind.stun,
+          radius: 130,
+          duration: 4.8,
+          power: projectile.damage * 0.08,
+          visualScale: 1.5,
+        );
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _spawnPipKillPlacement(
+    int? slotIndex,
+    CosmicSurvivalCompanion? companion,
+    Offset position,
+  ) {
+    if (companion == null) return;
+    if (companion.member.family.toLowerCase() != 'pip') return;
+    final element = companion.member.element;
+    final scale = companion.elemAtk * 0.20 + 4.0;
+    final commonAbilityFamily = 'pip';
+    switch (element) {
+      case 'Fire':
+        _appendCompanionProjectile(
+          Projectile(
+            position: position,
+            angle: 0,
+            element: 'Fire',
+            damage: 0,
+            life: 4.5,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            radiusMultiplier: 1.6,
+            visualScale: 1.4,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: slotIndex,
+            abilityFamily: commonAbilityFamily,
+            tickEffect: AbilityEffectKind.burn,
+            effectPower: scale * 0.45,
+            effectRadius: 60,
+            effectDuration: 4.5,
+          ),
+        );
+        break;
+      case 'Dust':
+        _appendCompanionProjectile(
+          Projectile(
+            position: position,
+            angle: 0,
+            element: 'Dust',
+            damage: 0,
+            life: 3.5,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            radiusMultiplier: 1.4,
+            visualScale: 1.3,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: slotIndex,
+            abilityFamily: commonAbilityFamily,
+            tickEffect: AbilityEffectKind.slow,
+            effectPower: scale * 0.18,
+            effectRadius: 70,
+            effectDuration: 1.6,
+          ),
+        );
+        break;
+      case 'Crystal':
+        // Per design: "Last enemy killed creates a taunting crystal that
+        // taunts enemies." A compact, long-lasting fixture so it
+        // reads as a placed shard beacon, not a giant boulder.
+        _appendCompanionProjectile(
+          Projectile(
+            position: position,
+            angle: 0,
+            element: 'Crystal',
+            damage: 0,
+            // Long persistent taunt — the doc-implied "until taken
+            // down" intent. The slice-1 trap-persistence floor (3–5×)
+            // stretches this further so it lasts through 1–2 waves.
+            life: 9.0,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            decoy: true,
+            decoyHp: 18.0 + companion.elemAtk * 0.6,
+            // Compact silhouette — keep effectRadius low so the
+            // crystal-cluster painter draws a small placed shard,
+            // not a screen-sized cluster.
+            tauntRadius: 130,
+            tauntStrength: 3.6,
+            effectRadius: 38,
+            radiusMultiplier: 0.7,
+            visualScale: 0.75,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: slotIndex,
+            abilityFamily: commonAbilityFamily,
+          ),
+        );
+        break;
+    }
+  }
+
+  void _spawnLetZone(
+    Projectile source,
+    Offset center, {
+    required String element,
+    required AbilityEffectKind tickEffect,
+    required double radius,
+    required double duration,
+    required double power,
+    double visualScale = 1.35,
+  }) {
+    _appendCompanionProjectile(
+      Projectile(
+        position: center,
+        angle: 0,
+        element: element,
+        damage: 0,
+        life: duration,
+        speedMultiplier: 0,
+        stationary: true,
+        piercing: true,
+        radiusMultiplier: max(1.0, radius / 28.0),
+        visualScale: visualScale,
+        visualStyle: ProjectileVisualStyle.letShard,
+        sourceSlotIndex: source.sourceSlotIndex,
+        abilityFamily: 'let',
+        tickEffect: tickEffect,
+        effectPower: power,
+        effectRadius: radius,
+        effectDuration: duration,
+      ),
+    );
+  }
+
+  void _damageEnemiesNear(
+    Offset center,
+    double radius,
+    double damage, {
+    int? sourceSlotIndex,
+    CosmicSurvivalEnemy? exclude,
+  }) {
+    _visitEnemiesNear(center, radius, (enemy) {
+      if (exclude != null && identical(enemy, exclude)) return false;
+      if (!_withinRange(center, enemy.position, radius)) return false;
+      _damageEnemy(enemy, damage, sourceSlotIndex: sourceSlotIndex);
+      return false;
+    });
+  }
+
+  void _healLowestAllyOrShip(double amount) {
+    if (amount <= 0) return;
+    Object? target;
+    var lowestFraction = double.infinity;
+    if (!ship.isDead && ship.maxHp > 0) {
+      target = ship;
+      lowestFraction = ship.currentHp / ship.maxHp;
+    }
+    for (final comp in activeCompanions.values) {
+      if (comp.isDead || comp.maxHp <= 0) continue;
+      final fraction = comp.currentHp / comp.maxHp;
+      if (fraction < lowestFraction) {
+        lowestFraction = fraction;
+        target = comp;
+      }
+    }
+    if (target is CosmicSurvivalCompanion) {
+      target.currentHp = min(target.maxHp, target.currentHp + amount.round());
+    } else {
+      ship.currentHp = min(ship.maxHp, ship.currentHp + amount);
+    }
+    _healOrb(amount * 0.45);
+  }
+
+  void _healAllCompanionsAndShip(double amount) {
+    if (amount <= 0) return;
+    if (!ship.isDead) ship.currentHp = min(ship.maxHp, ship.currentHp + amount);
+    for (final comp in activeCompanions.values) {
+      if (!comp.isDead) {
+        comp.currentHp = min(comp.maxHp, comp.currentHp + amount.round());
+      }
+    }
+    _healOrb(amount * 0.35);
+  }
+
+  void _spawnDarkLetKillMeteors(Projectile source, Offset center) {
+    // Stat-scaled count: 2 (no Intelligence) → 5 (high Intelligence).
+    // Genetic stat range is 0–5.0; in-game boosters (Chrono Surge,
+    // Spellbloom, cooldown stacks, etc.) can push effective Intelligence
+    // above 5.0 during a run. We scale across that real range so a
+    // baseline ~3.0 caster gets a healthy 3, max-genetics 5.0 reaches
+    // 5, and boosted late-game builds keep the cap at 5 cleanly.
+    final stat = source.letCasterIntelligence;
+    final count = (2 + ((stat - 0.5) / 4.5) * 3).round().clamp(2, 5);
+    final targets = <CosmicSurvivalEnemy>[];
+    _visitEnemiesNear(center, max(420.0, source.effectRadius * 3.0), (enemy) {
+      if (!_withinRange(
+        center,
+        enemy.position,
+        max(420.0, source.effectRadius * 3.0),
+      )) {
+        return false;
+      }
+      targets.add(enemy);
+      return targets.length >= count;
+    });
+
+    for (var i = 0; i < count; i++) {
+      final target = i < targets.length ? targets[i].position : null;
+      final a = target != null
+          ? atan2(target.dy - center.dy, target.dx - center.dx)
+          : source.angle + (i - 2) * 0.42;
+      final spawn = center - Offset(cos(a), sin(a)) * (46.0 + i * 8.0);
+      _appendCompanionProjectile(
+        Projectile(
+          position: spawn,
+          angle: a,
+          element: 'Dark',
+          damage: source.damage * 0.7,
+          life: 1.8,
+          speedMultiplier: 0.82,
+          // "Twice as big" per design.
+          radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
+          visualScale: max(3.5, source.visualScale * 2.0),
+          visualStyle: ProjectileVisualStyle.meteor,
+          homing: target != null,
+          homingStrength: 2.4,
+          sourceSlotIndex: source.sourceSlotIndex,
+          abilityFamily: 'let',
+          hitEffect: AbilityEffectKind.pull,
+          effectPower: source.effectPower * 0.85,
+          effectRadius: max(140.0, source.effectRadius),
+          effectDuration: source.effectDuration,
+          // Generation tag: children are 1, original meteor is 0.
+          // Resolves the infinite-chain bug — children never spawn
+          // their own children.
+          effectStacks: 1,
+        ),
+      );
+    }
+  }
+
+  void resolveAbilityPierce(Projectile projectile, CosmicSurvivalEnemy enemy) {
+    final id = identityHashCode(enemy);
+    if (!projectile.effectHitIds.add(id)) return;
+    // Mane "carry" semantic: enemy is dragged along the projectile's path
+    // for a moment instead of being pushed back to origin. Apply this
+    // before the generic effect handler so we can short-circuit.
+    if (projectile.pierceEffect == AbilityEffectKind.carry) {
+      final dragDistance = max(
+        28.0,
+        projectile.effectPower * 0.15,
+      ).clamp(28.0, 64.0);
+      enemy.position = Offset(
+        enemy.position.dx + cos(projectile.angle) * dragDistance,
+        enemy.position.dy + sin(projectile.angle) * dragDistance,
+      );
+      enemy.slowTimer = max(enemy.slowTimer, projectile.effectDuration);
+      enemy.slowMultiplier = min(enemy.slowMultiplier, 0.55);
+      return;
+    }
+    // Mane element-specific pierce shapes (per design doc).
+    if (projectile.abilityFamily == 'mane') {
+      switch (projectile.element) {
+        case 'Plant':
+          // Tag the enemy so a kill-while-rooted detonates AOE.
+          enemy.maneRootSlot = projectile.sourceSlotIndex;
+          enemy.maneRootTimer = max(enemy.maneRootTimer, 2.6);
+          break;
+        case 'Light':
+          // Ball gets bigger and hits harder per pierce — caps so a
+          // single shot can't snowball through the whole field.
+          projectile.damage = (projectile.damage * 1.18).clamp(
+            projectile.damage,
+            projectile.damage * 4.0,
+          );
+          projectile.radiusMultiplier = min(
+            projectile.radiusMultiplier * 1.12,
+            4.5,
+          );
+          projectile.visualScale = min(projectile.visualScale * 1.10, 4.0);
+          break;
+        case 'Lava':
+          // Drop a lava blob (DoT zone) at the pierce point.
+          _appendCompanionProjectile(
+            Projectile(
+              position: enemy.position,
+              angle: 0,
+              element: 'Lava',
+              damage: 0,
+              life: 3.6,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              radiusMultiplier: 1.4,
+              visualScale: 1.3,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: projectile.sourceSlotIndex,
+              abilityFamily: 'mane',
+              tickEffect: AbilityEffectKind.burn,
+              effectPower: projectile.damage * 0.18,
+              effectRadius: 50,
+              effectDuration: 3.6,
+            ),
+          );
+          break;
+      }
+    }
+    _applyAbilityEffectToEnemy(
+      projectile.pierceEffect,
+      enemy,
+      enemy.position,
+      projectile.effectPower,
+      projectile.effectRadius,
+      projectile.effectDuration,
+      sourceSlotIndex: projectile.sourceSlotIndex,
+    );
+  }
+
+  void updatePersistentAbilityEffects(double dt) {
+    // Snapshot current projectiles — tick effects can kill enemies,
+    // which may run on-kill hooks (e.g. Pip kill placements) that
+    // append new entries to companionProjectiles. Iterating the live
+    // list would throw ConcurrentModificationError.
+    final snapshot = List<Projectile>.of(companionProjectiles);
+    for (final p in snapshot) {
+      if (p.tickEffect == AbilityEffectKind.none) continue;
+      // Stationary trap placements OR orbiting/transferring kin orbs
+      // both tick their effects. holdOrbit projectiles aren't
+      // "stationary" (their position moves around the orbit each
+      // frame), but they should still emanate their signature aura.
+      final isOrbitingAura =
+          p.abilityFamily == 'kin' &&
+          (p.holdOrbit || p.transferToShipOrbit || p.transferOrbitCenter != null);
+      if (!p.stationary && !isOrbitingAura) continue;
+      p.trailTimer += dt;
+      if (p.trailTimer < 0.35) continue;
+      p.trailTimer = 0;
+      if (p.tickEffect == AbilityEffectKind.zoneHeal) {
+        _healLowestAllyOrShip(p.effectPower);
+        continue;
+      }
+      _visitEnemiesNear(p.position, max(24.0, p.effectRadius), (enemy) {
+        if (!_withinRange(
+          p.position,
+          enemy.position,
+          max(24.0, p.effectRadius),
+        )) {
+          return false;
+        }
+        _applyAbilityEffectToEnemy(
+          p.tickEffect,
+          enemy,
+          p.position,
+          p.effectPower,
+          p.effectRadius,
+          p.effectDuration,
+          sourceSlotIndex: p.sourceSlotIndex,
+        );
+        return false;
+      });
+    }
+  }
+
+  void _applyAbilityEffectToEnemy(
+    AbilityEffectKind effect,
+    CosmicSurvivalEnemy enemy,
+    Offset origin,
+    double power,
+    double radius,
+    double duration, {
+    int? sourceSlotIndex,
+  }) {
+    if (effect == AbilityEffectKind.none || enemy.isDead) return;
+    final effectPower = power > 0 ? power : 4.0;
+    final effectRadius = radius > 0 ? radius : 80.0;
+    final effectDuration = duration > 0 ? duration : 1.5;
+    switch (effect) {
+      case AbilityEffectKind.knockback:
+        final dir = enemy.position - origin;
+        final dist = dir.distance;
+        if (dist > 0.01) {
+          enemy.knockbackVelocity +=
+              (dir / dist) * (160.0 + effectPower * 8.0).clamp(120.0, 520.0);
+        }
+        break;
+      case AbilityEffectKind.slow:
+      case AbilityEffectKind.freeze:
+        enemy.slowTimer = max(enemy.slowTimer, effectDuration);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.45);
+        if (effect == AbilityEffectKind.freeze) {
+          enemy.slowMultiplier = min(enemy.slowMultiplier, 0.05);
+          enemy.knockbackVelocity = Offset.zero;
+        }
+        break;
+      case AbilityEffectKind.root:
+        enemy.slowTimer = max(enemy.slowTimer, effectDuration);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.12);
+        _damageEnemy(enemy, effectPower, sourceSlotIndex: sourceSlotIndex);
+        if (effect == AbilityEffectKind.root ||
+            effect == AbilityEffectKind.freeze) {
+          enemy.knockbackVelocity = Offset.zero;
+        }
+        break;
+      case AbilityEffectKind.stun:
+        enemy.slowTimer = max(enemy.slowTimer, effectDuration * 0.7);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.08);
+        enemy.attackCooldown = max(enemy.attackCooldown, effectDuration);
+        break;
+      case AbilityEffectKind.suppressShooting:
+        // Wing+Dust disorient: tag the enemy so its shots hit other
+        // enemies instead of the orb/ship while disoriented.
+        enemy.disorientTimer = max(enemy.disorientTimer, effectDuration);
+        enemy.attackCooldown = max(enemy.attackCooldown, effectDuration * 0.4);
+        break;
+      case AbilityEffectKind.burn:
+      case AbilityEffectKind.poison:
+      case AbilityEffectKind.zoneDamage:
+      case AbilityEffectKind.geyser:
+        _damageEnemy(enemy, effectPower, sourceSlotIndex: sourceSlotIndex);
+        if (effect == AbilityEffectKind.geyser) {
+          enemy.knockbackVelocity += Offset(0, -140);
+        }
+        break;
+      case AbilityEffectKind.execute:
+        if (enemy.hpFraction <= 0.20) {
+          _damageEnemy(enemy, enemy.hp + 1, sourceSlotIndex: sourceSlotIndex);
+        } else {
+          _damageEnemy(
+            enemy,
+            effectPower * 1.35,
+            sourceSlotIndex: sourceSlotIndex,
+          );
+        }
+        break;
+      case AbilityEffectKind.splash:
+      case AbilityEffectKind.split:
+      case AbilityEffectKind.chain:
+        _visitEnemiesNear(enemy.position, effectRadius, (other) {
+          if (identical(other, enemy)) return false;
+          if (!_withinRange(enemy.position, other.position, effectRadius)) {
+            return false;
+          }
+          _damageEnemy(
+            other,
+            effectPower * (effect == AbilityEffectKind.chain ? 0.72 : 0.55),
+            sourceSlotIndex: sourceSlotIndex,
+          );
+          return false;
+        });
+        break;
+      case AbilityEffectKind.pull:
+      case AbilityEffectKind.blackHole:
+        _visitEnemiesNear(origin, effectRadius, (other) {
+          final dir = origin - other.position;
+          final dist = dir.distance;
+          if (dist <= 0.01 || dist > effectRadius) return false;
+          other.position += (dir / dist) * min(12.0, 260.0 / dist);
+          other.slowTimer = max(other.slowTimer, effectDuration);
+          other.slowMultiplier = min(other.slowMultiplier, 0.25);
+          if (effect == AbilityEffectKind.blackHole &&
+              other.hpFraction <= 0.12) {
+            _damageEnemy(other, other.hp + 1, sourceSlotIndex: sourceSlotIndex);
+          }
+          return false;
+        });
+        break;
+      case AbilityEffectKind.leech:
+      case AbilityEffectKind.zoneHeal:
+        _healOrb(effectPower * 0.45);
+        final comp = sourceSlotIndex != null
+            ? activeCompanions[sourceSlotIndex]
+            : null;
+        if (comp != null && !comp.isDead) {
+          comp.currentHp = min(
+            comp.maxHp,
+            comp.currentHp + effectPower.round(),
+          );
+        } else if (!ship.isDead) {
+          ship.currentHp = min(ship.maxHp, ship.currentHp + effectPower);
+        }
+        break;
+      case AbilityEffectKind.buff:
+      case AbilityEffectKind.cooldownRefund:
+        final comp = sourceSlotIndex != null
+            ? activeCompanions[sourceSlotIndex]
+            : null;
+        if (comp != null) {
+          comp.basicHasteTimer = max(comp.basicHasteTimer, effectDuration);
+          comp.basicHasteMultiplier = min(comp.basicHasteMultiplier, 0.72);
+          if (effect == AbilityEffectKind.cooldownRefund) {
+            comp.specialCooldown = max(0, comp.specialCooldown - 0.45);
+          }
+          // Mask+Ice pillar passive: the icy trap broadcasts a damage amp
+          // to the caster (and any allied companion within range below).
+          if (comp.member.family.toLowerCase() == 'mask' &&
+              comp.member.element == 'Ice') {
+            for (final entry in activeCompanions.entries) {
+              final ally = entry.value;
+              if (ally.isDead) continue;
+              if ((ally.position - origin).distance > effectRadius * 1.4) {
+                continue;
+              }
+              ally.damageAmpTimer = max(ally.damageAmpTimer, effectDuration);
+              ally.damageAmpMultiplier = max(ally.damageAmpMultiplier, 2.4);
+            }
+          }
+        }
+        break;
+      case AbilityEffectKind.taunt:
+        enemy.slowTimer = max(enemy.slowTimer, effectDuration * 0.5);
+        break;
+      case AbilityEffectKind.carry:
+        final dir = enemy.position - origin;
+        final dist = dir.distance;
+        if (dist > 0.01) enemy.position += (dir / dist) * 18.0;
+        break;
+      case AbilityEffectKind.alchemyBonus:
+      case AbilityEffectKind.flower:
+        _healOrb(effectPower * 0.30);
+        break;
+      case AbilityEffectKind.refraction:
+      case AbilityEffectKind.chargeBlast:
+        _damageEnemy(enemy, effectPower, sourceSlotIndex: sourceSlotIndex);
+        break;
+      case AbilityEffectKind.none:
+        break;
+    }
+  }
+
+  void _activateWingBeamEffects(
+    List<WingBeamEffect> beams, {
+    required int sourceSlotIndex,
+    required Offset origin,
+    required double angle,
+  }) {
+    if (beams.isEmpty) return;
+    for (final beam in beams) {
+      if (_activeWingBeams.length >= 14) _activeWingBeams.removeAt(0);
+      _activeWingBeams.add(
+        _ActiveWingBeam(
+          descriptor: beam,
+          sourceSlotIndex: sourceSlotIndex,
+          origin: origin,
+          angle: angle,
+        ),
+      );
+    }
+  }
+
+  void _updateBeamEffects(double dt) {
+    for (final beam in _activeWingBeams) {
+      beam.life -= dt;
+      // Re-anchor the beam origin to the live companion each frame so
+      // a sustained beam stays attached to the wing as it moves. If
+      // the caster died, the beam keeps its last known origin and
+      // expires naturally.
+      final caster = activeCompanions[beam.sourceSlotIndex];
+      if (caster != null && !caster.isDead) {
+        beam.origin = caster.position;
+        // Update angle to face the current beam target so the visual
+        // tracks live. _beamTargetEndpoint already retargets per tick;
+        // we mirror that here for the charge-up rendering and ring
+        // policy spokes that read beam.angle directly.
+        if (beam.descriptor.targetPolicy != WingBeamTargetPolicy.ring) {
+          final endNow = _beamTargetEndpoint(beam);
+          final dir = endNow - beam.origin;
+          if (dir.distanceSquared > 0.5) {
+            beam.angle = atan2(dir.dy, dir.dx);
+          }
+        }
+      }
+      if (beam.chargeTimer > 0) {
+        beam.chargeTimer = max(0.0, beam.chargeTimer - dt);
+        _spawnBeam(
+          beam.origin,
+          beam.origin +
+              Offset(cos(beam.angle), sin(beam.angle)) *
+                  beam.descriptor.range *
+                  0.55,
+          elementColor(beam.descriptor.element).withValues(alpha: 0.75),
+          width: beam.descriptor.width * 0.55,
+          life: 0.08,
+        );
+        continue;
+      }
+
+      final end = _beamTargetEndpoint(beam);
+      if (beam.descriptor.targetPolicy == WingBeamTargetPolicy.ring) {
+        final spokes = max(6, (beam.descriptor.radius / 26).round());
+        for (var i = 0; i < spokes; i++) {
+          final a = beam.angle + i * pi * 2 / spokes;
+          _spawnBeam(
+            beam.origin,
+            beam.origin + Offset(cos(a), sin(a)) * beam.descriptor.radius,
+            elementColor(beam.descriptor.element),
+            width: beam.descriptor.width * 0.45,
+            life: 0.08,
+          );
+        }
+      } else if (beam.descriptor.targetPolicy ==
+          WingBeamTargetPolicy.shipTether) {
+        // Tether to ship: draw the cable as a layered line with a
+        // bright moving pulse so it reads as a sustained connection
+        // rather than a one-shot beam, plus the outgoing strike.
+        final tetherColor = elementColor(beam.descriptor.element);
+        // Outer cable
+        _spawnBeam(
+          beam.origin,
+          ship.position,
+          tetherColor.withValues(alpha: 0.55),
+          width: beam.descriptor.width * 0.85,
+          life: 0.12,
+        );
+        // Inner bright core
+        _spawnBeam(
+          beam.origin,
+          ship.position,
+          Color.lerp(tetherColor, const Color(0xFFFFFFFF), 0.6)!,
+          width: beam.descriptor.width * 0.35,
+          life: 0.12,
+        );
+        // Animated pulse moving along the tether — flicker between two
+        // mid-points so it reads as energy flowing toward the ship.
+        final pulseT = (beam.life * 2.4) % 1.0;
+        final pulseMid = Offset.lerp(beam.origin, ship.position, pulseT)!;
+        _spawnBeam(
+          pulseMid,
+          Offset.lerp(pulseMid, ship.position, 0.18)!,
+          const Color(0xFFFFFFFF).withValues(alpha: 0.85),
+          width: beam.descriptor.width * 0.65,
+          life: 0.05,
+        );
+        // Outgoing ship→target strike
+        _spawnBeam(
+          ship.position,
+          end,
+          tetherColor,
+          width: beam.descriptor.width,
+          life: 0.08,
+        );
+      } else {
+        // Heal-ray differentiation: beams that heal render with a
+        // brighter, life-tinted core so support shows distinct from
+        // damage beams.
+        final isHealing = beam.descriptor.healPerTick > 0;
+        final beamColor = isHealing
+            ? Color.lerp(
+                elementColor(beam.descriptor.element),
+                const Color(0xFFCFFFD8),
+                0.55,
+              )!
+            : elementColor(beam.descriptor.element);
+        _spawnBeam(
+          beam.origin,
+          end,
+          beamColor,
+          width: beam.descriptor.width,
+          life: 0.08,
+        );
+        if (isHealing) {
+          // Inner white-green core for healing beams.
+          _spawnBeam(
+            beam.origin,
+            end,
+            const Color(0xFFEFFFF1).withValues(alpha: 0.85),
+            width: beam.descriptor.width * 0.45,
+            life: 0.08,
+          );
+        }
+      }
+
+      beam.tickTimer -= dt;
+      if (beam.tickTimer > 0) continue;
+      beam.tickTimer += beam.descriptor.tickInterval;
+      _resolveBeamTick(beam, end);
+    }
+    _activeWingBeams.removeWhere((beam) => beam.dead);
+  }
+
+  Offset _beamTargetEndpoint(_ActiveWingBeam beam) {
+    final d = beam.descriptor;
+    final fallback =
+        beam.origin + Offset(cos(beam.angle), sin(beam.angle)) * d.range;
+    CosmicSurvivalEnemy? target;
+    if (d.targetPolicy == WingBeamTargetPolicy.lowestHealthEnemy) {
+      for (final enemy in enemies) {
+        if (enemy.isDead) continue;
+        if ((enemy.position - beam.origin).distance > d.range) continue;
+        if (target == null || enemy.hpFraction < target.hpFraction) {
+          target = enemy;
+        }
+      }
+    } else {
+      target = _nearestEnemyTo(beam.origin, d.range);
+    }
+    if (target != null) return target.position;
+    if (activeBoss != null &&
+        !activeBoss!.isDead &&
+        (activeBoss!.position - beam.origin).distance <= d.range) {
+      return activeBoss!.position;
+    }
+    return fallback;
+  }
+
+  void _resolveBeamTick(_ActiveWingBeam beam, Offset end) {
+    final d = beam.descriptor;
+    // Wing+Lava: beam carves a glowing scar that does ground DoT.
+    // Drop a small lava zone at the beam's tip every other tick so a
+    // sustained beam paints a damaging line across the field.
+    if (d.element == 'Lava') {
+      beam.tickTimer; // (no-op, just re-uses existing pacing)
+      _appendCompanionProjectile(
+        Projectile(
+          position: end,
+          angle: 0,
+          element: 'Lava',
+          damage: 0,
+          life: 2.6,
+          speedMultiplier: 0,
+          stationary: true,
+          piercing: true,
+          radiusMultiplier: 1.2,
+          visualScale: 1.1,
+          visualStyle: ProjectileVisualStyle.sigil,
+          sourceSlotIndex: beam.sourceSlotIndex,
+          abilityFamily: 'wing',
+          tickEffect: AbilityEffectKind.burn,
+          effectPower: d.damagePerTick * 0.45,
+          effectRadius: 38,
+          effectDuration: 2.6,
+        ),
+      );
+    }
+    if (d.healPerTick > 0) {
+      if (!ship.isDead) {
+        ship.currentHp = min(ship.maxHp, ship.currentHp + d.healPerTick);
+      }
+      _healOrb(d.healPerTick * 0.55);
+      final comp = activeCompanions[beam.sourceSlotIndex];
+      if (comp != null && !comp.isDead) {
+        comp.currentHp = min(
+          comp.maxHp,
+          comp.currentHp + d.healPerTick.round(),
+        );
+      }
+    }
+
+    if (d.targetPolicy == WingBeamTargetPolicy.ring && d.radius > 0) {
+      _visitEnemiesNear(beam.origin, d.radius, (enemy) {
+        if (!_withinRange(beam.origin, enemy.position, d.radius)) return false;
+        _damageEnemy(
+          enemy,
+          d.damagePerTick,
+          sourceSlotIndex: beam.sourceSlotIndex,
+        );
+        _applyAbilityEffectToEnemy(
+          d.tickEffect,
+          enemy,
+          beam.origin,
+          d.effectPower,
+          d.radius,
+          d.effectDuration,
+          sourceSlotIndex: beam.sourceSlotIndex,
+        );
+        return false;
+      });
+    } else {
+      final radius = max(10.0, d.width * 1.45);
+      _visitEnemiesNear(beam.origin, (end - beam.origin).distance + radius, (
+        enemy,
+      ) {
+        final distance = _distanceToSegment(enemy.position, beam.origin, end);
+        if (distance > enemy.radius + radius) return false;
+        final beforeDead = enemy.isDead;
+        final plantBonus = d.element == 'Plant'
+            ? _wingPlantStackBonus(beam.sourceSlotIndex)
+            : 1.0;
+        _damageEnemy(
+          enemy,
+          _beamDamageForEnemy(d, enemy) * plantBonus,
+          sourceSlotIndex: beam.sourceSlotIndex,
+        );
+        _applyAbilityEffectToEnemy(
+          d.tickEffect,
+          enemy,
+          beam.origin,
+          d.effectPower,
+          radius * 6,
+          d.effectDuration,
+          sourceSlotIndex: beam.sourceSlotIndex,
+        );
+        if (!beforeDead && enemy.isDead && d.refractionCount > 0) {
+          _triggerChainLightning(
+            sourceEnemy: enemy,
+            origin: enemy.position,
+            baseDamage: d.damagePerTick * 0.65,
+            sourceSlotIndex: beam.sourceSlotIndex,
+            remainingChains: d.refractionCount,
+          );
+        }
+        // Wing+Plant: enemies killed by the beam turn into flower
+        // pickups. Orb collects them to power up the wing.
+        if (!beforeDead && enemy.isDead && d.element == 'Plant') {
+          _spawnFlowerPickup(enemy.position, beam.sourceSlotIndex);
+        }
+        return false;
+      });
+    }
+
+    final boss = activeBoss;
+    if (boss != null && !boss.isDead) {
+      final hitsBoss = d.targetPolicy == WingBeamTargetPolicy.ring
+          ? _withinRange(beam.origin, boss.position, d.radius + boss.radius)
+          : _distanceToSegment(boss.position, beam.origin, end) <=
+                boss.radius + max(10.0, d.width * 1.45);
+      if (hitsBoss) {
+        damageBoss(
+          d.damagePerTick,
+          attackElement: d.element,
+          sourceSlotIndex: beam.sourceSlotIndex,
+        );
+      }
+    }
+  }
+
+  void _spawnFlowerPickup(Offset position, int sourceSlotIndex) {
+    if (_flowerPickups.length >= 80) return;
+    _flowerPickups.add(
+      _FlowerPickup(
+        position: position,
+        sourceSlotIndex: sourceSlotIndex,
+        bobPhase: _rng.nextDouble() * pi * 2,
+      ),
+    );
+  }
+
+  void _updateFlowerPickups(double dt) {
+    if (_flowerPickups.isEmpty) return;
+    const collectRadius = 32.0;
+    for (final flower in _flowerPickups) {
+      flower.life -= dt;
+      if (flower.dead) continue;
+      if ((flower.position - orb.position).distance <= collectRadius) {
+        flower.life = 0;
+        final comp = activeCompanions[flower.sourceSlotIndex];
+        if (comp != null && !comp.isDead) {
+          // Reuse the persistent kill-stack counter — Wing+Plant
+          // companions accumulate flower count, scaled into beam damage.
+          comp.abilityKillStacks++;
+          _spawnHitSpark(orb.position, elementColor('Plant'));
+        }
+      }
+    }
+    _flowerPickups.removeWhere((f) => f.dead);
+  }
+
+  double _wingPlantStackBonus(int sourceSlotIndex) {
+    final comp = activeCompanions[sourceSlotIndex];
+    if (comp == null) return 1.0;
+    if (comp.member.family.toLowerCase() != 'wing' ||
+        comp.member.element != 'Plant') {
+      return 1.0;
+    }
+    // +4% damage per collected flower, capped at +200%.
+    final stacks = comp.abilityKillStacks.clamp(0, 50);
+    return 1.0 + stacks * 0.04;
+  }
+
+  double _beamDamageForEnemy(WingBeamEffect d, CosmicSurvivalEnemy enemy) {
+    if (d.executeThreshold > 0 && enemy.hpFraction <= d.executeThreshold) {
+      return max(d.damagePerTick, enemy.hp + 1);
+    }
+    if (d.tickEffect == AbilityEffectKind.chargeBlast) {
+      return d.damagePerTick * 2.8;
+    }
+    return d.damagePerTick;
+  }
+
+  double _distanceToSegment(Offset p, Offset a, Offset b) {
+    final ab = b - a;
+    final lenSq = ab.dx * ab.dx + ab.dy * ab.dy;
+    if (lenSq <= 0.0001) return (p - a).distance;
+    final ap = p - a;
+    final t = ((ap.dx * ab.dx + ap.dy * ab.dy) / lenSq).clamp(0.0, 1.0);
+    final closest = Offset(a.dx + ab.dx * t, a.dy + ab.dy * t);
+    return (p - closest).distance;
+  }
 
   void _updateCompanionProjectiles(double dt) {
     for (var i = companionProjectiles.length - 1; i >= 0; i--) {
@@ -4104,11 +5647,133 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           p.position.dx + cos(p.angle) * spd * dt,
           p.position.dy + sin(p.angle) * spd * dt,
         );
+        // Mane+Dust trail: leave a slow-cloud puff under the projectile
+        // every ~0.35s so its passage paints a trailing dust line.
+        if (p.abilityFamily == 'mane' && p.element == 'Dust') {
+          p.trailTimer += dt;
+          if (p.trailTimer >= 0.35) {
+            p.trailTimer = 0;
+            _appendCompanionProjectile(
+              Projectile(
+                position: p.position,
+                angle: 0,
+                element: 'Dust',
+                damage: 0,
+                life: 2.4,
+                speedMultiplier: 0,
+                stationary: true,
+                piercing: true,
+                radiusMultiplier: 1.3,
+                visualScale: 1.3,
+                visualStyle: ProjectileVisualStyle.sigil,
+                sourceSlotIndex: p.sourceSlotIndex,
+                abilityFamily: 'mane',
+                tickEffect: AbilityEffectKind.suppressShooting,
+                effectPower: p.damage * 0.10,
+                effectRadius: 60,
+                effectDuration: 1.6,
+              ),
+            );
+          }
+        }
+        // Mystic+Lava cataclysm moons: the slow-moving boulder drops
+        // persistent magma pools along its path. Pools tick burn DoT
+        // and snare-slow enemies that wander in.
+        if (p.turretInterval > 0 &&
+            p.visualStyle == ProjectileVisualStyle.mysticOrbital &&
+            p.element == 'Lava') {
+          p.turretTimer += dt;
+          while (p.turretTimer >= p.turretInterval) {
+            p.turretTimer -= p.turretInterval;
+            _appendCompanionProjectile(
+              Projectile(
+                position: p.position,
+                angle: 0,
+                element: 'Lava',
+                damage: 0,
+                life: 8.5,
+                speedMultiplier: 0,
+                stationary: true,
+                piercing: true,
+                radiusMultiplier: 1.8,
+                visualScale: 1.7,
+                visualStyle: ProjectileVisualStyle.mysticOrbital,
+                sourceSlotIndex: p.sourceSlotIndex,
+                abilityFamily: 'mystic',
+                tickEffect: AbilityEffectKind.burn,
+                effectPower: p.turretDamage,
+                effectRadius: 70,
+                effectDuration: 1.6,
+                snareRadius: 70,
+                snareMoveMultiplier: 0.65,
+              ),
+            );
+          }
+        }
+        // Mane traveling-projectile shedding: Earth boulder breaks
+        // down as it travels; Steam geyser releases puffs along path.
+        if (p.turretInterval > 0 && p.abilityFamily == 'mane') {
+          if (p.element == 'Earth') {
+            _maybeFireProjectileTurret(p, dt);
+            p.radiusMultiplier = max(p.radiusMultiplier - dt * 0.55, 1.4);
+            p.visualScale = max(p.visualScale - dt * 0.45, 1.2);
+          } else if (p.element == 'Steam') {
+            // Drop a stationary steam puff under the projectile.
+            p.turretTimer += dt;
+            while (p.turretTimer >= p.turretInterval) {
+              p.turretTimer -= p.turretInterval;
+              _appendCompanionProjectile(
+                Projectile(
+                  position: p.position,
+                  angle: 0,
+                  element: 'Steam',
+                  damage: 0,
+                  life: 1.6,
+                  speedMultiplier: 0,
+                  stationary: true,
+                  piercing: true,
+                  radiusMultiplier: 1.5,
+                  visualScale: 1.4,
+                  visualStyle: ProjectileVisualStyle.sigil,
+                  sourceSlotIndex: p.sourceSlotIndex,
+                  abilityFamily: 'mane',
+                  tickEffect: AbilityEffectKind.geyser,
+                  effectPower: p.turretDamage,
+                  effectRadius: 70,
+                  effectDuration: 1.2,
+                ),
+              );
+            }
+          }
+        }
       } else {
         _maybeFireProjectileTurret(p, dt);
       }
 
       p.life -= dt;
+
+      // Plant vine growth: as the trap stays alive, its snare/effect
+      // radius expands and (for masks) its slow tightens. Caps so a
+      // single vine can't lock down the whole field.
+      final isPlantTrap =
+          p.element == 'Plant' &&
+          (p.abilityFamily == 'mask' || p.abilityFamily == 'let');
+      if (isPlantTrap &&
+          (p.snareRadius > 0 || p.tickEffect != AbilityEffectKind.none)) {
+        p.abilityGrowthTimer += dt;
+        if (p.abilityGrowthTimer >= 1.2) {
+          p.abilityGrowthTimer -= 1.2;
+          final snareCap = p.abilityFamily == 'mask' ? 82.0 : 220.0;
+          final effectCap = p.abilityFamily == 'mask' ? 72.0 : 160.0;
+          if (p.snareRadius > 0) {
+            p.snareRadius = min(p.snareRadius + 6, snareCap);
+            p.snareMoveMultiplier = max(p.snareMoveMultiplier - 0.05, 0.30);
+          }
+          if (p.effectRadius > 0) {
+            p.effectRadius = min(p.effectRadius + 4, effectCap);
+          }
+        }
+      }
 
       // Cluster split at half-life
       if (p.clusterCount > 0 &&
@@ -4133,6 +5798,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                   : ProjectileVisualStyle.standard,
               sourceSlotIndex: p.sourceSlotIndex,
               chainLightningCharges: p.chainLightningCharges,
+              abilityFamily: p.abilityFamily,
+              hitEffect: p.hitEffect,
+              killEffect: p.killEffect,
+              pierceEffect: p.pierceEffect,
+              tickEffect: p.tickEffect,
+              effectPower: p.effectPower * 0.65,
+              effectRadius: p.effectRadius,
+              effectDuration: p.effectDuration,
+              effectCount: p.effectCount,
             ),
           )) {
             break;
@@ -4157,6 +5831,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               piercing: true,
               visualScale: 1.2,
               sourceSlotIndex: p.sourceSlotIndex,
+              abilityFamily: p.abilityFamily,
+              hitEffect: p.tickEffect == AbilityEffectKind.none
+                  ? p.hitEffect
+                  : p.tickEffect,
+              tickEffect: p.tickEffect,
+              effectPower: p.effectPower * 0.55,
+              effectRadius: p.effectRadius,
+              effectDuration: p.effectDuration,
             ),
           );
         }
@@ -4173,7 +5855,96 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         )) {
           return false;
         }
+        final wasDead = enemy.isDead;
         _damageEnemy(enemy, p.damage, sourceSlotIndex: p.sourceSlotIndex);
+        final killed = !wasDead && enemy.isDead;
+        resolveAbilityHit(p, enemy, killed: killed);
+        if (p.piercing) resolveAbilityPierce(p, enemy);
+        // Pip+Mud: tag the enemy so it permanently drops mud puffs
+        // behind itself for the rest of its life.
+        if (!killed &&
+            p.abilityFamily.isEmpty &&
+            p.element == 'Mud' &&
+            p.sourceSlotIndex != null) {
+          final src = activeCompanions[p.sourceSlotIndex!];
+          if (src != null && src.member.family.toLowerCase() == 'pip') {
+            enemy.pipMudTrail = true;
+          }
+        }
+        // Pip+Poison: each basic-hit draws a poison line of zones from
+        // the previous hit's position to the current one. The line
+        // persists until the companion's next basic-hit.
+        if (p.abilityFamily.isEmpty &&
+            p.element == 'Poison' &&
+            p.sourceSlotIndex != null) {
+          final src = activeCompanions[p.sourceSlotIndex!];
+          if (src != null && src.member.family.toLowerCase() == 'pip') {
+            final prev = src.lastPipPoisonHitPos;
+            if (prev != null) {
+              final dx = enemy.position.dx - prev.dx;
+              final dy = enemy.position.dy - prev.dy;
+              final dist = sqrt(dx * dx + dy * dy);
+              if (dist < 600) {
+                final segCount = (dist / 36).ceil().clamp(1, 18);
+                for (var s = 0; s < segCount; s++) {
+                  final t = (s + 0.5) / segCount;
+                  final pos = Offset(prev.dx + dx * t, prev.dy + dy * t);
+                  _appendCompanionProjectile(
+                    Projectile(
+                      position: pos,
+                      angle: 0,
+                      element: 'Poison',
+                      damage: 0,
+                      life: 6.5,
+                      speedMultiplier: 0,
+                      stationary: true,
+                      piercing: true,
+                      radiusMultiplier: 0.95,
+                      visualScale: 0.85,
+                      visualStyle: ProjectileVisualStyle.sigil,
+                      sourceSlotIndex: p.sourceSlotIndex,
+                      abilityFamily: 'pip',
+                      tickEffect: AbilityEffectKind.poison,
+                      effectPower: p.damage * 0.22,
+                      effectRadius: 32,
+                      effectDuration: 1.5,
+                    ),
+                  );
+                }
+              }
+            }
+            src.lastPipPoisonHitPos = enemy.position;
+          }
+        }
+        // Mane+Mud: first enemy hit splits the projectile into ten
+        // smaller fragments fanning out from the impact point.
+        if (p.abilityFamily == 'mane' && p.element == 'Mud' && !p.clustered) {
+          p.clustered = true;
+          for (var fi = 0; fi < 10; fi++) {
+            final fragAngle = fi * (pi * 2 / 10);
+            _appendCompanionProjectile(
+              Projectile(
+                position: enemy.position,
+                angle: fragAngle,
+                element: 'Mud',
+                damage: p.damage * 0.45,
+                life: 1.0,
+                speedMultiplier: 1.4,
+                radiusMultiplier: max(p.radiusMultiplier * 0.55, 0.7),
+                visualScale: max(p.visualScale * 0.55, 0.7),
+                piercing: false,
+                visualStyle: ProjectileVisualStyle.slash,
+                sourceSlotIndex: p.sourceSlotIndex,
+                abilityFamily: 'mane',
+                hitEffect: AbilityEffectKind.slow,
+                effectPower: p.effectPower * 0.6,
+                effectRadius: 40,
+                effectDuration: 1.5,
+              ),
+            );
+          }
+          consumed = true;
+        }
         _spawnProjectileHitSpark(p);
         _triggerChainLightning(
           sourceEnemy: enemy,
@@ -4187,15 +5958,29 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           _spawnDelayedLetImpactFollowup(p, enemy.position);
         }
 
-        // Ricochet (Pip)
+        // Ricochet (Pip): prefer tightly-clustered nearby targets so the
+        // bounce reads as a snappy chain instead of darting toward distant
+        // enemies that are off-screen or behind cover. Each bounce sheds
+        // ~30% damage so a single dart can't full-damage 5 enemies. Speed
+        // also drops slightly so chains read more clearly.
         if (p.bounceCount > 0) {
           p.bounceCount--;
-          final next = _nearestEnemyTo(enemy.position, 150, exclude: enemy);
+          final next = _nearestEnemyTo(enemy.position, 110, exclude: enemy);
           if (next != null) {
             p.angle = atan2(
               next.position.dy - p.position.dy,
               next.position.dx - p.position.dx,
             );
+            p.life = max(p.life, 0.45);
+            // Damage falloff per bounce — exception: Pip+Lightning is the
+            // doc's designated "double the ricochet" identity, so it
+            // sheds less per bounce (still scaled, just gentler).
+            final falloff = (p.element == 'Lightning') ? 0.85 : 0.70;
+            p.damage = p.damage * falloff;
+            // Slight speed bleed so chained shots feel weighty.
+            p.speedMultiplier = max(0.6, p.speedMultiplier * 0.92);
+          } else {
+            p.bounceCount = 0;
           }
         } else if (!p.piercing) {
           consumed = true;
@@ -4215,8 +6000,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           if (p.spawnLetElementalOnImpact) {
             _spawnDelayedLetImpactFollowup(p, activeBoss!.position);
           }
+          // Mane+Crystal: instakill boss on collision via massive
+          // self-damage burst (per design: "explode and do huge AOE
+          // and dmg" against bosses).
+          var bossDamage = p.damage;
+          if (p.abilityFamily == 'mane' && p.element == 'Crystal') {
+            bossDamage *= 25.0;
+            // Also damage nearby enemies in a wide AOE.
+            _damageEnemiesNear(
+              activeBoss!.position,
+              200,
+              p.damage * 1.5,
+              sourceSlotIndex: p.sourceSlotIndex,
+            );
+          }
           damageBoss(
-            p.damage,
+            bossDamage,
             attackElement: p.element,
             sourceSlotIndex: p.sourceSlotIndex,
           );
@@ -4249,22 +6048,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _spawnDelayedLetImpactFollowup(Projectile projectile, Offset impactPos) {
-    final seededDamage = projectile.letFollowupDamageSeed > 0
-        ? projectile.letFollowupDamageSeed
-        : (projectile.damage * 0.34);
-    final followups = createLetImpactFollowupProjectiles(
-      impactPosition: impactPos,
-      baseAngle: projectile.angle,
-      element: projectile.element ?? 'Fire',
-      damage: seededDamage,
-      casterBeauty: projectile.letCasterBeauty,
-      casterIntelligence: projectile.letCasterIntelligence,
-    );
-    for (final followup in followups) {
-      followup.sourceSlotIndex = projectile.sourceSlotIndex;
-      followup.chainLightningCharges = projectile.chainLightningCharges;
-    }
-    _appendCompanionProjectiles(followups);
+    // Let meteor aftermaths are resolved by resolveAbilityHit/Kill. This hook
+    // remains for older projectiles that still carry the delay flag.
   }
 
   bool _appendCompanionProjectile(Projectile projectile) {
@@ -5254,7 +7039,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (!_reduceSecondaryGlows) {
         _bossProjectileGlowPaint
           ..color = bpColor.withValues(alpha: 0.15)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, proj.radius);
+          ..maskFilter = null;
         canvas.drawCircle(
           proj.position,
           proj.radius * 1.8,
@@ -5321,7 +7106,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             10,
             Paint()
               ..color = const Color(0xFFFF6F00).withValues(alpha: 0.3)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+              ..maskFilter = null,
           );
         }
         canvas.save();
@@ -5338,9 +7123,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           3,
           Paint()
             ..color = const Color(0xFFFFAB40).withValues(alpha: 0.6)
-            ..maskFilter = _reduceSecondaryGlows
-                ? null
-                : const MaskFilter.blur(BlurStyle.normal, 4),
+            ..maskFilter = null,
         );
         canvas.restore();
       } else {
@@ -5378,6 +7161,42 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ..color = beam.color.withValues(alpha: 0.22 * alpha)
           ..strokeWidth = beam.width * 2.2;
         canvas.drawLine(beam.start, beam.end, _beamGlowPaint);
+      }
+    }
+
+    // Wing+Plant flower pickups
+    if (_flowerPickups.isNotEmpty) {
+      final t = stats.timeElapsed;
+      final petal = elementColor('Plant');
+      final core = elementColor('Light');
+      final petalPaint = Paint();
+      final corePaint = Paint();
+      for (final flower in _flowerPickups) {
+        if (!_isWithinViewport(
+          flower.position,
+          14,
+          cx,
+          cy,
+          cx + viewW,
+          cy + viewH,
+          margin: 18,
+        )) {
+          continue;
+        }
+        final bob = sin(t * 2.4 + flower.bobPhase) * 1.4;
+        final pos = Offset(flower.position.dx, flower.position.dy + bob);
+        final fade = (flower.life / 12.0).clamp(0.0, 1.0);
+        // Pulse stronger when close to expiry to signal pickup urgency.
+        final lifePulse = flower.life < 3.0 ? 0.7 + 0.3 * sin(t * 8) : 1.0;
+        // Five petals around a bright core.
+        for (var i = 0; i < 5; i++) {
+          final a = i * (pi * 2 / 5) + t * 0.35;
+          final petalPos = pos + Offset(cos(a), sin(a)) * 4.0;
+          petalPaint.color = petal.withValues(alpha: 0.85 * fade * lifePulse);
+          canvas.drawCircle(petalPos, 3.0, petalPaint);
+        }
+        corePaint.color = core.withValues(alpha: 0.95 * fade * lifePulse);
+        canvas.drawCircle(pos, 2.4, corePaint);
       }
     }
 
@@ -5544,7 +7363,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ..color = const Color(0xFF4FC3F7).withValues(alpha: 0.07 * pulse)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 18
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+          ..maskFilter = null,
       );
     }
 
@@ -6375,7 +8194,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ..color = bColor.withValues(alpha: 0.14 + 0.08 * (1.0 - introT))
           ..style = PaintingStyle.stroke
           ..strokeWidth = 5
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+          ..maskFilter = null,
       );
       canvas.drawCircle(
         spawnTarget,
@@ -6494,7 +8313,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               r * (0.24 - i * 0.03),
               Paint()
                 ..color = bColor.withValues(alpha: 0.22 - i * 0.05)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+                ..maskFilter = null,
             );
           }
         case SurvivalBossDiscipline.standard:
@@ -6555,7 +8374,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         r * 2.5,
         Paint()
           ..color = auraColor
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.8),
+          ..maskFilter = null,
       );
     }
 
@@ -6583,7 +8402,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ..color = Colors.cyan.withValues(alpha: 0.2 + 0.1 * sin(elapsed * 3))
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+          ..maskFilter = null,
       );
     }
 
@@ -6605,7 +8424,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       r * 0.3,
       Paint()
         ..color = Colors.white.withValues(alpha: 0.4 * pulse)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.15),
+        ..maskFilter = null,
     );
 
     final hpFrac = boss.hpFraction;
@@ -6642,28 +8461,57 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final eColor = elementColor(proj.element ?? 'Fire');
 
     if (proj.visualStyle == ProjectileVisualStyle.mysticOrbital) {
+      // Stationary mystic placements (fog nodes, mire pools, dark
+      // wells, plant turrets, monolith pillars, etc.) are environment
+      // *fixtures* — render them with the modern ground-zone painters
+      // so each element reads as its own terrain effect.
+      if (proj.stationary &&
+          drawMaskElementalProjectileVisual(
+            canvas: canvas,
+            projectile: proj,
+            position: proj.position,
+            color: eColor,
+            time: stats.timeElapsed,
+          )) {
+        return;
+      }
+
+      // Moving / orbiting mystic projectiles get a richer comet look
+      // than the generic single-circle render. A bright core + halo
+      // glow + element-tinted comet tail makes each cast feel like an
+      // ultimate, not a regular dart.
       final dir = Offset(cos(proj.angle), sin(proj.angle));
       final radius = (1.65 * proj.visualScale).clamp(1.4, 6.1).toDouble();
-      _companionProjCorePaint.color = eColor.withValues(alpha: 0.76);
-      canvas.drawCircle(proj.position, radius, _companionProjCorePaint);
-      if (!_simplifyProjectileRendering) {
-        _companionProjLinePaint
-          ..color = eColor.withValues(alpha: 0.24)
-          ..strokeWidth = max(1.0, radius * 0.72);
-        canvas.drawLine(
-          proj.position - dir * radius * 2.2,
-          proj.position,
-          _companionProjLinePaint,
-        );
+      final pulse = 0.78 + 0.22 * sin(stats.timeElapsed * 4.0 + proj.life);
+      // Outer halo glow
+      if (!_useReducedCompanionProjectileRendering(proj)) {
         _companionProjStrokePaint
-          ..color = eColor.withValues(alpha: 0.16)
-          ..strokeWidth = 0.8;
-        canvas.drawCircle(
-          proj.position,
-          radius * 2.2,
-          _companionProjStrokePaint,
-        );
+          ..style = PaintingStyle.fill
+          ..color = eColor.withValues(alpha: 0.18 * pulse);
+        canvas.drawCircle(proj.position, radius * 2.6, _companionProjStrokePaint);
+        _companionProjStrokePaint.style = PaintingStyle.stroke;
+        // Comet trail
+        for (var i = 1; i <= 3; i++) {
+          final fade = 1.0 - i * 0.30;
+          final back = proj.position - dir * (radius * 2.0 * i);
+          _companionProjStrokePaint
+            ..style = PaintingStyle.fill
+            ..color = eColor.withValues(alpha: 0.32 * fade);
+          canvas.drawCircle(
+            back,
+            radius * (1.0 + i * 0.18) * 0.55,
+            _companionProjStrokePaint,
+          );
+          _companionProjStrokePaint.style = PaintingStyle.stroke;
+        }
       }
+      // Bright element core
+      _companionProjCorePaint.color = eColor.withValues(alpha: 0.92 * pulse);
+      canvas.drawCircle(proj.position, radius, _companionProjCorePaint);
+      // White-hot inner pip
+      _companionProjCorePaint.color = const Color(0xFFFFFFFF)
+          .withValues(alpha: 0.85 * pulse);
+      canvas.drawCircle(proj.position, radius * 0.42, _companionProjCorePaint);
       drawProjectileRoleOverlay(
         canvas: canvas,
         projectile: proj,
@@ -6674,7 +8522,37 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return;
     }
 
-    if (_simplifyProjectileRendering) {
+    if (drawMaskElementalProjectileVisual(
+      canvas: canvas,
+      projectile: proj,
+      position: proj.position,
+      color: eColor,
+      time: stats.timeElapsed,
+    )) {
+      // Mask traps are ground-zone identity pieces. Even performance mode
+      // keeps these authored silhouettes so elements do not collapse into
+      // same-shape circles with different colors.
+      return;
+    }
+
+    if (drawLetElementalProjectileVisual(
+      canvas: canvas,
+      projectile: proj,
+      position: proj.position,
+      color: eColor,
+      time: stats.timeElapsed,
+    )) {
+      drawProjectileRoleOverlay(
+        canvas: canvas,
+        projectile: proj,
+        position: proj.position,
+        color: eColor,
+        time: stats.timeElapsed,
+      );
+      return;
+    }
+
+    if (_useReducedCompanionProjectileRendering(proj)) {
       final radius = switch (proj.visualStyle) {
         ProjectileVisualStyle.meteor => 3.6 * proj.visualScale,
         ProjectileVisualStyle.hornImpact => 3.4 * proj.visualScale,
@@ -6722,22 +8600,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return;
     }
 
-    if (drawLetElementalProjectileVisual(
-      canvas: canvas,
-      projectile: proj,
-      position: proj.position,
-      color: eColor,
-      time: stats.timeElapsed,
-    )) {
-      drawProjectileRoleOverlay(
-        canvas: canvas,
-        projectile: proj,
-        position: proj.position,
-        color: eColor,
-        time: stats.timeElapsed,
-      );
-      return;
-    }
     if (drawPipElementalProjectileVisual(
       canvas: canvas,
       projectile: proj,
@@ -6786,23 +8648,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
       return;
     }
-    if (drawMaskElementalProjectileVisual(
-      canvas: canvas,
-      projectile: proj,
-      position: proj.position,
-      color: eColor,
-      time: stats.timeElapsed,
-    )) {
-      drawProjectileRoleOverlay(
-        canvas: canvas,
-        projectile: proj,
-        position: proj.position,
-        color: eColor,
-        time: stats.timeElapsed,
-      );
-      return;
-    }
-
     switch (proj.visualStyle) {
       case ProjectileVisualStyle.meteor:
         final tailLen = 22.0 * proj.visualScale;
@@ -6825,8 +8670,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               const [0.0, 0.6, 1.0],
             )
             ..strokeWidth = 7.5 * proj.visualScale
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+            ..strokeCap = StrokeCap.round,
         );
         canvas.drawCircle(
           proj.position,
@@ -6876,7 +8720,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
         _companionProjGlowPaint
           ..color = eColor.withValues(alpha: 0.15)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+          ..maskFilter = null;
         canvas.drawCircle(
           proj.position,
           4 * proj.visualScale,
@@ -6888,10 +8732,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final pulse = 0.7 + 0.3 * sin(stats.timeElapsed * 4);
         _companionProjGlowPaint
           ..color = eColor.withValues(alpha: 0.4 * pulse)
-          ..maskFilter = MaskFilter.blur(
-            BlurStyle.normal,
-            4 * proj.visualScale,
-          );
+          ..maskFilter = null;
         canvas.drawCircle(
           proj.position,
           4 * proj.visualScale,
@@ -6907,6 +8748,42 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
 
       case ProjectileVisualStyle.kinOrbital:
+        // Guardian-orb render: bright protective core + halo + two
+        // satellite motes orbiting around it. Reads as a guardian
+        // companion, not a generic colored circle.
+        final radius = (1.6 * proj.visualScale).clamp(1.4, 5.8).toDouble();
+        final pulse =
+            0.78 + 0.22 * sin(stats.timeElapsed * 3.4 + proj.life);
+        if (!_useReducedCompanionProjectileRendering(proj)) {
+          _companionProjGlowPaint
+            ..color = eColor.withValues(alpha: 0.20 * pulse)
+            ..maskFilter = null;
+          canvas.drawCircle(
+            proj.position,
+            radius * 2.6,
+            _companionProjGlowPaint,
+          );
+          // Two satellite motes orbiting opposite sides
+          for (var i = 0; i < 2; i++) {
+            final sa = stats.timeElapsed * 2.4 + i * pi;
+            final sp = proj.position +
+                Offset(cos(sa), sin(sa)) * radius * 1.9;
+            _companionProjCorePaint.color =
+                eColor.withValues(alpha: 0.75 * pulse);
+            canvas.drawCircle(sp, radius * 0.42, _companionProjCorePaint);
+          }
+        }
+        _companionProjCorePaint.color =
+            eColor.withValues(alpha: 0.92 * pulse);
+        canvas.drawCircle(proj.position, radius, _companionProjCorePaint);
+        _companionProjCorePaint.color =
+            const Color(0xFFFFFFFF).withValues(alpha: 0.85 * pulse);
+        canvas.drawCircle(
+          proj.position,
+          radius * 0.42,
+          _companionProjCorePaint,
+        );
+
       case ProjectileVisualStyle.mysticOrbital:
         _companionProjCorePaint.color = eColor.withValues(alpha: 0.6);
         canvas.drawCircle(
@@ -6916,10 +8793,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
         _companionProjGlowPaint
           ..color = eColor.withValues(alpha: 0.12)
-          ..maskFilter = MaskFilter.blur(
-            BlurStyle.normal,
-            4 * proj.visualScale,
-          );
+          ..maskFilter = null;
         canvas.drawCircle(
           proj.position,
           6 * proj.visualScale,
@@ -6948,7 +8822,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             )
             ..strokeWidth = 5.4 * proj.visualScale
             ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+            ..maskFilter = null,
         );
 
         final shard = Path()
@@ -7012,7 +8886,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
         _companionProjGlowPaint
           ..color = eColor.withValues(alpha: 0.15)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+          ..maskFilter = null;
         canvas.drawCircle(
           proj.position,
           5 * proj.visualScale,
@@ -7059,7 +8933,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       24,
       Paint()
         ..color = ec.withValues(alpha: 0.15)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        ..maskFilter = null,
     );
 
     // Shield bubble
@@ -7073,7 +8947,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           )
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+          ..maskFilter = null,
       );
     }
 
@@ -7089,7 +8963,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         28 * chargeWidth,
         Paint()
           ..color = ec.withValues(alpha: 0.35)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+          ..maskFilter = null,
       );
       for (var t = 0; t < 4; t++) {
         final trailAngle = comp.angle + pi;
@@ -7099,7 +8973,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           (5.0 - t) * chargeWidth,
           Paint()
             ..color = ec.withValues(alpha: (1.0 - t / 4.0) * 0.34)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+            ..maskFilter = null,
         );
       }
     }
@@ -7362,7 +9236,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ..color = const Color(
             0xFF7FDBFF,
           ).withValues(alpha: 0.10 + 0.05 * sin(elapsed * 2.2))
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+          ..maskFilter = null,
       );
     }
 
@@ -7373,7 +9247,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ..color =
             (ghostMode ? const Color(0x808BE9FF) : const Color(0x7000CFFF))
                 .withValues(alpha: (ghostMode ? 0.34 : 0.55) * enginePulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+        ..maskFilter = null,
     );
 
     for (final x in const [-5.5, 5.5]) {

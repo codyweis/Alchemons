@@ -1,4 +1,6 @@
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -51,5 +53,45 @@ void main() {
       );
       expect(CosmicSurvivalBalance.enemyWaveDamageScale(50), lessThan(2.0));
     });
+
+    test(
+      'performance mode preserves authored companion projectile identity',
+      () {
+        final authored = Projectile(
+          position: const Offset(0, 0),
+          angle: 0,
+          element: 'Poison',
+          visualStyle: ProjectileVisualStyle.sigil,
+          abilityFamily: 'mask',
+        );
+        final generic = Projectile(
+          position: const Offset(0, 0),
+          angle: 0,
+          element: 'Poison',
+        );
+
+        expect(
+          shouldUseReducedCompanionProjectileRendering(
+            quality: SurvivalVisualQuality.performance,
+            projectile: authored,
+          ),
+          isFalse,
+        );
+        expect(
+          shouldUseReducedCompanionProjectileRendering(
+            quality: SurvivalVisualQuality.performance,
+            projectile: generic,
+          ),
+          isTrue,
+        );
+        expect(
+          shouldUseReducedCompanionProjectileRendering(
+            quality: SurvivalVisualQuality.balanced,
+            projectile: generic,
+          ),
+          isFalse,
+        );
+      },
+    );
   });
 }

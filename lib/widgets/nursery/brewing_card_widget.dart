@@ -28,7 +28,7 @@ class NurseryBrewingCard extends StatefulWidget {
     this.progress,
     this.useSimpleFusion = false,
     this.theme,
-    this.quality = CinematicQuality.high,
+    this.quality = CinematicQuality.performance,
   });
 
   @override
@@ -104,8 +104,8 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
 
     // Apply quality multiplier first ...
     final qualityMultiplier = switch (widget.quality) {
-      CinematicQuality.high => 2.0,
       CinematicQuality.balanced => 1.0,
+      CinematicQuality.performance => 0.45,
     };
     particleCount = (particleCount * qualityMultiplier).round().clamp(0, 72);
 

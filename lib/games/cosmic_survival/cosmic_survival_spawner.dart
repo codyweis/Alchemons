@@ -72,10 +72,23 @@ class CosmicSurvivalEnemy {
   bool isDead;
   double hitFlash;
   double slowTimer;
+  double slowMultiplier;
   double attackCooldown;
   double retargetTimer;
   final bool isElite;
   final SurvivalEliteAffix? eliteAffix;
+  // Mane+Plant pierce sets this to the source slot index. If the
+  // enemy dies while still flagged, the resolver triggers an AOE
+  // explosion at the kill site.
+  int? maneRootSlot;
+  double maneRootTimer;
+  // Pip+Mud hit sets this to true so the enemy permanently leaves
+  // mud trail puffs that slow other enemies behind it.
+  bool pipMudTrail;
+  double pipMudTrailTimer;
+  // Wing+Dust disorient: while > 0, shooter-role enemies target
+  // other enemies instead of the orb/ship.
+  double disorientTimer;
 
   CosmicSurvivalEnemy({
     required this.position,
@@ -94,16 +107,22 @@ class CosmicSurvivalEnemy {
     this.isDead = false,
     this.hitFlash = 0,
     this.slowTimer = 0,
+    this.slowMultiplier = 0.5,
     this.attackCooldown = 0,
     this.retargetTimer = 0,
     this.isElite = false,
     this.eliteAffix,
+    this.maneRootSlot,
+    this.maneRootTimer = 0,
+    this.pipMudTrail = false,
+    this.pipMudTrailTimer = 0,
+    this.disorientTimer = 0,
   });
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
   double get effectiveSpeed {
     if (slowTimer <= 0) return speed;
-    return speed * (isRelentless ? 0.78 : 0.5);
+    return speed * (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }
 
   bool get isShooter => role == CosmicEnemyRole.shooter;
@@ -249,6 +268,9 @@ class SurvivalEnemyProjectile {
   double life;
   final double radius;
   final CosmicEnemyTarget target;
+  // Wing+Dust disorient: when true, this enemy projectile damages
+  // other enemies on collision instead of the orb/ship/companions.
+  final bool friendlyFire;
 
   SurvivalEnemyProjectile({
     required this.position,
@@ -259,6 +281,7 @@ class SurvivalEnemyProjectile {
     this.speed = 220,
     this.life = 4.0,
     this.radius = 4.0,
+    this.friendlyFire = false,
   });
 }
 
@@ -571,7 +594,8 @@ class CosmicSurvivalSpawner {
         SurvivalEnemyVariant.siegeShooter,
       CosmicEnemyRole.striker || CosmicEnemyRole.orbiter
           when (tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
-              _rng.nextDouble() < 0.34 => SurvivalEnemyVariant.orbBreaker,
+              _rng.nextDouble() < 0.34 =>
+        SurvivalEnemyVariant.orbBreaker,
       _ => SurvivalEnemyVariant.standard,
     };
 
@@ -753,13 +777,13 @@ class CosmicSurvivalSpawner {
     final titanicPool = kBossTemplates.where((t) => t.isTitanic).toList();
     final forceTitanic = wave == 25 || wave == 50;
     final template = forceTitanic && titanicPool.isNotEmpty
-      ? titanicPool[_rng.nextInt(titanicPool.length)]
-      : pickBossTemplate(_rng, titanicChance: 0.06);
+        ? titanicPool[_rng.nextInt(titanicPool.length)]
+        : pickBossTemplate(_rng, titanicChance: 0.06);
     final bossLevel = (wave ~/ 5).clamp(1, 20);
     final hpScale =
-      (1.0 + (bossLevel - 1) * 0.38) * (template.isTitanic ? 2.5 : 1.0);
+        (1.0 + (bossLevel - 1) * 0.38) * (template.isTitanic ? 2.5 : 1.0);
     final speedScale =
-      (1.0 + (bossLevel - 1) * 0.04) * (template.isTitanic ? 0.84 : 1.0);
+        (1.0 + (bossLevel - 1) * 0.04) * (template.isTitanic ? 0.84 : 1.0);
     final hp = template.health * 16 * hpScale;
     final speed = (template.speed * speedScale).clamp(45.0, double.infinity);
     final type = template.preferredType ?? bossTypeForLevel(bossLevel);

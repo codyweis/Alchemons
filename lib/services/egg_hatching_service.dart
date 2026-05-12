@@ -771,8 +771,8 @@ class EggHatching {
     final shortestSide = media.size.shortestSide;
     final lowFxDevice = media.disableAnimations || shortestSide < 430;
     final dialogBlurSigma = switch (cinematicQuality) {
-      CinematicQuality.high => lowFxDevice ? 0.0 : 14.0,
       CinematicQuality.balanced => lowFxDevice ? 0.0 : 8.0,
+      CinematicQuality.performance => 0.0,
     };
 
     Widget dialogShell(Widget child) {
@@ -841,11 +841,10 @@ class EggHatching {
                                     key: scanAnimationKey,
                                     isNewDiscovery: isNewDiscovery,
                                     scanDuration: switch (cinematicQuality) {
-                                      CinematicQuality.high => const Duration(
-                                        milliseconds: 1400,
-                                      ),
                                       CinematicQuality.balanced =>
                                         const Duration(milliseconds: 1800),
+                                      CinematicQuality.performance =>
+                                        const Duration(milliseconds: 1000),
                                     },
                                     onReadyChanged: (ready) {
                                       if (ready) {

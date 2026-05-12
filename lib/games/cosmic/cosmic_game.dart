@@ -2612,6 +2612,14 @@ class CosmicGame extends FlameGame with PanDetector {
               radiusMultiplier: 1.5,
               piercing: true,
               visualScale: 1.2,
+              abilityFamily: p.abilityFamily,
+              hitEffect: p.tickEffect == AbilityEffectKind.none
+                  ? p.hitEffect
+                  : p.tickEffect,
+              tickEffect: p.tickEffect,
+              effectPower: p.effectPower * 0.55,
+              effectRadius: p.effectRadius,
+              effectDuration: p.effectDuration,
             ),
           );
         }
@@ -2685,6 +2693,434 @@ class CosmicGame extends FlameGame with PanDetector {
     _updateRingMinions(dt);
 
     // ── update companion projectiles ──
+    void resolveAbilityEffect(
+      AbilityEffectKind effect,
+      Projectile projectile,
+      CosmicEnemy enemy,
+    ) {
+      if (effect == AbilityEffectKind.none || enemy.dead) return;
+      final power = projectile.effectPower > 0
+          ? projectile.effectPower
+          : projectile.damage * 0.35;
+      final radius = projectile.effectRadius > 0
+          ? projectile.effectRadius
+          : 90.0;
+      switch (effect) {
+        case AbilityEffectKind.knockback:
+          final dir = enemy.position - projectile.position;
+          final dist = dir.distance;
+          if (dist > 0.01) enemy.position += (dir / dist) * 22.0;
+          break;
+        case AbilityEffectKind.pull:
+        case AbilityEffectKind.blackHole:
+          for (final other in enemies) {
+            if (other.dead) continue;
+            final dir = projectile.position - other.position;
+            final dist = dir.distance;
+            if (dist > 0.01 && dist <= radius) {
+              other.position += (dir / dist) * min(18.0, radius / 18.0);
+            }
+            if (effect == AbilityEffectKind.blackHole &&
+                other.health / other.maxHealth <= 0.12) {
+              other.health = 0;
+              other.dead = true;
+              _spawnKillVfx(
+                other.position,
+                elementColor(other.element),
+                other.radius,
+                false,
+              );
+              _spawnLootDrops(
+                other.position,
+                other.element,
+                other.shardDrop,
+                other.particleDrop,
+              );
+            }
+          }
+          break;
+        case AbilityEffectKind.slow:
+        case AbilityEffectKind.root:
+        case AbilityEffectKind.freeze:
+        case AbilityEffectKind.stun:
+        case AbilityEffectKind.suppressShooting:
+          enemy.speed = max(14.0, enemy.speed * 0.82);
+          enemy.driftTimer += projectile.effectDuration.clamp(0.4, 2.5);
+          break;
+        case AbilityEffectKind.burn:
+        case AbilityEffectKind.poison:
+        case AbilityEffectKind.zoneDamage:
+        case AbilityEffectKind.execute:
+        case AbilityEffectKind.geyser:
+        case AbilityEffectKind.refraction:
+        case AbilityEffectKind.chargeBlast:
+          final execute =
+              effect == AbilityEffectKind.execute &&
+              enemy.health / enemy.maxHealth <= 0.20;
+          enemy.health -= execute ? enemy.health + 1 : power;
+          break;
+        case AbilityEffectKind.splash:
+        case AbilityEffectKind.split:
+        case AbilityEffectKind.chain:
+          for (final other in enemies) {
+            if (other.dead || identical(other, enemy)) continue;
+            if ((other.position - enemy.position).distance <= radius) {
+              other.health -=
+                  power * (effect == AbilityEffectKind.chain ? 0.7 : 0.5);
+              if (other.health <= 0) {
+                other.dead = true;
+                _spawnKillVfx(
+                  other.position,
+                  elementColor(other.element),
+                  other.radius,
+                  false,
+                );
+                _spawnLootDrops(
+                  other.position,
+                  other.element,
+                  other.shardDrop,
+                  other.particleDrop,
+                );
+              }
+            }
+          }
+          break;
+        case AbilityEffectKind.leech:
+        case AbilityEffectKind.zoneHeal:
+        case AbilityEffectKind.alchemyBonus:
+        case AbilityEffectKind.flower:
+          shipHealth = min(shipMaxHealth, shipHealth + power * 0.35);
+          break;
+        case AbilityEffectKind.buff:
+        case AbilityEffectKind.cooldownRefund:
+        case AbilityEffectKind.taunt:
+        case AbilityEffectKind.carry:
+        case AbilityEffectKind.none:
+          break;
+      }
+    }
+
+    void spawnDarkLetKillMeteors(Projectile source, Offset center) {
+      final targets = enemies
+          .where(
+            (enemy) =>
+                !enemy.dead &&
+                enemy.health > 0 &&
+                (enemy.position - center).distance <=
+                    max(420.0, source.effectRadius * 3.0),
+          )
+          .take(5)
+          .toList(growable: false);
+      for (var mi = 0; mi < 5; mi++) {
+        final target = mi < targets.length ? targets[mi].position : null;
+        final a = target != null
+            ? atan2(target.dy - center.dy, target.dx - center.dx)
+            : source.angle + (mi - 2) * 0.42;
+        companionProjectiles.add(
+          Projectile(
+            position: center - Offset(cos(a), sin(a)) * (46.0 + mi * 8.0),
+            angle: a,
+            element: 'Dark',
+            damage: source.damage * 0.62,
+            life: 1.6,
+            speedMultiplier: 0.82,
+            radiusMultiplier: max(2.8, source.radiusMultiplier * 1.45),
+            visualScale: max(2.8, source.visualScale * 1.35),
+            visualStyle: ProjectileVisualStyle.meteor,
+            homing: target != null,
+            homingStrength: 2.4,
+            sourceSlotIndex: source.sourceSlotIndex,
+            abilityFamily: 'let',
+            hitEffect: AbilityEffectKind.pull,
+            effectPower: source.effectPower * 0.75,
+            effectRadius: max(120.0, source.effectRadius),
+            effectDuration: source.effectDuration,
+          ),
+        );
+      }
+    }
+
+    void spawnLetZone(
+      Projectile source,
+      Offset center, {
+      required String element,
+      required AbilityEffectKind effect,
+      required double radius,
+      required double duration,
+      required double power,
+      double visualScale = 1.35,
+    }) {
+      companionProjectiles.add(
+        Projectile(
+          position: center,
+          angle: 0,
+          element: element,
+          damage: 0,
+          life: duration,
+          speedMultiplier: 0,
+          stationary: true,
+          piercing: true,
+          radiusMultiplier: max(1.0, radius / 28.0),
+          visualScale: visualScale,
+          visualStyle: ProjectileVisualStyle.letShard,
+          sourceSlotIndex: source.sourceSlotIndex,
+          hitEffect: effect,
+          effectPower: power,
+          effectRadius: radius,
+          effectDuration: duration,
+        ),
+      );
+    }
+
+    void damageEnemiesNear(
+      Offset center,
+      double radius,
+      double damage, {
+      CosmicEnemy? exclude,
+    }) {
+      for (final other in enemies) {
+        if (other.dead || other.health <= 0 || identical(other, exclude)) {
+          continue;
+        }
+        if ((other.position - center).distance > radius) continue;
+        other.health -= damage;
+        if (other.health <= 0) {
+          other.dead = true;
+          _spawnKillVfx(
+            other.position,
+            elementColor(other.element),
+            other.radius,
+            false,
+          );
+          _spawnLootDrops(
+            other.position,
+            other.element,
+            other.shardDrop,
+            other.particleDrop,
+          );
+        }
+      }
+    }
+
+    void healCompanionOrShip(double amount) {
+      if (amount <= 0) return;
+      if (activeCompanion != null && activeCompanion!.isAlive) {
+        activeCompanion!.currentHp = min(
+          activeCompanion!.maxHp,
+          activeCompanion!.currentHp + amount.round(),
+        );
+      } else {
+        shipHealth = min(shipMaxHealth, shipHealth + amount);
+      }
+    }
+
+    void healAllCompanionsAndShip(double amount) {
+      if (amount <= 0) return;
+      shipHealth = min(shipMaxHealth, shipHealth + amount);
+      if (activeCompanion != null && activeCompanion!.isAlive) {
+        activeCompanion!.currentHp = min(
+          activeCompanion!.maxHp,
+          activeCompanion!.currentHp + amount.round(),
+        );
+      }
+    }
+
+    void resolveLetMeteorKill(Projectile projectile, Offset center) {
+      switch (projectile.element) {
+        case 'Air':
+          for (final other in enemies) {
+            if (other.dead || (other.position - center).distance > 190) {
+              continue;
+            }
+            final dir = other.position - center;
+            final dist = dir.distance;
+            if (dist > 0.01) other.position += (dir / dist) * 40.0;
+          }
+          break;
+        case 'Plant':
+          for (var vi = 0; vi < 4; vi++) {
+            final a = projectile.angle + (vi - 1.5) * 0.75;
+            spawnLetZone(
+              projectile,
+              center + Offset(cos(a), sin(a)) * (28 + vi * 8),
+              element: 'Plant',
+              effect: AbilityEffectKind.root,
+              radius: 64,
+              duration: 7.0,
+              power: projectile.damage * 0.18,
+              visualScale: 1.2,
+            );
+          }
+          break;
+        case 'Blood':
+          final drain = projectile.damage * 0.34;
+          damageEnemiesNear(center, 170, drain);
+          healAllCompanionsAndShip(drain * 0.35);
+          break;
+        case 'Light':
+          spawnLetZone(
+            projectile,
+            center,
+            element: 'Light',
+            effect: AbilityEffectKind.zoneHeal,
+            radius: 130,
+            duration: 5.5,
+            power: projectile.damage * 0.16,
+            visualScale: 1.7,
+          );
+          break;
+        case 'Fire':
+          damageEnemiesNear(center, 185, projectile.damage * 0.72);
+          vfxRings.add(
+            VfxShockRing(
+              x: center.dx,
+              y: center.dy,
+              color: elementColor('Fire'),
+              maxRadius: 85,
+            ),
+          );
+          break;
+        case 'Dark':
+          spawnDarkLetKillMeteors(projectile, center);
+          break;
+        case 'Steam':
+          spawnLetZone(
+            projectile,
+            center,
+            element: 'Steam',
+            effect: AbilityEffectKind.geyser,
+            radius: 115,
+            duration: 8.0,
+            power: projectile.damage * 0.10,
+            visualScale: 1.6,
+          );
+          break;
+        case 'Mud':
+          spawnLetZone(
+            projectile,
+            center,
+            element: 'Mud',
+            effect: AbilityEffectKind.stun,
+            radius: 130,
+            duration: 4.8,
+            power: projectile.damage * 0.08,
+            visualScale: 1.5,
+          );
+          break;
+        default:
+          break;
+      }
+    }
+
+    void resolveLetMeteorHit(
+      Projectile projectile,
+      CosmicEnemy enemy, {
+      required bool killed,
+    }) {
+      switch (projectile.element) {
+        case 'Dust':
+          spawnLetZone(
+            projectile,
+            enemy.position,
+            element: 'Dust',
+            effect: AbilityEffectKind.slow,
+            radius: 130,
+            duration: 4.5,
+            power: projectile.effectPower * 0.25,
+          );
+          break;
+        case 'Lava':
+          spawnLetZone(
+            projectile,
+            enemy.position,
+            element: 'Lava',
+            effect: AbilityEffectKind.burn,
+            radius: 145,
+            duration: 4.2,
+            power: projectile.damage * 0.13,
+          );
+          break;
+        case 'Poison':
+          enemy.driftTimer += 2.2;
+          enemy.health -= projectile.damage * 0.20;
+          spawnLetZone(
+            projectile,
+            enemy.position,
+            element: 'Poison',
+            effect: AbilityEffectKind.poison,
+            radius: 58,
+            duration: 3.8,
+            power: projectile.damage * 0.08,
+            visualScale: 0.95,
+          );
+          break;
+        case 'Earth':
+          healCompanionOrShip(projectile.damage * 0.22);
+          break;
+        case 'Spirit':
+          if (enemy.health > 0 &&
+              _rng.nextDouble() <= projectile.effectChance) {
+            enemy.health = 0;
+            killed = true;
+          }
+          break;
+        case 'Crystal':
+          enemy.speed = max(10.0, enemy.speed * 0.10);
+          enemy.driftTimer += 3.5;
+          break;
+        case 'Lightning':
+          damageEnemiesNear(
+            enemy.position,
+            155,
+            projectile.damage * 0.58,
+            exclude: enemy,
+          );
+          break;
+        case 'Ice':
+          enemy.speed = max(8.0, enemy.speed * 0.05);
+          enemy.driftTimer += 3.2;
+          break;
+        case 'Water':
+          damageEnemiesNear(
+            enemy.position,
+            125,
+            projectile.damage * 0.42,
+            exclude: enemy,
+          );
+          break;
+        default:
+          break;
+      }
+      if (killed) resolveLetMeteorKill(projectile, enemy.position);
+    }
+
+    void resolveAbilityKill(Projectile projectile, CosmicEnemy enemy) {
+      if (projectile.abilityFamily == 'let') {
+        resolveLetMeteorKill(projectile, enemy.position);
+        return;
+      }
+      resolveAbilityEffect(projectile.killEffect, projectile, enemy);
+    }
+
+    void resolveAbilityHit(
+      Projectile projectile,
+      CosmicEnemy enemy, {
+      required bool killed,
+    }) {
+      if (projectile.abilityFamily == 'let') {
+        resolveLetMeteorHit(projectile, enemy, killed: killed);
+        return;
+      }
+      resolveAbilityEffect(projectile.hitEffect, projectile, enemy);
+      if (killed) resolveAbilityKill(projectile, enemy);
+    }
+
+    void resolveAbilityPierce(Projectile projectile, CosmicEnemy enemy) {
+      final id = identityHashCode(enemy);
+      if (!projectile.effectHitIds.add(id)) return;
+      resolveAbilityEffect(projectile.pierceEffect, projectile, enemy);
+    }
+
     for (var i = companionProjectiles.length - 1; i >= 0; i--) {
       final p = companionProjectiles[i];
       var transferringToShip = false;
@@ -2853,6 +3289,14 @@ class CosmicGame extends FlameGame with PanDetector {
               radiusMultiplier: 1.5,
               piercing: true,
               visualScale: 1.2,
+              abilityFamily: p.abilityFamily,
+              hitEffect: p.tickEffect == AbilityEffectKind.none
+                  ? p.hitEffect
+                  : p.tickEffect,
+              tickEffect: p.tickEffect,
+              effectPower: p.effectPower * 0.55,
+              effectRadius: p.effectRadius,
+              effectDuration: p.effectDuration,
             ),
           );
         }
@@ -2884,6 +3328,15 @@ class CosmicGame extends FlameGame with PanDetector {
                 visualStyle: p.visualStyle == ProjectileVisualStyle.letShard
                     ? ProjectileVisualStyle.letShard
                     : ProjectileVisualStyle.standard,
+                abilityFamily: p.abilityFamily,
+                hitEffect: p.hitEffect,
+                killEffect: p.killEffect,
+                pierceEffect: p.pierceEffect,
+                tickEffect: p.tickEffect,
+                effectPower: p.effectPower * 0.65,
+                effectRadius: p.effectRadius,
+                effectDuration: p.effectDuration,
+                effectCount: p.effectCount,
               ),
             );
           }
@@ -2917,7 +3370,7 @@ class CosmicGame extends FlameGame with PanDetector {
         final edy = p.position.dy - enemy.position.dy;
         final hitR = enemy.radius + hitRadius;
         if (edx * edx + edy * edy < hitR * hitR) {
-          if (p.spawnLetElementalOnImpact) {
+          if (p.spawnLetElementalOnImpact && p.abilityFamily != 'let') {
             companionProjectiles.addAll(
               createLetImpactFollowupProjectiles(
                 impactPosition: enemy.position,
@@ -2935,7 +3388,11 @@ class CosmicGame extends FlameGame with PanDetector {
           final pierceFalloff = p.piercing
               ? pow(0.7, p.pierceCount).toDouble()
               : 1.0;
+          final wasAlive = enemy.health > 0 && !enemy.dead;
           enemy.health -= p.damage * pierceFalloff;
+          final killedByBase = wasAlive && enemy.health <= 0;
+          resolveAbilityHit(p, enemy, killed: killedByBase);
+          if (p.piercing) resolveAbilityPierce(p, enemy);
           _spawnHitSpark(p.position, elementColor(enemy.element));
           if (!enemy.provoked &&
               (enemy.behavior == EnemyBehavior.feeding ||
@@ -3005,7 +3462,7 @@ class CosmicGame extends FlameGame with PanDetector {
           final bdy = cp.position.dy - boss.position.dy;
           if (bdx * bdx + bdy * bdy <
               (boss.radius + hitRadius) * (boss.radius + hitRadius)) {
-            if (cp.spawnLetElementalOnImpact) {
+            if (cp.spawnLetElementalOnImpact && cp.abilityFamily != 'let') {
               companionProjectiles.addAll(
                 createLetImpactFollowupProjectiles(
                   impactPosition: boss.position,
@@ -3061,7 +3518,7 @@ class CosmicGame extends FlameGame with PanDetector {
           final hitRadius = Projectile.radius * cp.radiusMultiplier;
           if (rdx * rdx + rdy * rdy <
               (rm.radius + hitRadius) * (rm.radius + hitRadius)) {
-            if (cp.spawnLetElementalOnImpact) {
+            if (cp.spawnLetElementalOnImpact && cp.abilityFamily != 'let') {
               companionProjectiles.addAll(
                 createLetImpactFollowupProjectiles(
                   impactPosition: rm.position,
@@ -3110,7 +3567,7 @@ class CosmicGame extends FlameGame with PanDetector {
         final odx = cp.position.dx - opp.position.dx;
         final ody = cp.position.dy - opp.position.dy;
         if (odx * odx + ody * ody < (15 + hitRadius) * (15 + hitRadius)) {
-          if (cp.spawnLetElementalOnImpact) {
+          if (cp.spawnLetElementalOnImpact && cp.abilityFamily != 'let') {
             companionProjectiles.addAll(
               createLetImpactFollowupProjectiles(
                 impactPosition: opp.position,
@@ -7644,8 +8101,7 @@ class CosmicGame extends FlameGame with PanDetector {
               const [0.0, 0.6, 1.0],
             )
             ..strokeWidth = 7.5 * vs
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+            ..strokeCap = StrokeCap.round,
         );
         canvas.drawCircle(
           cpp,

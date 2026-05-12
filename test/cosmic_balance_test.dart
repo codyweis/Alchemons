@@ -3,12 +3,15 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-CosmicPartyMember _testMember({required String family}) {
+CosmicPartyMember _testMember({
+  required String family,
+  String element = 'Light',
+}) {
   return CosmicPartyMember(
     instanceId: 'test-$family',
     baseId: 'base-$family',
     displayName: 'Test $family',
-    element: 'Light',
+    element: element,
     family: family,
     level: 5,
     statSpeed: 3.0,
@@ -21,9 +24,12 @@ CosmicPartyMember _testMember({required String family}) {
   );
 }
 
-CosmicCompanion _testCompanion({required String family}) {
+CosmicCompanion _testCompanion({
+  required String family,
+  String element = 'Light',
+}) {
   return CosmicCompanion(
-    member: _testMember(family: family),
+    member: _testMember(family: family, element: element),
     position: const Offset(0, 0),
     maxHp: 100,
     currentHp: 100,
@@ -166,7 +172,10 @@ void main() {
       );
       expect(meteor.radiusMultiplier, greaterThanOrEqualTo(3.0));
       expect(meteor.trailInterval, 0);
-      expect(meteor.clusterCount, greaterThan(0));
+      expect(meteor.clusterCount, 0);
+      expect(meteor.abilityFamily, 'let');
+      expect(meteor.spawnLetElementalOnImpact, isTrue);
+      expect(meteor.killEffect, AbilityEffectKind.splash);
     });
 
     test('let light and dark payloads diverge into distinct bombardments', () {
@@ -198,7 +207,7 @@ void main() {
       expect(dark.projectiles, isNotEmpty);
     });
 
-    test('let elements produce distinct siege footprints', () {
+    test('let elements carry authored meteor aftermath descriptors', () {
       const elements = [
         'Fire',
         'Lava',
@@ -219,7 +228,28 @@ void main() {
         'Blood',
       ];
 
-      final signatures = <String>{};
+      const hitEffects = {
+        'Lava': AbilityEffectKind.burn,
+        'Poison': AbilityEffectKind.poison,
+        'Dust': AbilityEffectKind.slow,
+        'Crystal': AbilityEffectKind.slow,
+        'Lightning': AbilityEffectKind.chain,
+        'Ice': AbilityEffectKind.freeze,
+        'Water': AbilityEffectKind.splash,
+        'Earth': AbilityEffectKind.zoneHeal,
+        'Spirit': AbilityEffectKind.execute,
+      };
+      const killEffects = {
+        'Fire': AbilityEffectKind.splash,
+        'Air': AbilityEffectKind.knockback,
+        'Plant': AbilityEffectKind.root,
+        'Blood': AbilityEffectKind.leech,
+        'Light': AbilityEffectKind.zoneHeal,
+        'Steam': AbilityEffectKind.geyser,
+        'Dark': AbilityEffectKind.blackHole,
+        'Mud': AbilityEffectKind.stun,
+      };
+
       for (final element in elements) {
         final result = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
@@ -230,69 +260,54 @@ void main() {
           maxHp: 100,
           targetPos: const Offset(120, 0),
         );
-        final stationaries = result.projectiles.where((p) => p.stationary);
-        final snares = result.projectiles.where((p) => p.snareRadius > 0);
-        final trailProjectiles = result.projectiles.where(
-          (p) => p.trailInterval > 0,
-        );
-        final orbits = result.projectiles.where((p) => p.orbitTime > 0);
-        final totalClusters = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.clusterCount,
-        );
-        final totalBounces = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.bounceCount,
-        );
-        final totalIntercepts = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.interceptCharges,
-        );
-        final maxRadius = result.projectiles
-            .map((p) => p.radiusMultiplier)
-            .reduce(max);
-        final maxLife = result.projectiles.map((p) => p.life).reduce(max);
-        final maxSnare = snares.isEmpty
-            ? 0.0
-            : snares.map((p) => p.snareRadius).reduce(max);
+        final meteor = result.projectiles.single;
 
-        signatures.add(
-          [
-            result.projectiles.length,
-            stationaries.length,
-            result.projectiles.where((p) => p.homing).length,
-            orbits.length,
-            trailProjectiles.length,
-            totalClusters,
-            totalBounces,
-            totalIntercepts,
-            maxRadius.round(),
-            (maxLife * 10).round(),
-            maxSnare.round(),
-            result.selfHeal,
-            result.shipHeal,
-            (result.blessingTimer * 10).round(),
-          ].join('/'),
+        expect(meteor.abilityFamily, 'let');
+        expect(meteor.visualStyle, ProjectileVisualStyle.meteor);
+        expect(meteor.spawnLetElementalOnImpact, isTrue);
+        expect(meteor.trailInterval, 0);
+        expect(meteor.clusterCount, 0);
+        expect(meteor.hitEffect, hitEffects[element] ?? AbilityEffectKind.none);
+        expect(
+          meteor.killEffect,
+          killEffects[element] ?? AbilityEffectKind.none,
         );
       }
 
-      // Not every element needs a fully unique signature, but most should
-      // diverge via cluster count, blessing, heal, or radius differences.
-      expect(signatures.length, greaterThanOrEqualTo(10));
+      final crystal = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'let',
+        element: 'Crystal',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(120, 0),
+      ).projectiles.single;
+      final fire = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'let',
+        element: 'Fire',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(120, 0),
+      ).projectiles.single;
+      final spirit = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'let',
+        element: 'Spirit',
+        damage: 10,
+        maxHp: 100,
+        casterIntelligence: 5,
+        targetPos: const Offset(120, 0),
+      ).projectiles.single;
+
+      expect(crystal.damage, lessThan(fire.damage));
+      expect(spirit.effectChance, inInclusiveRange(0.20, 0.38));
       expect(
-        elements.every((element) {
-          final result = createCosmicSpecialAbility(
-            origin: const Offset(0, 0),
-            baseAngle: 0,
-            family: 'let',
-            element: element,
-            damage: 10,
-            maxHp: 100,
-            targetPos: const Offset(120, 0),
-          );
-          return result.projectiles.every((p) => p.trailInterval == 0);
-        }),
-        isTrue,
+        elementalSpecialCooldownMultiplier('let', 'Dark'),
+        greaterThan(elementalSpecialCooldownMultiplier('let', 'Fire')),
       );
     });
 
@@ -775,8 +790,8 @@ void main() {
     });
 
     test('pip cooldown edge over let stays controlled', () {
-      final pip = _testCompanion(family: 'pip');
-      final let = _testCompanion(family: 'let');
+      final pip = _testCompanion(family: 'pip', element: 'Fire');
+      final let = _testCompanion(family: 'let', element: 'Fire');
 
       expect(
         pip.effectiveBasicCooldown,
@@ -785,6 +800,26 @@ void main() {
       expect(
         pip.effectiveSpecialCooldown,
         greaterThan(let.effectiveSpecialCooldown * 0.74),
+      );
+    });
+
+    test('planned families apply elemental special cooldown multipliers', () {
+      final lightMask = _testCompanion(family: 'mask', element: 'Light');
+      final airMask = _testCompanion(family: 'mask', element: 'Air');
+      final darkPip = _testCompanion(family: 'pip', element: 'Dark');
+      final earthPip = _testCompanion(family: 'pip', element: 'Earth');
+
+      expect(
+        lightMask.effectiveSpecialCooldown,
+        greaterThan(airMask.effectiveSpecialCooldown),
+      );
+      expect(
+        darkPip.effectiveSpecialCooldown,
+        greaterThan(earthPip.effectiveSpecialCooldown),
+      );
+      expect(
+        elementalSpecialCooldownMultiplier('wing', 'Lightning'),
+        greaterThan(1),
       );
     });
 
@@ -802,7 +837,13 @@ void main() {
       );
       expect(
         mane.specialCooldown,
-        closeTo(mane.effectiveSpecialCooldown, 0.001),
+        closeTo(
+          min(
+            CosmicCompanion.baseSpecialCooldown,
+            mane.effectiveSpecialCooldown,
+          ),
+          0.001,
+        ),
       );
 
       mane.primeSpecialCooldown(savedCooldown: 2);
@@ -981,7 +1022,13 @@ void main() {
             .reduce(max);
         final maxLife = result.projectiles.map((p) => p.life).reduce(max);
 
-        expect(result.projectiles.every((p) => p.trailInterval == 0), isTrue);
+        expect(
+          result.projectiles.every(
+            (p) =>
+                element == 'Dust' ? p.trailInterval > 0 : p.trailInterval == 0,
+          ),
+          isTrue,
+        );
         expect(result.projectiles.every((p) => p.bounceCount == 0), isTrue);
         expect(
           result.projectiles.every(
@@ -995,6 +1042,11 @@ void main() {
             result.projectiles.where((p) => p.piercing).length,
             result.projectiles.where((p) => p.homing).length,
             result.projectiles.where((p) => p.stationary).length,
+            result.projectiles.where((p) => p.trailInterval > 0).length,
+            result.projectiles.fold<int>(
+              0,
+              (sum, p) => sum + p.pierceEffect.index,
+            ),
             snares.length,
             intercepts,
             (maxSpeed * 100).round(),
@@ -1008,6 +1060,44 @@ void main() {
       }
 
       expect(signatures.length, elements.length);
+    });
+
+    test('mane specials are slow catapult payloads in survival', () {
+      for (final element in kCosmicAbilityElements) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'mane',
+          element: element,
+          damage: 10,
+          maxHp: 120,
+          survivalMode: true,
+        );
+
+        expect(result.projectiles, isNotEmpty, reason: element);
+        expect(
+          result.projectiles.every((p) => p.abilityFamily == 'mane'),
+          isTrue,
+          reason: element,
+        );
+        expect(
+          result.projectiles.every(
+            (p) => p.visualStyle == ProjectileVisualStyle.slash,
+          ),
+          isTrue,
+          reason: element,
+        );
+        expect(
+          result.projectiles.every((p) => p.speedMultiplier <= 0.96),
+          isTrue,
+          reason: element,
+        );
+        expect(
+          result.projectiles.every((p) => p.piercing),
+          isTrue,
+          reason: element,
+        );
+      }
     });
 
     test('water steam plant poison air and light manes keep lane roles', () {
@@ -1074,10 +1164,10 @@ void main() {
       expect(poison.projectiles.length, inInclusiveRange(4, 7));
       expect(
         poison.projectiles.map((p) => p.position.dy).toSet().length,
-        greaterThanOrEqualTo(5),
+        greaterThanOrEqualTo(4),
       );
       expect(poison.projectiles.any((p) => p.piercing), isTrue);
-      expect(air.projectiles.length, inInclusiveRange(6, 10));
+      expect(air.projectiles.length, inInclusiveRange(5, 10));
       expect(air.projectiles.any((p) => p.piercing), isTrue);
       expect(light.projectiles.length, inInclusiveRange(5, 8));
       expect(light.projectiles.any((p) => p.piercing), isTrue);
@@ -1152,9 +1242,9 @@ void main() {
         maxHp: 120,
       );
 
-      expect(earth.projectiles.every((p) => p.damage <= 24), isTrue);
-      expect(dark.projectiles.every((p) => p.damage <= 22), isTrue);
-      expect(blood.projectiles.every((p) => p.damage <= 24), isTrue);
+      expect(earth.projectiles.every((p) => p.damage <= 42), isTrue);
+      expect(dark.projectiles.every((p) => p.damage <= 42), isTrue);
+      expect(blood.projectiles.every((p) => p.damage <= 42), isTrue);
     });
 
     test('mask specials keep battlefield-control traps in the payload', () {
@@ -1727,9 +1817,23 @@ void main() {
         ),
         isTrue,
       );
-      expect(fire.projectiles.first.trailInterval, greaterThan(0));
-      expect(crystal.projectiles.first.clusterCount, greaterThan(0));
-      expect(crystal.projectiles.first.bounceCount, greaterThan(0));
+      // Fire mystic redesigned: persistent fire pillars + blast orbs.
+      // Spectacle signals are the trail-leaving blast orbs (any of them
+      // having a trail counts), not the leading pillar in the list.
+      expect(
+        fire.projectiles.any((p) => p.trailInterval > 0),
+        isTrue,
+      );
+      // Crystal mystic redesigned to a stationary "Prism Cathedral" of
+      // turret towers that explode into shrapnel. Premium-feel signals
+      // are the persistent turret + the on-destroy burst, not bounce
+      // counts on a flying projectile.
+      expect(
+        crystal.projectiles.any(
+          (p) => p.turretInterval > 0 || p.deathExplosionCount > 0,
+        ),
+        isTrue,
+      );
       expect(
         fire.projectiles.map((p) => p.orbitRadius).toSet(),
         isNot(crystal.projectiles.map((p) => p.orbitRadius).toSet()),

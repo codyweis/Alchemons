@@ -42,7 +42,7 @@ Future<void> playHatchingCinematicAlchemy({
   Duration totalDuration = const Duration(milliseconds: 4200), // Faster!
   HatchHintType hintType = HatchHintType.normal,
   Color? variantColor, // For variant hints
-  CinematicQuality quality = CinematicQuality.high,
+  CinematicQuality quality = CinematicQuality.performance,
 }) async {
   await Navigator.of(context).push(
     PageRouteBuilder(
@@ -82,7 +82,7 @@ class _HatchingCinematicPage extends StatefulWidget {
     this.totalDuration = const Duration(milliseconds: 4200),
     this.hintType = HatchHintType.normal,
     this.variantColor,
-    this.quality = CinematicQuality.high,
+    this.quality = CinematicQuality.performance,
   });
 
   @override
@@ -237,8 +237,8 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     }
 
     final qualityMultiplier = switch (widget.quality) {
-      CinematicQuality.high => 2.1,
       CinematicQuality.balanced => 1.0,
+      CinematicQuality.performance => 1.0,
     };
 
     final combinedScale = (scale * qualityMultiplier).clamp(0.10, 2.45);
@@ -337,8 +337,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
           animation: _timeline,
           builder: (context, _) {
             final t = _timeline.value;
-            final highQualityEffects =
-                widget.quality == CinematicQuality.high && !_reducedEffects;
+            final highQualityEffects = !_reducedEffects;
 
             // Whiteout at reveal
             final whiteout = _intervalValue(

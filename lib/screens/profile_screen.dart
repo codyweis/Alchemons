@@ -199,7 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _wildernessEnabled = true;
   bool _extractionsEnabled = true;
   bool _notificationPrefsLoaded = false;
-  CinematicQuality _cinematicQuality = CinematicQuality.high;
+  CinematicQuality _cinematicQuality = CinematicQuality.performance;
   bool _cinematicQualityLoaded = false;
   bool _saveTransferBusy = false;
   int _cosmicHintPage = 0;
@@ -1301,16 +1301,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('CINEMATIC QUALITY', style: _label(t)),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Extraction and hatch visual intensity',
-                                style: _body(t).copyWith(fontSize: 10),
-                              ),
-                            ],
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text('VISUAL EFFECT', style: _label(t)),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1748,8 +1741,8 @@ class _CinematicQualitySelector extends StatelessWidget {
 
   String _labelFor(CinematicQuality quality) {
     return switch (quality) {
-      CinematicQuality.high => 'HIGH',
       CinematicQuality.balanced => 'BALANCED',
+      CinematicQuality.performance => 'PERFORMANCE',
     };
   }
 
