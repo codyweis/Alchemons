@@ -242,6 +242,16 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                   (_) => _maybeResync(slot),
                 );
 
+                final isLight = !theme.isDark;
+                final overlayTint = isLight ? const Color(0xFF1B1D29) : Colors.black;
+                final vignetteAlpha = isLight ? .18 : .5;
+                final bottomFadeAlpha = isLight ? .28 : .65;
+                // In light mode the panel is white, so a near-black disc keeps
+                // the rarity-tinted % text legible (mirrors the dark-mode look).
+                final progressDiscBg = isLight
+                    ? const Color(0xFF1B1D29).withValues(alpha: .82)
+                    : Colors.black.withValues(alpha: .45);
+
                 final parentTypes = _extractParentTypes(slot);
                 final payload = slot.payloadJson == null || slot.payloadJson!.isEmpty
                     ? const <String, dynamic>{}
@@ -292,7 +302,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                 radius: 0.85,
                                 colors: [
                                   Colors.transparent,
-                                  Colors.black.withValues(alpha: .5),
+                                  overlayTint.withValues(alpha: vignetteAlpha),
                                 ],
                               ),
                             ),
@@ -311,7 +321,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                   end: Alignment.bottomCenter,
                                   colors: [
                                     Colors.transparent,
-                                    Colors.black.withValues(alpha: .65),
+                                    overlayTint.withValues(alpha: bottomFadeAlpha),
                                   ],
                                 ),
                               ),
@@ -346,8 +356,9 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                         child: CircularProgressIndicator(
                                           value: v,
                                           strokeWidth: 5,
-                                          backgroundColor: Colors.white
-                                              .withValues(alpha: .10),
+                                          backgroundColor: isLight
+                                              ? t.borderMid.withValues(alpha: .35)
+                                              : Colors.white.withValues(alpha: .10),
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
                                                 rarityColor,
@@ -359,9 +370,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                         height: 72,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: Colors.black.withValues(
-                                            alpha: .45,
-                                          ),
+                                          color: progressDiscBg,
                                           border: Border.all(
                                             color: rarityColor.withValues(
                                               alpha: .3,
