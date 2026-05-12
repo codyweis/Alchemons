@@ -162,14 +162,6 @@ class ExtractionDialogState extends State<ExtractionDialog>
                                   decoration: BoxDecoration(
                                     color: rarityColor,
                                     borderRadius: BorderRadius.circular(2),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: rarityColor.withValues(
-                                          alpha: .5,
-                                        ),
-                                        blurRadius: 8,
-                                      ),
-                                    ],
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -401,6 +393,94 @@ class _ParticleBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// READY MEDALLION
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ReadyMedallion extends StatefulWidget {
+  const _ReadyMedallion({required this.rarityColor, required this.isLight});
+
+  final Color rarityColor;
+  final bool isLight;
+
+  @override
+  State<_ReadyMedallion> createState() => _ReadyMedallionState();
+}
+
+class _ReadyMedallionState extends State<_ReadyMedallion>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final discBg = widget.isLight
+        ? const Color(0xFF1B1D29).withValues(alpha: .82)
+        : Colors.black.withValues(alpha: .45);
+
+    return AnimatedBuilder(
+      animation: _pulseCtrl,
+      builder: (context, _) {
+        final t = Curves.easeInOut.transform(_pulseCtrl.value);
+        final ringAlpha = 0.35 + (t * 0.45);
+        return SizedBox(
+          width: 96,
+          height: 96,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 92,
+                height: 92,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: widget.rarityColor.withValues(alpha: ringAlpha),
+                    width: 2,
+                  ),
+                ),
+              ),
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: discBg,
+                  border: Border.all(
+                    color: widget.rarityColor.withValues(alpha: .55),
+                    width: 1,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.check_rounded,
+                    color: widget.rarityColor,
+                    size: 36,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

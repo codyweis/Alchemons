@@ -88,13 +88,6 @@ class _StorageSectionState extends State<StorageSection> {
                 color: t.bg2,
                 borderRadius: BorderRadius.circular(5),
                 border: Border.all(color: t.borderDim, width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: t.bg0.withValues(alpha: theme.isDark ? 0.22 : 0.05),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,15 +216,6 @@ class _StorageSectionState extends State<StorageSection> {
           color: background,
           borderRadius: BorderRadius.circular(5),
           border: Border.all(color: border, width: 1),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: rim.withValues(alpha: theme.isDark ? 0.16 : 0.08),
-                    blurRadius: 12,
-                    spreadRadius: 0.5,
-                  ),
-                ]
-              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -463,12 +447,11 @@ class _StorageEggCardState extends State<StorageEggCard>
       child: ListenableBuilder(
         listenable: _pulseController,
         builder: (context, child) {
-          final pulse = _pulseController.value;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 350),
             curve: Curves.easeOut,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(5),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -476,20 +459,11 @@ class _StorageEggCardState extends State<StorageEggCard>
               ),
               border: Border.all(
                 color: borderColor,
-                width: isReady ? 1.4 : 0.8,
+                width: isReady ? 1.2 : 0.8,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: (isReady ? borderColor : skin.frameEnd).withValues(
-                    alpha: isReady ? 0.3 + (pulse * 0.25) : 0.25,
-                  ),
-                  blurRadius: isReady ? 18 + (pulse * 10) : 16,
-                  spreadRadius: isReady ? 1 + (pulse * 1.2) : 1,
-                ),
-              ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(5),
               child: Stack(
                 children: [
                   Positioned.fill(
@@ -522,12 +496,6 @@ class _StorageEggCardState extends State<StorageEggCard>
                           useSimpleFusion: true,
                         ),
                       ),
-                    ),
-                  if (isReady)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _ReadyPulse(pulse: pulse),
                     ),
                   Positioned.fill(
                     child: Center(
@@ -945,16 +913,7 @@ class EggDetailsModal extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [displaySkin.frameStart, displaySkin.frameEnd],
         ),
-        border: Border.all(color: borderColor, width: isReady ? 1.5 : 1),
-        boxShadow: [
-          BoxShadow(
-            color: (isReady ? borderColor : displaySkin.frameEnd).withValues(
-              alpha: isReady ? 0.45 : 0.25,
-            ),
-            blurRadius: isReady ? 24 : 16,
-            spreadRadius: isReady ? 2 : 1,
-          ),
-        ],
+        border: Border.all(color: borderColor, width: isReady ? 1.4 : 1),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(3),
@@ -995,12 +954,6 @@ class EggDetailsModal extends StatelessWidget {
                 ),
               ),
             ),
-            if (isReady)
-              const Positioned(
-                top: 10,
-                right: 10,
-                child: _ReadyPulse(pulse: 1),
-              ),
             // Time remaining badge
             Positioned(
               bottom: 8,
@@ -1487,36 +1440,6 @@ class EggDetailsModal extends StatelessWidget {
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
-      ),
-    );
-  }
-}
-
-class _ReadyPulse extends StatelessWidget {
-  final double pulse;
-
-  const _ReadyPulse({required this.pulse});
-
-  @override
-  Widget build(BuildContext context) {
-    final size = 9 + (pulse * 8);
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const RadialGradient(
-          colors: [Color(0xFFFFF7C2), Color(0xFFFFD700), Color(0x00FFD700)],
-          stops: [0.0, 0.42, 1.0],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFFD700).withValues(alpha: 0.55),
-            blurRadius: 12 + (pulse * 6),
-            spreadRadius: 1 + pulse,
-          ),
-        ],
       ),
     );
   }
