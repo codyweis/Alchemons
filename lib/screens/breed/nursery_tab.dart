@@ -376,7 +376,7 @@ class _NurseryTabState extends State<NurseryTab> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: responsiveCrossAxisCount(context, phoneCols: 2),
-        childAspectRatio: 0.85,
+        childAspectRatio: 1.0,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
