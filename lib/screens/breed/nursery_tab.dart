@@ -8,6 +8,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
+import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
 import 'package:alchemons/widgets/nursery/non_ready_hatch_widget.dart';
 import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
@@ -763,7 +764,7 @@ class _NurseryTabState extends State<NurseryTab> {
               children: [
                 // Header
                 Container(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                   decoration: BoxDecoration(
                     color: t.bg2,
                     border: Border(bottom: BorderSide(color: t.borderMid)),
@@ -772,13 +773,13 @@ class _NurseryTabState extends State<NurseryTab> {
                     children: [
                       Container(
                         width: 3,
-                        height: 28,
+                        height: 24,
                         decoration: BoxDecoration(
                           color: primaryColor,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -787,9 +788,9 @@ class _NurseryTabState extends State<NurseryTab> {
                               'ACCELERATE DEVELOPMENT',
                               style: TextStyle(
                                 color: theme.text,
-                                fontSize: 14,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: 1.2,
+                                letterSpacing: 1.0,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -797,7 +798,7 @@ class _NurseryTabState extends State<NurseryTab> {
                               'Remaining: ${BreedConstants.formatRemaining(remaining)}',
                               style: TextStyle(
                                 color: theme.textMuted,
-                                fontSize: 11,
+                                fontSize: 10.5,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -810,7 +811,7 @@ class _NurseryTabState extends State<NurseryTab> {
 
                 // Options
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                   child: Column(
                     children: [
                       _buildAccelerationOption(
@@ -828,7 +829,7 @@ class _NurseryTabState extends State<NurseryTab> {
                           'Half',
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       _buildAccelerationOption(
                         theme: theme,
                         t: t,
@@ -844,27 +845,20 @@ class _NurseryTabState extends State<NurseryTab> {
                           'Full',
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      Container(
-                        height: 1,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              primaryColor.withValues(alpha: .25),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _DiscardButton(
-                        label: 'CANCEL',
-                        color: theme.textMuted,
-                        filled: false,
-                        onTap: () => Navigator.of(context).pop(),
-                      ),
                     ],
                   ),
+                ),
+                CultivationDialogActionArea(
+                  tokens: t,
+                  children: [
+                    CultivationDialogButton(
+                      tokens: t,
+                      label: 'CANCEL',
+                      icon: Icons.close_rounded,
+                      accentColor: t.textSecondary,
+                      onTap: () => Navigator.of(context).pop(),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -900,7 +894,7 @@ class _NurseryTabState extends State<NurseryTab> {
             border: Border.all(color: accentColor.withValues(alpha: .35)),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
             child: Row(
               children: [
                 Expanded(
@@ -911,27 +905,27 @@ class _NurseryTabState extends State<NurseryTab> {
                         title,
                         style: TextStyle(
                           color: accentColor,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 1.0,
+                          letterSpacing: 0.8,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2),
                       Text(
                         subtitle,
                         style: TextStyle(
                           color: theme.textMuted,
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.access_time_rounded,
-                            size: 11,
+                            size: 10,
                             color: accentColor.withValues(alpha: .7),
                           ),
                           const SizedBox(width: 4),
@@ -941,7 +935,7 @@ class _NurseryTabState extends State<NurseryTab> {
                               color: accentColor.withValues(alpha: .85),
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              letterSpacing: .4,
+                              letterSpacing: .3,
                             ),
                           ),
                         ],
@@ -949,12 +943,12 @@ class _NurseryTabState extends State<NurseryTab> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                // Gold cost badge
+                const SizedBox(width: 10),
+                // Gold cost pill
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
+                    horizontal: 8,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF59E0B).withValues(alpha: .12),
@@ -963,19 +957,20 @@ class _NurseryTabState extends State<NurseryTab> {
                       color: const Color(0xFFF59E0B).withValues(alpha: .45),
                     ),
                   ),
-                  child: Column(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
                         Icons.monetization_on_rounded,
                         color: Color(0xFFF59E0B),
-                        size: 16,
+                        size: 13,
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(width: 5),
                       Text(
                         cost.toString(),
                         style: const TextStyle(
                           color: Color(0xFFF59E0B),
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w900,
                           letterSpacing: .3,
                         ),
