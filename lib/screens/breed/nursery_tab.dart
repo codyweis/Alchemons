@@ -458,13 +458,6 @@ class _NurseryTabState extends State<NurseryTab> {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(2),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: .5),
-                blurRadius: 7,
-                spreadRadius: 1,
-              ),
-            ],
           ),
         ),
         const SizedBox(width: 10),
@@ -604,12 +597,6 @@ class _NurseryTabState extends State<NurseryTab> {
                         decoration: BoxDecoration(
                           color: t.danger,
                           borderRadius: BorderRadius.circular(2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: t.danger.withValues(alpha: .45),
-                              blurRadius: 8,
-                            ),
-                          ],
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -789,12 +776,6 @@ class _NurseryTabState extends State<NurseryTab> {
                         decoration: BoxDecoration(
                           color: primaryColor,
                           borderRadius: BorderRadius.circular(2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withValues(alpha: .5),
-                              blurRadius: 8,
-                            ),
-                          ],
                         ),
                       ),
                       const SizedBox(width: 12),

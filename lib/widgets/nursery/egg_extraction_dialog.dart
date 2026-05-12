@@ -162,14 +162,6 @@ class ExtractionDialogState extends State<ExtractionDialog>
                                   decoration: BoxDecoration(
                                     color: rarityColor,
                                     borderRadius: BorderRadius.circular(2),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: rarityColor.withValues(
-                                          alpha: .5,
-                                        ),
-                                        blurRadius: 8,
-                                      ),
-                                    ],
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -437,8 +429,7 @@ class _ReadyMedallionState extends State<_ReadyMedallion>
       animation: _pulseCtrl,
       builder: (context, _) {
         final t = Curves.easeInOut.transform(_pulseCtrl.value);
-        final ringAlpha = 0.25 + (t * 0.45);
-        final glowSpread = 4.0 + (t * 6.0);
+        final ringAlpha = 0.35 + (t * 0.45);
         return SizedBox(
           width: 96,
           height: 96,
@@ -454,13 +445,6 @@ class _ReadyMedallionState extends State<_ReadyMedallion>
                     color: widget.rarityColor.withValues(alpha: ringAlpha),
                     width: 2,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.rarityColor.withValues(alpha: ringAlpha * .7),
-                      blurRadius: glowSpread,
-                      spreadRadius: 1,
-                    ),
-                  ],
                 ),
               ),
               Container(

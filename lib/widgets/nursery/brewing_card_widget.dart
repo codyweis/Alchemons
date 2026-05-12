@@ -95,25 +95,26 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
     final shortestSide = media.size.shortestSide;
     int particleCount;
     if (shortestSide < 380) {
-      particleCount = 18;
+      particleCount = 28;
     } else if (shortestSide < 430) {
-      particleCount = 24;
+      particleCount = 38;
     } else {
-      particleCount = 30;
+      particleCount = 48;
     }
 
-    // Apply quality multiplier first ...
+    // Ready state gets a slight boost for a livelier finished look.
+    if (widget.isReady) {
+      particleCount += 8;
+    }
+
     final qualityMultiplier = switch (widget.quality) {
       CinematicQuality.balanced => 1.0,
-      CinematicQuality.performance => 0.45,
+      CinematicQuality.performance => 0.6,
     };
-    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 72);
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 96);
 
-    // FIX: ... then cap for deferred loading. Previously deferEffects ran
-    // before the quality multiply, so high quality + defer gave 16 instead
-    // of 8. Now the cap is applied to the already-scaled count.
     if (deferEffects) {
-      particleCount = math.min(particleCount, 8);
+      particleCount = math.min(particleCount, 12);
     }
 
     final showParticles =
@@ -140,29 +141,10 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
                         : theme.text.withValues(alpha: 0.5)),
               width: widget.isReady ? 1.0 : 0.5,
             ),
-            boxShadow: widget.isReady
-                ? [
-                    BoxShadow(
-                      color: (isBloodborn
-                              ? kBloodbornSecondary
-                              : const Color(0xFFFFD700))
-                          .withValues(alpha: 0.18),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                    BoxShadow(
-                      color: (isBloodborn
-                              ? kBloodbornPrimary
-                              : const Color(0xFFFFD700))
-                          .withValues(alpha: 0.08),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : null,
+            boxShadow: null,
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(5),
             child: Stack(
               children: [
                 if (showParticles &&
@@ -181,20 +163,6 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
                       theme: widget.theme,
                     ),
                   ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: Alignment.center,
-                        radius: 1.0,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.1),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),

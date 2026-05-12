@@ -58,23 +58,22 @@ class CultivationDialogButton extends StatelessWidget {
     final highlighted = emphasis == CultivationDialogButtonEmphasis.primary;
     final destructive = emphasis == CultivationDialogButtonEmphasis.danger;
     final baseColor = destructive ? tokens.danger : accentColor;
-    final filled = useSolidBackground && !destructive;
+    // Primary emphasis fills by default so it reads as the active action.
+    final filled = (useSolidBackground || highlighted) && !destructive;
     final backgroundColor = filled
         ? baseColor
-        : highlighted
+        : destructive
         ? baseColor.withValues(alpha: tokens.isDark ? 0.14 : 0.10)
         : tokens.bg1;
     final borderColor = filled
         ? baseColor
-        : baseColor.withValues(alpha: highlighted ? 0.55 : 0.35);
+        : baseColor.withValues(alpha: 0.45);
     final resolvedForegroundColor =
         foregroundColor ??
-        (destructive
-            ? tokens.danger
-            : filled
+        (filled
             ? Colors.white
-            : highlighted
-            ? baseColor
+            : destructive
+            ? tokens.danger
             : accentColor);
 
     return Material(
@@ -95,15 +94,6 @@ class CultivationDialogButton extends StatelessWidget {
             color: backgroundColor,
             borderRadius: BorderRadius.circular(3),
             border: Border.all(color: borderColor),
-            boxShadow: highlighted
-                ? [
-                    BoxShadow(
-                      color: baseColor.withValues(alpha: filled ? 0.28 : 0.16),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

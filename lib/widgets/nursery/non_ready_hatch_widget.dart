@@ -426,14 +426,6 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                       decoration: BoxDecoration(
                                         color: rarityColor,
                                         borderRadius: BorderRadius.circular(2),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: rarityColor.withValues(
-                                              alpha: .5,
-                                            ),
-                                            blurRadius: 8,
-                                          ),
-                                        ],
                                       ),
                                     ),
                                     const SizedBox(width: 12),
