@@ -236,6 +236,18 @@ class _NurseryTabState extends State<NurseryTab> {
                 .toList()
               ..sort((a, b) => a.id.compareTo(b.id)));
 
+        final totalUnlocked = activeSlots.length + unlockedEmptySlots.length;
+        Duration? nextReady;
+        bool anyReady = false;
+        for (final s in activeSlots) {
+          final rem = _remainingFor(s.hatchAtUtcMs!);
+          if (rem.inSeconds <= 0) {
+            anyReady = true;
+            break;
+          }
+          if (nextReady == null || rem < nextReady) nextReady = rem;
+        }
+
         return TickerMode(
           enabled: !_suspendNurseryAnimations,
           child: Listener(
@@ -254,6 +266,15 @@ class _NurseryTabState extends State<NurseryTab> {
                     'ACTIVE CULTIVATION',
                     Icons.science_rounded,
                     theme.text,
+                    trailing: totalUnlocked == 0
+                        ? null
+                        : _ChamberStatusBadge(
+                            activeCount: activeSlots.length,
+                            totalCount: totalUnlocked,
+                            nextReady: nextReady,
+                            anyReady: anyReady,
+                            theme: theme,
+                          ),
                   ),
                   const SizedBox(height: 12),
                   _buildActiveGridWithPlaceholders(
@@ -422,7 +443,12 @@ class _NurseryTabState extends State<NurseryTab> {
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData _, Color color) {
+  Widget _buildSectionHeader(
+    String title,
+    IconData _,
+    Color color, {
+    Widget? trailing,
+  }) {
     return Row(
       children: [
         // Vertical accent bar with glow
@@ -464,6 +490,10 @@ class _NurseryTabState extends State<NurseryTab> {
             ),
           ),
         ),
+        if (trailing != null) ...[
+          const SizedBox(width: 10),
+          trailing,
+        ],
       ],
     );
   }
@@ -1449,6 +1479,89 @@ class _CornerBracketsPainter extends CustomPainter {
       old.color != color ||
       old.bracketLength != bracketLength ||
       old.bracketWidth != bracketWidth;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHAMBER STATUS BADGE
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ChamberStatusBadge extends StatelessWidget {
+  const _ChamberStatusBadge({
+    required this.activeCount,
+    required this.totalCount,
+    required this.nextReady,
+    required this.anyReady,
+    required this.theme,
+  });
+
+  final int activeCount;
+  final int totalCount;
+  final Duration? nextReady;
+  final bool anyReady;
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    final Color accent;
+    final String statusLabel;
+    final IconData statusIcon;
+
+    if (anyReady) {
+      accent = t.success;
+      statusLabel = 'READY';
+      statusIcon = Icons.check_circle_rounded;
+    } else if (nextReady != null) {
+      accent = theme.text;
+      statusLabel = BreedConstants.formatRemaining(nextReady!);
+      statusIcon = Icons.schedule_rounded;
+    } else {
+      accent = theme.textMuted;
+      statusLabel = 'IDLE';
+      statusIcon = Icons.pause_circle_outline_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: theme.isDark
+            ? accent.withValues(alpha: .10)
+            : accent.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: accent.withValues(alpha: .35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$activeCount/$totalCount',
+            style: TextStyle(
+              color: theme.text,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .6,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(width: 1, height: 10, color: accent.withValues(alpha: .35)),
+          const SizedBox(width: 6),
+          Icon(statusIcon, size: 11, color: accent),
+          const SizedBox(width: 4),
+          Text(
+            statusLabel,
+            style: TextStyle(
+              color: accent,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.0,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -301,6 +301,10 @@ class _ParticleBanner extends StatelessWidget {
     final media = MediaQuery.of(context);
     final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
     final shortestSide = media.size.shortestSide;
+    final isLight = !theme.isDark;
+    final overlayTint = isLight ? const Color(0xFF1B1D29) : Colors.black;
+    final vignetteAlpha = isLight ? .18 : .5;
+    final bottomFadeAlpha = isLight ? .28 : .65;
 
     int particleCount;
     if (shortestSide < 380) {
@@ -354,7 +358,7 @@ class _ParticleBanner extends StatelessWidget {
                 radius: 0.85,
                 colors: [
                   Colors.transparent,
-                  Colors.black.withValues(alpha: .5),
+                  overlayTint.withValues(alpha: vignetteAlpha),
                 ],
               ),
             ),
@@ -373,14 +377,115 @@ class _ParticleBanner extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withValues(alpha: .65),
+                    overlayTint.withValues(alpha: bottomFadeAlpha),
                   ],
                 ),
               ),
             ),
           ),
+
+          // Ready medallion (mirrors the progress disc on the in-progress dialog)
+          Center(
+            child: _ReadyMedallion(rarityColor: rarityColor, isLight: isLight),
+          ),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// READY MEDALLION
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ReadyMedallion extends StatefulWidget {
+  const _ReadyMedallion({required this.rarityColor, required this.isLight});
+
+  final Color rarityColor;
+  final bool isLight;
+
+  @override
+  State<_ReadyMedallion> createState() => _ReadyMedallionState();
+}
+
+class _ReadyMedallionState extends State<_ReadyMedallion>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final discBg = widget.isLight
+        ? const Color(0xFF1B1D29).withValues(alpha: .82)
+        : Colors.black.withValues(alpha: .45);
+
+    return AnimatedBuilder(
+      animation: _pulseCtrl,
+      builder: (context, _) {
+        final t = Curves.easeInOut.transform(_pulseCtrl.value);
+        final ringAlpha = 0.25 + (t * 0.45);
+        final glowSpread = 4.0 + (t * 6.0);
+        return SizedBox(
+          width: 96,
+          height: 96,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 92,
+                height: 92,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: widget.rarityColor.withValues(alpha: ringAlpha),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.rarityColor.withValues(alpha: ringAlpha * .7),
+                      blurRadius: glowSpread,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: discBg,
+                  border: Border.all(
+                    color: widget.rarityColor.withValues(alpha: .55),
+                    width: 1,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.check_rounded,
+                    color: widget.rarityColor,
+                    size: 36,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
