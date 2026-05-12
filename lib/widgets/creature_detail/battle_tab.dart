@@ -92,26 +92,63 @@ class ImprovedBattleScrollArea extends StatelessWidget {
     BattleMove battleBasicMove,
     BattleMove battleSpecialMove,
   ) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _BattleSection(
-            title: 'Combat Profile',
-            color: FC.orange,
-            child: _BossCombatProfileCard(
-              profile: bossProfile,
-              basicMoveName: battleBasicMove.name,
-              specialMoveName: battleSpecialMove.name,
-              specialMoveSummary: BattleMove.specialSummaryForCombatant(
-                bossProfile,
+    // Boss tab shares the same forge-amber section rhythm as the Cosmic
+    // tab so the two tabs read as sibling views, not different design
+    // eras. The orange single-card was the legacy look — broken into
+    // Stats / Moves / Cooldowns / Scaling so each block stands alone.
+    return Builder(
+      builder: (context) {
+        final fc = FC.of(context);
+        final specialMoveSummary = BattleMove.specialSummaryForCombatant(
+          bossProfile,
+        );
+        final specialCooldownTurns = BattleMove.specialCooldownForFamily(
+          bossProfile.family,
+        );
+        final specialRecoveryPerBasic =
+            BattleMove.specialRecoveryPerBasicForCombatant(bossProfile);
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _BattleSection(
+                title: 'Stats',
+                color: fc.amber,
+                child: _BossStatChipsCard(profile: bossProfile, fc: fc),
               ),
-            ),
+              const SizedBox(height: 20),
+              _BattleSection(
+                title: 'Moves',
+                color: fc.amber,
+                child: _BossMovesCard(
+                  fc: fc,
+                  basicMoveName: battleBasicMove.name,
+                  specialMoveName: battleSpecialMove.name,
+                  specialMoveSummary: specialMoveSummary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _BattleSection(
+                title: 'Cooldowns',
+                color: fc.amber,
+                child: _BossCooldownsCard(
+                  fc: fc,
+                  specialCooldownTurns: specialCooldownTurns,
+                  specialRecoveryPerBasic: specialRecoveryPerBasic,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _BattleSection(
+                title: 'Stat Scaling',
+                color: fc.amber,
+                child: _BossStatScalingCard(fc: fc),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -129,6 +166,18 @@ class ImprovedBattleScrollArea extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Stats first — matches Boss tab layout so flipping between
+          // tabs always shows the numerical readout in the same place.
+          _BattleSection(
+            title: 'Stats',
+            color: fc.amber,
+            child: _ExploreStatChipsCard(
+              instance: instance,
+              family: family,
+              fc: fc,
+            ),
+          ),
+          const SizedBox(height: 20),
           _BattleSection(
             title: 'Role',
             color: fc.amber,
@@ -151,12 +200,6 @@ class ImprovedBattleScrollArea extends StatelessWidget {
             title: 'Survival',
             color: fc.amber,
             child: _buildExploreSurvivalCard(family, element, fc),
-          ),
-          const SizedBox(height: 20),
-          _BattleSection(
-            title: 'Stats',
-            color: fc.amber,
-            child: _ExploreStatEffectsCard(family: family),
           ),
         ],
       ),
@@ -239,6 +282,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
   Widget _exploreSpecialCard(String family, String element, FC fc, FT ft) {
     final abilityName = cosmicSpecialAbilityName(family, element);
     final specialInfo = _cosmicFamilySpecialInfo(family, element);
+    final survivalPassive = _survivalElementPassive(family, element);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -272,6 +316,34 @@ class ImprovedBattleScrollArea extends StatelessWidget {
                 height: 1.4,
               ),
             ),
+            if (survivalPassive != null) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Container(width: 3, height: 9, color: fc.amberBright),
+                  const SizedBox(width: 6),
+                  Text(
+                    'SURVIVAL PASSIVE',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: fc.amberBright,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                survivalPassive,
+                style: TextStyle(
+                  color: fc.textSecondary,
+                  fontSize: 11,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ],
         ),
       ],
@@ -522,6 +594,292 @@ Widget _buildExploreSurvivalCard(String family, String element, FC fc) {
       ],
     ],
   );
+}
+
+/// Boss tab: 4 stat chips (HP/ATK/DEF/SPD). Matches the Cosmic tab's
+/// stat-chip layout for visual parity between the two tabs.
+class _BossStatChipsCard extends StatelessWidget {
+  final BattleCombatant profile;
+  final FC fc;
+  const _BossStatChipsCard({required this.profile, required this.fc});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: _chip('HP', profile.maxHp.toString())),
+        const SizedBox(width: 8),
+        Expanded(child: _chip('ATK', profile.physAtk.toString())),
+        const SizedBox(width: 8),
+        Expanded(child: _chip('DEF', profile.physDef.toString())),
+        const SizedBox(width: 8),
+        Expanded(child: _chip('SPD', profile.speed.toString())),
+      ],
+    );
+  }
+
+  Widget _chip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: fc.bg2,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: fc.borderDim),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Boss tab: basic + special move names with the special summary tucked
+/// into an expandable detail block (matches Cosmic tab's expandable
+/// pattern).
+class _BossMovesCard extends StatelessWidget {
+  final FC fc;
+  final String basicMoveName;
+  final String specialMoveName;
+  final String specialMoveSummary;
+  const _BossMovesCard({
+    required this.fc,
+    required this.basicMoveName,
+    required this.specialMoveName,
+    required this.specialMoveSummary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _row('BASIC', basicMoveName),
+        const SizedBox(height: 8),
+        _row('SPECIAL', specialMoveName),
+        const SizedBox(height: 10),
+        _ExpandableDetail(
+          children: [
+            Text(
+              specialMoveSummary,
+              style: TextStyle(
+                color: fc.textSecondary,
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _row(String label, String value) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 76,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Boss tab: cooldown rows pulled out of the old combat-profile card.
+class _BossCooldownsCard extends StatelessWidget {
+  final FC fc;
+  final int specialCooldownTurns;
+  final int specialRecoveryPerBasic;
+  const _BossCooldownsCard({
+    required this.fc,
+    required this.specialCooldownTurns,
+    required this.specialRecoveryPerBasic,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _row('BASIC ACTION', '2 turns'),
+        const SizedBox(height: 6),
+        _row('SPECIAL ACTION', '3 turns'),
+        const SizedBox(height: 6),
+        _row(
+          'SPECIAL CD',
+          '$specialCooldownTurns turn${specialCooldownTurns == 1 ? '' : 's'}',
+        ),
+        const SizedBox(height: 6),
+        _row('CD / BASIC', '$specialRecoveryPerBasic turn(s) recovered'),
+        const SizedBox(height: 6),
+        _row('SPECIAL UNLOCK', 'Level 5'),
+      ],
+    );
+  }
+
+  Widget _row(String label, String value) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Boss tab: stat scaling reference block in its own section.
+class _BossStatScalingCard extends StatelessWidget {
+  final FC fc;
+  const _BossStatScalingCard({required this.fc});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _row(
+          'SPD',
+          'Tempo + Cooldown',
+          'Turn order priority, plus extra special recovery on basics at SPD 2.0 / 3.0 / 4.0 / 4.8.',
+        ),
+        const SizedBox(height: 8),
+        _row(
+          'INT',
+          'Elemental Power',
+          'Raises elemental attack and boosts DoT/regen effect scaling.',
+        ),
+        const SizedBox(height: 8),
+        _row(
+          'BEAUTY',
+          'Elemental Defense',
+          'Raises elemental defense and adds to physical defense.',
+        ),
+        const SizedBox(height: 8),
+        _row(
+          'STR',
+          'Physical Core',
+          'Raises max HP, physical attack, and physical defense.',
+        ),
+      ],
+    );
+  }
+
+  Widget _row(String stat, String title, String effect) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: fc.bg3,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: fc.borderDim),
+          ),
+          child: Text(
+            stat,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textPrimary,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: fc.amberBright,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                effect,
+                style: TextStyle(
+                  color: fc.textSecondary,
+                  fontSize: 11,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _BossCombatProfileCard extends StatelessWidget {
@@ -1230,6 +1588,186 @@ class _CosmicSpecialInfo {
   });
 }
 
+/// Returns the survival-mode passive identity for a given (family, element)
+/// pair, or null when there is no special passive. These describe the
+/// in-game *passive* mechanics players should know about — things that
+/// trigger automatically beyond just casting the special.
+String? _survivalElementPassive(String family, String element) {
+  switch (family) {
+    case 'Pip':
+      switch (element) {
+        case 'Plant':
+          return 'Killed enemies grant +50% alchemy meter on death.';
+        case 'Earth':
+          return 'Each basic attack shaves 0.4s off the special cooldown.';
+        case 'Spirit':
+          return '8 credited kills empower this Pip for 6s — basic attacks ~55% faster.';
+        case 'Steam':
+          return 'Permanent steam aura — basic attacks fire ~35% faster.';
+        case 'Mud':
+          return 'Hit enemies are tagged: they continuously drop mud trail puffs that slow other enemies.';
+        case 'Poison':
+          return 'Each basic-hit draws a persistent poison line of zones from the previous hit to the new one.';
+        case 'Fire':
+          return 'Kills drop a persistent burning fire pool DoT zone.';
+        case 'Dust':
+          return 'Kills drop a slowing dust cloud zone.';
+        case 'Crystal':
+          return 'Kills drop a stationary taunting crystal that pulls enemy aggro for ~9s.';
+        case 'Dark':
+          return 'Kills create a black-hole pull at the kill site.';
+        case 'Lightning':
+          return 'Double the ricochet — bounce count is the highest in the family.';
+        case 'Lava':
+          return 'Each pierce drops a lava blob DoT zone at the enemy.';
+      }
+      return null;
+    case 'Mane':
+      switch (element) {
+        case 'Plant':
+          return 'Pierced enemies are rooted; if they die while rooted, they explode in a 130-radius AOE.';
+        case 'Light':
+          return 'Each pierce grows the projectile — damage, radius, and visual scale up per hit.';
+        case 'Lava':
+          return 'Each pierce drops a persistent lava blob DoT zone behind.';
+        case 'Crystal':
+          return 'Direct boss collision deals 25× damage + 200-radius AOE.';
+        case 'Water':
+          return 'Pierce drags enemies along the projectile path instead of pushing them back.';
+        case 'Mud':
+          return 'Survival: first enemy hit splits the projectile into 10 fragments in a ring.';
+        case 'Spirit':
+          return 'Survival: each cast adds another full barrage (1→10 stacks, then resets).';
+        case 'Earth':
+          return 'Survival: cast becomes a single massive boulder that shrinks while shedding shards along its path.';
+        case 'Lightning':
+          return 'Survival: cast plants 5–10 stationary lightning rods that chain-zap nearby enemies.';
+        case 'Steam':
+          return 'Survival: cast becomes a traveling geyser that drops persistent steam puffs along its path.';
+      }
+      return null;
+    case 'Wing':
+      switch (element) {
+        case 'Dark':
+          return 'Auto-attacks and laser pulses fire 2× as fast (cooldowns halved).';
+        case 'Plant':
+          return 'Beam-killed enemies leave flower pickups; orb collects them to permanently power up the beam (+4% damage per flower, capped at +200%).';
+        case 'Mud':
+          return 'Hit enemies are permanently slowed (60s effect duration).';
+        case 'Dust':
+          return 'Hit shooter enemies are disoriented — they shoot other enemies instead of allies.';
+        case 'Lava':
+          return 'Beam tip drops persistent ground-scar burn zones, painting a damaging line across the field.';
+      }
+      return null;
+    case 'Mask':
+      switch (element) {
+        case 'Spirit':
+          return 'Kills credited to this Mask stack wisps; 6 kills triggers a 220-radius AOE wisp burst.';
+        case 'Ice':
+          return 'Ice pillar broadcasts a ×2.4 damage amp to all allies within range while active.';
+        case 'Plant':
+          return 'Vine snare grows in radius and slow-strength over the trap’s lifetime.';
+        case 'Light':
+          return 'Survival: traps become stationary execute voids that persist until expiring.';
+        case 'Air':
+          return 'Survival: spawns 8–18 stationary gust pads instead of homing seekers.';
+      }
+      return null;
+    case 'Let':
+      switch (element) {
+        case 'Plant':
+          return 'Kill spawns 4 root zones whose effect radius grows over time.';
+        case 'Spirit':
+          return '20% chance per hit to instantly kill — scales up to 38% with Intelligence.';
+        case 'Crystal':
+          return 'Cooldown halved, damage reduced 42%, but on impact slows enemies by 90%.';
+        case 'Dark':
+          return 'Each kill spawns 2–5 follow-up meteors (twice as big) targeting nearby enemies. Chain capped to one generation.';
+        case 'Steam':
+          return 'Kill spawns a persistent geyser zone that pushes enemies (~24–40s in survival).';
+        case 'Light':
+          return 'Kill spawns a persistent heal pool that heals allies and ship.';
+        case 'Blood':
+          return 'Kill drains nearby enemies; drained HP heals every alchemon + ship.';
+        case 'Air':
+          return 'Kill blows back all surrounding enemies in 180 radius.';
+        case 'Earth':
+          return 'On collision, heals the lowest-HP ally or ship for percent of damage dealt.';
+        case 'Fire':
+          return 'Kill triggers a big AOE explosion damaging nearby enemies.';
+        case 'Mud':
+          return 'Kill spawns a persistent stun pool.';
+      }
+      return null;
+    case 'Kin':
+      switch (element) {
+        case 'Dark':
+          return 'Signature aura: orbs continuously pull enemies inward (black-hole tick).';
+        case 'Fire':
+          return 'Signature aura: orbs ignite enemies in range with persistent burn ticks.';
+        case 'Water':
+          return 'Signature aura: orbs continuously heal orb + ship as they orbit.';
+        case 'Ice':
+          return 'Signature aura: orbs freeze enemies caught in their orbit zone.';
+        case 'Lightning':
+          return 'Signature aura: orbs chain-zap enemies (3-target chain per tick) — formation crackles together.';
+        case 'Spirit':
+          return 'Signature aura: orbs execute low-HP enemies caught in their orbit.';
+        case 'Blood':
+          return 'Signature aura: orbs leech HP from enemies, healing orb + ship.';
+        case 'Plant':
+          return 'Signature aura: orbs root enemies in the orbit zone.';
+        case 'Poison':
+          return 'Signature aura: orbs stack poison DoT on enemies in range.';
+        case 'Mud':
+          return 'Signature aura: orbs slow-stack enemies + heavy snare + taunt.';
+        case 'Air':
+          return 'Signature aura: orbs continuously blow back approaching enemies.';
+        case 'Earth':
+          return 'Signature aura: orbs briefly stun enemies caught in their taunt — monolith turns them to stone.';
+        case 'Steam':
+          return 'Signature aura: orbs erupt geyser-pulses on enemies stuck in the fog.';
+        case 'Light':
+          return 'Signature aura: orbs continuously heal orb + ship; ship-orbital + intercept defense.';
+        case 'Crystal':
+          return 'Signature aura: piercing prism turrets + local splash damage.';
+        case 'Dust':
+          return 'Signature aura: orbs suppress shooting — shooters caught in the swarm can’t fire.';
+        case 'Lava':
+          return 'Signature: massive piercing boulders (not little orbs) + burn aura.';
+      }
+      return null;
+    case 'Mystic':
+      switch (element) {
+        case 'Blood':
+          return 'Crimson font + satellite blood pools, each periodically summoning Blood Thralls that hunt enemies. Pools leech HP → heal orb + ship.';
+        case 'Lightning':
+          return 'Plants 4–9 persistent storm rods in a ring; each fires chain lightning at nearby enemies.';
+        case 'Crystal':
+          return '5–8 stationary prism towers fire splitting crystal shards; explode into shrapnel when destroyed.';
+        case 'Dust':
+          return 'Central sandstorm zone suppresses shooting + slows; golden-spiral mote swarm rakes the storm.';
+        case 'Fire':
+          return 'Persistent ring of fire pillars + blast orbs that charge and home back.';
+        case 'Lava':
+          return 'Boulders drop persistent magma pools every 0.45s, painting long lava furrows.';
+        case 'Water':
+          return 'Persistent tidepool at convergence point heals allies + damages enemies. Plus ship blessing tick.';
+        case 'Ice':
+          return 'Inner ring of permanent freezing pillars + outer ring of launching ice lances.';
+        case 'Poison':
+          return 'Stationary venom field at target — central super-cloud + 4–8 satellite clouds.';
+        case 'Dark':
+          return 'Gravity wells that actively pull + execute low-HP enemies (black-hole ticks).';
+        case 'Spirit':
+          return 'Reaper bolts — slow homing wraiths that execute low-HP enemies on contact.';
+      }
+      return null;
+  }
+  return null;
+}
+
 _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
   switch (family) {
     case 'Horn':
@@ -1909,6 +2447,125 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPLORE STAT EFFECTS CARD
 // ─────────────────────────────────────────────────────────────────────────────
+/// Stat chips for the COSMIC tab — shows actual derived combat numbers
+/// (HP, physical/elemental ATK + DEF, cooldown reduction, crit) the way
+/// Boss tab shows its stat chips, so both tabs read like the same UI.
+class _ExploreStatChipsCard extends StatelessWidget {
+  final CreatureInstance instance;
+  final String family;
+  final FC fc;
+
+  const _ExploreStatChipsCard({
+    required this.instance,
+    required this.family,
+    required this.fc,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hp = CosmicBalance.companionMaxHp(
+      level: instance.level,
+      strength: instance.statStrength,
+      intelligence: instance.statIntelligence,
+    );
+    final physAtk = CosmicBalance.companionPhysAtk(
+      level: instance.level,
+      strength: instance.statStrength,
+    );
+    final elemAtk = CosmicBalance.companionElemAtk(
+      level: instance.level,
+      beauty: instance.statBeauty,
+    );
+    final physDef = CosmicBalance.companionPhysDef(
+      level: instance.level,
+      strength: instance.statStrength,
+      intelligence: instance.statIntelligence,
+    );
+    final elemDef = CosmicBalance.companionElemDef(
+      level: instance.level,
+      beauty: instance.statBeauty,
+      intelligence: instance.statIntelligence,
+    );
+    final cdr = CosmicBalance.companionCooldownReduction(instance.statSpeed);
+    final crit = CosmicBalance.companionCritChance(instance.statStrength);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top row: durability + offense at a glance
+        Row(
+          children: [
+            Expanded(child: _statChip('HP', hp.toString(), fc)),
+            const SizedBox(width: 8),
+            Expanded(child: _statChip('PHYS ATK', physAtk.toString(), fc)),
+            const SizedBox(width: 8),
+            Expanded(child: _statChip('ELEM ATK', elemAtk.toString(), fc)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Bottom row: defenses + tempo/crit
+        Row(
+          children: [
+            Expanded(child: _statChip('PHYS DEF', physDef.toString(), fc)),
+            const SizedBox(width: 8),
+            Expanded(child: _statChip('ELEM DEF', elemDef.toString(), fc)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _statChip(
+                'COOLDOWN',
+                '×${cdr.toStringAsFixed(2)}',
+                fc,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _statChip(
+                'CRIT',
+                '${(crit * 100).round()}%',
+                fc,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _statChip(String label, String value, FC fc) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: fc.bg2,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: fc.borderDim),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ExploreStatEffectsCard extends StatelessWidget {
   final String family;
   const _ExploreStatEffectsCard({required this.family});

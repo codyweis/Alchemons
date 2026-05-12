@@ -303,27 +303,29 @@ class _ParticleBanner extends StatelessWidget {
     final shortestSide = media.size.shortestSide;
     final isLight = !theme.isDark;
     final overlayTint = isLight ? const Color(0xFF1B1D29) : Colors.black;
-    final vignetteAlpha = isLight ? .18 : .5;
-    final bottomFadeAlpha = isLight ? .28 : .65;
+    final vignetteAlpha = isLight ? 0.0 : .5;
+    final bottomFadeAlpha = isLight ? 0.0 : .65;
 
+    // The "ready" banner is the payoff moment — push particles harder than
+    // the in-cultivation dialog so completion reads as energetic.
     int particleCount;
     if (shortestSide < 380) {
-      particleCount = 12;
+      particleCount = 36;
     } else if (shortestSide < 430) {
-      particleCount = 18;
+      particleCount = 54;
     } else {
-      particleCount = 24;
+      particleCount = 72;
     }
 
     if (deferEffects) {
-      particleCount = 8;
+      particleCount = 18;
     }
 
     final qualityMultiplier = switch (quality) {
       CinematicQuality.balanced => 1.0,
-      CinematicQuality.performance => 0.35,
+      CinematicQuality.performance => 0.4,
     };
-    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 64);
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 110);
 
     final showParticles =
         TickerMode.valuesOf(context).enabled &&
@@ -342,7 +344,7 @@ class _ParticleBanner extends StatelessWidget {
                 parentATypeId: parentTypes![0],
                 parentBTypeId: parentTypes!.length > 1 ? parentTypes![1] : null,
                 particleCount: particleCount,
-                speedMultiplier: 0.12,
+                speedMultiplier: 0.22,
                 fusion: true,
                 theme: theme,
               ),
@@ -384,108 +386,21 @@ class _ParticleBanner extends StatelessWidget {
             ),
           ),
 
-          // Ready medallion (mirrors the progress disc on the in-progress dialog)
-          Center(
-            child: _ReadyMedallion(rarityColor: rarityColor, isLight: isLight),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// READY MEDALLION
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ReadyMedallion extends StatefulWidget {
-  const _ReadyMedallion({required this.rarityColor, required this.isLight});
-
-  final Color rarityColor;
-  final bool isLight;
-
-  @override
-  State<_ReadyMedallion> createState() => _ReadyMedallionState();
-}
-
-class _ReadyMedallionState extends State<_ReadyMedallion>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulseCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final discBg = widget.isLight
-        ? const Color(0xFF1B1D29).withValues(alpha: .82)
-        : Colors.black.withValues(alpha: .45);
-
-    return AnimatedBuilder(
-      animation: _pulseCtrl,
-      builder: (context, _) {
-        final t = Curves.easeInOut.transform(_pulseCtrl.value);
-        final ringAlpha = 0.25 + (t * 0.45);
-        final glowSpread = 4.0 + (t * 6.0);
-        return SizedBox(
-          width: 96,
-          height: 96,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 92,
-                height: 92,
+          // Rarity-tinted hairline around the cultivation banner.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
                   border: Border.all(
-                    color: widget.rarityColor.withValues(alpha: ringAlpha),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.rarityColor.withValues(alpha: ringAlpha * .7),
-                      blurRadius: glowSpread,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: discBg,
-                  border: Border.all(
-                    color: widget.rarityColor.withValues(alpha: .55),
+                    color: rarityColor.withValues(alpha: isLight ? .55 : .45),
                     width: 1,
                   ),
                 ),
-                child: Center(
-                  child: Icon(
-                    Icons.check_rounded,
-                    color: widget.rarityColor,
-                    size: 36,
-                  ),
-                ),
               ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

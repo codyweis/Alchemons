@@ -183,6 +183,7 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
       mainAxisSize: MainAxisSize.min,
       children: [
         _CurrencyPill(
+          label: 'Gold',
           icon: Icons.hexagon_rounded,
           amount: gold,
           color: _goldColor(context),
@@ -192,6 +193,7 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
         Container(width: 1, height: 20, color: dividerColor),
         const SizedBox(width: 8),
         _CurrencyPill(
+          label: 'Silver',
           icon: Icons.monetization_on_rounded,
           amount: silver,
           color: _silverColor(context),
@@ -203,35 +205,27 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
 
   /// Condensed view — numbers only, no icon circles.
   Widget _buildCondensedView(int gold, int silver) {
-    final goldColor = _goldColor(context);
-    final silverColor = _silverColor(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.hexagon_rounded, size: 11, color: goldColor),
-        const SizedBox(width: 3),
-        Text(
-          _formatCurrency(gold),
-          style: TextStyle(
-            color: goldColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.3,
-          ),
+        _CurrencyPill(
+          label: 'Gold',
+          icon: Icons.hexagon_rounded,
+          amount: gold,
+          color: _goldColor(context),
+          formatter: _formatCurrency,
+          compact: true,
         ),
         const SizedBox(width: 8),
         Container(width: 1, height: 14, color: _dividerColor(context)),
         const SizedBox(width: 8),
-        Icon(Icons.monetization_on_rounded, size: 11, color: silverColor),
-        const SizedBox(width: 3),
-        Text(
-          _formatCurrency(silver),
-          style: TextStyle(
-            color: silverColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.3,
-          ),
+        _CurrencyPill(
+          label: 'Silver',
+          icon: Icons.monetization_on_rounded,
+          amount: silver,
+          color: _silverColor(context),
+          formatter: _formatCurrency,
+          compact: true,
         ),
       ],
     );
@@ -241,52 +235,78 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
 double? lerpDouble(double a, double b, double t) => a + (b - a) * t;
 
 class _CurrencyPill extends StatelessWidget {
+  final String label;
   final IconData icon;
   final int amount;
   final Color color;
   final String Function(int) formatter;
+  final bool compact;
 
   const _CurrencyPill({
+    required this.label,
     required this.icon,
     required this.amount,
     required this.color,
     required this.formatter,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (compact) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            formatter(amount),
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color.withValues(alpha: 0.15),
-            border: Border.all(color: color.withValues(alpha: 0.5), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.3),
-                blurRadius: 6,
-                spreadRadius: 1,
+        Icon(icon, size: 15, color: color),
+        const SizedBox(width: 7),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.72)
+                    : Colors.black.withValues(alpha: 0.55),
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
               ),
-            ],
-          ),
-          child: Icon(icon, size: 14, color: color),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          formatter(amount),
-          style: TextStyle(
-            color: color,
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.4,
-            shadows: [
-              Shadow(color: color.withValues(alpha: 0.5), blurRadius: 4),
-            ],
-          ),
+            ),
+            Text(
+              formatter(amount),
+              style: TextStyle(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.25,
+                shadows: [
+                  Shadow(color: color.withValues(alpha: 0.35), blurRadius: 4),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

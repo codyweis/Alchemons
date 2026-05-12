@@ -87,6 +87,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final isLight = theme!.brightness == Brightness.light;
     final media = MediaQuery.of(context);
     final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
     final payload = parseEggPayload(widget.egg);
@@ -126,9 +127,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
         onTap: widget.onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: theme!.brightness == Brightness.light
-                ? Colors.white
-                : Colors.black,
+            color: isLight ? Colors.white : Colors.black,
             borderRadius: BorderRadius.circular(5),
             border: Border.all(
               color: widget.isReady
@@ -143,23 +142,25 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
             boxShadow: widget.isReady
                 ? [
                     BoxShadow(
-                      color: (isBloodborn
-                              ? kBloodbornSecondary
-                              : const Color(0xFFFFD700))
-                          .withValues(alpha: 0.18),
+                      color:
+                          (isBloodborn
+                                  ? kBloodbornSecondary
+                                  : const Color(0xFFFFD700))
+                              .withValues(alpha: 0.18),
                       blurRadius: 8,
                       spreadRadius: 1,
                     ),
                     BoxShadow(
-                      color: (isBloodborn
-                              ? kBloodbornPrimary
-                              : const Color(0xFFFFD700))
-                          .withValues(alpha: 0.08),
+                      color:
+                          (isBloodborn
+                                  ? kBloodbornPrimary
+                                  : const Color(0xFFFFD700))
+                              .withValues(alpha: 0.08),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
                   ]
-                : null,
+                : [],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
@@ -189,7 +190,9 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
                         radius: 1.0,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withValues(alpha: 0.1),
+                          isLight
+                              ? Colors.transparent
+                              : Colors.black.withValues(alpha: 0.1),
                         ],
                       ),
                     ),

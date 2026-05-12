@@ -339,16 +339,18 @@ Future<bool> showItemDetailDialog({
                                   height: 44,
                                   decoration: BoxDecoration(
                                     color: canAfford
-                                        ? t.amberDim.withValues(alpha: 0.35)
+                                        ? (theme.isDark
+                                            ? t.amberDim.withValues(alpha: 0.35)
+                                            : Colors.white)
                                         : t.bg3,
                                     borderRadius: BorderRadius.circular(2),
                                     border: Border.all(
                                       color: canAfford
-                                          ? t.amber
+                                          ? (theme.isDark ? t.amber : Colors.black)
                                           : t.danger.withValues(alpha: 0.5),
                                       width: 1,
                                     ),
-                                    boxShadow: canAfford
+                                    boxShadow: canAfford && theme.isDark
                                         ? [
                                             BoxShadow(
                                               color: t.amber.withValues(
@@ -368,7 +370,7 @@ Future<bool> showItemDetailDialog({
                                             ? Icons.shopping_bag_outlined
                                             : Icons.block_rounded,
                                         color: canAfford
-                                            ? primaryAccent
+                                            ? (theme.isDark ? primaryAccent : Colors.black)
                                             : t.danger.withValues(alpha: 0.7),
                                         size: 15,
                                       ),
@@ -380,7 +382,7 @@ Future<bool> showItemDetailDialog({
                                         style: TextStyle(
                                           fontFamily: 'monospace',
                                           color: canAfford
-                                              ? primaryAccent
+                                              ? (theme.isDark ? primaryAccent : Colors.black)
                                               : t.danger.withValues(alpha: 0.7),
                                           fontSize: 11,
                                           fontWeight: FontWeight.w800,
@@ -1658,16 +1660,17 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         style: TextButton.styleFrom(
-                          backgroundColor: theme.accent.withValues(alpha: 0.2),
+                          backgroundColor: theme.isDark ? theme.accent.withValues(alpha: 0.2) : Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
+                          side: BorderSide(color: theme.isDark ? theme.accent : Colors.black, width: 1.2),
                         ),
                         child: Text(
                           'CONFIRM',
                           style: TextStyle(
-                            color: theme.accent,
+                            color: theme.isDark ? theme.accent : Colors.black,
                             fontWeight: FontWeight.w900,
                             fontSize: 13,
                             letterSpacing: 0.6,
@@ -1958,24 +1961,26 @@ Future<int?> showPurchaseConfirmationDialog({
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: t.borderAccent,
-                                width: 1,
+                                color: t.isDark ? t.borderAccent : Colors.black,
+                                width: 1.2,
                               ),
                               borderRadius: BorderRadius.circular(3),
-                              color: t.amberDim.withValues(alpha: 0.18),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: t.amber.withValues(alpha: 0.2),
-                                  blurRadius: 10,
-                                ),
-                              ],
+                              color: t.isDark ? t.amberDim.withValues(alpha: 0.18) : Colors.white,
+                              boxShadow: t.isDark
+                                  ? [
+                                      BoxShadow(
+                                        color: t.amber.withValues(alpha: 0.2),
+                                        blurRadius: 10,
+                                      ),
+                                    ]
+                                  : null,
                             ),
                             child: Text(
                               'CONFIRM',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontFamily: 'monospace',
-                                color: primaryAccent,
+                                color: t.isDark ? primaryAccent : Colors.black,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 12,
                                 letterSpacing: 2,

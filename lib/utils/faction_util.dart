@@ -323,7 +323,14 @@ class ForgeTokens {
   Color get textPrimary => isDark ? const Color(0xFFE8DCC8) : _theme.text;
   Color get textSecondary =>
       isDark ? const Color(0xFF8A7B6A) : _theme.text.withValues(alpha: 0.78);
-  Color get textMuted => isDark ? const Color(0xFF4A3F35) : _theme.textMuted;
+  // Dark-mode hierarchy:
+  //   textPrimary   #E8DCC8  (warm cream, ~88% lum) — main text
+  //   textSecondary #8A7B6A  (mid-brown, ~52% lum) — supporting text
+  //   textMuted     #7A6F60  (warm muted-tan, ~46% lum) — deemphasized
+  //                                                       but readable
+  // Was #4A3F35 (~25% luminance) which was effectively invisible on the
+  // dark bg.
+  Color get textMuted => isDark ? const Color(0xFF7A6F60) : _theme.textMuted;
 
   // ── Borders ────────────────────────────────────────────────────────────────
   Color get borderDim =>

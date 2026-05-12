@@ -366,7 +366,7 @@ class _FactionCard extends StatelessWidget {
                 Container(height: 1, width: 120, color: t.borderMid),
                 const SizedBox(height: 8),
                 SizedBox(
-                  height: 140,
+                  height: 176,
                   child: Center(
                     child: _VialDisplay(
                       elementalGroup: data.elementalGroup,
@@ -436,6 +436,10 @@ class _VialDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shortestSide = MediaQuery.of(context).size.shortestSide;
+    final cardWidth = shortestSide < 380 ? 148.0 : 164.0;
+    final cardHeight = shortestSide < 380 ? 172.0 : 190.0;
+
     // Create a starter vial for this faction
     final vial = ExtractionVial(
       price: null,
@@ -450,13 +454,13 @@ class _VialDisplay extends StatelessWidget {
       animation: pulseController,
       builder: (context, child) {
         final pulse = pulseController.value;
-        final scale = 0.72 + (pulse * 0.03);
+        final scale = (shortestSide < 380 ? 0.86 : 0.94) + (pulse * 0.035);
 
         return Transform.scale(
           scale: scale,
           child: SizedBox(
-            width: 130,
-            height: 150,
+            width: cardWidth,
+            height: cardHeight,
             child: ExtractionVialCard(vial: vial, compact: false),
           ),
         );
@@ -707,25 +711,30 @@ class _ConfirmButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentTextColor = tokens.readableAccent(color);
+    final isDark = tokens.isDark;
+    final bgColor = isDark ? tokens.bg2.withValues(alpha: 0.88) : Colors.white;
+    final borderColor = isDark ? color.withValues(alpha: 0.55) : Colors.black;
+    final textColor = isDark ? tokens.readableAccent(color) : Colors.black;
+    final iconColor = textColor;
+    final boxShadow = isDark
+        ? [
+            BoxShadow(
+              color: tokens.bg0.withValues(alpha: 0.5),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ]
+        : null;
 
     return GestureDetector(
       onTap: onPressed,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [tokens.bg2.withValues(alpha: 0.88), tokens.bg1],
-          ),
+          color: bgColor,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withValues(alpha: 0.55), width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: tokens.bg0.withValues(alpha: 0.5),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          border: Border.all(color: borderColor, width: 1.2),
+          boxShadow: boxShadow,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -736,14 +745,14 @@ class _ConfirmButton extends StatelessWidget {
                 fontFamily: 'monospace',
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: accentTextColor,
+                color: textColor,
                 letterSpacing: 1.8,
               ),
             ),
             const SizedBox(width: 8),
             Icon(
               Icons.arrow_forward_rounded,
-              color: accentTextColor,
+              color: iconColor,
               size: 18,
             ),
           ],

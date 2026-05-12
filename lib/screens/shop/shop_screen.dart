@@ -2426,6 +2426,31 @@ class _GoldOrbCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
+    final isDark = t.isDark;
+    final selectedBorderColor = isDark
+        ? color.withValues(alpha: 0.6)
+        : Colors.black;
+    final unselectedBorderColor = isDark
+        ? t.borderDim.withValues(alpha: 0.25)
+        : Colors.black.withValues(alpha: 0.35);
+    final selectedGradient = isDark
+        ? [
+            color.withValues(alpha: 0.10),
+            color.withValues(alpha: 0.04),
+          ]
+        : [
+            Colors.white,
+            const Color(0xFFF5F5F5),
+          ];
+    final unselectedGradient = isDark
+        ? [
+            t.bg2.withValues(alpha: 0.45),
+            t.bg2.withValues(alpha: 0.2),
+          ]
+        : [
+            const Color(0xFFF6F6F6),
+            const Color(0xFFEEEEEE),
+          ];
 
     return GestureDetector(
       onTap: onTap,
@@ -2436,28 +2461,20 @@ class _GoldOrbCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected
-                ? color.withValues(alpha: 0.6)
-                : t.borderDim.withValues(alpha: 0.25),
+            color: selected ? selectedBorderColor : unselectedBorderColor,
             width: selected ? 1.4 : 0.6,
           ),
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: selected
-                ? [
-                    color.withValues(alpha: 0.10),
-                    color.withValues(alpha: 0.04),
-                  ]
-                : [
-                    t.bg2.withValues(alpha: 0.45),
-                    t.bg2.withValues(alpha: 0.2),
-                  ],
+            colors: selected ? selectedGradient : unselectedGradient,
           ),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: glow.withValues(alpha: 0.22),
+                    color: isDark
+                        ? glow.withValues(alpha: 0.22)
+                        : Colors.black.withValues(alpha: 0.14),
                     blurRadius: 20,
                     spreadRadius: -2,
                   ),
@@ -2534,13 +2551,17 @@ class _GoldOrbCard extends StatelessWidget {
                                 (math.sin(phase) * 0.03),
                         };
 
-                        return Transform.translate(
-                          offset: Offset(dx, dy),
-                          child: Transform.rotate(
-                            angle: rotation,
-                            child: Transform.scale(
-                              scale: scale,
-                              child: child,
+                        return Center(
+                          child: Transform.translate(
+                            offset: Offset(dx, dy),
+                            child: Transform.rotate(
+                              angle: rotation,
+                              alignment: Alignment.center,
+                              child: Transform.scale(
+                                scale: scale,
+                                alignment: Alignment.center,
+                                child: child,
+                              ),
                             ),
                           ),
                         );
@@ -2562,10 +2583,14 @@ class _GoldOrbCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.48),
+                              color: isDark
+                                  ? Colors.black.withValues(alpha: 0.48)
+                                  : Colors.white.withValues(alpha: 0.95),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: color.withValues(alpha: 0.35),
+                                color: isDark
+                                    ? color.withValues(alpha: 0.35)
+                                    : Colors.black.withValues(alpha: 0.6),
                                 width: 0.6,
                               ),
                             ),
@@ -2573,13 +2598,17 @@ class _GoldOrbCard extends StatelessWidget {
                               '${pack.goldAmount}',
                               style: TextStyle(
                                 fontFamily: 'monospace',
-                                color: const Color(0xFFFFF1A8),
+                                color: isDark
+                                    ? const Color(0xFFFFF1A8)
+                                    : Colors.black,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.3,
                                 shadows: [
                                   Shadow(
-                                    color: glow.withValues(alpha: 0.6),
+                                    color: isDark
+                                        ? glow.withValues(alpha: 0.6)
+                                        : Colors.black.withValues(alpha: 0.12),
                                     blurRadius: 6,
                                   ),
                                 ],
@@ -2601,7 +2630,11 @@ class _GoldOrbCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: selected ? t.textPrimary : t.textSecondary,
+                  color: selected
+                      ? (isDark ? t.textPrimary : Colors.black)
+                      : (isDark
+                          ? t.textSecondary
+                          : Colors.black.withValues(alpha: 0.75)),
                   fontSize: 8,
                   fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
                   letterSpacing: 0.8,
@@ -2931,6 +2964,7 @@ class _GoldBuyStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
+    final isDark = t.isDark;
     final disabledColor = theme.isDark
         ? Colors.white.withValues(alpha: 0.35)
         : t.textMuted;
@@ -2991,13 +3025,15 @@ class _GoldBuyStrip extends StatelessWidget {
                                 '${pack.goldAmount}G',
                                 style: TextStyle(
                                   fontFamily: 'monospace',
-                                  color: accent,
+                                  color: isDark ? accent : Colors.black,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: -0.3,
                                   shadows: [
                                     Shadow(
-                                      color: glow.withValues(alpha: 0.4),
+                                      color: isDark
+                                          ? glow.withValues(alpha: 0.4)
+                                          : Colors.black.withValues(alpha: 0.12),
                                       blurRadius: 8,
                                     ),
                                   ],
@@ -3042,11 +3078,15 @@ class _GoldBuyStrip extends StatelessWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
                           color: canBuy
-                              ? accent.withValues(alpha: 0.16)
+                              ? (isDark
+                                  ? accent.withValues(alpha: 0.16)
+                                  : Colors.white)
                               : t.bg2,
                           border: Border.all(
                             color: canBuy
-                                ? accent.withValues(alpha: 0.5)
+                                ? (isDark
+                                    ? accent.withValues(alpha: 0.5)
+                                    : Colors.black)
                                 : t.borderDim,
                             width: canBuy ? 1.2 : 0.8,
                           ),
@@ -3074,7 +3114,9 @@ class _GoldBuyStrip extends StatelessWidget {
                                 priceLabel,
                                 style: TextStyle(
                                   fontFamily: 'monospace',
-                                  color: canBuy ? accent : disabledColor,
+                                  color: canBuy
+                                      ? (isDark ? accent : Colors.black)
+                                      : disabledColor,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 0.5,

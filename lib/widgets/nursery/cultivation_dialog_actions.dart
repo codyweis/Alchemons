@@ -15,11 +15,12 @@ class CultivationDialogActionArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final panelColor = tokens.isDark ? tokens.bg2 : Colors.white;
     return Container(
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: tokens.bg2,
+        color: panelColor,
         border: Border(top: BorderSide(color: tokens.borderDim)),
       ),
       child: Column(
@@ -63,7 +64,7 @@ class CultivationDialogButton extends StatelessWidget {
         ? baseColor
         : highlighted
         ? baseColor.withValues(alpha: tokens.isDark ? 0.14 : 0.10)
-        : tokens.bg1;
+      : (tokens.isDark ? tokens.bg1 : Colors.white);
     final borderColor = filled
         ? baseColor
         : baseColor.withValues(alpha: highlighted ? 0.55 : 0.35);

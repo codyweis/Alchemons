@@ -59,7 +59,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
         child: Column(
           children: [
             _buildHeader(),
-            _buildIntro(),
             Expanded(
               child: !_hasSelections
                   ? _buildEmptyState()
@@ -73,140 +72,238 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: t.borderDim),
-              ),
-              child: Icon(Icons.arrow_back_rounded, color: t.textPrimary),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: t.borderAccent.withValues(alpha: 0.4),
+    final accent = _primaryAccent;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: t.bg2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: t.borderDim),
+                  ),
+                  child: Icon(Icons.arrow_back_rounded, color: t.textPrimary, size: 20),
                 ),
               ),
-              child: Column(
-                children: [
-                  Text(
-                    'SPECIMEN EXCHANGE',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.4,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.sell_rounded, color: accent, size: 16),
+                        const SizedBox(width: 7),
+                        Text(
+                          'SPECIMEN EXCHANGE',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  CurrencyDisplayWidget(accentColor: t.borderAccent),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIntro() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [t.bg2, t.bg1],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: t.borderAccent.withValues(alpha: 0.35)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.sell_rounded, color: _primaryAccent, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  'SELL',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: _primaryAccent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                  ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Trade alchemons & vials for currency',
+                      style: TextStyle(
+                        color: t.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Sell Alchemons and extraction vials from storage or inventory.',
-              style: TextStyle(
-                color: t.textSecondary,
-                fontSize: 11,
-                height: 1.45,
-                fontWeight: FontWeight.w600,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: CurrencyDisplayWidget(accentColor: t.borderAccent),
+        ),
+        const SizedBox(height: 10),
+        Divider(height: 1, thickness: 1, color: accent.withValues(alpha: 0.3)),
+      ],
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.sell_rounded,
-              size: 80,
-              color: t.textMuted.withValues(alpha: 0.25),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'No items selected',
-              style: TextStyle(
-                color: t.textPrimary.withValues(alpha: 0.85),
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+      child: Column(
+        children: [
+          // Icon badge
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _primaryAccent.withValues(alpha: 0.1),
+              border: Border.all(
+                color: _primaryAccent.withValues(alpha: 0.35),
+                width: 1.5,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Choose unlocked, unprotected Alchemons or stored vials to exchange for currency.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: t.textMuted,
-                fontSize: 12,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Icon(Icons.sell_rounded, color: _primaryAccent, size: 30),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Nothing selected yet',
+            style: TextStyle(
+              color: t.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Tap a category below to choose items to sell.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: t.textSecondary,
+              fontSize: 12,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Two action cards
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: _showInstanceBrowser,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: t.bg2,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: _primaryAccent,
+                        width: 1.5,
+                      ),
+             
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(11),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _primaryAccent.withValues(alpha: 0.14),
+                          ),
+                          child: Icon(Icons.pets_rounded, color: _primaryAccent, size: 24),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'SPECIMENS',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: _primaryAccent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Sell Alchemons',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: t.textSecondary,
+                            fontSize: 10,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _showVialBrowser,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: t.bg2,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: t.textSecondary,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(11),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: t.textPrimary.withValues(alpha: 0.12),
+                          ),
+                          child: Icon(Icons.science_rounded, color: t.textSecondary, size: 24),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'VIALS',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Sell extraction vials',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: t.textSecondary,
+                            fontSize: 10,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Tip row
+          Row(
+            children: [
+              Icon(Icons.info_outline_rounded, size: 13, color: t.textMuted.withValues(alpha: 0.5)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Locked alchemons cannot be exchanged.',
+                  style: TextStyle(
+                    color: t.textMuted.withValues(alpha: 0.5),
+                    fontSize: 10,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -220,24 +317,47 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: t.bg2,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: t.borderAccent.withValues(alpha: 0.35)),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: t.borderAccent.withValues(alpha: 0.4)),
           ),
           child: Row(
             children: [
-              Icon(Icons.inventory_2_rounded, color: _primaryAccent, size: 18),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _primaryAccent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(Icons.inventory_2_rounded, color: _primaryAccent, size: 16),
+              ),
+              const SizedBox(width: 10),
               Text(
-                'SELECTED ($_selectionCount)',
+                'SELECTED',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: _primaryAccent,
+                  color: t.textPrimary,
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _primaryAccent.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  '$_selectionCount',
+                  style: TextStyle(
+                    color: _primaryAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -252,7 +372,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   HapticFeedback.lightImpact();
                 },
                 child: Text(
-                  'CLEAR',
+                  'CLEAR ALL',
                   style: TextStyle(
                     color: t.danger,
                     fontSize: 11,
@@ -312,25 +432,34 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
           const SizedBox(height: 8),
         ],
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: t.successDim.withValues(alpha: 0.22),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: t.success.withValues(alpha: 0.35)),
+            color: t.bg2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: t.success.withValues(alpha: 0.5), width: 1.5),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: t.success.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.savings_rounded, color: t.success, size: 20),
+              ),
+              const SizedBox(width: 12),
               Text(
-                'TOTAL',
+                'YOU RECEIVE',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: t.textPrimary,
-                  fontSize: 11,
+                  color: t.success,
+                  fontSize: 10,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.2,
                 ),
               ),
+              const Spacer(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -340,16 +469,25 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                       children: [
                         Icon(
                           Icons.monetization_on_rounded,
-                          size: 18,
+                          size: 16,
                           color: t.textSecondary,
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 5),
                         Text(
                           '$_totalSilverValue',
                           style: TextStyle(
                             color: t.textPrimary,
-                            fontSize: 18,
+                            fontSize: 20,
                             fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'silver',
+                          style: TextStyle(
+                            color: t.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -361,16 +499,25 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                       children: [
                         Icon(
                           Icons.hexagon_rounded,
-                          size: 18,
+                          size: 16,
                           color: _goldAccent,
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 5),
                         Text(
                           '$_totalGoldValue',
                           style: TextStyle(
                             color: _goldAccent,
-                            fontSize: 18,
+                            fontSize: 20,
                             fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'gold',
+                          style: TextStyle(
+                            color: t.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -404,49 +551,45 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   }
 
   Widget _buildBottomActions() {
+    if (!_hasSelections) return const SizedBox.shrink();
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.transparent, t.bg0],
-        ),
+        color: t.bg0,
+        border: Border(top: BorderSide(color: t.borderDim.withValues(alpha: 0.5))),
       ),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Compact add-more row
             Row(
               children: [
                 Expanded(
                   child: GestureDetector(
                     onTap: _showInstanceBrowser,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: t.bg2,
+                        color: _primaryAccent.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: t.borderAccent, width: 1.5),
+                        border: Border.all(color: t.textSecondary),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.pets_rounded,
-                            color: _primaryAccent,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
+                          Icon(Icons.add_rounded, color: _primaryAccent, size: 15),
+                          const SizedBox(width: 5),
                           Text(
-                            'SELECT SPECIMENS',
+                            'SPECIMENS',
                             style: TextStyle(
                               fontFamily: 'monospace',
-                              color: _primaryAccent,
-                              fontSize: 11,
+                              color: t.textSecondary,
+                              fontSize: 10,
                               fontWeight: FontWeight.w900,
-                              letterSpacing: 1.1,
+                              letterSpacing: 0.8,
                             ),
                           ),
                         ],
@@ -454,37 +597,32 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: GestureDetector(
                     onTap: _showVialBrowser,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: t.bg2,
+                        color: t.textSecondary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: t.textSecondary.withValues(alpha: 0.7),
-                          width: 1.5,
                         ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.science_rounded,
-                            color: t.textSecondary,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
+                          Icon(Icons.add_rounded, color: t.textSecondary, size: 15),
+                          const SizedBox(width: 5),
                           Text(
-                            'SELECT VIALS',
+                            'VIALS',
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.w900,
-                              letterSpacing: 1.1,
+                              letterSpacing: 0.8,
                             ),
                           ),
                         ],
@@ -502,22 +640,38 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [t.success, t.teal]),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: t.success.withValues(alpha: 0.6)),
+                    color: t.success,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.sell_rounded, color: Colors.white, size: 20),
-                      SizedBox(width: 10),
+                    children: [
+                      Icon(Icons.sell_rounded, color: t.onColor(t.success), size: 20),
+                      const SizedBox(width: 10),
                       Text(
                         'COMPLETE SALE',
                         style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
+                          fontFamily: 'monospace',
+                          color: t.onColor(t.success),
+                          fontSize: 13,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 1.1,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: t.onColor(t.success).withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          '$_selectionCount',
+                          style: TextStyle(
+                            color: t.onColor(t.success),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     ],
@@ -1057,71 +1211,143 @@ class _ExchangeCreatureRow extends StatelessWidget {
     required this.onRemove,
   });
 
+  static Color _rarityColor(String rarity) {
+    switch (rarity.toLowerCase()) {
+      case 'uncommon': return const Color(0xFF66BB6A);
+      case 'rare': return const Color(0xFF42A5F5);
+      case 'mythic':
+      case 'legendary': return const Color(0xFFAB47BC);
+      case 'variant': return const Color(0xFFFF7043);
+      default: return const Color(0xFF78909C);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
     final goldAccent = t.readableAccent(const Color(0xFFFFD700));
+    final rarity = species?.rarity ?? 'common';
+    final rarityColor = _rarityColor(rarity);
+    final priceColor = usesGold ? goldAccent : const Color(0xFFC0C0C0);
 
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.border),
+        border: Border.all(color: rarityColor.withValues(alpha: 0.3)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  species?.name ?? instance.baseId,
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            // Rarity accent strip
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [rarityColor, rarityColor.withValues(alpha: 0.4)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Lv ${instance.level} • ${species?.rarity ?? 'common'}',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          Row(
-            children: [
-              Icon(
-                usesGold
-                    ? Icons.hexagon_rounded
-                    : Icons.monetization_on_rounded,
-                size: 18,
-                color: usesGold ? goldAccent : const Color(0xFFC0C0C0),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '$price',
-                style: TextStyle(
-                  color: usesGold ? goldAccent : theme.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            species?.name ?? instance.baseId,
+                            style: TextStyle(
+                              color: theme.text,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: rarityColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: rarityColor.withValues(alpha: 0.4)),
+                                ),
+                                child: Text(
+                                  rarity.toUpperCase(),
+                                  style: TextStyle(
+                                    color: rarityColor,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Lv ${instance.level}',
+                                style: TextStyle(
+                                  color: t.textMuted,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: priceColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: priceColor.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            usesGold ? Icons.hexagon_rounded : Icons.monetization_on_rounded,
+                            size: 15,
+                            color: priceColor,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '$price',
+                            style: TextStyle(
+                              color: priceColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: onRemove,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: t.danger.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Icon(Icons.close_rounded, color: t.danger, size: 16),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: onRemove,
-                child: Icon(Icons.close_rounded, color: theme.textMuted),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1137,66 +1363,127 @@ class _ExchangeVialRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
+    final groupColor = vial.group.color;
 
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.border),
+        border: Border.all(color: groupColor.withValues(alpha: 0.35)),
       ),
-      child: Row(
-        children: [
-          _VialPreviewCard(vial: vial.previewVial, width: 72, height: 88),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  vial.displayName,
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [groupColor, groupColor.withValues(alpha: 0.4)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${vial.rarity.label} • x${vial.selectedQty}',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          Row(
-            children: [
-              Icon(
-                Icons.monetization_on_rounded,
-                size: 18,
-                color: t.textSecondary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '${vial.totalSilverValue}',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: _VialPreviewCard(vial: vial.previewVial, width: 66, height: 82),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      vial.displayName,
+                      style: TextStyle(
+                        color: theme.text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: groupColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: groupColor.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            vial.rarity.label.toUpperCase(),
+                            style: TextStyle(
+                              color: groupColor,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'x${vial.selectedQty}',
+                          style: TextStyle(
+                            color: t.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: onRemove,
-                child: Icon(Icons.close_rounded, color: theme.textMuted),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: t.textSecondary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: t.textSecondary.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.monetization_on_rounded, size: 14, color: t.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${vial.totalSilverValue}',
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: onRemove,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: t.danger.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(Icons.close_rounded, color: t.danger, size: 16),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

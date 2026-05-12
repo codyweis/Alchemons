@@ -7,11 +7,11 @@ class BreedConstants {
 
   // Rarity → hatch time mapping
   static const Map<String, Duration> rarityHatchTimes = {
-    'common': Duration(minutes: 5),
+    'common': Duration(minutes: 2),
     'uncommon': Duration(minutes: 15),
     'rare': Duration(hours: 1),
-    'mythic': Duration(hours: 3),
-    'legendary': Duration(hours: 8),
+    'mythic': Duration(hours: 12),
+    'legendary': Duration(hours: 5),
   };
 
   // Type colors
@@ -104,7 +104,7 @@ class BreedConstants {
   static Color getRarityColor(String rarity) {
     switch (rarity.toLowerCase()) {
       case 'common':
-        return Colors.grey.shade600;
+        return const Color.fromARGB(255, 61, 61, 61);
       case 'uncommon':
         return Colors.green.shade500;
       case 'rare':

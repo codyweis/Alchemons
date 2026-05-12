@@ -1360,6 +1360,7 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return GestureDetector(
       onTap: widget.onTap,
       child: AnimatedBuilder(
@@ -1368,7 +1369,9 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
           final a = _pulseAnim.value;
           return Container(
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: .08),
+              color: isLight
+                  ? Colors.transparent
+                  : Colors.black.withValues(alpha: .08),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
                 color: widget.primaryColor.withValues(alpha: a * .55),
