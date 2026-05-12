@@ -815,41 +815,36 @@ class EggDetailsModal extends StatelessWidget {
                   icon: Icons.biotech_rounded,
                   accentColor: t.amberBright,
                   emphasis: CultivationDialogButtonEmphasis.primary,
-                  useSolidBackground: true,
-                  foregroundColor: Colors.white,
                   onTap: () => _extractFromStorage(context, t),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
+                CultivationDialogButton(
+                  tokens: t,
+                  label: 'DELETE',
+                  icon: Icons.delete_outline_rounded,
+                  accentColor: t.danger,
+                  emphasis: CultivationDialogButtonEmphasis.danger,
+                  onTap: () => _confirmDelete(context, t),
+                ),
+              ] else ...[
+                CultivationDialogButton(
+                  tokens: t,
+                  label: 'ADD TO CHAMBER',
+                  icon: Icons.inventory_2_rounded,
+                  accentColor: t.amberBright,
+                  emphasis: CultivationDialogButtonEmphasis.primary,
+                  onTap: () => _addToIncubator(context, t),
+                ),
+                const SizedBox(height: 8),
+                CultivationDialogButton(
+                  tokens: t,
+                  label: 'DELETE',
+                  icon: Icons.delete_outline_rounded,
+                  accentColor: t.danger,
+                  emphasis: CultivationDialogButtonEmphasis.danger,
+                  onTap: () => _confirmDelete(context, t),
+                ),
               ],
-              Row(
-                children: [
-                  Expanded(
-                    child: CultivationDialogButton(
-                      tokens: t,
-                      label: 'DELETE',
-                      icon: Icons.delete_outline_rounded,
-                      accentColor: t.danger,
-                      emphasis: CultivationDialogButtonEmphasis.danger,
-                      onTap: () => _confirmDelete(context, t),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: CultivationDialogButton(
-                      tokens: t,
-                      label: 'ADD TO CHAMBER',
-                      icon: Icons.inventory_2_rounded,
-                      accentColor: t.amberBright,
-                      emphasis: isReady
-                          ? CultivationDialogButtonEmphasis.secondary
-                          : CultivationDialogButtonEmphasis.primary,
-                      useSolidBackground: !isReady,
-                      foregroundColor: !isReady ? Colors.white : null,
-                      onTap: () => _addToIncubator(context, t),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ],

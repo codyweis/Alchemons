@@ -225,7 +225,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                               widget.onExtract();
                             },
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(
@@ -238,7 +238,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                                 ),
                               ),
                               if (!widget.isTutorial) ...[
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: CultivationDialogButton(
                                     tokens: t,

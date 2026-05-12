@@ -524,7 +524,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                     onTap: widget.onAccelerate,
                                   ),
                                   if (canUseInstant) ...[
-                                    const SizedBox(height: 10),
+                                    const SizedBox(height: 8),
                                     CultivationDialogButton(
                                       tokens: t,
                                       label: 'USE INSTANT FUSE ×$qty',
@@ -535,7 +535,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                       onTap: widget.onInstantHatch,
                                     ),
                                   ],
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 8),
                                   Row(
                                     children: [
                                       Expanded(
@@ -547,7 +547,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                           onTap: widget.onReturn,
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 8),
                                       Expanded(
                                         child: CultivationDialogButton(
                                           tokens: t,

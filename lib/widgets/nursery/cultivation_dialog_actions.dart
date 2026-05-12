@@ -6,7 +6,7 @@ class CultivationDialogActionArea extends StatelessWidget {
     super.key,
     required this.tokens,
     required this.children,
-    this.padding = const EdgeInsets.fromLTRB(16, 14, 16, 16),
+    this.padding = const EdgeInsets.fromLTRB(14, 10, 14, 12),
   });
 
   final ForgeTokens tokens;
@@ -90,7 +90,7 @@ class CultivationDialogButton extends StatelessWidget {
           alpha: 0.06,
         ),
         child: Ink(
-          height: 46,
+          height: 36,
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(3),
@@ -99,8 +99,8 @@ class CultivationDialogButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16, color: resolvedForegroundColor),
-              const SizedBox(width: 8),
+              Icon(icon, size: 13, color: resolvedForegroundColor),
+              const SizedBox(width: 7),
               Flexible(
                 child: Text(
                   label,
@@ -109,9 +109,9 @@ class CultivationDialogButton extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: resolvedForegroundColor,
-                    fontSize: 10,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
