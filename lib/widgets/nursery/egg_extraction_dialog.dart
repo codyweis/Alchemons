@@ -228,17 +228,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Expanded(
-                                child: CultivationDialogButton(
-                                  tokens: t,
-                                  label: 'CLOSE',
-                                  icon: Icons.close_rounded,
-                                  accentColor: t.textSecondary,
-                                  onTap: widget.onCancel,
-                                ),
-                              ),
                               if (!widget.isTutorial) ...[
-                                const SizedBox(width: 8),
                                 Expanded(
                                   child: CultivationDialogButton(
                                     tokens: t,
@@ -250,7 +240,17 @@ class ExtractionDialogState extends State<ExtractionDialog>
                                     onTap: widget.onDiscard,
                                   ),
                                 ),
+                                const SizedBox(width: 8),
                               ],
+                              Expanded(
+                                child: CultivationDialogButton(
+                                  tokens: t,
+                                  label: 'CLOSE',
+                                  icon: Icons.close_rounded,
+                                  accentColor: t.textSecondary,
+                                  onTap: widget.onCancel,
+                                ),
+                              ),
                             ],
                           ),
                         ],
