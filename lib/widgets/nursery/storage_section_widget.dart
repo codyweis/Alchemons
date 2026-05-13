@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
@@ -120,45 +121,33 @@ class _StorageSectionState extends State<StorageSection> {
     required int storedCount,
     required bool hasFilter,
   }) {
-    return Row(
-      children: [
-        Text(
-          hasFilter ? 'FILTERED STORAGE' : 'STORAGE OVERVIEW',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: t.textSecondary,
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.6,
-          ),
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: t.amberDim.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: t.borderAccent, width: 1),
         ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          decoration: BoxDecoration(
-            color: t.amberDim.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: t.borderAccent, width: 1),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.ac_unit_rounded, color: t.amberBright, size: 11),
-              const SizedBox(width: 5),
-              Text(
-                '$storedCount STORED',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.amberBright,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.ac_unit_rounded, color: t.amberBright, size: 10),
+            const SizedBox(width: 5),
+            Text(
+              '$storedCount STORED',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.amberBright,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -437,10 +426,25 @@ class _StorageEggCardState extends State<StorageEggCard>
         TickerMode.valuesOf(context).enabled &&
         !media.disableAnimations &&
         particleCount > 0;
-    final particleSpeed = isReady ? 0.8 + (_pulseController.value * 1.3) : 0.45;
+    final particleSpeed = isReady ? 0.8 + (_pulseController.value * 1.3) : 0.4;
+    final accent = isReady ? const Color(0xFFFFD700) : elementGroup.color;
     final borderColor = isReady
-        ? const Color(0xFFFFD700)
-        : Colors.white.withValues(alpha: 0.12);
+        ? accent.withValues(alpha: 0.85)
+        : Colors.white.withValues(alpha: 0.10);
+
+    final payloadMap = parseEggPayload(egg);
+    final rarityHatch =
+        BreedConstants.rarityHatchTimes[egg.rarity.toLowerCase()];
+    final factor = ColdStorageService.slowdownFactorFromPayload(payloadMap);
+    final fallbackTotalMs = rarityHatch == null
+        ? null
+        : rarityHatch.inMilliseconds * factor;
+    final totalMs =
+        ColdStorageService.totalDisplayDurationMs(egg) ?? fallbackTotalMs;
+    final remainingMs = displayRemaining.inMilliseconds;
+    final percentDone = (totalMs != null && totalMs > 0)
+        ? (1 - (remainingMs / totalMs)).clamp(0.0, 1.0)
+        : null;
 
     return GestureDetector(
       onTap: () => _showEggDetails(context),
@@ -451,7 +455,7 @@ class _StorageEggCardState extends State<StorageEggCard>
             duration: const Duration(milliseconds: 350),
             curve: Curves.easeOut,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(4),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -463,7 +467,7 @@ class _StorageEggCardState extends State<StorageEggCard>
               ),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(4),
               child: Stack(
                 children: [
                   Positioned.fill(
@@ -474,8 +478,8 @@ class _StorageEggCardState extends State<StorageEggCard>
                           radius: 1.0,
                           colors: [
                             skin.fill,
-                            Colors.black.withValues(alpha: 0.08),
-                            Colors.black.withValues(alpha: 0.18),
+                            Colors.black.withValues(alpha: 0.10),
+                            Colors.black.withValues(alpha: 0.22),
                           ],
                           stops: const [0.2, 0.7, 1.0],
                         ),
@@ -497,15 +501,54 @@ class _StorageEggCardState extends State<StorageEggCard>
                         ),
                       ),
                     ),
+                  // Lab corner brackets
                   Positioned.fill(
-                    child: Center(
-                      child: _ProgressBadge(
-                        egg: egg,
-                        remaining: displayRemaining,
-                        accent: isReady
-                            ? const Color(0xFFFFD700)
-                            : elementGroup.color,
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _VialBracketsPainter(
+                          color: accent.withValues(
+                            alpha: isReady
+                                ? 0.55 + (_pulseController.value * 0.35)
+                                : 0.32,
+                          ),
+                        ),
                       ),
+                    ),
+                  ),
+                  // Time / READY label
+                  Positioned(
+                    top: 5,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Text(
+                        isReady ? 'READY' : _fmtShort(displayRemaining),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: isReady ? accent : Colors.white,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.7,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Bottom fill bar — cultivation completion
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      height: 5,
+                      color: Colors.black.withValues(alpha: 0.55),
+                      child: percentDone == null
+                          ? null
+                          : FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: isReady ? 1.0 : percentDone,
+                              child: Container(color: accent),
+                            ),
                     ),
                   ),
                 ],
@@ -544,114 +587,62 @@ String _fmtShort(Duration d) {
   return '${s}s';
 }
 
-class _ProgressBadge extends StatelessWidget {
-  final Egg egg;
-  final Duration remaining;
-  final Color accent;
+class _VialBracketsPainter extends CustomPainter {
+  _VialBracketsPainter({required this.color});
 
-  const _ProgressBadge({
-    required this.egg,
-    required this.remaining,
-    required this.accent,
-  });
+  final Color color;
 
   @override
-  Widget build(BuildContext context) {
-    final totalMs = ColdStorageService.totalDisplayDurationMs(egg);
-    final rem = remaining;
-    final remainingMs = rem.inMilliseconds;
-    final isReady = rem <= Duration.zero;
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.square
+      ..style = PaintingStyle.stroke;
 
-    final double? percentLeft = (totalMs != null && totalMs > 0)
-        ? (remainingMs / totalMs).clamp(0.0, 1.0)
-        : null;
+    const double m = 3;
+    const double l = 6;
 
-    // Visual sizes
-    const double size = 56;
-    const double stroke = 6;
-
-    return Semantics(
-      label: 'Time remaining',
-      value: totalMs != null
-          ? isReady
-                ? 'Ready'
-                : '${(percentLeft! * 100).round()} percent left'
-          : _fmtShort(rem),
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Background ring
-            SizedBox(
-              width: size,
-              height: size,
-              child: CircularProgressIndicator(
-                value: 1,
-                strokeWidth: stroke,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Colors.white.withValues(alpha: 0.12),
-                ),
-                backgroundColor: Colors.transparent,
-              ),
-            ),
-
-            // Foreground progress (percent left if we can compute it)
-            if (percentLeft != null)
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: percentLeft, end: percentLeft),
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-                builder: (context, value, _) => SizedBox(
-                  width: size,
-                  height: size,
-                  child: CircularProgressIndicator(
-                    value: value,
-                    strokeWidth: stroke,
-                    valueColor: AlwaysStoppedAnimation<Color>(accent),
-                    backgroundColor: Colors.transparent,
-                  ),
-                ),
-              ),
-
-            // Center label
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  isReady
-                      ? 'READY'
-                      : percentLeft != null
-                      ? '${(percentLeft * 100).round()}%'
-                      : _fmtShort(rem),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-                Text(
-                  isReady
-                      ? 'extract'
-                      : percentLeft != null
-                      ? 'left'
-                      : 'remaining',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 7.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+    // Top-left
+    canvas.drawLine(Offset(m, m), Offset(m + l, m), paint);
+    canvas.drawLine(Offset(m, m), Offset(m, m + l), paint);
+    // Top-right
+    canvas.drawLine(
+      Offset(size.width - m, m),
+      Offset(size.width - m - l, m),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width - m, m),
+      Offset(size.width - m, m + l),
+      paint,
+    );
+    // Bottom-left
+    canvas.drawLine(
+      Offset(m, size.height - m),
+      Offset(m + l, size.height - m),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(m, size.height - m),
+      Offset(m, size.height - m - l),
+      paint,
+    );
+    // Bottom-right
+    canvas.drawLine(
+      Offset(size.width - m, size.height - m),
+      Offset(size.width - m - l, size.height - m),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width - m, size.height - m),
+      Offset(size.width - m, size.height - m - l),
+      paint,
     );
   }
+
+  @override
+  bool shouldRepaint(_VialBracketsPainter old) => old.color != color;
 }
 
 class EggDetailsModal extends StatelessWidget {
