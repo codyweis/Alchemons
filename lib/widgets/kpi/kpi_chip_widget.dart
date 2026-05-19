@@ -170,7 +170,7 @@ class _KpiPopup extends StatelessWidget {
                                 label.toUpperCase(),
                                 style: const TextStyle(
                                   color: Color(0xFFB6C0CC),
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.7,
                                 ),
@@ -463,7 +463,7 @@ class _ReadyDotState extends State<_ReadyDot>
                 'Ready ${widget.count}',
                 style: const TextStyle(
                   color: Color(0xFFE8EAED),
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),

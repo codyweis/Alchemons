@@ -42,7 +42,7 @@ class _T {
   static const TextStyle label = TextStyle(
     fontFamily: 'monospace',
     color: _C.textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -242,13 +242,13 @@ class _CosmicSurvivalBaseCommandScreenState
         unselectedLabelColor: _C.textSecondary,
         labelStyle: const TextStyle(
           fontFamily: 'monospace',
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.4,
         ),
         unselectedLabelStyle: const TextStyle(
           fontFamily: 'monospace',
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 1.4,
         ),
@@ -425,7 +425,7 @@ class _CosmicSurvivalBaseCommandScreenState
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: _C.textMuted,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -437,7 +437,7 @@ class _CosmicSurvivalBaseCommandScreenState
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: def.primaryColor,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -558,7 +558,7 @@ class _CosmicSurvivalBaseCommandScreenState
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: _C.textMuted,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -570,7 +570,7 @@ class _CosmicSurvivalBaseCommandScreenState
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: def.color,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -675,7 +675,7 @@ class _CosmicSurvivalBaseCommandScreenState
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: _C.textMuted,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -687,7 +687,7 @@ class _CosmicSurvivalBaseCommandScreenState
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: def.color,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -886,7 +886,7 @@ class _ForgeButton extends StatelessWidget {
               label.toUpperCase(),
               style: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.4,
                 color: isDisabled ? _C.textMuted : _C.bg0,
@@ -1027,7 +1027,7 @@ class _OrbSkinCard extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: def.primaryColor.withValues(alpha: 0.85),
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1050,7 +1050,7 @@ class _OrbSkinCard extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: def.primaryColor,
-                            fontSize: 9,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.4,
                           ),
@@ -1190,7 +1190,7 @@ class _UpgradeCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: color,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
                   ),
@@ -1324,7 +1324,7 @@ class _AbilityCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: def.color,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1337,7 +1337,7 @@ class _AbilityCard extends StatelessWidget {
                       )],
                       style: TextStyle(
                         color: def.color.withValues(alpha: 0.8),
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -1361,7 +1361,7 @@ class _AbilityCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: def.color,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
                   ),

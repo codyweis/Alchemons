@@ -53,7 +53,7 @@ class _T {
   static TextStyle get label => TextStyle(
     fontFamily: 'monospace',
     color: _C.textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -262,7 +262,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: _C.textSecondary,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
                     ),
@@ -376,7 +376,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: _C.textSecondary,
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1.0,
                               ),

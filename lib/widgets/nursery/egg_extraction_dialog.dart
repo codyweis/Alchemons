@@ -184,7 +184,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                                         'Cultivation complete',
                                         style: TextStyle(
                                           color: theme.textMuted,
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                           letterSpacing: .4,
                                         ),

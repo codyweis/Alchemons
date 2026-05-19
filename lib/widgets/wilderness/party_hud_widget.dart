@@ -237,7 +237,7 @@ class _PartySlot extends StatelessWidget {
                       'L${inst.level}',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

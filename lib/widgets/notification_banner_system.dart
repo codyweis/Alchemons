@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -240,13 +241,13 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                   shape: BoxShape.circle,
                   border: Border.all(color: t.bg0, width: 1.5),
                 ),
-                constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                 child: Center(
                   child: Text(
                     '${widget.notification.count}',
                     style: TextStyle(
                       color: t.bg0,
-                      fontSize: 10,
+                      fontSize: AppType.caption,
                       fontWeight: FontWeight.w900,
                       fontFamily: 'monospace',
                     ),
@@ -357,7 +358,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: t.textPrimary,
-                                fontSize: 12,
+                                fontSize: AppType.body,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.1,
                                 shadows: const [
@@ -387,7 +388,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                                 '${widget.notification.count}',
                                 style: TextStyle(
                                   color: accent,
-                                  fontSize: 10,
+                                  fontSize: AppType.caption,
                                   fontWeight: FontWeight.w900,
                                   fontFamily: 'monospace',
                                 ),
@@ -403,7 +404,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t.textSecondary,
-                            fontSize: 10,
+                            fontSize: AppType.caption,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.7,
                           ),
@@ -414,24 +415,31 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () {
                     HapticFeedback.lightImpact();
                     widget.onDismiss();
                   },
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: t.bg3.withValues(alpha: 0.75),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: t.borderDim.withValues(alpha: 0.9),
-                        width: 1,
+                  child: SizedBox(
+                    width: AppTap.min,
+                    height: AppTap.min,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: t.bg3.withValues(alpha: 0.75),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: t.borderDim.withValues(alpha: 0.9),
+                            width: 1,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: t.textSecondary,
+                          size: 22,
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: t.textSecondary,
-                      size: 22,
                     ),
                   ),
                 ),

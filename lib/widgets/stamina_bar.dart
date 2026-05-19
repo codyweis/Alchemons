@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +20,7 @@ class StaminaBar extends StatelessWidget {
     super.key,
     required this.current,
     required this.max,
-    this.size = 10,
+    this.size = 12,
     this.gap = 3,
     this.fillColor = const Color(0xFF22C55E),
     this.emptyColor = const Color(0xFFE5E7EB),
@@ -162,19 +163,23 @@ class _StaminaBadgeState extends State<StaminaBadge> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.local_fire_department, size: 14, color: Colors.green),
-        const SizedBox(width: 4),
-        StaminaBar(current: state.bars, max: state.max, size: 8, gap: 2),
+        const Icon(
+          Icons.local_fire_department,
+          size: AppIcon.sm,
+          color: Colors.green,
+        ),
+        const SizedBox(width: AppSpace.xs),
+        StaminaBar(current: state.bars, max: state.max),
         if (widget.showCountdown) ...[
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpace.sm),
           Text(
             countdown,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: AppType.caption,
               color: state.bars >= state.max
                   ? Colors.green.shade700
                   : Colors.grey.shade600,
-              fontWeight: FontWeight.w600,
+              fontWeight: AppWeight.semibold,
             ),
           ),
         ],

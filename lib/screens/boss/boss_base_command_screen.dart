@@ -40,7 +40,7 @@ class _T {
   static const TextStyle label = TextStyle(
     fontFamily: 'monospace',
     color: _C.textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -446,14 +446,14 @@ class _UpgradeCard extends StatelessWidget {
                       name.toUpperCase(),
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
                         color: color,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(description, style: _T.body.copyWith(fontSize: 11)),
+                    Text(description, style: _T.body.copyWith(fontSize: 12)),
                   ],
                 ),
               ),
@@ -468,7 +468,7 @@ class _UpgradeCard extends StatelessWidget {
                 bonusLabel,
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: currentLevel > 0 ? color : _C.textMuted,
                 ),
@@ -489,7 +489,7 @@ class _UpgradeCard extends StatelessWidget {
                     'MAXED',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.4,
                       color: color,
@@ -567,7 +567,7 @@ class _ForgeButton extends StatelessWidget {
               label.toUpperCase(),
               style: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.4,
                 color: isDisabled ? _C.textMuted : _C.bg0,

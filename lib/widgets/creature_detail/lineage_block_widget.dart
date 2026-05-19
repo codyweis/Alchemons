@@ -65,7 +65,7 @@ class LineageBlock extends StatelessWidget {
             instance.generationDepth == 0
                 ? 'Founders start the line, but purity is tracked separately from generation.'
                 : 'Purity reflects the recorded ancestry of this line, not just its generation.',
-            style: ft.body.copyWith(fontSize: 10, height: 1.3),
+            style: ft.body.copyWith(fontSize: 12, height: 1.3),
           ),
         ),
 
@@ -89,7 +89,7 @@ class LineageBlock extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: purityColor,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
                           ),
@@ -99,7 +99,7 @@ class LineageBlock extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       purity.description,
-                      style: ft.body.copyWith(fontSize: 10, height: 1.3),
+                      style: ft.body.copyWith(fontSize: 12, height: 1.3),
                     ),
                   ],
                 ),
@@ -331,7 +331,7 @@ class _LegendItem extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'monospace',
             color: fc.textSecondary,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -396,7 +396,7 @@ class _FactionTile extends StatelessWidget {
               fontFamily: 'monospace',
               color: color,
               fontWeight: FontWeight.w700,
-              fontSize: 10,
+              fontSize: 12,
               letterSpacing: 0.5,
             ),
           ),
@@ -406,7 +406,7 @@ class _FactionTile extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),

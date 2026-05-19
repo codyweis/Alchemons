@@ -27,7 +27,7 @@ class ForgeBar extends StatelessWidget {
               style: TextStyle(
                 fontFamily: appFontFamily(context),
                 color: CosmicScreenStyles.textSecondary,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.6,
               ),
@@ -38,7 +38,7 @@ class ForgeBar extends StatelessWidget {
               style: TextStyle(
                 fontFamily: appFontFamily(context),
                 color: barColor,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),

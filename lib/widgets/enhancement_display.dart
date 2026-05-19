@@ -272,7 +272,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
                       'Level ${widget.instance.level}',
                       style: TextStyle(
                         color: widget.theme.textMuted,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -502,7 +502,7 @@ class _LevelDisplayState extends State<_LevelDisplay>
             'Level ${widget.currentLevel}',
             style: TextStyle(
               color: widget.theme.primary,
-              fontSize: 11, // REDUCED from 13
+              fontSize: 12, // REDUCED from 13
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -541,7 +541,7 @@ class _LevelDisplayState extends State<_LevelDisplay>
               'Level ${widget.targetLevel}',
               style: TextStyle(
                 color: Colors.green.shade400,
-                fontSize: 11, // REDUCED from 13
+                fontSize: 12, // REDUCED from 13
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -583,7 +583,7 @@ class _AnimatedXpBar extends StatelessWidget {
               'Experience',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 10, // REDUCED from 11
+                fontSize: 12, // REDUCED from 11
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
               ),
@@ -612,7 +612,7 @@ class _AnimatedXpBar extends StatelessWidget {
                       '+$gainedXp XP',
                       style: TextStyle(
                         color: Colors.amber.shade400,
-                        fontSize: 9, // REDUCED from 10
+                        fontSize: 12, // REDUCED from 10
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -646,7 +646,7 @@ class _AnimatedXpBar extends StatelessWidget {
                     '$currentXp / $maxXp',
                     style: TextStyle(
                       color: theme.text,
-                      fontSize: 10, // REDUCED from 11
+                      fontSize: 12, // REDUCED from 11
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -696,7 +696,7 @@ class _StatGainsDisplay extends StatelessWidget {
           showActualValues ? 'New Stats' : 'Stat Increases',
           style: TextStyle(
             color: theme.textMuted,
-            fontSize: 10, // REDUCED from 11
+            fontSize: 12, // REDUCED from 11
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
           ),
@@ -772,7 +772,7 @@ class _StatGainChip extends StatelessWidget {
             _formatStatName(statName),
             style: TextStyle(
               color: color,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -781,7 +781,7 @@ class _StatGainChip extends StatelessWidget {
             '+${gain.toStringAsFixed(2)}',
             style: TextStyle(
               color: color,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -859,7 +859,7 @@ class _StatValueChip extends StatelessWidget {
             _formatStatName(statName),
             style: TextStyle(
               color: color,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -869,7 +869,7 @@ class _StatValueChip extends StatelessWidget {
             oldValue.toStringAsFixed(2),
             style: TextStyle(
               color: color.withValues(alpha: 0.6),
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               decoration: TextDecoration.lineThrough,
             ),
@@ -886,7 +886,7 @@ class _StatValueChip extends StatelessWidget {
             newValue.toStringAsFixed(2),
             style: TextStyle(
               color: color,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),

@@ -111,7 +111,7 @@ class _PlanetRecipeHudState extends State<PlanetRecipeHud> {
                     'PINNED',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 8,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.8,
                     ),
@@ -149,7 +149,7 @@ class _PlanetRecipeHudState extends State<PlanetRecipeHud> {
                     '${(score * 100).toStringAsFixed(0)}% MATCH',
                     style: TextStyle(
                       color: scoreColor,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       shadows: const [
                         Shadow(color: Colors.black87, blurRadius: 6),
@@ -190,7 +190,7 @@ class _PlanetRecipeHudState extends State<PlanetRecipeHud> {
                       e.key,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.94),
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         shadows: const [
                           Shadow(color: Colors.black87, blurRadius: 5),
@@ -204,7 +204,7 @@ class _PlanetRecipeHudState extends State<PlanetRecipeHud> {
                       '${targetPct.toStringAsFixed(0)}%',
                       style: TextStyle(
                         color: elemColor.withValues(alpha: 0.98),
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                         shadows: const [
                           Shadow(color: Colors.black87, blurRadius: 6),
@@ -242,7 +242,7 @@ class _PlanetRecipeHudState extends State<PlanetRecipeHud> {
                         color: good
                             ? Colors.white.withValues(alpha: 0.96)
                             : const Color(0xFFFF8A80),
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         shadows: const [
                           Shadow(color: Colors.black87, blurRadius: 6),
@@ -274,7 +274,7 @@ class _PlanetRecipeHudState extends State<PlanetRecipeHud> {
                     'Any  ${widget.recipe.randomPct.toStringAsFixed(0)}%',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       shadows: const [
                         Shadow(color: Colors.black87, blurRadius: 5),

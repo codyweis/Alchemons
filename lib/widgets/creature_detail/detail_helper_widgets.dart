@@ -113,7 +113,7 @@ class StatBarRow extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: isMaxed ? fc.amberGlow : fc.textPrimary,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -131,7 +131,7 @@ class StatBarRow extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: isMaxed ? fc.amberBright : fc.textMuted,
-                fontSize: 9,
+                fontSize: 12,
                 fontStyle: FontStyle.italic,
                 fontWeight: isMaxed ? FontWeight.w600 : FontWeight.normal,
                 letterSpacing: 0.5,
@@ -190,7 +190,7 @@ class LabeledInlineValue extends StatelessWidget {
               valueText,
               style: ft.body.copyWith(
                 color: valueColor ?? fc.textPrimary,
-                fontSize: 11,
+                fontSize: 12,
               ),
             ),
           ),

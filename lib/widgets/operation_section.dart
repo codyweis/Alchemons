@@ -71,7 +71,7 @@ class OperationSection extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.black,
                       fontWeight: FontWeight.w900,
-                      fontSize: 10,
+                      fontSize: 12,
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -104,7 +104,7 @@ class OperationSection extends StatelessWidget {
                         style: TextStyle(
                           color: theme.text,
                           fontWeight: FontWeight.w900,
-                          fontSize: 10,
+                          fontSize: 12,
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -152,7 +152,7 @@ class _StatChip extends StatelessWidget {
             label,
             style: TextStyle(
               color: theme.textMuted,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -161,7 +161,7 @@ class _StatChip extends StatelessWidget {
             '$value',
             style: TextStyle(
               color: theme.text,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),

@@ -135,7 +135,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                 'Tip: You can long-press a specimen to inspect its details before using it as enhancement material.',
                 style: TextStyle(
                   color: t.textSecondary,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -144,7 +144,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                 'Tip: Alchemons can be enhanced to a maximum level of 10. During elemental dissonance, the sacrificed specimen\'s highest and lowest stats are morphed into the power-up and penalty applied to the target Alchemon.',
                 style: TextStyle(
                   color: t.textSecondary,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),

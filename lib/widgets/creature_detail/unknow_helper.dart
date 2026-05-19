@@ -42,7 +42,7 @@ class UnknownScrollArea extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Specimen data unavailable.\nContinue research to unlock analysis.',
-              style: ft.body.copyWith(fontSize: 11),
+              style: ft.body.copyWith(fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ],

@@ -173,7 +173,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
                     color: a,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 2.0,
                   ),
@@ -298,7 +298,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                               fontFamily: appFontFamily(context),
                                               color: CosmicScreenStyles
                                                   .textSecondary,
-                                              fontSize: 10,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w600,
                                               letterSpacing: 1.6,
                                             ),
@@ -338,7 +338,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                                     fontFamily: appFontFamily(context),
                                                     color: CosmicScreenStyles
                                                         .amberBright,
-                                                    fontSize: 11,
+                                                    fontSize: 12,
                                                     fontWeight: FontWeight.w800,
                                                   ),
                                                 ),
@@ -367,7 +367,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                               fontFamily: appFontFamily(context),
                                               color: CosmicScreenStyles
                                                   .textSecondary,
-                                              fontSize: 10,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w600,
                                               letterSpacing: 1.6,
                                             ),
@@ -394,7 +394,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                               style: TextStyle(
                                                 fontFamily: appFontFamily(context),
                                                 color: CosmicScreenStyles.teal,
-                                                fontSize: 10,
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w800,
                                               ),
                                             ),
@@ -411,7 +411,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                                 fontFamily: appFontFamily(context),
                                                 color: CosmicScreenStyles
                                                     .textSecondary,
-                                                fontSize: 10,
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w600,
                                                 letterSpacing: 1.6,
                                               ),
@@ -441,7 +441,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                                 style: TextStyle(
                                                   fontFamily: appFontFamily(context),
                                                   color: Color(0xFFE53935),
-                                                  fontSize: 10,
+                                                  fontSize: 12,
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                               ),
@@ -459,7 +459,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                                 fontFamily: appFontFamily(context),
                                                 color: CosmicScreenStyles
                                                     .textSecondary,
-                                                fontSize: 10,
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w600,
                                                 letterSpacing: 1.6,
                                               ),
@@ -489,7 +489,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                                 style: TextStyle(
                                                   fontFamily: appFontFamily(context),
                                                   color: Color(0xFFFF6F00),
-                                                  fontSize: 10,
+                                                  fontSize: 12,
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                               ),
@@ -507,7 +507,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                                 fontFamily: appFontFamily(context),
                                                 color: CosmicScreenStyles
                                                     .textSecondary,
-                                                fontSize: 10,
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w600,
                                                 letterSpacing: 1.6,
                                               ),
@@ -537,7 +537,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                                 style: TextStyle(
                                                   fontFamily: appFontFamily(context),
                                                   color: Color(0xFF42A5F5),
-                                                  fontSize: 10,
+                                                  fontSize: 12,
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                               ),
@@ -581,7 +581,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                               color: const Color(
                                                 0xFFFF6F00,
                                               ).withValues(alpha: 0.6),
-                                              fontSize: 9,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w700,
                                               letterSpacing: 1.2,
                                             ),
@@ -615,7 +615,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                               color: const Color(
                                                 0xFFE53935,
                                               ).withValues(alpha: 0.6),
-                                              fontSize: 9,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w700,
                                               letterSpacing: 1.2,
                                             ),
@@ -631,7 +631,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                                 fontFamily: appFontFamily(context),
                                                 color: CosmicScreenStyles
                                                     .textSecondary,
-                                                fontSize: 10,
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w600,
                                                 letterSpacing: 1.6,
                                               ),
@@ -642,7 +642,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                               style: TextStyle(
                                                 fontFamily: appFontFamily(context),
                                                 color: Color(0xFF42A5F5),
-                                                fontSize: 9,
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w700,
                                               ),
                                             ),
@@ -665,7 +665,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                               color: const Color(
                                                 0xFF42A5F5,
                                               ).withValues(alpha: 0.6),
-                                              fontSize: 9,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w700,
                                               letterSpacing: 1.2,
                                             ),
@@ -681,7 +681,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                               fontFamily: appFontFamily(context),
                                               color:
                                                   CosmicScreenStyles.textMuted,
-                                              fontSize: 8,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
@@ -694,7 +694,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                           style: TextStyle(
                                             fontFamily: appFontFamily(context),
                                             color: CosmicScreenStyles.textMuted,
-                                            fontSize: 9,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -734,7 +734,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                         style: TextStyle(
                                           fontFamily: appFontFamily(context),
                                           color: CosmicScreenStyles.textPrimary,
-                                          fontSize: 10,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w700,
                                           height: 1.4,
                                         ),
@@ -818,7 +818,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                           fontFamily: appFontFamily(context),
                                           color:
                                               CosmicScreenStyles.textSecondary,
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w800,
                                           letterSpacing: 1.8,
                                         ),
@@ -933,7 +933,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           style: TextStyle(
             fontFamily: appFontFamily(context),
             color: effectiveColor,
-            fontSize: 9,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
           ),
@@ -1011,7 +1011,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
               label,
               style: TextStyle(
                 fontFamily: appFontFamily(context),
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.6,
                 color: textColor,
@@ -1040,7 +1040,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
             style: TextStyle(
               fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textSecondary,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 1.6,
             ),

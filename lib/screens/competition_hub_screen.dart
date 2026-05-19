@@ -110,7 +110,7 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
                       'Compete in elemental arenas to test your Alchemons',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.6),
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -347,7 +347,7 @@ class _ArenaCardState extends State<_ArenaCard>
                                 widget.biome.type.label.toUpperCase(),
                                 style: TextStyle(
                                   color: color,
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: .5,
                                 ),
@@ -360,7 +360,7 @@ class _ArenaCardState extends State<_ArenaCard>
                           widget.biome.description,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: .7),
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                           maxLines: 2,
@@ -388,7 +388,7 @@ class _ArenaCardState extends State<_ArenaCard>
                                   type,
                                   style: const TextStyle(
                                     color: Color(0xFFE8EAED),
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
@@ -417,7 +417,7 @@ class _ArenaCardState extends State<_ArenaCard>
                               'ALL TYPES',
                               style: TextStyle(
                                 color: Color(0xFFE8EAED),
-                                fontSize: 9,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: .5,
                               ),

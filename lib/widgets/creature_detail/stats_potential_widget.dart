@@ -139,7 +139,7 @@ class StatPotentialBar extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.textPrimary,
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
                 overflow: TextOverflow.clip,
@@ -151,7 +151,7 @@ class StatPotentialBar extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: fc.amberBright,
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 )
@@ -161,7 +161,7 @@ class StatPotentialBar extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: fc.textMuted,
-                    fontSize: 8,
+                    fontSize: 12,
                   ),
                 ),
             ],
@@ -258,7 +258,7 @@ class _PotentialSummary extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: tierColor,
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.0,
                   ),
@@ -269,7 +269,7 @@ class _PotentialSummary extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Total: ${totalCurrent.toStringAsFixed(1)} / ${totalPotential.toStringAsFixed(1)}',
-            style: ft.body.copyWith(fontSize: 10),
+            style: ft.body.copyWith(fontSize: 12),
           ),
           const SizedBox(height: 4),
           Text(
@@ -277,7 +277,7 @@ class _PotentialSummary extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.amberBright,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -342,7 +342,7 @@ class StatPotentialBlock extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'Each creature has a genetic potential cap for every stat. Feeding can increase stats up to their potential, but never beyond. Breed creatures with high potential to create powerful offspring!',
-                    style: ft.body.copyWith(fontSize: 10, height: 1.4),
+                    style: ft.body.copyWith(fontSize: 12, height: 1.4),
                   ),
                 ],
               ),

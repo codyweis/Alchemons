@@ -23,7 +23,24 @@ class _ConstellationPalette {
   static const textSoft = Color(0xFFD7E1EA);
   static const textMuted = Color(0xFFC2B39D);
   static const teal = Color(0xFF0EA5E9);
-  static const success = Color(0xFF16A34A);
+}
+
+TextStyle _constellationDisplay(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
 }
 
 class ConstellationScreen extends StatefulWidget {
@@ -599,7 +616,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: theme.primary,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.0,
                   ),
@@ -631,12 +648,16 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     final progress = total > 0 ? unlocked / total : 0.0;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 9),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
       decoration: BoxDecoration(
-        color: _ConstellationPalette.bg1.withValues(alpha: 0.98),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _ConstellationPalette.border),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            _ConstellationPalette.bg1.withValues(alpha: 0.75),
+            _ConstellationPalette.bg1.withValues(alpha: 0.0),
+          ],
+        ),
       ),
       child: Column(
         children: [
@@ -655,40 +676,47 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'CONSTELLATION',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: _ConstellationPalette.text,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
+                      'Constellation',
+                      style: _constellationDisplay(
+                        context,
+                        24,
+                        _ConstellationPalette.text,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    Text(
+                      'Chart your line through the sky.',
+                      style: _constellationDisplay(
+                        context,
+                        12,
+                        _ConstellationPalette.textMuted,
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               _ConstellationIconButton(
                 theme: theme,
                 icon: Icons.grid_view_rounded,
                 onTap: () =>
                     _showUnlockedSkillsSheet(context, theme, unlockedSkills),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _ConstellationPointsButton(
-                theme: theme,
                 points: points,
                 onTap: _openProgressOverview,
               ),
             ],
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 4,
-              backgroundColor: _ConstellationPalette.bg3,
+              backgroundColor: Colors.white.withValues(alpha: 0.08),
               valueColor: AlwaysStoppedAnimation(theme.primary),
             ),
           ),
@@ -705,33 +733,21 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     ];
     final trees = allTrees.where(_availableTrees.contains).toList();
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: _ConstellationPalette.bg1.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _ConstellationPalette.border),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       child: Row(
         children: List.generate(trees.length, (index) {
           final tree = trees[index];
           final progress = _getTreeProgress(tree, unlockedSkills);
           return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(
-                left: index == 0 ? 0 : 4,
-                right: index == trees.length - 1 ? 0 : 4,
-              ),
-              child: _ConstellationTreeButton(
-                theme: theme,
-                label: _getTreeName(tree),
-                icon: _getTreeIcon(tree),
-                accent: _getTreeAccentColor(theme, tree),
-                progress: progress,
-                selected: _selectedTree == tree,
-                onTap: () => _handleTreeTap(tree),
-              ),
+            child: _ConstellationTreeButton(
+              theme: theme,
+              label: _getTreeName(tree),
+              icon: _getTreeIcon(tree),
+              accent: _getTreeAccentColor(theme, tree),
+              progress: progress,
+              selected: _selectedTree == tree,
+              onTap: () => _handleTreeTap(tree),
             ),
           );
         }),
@@ -743,90 +759,73 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     final accent = _getTreeAccentColor(theme, _selectedTree);
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: BoxDecoration(
-        color: _ConstellationPalette.bg1.withValues(alpha: 0.98),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _ConstellationPalette.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _getTreeName(_selectedTree),
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: accent,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _getTreeDescription(_selectedTree),
-                        style: TextStyle(
-                          color: _ConstellationPalette.textMuted,
-                          fontSize: 10,
-                          height: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _showEarnPointsDialog(theme),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _ConstellationPalette.bg2,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: _ConstellationPalette.border),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.lightbulb_outline_rounded,
-                            size: 13,
-                            color: accent,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'How to Earn',
-                            style: TextStyle(
-                              color: _ConstellationPalette.textSoft,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            _ConstellationPalette.bg1.withValues(alpha: 0.85),
+            _ConstellationPalette.bg1.withValues(alpha: 0.0),
           ],
         ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _getTreeName(_selectedTree),
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: accent,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _getTreeDescription(_selectedTree),
+            style: TextStyle(
+              color: _ConstellationPalette.textMuted,
+              fontSize: 13,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => _showEarnPointsDialog(theme),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: accent.withValues(alpha: 0.45)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline_rounded,
+                    size: 14,
+                    color: accent,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'How to Earn',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -934,10 +933,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
         builder: (context, scrollController) => Container(
           decoration: const BoxDecoration(
             color: _ConstellationPalette.bg1,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-            border: Border.fromBorderSide(
-              BorderSide(color: _ConstellationPalette.border),
-            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
           ),
           child: Column(
             children: [
@@ -975,7 +971,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                             '${unlockedSkills.length} of ${ConstellationCatalog.allSkills.length} total',
                             style: TextStyle(
                               color: _ConstellationPalette.textMuted,
-                              fontSize: 10,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -1088,109 +1084,100 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     };
     final accent = _getTreeAccentColor(theme, sectionTree);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _ConstellationPalette.bg2,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _ConstellationPalette.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: const BoxDecoration(
-              color: _ConstellationPalette.bg3,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(5)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header — accent stripe + title + count, no wrapping box.
+        Row(
+          children: [
+            Container(width: 3, height: 14, color: accent),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: accent,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
             ),
-            child: Row(
-              children: [
-                Container(width: 3, height: 12, color: accent),
-                const SizedBox(width: 8),
-                Text(
-                  '$title • ${skills.length}',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: accent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ],
+            const SizedBox(width: 8),
+            Text(
+              '${skills.length}',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: _ConstellationPalette.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Padding(
+          padding: const EdgeInsets.only(left: 11),
+          child: Text(
+            subtitle,
+            style: const TextStyle(
+              color: _ConstellationPalette.textMuted,
+              fontSize: 12,
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: _ConstellationPalette.textMuted,
-                    fontSize: 11,
+        ),
+        const SizedBox(height: 10),
+        // Flat skill rows — no per-row border, just an icon + name + description.
+        // A faint left accent line ties each row back to its tree.
+        ...skills.asMap().entries.map((entry) {
+          final isLast = entry.key == skills.length - 1;
+          final skill = entry.value;
+          return Padding(
+            padding: EdgeInsets.only(bottom: isLast ? 0 : 1),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(11, 10, 12, 10),
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: accent.withValues(alpha: 0.55),
+                    width: 2,
                   ),
                 ),
-                const SizedBox(height: 10),
-                ...skills.map(
-                  (skill) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: _ConstellationPalette.bg3,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: _ConstellationPalette.border),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            color: accent,
-                            size: 18,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(skill.identityIcon, color: accent, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          skill.name,
+                          style: const TextStyle(
+                            color: _ConstellationPalette.text,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  skill.name,
-                                  style: const TextStyle(
-                                    color: _ConstellationPalette.text,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  skill.description,
-                                  style: const TextStyle(
-                                    color: _ConstellationPalette.textSoft,
-                                    fontSize: 11,
-                                    height: 1.35,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          skill.description,
+                          style: const TextStyle(
+                            color: _ConstellationPalette.textSoft,
+                            fontSize: 12,
+                            height: 1.35,
                           ),
-                          const SizedBox(width: 8),
-                          _ConstellationInlineBadge(
-                            label: 'T${skill.tier}',
-                            color: accent,
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          );
+        }),
+      ],
     );
   }
 
@@ -1314,7 +1301,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: accent,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.0,
                   ),
@@ -1443,7 +1430,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                       style: TextStyle(
                         color: theme.primary,
                         fontFamily: 'monospace',
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.1,
                       ),
@@ -1543,31 +1530,30 @@ class _ConstellationIconButton extends StatelessWidget {
   final FactionTheme theme;
   final IconData icon;
   final VoidCallback onTap;
-  final Color? iconColor;
 
   const _ConstellationIconButton({
     required this.theme,
     required this.icon,
     required this.onTap,
-    this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: _ConstellationPalette.bg2,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _ConstellationPalette.border),
-        ),
-        child: Icon(
-          icon,
-          color: iconColor ?? _ConstellationPalette.text,
-          size: 16,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: CustomPaint(
+          painter: _ConstellationBracketPainter(
+            color: _ConstellationPalette.textMuted.withValues(alpha: 0.38),
+            bracketSize: 8,
+            strokeWidth: 1,
+          ),
+          child: Container(
+            color: Colors.white.withValues(alpha: 0.03),
+            child: Icon(icon, color: _ConstellationPalette.text, size: 20),
+          ),
         ),
       ),
     );
@@ -1575,55 +1561,103 @@ class _ConstellationIconButton extends StatelessWidget {
 }
 
 class _ConstellationPointsButton extends StatelessWidget {
-  final FactionTheme theme;
   final int points;
   final VoidCallback onTap;
 
-  const _ConstellationPointsButton({
-    required this.theme,
-    required this.points,
-    required this.onTap,
-  });
+  const _ConstellationPointsButton({required this.points, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: _ConstellationPalette.bg2,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _ConstellationPalette.borderSoft),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '$points',
-              style: const TextStyle(
-                color: _ConstellationPalette.text,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                height: 1,
+      child: SizedBox(
+        width: 74,
+        height: 40,
+        child: CustomPaint(
+          painter: _ConstellationBracketPainter(
+            color: _ConstellationPalette.textMuted.withValues(alpha: 0.38),
+            bracketSize: 8,
+            strokeWidth: 1,
+          ),
+          child: Container(
+            color: Colors.white.withValues(alpha: 0.03),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Center(
+              child: RichText(
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$points ',
+                      style: _constellationDisplay(
+                        context,
+                        17,
+                        _ConstellationPalette.text,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    TextSpan(
+                      text: 'pts',
+                      style: _constellationDisplay(
+                        context,
+                        11,
+                        _ConstellationPalette.textMuted,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            Text(
-              'PTS',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: theme.primary,
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _ConstellationBracketPainter extends CustomPainter {
+  const _ConstellationBracketPainter({
+    required this.color,
+    required this.bracketSize,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double bracketSize;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final s = bracketSize;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(0, s)
+      ..lineTo(0, 0)
+      ..lineTo(s, 0)
+      ..moveTo(w - s, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, s)
+      ..moveTo(0, h - s)
+      ..lineTo(0, h)
+      ..lineTo(s, h)
+      ..moveTo(w - s, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - s);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ConstellationBracketPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.bracketSize != bracketSize ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
 
 class _ConstellationInlineBadge extends StatelessWidget {
@@ -1646,7 +1680,7 @@ class _ConstellationInlineBadge extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           color: color,
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: FontWeight.w900,
           letterSpacing: 0.8,
         ),
@@ -1680,45 +1714,37 @@ class _ConstellationTreeButton extends StatelessWidget {
     final value = total > 0 ? unlocked / total : 0.0;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
         decoration: BoxDecoration(
-          color: selected
-              ? accent.withValues(alpha: 0.12)
-              : _ConstellationPalette.bg2,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected
-                ? accent.withValues(alpha: 0.6)
-                : _ConstellationPalette.border,
-            width: selected ? 1.2 : 1,
-          ),
+          color: selected ? accent.withValues(alpha: 0.10) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               label,
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: selected
-                    ? _ConstellationPalette.text
-                    : _ConstellationPalette.textMuted,
-                fontSize: 9,
+                color: selected ? accent : _ConstellationPalette.textMuted,
+                fontSize: 13,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.7,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 6),
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: value,
-                minHeight: 4,
-                backgroundColor: _ConstellationPalette.bg3,
+                minHeight: 3,
+                backgroundColor: Colors.white.withValues(alpha: 0.06),
                 valueColor: AlwaysStoppedAnimation(accent),
               ),
             ),
@@ -1769,7 +1795,7 @@ class _ConstellationDialogButton extends StatelessWidget {
             color: filled
                 ? buttonColor
                 : (accent ?? _ConstellationPalette.textSoft),
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.0,
           ),
@@ -1809,7 +1835,7 @@ class _ConstellationInlineHint extends StatelessWidget {
               label,
               style: const TextStyle(
                 color: _ConstellationPalette.textSoft,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.35,
               ),
             ),

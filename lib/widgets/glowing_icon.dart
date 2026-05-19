@@ -219,7 +219,7 @@ class GlowingIcon extends StatelessWidget {
                                 fontFamily: 'monospace',
                                 color: t.amberBright,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 10,
+                                fontSize: 12,
                                 letterSpacing: 1.1,
                               ),
                             ),

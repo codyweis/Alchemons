@@ -599,7 +599,7 @@ class _InProgressPill extends StatelessWidget {
         label,
         style: TextStyle(
           color: color,
-          fontSize: 9,
+          fontSize: 12,
           fontWeight: FontWeight.w900,
           letterSpacing: 1.3,
         ),

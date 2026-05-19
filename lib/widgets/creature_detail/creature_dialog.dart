@@ -86,7 +86,7 @@ class _T {
   TextStyle get label => TextStyle(
     fontFamily: 'monospace',
     color: _c.textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -97,7 +97,7 @@ class _T {
   TextStyle get sectionTitle => TextStyle(
     fontFamily: 'monospace',
     color: _c.amberBright,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w800,
     letterSpacing: 2.0,
   );
@@ -204,7 +204,7 @@ class _TagBadge extends StatelessWidget {
       style: TextStyle(
         fontFamily: 'monospace',
         color: color,
-        fontSize: 9,
+        fontSize: 12,
         fontWeight: FontWeight.w800,
         letterSpacing: 1.2,
       ),
@@ -237,7 +237,7 @@ class _DataRow extends StatelessWidget {
               value,
               style: t.body.copyWith(
                 color: valueColor ?? c.textPrimary,
-                fontSize: 11,
+                fontSize: 12,
               ),
             ),
           ),
@@ -1057,7 +1057,7 @@ class _HeaderBar extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: c.textMuted,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
                     ),
@@ -1181,13 +1181,13 @@ class _TabSelector extends StatelessWidget {
         labelStyle: const TextStyle(
           fontFamily: 'monospace',
           fontWeight: FontWeight.w800,
-          fontSize: 11,
+          fontSize: 12,
           letterSpacing: 1.8,
         ),
         unselectedLabelStyle: const TextStyle(
           fontFamily: 'monospace',
           fontWeight: FontWeight.w600,
-          fontSize: 11,
+          fontSize: 12,
           letterSpacing: 1.8,
         ),
         tabs: const [
@@ -1542,7 +1542,7 @@ class _OverviewTab extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: fColor,
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.6,
                         ),
@@ -1613,7 +1613,7 @@ class _HeroCornerBadge extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           color: color,
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: FontWeight.w900,
           letterSpacing: 1.0,
         ),
@@ -1706,7 +1706,7 @@ class _StaminaRestoreButton extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: c.textMuted,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1783,7 +1783,7 @@ class _StaminaRestoreButton extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: c.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1865,7 +1865,7 @@ class _StatBar extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: color,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
               textAlign: TextAlign.right,
@@ -2118,7 +2118,7 @@ class _GatedContent extends StatelessWidget {
         Expanded(
           child: Text(
             message,
-            style: t.body.copyWith(fontSize: 11, fontStyle: FontStyle.italic),
+            style: t.body.copyWith(fontSize: 12, fontStyle: FontStyle.italic),
           ),
         ),
       ],
@@ -2425,7 +2425,7 @@ class _SummaryBanner extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           color: c.textPrimary,
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.8,
         ),
@@ -2496,7 +2496,7 @@ class _PurityAnalysisCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: c.textPrimary,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -2509,14 +2509,14 @@ class _PurityAnalysisCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: color,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             bonus.explanationFor(purity),
-            style: t.body.copyWith(fontSize: 10),
+            style: t.body.copyWith(fontSize: 12),
           ),
         ],
       ),
@@ -2561,7 +2561,7 @@ class _MechanicCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: c.textPrimary,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -2584,7 +2584,7 @@ class _MechanicCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: color,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -2592,7 +2592,7 @@ class _MechanicCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 5),
-            Text(mechanism, style: t.body.copyWith(fontSize: 10)),
+            Text(mechanism, style: t.body.copyWith(fontSize: 12)),
           ],
         ),
       ),
@@ -2686,14 +2686,14 @@ class _InheritedTraitsSimple extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: c.textPrimary,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
                         mechanism,
                         style: t.body.copyWith(
-                          fontSize: 9,
+                          fontSize: 12,
                           fontStyle: FontStyle.italic,
                         ),
                       ),

@@ -154,7 +154,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage>
                         color: _hasResettableState
                             ? t.amberBright
                             : t.textSecondary,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.8,
                       ),

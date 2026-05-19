@@ -102,7 +102,7 @@ Future<void> showQuickInstanceDialog({
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.amberBright,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.5,
                             ),
@@ -192,7 +192,7 @@ Future<void> showQuickInstanceDialog({
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     color: t.amber,
-                                    fontSize: 8,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 1.0,
                                   ),
@@ -254,7 +254,7 @@ Future<void> showQuickInstanceDialog({
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t.textMuted,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -356,7 +356,7 @@ Future<void> showQuickInstanceDialog({
                                       style: TextStyle(
                                         fontFamily: 'monospace',
                                         color: t.textPrimary,
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -392,7 +392,7 @@ Future<void> showQuickInstanceDialog({
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     color: t.textMuted,
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -542,7 +542,7 @@ class _QuickStatBar extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textSecondary,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
             ),
@@ -598,7 +598,7 @@ class _QuickStatBar extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: color,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -633,7 +633,7 @@ class _TraitPill extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           color: color,
-          fontSize: 9,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.8,
         ),

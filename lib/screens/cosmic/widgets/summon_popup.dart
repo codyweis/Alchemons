@@ -110,7 +110,7 @@ class SummonPopup extends StatelessWidget {
                   'Summon at planet',
                   style: TextStyle(
                     color: color,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

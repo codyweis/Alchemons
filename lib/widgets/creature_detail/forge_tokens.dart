@@ -71,7 +71,7 @@ class FT {
   TextStyle get label => TextStyle(
     fontFamily: 'monospace',
     color: _c.textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -82,7 +82,7 @@ class FT {
   TextStyle get sectionTitle => TextStyle(
     fontFamily: 'monospace',
     color: _c.amberBright,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w800,
     letterSpacing: 2.0,
   );
@@ -90,7 +90,7 @@ class FT {
   TextStyle get mono => TextStyle(
     fontFamily: 'monospace',
     color: _c.textPrimary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: FontWeight.w700,
     letterSpacing: 0.5,
   );
@@ -200,7 +200,7 @@ class ForgeTagBadge extends StatelessWidget {
       style: TextStyle(
         fontFamily: 'monospace',
         color: color,
-        fontSize: 9,
+        fontSize: 12,
         fontWeight: FontWeight.w800,
         letterSpacing: 1.2,
       ),
@@ -238,7 +238,7 @@ class ForgeDataRow extends StatelessWidget {
               value,
               style: ft.body.copyWith(
                 color: valueColor ?? fc.textPrimary,
-                fontSize: 11,
+                fontSize: 12,
               ),
             ),
           ),

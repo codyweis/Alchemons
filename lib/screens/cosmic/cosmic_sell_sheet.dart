@@ -413,7 +413,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.3),
-                fontSize: 10,
+                fontSize: 12,
               ),
             ),
             const SizedBox(height: 12),
@@ -461,7 +461,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.25),
-                              fontSize: 11,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -519,7 +519,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                     style: TextStyle(
                       color: Color(0xFF76FF03),
                       fontWeight: FontWeight.w800,
-                      fontSize: 11,
+                      fontSize: 12,
                       letterSpacing: 0.8,
                     ),
                   ),
@@ -528,7 +528,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                     style: const TextStyle(
                       color: Colors.white70,
                       fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -626,7 +626,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
               label,
               style: TextStyle(
                 color: isActive ? color : Colors.white38,
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
               ),
@@ -687,7 +687,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
             'PAY IN:',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.4),
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1,
             ),
@@ -731,7 +731,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
           label,
           style: TextStyle(
             color: selected ? color : Colors.white54,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -850,7 +850,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                               '+30%',
                               style: TextStyle(
                                 color: Color(0xFF76FF03),
-                                fontSize: 9,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -865,7 +865,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                         c.rarity.toUpperCase(),
                         style: TextStyle(
                           color: _rarityColor(c.rarity),
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.5,
                         ),
@@ -875,7 +875,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                         c.types.join(' / '),
                         style: TextStyle(
                           color: eColor.withValues(alpha: 0.7),
-                          fontSize: 9,
+                          fontSize: 12,
                         ),
                       ),
                       if (inst.source == 'planet_summon') ...[
@@ -927,7 +927,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                       'SELL',
                       style: TextStyle(
                         color: priceColor.withValues(alpha: 0.7),
-                        fontSize: 8,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                       ),

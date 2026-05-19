@@ -26,7 +26,7 @@ class TypeBadges extends StatelessWidget {
             type,
             style: TextStyle(
               color: c,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: .5,
             ),
@@ -60,7 +60,7 @@ class RarityBadge extends StatelessWidget {
             rarity,
             style: TextStyle(
               color: c,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: .5,
             ),

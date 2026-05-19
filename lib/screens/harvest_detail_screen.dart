@@ -491,7 +491,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.2,
                             ),
@@ -523,7 +523,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.amberBright,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.3,
                             ),
@@ -1139,7 +1139,7 @@ class _HeaderShell extends StatelessWidget {
                       'Resource Extractor',
                       style: TextStyle(
                         color: theme.textMuted,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.3,
                       ),
@@ -1435,6 +1435,7 @@ class _ChamberView extends StatelessWidget {
                     tSeconds: tSeconds,
                     tempo: _tempo(),
                     color: accent,
+                    active: farm.hasActive,
                   ),
                   size: size,
                 ),
@@ -1581,7 +1582,7 @@ class _ChamberBackgroundPainter extends CustomPainter {
     canvas.drawCircle(c, r * 0.78, beam);
 
     // 3) Concentric rune rings rotating at tempo
-    final baseAngle = tSeconds * tempo;
+    final baseAngle = active ? tSeconds * tempo : 0.0;
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6
@@ -1704,11 +1705,13 @@ class _ChamberForegroundPainter extends CustomPainter {
     required this.tSeconds,
     required this.tempo,
     required this.color,
+    required this.active,
   });
 
   final double tSeconds;
   final double tempo;
   final Color color;
+  final bool active;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1763,12 +1766,12 @@ class _ChamberForegroundPainter extends CustomPainter {
           );
     canvas.drawRRect(outer, highlight);
 
-    // Spinning crown (small outer ticks)
+    // Crown of outer ticks — spins only when chamber is active.
     final crown = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = color.withValues(alpha: .65);
-    final ang = tSeconds * tempo * 1.2;
+      ..color = color.withValues(alpha: active ? .65 : .25);
+    final ang = active ? tSeconds * tempo * 1.2 : 0.0;
     canvas.save();
     canvas.translate(c.dx, c.dy);
     canvas.rotate(ang);
@@ -1794,7 +1797,10 @@ class _ChamberForegroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ChamberForegroundPainter old) =>
-      old.tSeconds != tSeconds || old.tempo != tempo || old.color != color;
+      old.active != active ||
+      old.color != color ||
+      old.tempo != tempo ||
+      (active && old.tSeconds != tSeconds);
 }
 
 class _AlchemyStatusBadge extends StatelessWidget {

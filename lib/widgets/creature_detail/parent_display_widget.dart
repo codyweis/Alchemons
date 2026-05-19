@@ -113,7 +113,7 @@ class ParentCard extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: fc.textSecondary,
-                            fontSize: 9,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.8,
                           ),
@@ -123,7 +123,7 @@ class ParentCard extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: fc.textMuted,
-                            fontSize: 8,
+                            fontSize: 12,
                             letterSpacing: 1.0,
                           ),
                         ),
@@ -152,7 +152,7 @@ class ParentCard extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: FC.purple,
-                              fontSize: 8,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,
                             ),

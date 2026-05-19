@@ -17,6 +17,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/background/starfield_background.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/image_composition.dart';
 
@@ -72,6 +73,9 @@ class _ConstellationProgressOverviewScreenState
 
   final Map<String, Future<BreedingProgress>> _progressFutures = {};
 
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
   Future<BreedingProgress> _progressFor(
     ConstellationService service,
     String speciesId,
@@ -79,6 +83,14 @@ class _ConstellationProgressOverviewScreenState
     speciesId,
     () => service.getBreedingProgress(speciesId),
   );
+
+  List<Creature> _filtered(List<Creature> species) {
+    if (_searchQuery.isEmpty) return species;
+    final q = _searchQuery.toLowerCase();
+    return species
+        .where((c) => c.name.toLowerCase().contains(q))
+        .toList();
+  }
 
   @override
   void initState() {
@@ -89,6 +101,7 @@ class _ConstellationProgressOverviewScreenState
   @override
   void dispose() {
     _pageController.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -103,8 +116,8 @@ class _ConstellationProgressOverviewScreenState
     // PERF: Read theme once at top level — not inside child builders.
     final t = ForgeTokens(context.read<FactionTheme>());
 
-    return Scaffold(
-      backgroundColor: t.bg0,
+    return StarfieldBackgroundScaffold(
+      nebulaColor: t.amber,
       appBar: _buildAppBar(t),
       body: StreamBuilder<List<PlayerCreature>>(
         stream: db.creatureDao.watchDiscovered(),
@@ -119,34 +132,137 @@ class _ConstellationProgressOverviewScreenState
 
           if (species.isEmpty) return _buildEmptyState(t);
 
-          return _isCardView
-              ? _buildCardView(species, constellationService, t)
-              : _buildListView(species, constellationService, t);
+          final filtered = _filtered(species);
+          return SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                _buildSearchField(t),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? _buildNoResults(t)
+                      : _isCardView
+                          ? _buildCardView(
+                              filtered,
+                              constellationService,
+                              t,
+                            )
+                          : _buildListView(
+                              filtered,
+                              constellationService,
+                              t,
+                            ),
+                ),
+              ],
+            ),
+          );
         },
+      ),
+    );
+  }
+
+  Widget _buildSearchField(ForgeTokens t) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+        child: TextField(
+          controller: _searchCtrl,
+          onChanged: (v) {
+            setState(() {
+              _searchQuery = v.trim();
+              _currentPage = 0;
+            });
+            if (_pageController.hasClients) {
+              _pageController.jumpToPage(0);
+            }
+          },
+          style: TextStyle(color: t.textPrimary, fontSize: 14),
+          cursorColor: t.amberBright,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            isDense: true,
+            border: InputBorder.none,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: t.textSecondary,
+              size: 20,
+            ),
+            hintText: 'Search species',
+            hintStyle: TextStyle(
+              color: t.textMuted,
+              fontSize: 14,
+            ),
+            suffixIcon: _searchQuery.isEmpty
+                ? null
+                : IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: t.textSecondary,
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      _searchCtrl.clear();
+                      setState(() {
+                        _searchQuery = '';
+                        _currentPage = 0;
+                      });
+                      if (_pageController.hasClients) {
+                        _pageController.jumpToPage(0);
+                      }
+                    },
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoResults(ForgeTokens t) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: 48,
+              color: t.textMuted,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No species match "$_searchQuery"',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: t.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   PreferredSizeWidget _buildAppBar(ForgeTokens t) {
     return AppBar(
-      backgroundColor: t.bg1,
+      backgroundColor: Colors.transparent,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
-      leading: GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Container(
-          margin: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: t.bg2,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: t.borderDim),
-          ),
-          child: Icon(
-            Icons.arrow_back_rounded,
-            color: t.textSecondary,
-            size: 18,
-          ),
+      leading: IconButton(
+        icon: Icon(
+          Icons.arrow_back_rounded,
+          color: t.textSecondary,
+          size: 22,
         ),
+        onPressed: () => Navigator.pop(context),
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,7 +296,7 @@ class _ConstellationProgressOverviewScreenState
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 1.6,
             ),
@@ -188,28 +304,16 @@ class _ConstellationProgressOverviewScreenState
         ],
       ),
       actions: [
-        GestureDetector(
-          onTap: () => setState(() => _isCardView = !_isCardView),
-          child: Container(
-            margin: const EdgeInsets.only(right: 12),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: t.bg2,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: t.borderDim),
-            ),
-            child: Icon(
-              _isCardView ? Icons.list_rounded : Icons.view_carousel_rounded,
-              color: t.textSecondary,
-              size: 18,
-            ),
+        IconButton(
+          icon: Icon(
+            _isCardView ? Icons.list_rounded : Icons.view_carousel_rounded,
+            color: t.textSecondary,
+            size: 22,
           ),
+          onPressed: () => setState(() => _isCardView = !_isCardView),
         ),
+        const SizedBox(width: 4),
       ],
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: t.borderDim),
-      ),
     );
   }
 
@@ -446,7 +550,7 @@ class _ConstellationProgressOverviewScreenState
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.textSecondary,
-                fontSize: 10,
+                fontSize: 12,
                 letterSpacing: 0.3,
                 height: 1.7,
               ),
@@ -666,7 +770,7 @@ class _SpeciesCard extends StatelessWidget {
                                         style: TextStyle(
                                           fontFamily: 'monospace',
                                           color: t.textSecondary,
-                                          fontSize: 10,
+                                          fontSize: 12,
                                           letterSpacing: 0.5,
                                         ),
                                         overflow: TextOverflow.ellipsis,
@@ -829,7 +933,7 @@ class _ListItem extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textMuted,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.2,
                             ),
@@ -853,7 +957,7 @@ class _ListItem extends StatelessWidget {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: t.textMuted,
-                                fontSize: 9,
+                                fontSize: 12,
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -878,7 +982,7 @@ class _ListItem extends StatelessWidget {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: t.amberBright,
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.0,
                               ),
@@ -1031,7 +1135,7 @@ class _CompleteBadge extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.amberBright,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.5,
             ),

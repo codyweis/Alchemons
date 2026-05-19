@@ -215,7 +215,7 @@ class FeedingStageBuilders {
                               : 'Name',
                           style: TextStyle(
                             color: t.textPrimary,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -432,7 +432,7 @@ class FeedingStageBuilders {
                         inst.nickname ?? baseCreature!.name,
                         style: TextStyle(
                           color: isSelected ? fc.amberBright : t.textPrimary,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
                         maxLines: 1,
@@ -444,7 +444,7 @@ class FeedingStageBuilders {
                       'Lv ${inst.level}',
                       style: TextStyle(
                         color: isSelected ? fc.amber : t.textSecondary,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
                     ),

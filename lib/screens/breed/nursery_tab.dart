@@ -467,7 +467,7 @@ class _NurseryTabState extends State<NurseryTab> {
           title,
           style: TextStyle(
             color: color,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 2.0,
           ),
@@ -798,7 +798,7 @@ class _NurseryTabState extends State<NurseryTab> {
                               'Remaining: ${BreedConstants.formatRemaining(remaining)}',
                               style: TextStyle(
                                 color: theme.textMuted,
-                                fontSize: 10.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -905,7 +905,7 @@ class _NurseryTabState extends State<NurseryTab> {
                         title,
                         style: TextStyle(
                           color: accentColor,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.8,
                         ),
@@ -915,7 +915,7 @@ class _NurseryTabState extends State<NurseryTab> {
                         subtitle,
                         style: TextStyle(
                           color: theme.textMuted,
-                          fontSize: 10.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -933,7 +933,7 @@ class _NurseryTabState extends State<NurseryTab> {
                             newTime,
                             style: TextStyle(
                               color: accentColor.withValues(alpha: .85),
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: .3,
                             ),
@@ -970,7 +970,7 @@ class _NurseryTabState extends State<NurseryTab> {
                         cost.toString(),
                         style: const TextStyle(
                           color: Color(0xFFF59E0B),
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: .3,
                         ),
@@ -1390,7 +1390,7 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
                         color: widget.primaryColor.withValues(
                           alpha: (a + .2).clamp(0, 1),
                         ),
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
                       ),
@@ -1516,7 +1516,7 @@ class _ChamberStatusBadge extends StatelessWidget {
             '$activeCount/$totalCount',
             style: TextStyle(
               color: theme.text,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: .6,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -1531,7 +1531,7 @@ class _ChamberStatusBadge extends StatelessWidget {
             statusLabel,
             style: TextStyle(
               color: accent,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.0,
               fontFeatures: const [FontFeature.tabularFigures()],

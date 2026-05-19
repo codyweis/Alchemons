@@ -31,7 +31,7 @@ class OutcomeBadge extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           color: color,
-          fontSize: 9,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.2,
         ),
@@ -75,7 +75,7 @@ class OutcomeExplanation extends StatelessWidget {
 
     return Text(
       explanation,
-      style: ft.body.copyWith(fontSize: 11, height: 1.4),
+      style: ft.body.copyWith(fontSize: 12, height: 1.4),
     );
   }
 }

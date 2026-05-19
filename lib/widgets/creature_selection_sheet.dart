@@ -661,7 +661,7 @@ class _DefaultHeader extends StatelessWidget {
                         selectedSort!,
                         style: TextStyle(
                           color: theme.accent,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           letterSpacing: .5,
                         ),
@@ -692,7 +692,7 @@ class _DefaultHeader extends StatelessWidget {
                         : 'GENETICS',
                     style: TextStyle(
                       color: theme.accent,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: .5,
                     ),
@@ -880,7 +880,7 @@ class _CreatureGridCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: theme.text,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -898,7 +898,7 @@ class _CreatureGridCard extends StatelessWidget {
                 c.rarity.toUpperCase(),
                 style: TextStyle(
                   color: rarityColor,
-                  fontSize: 8,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: .5,
                 ),

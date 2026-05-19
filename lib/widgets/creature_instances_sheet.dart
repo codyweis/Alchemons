@@ -40,7 +40,7 @@ class _T {
   static const label = TextStyle(
     fontFamily: 'monospace',
     color: _C.textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -578,7 +578,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                   vertical: 10,
                 ),
                 hintText: 'SEARCH TRAITS / NATURE / LV',
-                hintStyle: _T.label.copyWith(fontSize: 9, letterSpacing: 0.8),
+                hintStyle: _T.label.copyWith(fontSize: 12, letterSpacing: 0.8),
               ),
               onChanged: (val) => _mutate(() => _searchText = val),
             ),
@@ -647,7 +647,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: color,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.4,
               ),
@@ -685,7 +685,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
               'FILTER',
               style: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.4,
                 color: hasFiltersActive ? t.amberBright : t.textSecondary,
@@ -729,7 +729,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textPrimary,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
             ),

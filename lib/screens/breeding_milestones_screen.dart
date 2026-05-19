@@ -3,6 +3,7 @@ import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/background/starfield_background.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -106,10 +107,10 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
     final t = ForgeTokens(theme);
     final rarityColor = _rarityColor(rarity, t);
 
-    return Scaffold(
-      backgroundColor: t.bg0,
+    return StarfieldBackgroundScaffold(
+      nebulaColor: rarityColor,
       appBar: AppBar(
-        backgroundColor: t.bg1,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
@@ -135,7 +136,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                   speciesName,
                   style: TextStyle(
                     color: t.textSecondary,
-                    fontSize: 11,
+                    fontSize: 12,
                     height: 1.5,
                   ),
                 ),
@@ -157,7 +158,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: rarityColor,
-                      fontSize: 8,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.8,
                     ),
@@ -204,145 +205,124 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
     final rarityColor = _rarityColor(rarity, t);
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: t.bg2,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: t.borderAccent),
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       child: Column(
         children: [
+          // Big floating count — no wrapper card chrome, lets the starfield
+          // breathe through.
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.science_outlined, color: t.amberBright, size: 28),
-              const SizedBox(width: 12),
+              Icon(Icons.science_outlined, color: t.amberBright, size: 32),
+              const SizedBox(width: 14),
               Text(
                 '${progress.totalBred}',
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   color: Color(0xFFFFB020),
-                  fontSize: 52,
+                  fontSize: 56,
                   fontWeight: FontWeight.w900,
                   height: 1,
+                  shadows: [
+                    Shadow(color: Color(0xCC000000), blurRadius: 16),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             'SPECIMENS BRED',
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textSecondary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.4,
             ),
           ),
           if (!isComplete) ...[
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: t.bg3,
-                borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: t.borderDim),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            const SizedBox(height: 24),
+            // Next milestone section — no surrounding container; just laid out.
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'NEXT: ${nextMilestone.displayName.toUpperCase()}',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textPrimary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${nextMilestone.count} specimens required',
-                            style: TextStyle(
-                              color: t.textSecondary,
-                              fontSize: 10,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'NEXT: ${nextMilestone.displayName.toUpperCase()}',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.4,
+                        ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: rarityColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(2),
-                          border: Border.all(
-                            color: rarityColor.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.star, color: rarityColor, size: 12),
-                            const SizedBox(width: 4),
-                            Text(
-                              '+$pointsForRarity pts',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: rarityColor,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
+                      const SizedBox(height: 3),
+                      Text(
+                        '${nextMilestone.count} specimens required',
+                        style: TextStyle(
+                          color: t.textSecondary,
+                          fontSize: 12,
+                          height: 1.4,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Container(
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: t.bg0,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: t.borderDim),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: rarityColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: rarityColor.withValues(alpha: 0.5),
                     ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: progress.progress.clamp(0.0, 1.0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [const Color(0xFFFFB020), t.amber],
-                          ),
-                          borderRadius: const BorderRadius.all(
-                            Radius.circular(2),
-                          ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.star, color: rarityColor, size: 12),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+$pointsForRarity pts',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: rarityColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${(progress.progress * 100).toInt()}% complete',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: t.textSecondary,
-                      fontSize: 10,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: SizedBox(
+                height: 6,
+                child: LinearProgressIndicator(
+                  value: progress.progress.clamp(0.0, 1.0),
+                  backgroundColor: Colors.white.withValues(alpha: 0.06),
+                  valueColor: AlwaysStoppedAnimation(const Color(0xFFFFB020)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${(progress.progress * 100).toInt()}% complete',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: t.textSecondary,
+                fontSize: 12,
+                height: 1.5,
               ),
             ),
           ] else ...[
@@ -395,7 +375,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.amberBright,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.2,
               ),
@@ -435,12 +415,12 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
         ? t.amber.withValues(alpha: 0.55)
         : isCurrent
         ? t.amberDim.withValues(alpha: 0.6)
-        : t.borderDim;
+        : Colors.white.withValues(alpha: 0.10);
     final bgColor = isComplete
-        ? t.amber.withValues(alpha: 0.08)
+        ? t.amber.withValues(alpha: 0.10)
         : isCurrent
-        ? t.bg2
-        : t.bg1;
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.white.withValues(alpha: 0.03);
     final isShowcaseTarget = _activeMilestoneCount == milestone.count;
     final showcaseColor = rarityColor.withValues(alpha: 0.78);
 
@@ -502,7 +482,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t.textPrimary,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.5,
                         ),
@@ -562,7 +542,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                               'Breed ${milestone.count}',
                               style: TextStyle(
                                 color: t.textSecondary,
-                                fontSize: 10,
+                                fontSize: 12,
                                 height: 1.5,
                               ),
                             ),
@@ -579,7 +559,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                                 style: TextStyle(
                                   fontFamily: 'monospace',
                                   color: rarityColor,
-                                  fontSize: 9,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 0.5,
                                 ),

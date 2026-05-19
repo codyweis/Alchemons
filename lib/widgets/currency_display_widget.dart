@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 
 class CurrencyDisplayWidget extends StatefulWidget {
@@ -24,7 +25,6 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     with SingleTickerProviderStateMixin {
   bool _condensed = true;
 
-  /// 0 = fully expanded, 1 = fully condensed.
   late final AnimationController _ctrl;
   late final Animation<double> _progress;
 
@@ -33,10 +33,10 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 380),
+      duration: const Duration(milliseconds: 320),
       value: 1.0,
     );
-    _progress = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutCubic);
+    _progress = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
   }
 
   @override
@@ -45,7 +45,7 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     super.dispose();
   }
 
-  String _formatCurrency(int amount) {
+  String _format(int amount) {
     if (amount >= 1000000000) return '${(amount / 1e9).toStringAsFixed(1)}B';
     if (amount >= 1000000) return '${(amount / 1e6).toStringAsFixed(1)}M';
     if (amount >= 1000) return '${(amount / 1e3).toStringAsFixed(1)}K';
@@ -66,108 +66,59 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
   bool _isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
 
-  Color _goldColor(BuildContext context) =>
-      _isDark(context) ? const Color(0xFFFFD700) : const Color(0xFF8A5A00);
-
-  Color _silverColor(BuildContext context) =>
-      _isDark(context) ? const Color(0xFFC0C0C0) : const Color(0xFF5F6772);
-
-  Color _backgroundColor(BuildContext context) => _isDark(context)
-      ? Colors.black.withValues(alpha: 0.25)
-      : Colors.white.withValues(alpha: 0.78);
-
-  Color _borderColor(BuildContext context, Color accent) => _isDark(context)
-      ? accent.withValues(alpha: 0.3)
-      : accent.withValues(alpha: 0.45);
-
-  Color _dividerColor(BuildContext context) => _isDark(context)
-      ? Colors.white.withValues(alpha: 0.2)
-      : Colors.black.withValues(alpha: 0.16);
-
-  List<BoxShadow> _shadow(BuildContext context, Color accent) =>
-      _isDark(context)
-      ? [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.1),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ]
-      : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-          BoxShadow(
-            color: accent.withValues(alpha: 0.08),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ];
-
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
-    final accent = widget.accentColor ?? Theme.of(context).colorScheme.primary;
+    final isDark = _isDark(context);
+
+    final goldColor = isDark ? const Color(0xFFFFCF4D) : const Color(0xFF8A5A00);
+    final silverColor = isDark ? const Color(0xFFD8DCE3) : const Color(0xFF5F6772);
 
     return GestureDetector(
       onTap: _handleTap,
-      child: AnimatedBuilder(
-        animation: _progress,
-        builder: (context, _) {
-          final t = _progress.value;
-          // Interpolate padding so the container shrinks smoothly.
-          final hPad = lerpDouble(12, 10, t)!;
-          final vPad = lerpDouble(8, 6, t)!;
-          final radius = lerpDouble(12, 8, t)!;
+      behavior: HitTestBehavior.opaque,
+      child: StreamBuilder<Map<String, int>>(
+        stream: db.currencyDao.watchAllCurrencies(),
+        builder: (context, snapshot) {
+          final currencies =
+              snapshot.data ?? const {'gold': 0, 'silver': 0, 'soft': 0};
+          final gold = currencies['gold'] ?? 0;
+          final silver = currencies['silver'] ?? 0;
 
-          return Container(
-            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-            decoration: BoxDecoration(
-              color: _backgroundColor(context),
-              borderRadius: BorderRadius.circular(radius),
-              border: Border.all(
-                color: _borderColor(context, accent),
-                width: 1,
-              ),
-              boxShadow: _shadow(context, accent),
-            ),
-            child: StreamBuilder<Map<String, int>>(
-              stream: db.currencyDao.watchAllCurrencies(),
-              builder: (context, snapshot) {
-                final currencies =
-                    snapshot.data ?? {'gold': 0, 'silver': 0, 'soft': 0};
-                final gold = currencies['gold'] ?? 0;
-                final silver = currencies['silver'] ?? 0;
-
-                return AnimatedSize(
-                  duration: const Duration(milliseconds: 380),
-                  curve: Curves.easeInOutCubic,
-                  alignment: Alignment.centerLeft,
-                  child: Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      // ── Full view (fades out when condensing) ──────────────
-                      IgnorePointer(
-                        child: Opacity(
-                          opacity: (1.0 - t).clamp(0.0, 1.0),
-                          child: t < 0.99
-                              ? _buildFullView(gold, silver)
-                              : const SizedBox.shrink(),
-                        ),
+          return AnimatedSize(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.centerLeft,
+            child: AnimatedBuilder(
+              animation: _progress,
+              builder: (context, _) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: _CurrencyChip(
+                        icon: Icons.hexagon_rounded,
+                        label: 'GOLD',
+                        amount: gold,
+                        color: goldColor,
+                        isDark: isDark,
+                        t: _progress.value,
+                        formatter: _format,
                       ),
-                      // ── Condensed view (fades in when condensing) ──────────
-                      IgnorePointer(
-                        child: Opacity(
-                          opacity: t.clamp(0.0, 1.0),
-                          child: t > 0.01
-                              ? _buildCondensedView(gold, silver)
-                              : const SizedBox.shrink(),
-                        ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: _CurrencyChip(
+                        icon: Icons.circle,
+                        label: 'SILVER',
+                        amount: silver,
+                        color: silverColor,
+                        isDark: isDark,
+                        t: _progress.value,
+                        formatter: _format,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -176,139 +127,139 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
       ),
     );
   }
-
-  Widget _buildFullView(int gold, int silver) {
-    final dividerColor = _dividerColor(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _CurrencyPill(
-          label: 'Gold',
-          icon: Icons.hexagon_rounded,
-          amount: gold,
-          color: _goldColor(context),
-          formatter: _formatCurrency,
-        ),
-        const SizedBox(width: 8),
-        Container(width: 1, height: 20, color: dividerColor),
-        const SizedBox(width: 8),
-        _CurrencyPill(
-          label: 'Silver',
-          icon: Icons.monetization_on_rounded,
-          amount: silver,
-          color: _silverColor(context),
-          formatter: _formatCurrency,
-        ),
-      ],
-    );
-  }
-
-  /// Condensed view — numbers only, no icon circles.
-  Widget _buildCondensedView(int gold, int silver) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _CurrencyPill(
-          label: 'Gold',
-          icon: Icons.hexagon_rounded,
-          amount: gold,
-          color: _goldColor(context),
-          formatter: _formatCurrency,
-          compact: true,
-        ),
-        const SizedBox(width: 8),
-        Container(width: 1, height: 14, color: _dividerColor(context)),
-        const SizedBox(width: 8),
-        _CurrencyPill(
-          label: 'Silver',
-          icon: Icons.monetization_on_rounded,
-          amount: silver,
-          color: _silverColor(context),
-          formatter: _formatCurrency,
-          compact: true,
-        ),
-      ],
-    );
-  }
 }
 
-double? lerpDouble(double a, double b, double t) => a + (b - a) * t;
+double _lerp(double a, double b, double t) => a + (b - a) * t;
 
-class _CurrencyPill extends StatelessWidget {
-  final String label;
+class _CurrencyChip extends StatelessWidget {
   final IconData icon;
+  final String label;
   final int amount;
   final Color color;
-  final String Function(int) formatter;
-  final bool compact;
+  final bool isDark;
 
-  const _CurrencyPill({
-    required this.label,
+  /// 0 = expanded, 1 = condensed
+  final double t;
+  final String Function(int) formatter;
+
+  const _CurrencyChip({
     required this.icon,
+    required this.label,
     required this.amount,
     required this.color,
+    required this.isDark,
+    required this.t,
     required this.formatter,
-    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark
+        ? color.withValues(alpha: 0.10)
+        : color.withValues(alpha: 0.08);
+    final border = isDark
+        ? color.withValues(alpha: 0.28)
+        : color.withValues(alpha: 0.22);
 
-    if (compact) {
-      return Row(
+    final hPad = _lerp(12, 10, t);
+    final vPad = _lerp(8, 6, t);
+    final radius = _lerp(12, 999, t);
+    final iconSize = _lerp(AppIcon.md, AppIcon.sm, t);
+
+    return Container(
+      constraints: BoxConstraints(minHeight: _lerp(AppTap.min, 32, t)),
+      padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            formatter(amount),
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.2,
+          Icon(icon, size: iconSize, color: color),
+          SizedBox(width: _lerp(AppSpace.sm, AppSpace.xs, t)),
+          Flexible(
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                // Expanded label+value column
+                Opacity(
+                  opacity: (1.0 - t).clamp(0.0, 1.0),
+                  child: IgnorePointer(
+                    ignoring: t > 0.5,
+                    child: t < 0.99
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  label,
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.65)
+                                        : Colors.black.withValues(alpha: 0.5),
+                                    fontSize: 10,
+                                    fontWeight: AppWeight.bold,
+                                    letterSpacing: 1.1,
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  formatter(amount),
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    color: color,
+                                    fontSize: AppType.bodyLg,
+                                    fontWeight: AppWeight.bold,
+                                    letterSpacing: 0.2,
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+                // Condensed value only
+                Opacity(
+                  opacity: t.clamp(0.0, 1.0),
+                  child: IgnorePointer(
+                    ignoring: t < 0.5,
+                    child: t > 0.01
+                        ? FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              formatter(amount),
+                              maxLines: 1,
+                              style: TextStyle(
+                                color: color,
+                                fontSize: AppType.body,
+                                fontWeight: AppWeight.bold,
+                                letterSpacing: 0.2,
+                                height: 1.0,
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 15, color: color),
-        const SizedBox(width: 7),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.72)
-                    : Colors.black.withValues(alpha: 0.55),
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-              ),
-            ),
-            Text(
-              formatter(amount),
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.25,
-                shadows: [
-                  Shadow(color: color.withValues(alpha: 0.35), blurRadius: 4),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 }

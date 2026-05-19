@@ -33,6 +33,67 @@ import 'package:provider/provider.dart';
 // Replaces both BiomeHarvestScreen and BiomeDetailScreen.
 // ---------------------------------------------------------------------------
 
+TextStyle _display(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
+}
+
+class _BracketFramePainter extends CustomPainter {
+  const _BracketFramePainter({
+    required this.color,
+    this.bracketSize = 10,
+    this.strokeWidth = 1,
+  });
+
+  final Color color;
+  final double bracketSize;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final s = bracketSize;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(0, s)
+      ..lineTo(0, 0)
+      ..lineTo(s, 0)
+      ..moveTo(w - s, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, s)
+      ..moveTo(0, h - s)
+      ..lineTo(0, h)
+      ..lineTo(s, h)
+      ..moveTo(w - s, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - s);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.bracketSize != bracketSize ||
+      oldDelegate.strokeWidth != strokeWidth;
+}
+
 class ExtractionHubScreen extends StatefulWidget {
   const ExtractionHubScreen({super.key, this.service});
 
@@ -156,7 +217,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                 'Higher-level Alchemons generate more resources.',
                 style: TextStyle(
                   color: t.textMuted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -188,7 +249,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: t.amberBright,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
                       ),
@@ -304,64 +365,64 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                     child: Column(
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                          child: Container(
-                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                            decoration: BoxDecoration(
-                              color: t.bg1.withValues(alpha: 0.94),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: t.borderDim),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(
-                                    alpha: theme.isDark ? 0.35 : 0.06,
-                                  ),
-                                  blurRadius: theme.isDark ? 18 : 14,
-                                  offset: const Offset(0, 10),
+                          padding: const EdgeInsets.fromLTRB(18, 8, 18, 2),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Harvest',
+                                textAlign: TextAlign.center,
+                                style: _display(
+                                  context,
+                                  28,
+                                  t.textPrimary,
+                                  weight: FontWeight.w500,
                                 ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 3,
-                                  height: 34,
-                                  decoration: BoxDecoration(
-                                    color: t.amber,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Gather elemental resources from active chambers.',
+                                textAlign: TextAlign.center,
+                                style: _display(
+                                  context,
+                                  13,
+                                  t.textSecondary,
+                                  weight: FontWeight.w500,
+                                  fontStyle: FontStyle.italic,
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'HARVEST',
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: t.textPrimary,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 2,
-                                        ),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: t.borderDim,
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    child: Text(
+                                      'Chambers',
+                                      style: _display(
+                                        context,
+                                        12,
+                                        t.textSecondary,
+                                        weight: FontWeight.w700,
+                                        letterSpacing: 1.1,
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Harvest elemental resources from active chambers',
-                                        style: TextStyle(
-                                          color: t.textSecondary,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.25,
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: t.borderDim,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                         Expanded(
@@ -386,30 +447,36 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                         final width = constraints.maxWidth;
                                         final crossAxisCount = width >= 980
                                             ? 4
-                                            : width >= 740
+                                            : width >= 760
                                             ? 3
-                                            : 2;
-                                        final spacing = width >= 740
-                                            ? 16.0
-                                            : 12.0;
+                                            : width >= 620
+                                            ? 2
+                                            : 1;
+                                        final spacing = width >= 760
+                                            ? 14.0
+                                            : width >= 620
+                                            ? 12.0
+                                            : 10.0;
                                         final totalSpacing =
                                             spacing * (crossAxisCount - 1);
                                         final cardWidth =
                                             (width - 24 - totalSpacing) /
                                             crossAxisCount;
                                         final childAspectRatio =
-                                            cardWidth >= 240
-                                            ? 0.58
+                                            crossAxisCount == 1
+                                            ? 0.96
+                                            : cardWidth >= 240
+                                            ? 0.64
                                             : cardWidth >= 190
-                                            ? 0.52
-                                            : 0.47;
+                                            ? 0.59
+                                            : 0.55;
 
                                         return GridView.builder(
                                           padding: const EdgeInsets.fromLTRB(
                                             12,
-                                            8,
+                                            4,
                                             12,
-                                            120,
+                                            112,
                                           ),
                                           gridDelegate:
                                               SliverGridDelegateWithFixedCrossAxisCount(
@@ -491,67 +558,43 @@ class _CollectAllBanner extends StatelessWidget {
     final readyColor = t.success;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: t.bg2.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: readyColor.withValues(alpha: theme.isDark ? 0.35 : 0.22),
-            width: 1.1,
-          ),
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: readyColor.withValues(alpha: theme.isDark ? 0.55 : 0.35),
+          bracketSize: 10,
+          strokeWidth: 1.05,
         ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              color: readyColor,
-              size: 16,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '$count chamber${count == 1 ? '' : 's'} ready to collect',
-                style: TextStyle(
-                  color: t.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          color: t.bg2.withValues(alpha: 0.96),
+          child: Row(
+            children: [
+              Icon(
+                Icons.check_circle_outline_rounded,
+                color: readyColor,
+                size: 16,
               ),
-            ),
-            GestureDetector(
-              onTap: onCollectAll,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      readyColor.withValues(alpha: theme.isDark ? 0.16 : 0.10),
-                      readyColor.withValues(alpha: theme.isDark ? 0.08 : 0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(
-                    color: readyColor.withValues(alpha: 0.7),
-                    width: 1.1,
-                  ),
-                ),
+              const SizedBox(width: 8),
+              Expanded(
                 child: Text(
-                  'COLLECT ALL',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: readyColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.1,
+                  '$count chamber${count == 1 ? '' : 's'} ready to collect',
+                  style: _display(
+                    context,
+                    12.5,
+                    t.textPrimary,
+                    weight: FontWeight.w700,
                   ),
                 ),
               ),
-            ),
-          ],
+              _OutlineBtn(
+                label: 'Collect all',
+                accent: readyColor,
+                theme: theme,
+                compact: true,
+                onTap: onCollectAll,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -963,7 +1006,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.2,
                             ),
@@ -995,7 +1038,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.amberBright,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.3,
                             ),
@@ -1122,7 +1165,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.1,
                             ),
@@ -1149,7 +1192,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.danger,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.1,
                             ),
@@ -1224,8 +1267,8 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 210;
             final panelHeight = compact
-                ? (farm.hasActive ? 144.0 : 126.0)
-                : (farm.hasActive ? 124.0 : 104.0);
+                ? (farm.hasActive ? 126.0 : 110.0)
+                : (farm.hasActive ? 108.0 : 92.0);
 
             Widget? badge;
             if (farm.completed) {
@@ -1245,7 +1288,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
             return Container(
               decoration: BoxDecoration(
                 color: t.bg2.withValues(alpha: 0.97),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(3),
                 border: Border.all(
                   color: farm.completed
                       ? t.success.withValues(alpha: theme.isDark ? 0.42 : 0.24)
@@ -1268,10 +1311,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                 children: [
                   Container(
                     padding: EdgeInsets.fromLTRB(
-                      compact ? 10 : 12,
-                      compact ? 9 : 10,
-                      compact ? 10 : 12,
+                      compact ? 9 : 11,
                       compact ? 8 : 9,
+                      compact ? 9 : 11,
+                      compact ? 6 : 7,
                     ),
                     decoration: BoxDecoration(
                       color: t.bg3.withValues(alpha: 0.95),
@@ -1287,30 +1330,27 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                farm.biome.label.toUpperCase(),
+                                farm.biome.label,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: t.textPrimary,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: compact ? 10.5 : 11.5,
-                                  letterSpacing: compact ? 0.7 : 1.0,
+                                style: _display(
+                                  context,
+                                  compact ? 15 : 16,
+                                  t.textPrimary,
+                                  weight: FontWeight.w600,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                farm.biome.elementTypes
-                                    .join(', ')
-                                    .toUpperCase(),
+                                farm.biome.elementTypes.join(', '),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: t.textSecondary,
-                                  fontSize: compact ? 8.5 : 9,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.8,
+                                style: _display(
+                                  context,
+                                  compact ? 10.5 : 11,
+                                  t.textSecondary,
+                                  weight: FontWeight.w700,
+                                  letterSpacing: 0.6,
                                 ),
                               ),
                             ],
@@ -1330,53 +1370,50 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
-                        compact ? 8 : 10,
+                        compact ? 7 : 8,
+                        compact ? 2 : 4,
+                        compact ? 7 : 8,
                         compact ? 4 : 6,
-                        compact ? 8 : 10,
-                        compact ? 6 : 8,
                       ),
                       child: Column(
                         children: [
                           Expanded(
-                            child: Column(
-                              children: [
-                                Expanded(
-                                  child: AspectRatio(
-                                    aspectRatio: compact ? 1.02 : 0.94,
-                                    child: _ChamberView(
-                                      tSeconds: _tSeconds,
-                                      progress: vm.progress,
-                                      collectCtrl: _collectCtrl,
-                                      tapFxCtrl: _tapFxCtrl,
-                                      onTapBoost: () => _handleTapBoost(farm),
-                                      farm: farm,
-                                      accent: accent,
-                                      statusOverlay: badge,
-                                      effectiveFill: vm.effectiveFill,
-                                      creatureWidget: _creatureWidget,
-                                      onTapDown: (details, inner) {
-                                        final lp = details.localPosition;
-                                        final clamped = Offset(
-                                          lp.dx.clamp(
-                                            inner.left + 6,
-                                            inner.right - 6,
-                                          ),
-                                          lp.dy.clamp(
-                                            inner.top + 6,
-                                            inner.bottom - 6,
-                                          ),
-                                        );
-                                        setState(() => _tapLocal = clamped);
-                                        _tapFxCtrl.forward(from: 0);
-                                      },
-                                      tapLocal: _tapLocal,
-                                    ),
-                                  ),
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: AspectRatio(
+                                aspectRatio: compact ? 1.14 : 1.08,
+                                child: _ChamberView(
+                                  tSeconds: _tSeconds,
+                                  progress: vm.progress,
+                                  collectCtrl: _collectCtrl,
+                                  tapFxCtrl: _tapFxCtrl,
+                                  onTapBoost: () => _handleTapBoost(farm),
+                                  farm: farm,
+                                  accent: accent,
+                                  statusOverlay: badge,
+                                  effectiveFill: vm.effectiveFill,
+                                  creatureWidget: _creatureWidget,
+                                  onTapDown: (details, inner) {
+                                    final lp = details.localPosition;
+                                    final clamped = Offset(
+                                      lp.dx.clamp(
+                                        inner.left + 6,
+                                        inner.right - 6,
+                                      ),
+                                      lp.dy.clamp(
+                                        inner.top + 6,
+                                        inner.bottom - 6,
+                                      ),
+                                    );
+                                    setState(() => _tapLocal = clamped);
+                                    _tapFxCtrl.forward(from: 0);
+                                  },
+                                  tapLocal: _tapLocal,
                                 ),
-                              ],
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           SizedBox(
                             height: panelHeight,
                             child: farm.hasActive
@@ -1395,10 +1432,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                 : Container(
                                     width: double.infinity,
                                     padding: EdgeInsets.fromLTRB(
-                                      compact ? 8 : 10,
-                                      compact ? 8 : 10,
-                                      compact ? 8 : 10,
-                                      compact ? 8 : 10,
+                                      compact ? 7 : 8,
+                                      compact ? 7 : 8,
+                                      compact ? 7 : 8,
+                                      compact ? 7 : 8,
                                     ),
                                     decoration: BoxDecoration(
                                       color: t.bg1.withValues(alpha: 0.84),
@@ -1479,7 +1516,7 @@ class _StartPanel extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          'Insert a creature to extract resources from this biome.',
+          'Insert an Alchemon to begin extraction in this chamber.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: t.textSecondary,
@@ -1490,7 +1527,7 @@ class _StartPanel extends StatelessWidget {
         ),
         SizedBox(height: compact ? 8 : 10),
         _PrimaryBtn(
-          label: 'Insert Alchemon',
+          label: 'Insert alchemon',
           accent: color,
           theme: theme,
           compact: compact,
@@ -1535,12 +1572,11 @@ class _ActivePanel extends StatelessWidget {
           farm.completed
               ? 'Ready to collect'
               : 'Time left: ${_formatHarvestRemaining(remaining)}',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: farm.completed ? t.success : color,
-            fontSize: compact ? 8.5 : 9.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.7,
+          style: _display(
+            context,
+            compact ? 10.5 : 11.5,
+            farm.completed ? t.success : color,
+            weight: FontWeight.w700,
           ),
         ),
         SizedBox(height: compact ? 4 : 6),
@@ -1576,7 +1612,7 @@ class _ActivePanel extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _OutlineBtn(
-            label: 'Terminate',
+            label: 'End run',
             accent: color,
             theme: theme,
             compact: compact,
@@ -1600,7 +1636,7 @@ class _ActivePanel extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _OutlineBtn(
-                  label: 'Terminate',
+                  label: 'End run',
                   accent: color,
                   theme: theme,
                   compact: compact,
@@ -1654,7 +1690,7 @@ class _LockedPanel extends StatelessWidget {
         ),
         SizedBox(height: compact ? 8 : 10),
         _OutlineBtn(
-          label: 'Unlock Biome',
+          label: 'Unlock chamber',
           accent: color,
           theme: theme,
           compact: compact,
@@ -1690,27 +1726,25 @@ class _PrimaryBtn extends StatelessWidget {
       opacity: disabled ? 0.6 : 1,
       child: GestureDetector(
         onTap: disabled ? null : onTap,
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: compact ? 11 : 13),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                bg,
-                accent.withValues(alpha: disabled ? 0.04 : 0.08),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: border, width: 1.1),
+        child: CustomPaint(
+          painter: _BracketFramePainter(
+            color: border,
+            bracketSize: 9,
+            strokeWidth: 1.05,
           ),
-          alignment: Alignment.center,
-          child: Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: disabled ? t.textMuted : t.textPrimary,
-              fontWeight: FontWeight.w800,
-              fontSize: compact ? 9 : 10,
-              letterSpacing: 1.0,
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: compact ? 11 : 13),
+            color: bg,
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: _display(
+                context,
+                compact ? 11 : 12.5,
+                disabled ? t.textMuted : t.textPrimary,
+                weight: FontWeight.w700,
+                letterSpacing: 0.45,
+              ),
             ),
           ),
         ),
@@ -1738,22 +1772,25 @@ class _OutlineBtn extends StatelessWidget {
     final t = ForgeTokens(theme);
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: compact ? 11 : 13),
-        decoration: BoxDecoration(
-          color: t.bg2,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: accent.withValues(alpha: 0.45), width: 1.1),
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: accent.withValues(alpha: 0.55),
+          bracketSize: 9,
+          strokeWidth: 1.05,
         ),
-        alignment: Alignment.center,
-        child: Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: t.textPrimary,
-            fontWeight: FontWeight.w800,
-            fontSize: compact ? 9 : 10,
-            letterSpacing: 1.0,
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: compact ? 11 : 13),
+          color: t.bg2,
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: _display(
+              context,
+              compact ? 11 : 12.5,
+              t.textPrimary,
+              weight: FontWeight.w700,
+              letterSpacing: 0.45,
+            ),
           ),
         ),
       ),
@@ -1866,6 +1903,7 @@ class _ChamberView extends StatelessWidget {
                     tSeconds: tSeconds,
                     tempo: _tempo(),
                     color: accent,
+                    active: farm.hasActive,
                   ),
                   size: size,
                 ),
@@ -2002,7 +2040,7 @@ class _ChamberBackgroundPainter extends CustomPainter {
         stops: const [.0, .35, 1.0],
       ).createShader(inner.outerRect);
     canvas.drawCircle(c, r * 0.78, beam);
-    final baseAngle = tSeconds * tempo;
+    final baseAngle = active ? tSeconds * tempo : 0.0;
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6
@@ -2108,10 +2146,12 @@ class _ChamberForegroundPainter extends CustomPainter {
     required this.tSeconds,
     required this.tempo,
     required this.color,
+    required this.active,
   });
   final double tSeconds;
   final double tempo;
   final Color color;
+  final bool active;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2168,10 +2208,10 @@ class _ChamberForegroundPainter extends CustomPainter {
     final crown = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = color.withValues(alpha: .65);
+      ..color = color.withValues(alpha: active ? .65 : .25);
     canvas.save();
     canvas.translate(c.dx, c.dy);
-    canvas.rotate(tSeconds * tempo * 1.2);
+    canvas.rotate(active ? tSeconds * tempo * 1.2 : 0.0);
     final cr = r * 0.88;
     for (int i = 0; i < 24; i++) {
       final a = i / 24 * 2 * math.pi;
@@ -2193,7 +2233,10 @@ class _ChamberForegroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ChamberForegroundPainter old) =>
-      old.tSeconds != tSeconds || old.tempo != tempo || old.color != color;
+      old.active != active ||
+      old.color != color ||
+      old.tempo != tempo ||
+      (active && old.tSeconds != tSeconds);
 }
 
 class _AlchemyStatusBadge extends StatelessWidget {
@@ -2427,7 +2470,7 @@ class _UnlockDialog extends StatelessWidget {
                       fontFamily: 'monospace',
                       color: t.amberBright,
                       fontWeight: FontWeight.w800,
-                      fontSize: 10,
+                      fontSize: 12,
                       letterSpacing: 1.1,
                     ),
                   ),
@@ -2461,7 +2504,7 @@ class _UnlockDialog extends StatelessWidget {
                               fontFamily: 'monospace',
                               color: t.textPrimary,
                               fontWeight: FontWeight.w700,
-                              fontSize: 10,
+                              fontSize: 12,
                               letterSpacing: 0.8,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -2473,7 +2516,7 @@ class _UnlockDialog extends StatelessWidget {
                             color: ok ? t.success : t.danger,
                             fontFamily: 'monospace',
                             fontWeight: FontWeight.w800,
-                            fontSize: 10.5,
+                            fontSize: 12,
                             letterSpacing: 0.8,
                           ),
                         ),
@@ -2501,7 +2544,7 @@ class _UnlockDialog extends StatelessWidget {
                               fontFamily: 'monospace',
                               color: t.textPrimary,
                               fontWeight: FontWeight.w800,
-                              fontSize: 10,
+                              fontSize: 12,
                               letterSpacing: 1.0,
                             ),
                           ),
@@ -2542,7 +2585,7 @@ class _UnlockDialog extends StatelessWidget {
                                     ? t.textMuted
                                     : t.amberBright,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 10,
+                                fontSize: 12,
                                 letterSpacing: 1.0,
                               ),
                             ),

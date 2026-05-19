@@ -107,7 +107,7 @@ class TopHudState extends State<TopHud> {
                     'COSMOS',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.55),
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.4,
                     ),
@@ -199,7 +199,7 @@ class TopHudState extends State<TopHud> {
                         '${widget.planetsFound}/${widget.planetsTotal} planets  ·  ${(widget.discoveryPct * 100).toStringAsFixed(1)}% explored',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.38),
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
                           height: 1.0,
@@ -335,7 +335,7 @@ class TopHudState extends State<TopHud> {
                             'ALCHEMICAL METER',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.15),
-                              fontSize: 8,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 2.2,
                             ),
@@ -405,7 +405,7 @@ class TopHudState extends State<TopHud> {
                                   : '${(widget.meter.fillPct * 100).toStringAsFixed(0)}%  ALCHEMICAL',
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.88),
-                                fontSize: 8,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.0,
                                 shadows: const [
@@ -463,7 +463,7 @@ class _ResourceChip extends StatelessWidget {
             label,
             style: TextStyle(
               color: labelColor,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.2,
               height: 1.0,

@@ -546,7 +546,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
           'CONVERT TO',
           style: TextStyle(
             color: t.textSecondary,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.5,
           ),
@@ -633,7 +633,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                   ),
                   Text(
                     subtitle,
-                    style: TextStyle(color: t.textSecondary, fontSize: 11),
+                    style: TextStyle(color: t.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
@@ -654,7 +654,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
           'AMOUNT',
           style: TextStyle(
             color: t.textSecondary,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.5,
           ),
@@ -688,7 +688,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                     'GOLD',
                     style: TextStyle(
                       color: t.textSecondary,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
                     ),
@@ -938,7 +938,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                     'SELL QUANTITY',
                     style: TextStyle(
                       color: t.textSecondary,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.5,
                     ),
@@ -985,7 +985,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                               'IN STORAGE: $selectedAvailable',
                               style: TextStyle(
                                 color: t.textSecondary,
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1.1,
                               ),
@@ -1107,7 +1107,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                               : 'Standard rate: 1 silver per matter.',
                           style: TextStyle(
                             color: t.textSecondary,
-                            fontSize: 11,
+                            fontSize: 12,
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -1194,7 +1194,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                       'TODAY',
                       style: TextStyle(
                         color: _accent,
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.8,
                       ),
@@ -1213,7 +1213,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             const SizedBox(height: 2),
             Text(
               '$available in storage',
-              style: TextStyle(color: t.textSecondary, fontSize: 11),
+              style: TextStyle(color: t.textSecondary, fontSize: 12),
             ),
           ],
         ),
@@ -1241,7 +1241,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             label,
             style: TextStyle(
               color: t.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.9,
             ),

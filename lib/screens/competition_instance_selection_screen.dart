@@ -203,7 +203,7 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
                             style: const TextStyle(
                               color: Colors.white70,
                               fontWeight: FontWeight.w900,
-                              fontSize: 10,
+                              fontSize: 12,
                             ),
                           ),
                         ),
@@ -444,7 +444,7 @@ class _StatsCard extends StatelessWidget {
                           t,
                           style: const TextStyle(
                             color: Color(0xFFE8EAED),
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -520,7 +520,7 @@ class _MiniStat extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white38,
                   fontWeight: FontWeight.w900,
-                  fontSize: 10,
+                  fontSize: 12,
                 ),
               ),
             ),

@@ -211,7 +211,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                 'Assign Alchemons to orbit your home planet.',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.4),
-                  fontSize: 11,
+                  fontSize: 12,
                 ),
               ),
             ),
@@ -289,7 +289,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                             'Slot ${i + 1}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.4),
-                              fontSize: 9,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.5,
                             ),
@@ -311,7 +311,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                               base.types.first,
                               style: TextStyle(
                                 color: elemCol,
-                                fontSize: 9,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -337,7 +337,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                             'REMOVE',
                             style: TextStyle(
                               color: Colors.redAccent,
-                              fontSize: 8,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -362,7 +362,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                       'YOUR ALCHEMONS',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.3),
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1,
                       ),
@@ -489,7 +489,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                           hintStyle: TextStyle(
                             fontFamily: appFontFamily(context),
                             color: Colors.white.withValues(alpha: 0.25),
-                            fontSize: 11,
+                            fontSize: 12,
                             letterSpacing: 1.0,
                           ),
                           border: InputBorder.none,
@@ -647,7 +647,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -656,7 +656,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                                     'Lv ${inst.level}  \u2022  $typeName',
                                     style: TextStyle(
                                       color: elemCol,
-                                      fontSize: 8,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),

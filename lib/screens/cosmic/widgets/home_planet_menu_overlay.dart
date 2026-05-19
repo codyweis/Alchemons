@@ -165,7 +165,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                           fontFamily: appFontFamily(context),
                                           color:
                                               CosmicScreenStyles.textSecondary,
-                                          fontSize: 10,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                           letterSpacing: 1.2,
                                         ),
@@ -212,7 +212,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                         style: TextStyle(
                                           fontFamily: appFontFamily(context),
                                           color: CosmicScreenStyles.textMuted,
-                                          fontSize: 10,
+                                          fontSize: 12,
                                           fontStyle: FontStyle.italic,
                                         ),
                                       ),
@@ -236,7 +236,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                       style: TextStyle(
                                         fontFamily: appFontFamily(context),
                                         color: CosmicScreenStyles.textMuted,
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         fontStyle: FontStyle.italic,
                                       ),
                                     )
@@ -268,7 +268,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                             style: TextStyle(
                                               fontFamily: appFontFamily(context),
                                               color: ec,
-                                              fontSize: 9,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w800,
                                               letterSpacing: 0.5,
                                             ),
@@ -328,7 +328,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                                   style: TextStyle(
                                     fontFamily: appFontFamily(context),
                                     color: CosmicScreenStyles.textSecondary,
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 1.8,
                                   ),
@@ -388,7 +388,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
                     color: a,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 2.0,
                   ),
@@ -449,7 +449,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
               label,
               style: TextStyle(
                 fontFamily: appFontFamily(context),
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.6,
                 color: primary

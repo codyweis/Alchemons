@@ -169,7 +169,7 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   color: amber,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 5.0,
                 ),
@@ -185,7 +185,7 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: amber.withValues(alpha: 0.55),
-                  fontSize: 9,
+                  fontSize: 12,
                   letterSpacing: 3.0,
                   fontWeight: FontWeight.w700,
                 ),
@@ -436,7 +436,7 @@ void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: entry.color,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 3,
                     ),
@@ -699,7 +699,7 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: color,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 4.0,
                   ),

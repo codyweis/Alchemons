@@ -442,7 +442,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
                               style: TextStyle(
                                 fontFamily: appFontFamily(context),
                                 color: Colors.white38,
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 2.5,
                               ),

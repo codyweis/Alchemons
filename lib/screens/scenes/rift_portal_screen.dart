@@ -229,7 +229,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: color,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 2.5,
                         ),

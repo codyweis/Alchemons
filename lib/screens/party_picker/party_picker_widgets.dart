@@ -75,7 +75,7 @@ class StageHeader extends StatelessWidget {
                   'Tap a creature to add or remove from squad',
                   style: TextStyle(
                     color: theme.textMuted,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -316,7 +316,7 @@ class TeamDisplay extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: theme.text,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.5,
                 ),
@@ -335,7 +335,7 @@ class TeamDisplay extends StatelessWidget {
                   '${selectedInstances.length} / ${context.read<SelectedPartyNotifier>().maxSize}',
                   style: TextStyle(
                     color: Colors.greenAccent.shade400,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -426,7 +426,7 @@ class TeamSlotFilled extends StatelessWidget {
               name,
               style: TextStyle(
                 color: theme.text,
-                fontSize: 8,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.center,
@@ -514,7 +514,7 @@ class TeamSlotEmpty extends StatelessWidget {
             'Empty',
             style: TextStyle(
               color: fg,
-              fontSize: 8,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),

@@ -5,6 +5,7 @@
 // - Same public API: ResourceCollectionWidget(accentColor: ...)
 
 import 'dart:ui';
+import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -90,7 +91,7 @@ class _ResourceCollectionWidgetState extends State<ResourceCollectionWidget>
                 return AnimatedBuilder(
                   animation: _t,
                   builder: (context, _) {
-                    final height = lerpDouble(60, 80, _t.value)!;
+                    final height = lerpDouble(60, 92, _t.value)!;
                     final minContentWidth =
                         widget.alignToEnd && constraints.hasBoundedWidth
                         ? constraints.maxWidth
@@ -173,6 +174,12 @@ class _ResourcePill extends StatelessWidget {
     required this.theme,
   });
 
+  String _fmt(int amount) {
+    if (amount >= 1000000) return '${(amount / 1e6).toStringAsFixed(1)}M';
+    if (amount >= 1000) return '${(amount / 1e3).toStringAsFixed(1)}K';
+    return '$amount';
+  }
+
   @override
   Widget build(BuildContext context) {
     const compactSize = 38.0;
@@ -183,6 +190,9 @@ class _ResourcePill extends StatelessWidget {
     final vPad = lerpDouble(0, 8, t)!;
     final iconSize = lerpDouble(30, 40, t)!; // <- image grows here
 
+    // Overlay fades in when compact, out as expanded details appear
+    final overlayOpacity = (1.0 - (t / 0.30)).clamp(0.0, 1.0);
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutQuart,
@@ -192,8 +202,45 @@ class _ResourcePill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // No wrapper — the image itself grows
-          _GlowyIcon(image: r.icon, size: iconSize, color: r.color, t: t),
+          // Orb with amount overlay in condensed mode
+          Stack(
+            alignment: Alignment.bottomCenter,
+            clipBehavior: Clip.none,
+            children: [
+              _GlowyIcon(image: r.icon, size: iconSize, color: r.color, t: t),
+              if (overlayOpacity > 0)
+                Positioned(
+                  bottom: -6,
+                  child: Opacity(
+                    opacity: overlayOpacity,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: r.color.withValues(alpha: 0.45),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        _fmt(r.amount),
+                        style: TextStyle(
+                          color: r.color,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
 
           if (showDetails)
             SizedBox(width: lerpDouble(4, 8, t)!), // subtle spacing growth
@@ -213,8 +260,8 @@ class _ResourcePill extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: theme.textMuted,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
+                        fontSize: AppType.caption,
+                        fontWeight: AppWeight.semibold,
                         height: 1.05,
                       ),
                     ),
@@ -232,7 +279,7 @@ class _ResourcePill extends StatelessWidget {
                         '${r.amount}',
                         style: const TextStyle(
                           color: Colors.black,
-                          fontSize: 12,
+                          fontSize: AppType.body,
                           fontWeight: FontWeight.w900,
                         ),
                       ),

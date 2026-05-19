@@ -48,8 +48,6 @@ class _C {
   static const panelBg = bg2;
   static const amber = Color(0xFFD97706);
   static const amberBright = Color(0xFFF59E0B);
-  static const amberGlow = Color(0xFFFFB020);
-  static const amberDim = Color(0xFF92400E);
   static const accent = amber;
   static const teal = Color(0xFF0EA5E9);
   static const textPrimary = Color(0xFFE8DCC8);
@@ -62,18 +60,10 @@ class _C {
 }
 
 class _T {
-  static const TextStyle heading = TextStyle(
-    fontFamily: 'monospace',
-    color: _C.textPrimary,
-    fontSize: 13,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 2.0,
-  );
-
   static const TextStyle label = TextStyle(
     fontFamily: 'monospace',
     color: _C.textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -86,86 +76,65 @@ class _T {
   );
 }
 
-class _PlateBox extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final Color accentColor;
-  final bool highlight;
+TextStyle _display(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
+}
 
-  const _PlateBox({
-    required this.child,
-    this.padding = const EdgeInsets.all(12),
-    this.accentColor = _C.accent,
-    this.highlight = false,
+class _BracketFramePainter extends CustomPainter {
+  const _BracketFramePainter({
+    required this.color,
+    required this.bracketSize,
+    required this.strokeWidth,
   });
 
+  final Color color;
+  final double bracketSize;
+  final double strokeWidth;
+
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: _C.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: highlight ? accentColor.withValues(alpha: 0.6) : _C.borderDim,
-          width: highlight ? 1.5 : 1,
-        ),
-        boxShadow: highlight
-            ? [
-                BoxShadow(
-                  color: accentColor.withValues(alpha: 0.12),
-                  blurRadius: 18,
-                ),
-              ]
-            : null,
-      ),
-      child: Stack(
-        children: [
-          child,
-          Positioned(
-            top: 0,
-            left: 0,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: accentColor.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                  left: BorderSide(
-                    color: accentColor.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: accentColor.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                  right: BorderSide(
-                    color: accentColor.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final s = bracketSize;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(0, s)
+      ..lineTo(0, 0)
+      ..lineTo(s, 0)
+      ..moveTo(w - s, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, s)
+      ..moveTo(0, h - s)
+      ..lineTo(0, h)
+      ..lineTo(s, h)
+      ..moveTo(w - s, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - s);
+    canvas.drawPath(path, paint);
   }
+
+  @override
+  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.bracketSize != bracketSize ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
 
 class _EtchedDivider extends StatelessWidget {
@@ -218,7 +187,7 @@ class _HudPill extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: _C.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.1,
             ),
@@ -249,61 +218,64 @@ class _ForgeButton extends StatelessWidget {
     final isDisabled = onTap == null || loading;
     return GestureDetector(
       onTap: isDisabled ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: secondary ? 42 : 52,
-        decoration: BoxDecoration(
+      child: CustomPaint(
+        painter: _BracketFramePainter(
           color: secondary
-              ? Colors.transparent
-              : (isDisabled ? _C.bg3 : _C.amber),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: secondary
-                ? _C.borderAccent.withValues(alpha: 0.6)
-                : (isDisabled ? _C.borderDim : _C.amberGlow),
-          ),
-          boxShadow: (!secondary && !isDisabled)
-              ? [
-                  BoxShadow(
-                    color: _C.amber.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (loading)
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: secondary ? _C.textSecondary : _C.bg0,
+              ? _C.textSecondary.withValues(alpha: 0.34)
+              : (isDisabled ? _C.borderDim : _C.amberBright).withValues(
+                  alpha: 0.72,
                 ),
-              )
-            else
-              Icon(
-                icon,
-                size: secondary ? 16 : 18,
-                color: secondary ? _C.textSecondary : _C.bg0,
+          bracketSize: 10,
+          strokeWidth: 1.1,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: secondary ? 42 : 52,
+          color: secondary
+              ? Colors.white.withValues(alpha: 0.02)
+              : (isDisabled
+                    ? _C.bg3.withValues(alpha: 0.55)
+                    : _C.amber.withValues(alpha: 0.10)),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (loading)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: secondary ? _C.textSecondary : _C.amberBright,
+                  ),
+                )
+              else
+                Icon(
+                  icon,
+                  size: secondary ? 16 : 18,
+                  color: secondary
+                      ? _C.textSecondary
+                      : (isDisabled ? _C.textMuted : _C.amberBright),
+                ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _display(
+                    context,
+                    secondary ? 12 : 14,
+                    secondary
+                        ? _C.textPrimary.withValues(alpha: 0.86)
+                        : (isDisabled ? _C.textMuted : _C.amberBright),
+                    weight: FontWeight.w700,
+                    letterSpacing: secondary ? 0.5 : 0.8,
+                  ),
+                ),
               ),
-            const SizedBox(width: 8),
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: secondary ? 11 : 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.8,
-                color: secondary
-                    ? _C.textSecondary
-                    : (isDisabled ? _C.textMuted : _C.bg0),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1429,7 +1401,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     _buildTacticsGrid(),
                     const SizedBox(height: 28),
                     _ForgeButton(
-                      label: 'Deploy Formation',
+                      label: 'Assign Team',
                       icon: Icons.groups_rounded,
                       loading: false,
                       onTap: _pickTeam,
@@ -1478,7 +1450,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   Widget _buildMenuHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: _C.borderDim, width: 1)),
       ),
@@ -1486,17 +1458,20 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         children: [
           GestureDetector(
             onTap: _exit,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _C.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: _C.borderDim),
-              ),
-              child: const Icon(
-                Icons.arrow_back_rounded,
-                color: _C.textSecondary,
-                size: 18,
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: CustomPaint(
+                painter: _BracketFramePainter(
+                  color: _C.textSecondary.withValues(alpha: 0.4),
+                  bracketSize: 8,
+                  strokeWidth: 1,
+                ),
+                child: const Icon(
+                  Icons.chevron_left_rounded,
+                  color: _C.textSecondary,
+                  size: 22,
+                ),
               ),
             ),
           ),
@@ -1504,92 +1479,96 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Row(
                   children: [
-                    _HeaderPulseDot(),
-                    SizedBox(width: 8),
-                    Text('SURVIVAL MODE', style: _T.heading),
-                  ],
-                ),
-                SizedBox(height: 2),
-                Text('ENDLESS WAVE DEFENSE', style: _T.label),
-              ],
-            ),
-          ),
-          Row(
-            children: [
-              _PlateBox(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                accentColor: _C.danger,
-                highlight: true,
-                child: const Column(
-                  children: [
+                    const _HeaderPulseDot(),
+                    const SizedBox(width: 8),
                     Text(
-                      '∞',
-                      style: TextStyle(
-                        color: _C.danger,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
+                      'Survival Mode',
+                      style: _display(
+                        context,
+                        23,
+                        _C.textPrimary,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    Text('WAVES', style: _T.label),
                   ],
                 ),
-              ),
-              if (_highScore != null && _highScore!.bestWave > 0) ...[
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _showHighScoreDetails,
-                  child: _PlateBox(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    accentColor: _C.amberBright,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.emoji_events_rounded,
-                              color: _C.amberBright,
-                              size: 12,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'W${_highScore!.bestWave}',
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.amberBright,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          _formatHighScoreNumber(_highScore!.bestScore),
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            color: _C.textSecondary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const Text('BEST', style: _T.label),
-                      ],
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  'Endless wave defense',
+                  style: _display(
+                    context,
+                    13,
+                    _C.textSecondary,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
-            ],
+            ),
           ),
+          if (_highScore != null && _highScore!.bestWave > 0)
+            GestureDetector(
+              onTap: _showHighScoreDetails,
+              child: CustomPaint(
+                painter: _BracketFramePainter(
+                  color: _C.amberBright.withValues(alpha: 0.55),
+                  bracketSize: 10,
+                  strokeWidth: 1.1,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  color: _C.bg2.withValues(alpha: 0.65),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.emoji_events_outlined,
+                            color: _C.amberBright,
+                            size: 13,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'W${_highScore!.bestWave}',
+                            style: _display(
+                              context,
+                              14,
+                              _C.amberBright,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        _formatHighScoreNumber(_highScore!.bestScore),
+                        style: _display(
+                          context,
+                          11,
+                          _C.textSecondary,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'Best',
+                        style: _display(
+                          context,
+                          11,
+                          _C.textSecondary,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1607,16 +1586,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _EtchedDivider(label: 'SPECIES ROSTER'),
-        const SizedBox(height: 8),
-        const Text(
-          'Special strength rises with stats: under 1.0 is weak, 1-2 is low, 2-3 is steady, 3-4 is strong, 4.0-4.6 is elite, and 4.6+ is peak. Kin needs both Beauty + Intelligence to scale fully.',
-          style: TextStyle(color: _C.textSecondary, fontSize: 10, height: 1.35),
-        ),
         const SizedBox(height: 14),
         AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
-          height: expandedActive ? 260 : 200,
+          height: expandedActive ? 340 : 200,
           child: PageView.builder(
             controller: _familyPageController,
             itemCount: _cosmicFamilyInfos.length,
@@ -1727,13 +1701,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                           ),
                         ),
                         child: Text(
-                          info.role.toUpperCase(),
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: info.color,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
+                          info.role,
+                          style: _display(
+                            context,
+                            13,
+                            info.color,
+                            weight: FontWeight.w700,
+                            letterSpacing: 0.6,
                           ),
                         ),
                       ),
@@ -1756,92 +1730,48 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    info.name.toUpperCase(),
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: _C.textPrimary,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 3,
-                                    ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  info.name,
+                                  style: _display(
+                                    context,
+                                    20,
+                                    _C.textPrimary,
+                                    weight: FontWeight.w700,
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
-                                Icon(
-                                  expanded
-                                      ? Icons.expand_less_rounded
-                                      : Icons.expand_more_rounded,
-                                  color: _C.textSecondary,
-                                  size: 16,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            AnimatedCrossFade(
-                              duration: const Duration(milliseconds: 140),
-                              firstChild: Text(
-                                info.description,
-                                style: _T.body,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                              secondChild: Text(
-                                info.description,
-                                style: _T.body,
+                              Icon(
+                                expanded
+                                    ? Icons.expand_less_rounded
+                                    : Icons.expand_more_rounded,
+                                color: _C.textSecondary,
+                                size: 16,
                               ),
-                              crossFadeState: expanded
-                                  ? CrossFadeState.showSecond
-                                  : CrossFadeState.showFirst,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.bolt_rounded,
-                            size: 11,
-                            color: _C.amberBright,
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: AnimatedCrossFade(
-                              duration: const Duration(milliseconds: 140),
-                              firstChild: Text(
-                                info.bestPowerups,
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: _C.amberDim,
-                                  fontSize: 9,
-                                  letterSpacing: 0.5,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              secondChild: Text(
-                                info.bestPowerups,
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: _C.amberDim,
-                                  fontSize: 9,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              crossFadeState: expanded
-                                  ? CrossFadeState.showSecond
-                                  : CrossFadeState.showFirst,
+                          const SizedBox(height: 6),
+                          AnimatedCrossFade(
+                            duration: const Duration(milliseconds: 140),
+                            firstChild: Text(
+                              info.description,
+                              style: _T.body,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
                             ),
+                            secondChild: Text(info.description, style: _T.body),
+                            crossFadeState: expanded
+                                ? CrossFadeState.showSecond
+                                : CrossFadeState.showFirst,
                           ),
                         ],
                       ),
@@ -1876,7 +1806,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               child: _buildTacticTile(
                 Icons.auto_awesome_rounded,
                 'DRAFTING',
-                'Keystones and weighted offers amplify each family role instead of replacing it.',
+                'Weighted offers amplify each family role instead of replacing it.',
               ),
             ),
           ],
@@ -1941,7 +1871,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       style: const TextStyle(
                         fontFamily: 'monospace',
                         color: _C.textPrimary,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.5,
                       ),
@@ -1961,11 +1891,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 duration: const Duration(milliseconds: 140),
                 firstChild: Text(
                   desc,
-                  style: _T.body.copyWith(fontSize: 11),
+                  style: _T.body.copyWith(fontSize: 12),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                secondChild: Text(desc, style: _T.body.copyWith(fontSize: 11)),
+                secondChild: Text(desc, style: _T.body.copyWith(fontSize: 12)),
                 crossFadeState: expanded
                     ? CrossFadeState.showSecond
                     : CrossFadeState.showFirst,
@@ -2123,7 +2053,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: _C.textSecondary.withValues(alpha: 0.92),
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.8,
                             ),
@@ -2540,7 +2470,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: _C.teal,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.6,
                               ),
@@ -2601,7 +2531,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: _C.accent,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.6,
                             ),
@@ -2611,7 +2541,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             'Tap a perk to see what it does.',
                             style: TextStyle(
                               color: _C.textSecondary,
-                              fontSize: 11,
+                              fontSize: 12,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -2629,7 +2559,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     'No global upgrades taken yet.',
                                     style: TextStyle(
                                       color: _C.textSecondary,
-                                      fontSize: 11,
+                                      fontSize: 12,
                                     ),
                                   )
                                 : standardGlobalHistory.isEmpty
@@ -2637,7 +2567,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     'No standard global upgrades yet.',
                                     style: TextStyle(
                                       color: _C.textSecondary,
-                                      fontSize: 11,
+                                      fontSize: 12,
                                     ),
                                   )
                                 : Wrap(
@@ -2698,7 +2628,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: _C.teal,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.6,
                             ),
@@ -2758,7 +2688,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                 style: TextStyle(
                                   fontFamily: 'monospace',
                                   color: _C.textSecondary,
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 1,
                                 ),
@@ -2797,7 +2727,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                 style: TextStyle(
                                   fontFamily: 'monospace',
                                   color: _C.textSecondary,
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 1,
                                 ),
@@ -2888,7 +2818,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          tethered ? Icons.link_rounded : Icons.link_off_rounded,
+                          tethered
+                              ? Icons.link_rounded
+                              : Icons.link_off_rounded,
                           color: tethered ? _C.teal : _C.textSecondary,
                           size: 18,
                         ),
@@ -3082,7 +3014,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     specialCooldown.ceil().toString(),
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       height: 1,
                     ),
@@ -3165,7 +3097,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: Colors.white.withValues(alpha: 0.45),
-                fontSize: 9,
+                fontSize: 12,
                 letterSpacing: 1.5,
               ),
             ),
@@ -3258,7 +3190,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: entry.color,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 3,
                         ),
@@ -3329,7 +3261,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: amber.withValues(alpha: 0.55),
-                        fontSize: 9,
+                        fontSize: 12,
                         letterSpacing: 3,
                       ),
                     ),
@@ -3437,7 +3369,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             'NEW TEAM',
                             style: TextStyle(
                               fontFamily: 'monospace',
-                              fontSize: 11,
+                              fontSize: 12,
                               letterSpacing: 2,
                             ),
                           ),
@@ -3459,7 +3391,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             'DEPLOY AGAIN',
                             style: TextStyle(
                               fontFamily: 'monospace',
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 2,
                             ),
@@ -3530,7 +3462,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     description:
         'Long-range element casters that shower enemies with meteors. Elemental follow-ups now trigger on meteor impact and scale with Beauty + Intelligence.',
     bestPowerups:
-        'Spellbloom (keystone), Double Cast, Chrono Grit | Threshold focus: Beauty + Intelligence',
+        'Spellbloom, Double Cast, Chrono Grit | Threshold focus: Beauty + Intelligence',
     assetPath: 'assets/images/creatures/common/LET02_waterlet.png',
     color: Color(0xFF3B82F6),
   ),
@@ -3541,7 +3473,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     description:
         'Fast agile attackers that chase leaks and clean up packs. Special output scales with tactical stats and ramps hard at high stat values.',
     bestPowerups:
-        'Warpath (keystone), Quicksilver Step, Chrono Grit | Threshold focus: Intelligence + Beauty proxy',
+        'Warpath, Quicksilver Step, Chrono Grit | Threshold focus: Intelligence + Beauty proxy',
     assetPath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
     color: Color(0xFFEF4444),
   ),
@@ -3552,7 +3484,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     description:
         'Mid-range slash fighters that carve through lanes with consistent pressure. Special riders improve sharply as Strength climbs.',
     bestPowerups:
-        'Warpath (keystone), Forged Strikes, Blood Pact | Threshold focus: Strength + Beauty support',
+        'Warpath, Forged Strikes, Blood Pact | Threshold focus: Strength + Beauty support',
     assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
     color: Color(0xFFF59E0B),
   ),
@@ -3563,7 +3495,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     description:
         'Tanky close-range chargers that body-block for the orb. Defensive riders (shield/charge package) unlock reliably at mid-to-high stat values.',
     bestPowerups:
-        'Bastion Heart (keystone), Forged Strikes, Forgeplate | Threshold focus: Strength + Intelligence',
+        'Bastion Heart, Forged Strikes, Forgeplate | Threshold focus: Strength + Intelligence',
     assetPath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
     color: Color(0xFF10B981),
   ),
@@ -3574,7 +3506,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     description:
         'Versatile duelists with control utility. Special consistency scales with tactical stats, with stronger utility riders at high stats.',
     bestPowerups:
-        'Chrono Surge (keystone), Forgeplate, Chrono Grit | Threshold focus: Intelligence + Beauty',
+        'Chrono Surge, Forgeplate, Chrono Grit | Threshold focus: Intelligence + Beauty',
     assetPath: 'assets/images/creatures/rare/MSK01_firemask.png',
     color: Color(0xFF8B5CF6),
   ),
@@ -3585,7 +3517,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     description:
         'High-range snipers that delete shooters and boss lanes. Special uptime and control scale with Intelligence + Beauty.',
     bestPowerups:
-        'Spellbloom (keystone), Double Cast, Chrono Grit | Threshold focus: Intelligence + Beauty',
+        'Spellbloom, Double Cast, Chrono Grit | Threshold focus: Intelligence + Beauty',
     assetPath: 'assets/images/creatures/legendary/WNG03_earthwing.png',
     color: Color(0xFF06B6D4),
   ),
@@ -3596,7 +3528,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     description:
         'Durable utility companions that sustain the team and stabilize waves. Kin uses a hard dual gate: both Beauty and Intelligence must be high for full support output.',
     bestPowerups:
-        'Bastion Heart (keystone), Regeneration Field, Shield Pulse | Threshold focus: Beauty + Intelligence (both)',
+        'Bastion Heart, Regeneration Field, Shield Pulse | Threshold focus: Beauty + Intelligence (both)',
     assetPath: 'assets/images/creatures/legendary/KIN16_lightkin.png',
     color: Color(0xFF14B8A6),
   ),
@@ -3607,7 +3539,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     description:
         'Powerful casters with the highest elemental multiplier. Core spell tiers use Beauty + Intelligence, while high Strength adds burst bias at top thresholds.',
     bestPowerups:
-        'Spellbloom (keystone), Double Cast, Chrono Grit | Threshold focus: Beauty + Intelligence, Strength for burst',
+        'Spellbloom, Double Cast, Chrono Grit | Threshold focus: Beauty + Intelligence, Strength for burst',
     assetPath: 'assets/images/creatures/mystic/MYS14_spiritmystic.png',
     color: Color(0xFFA855F7),
   ),
@@ -3679,7 +3611,7 @@ class _HudBar extends StatelessWidget {
           style: const TextStyle(
             fontFamily: 'monospace',
             color: _C.textSecondary,
-            fontSize: 8,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 1,
           ),
@@ -3742,7 +3674,7 @@ class _PauseActionButton extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: fillColor,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.2,
               ),
@@ -3802,7 +3734,7 @@ class _PauseStatChip extends StatelessWidget {
             style: const TextStyle(
               fontFamily: 'monospace',
               color: _C.textSecondary,
-              fontSize: 8.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.2,
             ),
@@ -3929,7 +3861,7 @@ class _PauseCompanionCard extends StatelessWidget {
                     : '${(live.hpPercent * 100).round()}% HP',
                 style: TextStyle(
                   color: live == null ? _C.textSecondary : _C.success,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -3982,7 +3914,7 @@ class _PauseCompanionCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: _C.teal,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.2,
             ),
@@ -3991,7 +3923,7 @@ class _PauseCompanionCard extends StatelessWidget {
           if (appliedPowerUps.isEmpty)
             const Text(
               'No personal upgrades yet.',
-              style: TextStyle(color: _C.textSecondary, fontSize: 10),
+              style: TextStyle(color: _C.textSecondary, fontSize: 12),
             )
           else
             Wrap(
@@ -4067,7 +3999,7 @@ class _PausePowerUpChipContent extends StatelessWidget {
                 name,
                 style: TextStyle(
                   color: tint,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -4110,7 +4042,7 @@ class _PausePowerUpChipContent extends StatelessWidget {
                 '$clampedLevel/$maxStacks',
                 style: TextStyle(
                   color: tint.withValues(alpha: 0.92),
-                  fontSize: 8.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -4179,7 +4111,7 @@ class _MiniReadout extends StatelessWidget {
               style: const TextStyle(
                 fontFamily: 'monospace',
                 color: _C.textSecondary,
-                fontSize: 8.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -4187,7 +4119,7 @@ class _MiniReadout extends StatelessWidget {
               text: value,
               style: const TextStyle(
                 color: _C.textPrimary,
-                fontSize: 10.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),

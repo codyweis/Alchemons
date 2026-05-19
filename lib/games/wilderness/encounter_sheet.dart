@@ -223,7 +223,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           style: TextStyle(
             fontFamily: 'monospace',
             color: Colors.white54,
-            fontSize: 11,
+            fontSize: 12,
             height: 1.6,
           ),
         ),
@@ -809,7 +809,7 @@ class _WildCreatureTitle extends StatelessWidget {
             rarity.toUpperCase(), // Added 'RANK'
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.8, // Increased for a more technical look
             ),
@@ -1093,7 +1093,7 @@ class _ActionPanel extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.success,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.8,
                 ),
@@ -1206,7 +1206,7 @@ class _ActionButton extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: isDisabled ? t.textMuted : t.textPrimary,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.0,
                   ),

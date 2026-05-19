@@ -23,6 +23,76 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
 
+class _InventoryPalette {
+  static const bg0 = Color(0xFF080A0E);
+  static const bg1 = Color(0xFF0E1117);
+  static const ink = Color(0xFFE8DCC8);
+  static const muted = Color(0xFF9A8D7C);
+  static const line = Color(0xFF384150);
+  static const lineSoft = Color(0xFF252D3A);
+}
+
+TextStyle _display(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
+}
+
+class _BracketFramePainter extends CustomPainter {
+  const _BracketFramePainter({
+    required this.color,
+    this.bracketSize = 10,
+    this.strokeWidth = 1,
+  });
+
+  final Color color;
+  final double bracketSize;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final s = bracketSize;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(0, s)
+      ..lineTo(0, 0)
+      ..lineTo(s, 0)
+      ..moveTo(w - s, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, s)
+      ..moveTo(0, h - s)
+      ..lineTo(0, h)
+      ..lineTo(s, h)
+      ..moveTo(w - s, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - s);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.bracketSize != bracketSize ||
+      oldDelegate.strokeWidth != strokeWidth;
+}
+
 /// Helper to get images for inventory items from ShopService
 class InventoryImageHelper {
   static final Map<String, String?> _imageCache = {};
@@ -137,16 +207,17 @@ class _InventoryScreenState extends State<InventoryScreen>
           child: Column(
             children: [
               _buildHeader(theme),
-              // REPLACE: _buildTabSelector(theme),
-              _buildTabBar(theme), // NEW: TabBar for tabs
+              AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, _) => _buildTabSelector(theme),
+              ),
               Expanded(
-                // REPLACE: Conditional content with TabBarView
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildVialsTab(theme), // Tab 1: Vials
-                    _buildItemsTab(theme), // Tab 2: Items
-                    _buildKeyItemsTab(theme), // Tab 3: Key Items
+                    _buildVialsTab(theme),
+                    _buildItemsTab(theme),
+                    _buildKeyItemsTab(theme),
                   ],
                 ),
               ),
@@ -169,98 +240,147 @@ class _InventoryScreenState extends State<InventoryScreen>
     );
   }
 
-  Widget _buildTabBar(FactionTheme theme) {
+  Widget _buildTabSelector(FactionTheme theme) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: TabBar(
-        controller: _tabController,
-
-        indicatorPadding: EdgeInsets.zero,
-        labelPadding: EdgeInsets.zero,
-        indicatorSize: TabBarIndicatorSize.tab,
-
-        // Color for the SELECTED tab text
-        labelColor: theme.text,
-        // Color for the UNSELECTED tab text
-        unselectedLabelColor: theme.text.withValues(alpha: 0.6),
-
-        tabs: _tabLabels
-            .map(
-              (label) => Tab(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+      child: Row(
+        children: List.generate(_tabLabels.length, (index) {
+          final selected = _tabController.index == index;
+          final label = _tabLabels[index];
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: index == _tabLabels.length - 1 ? 0 : 8,
+              ),
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  _tabController.animateTo(index);
+                },
+                child: CustomPaint(
+                  painter: _BracketFramePainter(
+                    color: selected
+                        ? theme.accentSoft.withValues(alpha: 0.9)
+                        : _InventoryPalette.line.withValues(alpha: 0.85),
+                    bracketSize: 9,
+                    strokeWidth: 1.1,
+                  ),
+                  child: Container(
+                    height: 44,
+                    alignment: Alignment.center,
+                    color: selected
+                        ? theme.accent.withValues(alpha: 0.14)
+                        : _InventoryPalette.bg1.withValues(alpha: 0.55),
+                    child: Text(
+                      label,
+                      style: _display(
+                        context,
+                        13,
+                        selected
+                            ? _InventoryPalette.ink
+                            : _InventoryPalette.muted,
+                        weight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
                 ),
               ),
-            )
-            .toList(),
-        onTap: (index) {
-          HapticFeedback.selectionClick();
-        },
+            ),
+          );
+        }),
       ),
     );
   }
 
   Widget _buildHeader(FactionTheme theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Column(
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Title + subtitle — full padding
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text(
+                'Inventory',
+                style: _display(
+                  context,
+                  27,
+                  _InventoryPalette.ink,
+                  weight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Field supplies, vials, and rare findings.',
+                style: _display(
+                  context,
+                  13,
+                  _InventoryPalette.muted,
+                  weight: FontWeight.w500,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        // Currency + resources — left padding only, resources bleed to edge
+        Padding(
+          padding: const EdgeInsets.only(left: 18),
+          child: Row(
+            children: [
+              Flexible(
+                child: CurrencyDisplayWidget(accentColor: theme.accentSoft),
+              ),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  'INVENTORY',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                    fontSize: 20,
-                  ),
-                  textAlign: TextAlign.center,
+                child: ResourceCollectionWidget(
+                  theme: theme,
+                  horizontalPadding: 0,
+                  alignToEnd: true,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: theme.surface.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: theme.accentSoft.withValues(alpha: 0.3),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(height: 1, color: _InventoryPalette.lineSoft),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'Collections',
+                      style: _display(
+                        context,
+                        12,
+                        _InventoryPalette.muted,
+                        weight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(height: 1, color: _InventoryPalette.lineSoft),
+                  ),
+                ],
               ),
-            ),
-            child: Row(
-              children: [
-                Flexible(
-                  flex: 3,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: CurrencyDisplayWidget(accentColor: theme.accentSoft),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 4,
-                  child: SizedBox(
-                    height: 58,
-                    child: ResourceCollectionWidget(theme: theme),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -296,7 +416,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             crossAxisCount: 3,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 0.85,
+            childAspectRatio: 0.82,
           ),
           itemCount: items.length,
           itemBuilder: (context, index) {
@@ -348,7 +468,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             crossAxisCount: 3,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 0.85,
+            childAspectRatio: 0.82,
           ),
           itemCount: keyItems.length,
           itemBuilder: (context, index) {
@@ -494,8 +614,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     InventoryItemDef def,
     FactionTheme theme,
   ) {
-    final t = ForgeTokens(theme);
-
     final canUse = def.canUse;
     final canDelete = def.canDispose;
 
@@ -510,252 +628,174 @@ class _InventoryScreenState extends State<InventoryScreen>
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 380),
-          decoration: BoxDecoration(
-            color: t.bg1,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: t.borderAccent, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: t.amber.withValues(alpha: 0.08),
-                blurRadius: 32,
-                spreadRadius: 2,
-              ),
-            ],
+        child: CustomPaint(
+          painter: _BracketFramePainter(
+            color: theme.accentSoft.withValues(alpha: 0.72),
+            bracketSize: 12,
+            strokeWidth: 1.2,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Header ──────────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                decoration: BoxDecoration(
-                  color: t.bg0,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(2),
-                    topRight: Radius.circular(2),
-                  ),
-                  border: Border(
-                    bottom: BorderSide(color: t.borderAccent, width: 1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'ITEM DETAILS',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textSecondary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.4,
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(ctx),
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: t.bg2,
-                          borderRadius: BorderRadius.circular(2),
-                          border: Border.all(color: t.borderDim, width: 1),
-                        ),
-                        child: Icon(
-                          Icons.close_rounded,
-                          color: t.textSecondary,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Preview ─────────────────────────────────────────────────
-              Container(
-                height: 130,
-                color: t.bg0,
-                child: Center(child: visualWidget),
-              ),
-
-              // ── Name ────────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Text(
-                  def.name.toUpperCase(),
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.6,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              // ── Quantity badge ───────────────────────────────────────────
-              if (!def.isKeyItem) ...[
-                const SizedBox(height: 12),
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.amberDim.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: t.borderAccent, width: 1),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.inventory_2_rounded,
-                          color: t.amber,
-                          size: 12,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'QTY: ${item.qty}',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.amber,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-
-              // ── Description ──────────────────────────────────────────────
-              const SizedBox(height: 14),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  def.description,
-                  style: TextStyle(
-                    color: t.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                    letterSpacing: 0.3,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              // ── Buttons ──────────────────────────────────────────────────
-              if (canDelete || canUse) ...[
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 380),
+            color: _InventoryPalette.bg1,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
+                  color: _InventoryPalette.bg0.withValues(alpha: 0.88),
                   child: Row(
                     children: [
-                      if (canDelete) ...[
-                        GestureDetector(
-                          onTap: () async {
-                            Navigator.pop(ctx);
-                            await _deleteItem(item, def);
-                          },
-                          child: Container(
-                            height: 44,
-                            width: 72,
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(2),
-                              border: Border.all(
-                                color: t.danger.withValues(alpha: 0.6),
-                                width: 1,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Item details',
+                              style: _display(
+                                context,
+                                22,
+                                _InventoryPalette.ink,
+                                weight: FontWeight.w500,
                               ),
                             ),
-                            alignment: Alignment.center,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.delete_outline_rounded,
-                                  size: 13,
-                                  color: t.danger.withValues(alpha: 0.8),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'DEL',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: t.danger.withValues(alpha: 0.8),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.0,
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(height: 2),
+                            Text(
+                              def.isKeyItem
+                                  ? 'A rare find carried for the long path.'
+                                  : 'A useful field supply kept on hand.',
+                              style: _display(
+                                context,
+                                12,
+                                _InventoryPalette.muted,
+                                weight: FontWeight.w500,
+                                fontStyle: FontStyle.italic,
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                      ],
-                      if (canUse)
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              _useItem(item, def);
-                            },
-                            child: Container(
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: t.amberDim.withValues(alpha: 0.35),
-                                borderRadius: BorderRadius.circular(2),
-                                border: Border.all(color: t.amber, width: 1),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: t.amber.withValues(alpha: 0.15),
-                                    blurRadius: 12,
-                                  ),
-                                ],
-                              ),
-                              alignment: Alignment.center,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.play_arrow_rounded,
-                                    size: 15,
-                                    color: t.amberBright,
-                                  ),
-                                  const SizedBox(width: 7),
-                                  Text(
-                                    'USE ITEM',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: t.amberBright,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.4,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                      ),
+                      _DialogCloseButton(
+                        color: _InventoryPalette.line,
+                        onTap: () => Navigator.pop(ctx),
+                      ),
                     ],
                   ),
                 ),
+                Container(
+                  height: 130,
+                  color: _InventoryPalette.bg0,
+                  child: Center(child: visualWidget),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Text(
+                    def.name,
+                    style: _display(
+                      context,
+                      20,
+                      _InventoryPalette.ink,
+                      weight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                if (!def.isKeyItem) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: CustomPaint(
+                      painter: _BracketFramePainter(
+                        color: theme.accentSoft.withValues(alpha: 0.72),
+                        bracketSize: 8,
+                        strokeWidth: 1,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                        color: theme.accent.withValues(alpha: 0.10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.inventory_2_rounded,
+                              color: theme.accentSoft,
+                              size: 12,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${item.qty} in satchel',
+                              style: _display(
+                                context,
+                                12,
+                                _InventoryPalette.ink,
+                                weight: FontWeight.w700,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    def.description,
+                    style: _display(
+                      context,
+                      13,
+                      _InventoryPalette.muted,
+                      weight: FontWeight.w500,
+                    ),
+                    strutStyle: const StrutStyle(height: 1.45),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                if (canDelete || canUse) ...[
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Row(
+                      children: [
+                        if (canDelete) ...[
+                          SizedBox(
+                            width: 102,
+                            child: _DialogActionButton(
+                              label: 'Remove',
+                              icon: Icons.delete_outline_rounded,
+                              color: const Color(0xFFC0392B),
+                              secondary: true,
+                              onTap: () async {
+                                Navigator.pop(ctx);
+                                await _deleteItem(item, def);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        if (canUse)
+                          Expanded(
+                            child: _DialogActionButton(
+                              label: 'Use item',
+                              icon: Icons.play_arrow_rounded,
+                              color: theme.accentSoft,
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                _useItem(item, def);
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (!canDelete && !canUse) const SizedBox(height: 18),
               ],
-              if (!canDelete && !canUse) const SizedBox(height: 18),
-            ],
+            ),
           ),
         ),
       ),
@@ -764,219 +804,134 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   // ===== VIAL DETAILS DIALOG =====
   void _showVialDetailsDialog(ExtractionVial vial, FactionTheme theme) {
-    final t = ForgeTokens(theme);
-
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 380),
-          decoration: BoxDecoration(
-            color: t.bg1,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: t.borderAccent, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: t.amber.withValues(alpha: 0.08),
-                blurRadius: 32,
-                spreadRadius: 2,
-              ),
-            ],
+        child: CustomPaint(
+          painter: _BracketFramePainter(
+            color: theme.accentSoft.withValues(alpha: 0.72),
+            bracketSize: 12,
+            strokeWidth: 1.2,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Header ──────────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                decoration: BoxDecoration(
-                  color: t.bg0,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(2),
-                    topRight: Radius.circular(2),
-                  ),
-                  border: Border(
-                    bottom: BorderSide(color: t.borderAccent, width: 1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'VIAL DETAILS',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textSecondary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.4,
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(ctx),
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: t.bg2,
-                          borderRadius: BorderRadius.circular(2),
-                          border: Border.all(color: t.borderDim, width: 1),
-                        ),
-                        child: Icon(
-                          Icons.close_rounded,
-                          color: t.textSecondary,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Vial card preview ────────────────────────────────────────
-              Container(
-                height: 150,
-                color: t.bg0,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 12,
-                ),
-                child: ExtractionVialCard(vial: vial, compact: false),
-              ),
-
-              // ── Title ───────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Text(
-                  'EXTRACTION VIAL',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.6,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              // ── Description ──────────────────────────────────────────────
-              const SizedBox(height: 14),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  'Extract this vial to capture the specimen inside and place it in your extraction chamber.',
-                  style: TextStyle(
-                    color: t.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                    letterSpacing: 0.3,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              // ── Buttons ──────────────────────────────────────────────────
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Row(
-                  children: [
-                    // DELETE
-                    GestureDetector(
-                      onTap: () async {
-                        Navigator.pop(ctx);
-                        await _deleteVial(vial);
-                      },
-                      child: Container(
-                        height: 44,
-                        width: 72,
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(2),
-                          border: Border.all(
-                            color: t.danger.withValues(alpha: 0.6),
-                            width: 1,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 380),
+            color: _InventoryPalette.bg1,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
+                  color: _InventoryPalette.bg0.withValues(alpha: 0.88),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.delete_outline_rounded,
-                              size: 13,
-                              color: t.danger.withValues(alpha: 0.8),
-                            ),
-                            const SizedBox(width: 4),
                             Text(
-                              'DEL',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.danger.withValues(alpha: 0.8),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.0,
+                              'Vial details',
+                              style: _display(
+                                context,
+                                22,
+                                _InventoryPalette.ink,
+                                weight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Extract the specimen and send it to the chamber.',
+                              style: _display(
+                                context,
+                                12,
+                                _InventoryPalette.muted,
+                                weight: FontWeight.w500,
+                                fontStyle: FontStyle.italic,
                               ),
                             ),
                           ],
                         ),
                       ),
+                      _DialogCloseButton(
+                        color: _InventoryPalette.line,
+                        onTap: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  height: 150,
+                  color: _InventoryPalette.bg0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
+                  child: ExtractionVialCard(vial: vial, compact: false),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Text(
+                    'Extraction vial',
+                    style: _display(
+                      context,
+                      20,
+                      _InventoryPalette.ink,
+                      weight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 10),
-                    // EXTRACT
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _useVial(vial);
-                        },
-                        child: Container(
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: t.amberDim.withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(2),
-                            border: Border.all(color: t.amber, width: 1),
-                            boxShadow: [
-                              BoxShadow(
-                                color: t.amber.withValues(alpha: 0.15),
-                                blurRadius: 12,
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.science_rounded,
-                                size: 15,
-                                color: t.amberBright,
-                              ),
-                              const SizedBox(width: 7),
-                              Text(
-                                'EXTRACT',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: t.amberBright,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Extract this vial to capture the specimen inside and place it in your extraction chamber.',
+                    style: _display(
+                      context,
+                      13,
+                      _InventoryPalette.muted,
+                      weight: FontWeight.w500,
+                    ),
+                    strutStyle: const StrutStyle(height: 1.45),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 102,
+                        child: _DialogActionButton(
+                          label: 'Remove',
+                          icon: Icons.delete_outline_rounded,
+                          color: const Color(0xFFC0392B),
+                          secondary: true,
+                          onTap: () async {
+                            Navigator.pop(ctx);
+                            await _deleteVial(vial);
+                          },
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _DialogActionButton(
+                          label: 'Extract',
+                          icon: Icons.science_rounded,
+                          color: theme.accentSoft,
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _useVial(vial);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1305,37 +1260,24 @@ class _InventoryScreenState extends State<InventoryScreen>
     final theme = context.read<FactionTheme>();
     final confirmed = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: theme.accent.withValues(alpha: 0.5),
-            width: 2,
+      builder: (ctx) => _InventoryChoiceDialog(
+        title: 'Remove item',
+        subtitle: 'Choose how much to clear from your satchel.',
+        message: 'You currently carry ${item.qty} ${def.name}.',
+        accent: theme.accentSoft,
+        options: [
+          _InventoryDialogOption(
+            value: 'one',
+            label: 'Remove 1',
+            icon: Icons.remove_circle_outline_rounded,
+            color: const Color(0xFFD97706),
+            secondary: true,
           ),
-        ),
-        title: Text(
-          'Remove Item',
-          style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
-        ),
-        content: Text(
-          'How would you like to remove ${def.name}?\n\nYou currently have ${item.qty}.',
-          style: TextStyle(color: theme.textMuted, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, null),
-            child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'one'),
-            style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Text('Remove 1'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, 'all'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Remove All'),
+          _InventoryDialogOption(
+            value: 'all',
+            label: 'Remove all',
+            icon: Icons.delete_sweep_rounded,
+            color: const Color(0xFFC0392B),
           ),
         ],
       ),
@@ -1458,43 +1400,24 @@ class _InventoryScreenState extends State<InventoryScreen>
     final theme = context.read<FactionTheme>();
     final confirmed = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: theme.accent.withValues(alpha: 0.5),
-            width: 2,
+      builder: (ctx) => _InventoryChoiceDialog(
+        title: 'Remove vial',
+        subtitle: 'Choose how much to clear from your satchel.',
+        message: 'This will discard ${vial.name} from your current stock.',
+        accent: theme.accentSoft,
+        options: [
+          _InventoryDialogOption(
+            value: 'one',
+            label: 'Remove 1',
+            icon: Icons.remove_circle_outline_rounded,
+            color: const Color(0xFFD97706),
+            secondary: true,
           ),
-        ),
-        title: Text(
-          'Remove Vial',
-          style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
-        ),
-        content: Text(
-          'How would you like to remove ${vial.name}?',
-          style: TextStyle(color: theme.textMuted, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, 'one'),
-                style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                child: const Text('Remove 1'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, 'all'),
-                child: Text('Remove All', style: TextStyle(color: theme.text)),
-              ),
-            ],
-          ),
-          Center(
-            child: TextButton(
-              onPressed: () => Navigator.pop(ctx, null),
-              child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
-            ),
+          _InventoryDialogOption(
+            value: 'all',
+            label: 'Remove all',
+            icon: Icons.delete_sweep_rounded,
+            color: const Color(0xFFC0392B),
           ),
         ],
       ),
@@ -1576,51 +1499,62 @@ class _CleanItemCard extends StatelessWidget {
       key: item.key,
       assetName: InventoryImageHelper.getImage(item.key),
       icon: def.icon,
-      size: 48,
+      size: 54,
     );
     final showQuantity = !def.isKeyItem;
+    final frameColor = def.isKeyItem
+        ? theme.accentSoft.withValues(alpha: 0.72)
+        : _InventoryPalette.line.withValues(alpha: 0.9);
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.text, width: .5),
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: frameColor,
+          bracketSize: 10,
+          strokeWidth: 1.05,
         ),
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Image/Icon Area
-                Expanded(child: Center(child: visualWidget)),
-
-                // Quantity Badge at bottom (non-special items only)
-                if (showQuantity)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                    ),
-                    child: Center(
+        child: Container(
+          color: _InventoryPalette.bg1.withValues(alpha: 0.72),
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (showQuantity)
+                    Align(
+                      alignment: Alignment.topRight,
                       child: Text(
                         'x${item.qty}',
-                        style: TextStyle(
-                          color: theme.text,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
+                        style: _display(
+                          context,
+                          11,
+                          _InventoryPalette.muted,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
+                  Expanded(child: Center(child: visualWidget)),
+                  const SizedBox(height: 8),
+                  Text(
+                    def.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: _display(
+                      context,
+                      10.75,
+                      _InventoryPalette.ink,
+                      weight: FontWeight.w700,
+                      letterSpacing: 0.15,
+                    ),
                   ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1639,6 +1573,218 @@ class _CleanVialCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: ExtractionVialCard(vial: vial, compact: true),
+    );
+  }
+}
+
+class _DialogCloseButton extends StatelessWidget {
+  const _DialogCloseButton({required this.color, required this.onTap});
+
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: color.withValues(alpha: 0.78),
+          bracketSize: 8,
+          strokeWidth: 1,
+        ),
+        child: Container(
+          width: 34,
+          height: 34,
+          color: _InventoryPalette.bg1.withValues(alpha: 0.7),
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.close_rounded,
+            color: _InventoryPalette.muted,
+            size: 18,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogActionButton extends StatelessWidget {
+  const _DialogActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.secondary = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool secondary;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: color.withValues(alpha: secondary ? 0.55 : 0.8),
+          bracketSize: 9,
+          strokeWidth: 1.05,
+        ),
+        child: Container(
+          height: 44,
+          color: secondary ? Colors.transparent : color.withValues(alpha: 0.10),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 15, color: color),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _display(
+                    context,
+                    13,
+                    secondary ? _InventoryPalette.ink : color,
+                    weight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InventoryDialogOption {
+  const _InventoryDialogOption({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.color,
+    this.secondary = false,
+  });
+
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool secondary;
+}
+
+class _InventoryChoiceDialog extends StatelessWidget {
+  const _InventoryChoiceDialog({
+    required this.title,
+    required this.subtitle,
+    required this.message,
+    required this.accent,
+    required this.options,
+  });
+
+  final String title;
+  final String subtitle;
+  final String message;
+  final Color accent;
+  final List<_InventoryDialogOption> options;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: accent.withValues(alpha: 0.72),
+          bracketSize: 12,
+          strokeWidth: 1.2,
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 380),
+          color: _InventoryPalette.bg1,
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: _display(
+                            context,
+                            22,
+                            _InventoryPalette.ink,
+                            weight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: _display(
+                            context,
+                            12,
+                            _InventoryPalette.muted,
+                            weight: FontWeight.w500,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _DialogCloseButton(
+                    color: _InventoryPalette.line,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                message,
+                style: _display(
+                  context,
+                  13,
+                  _InventoryPalette.muted,
+                  weight: FontWeight.w500,
+                ),
+                strutStyle: const StrutStyle(height: 1.45),
+              ),
+              const SizedBox(height: 18),
+              ...options.map(
+                (option) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _DialogActionButton(
+                    label: option.label,
+                    icon: option.icon,
+                    color: option.color,
+                    onTap: () => Navigator.pop(context, option.value),
+                    secondary: option.secondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              _DialogActionButton(
+                label: 'Cancel',
+                icon: Icons.close_rounded,
+                color: _InventoryPalette.line,
+                secondary: true,
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

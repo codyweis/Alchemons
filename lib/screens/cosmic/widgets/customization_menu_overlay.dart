@@ -192,7 +192,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           style: TextStyle(
                             fontFamily: appFontFamily(context),
                             color: CosmicScreenStyles.textSecondary,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 1.2,
                           ),
@@ -210,7 +210,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                             style: TextStyle(
                               fontFamily: appFontFamily(context),
                               color: CosmicScreenStyles.amberBright,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -324,7 +324,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           style: TextStyle(
                             fontFamily: appFontFamily(context),
                             color: CosmicScreenStyles.textPrimary,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 2.0,
                           ),
@@ -363,7 +363,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           style: TextStyle(
                             fontFamily: appFontFamily(context),
                             color: CosmicScreenStyles.amberBright,
-                            fontSize: 9,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
                           ),
@@ -390,7 +390,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       style: TextStyle(
                         fontFamily: appFontFamily(context),
                         color: CosmicScreenStyles.textMuted,
-                        fontSize: 10,
+                        fontSize: 12,
                       ),
                     ),
                   )
@@ -426,7 +426,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                   style: TextStyle(
                                     fontFamily: appFontFamily(context),
                                     color: color.withValues(alpha: 0.85),
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 0.5,
                                   ),
@@ -437,7 +437,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                 style: TextStyle(
                                   fontFamily: appFontFamily(context),
                                   color: CosmicScreenStyles.textPrimary,
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -471,7 +471,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         style: TextStyle(
                           fontFamily: appFontFamily(context),
                           color: CosmicScreenStyles.textSecondary,
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.0,
                         ),
@@ -528,7 +528,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             style: TextStyle(
               fontFamily: appFontFamily(context),
               color: active ? color : CosmicScreenStyles.textMuted,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 2.0,
             ),
@@ -632,7 +632,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                             style: TextStyle(
                               fontFamily: appFontFamily(context),
                               color: CosmicScreenStyles.textMuted,
-                              fontSize: 8.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.1,
                             ),
@@ -680,7 +680,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           color: nextCost == null
                               ? CosmicScreenStyles.success
                               : CosmicScreenStyles.amberBright,
-                          fontSize: 8.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.8,
                         ),
@@ -748,7 +748,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                           : unlocked
                                           ? CosmicScreenStyles.textPrimary
                                           : CosmicScreenStyles.textMuted,
-                                      fontSize: 9.5,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: 0.4,
                                     ),
@@ -815,7 +815,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           color: canAffordUpgrade
                               ? CosmicScreenStyles.amberBright
                               : CosmicScreenStyles.textMuted,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.7,
                         ),
@@ -830,7 +830,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       style: TextStyle(
                         fontFamily: appFontFamily(context),
                         color: CosmicScreenStyles.success,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -883,7 +883,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   'CHAMBERS',
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.6,
                     color: CosmicScreenStyles.teal,
@@ -927,7 +927,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       style: TextStyle(
                         fontFamily: appFontFamily(context),
                         color: CosmicScreenStyles.textMuted,
-                        fontSize: 8.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.1,
                       ),
@@ -953,7 +953,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                             color: activeCol == null
                                 ? CosmicScreenStyles.textSecondary
                                 : kElementColors[activeCol]!,
-                            fontSize: 10.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.5,
                           ),
@@ -982,7 +982,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
                     color: CosmicScreenStyles.amberBright,
-                    fontSize: 8.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
                   ),
@@ -1026,7 +1026,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       color: activeCol == null
                           ? CosmicScreenStyles.teal
                           : CosmicScreenStyles.textSecondary,
-                      fontSize: 10.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.7,
                     ),
@@ -1039,7 +1039,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       color: activeCol == null
                           ? CosmicScreenStyles.teal
                           : CosmicScreenStyles.textMuted,
-                      fontSize: 8,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
                     ),
@@ -1126,7 +1126,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                 color: isUnlocked
                                     ? CosmicScreenStyles.textSecondary
                                     : CosmicScreenStyles.textMuted,
-                                fontSize: 8.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.2,
                               ),
@@ -1187,7 +1187,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             style: TextStyle(
               fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1197,7 +1197,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             style: TextStyle(
               fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textSecondary,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1208,7 +1208,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               style: TextStyle(
                 fontFamily: appFontFamily(context),
                 color: CosmicScreenStyles.textMuted,
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1231,7 +1231,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     style: TextStyle(
                       fontFamily: appFontFamily(context),
                       color: CosmicScreenStyles.amberBright,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1265,7 +1265,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     color: widget.isNearHome
                         ? CosmicScreenStyles.amberBright
                         : CosmicScreenStyles.textMuted,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
                   ),
@@ -1280,7 +1280,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: CosmicScreenStyles.success,
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1307,7 +1307,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             style: TextStyle(
               fontFamily: appFontFamily(context),
               color: a,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 2.0,
             ),
@@ -1351,7 +1351,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
                     color: CosmicScreenStyles.textPrimary,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
                   ),
@@ -1364,7 +1364,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   color: maxed
                       ? CosmicScreenStyles.success
                       : CosmicScreenStyles.amberBright,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1376,7 +1376,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             style: TextStyle(
               fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textSecondary,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1422,7 +1422,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: CosmicScreenStyles.success,
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1457,7 +1457,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       color: canAfford
                           ? CosmicScreenStyles.amberBright
                           : CosmicScreenStyles.textMuted,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.5,
                     ),
@@ -1507,7 +1507,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
                     color: CosmicScreenStyles.textPrimary,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
                   ),
@@ -1520,7 +1520,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   color: maxed
                       ? CosmicScreenStyles.success
                       : const Color(0xFFFF6F00),
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1534,7 +1534,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             style: TextStyle(
               fontFamily: appFontFamily(context),
               color: CosmicScreenStyles.textSecondary,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1571,7 +1571,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: CosmicScreenStyles.success,
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1604,7 +1604,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       color: canAfford
                           ? const Color(0xFFFF6F00)
                           : CosmicScreenStyles.textMuted,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.5,
                     ),
@@ -1669,7 +1669,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     color: unlocked
                         ? CosmicScreenStyles.textPrimary
                         : CosmicScreenStyles.textMuted,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
                   ),
@@ -1724,7 +1724,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         color: active
                             ? CosmicScreenStyles.teal
                             : CosmicScreenStyles.textMuted,
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1,
                       ),
@@ -1740,7 +1740,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               style: TextStyle(
                 fontFamily: appFontFamily(context),
                 color: CosmicScreenStyles.textSecondary,
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1751,7 +1751,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: CosmicScreenStyles.amber,
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1787,7 +1787,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       color: enough
                           ? elementColor(e.key)
                           : CosmicScreenStyles.textMuted,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1819,7 +1819,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     color: canAfford
                         ? CosmicScreenStyles.amberBright
                         : CosmicScreenStyles.textMuted,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
                   ),
@@ -1905,7 +1905,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
                     color: CosmicScreenStyles.textSecondary,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1960,7 +1960,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                   style: TextStyle(
                                     fontFamily: appFontFamily(context),
                                     color: CosmicScreenStyles.teal,
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 1.5,
                                   ),
@@ -2011,7 +2011,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                         color: selected
                                             ? CosmicScreenStyles.teal
                                             : CosmicScreenStyles.textSecondary,
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         fontWeight: selected
                                             ? FontWeight.w800
                                             : FontWeight.w600,

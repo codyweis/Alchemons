@@ -57,7 +57,7 @@ class _T {
   static const label = TextStyle(
     fontFamily: 'monospace',
     color: _C.textSecondary,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -245,7 +245,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.textSecondary,
-                  fontSize: 10,
+                  fontSize: 12,
                   letterSpacing: 0.3,
                   height: 1.6,
                 ),
@@ -292,7 +292,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: t.amberBright,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 2.0,
                       ),
@@ -545,7 +545,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.textSecondary,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     height: 1.5,
                   ),
@@ -569,7 +569,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t.textSecondary,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.5,
                         ),
@@ -914,7 +914,7 @@ class _StatsHeaderSolidState extends State<_StatsHeaderSolid> {
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     color: t.textSecondary,
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 1.5,
                                   ),
@@ -925,7 +925,7 @@ class _StatsHeaderSolidState extends State<_StatsHeaderSolid> {
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     color: t.textPrimary,
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -946,7 +946,7 @@ class _StatsHeaderSolidState extends State<_StatsHeaderSolid> {
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     color: t.textMuted,
-                                    fontSize: 8,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 1.2,
                                   ),
@@ -1073,7 +1073,7 @@ class _ExpandedStatTile extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textSecondary,
-              fontSize: 8,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.0,
             ),
@@ -1337,7 +1337,7 @@ class _CreatureCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: discovered ? t.textPrimary : t.textMuted,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.3,
                     ),
@@ -1482,7 +1482,7 @@ class _CreatureRow extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t.textMuted,
-                          fontSize: 11,
+                          fontSize: 12,
                         ),
                       ),
                   ],
@@ -1640,7 +1640,7 @@ class SearchFieldSolid extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.textPrimary,
-                fontSize: 11,
+                fontSize: 12,
                 letterSpacing: 0.3,
               ),
               decoration: InputDecoration(
@@ -1648,7 +1648,7 @@ class SearchFieldSolid extends StatelessWidget {
                 hintStyle: TextStyle(
                   fontFamily: 'monospace',
                   color: t.textMuted,
-                  fontSize: 10,
+                  fontSize: 12,
                   letterSpacing: 0.8,
                 ),
                 border: InputBorder.none,
@@ -1746,7 +1746,7 @@ class PillButton extends StatelessWidget {
                 fontFamily: 'monospace',
                 color: t.amberBright,
                 fontWeight: FontWeight.w800,
-                fontSize: 10,
+                fontSize: 12,
                 letterSpacing: 1.2,
               ),
               maxLines: 1,
@@ -1851,7 +1851,7 @@ class _TypeTiny extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           color: color,
-          fontSize: 8,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.5,
         ),
@@ -1898,7 +1898,7 @@ class _TutorialRow extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.textPrimary,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.0,
                 ),
@@ -1909,7 +1909,7 @@ class _TutorialRow extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.textSecondary,
-                  fontSize: 9,
+                  fontSize: 12,
                   letterSpacing: 0.2,
                   height: 1.5,
                 ),
@@ -2047,7 +2047,7 @@ class _EmptyState extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.textSecondary,
-                fontSize: 10,
+                fontSize: 12,
                 height: 1.6,
               ),
             ),

@@ -90,6 +90,40 @@ const List<String> kCombatStoryLines = [
   'The sky learned your name.',
 ];
 
+const Color _kStoryIvory = Color(0xFFE8DFC8);
+const Color _kStoryIvoryMuted = Color(0xFFB5A98A);
+
+RRect _storyBubbleRRect(Rect rect) =>
+    RRect.fromRectAndRadius(rect, const Radius.circular(10));
+
+void _drawStoryBracketFrame(
+  Canvas canvas,
+  Rect rect, {
+  required Color borderColor,
+  double bracketLength = 12,
+  double strokeWidth = 1.0,
+}) {
+  final paint = Paint()
+    ..color = borderColor
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = strokeWidth;
+  final l = bracketLength;
+  final path = Path()
+    ..moveTo(rect.left, rect.top + l)
+    ..lineTo(rect.left, rect.top)
+    ..lineTo(rect.left + l, rect.top)
+    ..moveTo(rect.right - l, rect.top)
+    ..lineTo(rect.right, rect.top)
+    ..lineTo(rect.right, rect.top + l)
+    ..moveTo(rect.left, rect.bottom - l)
+    ..lineTo(rect.left, rect.bottom)
+    ..lineTo(rect.left + l, rect.bottom)
+    ..moveTo(rect.right - l, rect.bottom)
+    ..lineTo(rect.right, rect.bottom)
+    ..lineTo(rect.right, rect.bottom - l);
+  canvas.drawPath(path, paint);
+}
+
 class ConstellationGame extends FlameGame with ScaleDetector {
   ConstellationTree selectedTree;
   Set<String> _unlockedSkills;
@@ -145,6 +179,9 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   Future<void> onLoad() async {
     await super.onLoad();
     camera.viewfinder.anchor = Anchor.center;
+
+    final nebula = NebulaBackground();
+    await world.add(nebula);
 
     final starfield = StarfieldBackground(
       primaryColor: primaryColor,
@@ -985,9 +1022,9 @@ class CombatStoryColumn extends PositionComponent {
 
     _textPaint ??= TextPaint(
       style: GoogleFonts.imFellGreatPrimer(
-        color: Colors.white.withValues(alpha: 0.95),
+        color: _kStoryIvory.withValues(alpha: 0.92),
         fontSize: 13,
-        height: 1.2,
+        height: 1.28,
       ),
     );
 
@@ -1001,18 +1038,27 @@ class CombatStoryColumn extends PositionComponent {
         width: _bubbleWidth,
         height: bubbleHeight,
       );
-      final bubble = RRect.fromRectAndRadius(rect, const Radius.circular(12));
+      final bubble = _storyBubbleRRect(rect);
 
-      final alpha = i == revealedCount - 1 ? 0.72 : 0.58;
+      final alpha = i == revealedCount - 1 ? 0.78 : 0.66;
       _backdropPaint.color = Colors.black.withValues(alpha: alpha);
       canvas.drawRRect(bubble, _backdropPaint);
 
       _borderPaint
-        ..color = primaryColor.withValues(
-          alpha: i == revealedCount - 1 ? 0.5 : 0.28,
+        ..color = _kStoryIvoryMuted.withValues(
+          alpha: i == revealedCount - 1 ? 0.42 : 0.28,
         )
-        ..strokeWidth = 1.0;
+        ..strokeWidth = 0.8;
       canvas.drawRRect(bubble, _borderPaint);
+      _drawStoryBracketFrame(
+        canvas,
+        rect,
+        borderColor: _kStoryIvoryMuted.withValues(
+          alpha: i == revealedCount - 1 ? 0.55 : 0.36,
+        ),
+        bracketLength: 10,
+        strokeWidth: 1.0,
+      );
 
       _textPaint!.render(
         canvas,
@@ -1095,9 +1141,9 @@ class TreeStoryBlock extends PositionComponent {
         text: TextSpan(
           text: displayText,
           style: GoogleFonts.imFellGreatPrimer(
-            color: Colors.white.withValues(alpha: 0.94),
+            color: _kStoryIvory.withValues(alpha: 0.9),
             fontSize: 14,
-            height: 1.3,
+            height: 1.34,
           ),
         ),
         textAlign: alignment,
@@ -1112,15 +1158,22 @@ class TreeStoryBlock extends PositionComponent {
       width: width,
       height: height,
     );
-    final bubble = RRect.fromRectAndRadius(rect, const Radius.circular(12));
+    final bubble = _storyBubbleRRect(rect);
 
-    _backdropPaint.color = Colors.black.withValues(alpha: 0.68);
+    _backdropPaint.color = Colors.black.withValues(alpha: 0.74);
     canvas.drawRRect(bubble, _backdropPaint);
 
     _borderPaint
-      ..color = primaryColor.withValues(alpha: 0.34)
-      ..strokeWidth = 1.0;
+      ..color = _kStoryIvoryMuted.withValues(alpha: 0.28)
+      ..strokeWidth = 0.8;
     canvas.drawRRect(bubble, _borderPaint);
+    _drawStoryBracketFrame(
+      canvas,
+      rect,
+      borderColor: _kStoryIvoryMuted.withValues(alpha: 0.4),
+      bracketLength: 10,
+      strokeWidth: 1.0,
+    );
 
     final dx = alignment == TextAlign.left
         ? rect.left + 18.0
@@ -1147,6 +1200,8 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   late String _costLabel;
   TextPaint? _costTextPaint;
+  TextPaint? _iconTextPaint;
+  late final IconData _identityIcon = skill.identityIcon;
 
   // Improved particle system - persistent particles with pooling
   final List<_NodeParticle> _particles = [];
@@ -1154,6 +1209,10 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   // Pulse animation state
   double _pulseTime = 0.0;
+
+  // Unlock celebration burst — negative when inactive, 0..1 when playing.
+  double _unlockBurstT = -1.0;
+  static const double _unlockBurstDuration = 0.85;
 
   SkillNode({
     required this.tree,
@@ -1205,9 +1264,15 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
     if (!isTreeVisible) return;
 
-    // Update pulse animation
-    if (canUnlock) {
+    // Update pulse animation (used by canUnlock breathing halo)
+    if (canUnlock && !isUnlocked) {
       _pulseTime += dt;
+    }
+
+    // Advance unlock celebration burst.
+    if (_unlockBurstT >= 0.0) {
+      _unlockBurstT += dt / _unlockBurstDuration;
+      if (_unlockBurstT >= 1.0) _unlockBurstT = -1.0;
     }
 
     // Update particles
@@ -1230,37 +1295,89 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
     final hexPath = _createHexagon(center.toOffset(), 35);
 
-    // Animated glow for available nodes
-    if (canUnlock) {
-      final pulseValue = (math.sin(_pulseTime * 2.5) + 1) / 2; // 0 to 1
-      final glowOpacity = (0.1 + pulseValue * 0.25).clamp(0.0, 1.0);
-      final glowSize = 3.0 + pulseValue * 4.0;
+    // Animated glow for available nodes — strong, breathing, "click me".
+    // Uses a radial gradient fill instead of MaskFilter.blur — visually
+    // near-identical, dramatically cheaper on lower-end GPUs.
+    if (canUnlock && !isUnlocked) {
+      final pulseValue = (math.sin(_pulseTime * 2.5) + 1) / 2; // 0..1
+      final accent = _getAvailableAccentColor();
 
-      final glowPaint = Paint()
-        ..color = primaryColor.withValues(alpha: glowOpacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = glowSize
-        ..maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          6.0 + pulseValue * 4.0,
+      final haloOuter = 60.0 + pulseValue * 8.0;
+      final haloAlpha = (0.22 + pulseValue * 0.30).clamp(0.0, 1.0);
+      final haloPaint = Paint()
+        ..shader = ui.Gradient.radial(
+          center.toOffset(),
+          haloOuter,
+          [
+            accent.withValues(alpha: haloAlpha * 0.85),
+            accent.withValues(alpha: haloAlpha * 0.35),
+            Colors.transparent,
+          ],
+          [0.45, 0.7, 1.0],
         );
-      canvas.drawPath(hexPath, glowPaint);
+      canvas.drawCircle(center.toOffset(), haloOuter, haloPaint);
+
+      // Inner crisp pulse ring on the hex itself
+      final ringPaint = Paint()
+        ..color = accent.withValues(
+          alpha: (0.55 + pulseValue * 0.35).clamp(0.0, 1.0),
+        )
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawPath(hexPath, ringPaint);
     }
 
-    // Outer glow for unlocked nodes
+    // Outer glow + ambient orbit ring for unlocked nodes.
+    // Same blur → radial-gradient swap for perf.
     if (isUnlocked) {
+      final glowOuter = 55.0;
       final glowPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.36)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5.0
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12.0);
-      canvas.drawPath(hexPath, glowPaint);
+        ..shader = ui.Gradient.radial(
+          center.toOffset(),
+          glowOuter,
+          [
+            Colors.white.withValues(alpha: 0.42),
+            Colors.white.withValues(alpha: 0.16),
+            Colors.transparent,
+          ],
+          [0.55, 0.78, 1.0],
+        );
+      canvas.drawCircle(center.toOffset(), glowOuter, glowPaint);
 
+      final auraOuter = 62.0;
       final auraPaint = Paint()
-        ..color = primaryColor.withValues(alpha: 0.18)
-        ..style = PaintingStyle.fill
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16.0);
-      canvas.drawPath(_createHexagon(center.toOffset(), 42), auraPaint);
+        ..shader = ui.Gradient.radial(
+          center.toOffset(),
+          auraOuter,
+          [
+            primaryColor.withValues(alpha: 0.32),
+            primaryColor.withValues(alpha: 0.10),
+            Colors.transparent,
+          ],
+          [0.0, 0.6, 1.0],
+        );
+      canvas.drawCircle(center.toOffset(), auraOuter, auraPaint);
+
+      // Faint orbital ring — quiet "alive" signal
+      final orbitPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.14)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawCircle(center.toOffset(), 48, orbitPaint);
+    }
+
+    // Root/keystone halo — outer double-ring marker
+    if (isRootNode) {
+      final keystoneOuter = Paint()
+        ..color =
+            (isUnlocked
+                    ? Color.lerp(primaryColor, Colors.white, 0.4) ??
+                          primaryColor
+                    : ringColor)
+                .withValues(alpha: isUnlocked ? 0.9 : 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4;
+      canvas.drawPath(_createHexagon(center.toOffset(), 46), keystoneOuter);
     }
 
     // Main hexagon border
@@ -1305,14 +1422,74 @@ class SkillNode extends PositionComponent with TapCallbacks {
       canvas.drawPath(coreHexPath, readyPaint);
     }
 
+    // Identity icon — centered when unlocked (the cost is hidden); stacked
+    // above the cost label when locked or unlockable.
+    if (_iconTextPaint != null) {
+      final iconGlyph = String.fromCharCode(_identityIcon.codePoint);
+      final iconCenter = isUnlocked ? center : center + Vector2(0, -10);
+      _iconTextPaint!.render(
+        canvas,
+        iconGlyph,
+        iconCenter,
+        anchor: Anchor.center,
+      );
+    }
+
     if (_costLabel.isNotEmpty && _costTextPaint != null) {
-      _costTextPaint!.render(canvas, _costLabel, center, anchor: Anchor.center);
+      _costTextPaint!.render(
+        canvas,
+        _costLabel,
+        center + Vector2(0, 11),
+        anchor: Anchor.center,
+      );
     }
 
     // Alchemical accents for unlocked nodes
     if (isUnlocked) {
       _drawAlchemicalAccents(canvas, center.toOffset(), 35);
       _renderParticles(canvas, center);
+    }
+
+    // Unlock celebration burst — expanding ring + center flash
+    if (_unlockBurstT >= 0.0 && _unlockBurstT <= 1.0) {
+      final t = _unlockBurstT;
+      final eased = Curves.easeOutCubic.transform(t);
+      final fade = (1.0 - t).clamp(0.0, 1.0);
+
+      // Expanding ring
+      final ringRadius = 30.0 + eased * 90.0;
+      final ringPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.85 * fade)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.0 * fade + 1.0
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4.0 + eased * 6.0);
+      canvas.drawCircle(center.toOffset(), ringRadius, ringPaint);
+
+      // Color-tinted secondary ring trailing slightly behind
+      final trailRadius = 18.0 + eased * 70.0;
+      final trailPaint = Paint()
+        ..color = primaryColor.withValues(alpha: 0.7 * fade)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+      canvas.drawCircle(center.toOffset(), trailRadius, trailPaint);
+
+      // Bright center flash — quick fade
+      final flashFade = math.max(0.0, 1.0 - t * 2.2);
+      if (flashFade > 0) {
+        final flashPaint = Paint()
+          ..shader = ui.Gradient.radial(
+            center.toOffset(),
+            32,
+            [
+              Colors.white.withValues(alpha: 0.9 * flashFade),
+              Colors.white.withValues(alpha: 0.25 * flashFade),
+              Colors.transparent,
+            ],
+            [0.0, 0.5, 1.0],
+          );
+        canvas.drawCircle(center.toOffset(), 32, flashPaint);
+      }
     }
   }
 
@@ -1395,12 +1572,12 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   Color _getRingColor() {
     if (isUnlocked) {
-      return Color.lerp(primaryColor, Colors.white, 0.18) ?? primaryColor;
+      return Color.lerp(primaryColor, Colors.white, 0.28) ?? primaryColor;
     }
     if (canUnlock) {
-      return _getAvailableAccentColor().withValues(alpha: 0.95);
+      return _getAvailableAccentColor();
     }
-    return primaryColor.withValues(alpha: 0.24);
+    return primaryColor.withValues(alpha: 0.16);
   }
 
   Color _getCoreColor() {
@@ -1421,26 +1598,45 @@ class SkillNode extends PositionComponent with TapCallbacks {
     this.canUnlock = canUnlock;
     _syncCostLabel();
 
-    // Add particles if newly unlocked
-    if (isUnlocked && wasLocked && _particles.isEmpty) {
-      _initializeParticles();
+    // Newly unlocked: fire celebration burst + spawn particles.
+    if (isUnlocked && wasLocked) {
+      _unlockBurstT = 0.0;
+      if (_particles.isEmpty) _initializeParticles();
     }
   }
 
   void _syncCostLabel() {
-    _costLabel = isUnlocked ? '' : '${skill.pointsCost}';
+    _costLabel = isUnlocked ? '' : '★ ${skill.pointsCost}';
     _costTextPaint = TextPaint(
       style: TextStyle(
         color: isUnlocked
             ? Colors.transparent
             : canUnlock
             ? Colors.white
-            : primaryColor.withValues(alpha: 0.7),
-        fontSize: 18,
+            : Colors.white.withValues(alpha: 0.42),
+        fontSize: 14,
         fontWeight: FontWeight.w900,
+        letterSpacing: 0.4,
         shadows: canUnlock
             ? const [Shadow(color: Colors.black87, blurRadius: 12)]
-            : null,
+            : const [Shadow(color: Colors.black87, blurRadius: 6)],
+      ),
+    );
+
+    // Identity icon — same MaterialIcons font Flutter ships, rendered as
+    // a single glyph in Flame's TextPaint.
+    final iconColor = isUnlocked
+        ? Color.lerp(primaryColor, Colors.white, 0.55) ?? primaryColor
+        : canUnlock
+        ? Colors.white
+        : Colors.white.withValues(alpha: 0.32);
+    _iconTextPaint = TextPaint(
+      style: TextStyle(
+        color: iconColor,
+        fontSize: isUnlocked ? 22 : 18,
+        fontFamily: _identityIcon.fontFamily,
+        package: _identityIcon.fontPackage,
+        shadows: const [Shadow(color: Colors.black87, blurRadius: 8)],
       ),
     );
   }
@@ -1520,10 +1716,14 @@ class ConnectionLine extends Component {
   static const double _glowFadeTime = 0.95;
   static const double _storyFadeInTime = 0.8;
 
-  // Traveling energy pulse
+  // Traveling energy pulse (activation one-shot)
   double _energyPulsePosition = 0.0;
   bool _showEnergyPulse = false;
   double _storyFloatOffset = 10.0;
+
+  // Ambient state — continuous pulse along active lines + breathing for
+  // can-activate (preview) lines. Driven every frame from update().
+  double _ambientTime = 0.0;
 
   late final String _normalizedStoryText;
   TextPainter? _storyTextPainter;
@@ -1617,6 +1817,9 @@ class ConnectionLine extends Component {
 
     if (!isTreeVisible) return;
 
+    // Ambient pulse drives continuous active/can-activate effects.
+    _ambientTime += dt;
+
     if (!_isAnimating) return;
 
     final frameDt = math.min(dt, 1 / 30);
@@ -1676,44 +1879,67 @@ class ConnectionLine extends Component {
         ? fromPos + (toPos - fromPos) * _animationProgress
         : toPos;
 
-    final baseOpacity = isActive ? 0.8 : 0.25;
     final glowBoost = (_glowIntensity * 0.3).clamp(0.0, 0.5);
 
-    // Main line
-    _linePaint
-      ..color = Colors.white.withValues(
-        alpha: (baseOpacity + glowBoost).clamp(0.0, 1.0),
-      )
-      ..strokeWidth = 2.0 + (_glowIntensity * 2.0)
-      ..maskFilter = null;
-
-    canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
-
-    // Outer glow
-    if (isActive) {
-      _glowPaint
-        ..color = Colors.white.withValues(
-          alpha: ((0.2 + glowBoost) * 0.6).clamp(0.0, 1.0),
+    if (canActivate && !isActive) {
+      // CAN-ACTIVATE: dim breathing accent line — "this path is open"
+      final breath = (math.sin(_ambientTime * 2.2) + 1) * 0.5; // 0..1
+      _linePaint
+        ..color = primaryColor.withValues(
+          alpha: (0.32 + breath * 0.22).clamp(0.0, 1.0),
         )
-        ..strokeWidth = 6.0 + (_glowIntensity * 6.0);
+        ..strokeWidth = 1.6
+        ..maskFilter = null;
+      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
 
+      _glowPaint
+        ..color = primaryColor.withValues(
+          alpha: (0.18 + breath * 0.18).clamp(0.0, 1.0),
+        )
+        ..strokeWidth = 5.0;
+      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _glowPaint);
+    } else {
+      // ACTIVE: bright steady line + glow
+      _linePaint
+        ..color = Colors.white.withValues(
+          alpha: (0.85 + glowBoost).clamp(0.0, 1.0),
+        )
+        ..strokeWidth = 2.0 + (_glowIntensity * 2.0)
+        ..maskFilter = null;
+      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
+
+      _glowPaint
+        ..color = primaryColor.withValues(
+          alpha: (0.35 + glowBoost * 0.5).clamp(0.0, 1.0),
+        )
+        ..strokeWidth = 7.0 + (_glowIntensity * 6.0);
       canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _glowPaint);
     }
 
-    // Energy pulse traveling along the line
+    // Activation one-shot pulse (when line is being drawn)
     if (_showEnergyPulse && _animationProgress > 0.05) {
       final pulsePos = fromPos + (toPos - fromPos) * _energyPulsePosition;
       _pulsePaint.color = primaryColor.withValues(alpha: 0.9);
-
       canvas.drawCircle(
         pulsePos.toOffset(),
         4.0 + _glowIntensity * 3.0,
         _pulsePaint,
       );
-
-      // Pulse glow
       _pulseGlowPaint.color = primaryColor.withValues(alpha: 0.4);
       canvas.drawCircle(pulsePos.toOffset(), 8.0, _pulseGlowPaint);
+    }
+
+    // Ambient traveling sparkle on active lines — quiet "energy flowing"
+    if (isActive && !_isAnimating) {
+      final t = (_ambientTime * 0.18) % 1.0; // ~5.5s loop
+      final pulsePos = fromPos + (toPos - fromPos) * t;
+      // Fade in/out at the line endpoints so it doesn't pop.
+      final edgeFade = math.min(t, 1.0 - t) * 4.0;
+      final fade = edgeFade.clamp(0.0, 1.0);
+      _pulsePaint.color = primaryColor.withValues(alpha: 0.85 * fade);
+      canvas.drawCircle(pulsePos.toOffset(), 2.6, _pulsePaint);
+      _pulseGlowPaint.color = primaryColor.withValues(alpha: 0.38 * fade);
+      canvas.drawCircle(pulsePos.toOffset(), 7.0, _pulseGlowPaint);
     }
 
     // Story text
@@ -1741,9 +1967,9 @@ class ConnectionLine extends Component {
       perpendicular = -perpendicular;
     }
 
-    final maxTextWidth = (lineLength * 0.78).clamp(120.0, 180.0);
+    final maxTextWidth = (lineLength * 0.85).clamp(170.0, 240.0);
 
-    final alpha = (_storyOpacity * 0.9).clamp(0.0, 1.0);
+    final alpha = (_storyOpacity * 0.95).clamp(0.0, 1.0);
     if (_storyTextPainter == null ||
         (alpha - _storyPaintAlpha).abs() > 0.02 ||
         (_storyLayoutWidth - maxTextWidth).abs() > 0.5) {
@@ -1753,9 +1979,9 @@ class ConnectionLine extends Component {
         text: TextSpan(
           text: _normalizedStoryText,
           style: GoogleFonts.imFellGreatPrimer(
-            color: Colors.white.withValues(alpha: alpha),
-            fontSize: 13,
-            height: 1.25,
+            color: _kStoryIvory.withValues(alpha: alpha),
+            fontSize: 15,
+            height: 1.34,
           ),
         ),
         textAlign: TextAlign.left,
@@ -1764,8 +1990,8 @@ class ConnectionLine extends Component {
     }
 
     final textPainter = _storyTextPainter!;
-    final textWidth = textPainter.width + 28.0;
-    final textHeight = textPainter.height + 22.0;
+    final textWidth = textPainter.width + 32.0;
+    final textHeight = textPainter.height + 24.0;
 
     final sideSign = connectionIndex.isEven ? -1.0 : 1.0;
     final radialOffset = (64.0 + ((connectionIndex % 3) * 22.0)) * sideSign;
@@ -1781,19 +2007,28 @@ class ConnectionLine extends Component {
       width: textWidth,
       height: textHeight,
     );
-    final bubble = RRect.fromRectAndRadius(rect, const Radius.circular(10));
+    final bubble = _storyBubbleRRect(rect);
 
     _storyBackdropPaint.color = Colors.black.withValues(
-      alpha: (_storyOpacity * 0.78).clamp(0.0, 1.0),
+      alpha: (_storyOpacity * 0.82).clamp(0.0, 1.0),
     );
     canvas.drawRRect(bubble, _storyBackdropPaint);
 
     _storyBorderPaint
-      ..color = primaryColor.withValues(
-        alpha: (_storyOpacity * 0.42).clamp(0.0, 1.0),
+      ..color = _kStoryIvoryMuted.withValues(
+        alpha: (_storyOpacity * 0.28).clamp(0.0, 1.0),
       )
-      ..strokeWidth = 1.0;
+      ..strokeWidth = 0.8;
     canvas.drawRRect(bubble, _storyBorderPaint);
+    _drawStoryBracketFrame(
+      canvas,
+      rect,
+      borderColor: _kStoryIvoryMuted.withValues(
+        alpha: (_storyOpacity * 0.44).clamp(0.0, 1.0),
+      ),
+      bracketLength: 10,
+      strokeWidth: 1.0,
+    );
 
     textPainter.paint(
       canvas,
@@ -1821,6 +2056,48 @@ class ConnectionLine extends Component {
 }
 
 /// Starfield with improved twinkling
+/// Soft radial glows positioned at each tree's center — gives each region
+/// of space its own "color signature" so the trees feel like distinct
+/// nebulae rather than three identical clusters on a flat starfield.
+class NebulaBackground extends Component
+    with HasGameReference<ConstellationGame> {
+  NebulaBackground() : super(priority: -11);
+
+  static const Map<ConstellationTree, Color> _tints = {
+    ConstellationTree.combat: Color(0xFFE63946), // crimson
+    ConstellationTree.breeder: Color(0xFF4DA3FF), // azure
+    ConstellationTree.extraction: Color(0xFF4ADE80), // verdant
+  };
+
+  static const double _radius = 900.0;
+
+  // Pre-built (center, paint) pairs — shaders are expensive to construct,
+  // and nebula positions/colors never change, so we build them once.
+  late final List<(Offset, Paint)> _glows = _tints.entries.map((entry) {
+    final center = ConnectionLine._treeCenterFor(entry.key).toOffset();
+    final color = entry.value;
+    final paint = Paint()
+      ..shader = ui.Gradient.radial(
+        center,
+        _radius,
+        [
+          color.withValues(alpha: 0.18),
+          color.withValues(alpha: 0.07),
+          Colors.transparent,
+        ],
+        [0.0, 0.45, 1.0],
+      );
+    return (center, paint);
+  }).toList();
+
+  @override
+  void render(Canvas canvas) {
+    for (final (center, paint) in _glows) {
+      canvas.drawCircle(center, _radius, paint);
+    }
+  }
+}
+
 class StarfieldBackground extends Component
     with HasGameReference<ConstellationGame> {
   final Color primaryColor;
@@ -1828,9 +2105,9 @@ class StarfieldBackground extends Component
   final List<Star> stars = [];
   double _time = 0.0;
 
-  static const int _farLayerCount = 2600;
-  static const int _midLayerCount = 1900;
-  static const int _nearLayerCount = 400;
+  static const int _farLayerCount = 2080;
+  static const int _midLayerCount = 1520;
+  static const int _nearLayerCount = 320;
 
   StarfieldBackground({
     required this.primaryColor,
@@ -1844,7 +2121,7 @@ class StarfieldBackground extends Component
     final random = math.Random();
 
     // Layered stars for depth
-    // Far layer - small, dim, slow
+    // Far layer - small, dim, slow, barely moves with camera
     for (int i = 0; i < _farLayerCount; i++) {
       stars.add(
         Star(
@@ -1856,11 +2133,12 @@ class StarfieldBackground extends Component
           baseOpacity: 0.15 + random.nextDouble() * 0.2,
           twinkleSpeed: 0.3 + random.nextDouble() * 0.5,
           twinklePhase: random.nextDouble() * math.pi * 2,
+          depthFactor: 0.35,
         ),
       );
     }
 
-    // Mid layer - medium
+    // Mid layer - medium, partial parallax
     for (int i = 0; i < _midLayerCount; i++) {
       stars.add(
         Star(
@@ -1872,11 +2150,12 @@ class StarfieldBackground extends Component
           baseOpacity: 0.3 + random.nextDouble() * 0.3,
           twinkleSpeed: 0.5 + random.nextDouble() * 1.0,
           twinklePhase: random.nextDouble() * math.pi * 2,
+          depthFactor: 0.7,
         ),
       );
     }
 
-    // Near layer - bright, fast twinkle
+    // Near layer - bright, fast twinkle, full 1:1 with camera
     for (int i = 0; i < _nearLayerCount; i++) {
       stars.add(
         Star(
@@ -1888,6 +2167,7 @@ class StarfieldBackground extends Component
           baseOpacity: 0.5 + random.nextDouble() * 0.4,
           twinkleSpeed: 1.0 + random.nextDouble() * 2.0,
           twinklePhase: random.nextDouble() * math.pi * 2,
+          depthFactor: 1.0,
         ),
       );
     }
@@ -1922,13 +2202,20 @@ class StarfieldBackground extends Component
     final maxY = viewCenter.y + worldHeight / 2 + marginY;
 
     for (final star in stars) {
-      final p = star.position;
-      if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
+      // Parallax: shift visual position toward camera for background layers.
+      // depthFactor 1.0 = no shift, 0.0 = locked to viewport.
+      final shift = viewCenter * (1.0 - star.depthFactor);
+      final drawX = star.position.x + shift.x;
+      final drawY = star.position.y + shift.y;
+
+      if (drawX < minX || drawX > maxX || drawY < minY || drawY > maxY) {
+        continue;
+      }
 
       paint.color = primaryColor.withValues(
         alpha: star.currentOpacityAt(_time),
       );
-      canvas.drawCircle(star.position.toOffset(), star.size, paint);
+      canvas.drawCircle(Offset(drawX, drawY), star.size, paint);
     }
   }
 
@@ -1945,6 +2232,10 @@ class Star {
   final double baseOpacity;
   final double twinkleSpeed;
   final double twinklePhase;
+
+  /// 0.0 = pure background (doesn't move with camera), 1.0 = foreground
+  /// (moves 1:1 with the world). Used for parallax depth.
+  final double depthFactor;
   bool _rapidBlink = false;
 
   Star({
@@ -1953,6 +2244,7 @@ class Star {
     required this.baseOpacity,
     required this.twinkleSpeed,
     required this.twinklePhase,
+    this.depthFactor = 1.0,
   });
 
   double currentOpacityAt(double time) {

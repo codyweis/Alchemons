@@ -109,7 +109,7 @@ class CultivationDialogButton extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: resolvedForegroundColor,
-                    fontSize: 10.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
                   ),

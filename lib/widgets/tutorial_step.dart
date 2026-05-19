@@ -38,7 +38,7 @@ class TutorialStep extends StatelessWidget {
                 body,
                 style: TextStyle(
                   color: theme.textMuted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),

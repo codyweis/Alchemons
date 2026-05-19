@@ -33,9 +33,64 @@ class _C {
   static const gold = Color(0xFFF59E0B);
   static const success = Color(0xFF16A34A);
   static const locked = Color(0xFF374151);
-  static const void_ = Color(0xFF1A1040);
   static const voidBright = Color(0xFF7C3AED);
   static const voidGlow = Color(0xFFAB78FF);
+
+  // Ivory/cream rite-style palette — borders and chrome stay neutral so
+  // element color only appears as a small accent (dot, icon tint, text).
+  static const ivory = Color(0xFFE8DFC8);
+  static const ivoryDim = Color(0xFFB5A98A);
+  static const ivoryMuted = Color(0xFF6B6050);
+}
+
+TextStyle _titleStyle(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
+}
+
+TextStyle _display(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) => _titleStyle(
+  context,
+  size,
+  color,
+  weight: weight,
+  letterSpacing: letterSpacing,
+  fontStyle: fontStyle,
+);
+
+TextStyle _body(
+  BuildContext context,
+  double size,
+  Color color, {
+  double height = 1.5,
+  FontWeight weight = FontWeight.w400,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    height: height,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -326,7 +381,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
       SnackBar(
         content: Text(
           msg,
-          style: TextStyle(fontFamily: appFontFamily(context), fontSize: 11),
+          style: TextStyle(fontFamily: appFontFamily(context), fontSize: 12),
         ),
         backgroundColor: _C.surface,
         behavior: SnackBarBehavior.floating,
@@ -435,31 +490,14 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Row(
         children: [
-          GestureDetector(
+          _BackBracketButton(
             onTap: () {
               HapticFeedback.lightImpact();
               onBack();
             },
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: _C.void_.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _C.voidBright.withValues(alpha: 0.3),
-                  width: 0.5,
-                ),
-              ),
-              child: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: _C.sub,
-                size: 14,
-              ),
-            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -467,22 +505,17 @@ class _Header extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'MYSTIC ALTAR',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: _C.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2,
-                  ),
+                  'Mystic Altar',
+                  style: _display(context, 24, _C.ivory, letterSpacing: 0.4),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  'SPIN · SELECT · SUMMON',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: _C.muted,
-                    fontSize: 8,
-                    letterSpacing: 2,
+                  'Spin the wheel and wake the chosen relic.',
+                  style: _display(
+                    context,
+                    13,
+                    _C.ivoryMuted,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
@@ -747,45 +780,24 @@ class _BossNode extends StatelessWidget {
   Widget build(BuildContext context) {
     final elColor = boss.elementColor;
 
-    // ── relic-placed: vivid glow halo ──────────────────────────────────
+    // ── relic-placed: image shows through with a subtle inner tint ────
     if (relicPlaced && unlocked) {
       return Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          // Bloom glow behind disc
-          Container(
-            width: size + 4,
-            height: size + 4,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: elColor.withValues(alpha: 0.50 + pulse * 0.38),
-                  blurRadius: 24,
-                  spreadRadius: 6,
-                ),
-              ],
-            ),
-          ),
-          // Main disc — vivid and bright
           Container(
             width: size,
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: elColor.withValues(alpha: 0.28 + pulse * 0.16),
-              border: Border.all(
-                color: elColor.withValues(alpha: 0.75 + pulse * 0.20),
-                width: isSelected ? 2.5 : 2.0,
+              gradient: RadialGradient(
+                colors: [elColor.withValues(alpha: 0.18), Colors.transparent],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: elColor.withValues(alpha: 0.55 + pulse * 0.30),
-                  blurRadius: 22,
-                  spreadRadius: 3,
-                ),
-              ],
+              border: Border.all(
+                color: _C.ivoryDim.withValues(alpha: isSelected ? 0.85 : 0.45),
+                width: isSelected ? 1.6 : 1.0,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: Image.asset(
@@ -795,68 +807,42 @@ class _BossNode extends StatelessWidget {
                   Icon(boss.elementIcon, color: elColor, size: size * 0.44),
             ),
           ),
-          // Progress ring
           if (required > 0)
             SizedBox(
               width: size,
               height: size,
               child: CircularProgressIndicator(
                 value: required > 0 ? placed / required : 0.0,
-                strokeWidth: 2.0,
-                backgroundColor: elColor.withValues(alpha: 0.06),
-                color: complete ? _C.success : elColor.withValues(alpha: 0.60),
+                strokeWidth: 1.6,
+                backgroundColor: _C.ivoryMuted.withValues(alpha: 0.18),
+                color: complete
+                    ? _C.success
+                    : _C.ivoryDim.withValues(alpha: 0.7),
               ),
             ),
         ],
       );
     }
 
-    // ── default (no relic) ───────────────────────────────────────────────
-    final glowC = complete ? elColor : (hasKey ? _C.gold : elColor);
+    // ── default (no relic) — neutral chrome, element color is accent ──
     return Stack(
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        // Outer glow ring (selected only)
-        if (isSelected && unlocked)
-          Container(
-            width: size + 20 + pulse * 8,
-            height: size + 20 + pulse * 8,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: glowC.withValues(alpha: 0.18 + pulse * 0.24),
-                width: 1.0,
-              ),
-            ),
-          ),
-
-        // Main disc
         Container(
           width: size,
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: unlocked
-                ? elColor.withValues(alpha: 0.10)
-                : _C.surface.withValues(alpha: 0.45),
+                ? Colors.white.withValues(alpha: isSelected ? 0.05 : 0.03)
+                : Colors.black.withValues(alpha: 0.18),
             border: Border.all(
               color: unlocked
-                  ? elColor.withValues(
-                      alpha: isSelected ? (0.55 + pulse * 0.30) : 0.22,
-                    )
-                  : _C.locked.withValues(alpha: 0.22),
-              width: isSelected ? 2.0 : 0.8,
+                  ? _C.ivoryDim.withValues(alpha: isSelected ? 0.85 : 0.35)
+                  : _C.ivoryMuted.withValues(alpha: 0.25),
+              width: isSelected ? 1.6 : 0.9,
             ),
-            boxShadow: (isSelected && unlocked)
-                ? [
-                    BoxShadow(
-                      color: glowC.withValues(alpha: 0.30 + pulse * 0.25),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : null,
           ),
           clipBehavior: Clip.antiAlias,
           child: ColorFiltered(
@@ -959,47 +945,46 @@ class _InfoPanel extends StatelessWidget {
         BossLootKeys.elementRewards[boss.element.toLowerCase()]?.traitName ??
         'Key Item';
 
-    return AnimatedBuilder(
-      animation: bgCtrl,
-      builder: (_, __) {
-        final p = (math.sin(bgCtrl.value * math.pi * 2) + 1) / 2;
-        return Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          decoration: BoxDecoration(
-            color: _C.surface.withValues(alpha: 0.90),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: unlocked
-                  ? elColor.withValues(alpha: 0.18 + p * 0.20)
-                  : _C.muted.withValues(alpha: 0.15),
-              width: 1.0,
-            ),
-            boxShadow: complete
-                ? [
-                    BoxShadow(
-                      color: elColor.withValues(alpha: 0.14 + p * 0.14),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
+    final ctaLabel = unlocked
+        ? (complete
+              ? 'Perform ritual'
+              : (relicPlaced ? 'Enter altar' : 'Place relic'))
+        : 'Locked';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [_C.bg.withValues(alpha: 0.92), _C.bg.withValues(alpha: 0.0)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: unlocked
-                      ? elColor.withValues(alpha: 0.12)
-                      : _C.locked.withValues(alpha: 0.08),
+                  gradient: unlocked
+                      ? RadialGradient(
+                          colors: [
+                            elColor.withValues(alpha: 0.18),
+                            Colors.transparent,
+                          ],
+                        )
+                      : null,
+                  color: unlocked ? null : Colors.white.withValues(alpha: 0.03),
                   border: Border.all(
-                    color: unlocked
-                        ? elColor.withValues(alpha: 0.35 + p * 0.25)
-                        : _C.locked.withValues(alpha: 0.18),
-                    width: 1.2,
+                    color: _C.ivoryDim.withValues(
+                      alpha: unlocked ? 0.55 : 0.20,
+                    ),
+                    width: 1.0,
                   ),
                 ),
                 child: relicPlaced && unlocked
@@ -1008,141 +993,102 @@ class _InfoPanel extends StatelessWidget {
                           boss.relicImagePath,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) =>
-                              Icon(boss.elementIcon, color: elColor, size: 22),
+                              Icon(boss.elementIcon, color: elColor, size: 20),
                         ),
                       )
                     : Icon(
                         boss.elementIcon,
                         color: unlocked
                             ? elColor
-                            : _C.locked.withValues(alpha: 0.45),
-                        size: 22,
+                            : Colors.white.withValues(alpha: 0.4),
+                        size: 20,
                       ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      mysticName.toUpperCase(),
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: unlocked ? elColor : _C.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Container(
-                          width: 5,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _statusColor(elColor, unlocked, complete),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          _statusText(unlocked, complete, tn),
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: _statusColor(elColor, unlocked, complete),
-                            fontSize: 8,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (unlocked && requiredCount > 0) ...[
-                      const SizedBox(height: 7),
-                      Row(
-                        children: List.generate(requiredCount.clamp(0, 10), (
-                          i,
-                        ) {
-                          final f = i < placedCount;
-                          return Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 1.2,
-                              ),
-                              child: Container(
-                                height: 3,
-                                decoration: BoxDecoration(
-                                  color: f
-                                      ? (complete ? _C.success : elColor)
-                                            .withValues(alpha: 0.85)
-                                      : elColor.withValues(alpha: 0.10),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ],
-                  ],
-                ),
               ),
               const SizedBox(width: 12),
-              GestureDetector(
+              Expanded(
+                child: Text(
+                  mysticName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _display(
+                    context,
+                    20,
+                    unlocked ? _C.ivory : _C.ivoryMuted,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _PanelActionButton(
                 onTap: onEnter,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 13,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: unlocked
-                        ? elColor.withValues(alpha: 0.14 + p * 0.06)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: unlocked
-                          ? elColor.withValues(alpha: 0.50)
-                          : _C.muted.withValues(alpha: 0.18),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Text(
-                    unlocked
-                        ? (complete
-                              ? 'SUMMON'
-                              : (relicPlaced ? 'ENTER' : 'PLACE'))
-                        : 'LOCKED',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: unlocked
-                          ? elColor
-                          : _C.muted.withValues(alpha: 0.35),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
-                    ),
+                label: ctaLabel,
+                enabled: unlocked,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // ── Row 2: status line ─────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _statusColor(elColor, unlocked, complete),
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  _statusText(unlocked, complete, tn),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _body(
+                    context,
+                    13,
+                    _statusColor(elColor, unlocked, complete),
+                    weight: FontWeight.w500,
                   ),
                 ),
               ),
             ],
           ),
-        );
-      },
+
+          // ── Row 3: full-width progress bar (only when relevant) ─────
+          if (unlocked && requiredCount > 0) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: SizedBox(
+                height: 4,
+                child: LinearProgressIndicator(
+                  value: (placedCount / requiredCount).clamp(0.0, 1.0),
+                  backgroundColor: Colors.white.withValues(alpha: 0.06),
+                  valueColor: AlwaysStoppedAnimation(
+                    complete ? _C.success : elColor,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   String _statusText(bool unlocked, bool complete, String tn) {
     final def = progress.isBossDefeated(boss.id);
-    if (!def) return 'DEFEAT ${boss.name.toUpperCase()} FIRST';
-    if (!unlocked) return 'KEY REQUIRED: ${tn.toUpperCase()}';
-    if (complete) return 'ALL OFFERINGS SET — READY TO SUMMON';
+    if (!def) return 'Defeat ${boss.name} first';
+    if (!unlocked) return 'Needs $tn';
+    if (complete) return 'The ritual can begin';
     if (placedCount > 0) {
-      return '$placedCount / $requiredCount OFFERINGS COMMITTED';
+      return '$placedCount of $requiredCount offerings are placed';
     }
-    if (relicPlaced) return 'RELIC PLACED — ENTER THE ALTAR';
-    return 'PLACE ${tn.toUpperCase()} TO BEGIN';
+    if (relicPlaced) return 'The relic is set. Enter the altar';
+    return 'Place $tn to begin';
   }
 
   Color _statusColor(Color el, bool unlocked, bool complete) {
@@ -1316,27 +1262,141 @@ class _Btn extends StatelessWidget {
       HapticFeedback.lightImpact();
       onTap();
     },
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+    child: CustomPaint(
+      painter: _CornerBracketPainter(
+        color: color.withValues(alpha: 0.55),
+        bracketSize: 10,
+        strokeWidth: 1.1,
       ),
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: appFontFamily(context),
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 2,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        color: color.withValues(alpha: 0.08),
+        child: Center(
+          child: Text(
+            label == 'COMMIT' ? 'Place relic' : 'Return',
+            style: _display(context, 13, color, letterSpacing: 0.8),
           ),
         ),
       ),
     ),
   );
+}
+
+class _BackBracketButton extends StatelessWidget {
+  const _BackBracketButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: CustomPaint(
+          painter: _CornerBracketPainter(
+            color: _C.ivoryMuted.withValues(alpha: 0.4),
+            bracketSize: 8,
+            strokeWidth: 1.0,
+          ),
+          child: const Icon(
+            Icons.chevron_left_rounded,
+            color: _C.ivoryDim,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelActionButton extends StatelessWidget {
+  const _PanelActionButton({
+    required this.onTap,
+    required this.label,
+    required this.enabled,
+  });
+
+  final VoidCallback onTap;
+  final String label;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 42, minWidth: 112),
+        child: CustomPaint(
+          painter: _CornerBracketPainter(
+            color: (enabled ? _C.ivoryDim : _C.ivoryMuted).withValues(
+              alpha: enabled ? 0.55 : 0.28,
+            ),
+            bracketSize: 10,
+            strokeWidth: 1.1,
+          ),
+          child: Container(
+            alignment: Alignment.center,
+            color: Colors.white.withValues(alpha: 0.03),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Text(
+              label,
+              style: _display(
+                context,
+                13,
+                enabled ? _C.ivory : _C.ivoryMuted,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CornerBracketPainter extends CustomPainter {
+  const _CornerBracketPainter({
+    required this.color,
+    required this.bracketSize,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double bracketSize;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final s = bracketSize;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(0, s)
+      ..lineTo(0, 0)
+      ..lineTo(s, 0)
+      ..moveTo(w - s, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, s)
+      ..moveTo(0, h - s)
+      ..lineTo(0, h)
+      ..lineTo(s, h)
+      ..moveTo(w - s, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - s);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CornerBracketPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.bracketSize != bracketSize ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1677,7 +1737,7 @@ class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
                       style: TextStyle(
                         fontFamily: appFontFamily(context),
                         color: _C.sub,
-                        fontSize: 11,
+                        fontSize: 12,
                         height: 1.5,
                       ),
                     ),

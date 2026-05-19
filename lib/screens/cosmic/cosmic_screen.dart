@@ -4962,7 +4962,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                             specialCooldown.ceil().toString(),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 9,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               height: 1,
                             ),
@@ -6371,7 +6371,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   'PINNED ${planetName(planet.element).toUpperCase()} RECIPE',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.92),
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.9,
                     shadows: const [
@@ -6810,7 +6810,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                             color: Colors.white.withValues(
                                               alpha: 0.18,
                                             ),
-                                            fontSize: 8,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w700,
                                             letterSpacing: 2,
                                           ),
@@ -6895,7 +6895,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                               color: Colors.white.withValues(
                                                 alpha: 0.9,
                                               ),
-                                              fontSize: 9,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w900,
                                               letterSpacing: 0.8,
                                               shadows: const [
@@ -7378,7 +7378,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   : 'Summon Mystic Blood + Choose One Offering',
                               style: TextStyle(
                                 color: Colors.white60,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 1,
                               ),
@@ -7465,7 +7465,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                       : 'LEVEL $nextLevel / 5  •  TAP TO START',
                                   style: TextStyle(
                                     color: Colors.white60,
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 1,
                                   ),
@@ -7554,7 +7554,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   : _game!.battleRing.levelLabel,
                               style: TextStyle(
                                 color: Colors.white60,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 1,
                               ),
@@ -7637,7 +7637,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                               '4 Boss Keys + 25% Fire · Water · Air · Earth',
                               style: TextStyle(
                                 color: Colors.white60,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 1,
                               ),
@@ -7754,7 +7754,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 'EXIT NEXUS',
                                 style: TextStyle(
                                   color: Colors.white54,
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 1,
                                 ),
@@ -7882,7 +7882,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                                   ),
                                                   color: CosmicScreenStyles
                                                       .textPrimary,
-                                                  fontSize: 11,
+                                                  fontSize: 12,
                                                   fontWeight: FontWeight.w800,
                                                   letterSpacing: 1.5,
                                                 ),
@@ -7929,7 +7929,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                                 context,
                                               ),
                                               color: CosmicScreenStyles.bg0,
-                                              fontSize: 8,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w900,
                                               letterSpacing: 0.8,
                                             ),
@@ -8055,7 +8055,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                                 context,
                                               ),
                                               color: CosmicScreenStyles.bg0,
-                                              fontSize: 8,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w900,
                                               letterSpacing: 0.8,
                                             ),
@@ -8216,7 +8216,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                             color: _isShootingMissiles
                                                 ? const Color(0xFFE53935)
                                                 : Colors.white38,
-                                            fontSize: 8,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w800,
                                           ),
                                         ),
@@ -9434,7 +9434,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
             label.toUpperCase(),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.56),
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
             ),
@@ -9770,7 +9770,7 @@ class _SettingsToggleRow extends StatelessWidget {
               label,
               style: TextStyle(
                 color: Colors.white70,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.7,
               ),

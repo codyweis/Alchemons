@@ -247,7 +247,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
               'Attempt crossbreeding with your party',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.center,
@@ -332,7 +332,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
               'Visit the shop to purchase devices',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.center,
@@ -368,7 +368,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
               'Use a harvesting device',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.center,
@@ -404,7 +404,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
                   entry.key.label,
                   style: TextStyle(
                     color: theme.text,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -413,7 +413,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
                 'x${entry.value}',
                 style: TextStyle(
                   color: theme.textMuted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),

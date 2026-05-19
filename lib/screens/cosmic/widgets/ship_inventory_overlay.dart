@@ -137,7 +137,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                       style: TextStyle(
                         fontFamily: appFontFamily(context),
                         color: CosmicScreenStyles.textMuted,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 1.2,
                       ),
@@ -188,7 +188,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                               'Collect items from the shop or rifts.',
                               style: TextStyle(
                                 color: CosmicScreenStyles.textMuted,
-                                fontSize: 11,
+                                fontSize: 12,
                               ),
                             ),
                           ],
@@ -288,7 +288,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                                               style: TextStyle(
                                                 fontFamily: appFontFamily(context),
                                                 color: col,
-                                                fontSize: 11,
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w800,
                                               ),
                                             ),
@@ -317,7 +317,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                                             style: TextStyle(
                                               color: CosmicScreenStyles
                                                   .textSecondary,
-                                              fontSize: 11,
+                                              fontSize: 12,
                                               height: 1.5,
                                             ),
                                           ),

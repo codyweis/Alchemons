@@ -434,7 +434,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: Colors.white24,
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 2,
                 ),
@@ -472,7 +472,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
                     color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 2,
                   ),
@@ -546,7 +546,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               style: TextStyle(
                 fontFamily: appFontFamily(context),
                 color: eColor,
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1,
               ),
@@ -559,7 +559,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               style: TextStyle(
                 fontFamily: appFontFamily(context),
                 color: isActive ? eColor : Colors.white38,
-                fontSize: 8,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -626,7 +626,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: Color(0xFF8A7B6A),
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -669,7 +669,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: Color(0xFFE8DCC8),
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -748,7 +748,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       style: TextStyle(
                         fontFamily: appFontFamily(context),
                         color: eColor.withValues(alpha: 0.8),
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1,
                       ),
@@ -759,7 +759,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       style: TextStyle(
                         fontFamily: appFontFamily(context),
                         color: Color(0xFF8A7B6A),
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -951,7 +951,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                     style: TextStyle(
                       fontFamily: appFontFamily(context),
                       color: eColor,
-                      fontSize: 8,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                     maxLines: 1,
@@ -966,7 +966,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                         style: TextStyle(
                           fontFamily: appFontFamily(context),
                           color: Color(0xFF00E5FF),
-                          fontSize: 8,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -1109,7 +1109,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               style: TextStyle(
                 fontFamily: appFontFamily(context),
                 color: Colors.white38,
-                fontSize: 11,
+                fontSize: 12,
                 letterSpacing: 1,
               ),
             ),
@@ -1122,7 +1122,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: Color(0xFF00E676),
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1,
                 ),
@@ -1155,7 +1155,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
                     color: Colors.white,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1,
                   ),
@@ -1225,7 +1225,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           style: TextStyle(
             fontFamily: appFontFamily(context),
             color: active ? const Color(0xFF00E5FF) : Colors.white38,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
         ),

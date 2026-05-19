@@ -1,5 +1,7 @@
 // lib/models/constellation_skill.dart
 
+import 'package:flutter/material.dart';
+
 /// Represents a skill node in the constellation tree
 class ConstellationSkill {
   final String id;
@@ -23,6 +25,48 @@ class ConstellationSkill {
   /// Check if all prerequisites are met
   bool canUnlock(Set<String> unlockedSkillIds) {
     return prerequisites.every((prereq) => unlockedSkillIds.contains(prereq));
+  }
+
+  /// Heuristic identity icon for this skill, derived from id keywords with
+  /// a per-tree fallback. Used by the constellation node renderer and the
+  /// unlocked-skills sheet so a skill is recognizable by glyph everywhere.
+  IconData get identityIcon {
+    final lid = id.toLowerCase();
+
+    // Breeder
+    if (lid.contains('cross')) return Icons.merge_type_rounded;
+    if (lid.contains('lineage')) return Icons.account_tree_rounded;
+    if (lid.contains('gene')) return Icons.biotech_rounded;
+    if (lid.contains('potential')) return Icons.show_chart_rounded;
+    if (lid.contains('accelerated') || lid.contains('gestation')) {
+      return Icons.timer_rounded;
+    }
+    if (lid.contains('harvesting')) return Icons.spa_rounded;
+
+    // Combat
+    if (lid.contains('atk')) return Icons.bolt_rounded;
+    if (lid.contains('int')) return Icons.psychology_rounded;
+    if (lid.contains('beauty')) return Icons.auto_awesome_rounded;
+    if (lid.contains('speed')) return Icons.speed_rounded;
+
+    // Extraction
+    if (lid.contains('xp')) return Icons.trending_up_rounded;
+    if (lid.contains('alchemon')) return Icons.science_rounded;
+    if (lid.contains('instant')) return Icons.flash_on_rounded;
+    if (lid.contains('marketplace')) return Icons.storefront_rounded;
+    if (lid.contains('resource')) return Icons.savings_rounded;
+    if (lid.contains('sale')) return Icons.local_offer_rounded;
+    if (lid.contains('wilderness')) return Icons.forest_rounded;
+    if (lid.contains('all')) return Icons.all_inclusive_rounded;
+
+    switch (tree) {
+      case ConstellationTree.breeder:
+        return Icons.science_rounded;
+      case ConstellationTree.combat:
+        return Icons.local_fire_department_rounded;
+      case ConstellationTree.extraction:
+        return Icons.eco_rounded;
+    }
   }
 }
 

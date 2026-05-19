@@ -40,7 +40,6 @@ import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -148,7 +147,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: foregroundColor,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                 ),
@@ -195,65 +194,71 @@ class _ShopScreenState extends State<ShopScreen> {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: t.borderDim)),
       ),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
-          // Title row
-          Row(
-            children: [
-              _buildBlackMarketFloatingButton(context, theme.accent),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            color: t.amber,
-                            shape: BoxShape.circle,
+          // Title row — keeps horizontal padding
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Row(
+              children: [
+                _buildBlackMarketFloatingButton(context, theme.accent),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: t.amber,
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'RESEARCH SHOP',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2.0,
+                          Text(
+                            'RESEARCH SHOP',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 2.0,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              _buildExchangeFloatingButton(context),
-            ],
+                _buildExchangeFloatingButton(context),
+              ],
+            ),
           ),
 
           const SizedBox(height: 10),
 
-          Row(
-            children: [
-              CurrencyDisplayWidget(accentColor: t.borderAccent),
-              const SizedBox(width: 4),
-              Expanded(
-                child: SizedBox(
-                  height: 58,
+          // Currency + resources — left padding only, resources bleed to edge
+          Padding(
+            padding: const EdgeInsets.only(left: 12, bottom: 10),
+            child: Row(
+              children: [
+                Flexible(
+                  child: CurrencyDisplayWidget(accentColor: t.borderAccent),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
                   child: ResourceCollectionWidget(
                     theme: theme,
                     horizontalPadding: 0,
                     alignToEnd: true,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -282,7 +287,7 @@ class _ShopScreenState extends State<ShopScreen> {
             style: TextStyle(
               fontFamily: 'monospace',
               color: displayAccent,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 2.2,
             ),
@@ -404,7 +409,7 @@ class _ShopScreenState extends State<ShopScreen> {
                                 style: TextStyle(
                                   fontFamily: 'monospace',
                                   color: t.textSecondary,
-                                  fontSize: 9,
+                                  fontSize: 12,
                                   letterSpacing: 0.2,
                                   height: 1.5,
                                 ),
@@ -454,7 +459,7 @@ class _ShopScreenState extends State<ShopScreen> {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: Color(0xFF4ADE80),
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.5,
                               ),
@@ -710,7 +715,7 @@ class _ShopScreenState extends State<ShopScreen> {
               'Gold purchases are available on iOS and Android builds.',
               style: TextStyle(
                 color: t.textSecondary,
-                fontSize: 10,
+                fontSize: 12,
                 height: 1.5,
                 letterSpacing: 0.2,
               ),
@@ -1977,7 +1982,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.textSecondary,
-                  fontSize: 10,
+                  fontSize: 12,
                   letterSpacing: 0.3,
                   height: 1.6,
                 ),
@@ -2024,7 +2029,7 @@ class _ShopScreenState extends State<ShopScreen> {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t.textSecondary,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 2.0,
                         ),
@@ -2151,7 +2156,7 @@ class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: widget.qty > 0 ? type.color : t.textMuted,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -2202,7 +2207,7 @@ class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
                     color: widget.canAfford
                         ? const Color(0xFFFFD700)
                         : t.textMuted,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -2290,8 +2295,7 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
     final selected = widget.packs[_selectedIndex];
     final product = widget.store.productFor(selected.productId);
     final pending = widget.store.isPurchasePending(selected.productId);
-    final canBuy =
-        product != null && widget.store.storeAvailable && !pending;
+    final canBuy = product != null && widget.store.storeAvailable && !pending;
     final price =
         product?.price ?? (widget.store.isLoading ? '...' : 'Unavailable');
 
@@ -2329,8 +2333,10 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
                         selected: i == _selectedIndex,
                         color: _tierColors[i % _tierColors.length],
                         glow: _tierGlows[i % _tierGlows.length],
-                        tier: _GoldOrbTier.values[i % _GoldOrbTier.values.length],
-                        motion: _GoldOrbMotion.values[i % _GoldOrbMotion.values.length],
+                        tier:
+                            _GoldOrbTier.values[i % _GoldOrbTier.values.length],
+                        motion: _GoldOrbMotion
+                            .values[i % _GoldOrbMotion.values.length],
                         shimmer: _shimmerCtrl,
                         floatAnim: _floatCtrl,
                         delayPhase: i / math.max(1, widget.packs.length),
@@ -2357,7 +2363,7 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
               widget.store.lastError!,
               style: TextStyle(
                 color: t.danger,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -2434,23 +2440,11 @@ class _GoldOrbCard extends StatelessWidget {
         ? t.borderDim.withValues(alpha: 0.25)
         : Colors.black.withValues(alpha: 0.35);
     final selectedGradient = isDark
-        ? [
-            color.withValues(alpha: 0.10),
-            color.withValues(alpha: 0.04),
-          ]
-        : [
-            Colors.white,
-            const Color(0xFFF5F5F5),
-          ];
+        ? [color.withValues(alpha: 0.10), color.withValues(alpha: 0.04)]
+        : [Colors.white, const Color(0xFFF5F5F5)];
     final unselectedGradient = isDark
-        ? [
-            t.bg2.withValues(alpha: 0.45),
-            t.bg2.withValues(alpha: 0.2),
-          ]
-        : [
-            const Color(0xFFF6F6F6),
-            const Color(0xFFEEEEEE),
-          ];
+        ? [t.bg2.withValues(alpha: 0.45), t.bg2.withValues(alpha: 0.2)]
+        : [const Color(0xFFF6F6F6), const Color(0xFFEEEEEE)];
 
     return GestureDetector(
       onTap: onTap,
@@ -2514,32 +2508,25 @@ class _GoldOrbCard extends StatelessWidget {
                     return AnimatedBuilder(
                       animation: floatAnim,
                       builder: (context, child) {
-                        final phase = floatAnim.value * 2 * math.pi +
+                        final phase =
+                            floatAnim.value * 2 * math.pi +
                             delayPhase * math.pi;
                         final pulse = 0.5 + 0.5 * math.sin(phase);
 
                         final dx = switch (motion) {
-                          _GoldOrbMotion.tide =>
-                            math.cos(phase * 0.7) * 1.6,
-                          _GoldOrbMotion.helix =>
-                            math.sin(phase * 1.3) * 2.8,
-                          _GoldOrbMotion.wobble =>
-                            math.sin(phase * 1.4) * 2.0,
+                          _GoldOrbMotion.tide => math.cos(phase * 0.7) * 1.6,
+                          _GoldOrbMotion.helix => math.sin(phase * 1.3) * 2.8,
+                          _GoldOrbMotion.wobble => math.sin(phase * 1.4) * 2.0,
                           _GoldOrbMotion.pulse => 0.0,
                         };
                         final dy = switch (motion) {
-                          _GoldOrbMotion.tide =>
-                            math.sin(phase) * 4.8,
-                          _GoldOrbMotion.helix =>
-                            math.cos(phase * 1.6) * 3.2,
-                          _GoldOrbMotion.wobble =>
-                            math.sin(phase * 0.6) * 4.2,
-                          _GoldOrbMotion.pulse =>
-                            math.sin(phase * 0.8) * 2.4,
+                          _GoldOrbMotion.tide => math.sin(phase) * 4.8,
+                          _GoldOrbMotion.helix => math.cos(phase * 1.6) * 3.2,
+                          _GoldOrbMotion.wobble => math.sin(phase * 0.6) * 4.2,
+                          _GoldOrbMotion.pulse => math.sin(phase * 0.8) * 2.4,
                         };
                         final rotation = switch (motion) {
-                          _GoldOrbMotion.wobble =>
-                            math.sin(phase) * 0.06,
+                          _GoldOrbMotion.wobble => math.sin(phase) * 0.06,
                           _ => 0.0,
                         };
                         final scale = switch (motion) {
@@ -2547,8 +2534,7 @@ class _GoldOrbCard extends StatelessWidget {
                             (selected ? 1.0 : 0.92) +
                                 (pulse * (selected ? 0.08 : 0.04)),
                           _ =>
-                            (selected ? 1.0 : 0.92) +
-                                (math.sin(phase) * 0.03),
+                            (selected ? 1.0 : 0.92) + (math.sin(phase) * 0.03),
                         };
 
                         return Center(
@@ -2601,7 +2587,7 @@ class _GoldOrbCard extends StatelessWidget {
                                 color: isDark
                                     ? const Color(0xFFFFF1A8)
                                     : Colors.black,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.3,
                                 shadows: [
@@ -2623,21 +2609,25 @@ class _GoldOrbCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               // ── Title ──
-              Text(
-                pack.title.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: selected
-                      ? (isDark ? t.textPrimary : Colors.black)
-                      : (isDark
-                          ? t.textSecondary
-                          : Colors.black.withValues(alpha: 0.75)),
-                  fontSize: 8,
-                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                  letterSpacing: 0.8,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  pack.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: selected
+                        ? (isDark ? t.textPrimary : Colors.black)
+                        : (isDark
+                              ? t.textSecondary
+                              : Colors.black.withValues(alpha: 0.75)),
+                    fontSize: 11,
+                    height: 1.05,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    letterSpacing: 0.35,
+                  ),
                 ),
               ),
               const SizedBox(height: 2),
@@ -2696,10 +2686,7 @@ class _GoldOrbCore extends StatelessWidget {
             width: size,
             height: size,
             child: CustomPaint(
-              painter: _CelestialOrbPainter(
-                t: energy.value,
-                boosted: selected,
-              ),
+              painter: _CelestialOrbPainter(t: energy.value, boosted: selected),
             ),
           );
         },
@@ -2753,9 +2740,7 @@ class _GoldOrbCore extends StatelessWidget {
                   gradient: RadialGradient(
                     center: const Alignment(-0.25, -0.3),
                     colors: [
-                      Colors.white.withValues(
-                        alpha: selected ? 0.95 : 0.82,
-                      ),
+                      Colors.white.withValues(alpha: selected ? 0.95 : 0.82),
                       coreColor.withValues(alpha: 0.92),
                       coreColor.withValues(alpha: 0.6),
                       glowColor.withValues(alpha: 0.3),
@@ -2764,9 +2749,7 @@ class _GoldOrbCore extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: glowColor.withValues(
-                        alpha: selected ? 0.55 : 0.3,
-                      ),
+                      color: glowColor.withValues(alpha: selected ? 0.55 : 0.3),
                       blurRadius: selected ? 24 : 14,
                       spreadRadius: selected ? 1 : -3,
                     ),
@@ -2799,9 +2782,7 @@ class _GoldOrbCore extends StatelessWidget {
                   borderRadius: BorderRadius.circular(size),
                   gradient: RadialGradient(
                     colors: [
-                      Colors.white.withValues(
-                        alpha: selected ? 0.7 : 0.45,
-                      ),
+                      Colors.white.withValues(alpha: selected ? 0.7 : 0.45),
                       Colors.transparent,
                     ],
                   ),
@@ -2915,7 +2896,9 @@ class _CelestialOrbPainter extends CustomPainter {
       c,
       r * 0.82,
       Paint()
-        ..color = const Color(0xFFFFD54F).withValues(alpha: boosted ? 0.28 : 0.16)
+        ..color = const Color(
+          0xFFFFD54F,
+        ).withValues(alpha: boosted ? 0.28 : 0.16)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0,
     );
@@ -3003,10 +2986,7 @@ class _GoldBuyStrip extends StatelessWidget {
                 right: 0,
                 height: 2,
                 child: CustomPaint(
-                  painter: _AccentLinePainter(
-                    t: shimmer.value,
-                    color: accent,
-                  ),
+                  painter: _AccentLinePainter(t: shimmer.value, color: accent),
                 ),
               ),
               Padding(
@@ -3033,7 +3013,9 @@ class _GoldBuyStrip extends StatelessWidget {
                                     Shadow(
                                       color: isDark
                                           ? glow.withValues(alpha: 0.4)
-                                          : Colors.black.withValues(alpha: 0.12),
+                                          : Colors.black.withValues(
+                                              alpha: 0.12,
+                                            ),
                                       blurRadius: 8,
                                     ),
                                   ],
@@ -3058,7 +3040,7 @@ class _GoldBuyStrip extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: t.textSecondary,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -3079,14 +3061,14 @@ class _GoldBuyStrip extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           color: canBuy
                               ? (isDark
-                                  ? accent.withValues(alpha: 0.16)
-                                  : Colors.white)
+                                    ? accent.withValues(alpha: 0.16)
+                                    : Colors.white)
                               : t.bg2,
                           border: Border.all(
                             color: canBuy
                                 ? (isDark
-                                    ? accent.withValues(alpha: 0.5)
-                                    : Colors.black)
+                                      ? accent.withValues(alpha: 0.5)
+                                      : Colors.black)
                                 : t.borderDim,
                             width: canBuy ? 1.2 : 0.8,
                           ),
@@ -3106,8 +3088,9 @@ class _GoldBuyStrip extends StatelessWidget {
                                 height: 14,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(accent),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    accent,
+                                  ),
                                 ),
                               )
                             : Text(
@@ -3194,21 +3177,13 @@ class _GoldMoteScene extends GSprite {
     mote.setPosition(startX, startY);
 
     final endX = startX + (_rng.nextDouble() - 0.5) * 40;
-    final endY = initial
-        ? -4.0
-        : -4.0;
+    final endY = initial ? -4.0 : -4.0;
     final dur = 2.0 + _rng.nextDouble() * 3.5;
 
     GTween.to(
       mote,
       dur,
-      {
-        'x': endX,
-        'y': endY,
-        'alpha': 0.0,
-        'scaleX': 0.3,
-        'scaleY': 0.3,
-      },
+      {'x': endX, 'y': endY, 'alpha': 0.0, 'scaleX': 0.3, 'scaleY': 0.3},
       GVars(
         ease: GEase.easeInOut,
         delay: initial ? _rng.nextDouble() * 2.5 : 0,

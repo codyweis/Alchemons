@@ -92,7 +92,7 @@ class ElementsCapturedPopup extends StatelessWidget {
                           'Element flow drifted from the active recipe',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.35),
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w500,
                             height: 1.0,
                           ),
@@ -121,7 +121,7 @@ class ElementsCapturedPopup extends StatelessWidget {
                           'PARTICLES DISPERSED',
                           style: TextStyle(
                             color: warn.withValues(alpha: 0.75),
-                            fontSize: 9,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.5,
                           ),
@@ -200,7 +200,7 @@ class _ElementLossBadge extends StatelessWidget {
             '${e.key}  ${_fmt(e.value)}',
             style: TextStyle(
               color: c.withValues(alpha: 0.9),
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.2,
             ),

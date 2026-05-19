@@ -95,7 +95,7 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay> {
                     : isThisOrThatOffer
                     ? 'Choose one doctrine. The other path is removed for this run.'
                     : 'Choose one upgrade for the next push. Reminder: guardian specials scale by stat thresholds (Kin needs Beauty + Intelligence).',
-                style: const TextStyle(color: Color(0xFF8A7B6A), fontSize: 11),
+                style: const TextStyle(color: Color(0xFF8A7B6A), fontSize: 12),
               ),
               const SizedBox(height: 14),
               for (var i = 0; i < widget.choices.length; i++) ...[
@@ -136,7 +136,7 @@ class _EtchedHeader extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: Color(0xFF9FB3C8),
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 2.0,
             ),
@@ -230,7 +230,7 @@ class _PowerUpCard extends StatelessWidget {
                               style: const TextStyle(
                                 fontFamily: 'monospace',
                                 color: Color(0xFF0EA5E9),
-                                fontSize: 9.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -260,7 +260,7 @@ class _PowerUpCard extends StatelessWidget {
                         def.description,
                         style: const TextStyle(
                           color: Color(0xFF9FA8B5),
-                          fontSize: 10,
+                          fontSize: 12,
                           height: 1.25,
                           fontWeight: FontWeight.w500,
                         ),
@@ -277,7 +277,7 @@ class _PowerUpCard extends StatelessWidget {
                                   '+ $effect',
                                   style: const TextStyle(
                                     color: Color(0xFFE8DCC8),
-                                    fontSize: 11.3,
+                                    fontSize: 12,
                                     height: 1.25,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -290,7 +290,7 @@ class _PowerUpCard extends StatelessWidget {
                           incrementLabel,
                           style: const TextStyle(
                             color: Color(0xFFE8DCC8),
-                            fontSize: 11.5,
+                            fontSize: 12,
                             height: 1.3,
                             fontWeight: FontWeight.w700,
                           ),
@@ -301,7 +301,7 @@ class _PowerUpCard extends StatelessWidget {
                           totalLabel,
                           style: const TextStyle(
                             color: Color(0xFF8A7B6A),
-                            fontSize: 10,
+                            fontSize: 12,
                             height: 1.35,
                           ),
                         ),
@@ -312,7 +312,7 @@ class _PowerUpCard extends StatelessWidget {
                           'Applied to $offeredName',
                           style: const TextStyle(
                             color: Color(0xFF9FB3C8),
-                            fontSize: 9.5,
+                            fontSize: 12,
                             height: 1.2,
                             fontWeight: FontWeight.w600,
                           ),
@@ -349,7 +349,7 @@ class _MiniTag extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           color: color,
-          fontSize: 8,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.8,
         ),

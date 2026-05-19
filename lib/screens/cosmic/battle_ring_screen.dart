@@ -321,7 +321,7 @@ class _BattleRingScreenState extends State<BattleRingScreen>
                               color: Colors.white.withValues(
                                 alpha: textOpacity * 0.5,
                               ),
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 1.5,
                             ),

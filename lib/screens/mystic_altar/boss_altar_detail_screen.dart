@@ -35,6 +35,63 @@ class _C {
   static const gold = Color(0xFFF59E0B);
   static const success = Color(0xFF16A34A);
   static const danger = Color(0xFFC0392B);
+
+  // Ivory rite palette — neutral chrome, element color only as accent.
+  static const ivory = Color(0xFFE8DFC8);
+  static const ivoryDim = Color(0xFFB5A98A);
+  static const ivoryMuted = Color(0xFF6B6050);
+}
+
+TextStyle _titleStyle(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
+}
+
+TextStyle _display(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) => _titleStyle(
+  context,
+  size,
+  color,
+  weight: weight,
+  letterSpacing: letterSpacing,
+  fontStyle: fontStyle,
+);
+
+TextStyle _body(
+  BuildContext context,
+  double size,
+  Color color, {
+  double height = 1.5,
+  FontWeight weight = FontWeight.w400,
+  double letterSpacing = 0,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 }
 
 class _WitnessRequirement {
@@ -244,7 +301,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       SnackBar(
         content: Text(
           msg,
-          style: TextStyle(fontFamily: appFontFamily(context), fontSize: 11),
+          style: TextStyle(fontFamily: appFontFamily(context), fontSize: 12),
         ),
         backgroundColor: _C.surface,
         behavior: SnackBarBehavior.floating,
@@ -718,33 +775,15 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final elColor = boss.elementColor;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 16, 4),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
       child: Row(
         children: [
-          GestureDetector(
+          _BackBracketButton(
             onTap: () {
               HapticFeedback.lightImpact();
               Navigator.pop(context);
             },
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: _C.surface.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _C.muted.withValues(alpha: 0.4),
-                  width: 1,
-                ),
-              ),
-              child: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: _C.sub,
-                size: 14,
-              ),
-            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -752,78 +791,23 @@ class _TopBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  (mystic?.name ?? boss.name).toUpperCase(),
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: elColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2,
-                  ),
+                  mystic?.name ?? boss.name,
+                  style: _display(context, 24, _C.ivory, letterSpacing: 0.4),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  '${boss.element.toUpperCase()} MYSTIC RITUAL',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: _C.muted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.5,
+                  '${boss.element} mystic ritual',
+                  style: _display(
+                    context,
+                    13,
+                    _C.ivoryMuted,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: BoxDecoration(
-              color: hasKey
-                  ? _C.success.withValues(alpha: 0.12)
-                  : _C.danger.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: hasKey
-                    ? _C.success.withValues(alpha: 0.4)
-                    : _C.danger.withValues(alpha: 0.3),
-                width: 0.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                hasKey
-                    ? SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: Image.asset(
-                          boss.relicImagePath,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.key_rounded,
-                            color: _C.success,
-                            size: 12,
-                          ),
-                        ),
-                      )
-                    : const Icon(
-                        Icons.lock_outline_rounded,
-                        color: _C.danger,
-                        size: 12,
-                      ),
-                const SizedBox(width: 4),
-                Text(
-                  hasKey ? traitName.toUpperCase() : 'KEY MISSING',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: hasKey ? _C.success : _C.danger,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _RelicStatusChip(boss: boss, hasKey: hasKey, traitName: traitName),
         ],
       ),
     );
@@ -1030,13 +1014,6 @@ class _SlotNodeState extends State<_SlotNode>
         ? (1.0 - t2).clamp(0.0, 1.0) * 0.55
         : 0.0;
 
-    final borderOp = widget.isFilled
-        ? (0.70 + widget.pulse * 0.30)
-        : (widget.isSelected ? (0.45 + widget.pulse * 0.30) : 0.22);
-    final bgOp = widget.isFilled
-        ? (0.28 + widget.pulse * 0.16)
-        : (widget.isSelected ? 0.10 : 0.06);
-
     return Stack(
       alignment: Alignment.center,
       clipBehavior: Clip.none,
@@ -1075,41 +1052,6 @@ class _SlotNodeState extends State<_SlotNode>
             ),
           ),
 
-        // ── Outer ambient glow ring (filled / selected) ──────────────────
-        if (widget.isFilled || widget.isSelected)
-          Container(
-            width: widget.size + 14 + widget.pulse * 8,
-            height: widget.size + 14 + widget.pulse * 8,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: widget.elColor.withValues(
-                  alpha: (widget.isFilled ? 0.32 : 0.14) + widget.pulse * 0.24,
-                ),
-                width: 1.0,
-              ),
-            ),
-          ),
-
-        // ── Bloom glow behind disc (filled only) ────────────────────────
-        if (widget.isFilled)
-          Container(
-            width: widget.size + 6,
-            height: widget.size + 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: widget.elColor.withValues(
-                    alpha: 0.45 + widget.pulse * 0.38,
-                  ),
-                  blurRadius: 22,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-          ),
-
         // ── Main disc (scale pops on placement) ─────────────────────────
         Transform.scale(
           scale: scale,
@@ -1118,33 +1060,33 @@ class _SlotNodeState extends State<_SlotNode>
             height: widget.size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: (widget.isFilled || widget.isSelected)
-                  ? widget.elColor.withValues(alpha: bgOp)
-                  : _C.surface.withValues(alpha: 0.50),
-              border: Border.all(
-                color: widget.elColor.withValues(alpha: borderOp),
-                width: (widget.isFilled || widget.isSelected) ? 2.2 : 0.8,
-              ),
-              boxShadow: widget.isFilled
-                  ? [
-                      BoxShadow(
-                        color: widget.elColor.withValues(
-                          alpha: 0.38 + widget.pulse * 0.32,
+              gradient: (widget.isFilled || widget.isSelected)
+                  ? RadialGradient(
+                      colors: [
+                        widget.elColor.withValues(
+                          alpha: widget.isFilled ? 0.22 : 0.12,
                         ),
-                        blurRadius: 18,
-                        spreadRadius: 2,
-                      ),
-                    ]
-                  : widget.isSelected
-                  ? [
-                      BoxShadow(
-                        color: widget.elColor.withValues(
-                          alpha: 0.20 + widget.pulse * 0.18,
-                        ),
-                        blurRadius: 14,
-                      ),
-                    ]
+                        Colors.transparent,
+                      ],
+                    )
                   : null,
+              color: (widget.isFilled || widget.isSelected)
+                  ? null
+                  : Colors.white.withValues(alpha: 0.03),
+              border: Border.all(
+                color: _C.ivoryDim.withValues(
+                  alpha: widget.isFilled
+                      ? 0.80
+                      : widget.isSelected
+                      ? 0.55
+                      : 0.25,
+                ),
+                width: widget.isFilled
+                    ? 1.6
+                    : widget.isSelected
+                    ? 1.4
+                    : 0.8,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: widget.isFilled
@@ -1196,12 +1138,6 @@ class _SlotNodeState extends State<_SlotNode>
                 shape: BoxShape.circle,
                 color: _C.success,
                 border: Border.all(color: _C.bg, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: _C.success.withValues(alpha: 0.50),
-                    blurRadius: 7,
-                  ),
-                ],
               ),
               child: Icon(
                 Icons.check_rounded,
@@ -1223,12 +1159,6 @@ class _SlotNodeState extends State<_SlotNode>
                 shape: BoxShape.circle,
                 color: widget.elColor,
                 border: Border.all(color: _C.bg, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.elColor.withValues(alpha: 0.55),
-                    blurRadius: 6,
-                  ),
-                ],
               ),
               child: Icon(
                 Icons.add_rounded,
@@ -1250,12 +1180,12 @@ class _SlotNodeState extends State<_SlotNode>
               style: TextStyle(
                 fontFamily: appFontFamily(context),
                 color: widget.isFilled
-                    ? widget.elColor
+                    ? _C.ivory
                     : (widget.isSelected
-                          ? widget.elColor.withValues(alpha: 0.80)
-                          : _C.muted),
-                fontSize: 7.5,
-                fontWeight: widget.isFilled ? FontWeight.w800 : FontWeight.w600,
+                          ? _C.ivory.withValues(alpha: 0.78)
+                          : _C.ivoryMuted),
+                fontSize: 12,
+                fontWeight: widget.isFilled ? FontWeight.w700 : FontWeight.w600,
                 letterSpacing: 0.4,
               ),
             ),
@@ -1297,7 +1227,7 @@ class _CenterMystic extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: elColor.withValues(alpha: (0.40 + pulse * 0.35) * 0.30),
+                color: _C.ivoryDim.withValues(alpha: 0.20),
                 width: 1.0,
               ),
             ),
@@ -1307,17 +1237,13 @@ class _CenterMystic extends StatelessWidget {
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: elColor.withValues(alpha: 0.10),
-              border: Border.all(
-                color: elColor.withValues(alpha: 0.40 + pulse * 0.35),
-                width: 2.0,
+              gradient: RadialGradient(
+                colors: [elColor.withValues(alpha: 0.18), Colors.transparent],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: elColor.withValues(alpha: 0.18 + pulse * 0.15),
-                  blurRadius: 18,
-                ),
-              ],
+              border: Border.all(
+                color: _C.ivoryDim.withValues(alpha: 0.65),
+                width: 1.2,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: mystic != null
@@ -1338,8 +1264,8 @@ class _CenterMystic extends StatelessWidget {
               mystic?.name.toUpperCase() ?? 'MYSTIC',
               style: TextStyle(
                 fontFamily: appFontFamily(context),
-                color: elColor.withValues(alpha: 0.65),
-                fontSize: 8,
+                color: _C.ivory.withValues(alpha: 0.78),
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
               ),
@@ -1454,13 +1380,16 @@ class _BottomBar extends StatelessWidget {
     return Container(
       padding: EdgeInsets.fromLTRB(
         14,
-        10,
+        16,
         14,
         MediaQuery.of(context).padding.bottom + 14,
       ),
       decoration: BoxDecoration(
-        color: _C.surface.withValues(alpha: 0.90),
-        border: const Border(top: BorderSide(color: _C.border, width: 0.5)),
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [_C.bg.withValues(alpha: 0.95), _C.bg.withValues(alpha: 0.0)],
+        ),
       ),
       child: AnimatedBuilder(
         animation: pulse,
@@ -1481,10 +1410,8 @@ class _BottomBar extends StatelessWidget {
                         height: 4,
                         decoration: BoxDecoration(
                           color: i < filled
-                              ? elColor.withValues(
-                                  alpha: 0.75 + pulse.value * 0.20,
-                                )
-                              : _C.muted.withValues(alpha: 0.18),
+                              ? _C.ivoryDim.withValues(alpha: 0.75)
+                              : _C.ivoryMuted.withValues(alpha: 0.20),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -1503,67 +1430,27 @@ class _BottomBar extends StatelessWidget {
               Row(
                 children: [
                   // Prev
-                  _NavBtn(
-                    icon: Icons.chevron_left_rounded,
-                    elColor: elColor,
-                    onTap: onPrev,
-                  ),
+                  _NavBtn(icon: Icons.chevron_left_rounded, onTap: onPrev),
                   const SizedBox(width: 8),
                   // Place / filled button
                   Expanded(
                     child: GestureDetector(
                       onTap: selectedFilled ? null : onPlace,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: selectedFilled
-                              ? _C.success.withValues(alpha: 0.10)
-                              : elColor.withValues(
-                                  alpha: 0.14 + pulse.value * 0.06,
-                                ),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selectedFilled ? _C.success : elColor,
-                            width: 1.2,
-                          ),
-                        ),
-                        child: Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                selectedFilled
-                                    ? Icons.check_circle_outline_rounded
-                                    : Icons.add_circle_outline_rounded,
-                                color: selectedFilled ? _C.success : elColor,
-                                size: 15,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                selectedFilled
-                                    ? '${selectedName.toUpperCase()} · PLACED'
-                                    : 'PLACE  ${selectedName.toUpperCase()}',
-                                style: TextStyle(
-                                  fontFamily: appFontFamily(context),
-                                  color: selectedFilled ? _C.success : elColor,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.8,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      child: _BracketActionButton(
+                        label: selectedFilled
+                            ? '$selectedName placed'
+                            : 'Place $selectedName',
+                        icon: selectedFilled
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.add_circle_outline_rounded,
+                        color: selectedFilled ? _C.success : elColor,
+                        enabled: !selectedFilled,
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   // Next
-                  _NavBtn(
-                    icon: Icons.chevron_right_rounded,
-                    elColor: elColor,
-                    onTap: onNext,
-                  ),
+                  _NavBtn(icon: Icons.chevron_right_rounded, onTap: onNext),
                 ],
               ),
               const SizedBox(height: 10),
@@ -1575,16 +1462,16 @@ class _BottomBar extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 7),
                 child: Text(
                   !hasKey
-                      ? 'KEY ITEM REQUIRED'
+                      ? 'Relic required'
                       : !allFilled
-                      ? '${total - filled} OFFERING SLOTS REMAINING'
-                      : '$witnessRemaining WITNESS${witnessRemaining == 1 ? '' : 'ES'} REMAINING',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: _C.muted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
+                      ? '${total - filled} offering slots remain'
+                      : '$witnessRemaining witness${witnessRemaining == 1 ? '' : 'es'} remain',
+                  style: _body(
+                    context,
+                    12,
+                    _C.ivoryMuted,
+                    weight: FontWeight.w500,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ),
@@ -1598,51 +1485,50 @@ class _BottomBar extends StatelessWidget {
                         onSummon();
                       }
                     : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: canSummon
-                        ? elColor.withValues(alpha: 0.18 + pulse.value * 0.07)
-                        : _C.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: canSummon
-                          ? elColor
-                          : _C.muted.withValues(alpha: 0.22),
-                      width: canSummon ? 1.5 : 0.5,
+                child: CustomPaint(
+                  painter: _CornerBracketPainter(
+                    color: (canSummon ? _C.ivory : _C.ivoryMuted).withValues(
+                      alpha: canSummon ? 0.7 : 0.35,
                     ),
+                    bracketSize: 12,
+                    strokeWidth: 1.1,
                   ),
-                  child: Center(
-                    child: summoning
-                        ? SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: elColor,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.auto_awesome,
-                                color: canSummon ? elColor : _C.muted,
-                                size: 15,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    color: Colors.white.withValues(alpha: 0.03),
+                    child: Center(
+                      child: summoning
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: _C.ivory,
+                                strokeWidth: 2,
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'PERFORM RITUAL',
-                                style: TextStyle(
-                                  fontFamily: appFontFamily(context),
-                                  color: canSummon ? elColor : _C.muted,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 2.5,
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  canSummon
+                                      ? Icons.auto_awesome
+                                      : Icons.lock_outline_rounded,
+                                  color: canSummon ? elColor : _C.ivoryMuted,
+                                  size: 16,
                                 ),
-                              ),
-                            ],
-                          ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Perform ritual',
+                                  style: _display(
+                                    context,
+                                    14,
+                                    canSummon ? _C.ivory : _C.ivoryMuted,
+                                    letterSpacing: 0.9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
                   ),
                 ),
               ),
@@ -1676,14 +1562,8 @@ class _WitnessSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'WITNESSES  $completed / ${witnesses.length}',
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: _C.sub,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.6,
-            ),
+            'Witnesses  $completed / ${witnesses.length}',
+            style: _display(context, 13, _C.ivoryDim, letterSpacing: 0.8),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -1738,7 +1618,7 @@ class _WitnessChip extends StatelessWidget {
             style: TextStyle(
               fontFamily: appFontFamily(context),
               color: witness.completed ? Colors.white : _C.sub,
-              fontSize: 8.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
             ),
@@ -1751,39 +1631,208 @@ class _WitnessChip extends StatelessWidget {
 
 class _NavBtn extends StatelessWidget {
   final IconData icon;
-  final Color elColor;
   final VoidCallback? onTap;
-  const _NavBtn({
-    required this.icon,
-    required this.elColor,
-    required this.onTap,
-  });
+  const _NavBtn({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
-    child: Container(
+    child: SizedBox(
       width: 40,
       height: 40,
-      decoration: BoxDecoration(
-        color: onTap != null
-            ? elColor.withValues(alpha: 0.12)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: onTap != null
-              ? elColor.withValues(alpha: 0.4)
-              : _C.muted.withValues(alpha: 0.12),
-          width: 0.8,
+      child: CustomPaint(
+        painter: _CornerBracketPainter(
+          color: _C.ivoryDim.withValues(alpha: onTap != null ? 0.42 : 0.18),
+          bracketSize: 8,
+          strokeWidth: 1.0,
         ),
-      ),
-      child: Icon(
-        icon,
-        color: onTap != null ? elColor : _C.muted.withValues(alpha: 0.25),
-        size: 22,
+        child: Icon(
+          icon,
+          color: _C.ivory.withValues(alpha: onTap != null ? 0.85 : 0.25),
+          size: 22,
+        ),
       ),
     ),
   );
+}
+
+class _BackBracketButton extends StatelessWidget {
+  const _BackBracketButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: CustomPaint(
+          painter: _CornerBracketPainter(
+            color: _C.ivoryMuted.withValues(alpha: 0.4),
+            bracketSize: 8,
+            strokeWidth: 1.0,
+          ),
+          child: const Icon(
+            Icons.chevron_left_rounded,
+            color: _C.ivoryDim,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RelicStatusChip extends StatelessWidget {
+  const _RelicStatusChip({
+    required this.boss,
+    required this.hasKey,
+    required this.traitName,
+  });
+
+  final Boss boss;
+  final bool hasKey;
+  final String traitName;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _CornerBracketPainter(
+        color: _C.ivoryDim.withValues(alpha: hasKey ? 0.52 : 0.28),
+        bracketSize: 8,
+        strokeWidth: 1.0,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        color: Colors.white.withValues(alpha: 0.03),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            hasKey
+                ? SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: Image.asset(
+                      boss.relicImagePath,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.key_rounded,
+                        color: _C.success,
+                        size: 12,
+                      ),
+                    ),
+                  )
+                : const Icon(
+                    Icons.lock_outline_rounded,
+                    color: _C.danger,
+                    size: 12,
+                  ),
+            const SizedBox(width: 6),
+            Text(
+              hasKey ? traitName : 'Relic missing',
+              style: _display(
+                context,
+                12,
+                _C.ivory.withValues(alpha: hasKey ? 0.95 : 0.55),
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BracketActionButton extends StatelessWidget {
+  const _BracketActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.enabled,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _CornerBracketPainter(
+        color: color.withValues(alpha: enabled ? 0.62 : 0.42),
+        bracketSize: 10,
+        strokeWidth: 1.1,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
+        color: Colors.white.withValues(alpha: 0.03),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 15),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _display(context, 13, color, letterSpacing: 0.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CornerBracketPainter extends CustomPainter {
+  const _CornerBracketPainter({
+    required this.color,
+    required this.bracketSize,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double bracketSize;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final s = bracketSize;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(0, s)
+      ..lineTo(0, 0)
+      ..lineTo(s, 0)
+      ..moveTo(w - s, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, s)
+      ..moveTo(0, h - s)
+      ..lineTo(0, h)
+      ..lineTo(s, h)
+      ..moveTo(w - s, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - s);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CornerBracketPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.bracketSize != bracketSize ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1871,7 +1920,7 @@ class _InstancePickerSheet extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
                   color: _C.muted,
-                  fontSize: 9,
+                  fontSize: 12,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -1931,7 +1980,7 @@ class _InstancePickerSheet extends StatelessWidget {
                                     style: TextStyle(
                                       fontFamily: appFontFamily(context),
                                       color: _C.text,
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -1941,7 +1990,7 @@ class _InstancePickerSheet extends StatelessWidget {
                                     style: TextStyle(
                                       fontFamily: appFontFamily(context),
                                       color: _C.muted,
-                                      fontSize: 8,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ],
@@ -2113,7 +2162,7 @@ class _Btn extends StatelessWidget {
           style: TextStyle(
             fontFamily: appFontFamily(context),
             color: color,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 2,
           ),
@@ -2227,7 +2276,7 @@ class _SuccessDialogState extends State<_SuccessDialog>
                     style: TextStyle(
                       fontFamily: appFontFamily(context),
                       color: _C.muted,
-                      fontSize: 9,
+                      fontSize: 12,
                       letterSpacing: 2,
                     ),
                   ),
@@ -2255,7 +2304,7 @@ class _SuccessDialogState extends State<_SuccessDialog>
                             'A Mystic Vial awaits in your Alchemy Chamber. Cultivation: 1 hour.',
                             style: TextStyle(
                               color: _C.sub,
-                              fontSize: 11,
+                              fontSize: 12,
                               height: 1.4,
                             ),
                           ),

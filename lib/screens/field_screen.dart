@@ -210,7 +210,7 @@ class _FieldHeader extends StatelessWidget {
                     'Missions • Extraction • Arena',
                     style: TextStyle(
                       color: theme.textMuted,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.4,
                     ),
@@ -378,7 +378,7 @@ class _MiniPillClean extends StatelessWidget {
         text.toUpperCase(),
         style: TextStyle(
           color: textColor,
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: .4,
         ),

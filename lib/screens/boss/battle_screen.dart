@@ -211,7 +211,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.textSecondary,
-                  fontSize: 11,
+                  fontSize: 12,
                   letterSpacing: 1.8,
                 ),
                 textAlign: TextAlign.center,
@@ -292,7 +292,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.textSecondary,
-                  fontSize: 11,
+                  fontSize: 12,
                   letterSpacing: 1.8,
                 ),
                 textAlign: TextAlign.center,
@@ -562,7 +562,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                             'AWAITING ACTION',
                             style: TextStyle(
                               color: fc.textMuted,
-                              fontSize: 10,
+                              fontSize: 12,
                               letterSpacing: 1.6,
                               fontWeight: FontWeight.w700,
                               fontFamily: 'monospace',
@@ -656,7 +656,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                                   'TAUNTED',
                                   style: TextStyle(
                                     color: fc.textPrimary,
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.5,
                                     fontFamily: 'monospace',
@@ -690,7 +690,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                                   'CD:${widget.boss.specialCooldown}',
                                   style: TextStyle(
                                     color: fc.textPrimary,
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.5,
                                     fontFamily: 'monospace',
@@ -739,7 +739,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                   d.label,
                   style: TextStyle(
                     color: fc.textPrimary,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
                     fontFamily: 'monospace',
@@ -904,7 +904,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 '${widget.boss.currentHp} / ${widget.boss.maxHp}',
                 style: TextStyle(
                   color: fc.textPrimary,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.6,
                   fontFamily: 'monospace',
@@ -955,7 +955,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                   e.message,
                   style: TextStyle(
                     color: fc.textPrimary.withValues(alpha: 0.95),
-                    fontSize: 11,
+                    fontSize: 12,
                     height: 1.3,
                   ),
                 ),
@@ -1109,7 +1109,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                             : isOnCooldown
                             ? fc.teal.withValues(alpha: 0.8)
                             : fc.textPrimary,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         fontFamily: 'monospace',
                       ),
@@ -1141,7 +1141,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                             '${creature.actionCooldown}',
                             style: TextStyle(
                               color: fc.teal.withValues(alpha: 0.95),
-                              fontSize: 9,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               fontFamily: 'monospace',
                             ),
@@ -1424,7 +1424,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 11.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.6,
                             fontFamily: 'monospace',
@@ -1437,7 +1437,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 9,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.4,
                             color: isActive

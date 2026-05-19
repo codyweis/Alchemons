@@ -164,7 +164,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 2.0,
             ),
@@ -231,7 +231,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textSecondary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 2.0,
             ),
@@ -242,7 +242,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               letterSpacing: 0.5,
             ),
             textAlign: TextAlign.center,
@@ -301,7 +301,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t.textPrimary,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.2,
                         ),
@@ -312,7 +312,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t.textMuted,
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.8,
                         ),
@@ -340,7 +340,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: t.textMuted,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.8,
                     ),
@@ -351,7 +351,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: t.success,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.5,
                       ),
@@ -370,7 +370,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t.amberBright,
-                            fontSize: 9,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.8,
                           ),
@@ -406,7 +406,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
           style: TextStyle(
             fontFamily: 'monospace',
             color: t.textMuted,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.5,
           ),

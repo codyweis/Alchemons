@@ -538,7 +538,7 @@ class _ClearChip extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.danger.withValues(alpha: 0.8),
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.2,
               ),
@@ -655,7 +655,7 @@ Future<String?> pickFromList(
                                 style: TextStyle(
                                   fontFamily: 'monospace',
                                   color: t.danger.withValues(alpha: 0.8),
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 1.2,
                                 ),

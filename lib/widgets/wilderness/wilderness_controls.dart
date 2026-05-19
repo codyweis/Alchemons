@@ -122,7 +122,7 @@ class WildernessControls extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: t2.textSecondary,
-                      fontSize: 11,
+                      fontSize: 12,
                       letterSpacing: 0.3,
                       height: 1.6,
                     ),
@@ -153,7 +153,7 @@ class WildernessControls extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t2.textSecondary,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.2,
                             ),
@@ -182,7 +182,7 @@ class WildernessControls extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t2.danger,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.5,
                             ),

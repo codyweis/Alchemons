@@ -1576,7 +1576,7 @@ class EggHatching {
               label,
               style: TextStyle(
                 color: fc.textSecondary,
-                fontSize: 10.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: .4,
               ),
@@ -1589,7 +1589,7 @@ class EggHatching {
                     delay: delay,
                     style: TextStyle(
                       color: fc.textPrimary,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   )

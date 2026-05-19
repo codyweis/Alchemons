@@ -229,7 +229,7 @@ class _CosmicBeautyContestArenaOverlayState
           text.toUpperCase(),
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
           ),
@@ -485,7 +485,7 @@ class _CosmicSpeedContestArenaOverlayState
           text.toUpperCase(),
           style: const TextStyle(
             color: Color(0xFFE1F5FE),
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.75,
           ),
@@ -717,7 +717,7 @@ class _CosmicStrengthContestArenaOverlayState
           text.toUpperCase(),
           style: const TextStyle(
             color: Color(0xFFFFF3E0),
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.75,
           ),
@@ -953,7 +953,7 @@ class _CosmicIntelligenceContestArenaOverlayState
           text.toUpperCase(),
           style: const TextStyle(
             color: Color(0xFFEDE7F6),
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.75,
           ),

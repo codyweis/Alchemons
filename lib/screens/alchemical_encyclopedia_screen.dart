@@ -579,7 +579,7 @@ class _T {
   static TextStyle label(BuildContext context) => TextStyle(
     fontFamily: 'monospace',
     color: _C.of(context).textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
@@ -725,7 +725,7 @@ class _ForgeTopBar extends StatelessWidget {
                 'BACK',
                 style: _T
                     .label(context)
-                    .copyWith(fontSize: 9, color: _C.of(context).textSecondary),
+                    .copyWith(fontSize: 12, color: _C.of(context).textSecondary),
               ),
             ),
           ),
@@ -1002,7 +1002,7 @@ class _OverviewPanel extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       'Archive completion ${(completion * 100).toStringAsFixed(1)}%',
-                      style: _T.body(context).copyWith(fontSize: 11),
+                      style: _T.body(context).copyWith(fontSize: 12),
                     ),
                   ],
                 ),
@@ -1250,7 +1250,7 @@ class _FilterPanel extends StatelessWidget {
                             style: _T
                                 .label(context)
                                 .copyWith(
-                                  fontSize: 9,
+                                  fontSize: 12,
                                   color: _C.of(context).textSecondary,
                                 ),
                           ),
@@ -1319,13 +1319,13 @@ class _RecipeTabBar extends StatelessWidget {
       dividerColor: Colors.transparent,
       labelStyle: const TextStyle(
         fontFamily: 'monospace',
-        fontSize: 10,
+        fontSize: 12,
         fontWeight: FontWeight.w800,
         letterSpacing: 1.4,
       ),
       unselectedLabelStyle: const TextStyle(
         fontFamily: 'monospace',
-        fontSize: 10,
+        fontSize: 12,
         fontWeight: FontWeight.w600,
         letterSpacing: 1.4,
       ),
@@ -1747,7 +1747,7 @@ class _RecipeCard extends StatelessWidget {
                           style: _T
                               .body(context)
                               .copyWith(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: unlocked
                                     ? _C.of(context).textSecondary
                                     : _C.of(context).textMuted,
@@ -1885,7 +1885,7 @@ class _RecipeCard extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: Colors.black.withValues(alpha: 0.85),
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.4,
                         ),
@@ -2014,7 +2014,7 @@ class _NatureTabListState extends State<_NatureTabList> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: _natureAccentColor(context),
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
                   ),
@@ -2115,7 +2115,7 @@ class _NatureSummaryRow extends StatelessWidget {
           label.toUpperCase(),
           style: _T
               .label(context)
-              .copyWith(fontSize: 9, color: _natureLabelColor(context)),
+              .copyWith(fontSize: 12, color: _natureLabelColor(context)),
         ),
       ),
       const SizedBox(width: 8),
@@ -2125,7 +2125,7 @@ class _NatureSummaryRow extends StatelessWidget {
           style: _T
               .body(context)
               .copyWith(
-                fontSize: 11,
+                fontSize: 12,
                 color: valueColor ?? _natureReadableTextColor(context),
               ),
         ),
@@ -2168,7 +2168,7 @@ class _NatureEmptyState extends StatelessWidget {
                 style: _T
                     .body(context)
                     .copyWith(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: _natureReadableTextColor(context),
                     ),
                 textAlign: TextAlign.center,
@@ -2392,7 +2392,7 @@ class _DiscoveryStat extends StatelessWidget {
                     .copyWith(
                       color: color,
                       fontWeight: FontWeight.w800,
-                      fontSize: 9,
+                      fontSize: 12,
                     ),
               ),
               const Spacer(),
@@ -2401,7 +2401,7 @@ class _DiscoveryStat extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: _C.of(context).textPrimary,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -2497,7 +2497,7 @@ class _ToggleChip extends StatelessWidget {
             label.toUpperCase(),
             style: TextStyle(
               fontFamily: 'monospace',
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.3,
               color: enabled
@@ -2533,7 +2533,7 @@ class _KindTag extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'monospace',
           color: color,
-          fontSize: 9,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.2,
         ),
@@ -2586,7 +2586,7 @@ class _EmptyTabState extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 subtitle,
-                style: _T.body(context).copyWith(fontSize: 11),
+                style: _T.body(context).copyWith(fontSize: 12),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -2621,7 +2621,7 @@ class _ActionButton extends StatelessWidget {
           fontFamily: 'monospace',
           color: _C.of(context).bg0,
           fontWeight: FontWeight.w800,
-          fontSize: 11,
+          fontSize: 12,
           letterSpacing: 1.2,
         ),
       ),

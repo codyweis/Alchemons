@@ -373,7 +373,7 @@ class _PartyMemberTile extends StatelessWidget {
                                 'L${inst.level}',
                                 style: TextStyle(
                                   color: Colors.amber.shade800,
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),

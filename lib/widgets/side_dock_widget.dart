@@ -212,7 +212,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
             widget.label.toUpperCase(),
             style: TextStyle(
               color: widget.theme.text,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               height: 1.2,
             ),
@@ -378,7 +378,7 @@ class _MysticSwirlButtonState extends State<MysticSwirlButton>
             'RELICS',
             style: TextStyle(
               color: widget.theme.text,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               height: 1.2,
             ),

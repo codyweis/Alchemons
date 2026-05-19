@@ -189,7 +189,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: accent,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.1,
                             ),
@@ -575,7 +575,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                             '${_teams.length} / $_maxSavedTeams saved teams',
                             style: TextStyle(
                               color: t.textSecondary,
-                              fontSize: 11,
+                              fontSize: 12,
                             ),
                           ),
                         ),

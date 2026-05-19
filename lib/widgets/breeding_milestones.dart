@@ -63,7 +63,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
             '${progress.totalBred}',
             style: TextStyle(
               color: theme.text,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -90,7 +90,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                 'Breed this species to earn constellation points',
                 style: TextStyle(
                   color: theme.textMuted,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -138,7 +138,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                     'BREEDING PROGRESS',
                     style: TextStyle(
                       color: theme.primary,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
                     ),
@@ -155,7 +155,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                   '${progress.totalBred} bred',
                   style: TextStyle(
                     color: theme.text,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -190,7 +190,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                         'Next: ${nextMilestone.displayName}',
                         style: TextStyle(
                           color: theme.text,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -198,7 +198,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                         '${nextMilestone.count} bred required',
                         style: TextStyle(
                           color: theme.textMuted,
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -235,7 +235,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                         '+$pointsForRarity',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.3,
                         ),
@@ -262,7 +262,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                     '${_getRarityMultiplierText(rarity!)} bonus for ${rarity!.toLowerCase()} rarity',
                     style: TextStyle(
                       color: theme.textMuted,
-                      fontSize: 8,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       fontStyle: FontStyle.italic,
                     ),
@@ -288,7 +288,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                       'All breeding milestones completed!',
                       style: TextStyle(
                         color: theme.text,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),

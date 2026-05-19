@@ -95,7 +95,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: t.textMuted,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -229,7 +229,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.textSecondary,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 2.0,
                   ),
@@ -240,7 +240,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.textMuted,
-                    fontSize: 9,
+                    fontSize: 12,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -304,7 +304,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t2.textPrimary,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.5,
                           ),
@@ -376,7 +376,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: t2.amberBright,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.0,
                               ),
@@ -395,7 +395,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: t2.textSecondary,
-                      fontSize: 10,
+                      fontSize: 12,
                       height: 1.6,
                       letterSpacing: 0.3,
                     ),
@@ -843,7 +843,7 @@ class _CompactItemCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.amberBright,
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
                 ),

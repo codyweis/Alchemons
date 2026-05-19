@@ -88,7 +88,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
                   'ACTIVE',
                   style: TextStyle(
                     color: theme.primary,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.5,
                   ),
@@ -102,7 +102,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
               'Stat Enhancement Bonuses',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -143,7 +143,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
               'Experience Bonuses',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -178,7 +178,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
             label,
             style: TextStyle(
               color: theme.text,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -187,7 +187,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
             '+${totalBonus.toStringAsFixed(3)}',
             style: TextStyle(
               color: theme.primary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -197,7 +197,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
               '×$count',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -225,7 +225,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
             'XP Gain',
             style: TextStyle(
               color: theme.text,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -234,7 +234,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
             '+$bonusPercent%',
             style: TextStyle(
               color: theme.primary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -278,7 +278,7 @@ class ConstellationBonusBadge extends StatelessWidget {
               '+${(boost * 100).toStringAsFixed(1)}%',
               style: TextStyle(
                 color: theme.primary,
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),

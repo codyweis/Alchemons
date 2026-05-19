@@ -189,7 +189,7 @@ class _HeaderBar extends StatelessWidget {
                   'Alchemon battling center',
                   style: TextStyle(
                     color: theme.textMuted,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                   overflow: TextOverflow.ellipsis,

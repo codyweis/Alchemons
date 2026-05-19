@@ -60,7 +60,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
               unselectedLabelColor: fc.textSecondary,
               labelStyle: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.5,
               ),
@@ -229,7 +229,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
               role.description,
               style: TextStyle(
                 color: fc.textSecondary,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.4,
               ),
             ),
@@ -259,7 +259,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'monospace',
             color: fc.textSecondary,
-            fontSize: 9,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -270,7 +270,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
               basicInfo.description,
               style: TextStyle(
                 color: fc.textSecondary,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.4,
               ),
             ),
@@ -302,7 +302,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'monospace',
             color: fc.textSecondary,
-            fontSize: 9,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -313,7 +313,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
               specialInfo.description,
               style: TextStyle(
                 color: fc.textSecondary,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.4,
               ),
             ),
@@ -328,7 +328,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: fc.amberBright,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.6,
                     ),
@@ -340,7 +340,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
                 survivalPassive,
                 style: TextStyle(
                   color: fc.textSecondary,
-                  fontSize: 11,
+                  fontSize: 12,
                   height: 1.4,
                 ),
               ),
@@ -469,7 +469,7 @@ class _ExpandableDetailState extends State<_ExpandableDetail> {
                   _expanded ? 'LESS' : 'DETAILS',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 8,
+                    fontSize: 12,
                     color: fc.textMuted,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
@@ -517,7 +517,7 @@ Widget _buildExploreSurvivalCard(String family, String element, FC fc) {
                 notes.summary,
                 style: TextStyle(
                   color: fc.textPrimary,
-                  fontSize: 11,
+                  fontSize: 12,
                   height: 1.35,
                   fontWeight: FontWeight.w600,
                 ),
@@ -544,7 +544,7 @@ Widget _buildExploreSurvivalCard(String family, String element, FC fc) {
                       bullet,
                       style: TextStyle(
                         color: fc.textSecondary,
-                        fontSize: 10.5,
+                        fontSize: 12,
                         height: 1.35,
                       ),
                     ),
@@ -597,7 +597,7 @@ class _BossStatChipsCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
             ),
@@ -608,7 +608,7 @@ class _BossStatChipsCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -648,7 +648,7 @@ class _BossMovesCard extends StatelessWidget {
               specialMoveSummary,
               style: TextStyle(
                 color: fc.textSecondary,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.4,
               ),
             ),
@@ -668,7 +668,7 @@ class _BossMovesCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.0,
             ),
@@ -680,7 +680,7 @@ class _BossMovesCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -732,7 +732,7 @@ class _BossCooldownsCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.0,
             ),
@@ -744,7 +744,7 @@ class _BossCooldownsCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -809,7 +809,7 @@ class _BossStatScalingCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
             ),
@@ -825,7 +825,7 @@ class _BossStatScalingCard extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.amberBright,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -834,7 +834,7 @@ class _BossStatScalingCard extends StatelessWidget {
                 effect,
                 style: TextStyle(
                   color: fc.textSecondary,
-                  fontSize: 11,
+                  fontSize: 12,
                   height: 1.3,
                 ),
               ),
@@ -896,7 +896,7 @@ class _BossCombatProfileCard extends StatelessWidget {
             specialMoveSummary,
             style: TextStyle(
               color: fc.textSecondary,
-              fontSize: 11,
+              fontSize: 12,
               height: 1.3,
             ),
           ),
@@ -925,7 +925,7 @@ class _BossCombatProfileCard extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'monospace',
             color: fc.textMuted,
-            fontSize: 9,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.0,
           ),
@@ -994,7 +994,7 @@ class _BossCombatProfileCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
             ),
@@ -1005,7 +1005,7 @@ class _BossCombatProfileCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1024,7 +1024,7 @@ class _BossCombatProfileCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.0,
             ),
@@ -1036,7 +1036,7 @@ class _BossCombatProfileCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1068,7 +1068,7 @@ class _BossCombatProfileCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
             ),
@@ -1084,7 +1084,7 @@ class _BossCombatProfileCard extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.amberBright,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1093,7 +1093,7 @@ class _BossCombatProfileCard extends StatelessWidget {
                 effect,
                 style: TextStyle(
                   color: fc.textSecondary,
-                  fontSize: 11,
+                  fontSize: 12,
                   height: 1.3,
                 ),
               ),
@@ -2509,7 +2509,7 @@ class _ExploreStatChipsCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
             ),
@@ -2520,7 +2520,7 @@ class _ExploreStatChipsCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -2682,7 +2682,7 @@ class _ExploreStatEffectsCard extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.textPrimary,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.8,
                 ),
@@ -2691,7 +2691,7 @@ class _ExploreStatEffectsCard extends StatelessWidget {
                 effect,
                 style: TextStyle(
                   color: fc.textSecondary,
-                  fontSize: 10,
+                  fontSize: 12,
                   height: 1.3,
                 ),
               ),

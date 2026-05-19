@@ -355,7 +355,7 @@ class _BreedingTabState extends State<BreedingTab>
                 'Select two specimens to synthesize new life',
                 style: TextStyle(
                   color: theme.textMuted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   height: 1.3,
                   letterSpacing: .3,
@@ -522,7 +522,7 @@ class _BreedingTabState extends State<BreedingTab>
                           'Tap to select',
                           style: TextStyle(
                             color: theme.textMuted.withValues(alpha: .6),
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -673,7 +673,7 @@ class _BreedingTabState extends State<BreedingTab>
         type.toUpperCase(),
         style: TextStyle(
           color: color,
-          fontSize: 9,
+          fontSize: 12,
           fontWeight: FontWeight.w900,
           letterSpacing: 0.5,
         ),
@@ -1468,7 +1468,7 @@ class _BreedingTabState extends State<BreedingTab>
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: accent,
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.5,
                       ),
@@ -1478,7 +1478,7 @@ class _BreedingTabState extends State<BreedingTab>
                       message,
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: theme.text,
                         height: 1.25,

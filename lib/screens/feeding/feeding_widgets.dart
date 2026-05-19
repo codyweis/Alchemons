@@ -101,7 +101,7 @@ class StageHeader extends StatelessWidget {
                           subtitle,
                           style: TextStyle(
                             color: t.textSecondary,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -180,7 +180,7 @@ class StageHeader extends StatelessWidget {
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     color: isActive ? fc.bg0 : t.textMuted,
-                                    fontSize: 8,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
@@ -326,7 +326,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                   'Level ${frame.displayLevel}',
                   style: TextStyle(
                     color: t.textPrimary,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -377,7 +377,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                     '${frame.displayXp}/${frame.displayMaxXp}',
                     style: TextStyle(
                       color: t.textSecondary,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -402,7 +402,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                         'MAX',
                         style: TextStyle(
                           color: fc.amberBright,
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -723,7 +723,7 @@ class StatMiniBar extends StatelessWidget {
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: t.textSecondary,
-                fontSize: 8,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 fontFamily: 'monospace',
               ),
@@ -773,7 +773,7 @@ class StatMiniBar extends StatelessWidget {
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: t.textPrimary,
-                fontSize: 8,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 fontFamily: 'monospace',
               ),
@@ -823,7 +823,7 @@ class StatGainsPreview extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.amberBright,
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.2,
                 ),
@@ -874,7 +874,7 @@ class StatGainsPreview extends StatelessWidget {
                   'Level ${instance.level} → ${preview.newLevel}',
                   style: TextStyle(
                     color: fc.amberBright,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -919,7 +919,7 @@ class StatGainIndicator extends StatelessWidget {
           label,
           style: TextStyle(
             color: t.textSecondary,
-            fontSize: 9,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -927,7 +927,7 @@ class StatGainIndicator extends StatelessWidget {
           '$arrow${gain.abs().toStringAsFixed(2)}',
           style: TextStyle(
             color: color,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -935,7 +935,7 @@ class StatGainIndicator extends StatelessWidget {
           '→ ${newValue.toStringAsFixed(1)}',
           style: TextStyle(
             color: t.textPrimary,
-            fontSize: 9,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1009,7 +1009,7 @@ class FeedTargetPanel extends StatelessWidget {
                       'Max Level Reached!\nThis creature can no longer be enhanced.',
                       style: TextStyle(
                         color: fc.amberBright,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1131,7 +1131,7 @@ Widget _buildConstellationBonuses(
           'Constellation Bonuses',
           style: TextStyle(
             color: theme.primary,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -1158,7 +1158,7 @@ Widget _buildBonusPill(String label, double bonus, FactionTheme theme) {
       '$label +${(bonus * 100).toStringAsFixed(1)}%',
       style: TextStyle(
         color: fc.amber,
-        fontSize: 9,
+        fontSize: 12,
         fontWeight: FontWeight.w800,
       ),
     ),

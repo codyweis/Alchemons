@@ -304,7 +304,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                         'Resets Weekly',
                         style: TextStyle(
                           color: Colors.orange.shade300,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -380,7 +380,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                         'PURCHASED',
                                         style: TextStyle(
                                           color: Colors.greenAccent,
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: 0.3,
                                         ),
@@ -943,7 +943,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                         'Clear',
                         style: TextStyle(
                           color: Colors.red.shade300,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1103,7 +1103,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     'Clear',
                     style: TextStyle(
                       color: Colors.red.shade300,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1427,7 +1427,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                               'Choose resources to sell',
                               style: TextStyle(
                                 color: theme.textMuted,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -1544,7 +1544,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                         'Available: $balance',
                                         style: TextStyle(
                                           color: theme.textMuted,
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -1979,7 +1979,7 @@ class _CompactCreatureRow extends StatelessWidget {
                     'Lv ${instance.level}',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -2105,7 +2105,7 @@ class _CompactResourceRow extends StatelessWidget {
                         'Available: $available',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.5),
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -2163,7 +2163,7 @@ class _CompactResourceRow extends StatelessWidget {
                   'Qty: $quantity',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -2243,7 +2243,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
               'This action cannot be undone.',
               style: TextStyle(
                 color: Colors.red.shade300,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.center,
@@ -2351,7 +2351,7 @@ class _ResourceSaleConfirmationDialog extends StatelessWidget {
               'This action cannot be undone.',
               style: TextStyle(
                 color: Colors.red.shade300,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.center,
@@ -2511,7 +2511,7 @@ class _SubTabButton extends StatelessWidget {
               label,
               style: TextStyle(
                 color: isActive ? const Color(0xFFD8BFD8) : Colors.white54,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.3,
               ),
@@ -2628,7 +2628,7 @@ class _OfferCard extends StatelessWidget {
                                     'PURCHASED',
                                     style: TextStyle(
                                       color: Colors.greenAccent,
-                                      fontSize: 9,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w900,
                                       letterSpacing: 0.3,
                                     ),
@@ -2645,7 +2645,7 @@ class _OfferCard extends StatelessWidget {
                           color: isPurchased
                               ? Colors.grey.shade500
                               : Colors.white.withValues(alpha: 0.6),
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

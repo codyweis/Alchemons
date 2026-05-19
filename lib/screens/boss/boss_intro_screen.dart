@@ -24,7 +24,8 @@ import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/screens/boss/battle_screen.dart';
 import 'package:alchemons/screens/boss/boss_base_command_screen.dart';
-import 'package:alchemons/screens/inventory_screen.dart' show InventoryImageHelper;
+import 'package:alchemons/screens/inventory_screen.dart'
+    show InventoryImageHelper;
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -87,10 +88,71 @@ class _T {
   static const label = TextStyle(
     fontFamily: 'monospace',
     color: _C.textSecondary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
+}
+
+TextStyle _display(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
+}
+
+class _BracketFramePainter extends CustomPainter {
+  const _BracketFramePainter({
+    required this.color,
+    required this.bracketSize,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double bracketSize;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final s = bracketSize;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(0, s)
+      ..lineTo(0, 0)
+      ..lineTo(s, 0)
+      ..moveTo(w - s, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, s)
+      ..moveTo(0, h - s)
+      ..lineTo(0, h)
+      ..lineTo(s, h)
+      ..moveTo(w - s, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - s);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.bracketSize != bracketSize ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -112,85 +174,6 @@ class _EtchedDivider extends StatelessWidget {
         ],
         Expanded(child: Container(height: 1, color: _C.borderMid)),
       ],
-    );
-  }
-}
-
-/// Corner-notch plate box
-class _PlateBox extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final Color? accentColor;
-  final bool highlight;
-
-  const _PlateBox({
-    required this.child,
-    this.padding = const EdgeInsets.all(14),
-    this.accentColor,
-    this.highlight = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = accentColor ?? _C.amber;
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: _C.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: highlight ? accent.withValues(alpha: 0.55) : _C.borderDim,
-          width: highlight ? 1.5 : 1,
-        ),
-        boxShadow: highlight
-            ? [BoxShadow(color: accent.withValues(alpha: 0.10), blurRadius: 16)]
-            : null,
-      ),
-      child: Stack(
-        children: [
-          child,
-          Positioned(
-            top: 0,
-            left: 0,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: accent.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                  left: BorderSide(
-                    color: accent.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: accent.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                  right: BorderSide(
-                    color: accent.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -219,62 +202,62 @@ class _ForgeButton extends StatelessWidget {
     final c = color ?? _C.amber;
     return GestureDetector(
       onTap: isDisabled ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        height: secondary ? 42 : 52,
-        decoration: BoxDecoration(
-          color: secondary ? Colors.transparent : (isDisabled ? _C.bg3 : c),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: secondary
-                ? _C.borderAccent.withValues(alpha: 0.6)
-                : (isDisabled ? _C.borderDim : c),
-            width: 1,
-          ),
-          boxShadow: (!secondary && !isDisabled)
-              ? [
-                  BoxShadow(
-                    color: c.withValues(alpha: 0.3),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: secondary
+              ? _C.textSecondary.withValues(alpha: 0.34)
+              : (isDisabled ? _C.borderDim : c).withValues(alpha: 0.72),
+          bracketSize: 10,
+          strokeWidth: 1.1,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (loading)
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: secondary ? _C.textSecondary : _C.bg0,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: secondary ? 42 : 52,
+          color: secondary
+              ? Colors.white.withValues(alpha: 0.02)
+              : (isDisabled
+                    ? _C.bg3.withValues(alpha: 0.55)
+                    : c.withValues(alpha: 0.10)),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (loading)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: secondary ? _C.textSecondary : c,
+                  ),
+                )
+              else if (icon != null)
+                Icon(
+                  icon,
+                  size: secondary ? 15 : 17,
+                  color: secondary
+                      ? _C.textSecondary
+                      : (isDisabled ? _C.textMuted : c),
                 ),
-              )
-            else
-              Icon(
-                icon,
-                size: secondary ? 15 : 17,
-                color: secondary
-                    ? _C.textSecondary
-                    : (isDisabled ? _C.textMuted : _C.bg0),
+              if (icon != null || loading) const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _display(
+                    context,
+                    secondary ? 12 : 14,
+                    secondary
+                        ? _C.textPrimary.withValues(alpha: 0.85)
+                        : (isDisabled ? _C.textMuted : c),
+                    weight: FontWeight.w700,
+                    letterSpacing: secondary ? 0.5 : 0.8,
+                  ),
+                ),
               ),
-            const SizedBox(width: 8),
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: secondary ? 11 : 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.8,
-                color: secondary
-                    ? _C.textSecondary
-                    : (isDisabled ? _C.textMuted : _C.bg0),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -305,7 +288,7 @@ class _FlatStat extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: _T.label.copyWith(fontSize: 8, letterSpacing: 0.8),
+                style: _T.label.copyWith(fontSize: 12, letterSpacing: 0.8),
               ),
               Text(
                 value,
@@ -557,7 +540,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
 
   Widget _buildHeader(BossProgressNotifier progress) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: _C.borderDim)),
       ),
@@ -565,17 +548,20 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         children: [
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _C.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: _C.borderDim),
-              ),
-              child: const Icon(
-                Icons.arrow_back_rounded,
-                color: _C.textSecondary,
-                size: 18,
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: CustomPaint(
+                painter: _BracketFramePainter(
+                  color: _C.textSecondary.withValues(alpha: 0.4),
+                  bracketSize: 8,
+                  strokeWidth: 1,
+                ),
+                child: const Icon(
+                  Icons.chevron_left_rounded,
+                  color: _C.textSecondary,
+                  size: 22,
+                ),
               ),
             ),
           ),
@@ -595,41 +581,66 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const Text('BOSS GAUNTLET', style: _T.heading),
+                    Text(
+                      'Boss Gauntlet',
+                      style: _display(
+                        context,
+                        23,
+                        _C.textPrimary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 2),
-                const Text('ELEMENTAL CHAMPIONS', style: _T.label),
+                Text(
+                  'Elemental champions',
+                  style: _display(
+                    context,
+                    13,
+                    _C.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ],
             ),
           ),
           // Progress counter
           GestureDetector(
             onTap: () => _showBossHistory(progress),
-            child: _PlateBox(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              accentColor: _C.amberBright,
-              highlight: true,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.emoji_events_rounded,
-                    color: _C.amberBright,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${progress.totalBossesDefeated} / 17',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
+            child: CustomPaint(
+              painter: _BracketFramePainter(
+                color: _C.amberBright.withValues(alpha: 0.55),
+                bracketSize: 10,
+                strokeWidth: 1.1,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                color: _C.bg2.withValues(alpha: 0.65),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.emoji_events_outlined,
                       color: _C.amberBright,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.0,
+                      size: 15,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      '${progress.totalBossesDefeated} / 17',
+                      style: _display(
+                        context,
+                        14,
+                        _C.amberBright,
+                        weight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -781,7 +792,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: Color(0xFFFF4444),
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.0,
                   ),
@@ -874,7 +885,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: c,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.8,
                         ),
@@ -913,7 +924,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             gimmickSummary,
             style: const TextStyle(
               color: _C.textPrimary,
-              fontSize: 11,
+              fontSize: 12,
               height: 1.35,
             ),
           ),
@@ -1013,7 +1024,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: isFull ? _C.success : _C.textMuted,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                       ),
@@ -1128,7 +1139,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               style: const TextStyle(
                 fontFamily: 'monospace',
                 color: _C.textPrimary,
-                fontSize: 8,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
               ),
@@ -1149,7 +1160,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   color: _C.amberBright,
-                  fontSize: 8,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.5,
                 ),
@@ -1848,7 +1859,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   color: _C.bg0,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                 ),
@@ -2022,13 +2033,13 @@ class _BossCarouselCard extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              boss.element.toUpperCase(),
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: boss.elementColor,
-                                fontSize: 8,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
+                              boss.element,
+                              style: _display(
+                                context,
+                                13,
+                                boss.elementColor,
+                                weight: FontWeight.w700,
+                                letterSpacing: 0.6,
                               ),
                             ),
                           ),
@@ -2045,7 +2056,7 @@ class _BossCarouselCard extends StatelessWidget {
                   // Right — text
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+                      padding: const EdgeInsets.fromLTRB(12, 14, 10, 14),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2069,14 +2080,14 @@ class _BossCarouselCard extends StatelessWidget {
                                   width: 0.8,
                                 ),
                               ),
-                              child: const Text(
-                                '⚡ ENRAGED',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: Color(0xFFFF4444),
-                                  fontSize: 7,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.2,
+                              child: Text(
+                                'Enraged',
+                                style: _display(
+                                  context,
+                                  10,
+                                  const Color(0xFFFF5555),
+                                  weight: FontWeight.w700,
+                                  letterSpacing: 0.8,
                                 ),
                               ),
                             ),
@@ -2084,13 +2095,13 @@ class _BossCarouselCard extends StatelessWidget {
                           ],
                           // Name
                           Text(
-                            (mystic?.name ?? boss.name).toUpperCase(),
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              color: _C.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2.0,
+                            mystic?.name ?? boss.name,
+                            style: _display(
+                              context,
+                              20,
+                              _C.textPrimary,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.5,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -2134,13 +2145,14 @@ class _BossCarouselCard extends StatelessWidget {
                           // Status badges
                           if (isDefeated) ...[
                             const SizedBox(height: 8),
-                            Row(
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
                               children: [
                                 _StatusBadge(
                                   label: 'DEFEATED',
                                   color: _C.success,
                                 ),
-                                const SizedBox(width: 6),
                                 _StatusBadge(label: 'REMATCH', color: _C.amber),
                               ],
                             ),
@@ -2155,22 +2167,25 @@ class _BossCarouselCard extends StatelessWidget {
               Positioned(
                 top: 10,
                 right: 10,
-                child: Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: _C.bg0.withValues(alpha: 0.8),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _C.borderAccent),
+                child: CustomPaint(
+                  painter: _BracketFramePainter(
+                    color: _C.borderAccent.withValues(alpha: 0.55),
+                    bracketSize: 7,
+                    strokeWidth: 1,
                   ),
-                  child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    color: _C.bg0.withValues(alpha: 0.45),
                     child: Text(
                       '${boss.order}',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        color: _C.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
+                      style: _display(
+                        context,
+                        13,
+                        _C.textSecondary,
+                        weight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -2196,7 +2211,7 @@ class _BossCarouselCard extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: _C.textSecondary,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.5,
                             ),
@@ -2235,7 +2250,7 @@ class _MiniStatBadge extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'monospace',
             color: color,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -2250,21 +2265,24 @@ class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.label, required this.color});
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withValues(alpha: 0.5), width: 0.8),
+    return CustomPaint(
+      painter: _BracketFramePainter(
+        color: color.withValues(alpha: 0.55),
+        bracketSize: 7,
+        strokeWidth: 0.9,
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 8,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.0,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        color: color.withValues(alpha: 0.10),
+        child: Text(
+          label,
+          style: _display(
+            context,
+            11,
+            color,
+            weight: FontWeight.w700,
+            letterSpacing: 0.7,
+          ),
         ),
       ),
     );
@@ -2474,7 +2492,7 @@ class _BossHistoryRow extends StatelessWidget {
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   color: _C.textMuted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
                 textAlign: TextAlign.center,
@@ -2528,7 +2546,7 @@ class _BossHistoryRow extends StatelessWidget {
                     style: const TextStyle(
                       fontFamily: 'monospace',
                       color: _C.textPrimary,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
                     ),
@@ -2541,7 +2559,7 @@ class _BossHistoryRow extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: boss.elementColor,
-                          fontSize: 9,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.8,
                         ),
@@ -2570,7 +2588,7 @@ class _BossHistoryRow extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: boss.elementColor,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.0,
                   ),
@@ -2592,7 +2610,7 @@ class _BossHistoryRow extends StatelessWidget {
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     color: _C.success,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

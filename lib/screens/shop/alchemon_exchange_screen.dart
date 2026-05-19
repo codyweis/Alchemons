@@ -120,7 +120,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                       'Trade alchemons & vials for currency',
                       style: TextStyle(
                         color: t.textSecondary,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -213,7 +213,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: _primaryAccent,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.2,
                           ),
@@ -224,7 +224,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: t.textSecondary,
-                            fontSize: 10,
+                            fontSize: 12,
                             height: 1.45,
                           ),
                         ),
@@ -263,7 +263,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t.textPrimary,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.2,
                           ),
@@ -274,7 +274,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: t.textSecondary,
-                            fontSize: 10,
+                            fontSize: 12,
                             height: 1.45,
                           ),
                         ),
@@ -296,7 +296,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   'Locked alchemons cannot be exchanged.',
                   style: TextStyle(
                     color: t.textMuted.withValues(alpha: 0.5),
-                    fontSize: 10,
+                    fontSize: 12,
                     height: 1.4,
                   ),
                 ),
@@ -339,7 +339,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.textPrimary,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.1,
                 ),
@@ -355,7 +355,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   '$_selectionCount',
                   style: TextStyle(
                     color: _primaryAccent,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -375,7 +375,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   'CLEAR ALL',
                   style: TextStyle(
                     color: t.danger,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -454,7 +454,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.success,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.2,
                 ),
@@ -486,7 +486,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                           'silver',
                           style: TextStyle(
                             color: t.textMuted,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -516,7 +516,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                           'gold',
                           style: TextStyle(
                             color: t.textMuted,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -541,7 +541,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
           style: TextStyle(
             fontFamily: 'monospace',
             color: color,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.1,
           ),
@@ -587,7 +587,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.8,
                             ),
@@ -620,7 +620,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.8,
                             ),
@@ -669,7 +669,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                           '$_selectionCount',
                           style: TextStyle(
                             color: t.onColor(t.success),
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -913,7 +913,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                                       vial.rarity.label,
                                       style: TextStyle(
                                         color: t.textMuted,
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -922,7 +922,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                                       '${vial.unitSilverValue} silver each',
                                       style: TextStyle(
                                         color: t.textSecondary,
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
@@ -1283,7 +1283,7 @@ class _ExchangeCreatureRow extends StatelessWidget {
                                   rarity.toUpperCase(),
                                   style: TextStyle(
                                     color: rarityColor,
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 0.5,
                                   ),
@@ -1294,7 +1294,7 @@ class _ExchangeCreatureRow extends StatelessWidget {
                                 'Lv ${instance.level}',
                                 style: TextStyle(
                                   color: t.textMuted,
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -1418,7 +1418,7 @@ class _ExchangeVialRow extends StatelessWidget {
                             vial.rarity.label.toUpperCase(),
                             style: TextStyle(
                               color: groupColor,
-                              fontSize: 9,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.5,
                             ),
@@ -1429,7 +1429,7 @@ class _ExchangeVialRow extends StatelessWidget {
                           'x${vial.selectedQty}',
                           style: TextStyle(
                             color: t.textMuted,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1545,7 +1545,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
               'This action cannot be undone.',
               style: TextStyle(
                 color: Colors.red.shade300,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),

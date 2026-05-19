@@ -214,7 +214,7 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
                         style: TextStyle(
                           fontFamily: appFontFamily(context),
                           color: color,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 2.5,
                         ),

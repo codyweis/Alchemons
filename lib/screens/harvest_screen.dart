@@ -122,7 +122,7 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
                 'Different Alchemons will generate more resources depending on a variety of factors such as level. Tapping extractors will speed up extraction.',
                 style: TextStyle(
                   color: theme.textMuted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -317,7 +317,7 @@ class _HeaderBar extends StatelessWidget {
                   subtitle,
                   style: TextStyle(
                     color: theme.textMuted,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     height: 1.2,
                     letterSpacing: 0.3,
@@ -422,7 +422,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
 
     final String statusText = !unlocked
         ? 'LOCKED'
-        : (hasActive ? (completed ? '' : 'ACTIVE') : '');
+        : (completed ? 'READY' : (hasActive ? 'ACTIVE' : ''));
 
     void handleTap() {
       HapticFeedback.lightImpact();
@@ -449,31 +449,38 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
         scale: _down ? .9 : 1,
         curve: Curves.easeOutCubic,
         child: Container(
-          decoration: hasActive && !completed
+          decoration: completed
               ? BoxDecoration(
-                  color: const Color.fromARGB(255, 65, 153, 221),
-                  borderRadius: BorderRadius.circular(4),
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.06),
+                    color: const Color(0xFF22C55E),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                )
+              : hasActive
+              ? BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.65),
                     width: 1.2,
                   ),
                 )
-              : completed
+              : !unlocked
               ? BoxDecoration(
-                  color: const Color.fromRGBO(91, 255, 128, 1),
-                  borderRadius: BorderRadius.circular(4),
+                  color: Colors.black.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    width: 1.2,
-                  ),
-                )
-              : unlocked
-              ? BoxDecoration(
-                  color: const Color.fromRGBO(255, 225, 91, 1),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    width: 1.2,
+                    color: Colors.black.withValues(alpha: 0.12),
+                    width: 1,
                   ),
                 )
               : null,
@@ -529,7 +536,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: widget.theme.textMuted,
-                                fontSize: 10.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 height: 1.25,
                               ),
@@ -661,33 +668,44 @@ class _StatusChipTiny extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = text.toLowerCase();
+    if (t.isEmpty) return const SizedBox.shrink();
 
     late final Color fg;
+    late final Color bg;
 
     switch (t) {
+      case 'ready':
+        fg = Colors.white;
+        bg = const Color(0xFF16A34A);
+        break;
       case 'active':
-        fg = Colors.white.withValues(alpha: .95);
+        fg = Colors.white;
+        bg = const Color(0xFF2563EB);
+        break;
+      case 'locked':
+        fg = Colors.white.withValues(alpha: 0.95);
+        bg = Colors.black.withValues(alpha: 0.45);
         break;
       default:
-        fg = Colors.white.withValues(alpha: .0);
+        fg = Colors.white;
+        bg = Colors.black.withValues(alpha: 0.3);
         break;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            text.toUpperCase(),
-            style: TextStyle(
-              color: fg,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .4,
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          color: fg,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.6,
+        ),
       ),
     );
   }
@@ -708,7 +726,7 @@ class _ElementChipTiny extends StatelessWidget {
         label,
         style: TextStyle(
           color: theme.text,
-          fontSize: 9,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: .3,
         ),
@@ -775,25 +793,23 @@ class _TinyReadyPillRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.black,
+        color: const Color(0xFF16A34A),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: const Color.fromARGB(255, 0, 0, 0).withValues(alpha: .5),
-          width: 1.2,
-        ),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Icon(Icons.check_circle, size: 13, color: Colors.white),
+          SizedBox(width: 5),
           Text(
             'Ready to extract',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: Color.fromARGB(255, 255, 255, 255),
-              fontSize: 9.5,
+              color: Colors.white,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: .2,
             ),

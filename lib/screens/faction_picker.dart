@@ -501,7 +501,7 @@ class _PerksSection extends StatelessWidget {
               'DIVISION PERKS',
               style: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 color: accentTextColor,
                 letterSpacing: 1.8,
@@ -577,7 +577,7 @@ class _PerkCard extends StatelessWidget {
                 '[${index + 1}]',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: tokens.textMuted,
                   letterSpacing: 1.0,
@@ -589,7 +589,7 @@ class _PerkCard extends StatelessWidget {
                   perk.title,
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: accentTextColor,
                     letterSpacing: 1.0,
@@ -606,7 +606,7 @@ class _PerkCard extends StatelessWidget {
             child: Text(
               perk.description,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 color: bodyTextColor,
                 height: 1.4,
               ),

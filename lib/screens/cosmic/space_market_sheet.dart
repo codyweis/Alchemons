@@ -688,7 +688,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                       '×$owned',
                                       style: TextStyle(
                                         color: t.textSecondary,
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -700,7 +700,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                               item.description,
                               style: TextStyle(
                                 color: t.textSecondary,
-                                fontSize: 10,
+                                fontSize: 12,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -721,7 +721,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                     '90% OFF — Your faction!',
                                     style: TextStyle(
                                       color: const Color(0xFF4CAF50),
-                                      fontSize: 9,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       fontStyle: FontStyle.italic,
                                     ),
@@ -755,7 +755,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                           : t.textSecondary.withValues(
                                               alpha: 0.6,
                                             ),
-                                      fontSize: 9,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       fontStyle: FontStyle.italic,
                                     ),
@@ -785,7 +785,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                       color: t.textSecondary.withValues(
                                         alpha: 0.4,
                                       ),
-                                      fontSize: 10,
+                                      fontSize: 12,
                                       decoration: TextDecoration.lineThrough,
                                     ),
                                   ),

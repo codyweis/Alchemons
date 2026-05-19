@@ -146,7 +146,7 @@ Future<bool> showItemDetailDialog({
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t.textSecondary,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 2.4,
                           ),
@@ -206,7 +206,7 @@ Future<bool> showItemDetailDialog({
                     offer.description,
                     style: TextStyle(
                       color: t.textSecondary,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                       height: 1.5,
                       letterSpacing: 0.3,
@@ -243,7 +243,7 @@ Future<bool> showItemDetailDialog({
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: secondaryAccent,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.4,
                             ),
@@ -268,7 +268,7 @@ Future<bool> showItemDetailDialog({
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t.textMuted,
-                            fontSize: 9,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 2.0,
                           ),
@@ -320,7 +320,7 @@ Future<bool> showItemDetailDialog({
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.4,
                             ),
@@ -384,7 +384,7 @@ Future<bool> showItemDetailDialog({
                                           color: canAfford
                                               ? (theme.isDark ? primaryAccent : Colors.black)
                                               : t.danger.withValues(alpha: 0.7),
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w800,
                                           letterSpacing: 1.4,
                                         ),
@@ -420,7 +420,7 @@ Future<bool> showItemDetailDialog({
                                       style: TextStyle(
                                         fontFamily: 'monospace',
                                         color: t.success,
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w800,
                                         letterSpacing: 1.4,
                                       ),
@@ -541,7 +541,7 @@ class _ForgeCostRow extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.textSecondary,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.2,
               ),
@@ -566,7 +566,7 @@ class _ForgeCostRow extends StatelessWidget {
               color: hasEnough
                   ? t.textMuted
                   : const Color(0xFFEF4444).withValues(alpha: 0.7),
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
             ),
@@ -899,7 +899,7 @@ class GameShopCard extends StatelessWidget {
                   statusText!,
                   style: TextStyle(
                     color: theme.isDark ? Colors.white : theme.accent,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1000,7 +1000,7 @@ class MiniCostChip extends StatelessWidget {
             '$required',
             style: TextStyle(
               color: hasEnough ? displayColor : Colors.red.shade300,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1108,7 +1108,7 @@ class CostChip extends StatelessWidget {
             _formatShopValue(amount),
             style: TextStyle(
               color: hasEnough ? color : Colors.red.shade300,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1169,7 +1169,7 @@ class EmptySection extends StatelessWidget {
               message,
               style: TextStyle(
                 color: t.textSecondary,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1570,7 +1570,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                   'Unlock this biome to harvest its resources.',
                   style: TextStyle(
                     color: theme.textMuted,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                   textAlign: TextAlign.center,
@@ -1800,7 +1800,7 @@ Future<int?> showPurchaseConfirmationDialog({
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: primaryAccent,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 3,
                     ),
@@ -1838,7 +1838,7 @@ Future<int?> showPurchaseConfirmationDialog({
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: t.textSecondary,
-                      fontSize: 10,
+                      fontSize: 12,
                       height: 1.6,
                       letterSpacing: 0.3,
                     ),
@@ -2022,7 +2022,7 @@ class _MonoSectionHeader extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: color,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 2.5,
             ),
@@ -2059,7 +2059,7 @@ class DialogSectionHeader extends StatelessWidget {
             title,
             style: TextStyle(
               color: color,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.5,
             ),
@@ -2158,7 +2158,7 @@ class DialogResourceDisplay extends StatelessWidget {
                 '(Have: ${_formatShopValue(current!)})',
                 style: TextStyle(
                   color: hasEnough ? theme.textMuted : Colors.red.shade400,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),

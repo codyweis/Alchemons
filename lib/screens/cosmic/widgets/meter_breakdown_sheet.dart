@@ -92,7 +92,7 @@ class MeterBreakdownSheetState extends State<MeterBreakdownSheet> {
                           '${total.toStringAsFixed(1)} / ${ElementMeter.maxCapacity.toStringAsFixed(0)} stored  •  ${capacityLeft.toStringAsFixed(1)} free',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.46),
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -143,7 +143,7 @@ class MeterBreakdownSheetState extends State<MeterBreakdownSheet> {
                     '${sorted.length} element${sorted.length == 1 ? '' : 's'} loaded',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.34),
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.6,
                     ),
@@ -153,7 +153,7 @@ class MeterBreakdownSheetState extends State<MeterBreakdownSheet> {
                     'Tap to vent a full element',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.34),
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -226,7 +226,7 @@ class _CompactMeterBar extends StatelessWidget {
                   'EMPTY VESSEL',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.18),
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.4,
                   ),
@@ -289,7 +289,7 @@ class _CompactMeterBar extends StatelessWidget {
                           : '${(fillPct * 100).round()}% CAPACITY',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 8,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.9,
                         shadows: [Shadow(color: Colors.black, blurRadius: 4)],
@@ -426,7 +426,7 @@ class _ElementRow extends StatelessWidget {
                 '${(pctOfMeter * 100).round()}%',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.48),
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -456,7 +456,7 @@ class _EmptyMeterState extends StatelessWidget {
         textAlign: TextAlign.center,
         style: TextStyle(
           color: Colors.white.withValues(alpha: 0.42),
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
       ),

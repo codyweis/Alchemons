@@ -101,7 +101,7 @@ class _SpeciesPickerSheetState extends State<SpeciesPickerSheet> {
               hintStyle: TextStyle(
                 fontFamily: 'monospace',
                 color: t.textMuted.withValues(alpha: 0.8),
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.1,
               ),
@@ -156,7 +156,7 @@ class _SpeciesPickerSheetState extends State<SpeciesPickerSheet> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.textSecondary,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.0,
                   ),
@@ -219,7 +219,7 @@ class _NoResultsFound extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textSecondary,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.3,
             ),
@@ -229,7 +229,7 @@ class _NoResultsFound extends StatelessWidget {
             'Try a different search term',
             style: TextStyle(
               color: t.textMuted.withValues(alpha: 0.9),
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -321,7 +321,7 @@ class _SpeciesRow extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 9,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.9,
                             ),
@@ -351,7 +351,7 @@ class _SpeciesRow extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.amberBright,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                             ),
                           ),

@@ -10,7 +10,6 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -241,7 +240,7 @@ class _AlchemicalPowerupFeedingScreenState
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t.amberBright,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 2.0,
                         ),
@@ -263,33 +262,6 @@ class _AlchemicalPowerupFeedingScreenState
             ),
           ),
         ),
-        if (kDebugMode)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _busy ? null : _grantTestOrbs,
-                icon: const Icon(Icons.science_rounded, size: 16),
-                label: const Text('Grant Test Orbs'),
-                style: TextButton.styleFrom(
-                  foregroundColor: t.textPrimary,
-                  backgroundColor: t.bg2,
-                  disabledForegroundColor: t.textMuted,
-                  disabledBackgroundColor: t.bg1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    side: BorderSide(color: t.borderDim),
-                  ),
-                  textStyle: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-            ),
-          ),
         Expanded(
           child: AllCreatureInstances(
             theme: theme,
@@ -467,7 +439,7 @@ class _AlchemicalPowerupFeedingScreenState
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.amberBright,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 2.0,
                   ),
@@ -623,7 +595,7 @@ class _AlchemicalPowerupFeedingScreenState
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.amberBright,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 2.0,
                   ),
@@ -811,25 +783,6 @@ class _AlchemicalPowerupFeedingScreenState
     };
   }
 
-  Future<void> _grantTestOrbs() async {
-    if (_busy) return;
-
-    final db = context.read<AlchemonsDatabase>();
-    setState(() {
-      _busy = true;
-      _message = 'Granted 5 of each orb for testing.';
-    });
-
-    for (final type in AlchemicalPowerupType.values) {
-      await db.inventoryDao.addItemQty(type.inventoryKey, 5);
-    }
-
-    if (!mounted) return;
-    HapticFeedback.mediumImpact();
-    setState(() {
-      _busy = false;
-    });
-  }
 }
 
 class _PowerupHeader extends StatelessWidget {
@@ -892,7 +845,7 @@ class _PowerupHeader extends StatelessWidget {
                         : 'Select a specimen',
                     style: TextStyle(
                       color: t.textSecondary,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -965,7 +918,7 @@ class _SpecimenBanner extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textSecondary,
-                              fontSize: 9,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.2,
                             ),
@@ -999,7 +952,7 @@ class _SpecimenBanner extends StatelessWidget {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: t.textSecondary,
-                                fontSize: 9,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.0,
                               ),
@@ -1183,7 +1136,7 @@ class _AnimatedOrbButtonState extends State<_AnimatedOrbButton>
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: widget.qty > 0 ? type.color : t.textMuted,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1194,7 +1147,7 @@ class _AnimatedOrbButtonState extends State<_AnimatedOrbButton>
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.textSecondary,
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
                   ),
@@ -1244,7 +1197,7 @@ class _StatPlate extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textSecondary,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.2,
             ),

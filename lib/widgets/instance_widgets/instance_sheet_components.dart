@@ -281,7 +281,7 @@ class InstanceCard extends StatelessWidget {
                                             style: TextStyle(
                                               fontFamily: 'monospace',
                                               color: t.bg0,
-                                              fontSize: 9,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w900,
                                             ),
                                           ),
@@ -447,7 +447,7 @@ class _StatTile extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: displayColor.withValues(alpha: 0.8),
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
                     height: 1,
@@ -461,7 +461,7 @@ class _StatTile extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: displayColor,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.2,
                     height: 1,
@@ -597,7 +597,7 @@ class _HarvestBlock extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.amberBright,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.3,
                   ),
@@ -653,7 +653,7 @@ class _MiniRow extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: color,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,
             ),
@@ -697,7 +697,7 @@ class _ParentChip extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: c,
-              fontSize: 8,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.5,
             ),
@@ -726,7 +726,7 @@ class _PrismaticChip extends StatelessWidget {
       style: TextStyle(
         fontFamily: 'monospace',
         color: Color(0xFFE879F9),
-        fontSize: 8,
+        fontSize: 12,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.8,
       ),
@@ -759,7 +759,7 @@ class _CardNameLine extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textPrimary,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.4,
             ),
@@ -805,7 +805,7 @@ class _CompactStaminaSummary extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'monospace',
             color: textColor,
-            fontSize: 8,
+            fontSize: 12,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.3,
           ),
@@ -905,7 +905,7 @@ class InstancesEmptyState extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.textSecondary,
-                fontSize: 10,
+                fontSize: 12,
                 letterSpacing: 0.3,
                 height: 1.6,
               ),

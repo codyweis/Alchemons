@@ -28,6 +28,67 @@ import 'package:alchemons/utils/faction_util.dart';
 // for FactionTheme
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 
+TextStyle _display(
+  BuildContext context,
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w500,
+  double letterSpacing = 0,
+  FontStyle fontStyle = FontStyle.normal,
+}) {
+  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  return base.copyWith(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: letterSpacing,
+    fontStyle: fontStyle,
+  );
+}
+
+class _BracketFramePainter extends CustomPainter {
+  const _BracketFramePainter({
+    required this.color,
+    required this.bracketSize,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double bracketSize;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final s = bracketSize;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(0, s)
+      ..lineTo(0, 0)
+      ..lineTo(s, 0)
+      ..moveTo(w - s, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, s)
+      ..moveTo(0, h - s)
+      ..lineTo(0, h)
+      ..lineTo(s, h)
+      ..moveTo(w - s, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - s);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.bracketSize != bracketSize ||
+      oldDelegate.strokeWidth != strokeWidth;
+}
+
 class MapScreen extends StatefulWidget {
   final bool isTutorial;
   final void Function(NavSection section, {int? breedInitialTab})?
@@ -220,7 +281,7 @@ class _MapScreenState extends State<MapScreen>
                             rarityName.toUpperCase(),
                             style: TextStyle(
                               color: rarityColor,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: .6,
                             ),
@@ -680,26 +741,26 @@ class _HeaderBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
       child: Column(
         children: [
           // top row: back + info
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const SizedBox(width: 48, height: 48),
+              const SizedBox(width: 40, height: 40),
               // center title/subtitle
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      isTutorial ? 'FIRST EXPEDITION' : 'FUSING EXPEDITIONS',
-                      style: TextStyle(
-                        color: theme.text,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .8,
+                      isTutorial ? 'First Expedition' : 'Fusing Expeditions',
+                      style: _display(
+                        context,
+                        23,
+                        theme.text,
+                        letterSpacing: 0.5,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -707,11 +768,11 @@ class _HeaderBar extends StatelessWidget {
                       isTutorial
                           ? 'Begin your journey into the wilderness'
                           : 'Discover wild Alchemons & attempt fusions',
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: .4,
+                      style: _display(
+                        context,
+                        13,
+                        theme.textMuted,
+                        fontStyle: FontStyle.italic,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -722,14 +783,20 @@ class _HeaderBar extends StatelessWidget {
               // info
               GestureDetector(
                 onTap: onInfo,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  child: Icon(
-                    Icons.info_outline_rounded,
-                    color: theme.text,
-                    size: 20,
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CustomPaint(
+                    painter: _BracketFramePainter(
+                      color: theme.textMuted.withValues(alpha: 0.38),
+                      bracketSize: 8,
+                      strokeWidth: 1,
+                    ),
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      color: theme.text,
+                      size: 20,
+                    ),
                   ),
                 ),
               ),
@@ -825,7 +892,7 @@ class SpawnDebugPanel extends StatelessWidget {
                       '$biomeName: $timeText',
                       style: TextStyle(
                         color: theme.textMuted,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -845,7 +912,7 @@ class SpawnDebugPanel extends StatelessWidget {
                         '$spawnCount active',
                         style: TextStyle(
                           color: theme.accent,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1023,52 +1090,56 @@ class _ScorchedSpawnBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
-    final ft = FT(fc);
     final nextDue = spawnService.getNextSpawnTime(biomeId);
     final boxWidth = compact ? 140.0 : 180.0;
-    final titleSize = compact ? 10.0 : 11.0;
-    final timeSize = compact ? 9.0 : 12.0;
+    final titleSize = compact ? 13.0 : 14.0;
+    final timeSize = compact ? 11.0 : 12.0;
 
-    return Container(
-      width: boxWidth,
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 8,
-        vertical: compact ? 4 : 6,
+    return CustomPaint(
+      painter: _BracketFramePainter(
+        color: fc.borderAccent.withValues(alpha: 0.55),
+        bracketSize: 8,
+        strokeWidth: 1.0,
       ),
-      decoration: BoxDecoration(
-        color: fc.bg1,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: fc.borderAccent, width: 1.2),
-        boxShadow: [
-          BoxShadow(color: fc.borderDim.withValues(alpha: .12), blurRadius: 6),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  biomeId.toUpperCase(),
-                  style: ft.heading.copyWith(
-                    fontSize: titleSize,
-                    color: fc.amberBright,
+      child: Container(
+        width: boxWidth,
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 10 : 12,
+          vertical: compact ? 7 : 8,
+        ),
+        decoration: BoxDecoration(color: fc.bg1.withValues(alpha: 0.9)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    biomeId[0].toUpperCase() + biomeId.substring(1),
+                    style: _display(
+                      context,
+                      titleSize,
+                      fc.amberBright,
+                      weight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _formatTime(nextDue),
-                style: ft.mono.copyWith(
-                  fontSize: timeSize,
-                  color: fc.textSecondary,
+                const SizedBox(width: 6),
+                Text(
+                  _formatTime(nextDue),
+                  style: _display(
+                    context,
+                    timeSize,
+                    fc.textSecondary,
+                    weight: FontWeight.w600,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

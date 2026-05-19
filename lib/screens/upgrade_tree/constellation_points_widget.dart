@@ -94,7 +94,7 @@ class ConstellationPointsWidget extends StatelessWidget {
                         '$points',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -211,7 +211,7 @@ class _StatRow extends StatelessWidget {
             label,
             style: TextStyle(
               color: theme.textMuted,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -219,7 +219,7 @@ class _StatRow extends StatelessWidget {
             value,
             style: TextStyle(
               color: valueColor ?? theme.text,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),

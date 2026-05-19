@@ -674,7 +674,7 @@ class _Header extends StatelessWidget {
                               color: const Color(
                                 0xFFD6A45A,
                               ).withValues(alpha: 0.55),
-                              fontSize: 8,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 2.2,
                             ),
@@ -738,7 +738,7 @@ class _Header extends StatelessWidget {
                   '${DateTime.now().millisecondsSinceEpoch % 9999 + 1000} LY',
                   style: TextStyle(
                     color: const Color(0xFFD6A45A).withValues(alpha: 0.35),
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.4,
                     fontFeatures: const [FontFeature.tabularFigures()],
@@ -817,7 +817,7 @@ class _StatChip extends StatelessWidget {
             label,
             style: TextStyle(
               color: color.withValues(alpha: 0.75),
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
             ),
@@ -939,7 +939,7 @@ class _MarkerToolbar extends StatelessWidget {
                   'CLEAR ALL',
                   style: TextStyle(
                     color: Color(0xFF8A7B6A),
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1,
                   ),
@@ -1113,7 +1113,7 @@ class _PlanetCard extends StatelessWidget {
                   color: isSelected
                       ? Colors.white.withValues(alpha: 0.92)
                       : Colors.white.withValues(alpha: 0.3),
-                  fontSize: 9.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.7,
                 ),
@@ -1162,7 +1162,7 @@ class _NavigateButton extends StatelessWidget {
                 'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
                 style: TextStyle(
                   color: col,
-                  fontSize: 8,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                 ),
@@ -1233,7 +1233,7 @@ class _TravelPromptCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: const Color(0xFFE8DCC8),
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.9,
                   ),
@@ -1243,7 +1243,7 @@ class _TravelPromptCard extends StatelessWidget {
                   prompt.subtitle.toUpperCase(),
                   style: TextStyle(
                     color: const Color(0xFF8A7B6A),
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
                   ),
@@ -1294,7 +1294,7 @@ class _TravelPromptCard extends StatelessWidget {
                       prompt.actionLabel ?? 'TRAVEL',
                       style: TextStyle(
                         color: accent,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.9,
                       ),
@@ -1471,7 +1471,7 @@ class _Legend extends StatelessWidget {
             hint,
             style: TextStyle(
               color: const Color(0xFF8A7B6A),
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.2,
             ),
@@ -1481,7 +1481,7 @@ class _Legend extends StatelessWidget {
             'Tip: Long-press the map icon to toggle it.',
             style: TextStyle(
               color: const Color(0xFFD6A45A),
-              fontSize: 9.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -2235,7 +2235,7 @@ class _MiniMapPainter extends CustomPainter {
         1.0,
         hPos,
         hr,
-        fontSize: 8,
+        fontSize: 12,
       );
     }
 

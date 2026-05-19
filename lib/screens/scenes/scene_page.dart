@@ -1967,7 +1967,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: color,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 4,
                     ),
@@ -2000,7 +2000,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: color,
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 2.5,
                       ),
@@ -2012,7 +2012,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: color.withValues(alpha: 0.65),
-                      fontSize: 10,
+                      fontSize: 12,
                       height: 1.55,
                       letterSpacing: 0.4,
                       fontStyle: FontStyle.italic,
@@ -2094,7 +2094,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: keyQty > 0 ? color : Colors.white30,
-                      fontSize: 9,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 2,
                     ),
@@ -2122,7 +2122,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     color: Colors.white38,
-                    fontSize: 10,
+                    fontSize: 12,
                     height: 1.6,
                     letterSpacing: 0.5,
                   ),
@@ -2146,7 +2146,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: Colors.white54,
-                    fontSize: 10,
+                    fontSize: 12,
                     height: 1.7,
                     letterSpacing: 1.5,
                   ),
@@ -2202,7 +2202,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: color,
-                    fontSize: 11,
+                    fontSize: 12,
                     height: 1.7,
                     letterSpacing: 1.5,
                     fontWeight: FontWeight.w700,
@@ -2230,7 +2230,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: Colors.white54,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 2,
                         ),
@@ -2261,7 +2261,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: color,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 2,
                         ),
@@ -2297,7 +2297,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                       color: _feedbackIsWarning
                           ? const Color(0xFFE06060)
                           : const Color(0xFF88EE88),
-                      fontSize: 10,
+                      fontSize: 12,
                       height: 1.5,
                       letterSpacing: 0.4,
                       fontStyle: FontStyle.italic,

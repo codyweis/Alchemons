@@ -46,7 +46,7 @@ TextStyle _heading(ForgeTokens t) => TextStyle(
 TextStyle _label(ForgeTokens t) => TextStyle(
   fontFamily: 'monospace',
   color: t.textSecondary,
-  fontSize: 10,
+  fontSize: 12,
   fontWeight: FontWeight.w600,
   letterSpacing: 1.6,
 );
@@ -163,7 +163,7 @@ class _ForgeButton extends StatelessWidget {
               label,
               style: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.4,
                 color: isDisabled ? t.textMuted : t.amberBright,
@@ -329,7 +329,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (cosmicHints.isEmpty) {
       return Text(
         'No cosmic hint notes discovered yet.',
-        style: _body(t).copyWith(fontSize: 11),
+        style: _body(t).copyWith(fontSize: 12),
       );
     }
 
@@ -356,7 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.left,
-                  style: _body(t).copyWith(fontSize: 10, height: 1.35),
+                  style: _body(t).copyWith(fontSize: 12, height: 1.35),
                 ),
               );
             },
@@ -1194,7 +1194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: t.teal,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.8,
                               ),
@@ -1228,7 +1228,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   perks[i].title.toUpperCase(),
                                   style: _label(t).copyWith(
                                     color: accentColor,
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     letterSpacing: 1.3,
                                   ),
                                 ),
@@ -1474,7 +1474,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             accountSession.state.activeOnThisDevice
                                 ? 'This device is currently playing the signed-in account save.'
                                 : 'This device is still playing its local save. Restore or use this device to switch over.',
-                            style: _body(t).copyWith(fontSize: 10),
+                            style: _body(t).copyWith(fontSize: 12),
                           ),
                           const SizedBox(height: 12),
                           _AccountValueRow(
@@ -1631,7 +1631,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               const SizedBox(height: 2),
                               Text(
                                 'Watch the origin story again',
-                                style: _body(t).copyWith(fontSize: 10),
+                                style: _body(t).copyWith(fontSize: 12),
                               ),
                             ],
                           ),
@@ -1714,7 +1714,7 @@ class _FontSelectorWidget extends StatelessWidget {
                   fontFamily: 'monospace',
                   color: t.textPrimary,
                   fontWeight: FontWeight.w700,
-                  fontSize: 11,
+                  fontSize: 12,
                   letterSpacing: 0.4,
                 ),
               ),
@@ -1780,7 +1780,7 @@ class _CinematicQualitySelector extends StatelessWidget {
                         fontFamily: 'monospace',
                         color: t.textPrimary,
                         fontWeight: FontWeight.w700,
-                        fontSize: 11,
+                        fontSize: 12,
                         letterSpacing: 0.4,
                       ),
                     ),
@@ -1826,7 +1826,7 @@ class _NotificationToggleRow extends StatelessWidget {
             children: [
               Text(title, style: _label(t)),
               const SizedBox(height: 2),
-              Text(subtitle, style: _body(t).copyWith(fontSize: 10)),
+              Text(subtitle, style: _body(t).copyWith(fontSize: 12)),
             ],
           ),
         ),

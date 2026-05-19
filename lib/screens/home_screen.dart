@@ -492,7 +492,7 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
                         const Color(0xFFFFC9C9),
                         pulse,
                       ),
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.1,
                     ),
@@ -1952,7 +1952,7 @@ class _HomeScreenState extends State<HomeScreen>
                                         'UPGRADE',
                                         style: TextStyle(
                                           color: theme.text,
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w700,
                                           letterSpacing: 1.1,
                                         ),
@@ -1988,7 +1988,7 @@ class _HomeScreenState extends State<HomeScreen>
                                             'RELICS',
                                             style: TextStyle(
                                               color: theme.text,
-                                              fontSize: 11,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w700,
                                               letterSpacing: 1.1,
                                             ),
@@ -2295,7 +2295,7 @@ class _HomeScreenState extends State<HomeScreen>
               'Research Facility',
               style: GoogleFonts.cinzelDecorative(
                 color: theme.textMuted,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.4,
               ),
@@ -2590,7 +2590,7 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: amber,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 5.0,
                 ),
@@ -2644,7 +2644,7 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
                                 r.name,
                                 style: const TextStyle(
                                   color: Color(0xFF7A7A8A),
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 2.0,
                                 ),

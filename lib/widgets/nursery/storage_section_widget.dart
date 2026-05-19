@@ -140,7 +140,7 @@ class _StorageSectionState extends State<StorageSection> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.amberBright,
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.1,
               ),
@@ -223,7 +223,7 @@ class _StorageSectionState extends State<StorageSection> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: textColor,
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.0,
               ),
@@ -281,7 +281,7 @@ class _StorageSectionState extends State<StorageSection> {
                   'Stored specimens keep cultivating at reduced speed until you move them back into an active chamber.',
                   style: TextStyle(
                     color: t.textSecondary,
-                    fontSize: 10.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                     height: 1.35,
                   ),
@@ -526,7 +526,7 @@ class _StorageEggCardState extends State<StorageEggCard>
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: isReady ? accent : Colors.white,
-                          fontSize: 9.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.7,
                           fontFeatures: const [FontFeature.tabularFigures()],
@@ -707,7 +707,7 @@ class EggDetailsModal extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: t.textSecondary,
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 2.4,
                     ),
@@ -776,7 +776,7 @@ class EggDetailsModal extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: t.textSecondary,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.3,
                       ),
@@ -958,7 +958,7 @@ class EggDetailsModal extends StatelessWidget {
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     color: Colors.white,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
                   ),
@@ -986,7 +986,7 @@ class EggDetailsModal extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.8,
             ),
@@ -1026,7 +1026,7 @@ class EggDetailsModal extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textMuted,
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.8,
             ),
@@ -1072,7 +1072,7 @@ class EggDetailsModal extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.textSecondary,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.2,
                   ),
@@ -1183,7 +1183,7 @@ class EggDetailsModal extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.bg0,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
                   ),
@@ -1247,7 +1247,7 @@ class EggDetailsModal extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.bg0,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                 ),
@@ -1310,7 +1310,7 @@ class EggDetailsModal extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: t.textSecondary,
-                  fontSize: 10,
+                  fontSize: 12,
                   letterSpacing: 0.3,
                   height: 1.6,
                 ),
@@ -1334,7 +1334,7 @@ class EggDetailsModal extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t.textSecondary,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.4,
                           ),
@@ -1361,7 +1361,7 @@ class EggDetailsModal extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: t.danger,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.4,
                           ),
@@ -1414,7 +1414,7 @@ class EggDetailsModal extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: Colors.white,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                 ),
