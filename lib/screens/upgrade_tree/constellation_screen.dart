@@ -783,7 +783,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                     ],
                   ),
                 ),
-                ],
+              ],
             ),
             const SizedBox(height: 10),
             Row(
@@ -792,7 +792,10 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                   child: GestureDetector(
                     onTap: () => _showEarnPointsDialog(theme),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
                       decoration: BoxDecoration(
                         color: _ConstellationPalette.bg2,
                         borderRadius: BorderRadius.circular(6),
@@ -801,39 +804,14 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.lightbulb_outline_rounded, size: 13, color: accent),
+                          Icon(
+                            Icons.lightbulb_outline_rounded,
+                            size: 13,
+                            color: accent,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'How to Earn',
-                            style: TextStyle(
-                              color: _ConstellationPalette.textSoft,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _game?.revealAllQuotes(),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: _ConstellationPalette.bg2,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: _ConstellationPalette.border),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.chat_bubble_outline_rounded, size: 13, color: _ConstellationPalette.teal),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Quotes',
                             style: TextStyle(
                               color: _ConstellationPalette.textSoft,
                               fontSize: 10,

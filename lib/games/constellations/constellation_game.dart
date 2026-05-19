@@ -720,31 +720,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     }
   }
 
-  /// Instantly reveals all story-text bubbles on every connection that has
-  /// one, regardless of unlock state. Useful for previewing quote layouts.
-  void revealAllQuotes() {
-    for (final connection in _connections.values) {
-      connection.revealStoryInstant();
-    }
-    for (final block in _storyBlocks) {
-      block.updateRevealState(true);
-      if (block.tree == ConstellationTree.combat) {
-        block.updateRevealedLineCount(kCombatStoryLines.length);
-      } else if (block.tree == ConstellationTree.breeder &&
-          block.storyId != null) {
-        continue;
-      } else if (block.tree == ConstellationTree.extraction &&
-          block.storyId != null) {
-        continue;
-      } else {
-        final lines = kTreeCodaSegments[block.tree];
-        if (lines != null) {
-          block.updateRevealedLineCount(lines.length);
-        }
-      }
-    }
-  }
-
   void setVisibleTrees(Set<ConstellationTree> trees) {
     _visibleTrees = Set<ConstellationTree>.from(trees);
 
@@ -1634,19 +1609,6 @@ class ConnectionLine extends Component {
     _energyPulsePosition = 0.0;
     _showEnergyPulse = true;
     _storyFloatOffset = 10.0;
-  }
-
-  /// Instantly shows the story text without playing the draw animation.
-  /// Used by the debug quote-reveal button.
-  void revealStoryInstant() {
-    if (storyText == null) return;
-    _isAnimating = false;
-    isActive = true;
-    _animationProgress = 1.0;
-    _showEnergyPulse = false;
-    _storyOpacity = 1.0;
-    _storyFloatOffset = 0.0;
-    _glowIntensity = 0.0;
   }
 
   @override
