@@ -7,6 +7,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
+import 'package:alchemons/widgets/battle_section.dart';
 
 class ImprovedBattleScrollArea extends StatelessWidget {
   final FactionTheme? theme;
@@ -113,13 +114,13 @@ class ImprovedBattleScrollArea extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _BattleSection(
+              BattleSection(
                 title: 'Stats',
                 color: fc.amber,
                 child: _BossStatChipsCard(profile: bossProfile, fc: fc),
               ),
               const SizedBox(height: 20),
-              _BattleSection(
+              BattleSection(
                 title: 'Moves',
                 color: fc.amber,
                 child: _BossMovesCard(
@@ -130,7 +131,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              _BattleSection(
+              BattleSection(
                 title: 'Cooldowns',
                 color: fc.amber,
                 child: _BossCooldownsCard(
@@ -140,7 +141,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              _BattleSection(
+              BattleSection(
                 title: 'Stat Scaling',
                 color: fc.amber,
                 child: _BossStatScalingCard(fc: fc),
@@ -168,7 +169,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
         children: [
           // Stats first — matches Boss tab layout so flipping between
           // tabs always shows the numerical readout in the same place.
-          _BattleSection(
+          BattleSection(
             title: 'Stats',
             color: fc.amber,
             child: _ExploreStatChipsCard(
@@ -178,25 +179,25 @@ class ImprovedBattleScrollArea extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          _BattleSection(
+          BattleSection(
             title: 'Role',
             color: fc.amber,
             child: _exploreRoleCard(family, element, fc, ft),
           ),
           const SizedBox(height: 20),
-          _BattleSection(
+          BattleSection(
             title: 'Basic',
             color: fc.amber,
             child: _exploreBasicCard(family, element, fc, ft),
           ),
           const SizedBox(height: 20),
-          _BattleSection(
+          BattleSection(
             title: 'Special',
             color: fc.amber,
             child: _exploreSpecialCard(family, element, fc, ft),
           ),
           const SizedBox(height: 20),
-          _BattleSection(
+          BattleSection(
             title: 'Survival',
             color: fc.amber,
             child: _buildExploreSurvivalCard(family, element, fc),
@@ -434,43 +435,6 @@ class ImprovedBattleScrollArea extends StatelessWidget {
 }
 
 /// Flat section header for the battle tab — no box, just accent bar + rule
-class _BattleSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final Color color;
-
-  const _BattleSection({
-    required this.title,
-    required this.child,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final ft = FT(fc);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(width: 3, height: 10, color: color),
-            const SizedBox(width: 7),
-            Text(
-              title.toUpperCase(),
-              style: ft.sectionTitle.copyWith(color: color),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Container(height: 1, color: fc.borderDim),
-        const SizedBox(height: 10),
-        child,
-      ],
-    );
-  }
-}
-
 class _ExpandableDetail extends StatefulWidget {
   final List<Widget> children;
   const _ExpandableDetail({required this.children});

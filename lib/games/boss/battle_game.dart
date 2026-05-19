@@ -2,8 +2,10 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:alchemons/games/boss/attack_animations.dart';
+import 'package:alchemons/games/boss/components/battlefield_zone_layer.dart';
 import 'package:alchemons/games/boss/sprite_battle_adapter.dart';
 import 'package:alchemons/models/boss/boss_model.dart';
+import 'package:alchemons/services/gameengines/battlefield_zone.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
@@ -36,12 +38,43 @@ class BattleGame extends FlameGame with TapCallbacks {
   static const int _basicActionCooldownTurns = 2;
   static const int _specialActionCooldownTurns = 3;
 
+  // Post-hit pacing. Basics resolve fast (snappy turn cadence); special
+  // casts get a longer beat so the player can register fresh status
+  // icons, ground zones, and damage numbers before the feed spools.
+  static const Duration _basicHitBeat = Duration(milliseconds: 200);
+  static const Duration _specialHitBeat = Duration(milliseconds: 350);
+  static const Duration _postPlayerSpecialBeat = Duration(milliseconds: 700);
+  static const Duration _postPlayerBasicBeat = Duration(milliseconds: 500);
+  // Gap between hit-flash and damage number so the eye registers the
+  // flash, *then* the number — eliminates the "everything at once"
+  // soup that made specials feel fast.
+  static const Duration _flashToNumberGap = Duration(milliseconds: 150);
+
+  /// Sequence the visual impact of a hit so flash/shake land first and
+  /// the damage number arrives ~150ms later. Without this, the eye sees
+  /// half a dozen things in one frame and tracks none of them.
+  Future<void> _sequenceHitImpact({
+    required double shakeIntensity,
+    required void Function() flash,
+    required void Function() showDamage,
+  }) async {
+    shakeCamera(intensity: shakeIntensity);
+    flash();
+    await Future.delayed(_flashToNumberGap);
+    showDamage();
+  }
+
   final BattleCombatant boss;
   final List<BattleCombatant> playerTeam;
   final Function(BattleGameEvent) onGameEvent;
 
   late BossSprite bossSprite;
   late List<CreatureBattleSpriteWithVisuals> playerSprites;
+  late final BattlefieldZoneRegistry zoneRegistry = BattlefieldZoneRegistry(
+    boss: boss,
+    playerTeam: playerTeam,
+  );
+  BattlefieldZoneLayer? _zoneLayer;
 
   BattleState state = BattleState.playerTurn;
   int currentPlayerIndex = 0;
@@ -138,6 +171,14 @@ class BattleGame extends FlameGame with TapCallbacks {
   void post(void Function() action) => _pending.add(action);
 
   @override
+  void onRemove() {
+    if (identical(BattleEngine.zoneRegistry, zoneRegistry)) {
+      BattleEngine.zoneRegistry = null;
+    }
+    super.onRemove();
+  }
+
+  @override
   void update(double dt) {
     super.update(dt);
 
@@ -210,6 +251,17 @@ class BattleGame extends FlameGame with TapCallbacks {
       position: Vector2(size.x / 2, size.y * 0.38),
     );
     await add(bossSprite);
+
+    // Battlefield zone layer — renders persistent ground hazards
+    // beneath combatants. Anchors picked so a poison/fire/etc. pool
+    // visibly "sits at" the boss's or player team's feet.
+    BattleEngine.zoneRegistry = zoneRegistry;
+    _zoneLayer = BattlefieldZoneLayer(
+      registry: zoneRegistry,
+      playerAnchor: Vector2(size.x / 2, size.y * 0.78),
+      bossAnchor: Vector2(size.x / 2, size.y * 0.48),
+    );
+    await add(_zoneLayer!);
 
     // Play boss fade-in animation after a slight delay
     Future.delayed(Duration(milliseconds: 300 + (100 * teamCount)), () {
@@ -325,20 +377,21 @@ class BattleGame extends FlameGame with TapCallbacks {
     // Specials commit harder, and only basics recover special cooldown.
     _applyActionCommitment(attacker, move, specialCommitted: move.isSpecial);
 
-    // Shake camera on hit
+    // Sequenced hit impact: shake + flash, then damage number after a
+    // small beat so each event registers separately.
     if (result.damage > 0) {
-      shakeCamera(intensity: result.damage / 5.0);
-    }
-
-    // Show damage numbers + hit feedback
-    if (result.damage > 0) {
-      bossSprite.showDamage(
-        result.damage,
-        result.typeMultiplier,
-        isCritical: result.isCritical,
+      await _sequenceHitImpact(
+        shakeIntensity: result.damage / 5.0,
+        flash: () => bossSprite.playHitFlash(isCrit: result.isCritical),
+        showDamage: () {
+          bossSprite.showDamage(
+            result.damage,
+            result.typeMultiplier,
+            isCritical: result.isCritical,
+          );
+          _showTypeEffectivenessText(bossSprite.position, result.typeMultiplier);
+        },
       );
-      bossSprite.playHitFlash(isCrit: result.isCritical);
-      _showTypeEffectivenessText(bossSprite.position, result.typeMultiplier);
     }
     if (reflectedDamage > 0) {
       attackerSprite?.showDamage(reflectedDamage, 1.0);
@@ -375,8 +428,11 @@ class BattleGame extends FlameGame with TapCallbacks {
       }
     }
 
-    // Boss turn
-    await Future.delayed(Duration(milliseconds: 500));
+    // Boss turn — give specials a longer beat so the player can read
+    // damage + status + new ground zones before the boss responds.
+    await Future.delayed(
+      move.isSpecial ? _postPlayerSpecialBeat : _postPlayerBasicBeat,
+    );
     await executeBossAttack();
   }
 
@@ -497,6 +553,9 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     if (usesChargedStrike) {
       _bossChargedAttack = false;
+      // Pre-lunge tell so the player can brace — the doubled damage
+      // gets a visible wind-up instead of arriving out of nowhere.
+      await bossSprite.playChargedStrikeTell();
     }
 
     // Play boss attack animation
@@ -524,7 +583,7 @@ class BattleGame extends FlameGame with TapCallbacks {
       _bossTurnCount++;
       onGameEvent(BossAttackExecutedEvent(result, targetIndex));
 
-      await Future.delayed(Duration(milliseconds: 200));
+      await Future.delayed(_specialHitBeat);
       bossSprite.updateStatusIcons();
       for (final sprite in playerSprites) {
         sprite.updateStatusIcons();
@@ -540,7 +599,7 @@ class BattleGame extends FlameGame with TapCallbacks {
       _bossTurnCount++;
       onGameEvent(BossAttackExecutedEvent(result, targetIndex));
 
-      await Future.delayed(Duration(milliseconds: 200));
+      await Future.delayed(_specialHitBeat);
       bossSprite.updateStatusIcons();
       for (final sprite in playerSprites) {
         sprite.updateStatusIcons();
@@ -556,7 +615,7 @@ class BattleGame extends FlameGame with TapCallbacks {
       _bossTurnCount++;
       onGameEvent(BossAttackExecutedEvent(result, targetIndex));
 
-      await Future.delayed(Duration(milliseconds: 200));
+      await Future.delayed(_specialHitBeat);
       bossSprite.updateStatusIcons();
       bossSprite.updateHpBar();
 
@@ -614,17 +673,19 @@ class BattleGame extends FlameGame with TapCallbacks {
       _bossTurnCount++;
       onGameEvent(BossAttackExecutedEvent(result, targetIndex));
 
-      if (result.damage > 0) {
-        shakeCamera(intensity: result.damage / 5.0);
-        targetSprite?.showDamage(
-          result.damage,
-          result.typeMultiplier,
-          isCritical: result.isCritical,
+      if (result.damage > 0 && targetSprite != null) {
+        await _sequenceHitImpact(
+          shakeIntensity: result.damage / 5.0,
+          flash: () => targetSprite.playHitFlash(isCrit: result.isCritical),
+          showDamage: () => targetSprite.showDamage(
+            result.damage,
+            result.typeMultiplier,
+            isCritical: result.isCritical,
+          ),
         );
-        targetSprite?.playHitFlash(isCrit: result.isCritical);
       }
 
-      await Future.delayed(Duration(milliseconds: 200));
+      await Future.delayed(_specialHitBeat);
       bossSprite.updateStatusIcons();
       for (final sprite in playerSprites) {
         sprite.updateStatusIcons();
@@ -700,32 +761,31 @@ class BattleGame extends FlameGame with TapCallbacks {
     }
     _bossTurnCount++;
 
-    // Shake camera
-    if (result.damage > 0) {
-      shakeCamera(intensity: result.damage / 5.0);
-    }
-
-    // Show damage + hit feedback (with safety check)
-    if (result.damage > 0) {
-      targetSprite?.showDamage(
-        result.damage,
-        result.typeMultiplier,
-        isCritical: result.isCritical,
+    // Sequenced hit impact for basics — same shake → flash → number
+    // cadence so single-target basic boss attacks read clearly too.
+    if (result.damage > 0 && targetSprite != null) {
+      await _sequenceHitImpact(
+        shakeIntensity: result.damage / 5.0,
+        flash: () => targetSprite.playHitFlash(isCrit: result.isCritical),
+        showDamage: () {
+          targetSprite.showDamage(
+            result.damage,
+            result.typeMultiplier,
+            isCritical: result.isCritical,
+          );
+          _showTypeEffectivenessText(
+            targetSprite.position,
+            result.typeMultiplier,
+          );
+        },
       );
-      targetSprite?.playHitFlash(isCrit: result.isCritical);
-      if (targetSprite != null) {
-        _showTypeEffectivenessText(
-          targetSprite.position,
-          result.typeMultiplier,
-        );
-      }
     }
 
     // Send result
     onGameEvent(BossAttackExecutedEvent(result, targetIndex));
 
-    // Wait then update icons
-    await Future.delayed(Duration(milliseconds: 200));
+    // Wait then update icons (basic single-target stays snappy)
+    await Future.delayed(_basicHitBeat);
     bossSprite.updateStatusIcons();
     for (final sprite in playerSprites) {
       sprite.updateStatusIcons();
@@ -1251,7 +1311,9 @@ class BattleGame extends FlameGame with TapCallbacks {
       shakeCamera(intensity: maxDamage / 5.0);
     }
 
-    await Future.delayed(Duration(milliseconds: 200));
+    // AoE specials hit multiple targets — give the player a beat to
+    // read damage on each slot before status icons update.
+    await Future.delayed(_specialHitBeat);
     bossSprite.updateStatusIcons();
     for (final sprite in playerSprites) {
       sprite.updateStatusIcons();
@@ -1766,6 +1828,16 @@ class BattleGame extends FlameGame with TapCallbacks {
   }
 
   Future<void> processEndOfTurn() async {
+    // Announce any fresh ground-zone spawns BEFORE normal end-of-turn
+    // effects spool. Gives the new painter a moment to register
+    // visually and prevents the announcement from getting buried under
+    // a wall of DoT messages.
+    final spawnMessages = zoneRegistry.drainSpawnMessages();
+    if (spawnMessages.isNotEmpty) {
+      onGameEvent(StatusEffectEvent(spawnMessages, isBossSource: false));
+      await Future.delayed(const Duration(milliseconds: 800));
+    }
+
     // Process DoT, regen, etc for all combatants.
     final defeatedPlayerIndexes = <int>{};
 
@@ -1813,6 +1885,14 @@ class BattleGame extends FlameGame with TapCallbacks {
         onGameEvent(StatusEffectEvent(messages, isBossSource: true));
         await Future.delayed(Duration(milliseconds: 800));
       }
+    }
+
+    // Tick persistent ground zones (poison pools, fire pools, etc.).
+    // Runs after per-combatant DoTs so feed attribution is clear.
+    final zoneMessages = zoneRegistry.tick();
+    if (zoneMessages.isNotEmpty) {
+      onGameEvent(StatusEffectEvent(zoneMessages, isBossSource: false));
+      await Future.delayed(const Duration(milliseconds: 600));
     }
 
     await _restoreRevivedSprites();
@@ -2042,6 +2122,48 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
     });
   }
 
+  /// Pre-lunge tell when the boss is about to spend a `_bossChargedAttack`
+  /// charge. Without this the doubled damage just arrives — players see
+  /// a huge number with no warning. ~280ms scale pulse + amber ring so
+  /// the strike reads as "this one's a heavy."
+  Future<void> playChargedStrikeTell() async {
+    // Scale pulse on the boss sprite itself.
+    add(
+      SequenceEffect([
+        ScaleEffect.to(
+          Vector2.all(1.08),
+          EffectController(duration: 0.14, curve: Curves.easeOut),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.0),
+          EffectController(duration: 0.14, curve: Curves.easeIn),
+        ),
+      ]),
+    );
+
+    // Amber telegraph ring around the boss — expands while fading.
+    final ring = CircleComponent(
+      radius: 38,
+      anchor: Anchor.center,
+      position: size / 2,
+      priority: 0,
+      paint: Paint()
+        ..color = const Color(0xFFFFC850).withValues(alpha: 0.85)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.0,
+    );
+    add(ring);
+    ring.add(
+      ScaleEffect.to(
+        Vector2.all(1.8),
+        EffectController(duration: 0.28, curve: Curves.easeOut),
+      ),
+    );
+    ring.add(RemoveEffect(delay: 0.28));
+
+    await Future.delayed(const Duration(milliseconds: 280));
+  }
+
   Future<void> playDeathAnimation() async {
     final completer = Completer<void>();
 
@@ -2153,6 +2275,11 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
     // Boss HP UI is handled by Flutter header HUD.
   }
 
+  // Track which status/modifier keys were rendered last refresh so the
+  // next refresh can scale-in only the *new* ones.
+  final Set<String> _lastStatusKeys = {};
+  final Set<String> _lastModifierKeys = {};
+
   void updateStatusIcons() {
     // Safe way to clear - schedule removal
     final toRemove = statusIconContainer.children.toList();
@@ -2164,7 +2291,11 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
     final effects = combatant.statusEffects.values.toList();
     final modifiers = combatant.statModifiers.values.toList();
 
-    if (effects.isEmpty && modifiers.isEmpty) return;
+    if (effects.isEmpty && modifiers.isEmpty) {
+      _lastStatusKeys.clear();
+      _lastModifierKeys.clear();
+      return;
+    }
 
     // Layout configuration
     const double iconWidth = 50.0;
@@ -2175,11 +2306,13 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
       final effectsRow = PositionComponent(position: Vector2(0, 0));
 
       for (int i = 0; i < effects.length; i++) {
-        final icon = _createStatusIcon(effects[i].type);
+        final type = effects[i].type;
+        final icon = _createStatusIcon(type);
         icon.position = Vector2(
           (i - effects.length / 2 + 0.5) * (iconWidth + 4),
           0,
         );
+        if (!_lastStatusKeys.contains(type)) _applyIconScaleIn(icon);
         effectsRow.add(icon);
       }
 
@@ -2193,16 +2326,35 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
       );
 
       for (int i = 0; i < modifiers.length; i++) {
-        final icon = _createStatModifierIcon(modifiers[i].type);
+        final type = modifiers[i].type;
+        final icon = _createStatModifierIcon(type);
         icon.position = Vector2(
           (i - modifiers.length / 2 + 0.5) * (iconWidth + 4),
           0,
         );
+        if (!_lastModifierKeys.contains(type)) _applyIconScaleIn(icon);
         modifiersRow.add(icon);
       }
 
       statusIconContainer.add(modifiersRow);
     }
+
+    _lastStatusKeys
+      ..clear()
+      ..addAll(effects.map((e) => e.type));
+    _lastModifierKeys
+      ..clear()
+      ..addAll(modifiers.map((m) => m.type));
+  }
+
+  void _applyIconScaleIn(PositionComponent icon) {
+    icon.scale = Vector2.all(0.3);
+    icon.add(
+      ScaleEffect.to(
+        Vector2.all(1.0),
+        EffectController(duration: 0.18, curve: Curves.easeOut),
+      ),
+    );
   }
 
   PositionComponent _createStatusIcon(String statusType) {

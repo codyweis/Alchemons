@@ -30,10 +30,7 @@ import 'package:flutter/material.dart'
         HSLColor,
         TextStyle,
         Paint,
-        MaskFilter,
-        BlurStyle,
         Curves,
-        RadialGradient,
         LinearGradient,
         SweepGradient,
         GradientRotation,
@@ -194,6 +191,13 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     // HP bar now handled by external UI components
   }
 
+  // Track which status/modifier keys were rendered last refresh so the
+  // next refresh can scale-in only the *new* ones. Without this, fresh
+  // statuses pop into place identically to ones that have been there
+  // for turns — easy to miss.
+  final Set<String> _lastStatusKeys = {};
+  final Set<String> _lastModifierKeys = {};
+
   void updateStatusIcons() {
     // Clear the old icons
     final toRemove = statusIconContainer.children.toList();
@@ -205,7 +209,11 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     final effects = combatant.statusEffects.values.toList();
     final modifiers = combatant.statModifiers.values.toList();
 
-    if (effects.isEmpty && modifiers.isEmpty) return;
+    if (effects.isEmpty && modifiers.isEmpty) {
+      _lastStatusKeys.clear();
+      _lastModifierKeys.clear();
+      return;
+    }
 
     const double iconWidth = 38.0;
     const double rowSpacing = 18.0;
@@ -215,11 +223,13 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       final effectsRow = PositionComponent(position: Vector2(0, 0));
 
       for (int i = 0; i < effects.length; i++) {
-        final icon = _createStatusIcon(effects[i].type);
+        final type = effects[i].type;
+        final icon = _createStatusIcon(type);
         icon.position = Vector2(
           (i - effects.length / 2 + 0.5) * (iconWidth + 2),
           0,
         );
+        if (!_lastStatusKeys.contains(type)) _applyIconScaleIn(icon);
         effectsRow.add(icon);
       }
 
@@ -233,16 +243,35 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       );
 
       for (int i = 0; i < modifiers.length; i++) {
-        final icon = _createStatModifierIcon(modifiers[i].type);
+        final type = modifiers[i].type;
+        final icon = _createStatModifierIcon(type);
         icon.position = Vector2(
           (i - modifiers.length / 2 + 0.5) * (iconWidth + 2),
           0,
         );
+        if (!_lastModifierKeys.contains(type)) _applyIconScaleIn(icon);
         modifiersRow.add(icon);
       }
 
       statusIconContainer.add(modifiersRow);
     }
+
+    _lastStatusKeys
+      ..clear()
+      ..addAll(effects.map((e) => e.type));
+    _lastModifierKeys
+      ..clear()
+      ..addAll(modifiers.map((m) => m.type));
+  }
+
+  void _applyIconScaleIn(PositionComponent icon) {
+    icon.scale = Vector2.all(0.3);
+    icon.add(
+      ScaleEffect.to(
+        Vector2.all(1.0),
+        EffectController(duration: 0.18, curve: Curves.easeOut),
+      ),
+    );
   }
 
   PositionComponent _createStatusIcon(String statusType) {
@@ -847,22 +876,20 @@ class FlameAlchemyGlow extends PositionComponent with HasGameReference {
         (math.sin(_time * math.pi * 2) * 0.5 + 0.5); // 0..1 over 1s
     final pulseScale = 0.4 + progress * (1.2 - 0.4);
 
-    final center = size / 2;
+    final center = (size / 2).toOffset();
     final maxRadius = baseSize * pulseScale;
 
-    // Create a paint with a subtle blur to mimic the soft edges of a glow/gradient
-    final paint = Paint()
-      ..color = Colors.cyan.withValues(alpha: 0.3)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12.0 * pulseScale);
-
-    // Draw a series of circles with diminishing opacity to simulate radial gradient
-    // Outer glow (largest and most transparent)
-    canvas.drawCircle(center.toOffset(), maxRadius, paint);
-
-    // Inner glow (brighter core)
-    paint.color = Colors.purple.withValues(alpha: 0.2);
-    paint.maskFilter = MaskFilter.blur(BlurStyle.normal, 4.0 * pulseScale);
-    canvas.drawCircle(center.toOffset(), maxRadius * 0.6, paint);
+    // Layered concentric circles fake a radial blur without the
+    // expensive MaskFilter.blur pass — outer is faintest, inner is strongest.
+    final paint = Paint();
+    for (var i = 4; i >= 1; i--) {
+      paint.color = Colors.cyan.withValues(alpha: 0.06 + i * 0.045);
+      canvas.drawCircle(center, maxRadius * (0.6 + i * 0.12), paint);
+    }
+    for (var i = 3; i >= 1; i--) {
+      paint.color = Colors.purple.withValues(alpha: 0.05 + i * 0.05);
+      canvas.drawCircle(center, maxRadius * 0.6 * (0.55 + i * 0.15), paint);
+    }
   }
 }
 
@@ -938,29 +965,24 @@ class FlameVoidRift extends PositionComponent with HasGameReference {
     _drawSweep(canvas, center, r * 2.0, rotA, outerGlow * 0.55);
     _drawSweep(canvas, center, r * 1.5, rotB, outerGlow * 0.45);
 
-    // Dark radial core
+    // Dark radial core — layered discs replace the blurred shader pass.
     final corePulse = (0.9 + math.sin(_time * 2.0) * 0.1).clamp(0.75, 1.15);
-    final coreShader =
-        RadialGradient(
-          colors: [
-            const Color(0xFF000000).withValues(alpha: 0.85),
-            const Color(0xFF3D0070).withValues(alpha: 0.6 * outerGlow),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.55, 1.0],
-        ).createShader(
-          Rect.fromCircle(center: center, radius: r * 0.45 * corePulse),
-        );
-    canvas.drawCircle(
-      center,
-      r * 0.45 * corePulse,
-      Paint()
-        ..shader = coreShader
-        ..maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          r * 0.45 * corePulse * 0.5,
-        ),
-    );
+    final coreR = r * 0.45 * corePulse;
+    final corePaint = Paint();
+    // Faint purple halo (outer rings)
+    for (var i = 4; i >= 1; i--) {
+      corePaint.color = const Color(
+        0xFF3D0070,
+      ).withValues(alpha: (0.05 + i * 0.05) * outerGlow);
+      canvas.drawCircle(center, coreR * (0.9 + i * 0.15), corePaint);
+    }
+    // Dark core
+    for (var i = 3; i >= 0; i--) {
+      corePaint.color = const Color(
+        0xFF000000,
+      ).withValues(alpha: 0.25 + i * 0.18);
+      canvas.drawCircle(center, coreR * (0.35 + i * 0.18), corePaint);
+    }
 
     // Crack lines
     const crackCount = 6;
@@ -984,10 +1006,9 @@ class FlameVoidRift extends PositionComponent with HasGameReference {
       canvas.drawLine(center, end, crackPaint);
     }
 
-    // Void sparks
+    // Void sparks — concentric halo + bright core replaces the blur.
     const sparkCount = 8;
-    final sparkPaint = Paint()
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    final sparkPaint = Paint();
     for (int i = 0; i < sparkCount; i++) {
       final phase = ((_time * 0.55) + i / sparkCount) % 1.0;
       final angle = rotA + (i / sparkCount) * 2 * math.pi;
@@ -996,12 +1017,18 @@ class FlameVoidRift extends PositionComponent with HasGameReference {
       final y = center.dy + math.sin(angle) * dist;
       final alpha = (math.sin(phase * math.pi)).clamp(0.0, 1.0);
       final sparkR = 2.0 + (1.0 - phase) * 3.0;
-      sparkPaint.color = Color.lerp(
+      final col = Color.lerp(
         const Color(0xFFBB00FF),
         const Color(0xFF00EAFF),
         phase,
-      )!.withValues(alpha: alpha * 0.9 * outerGlow);
-      canvas.drawCircle(Offset(x, y), sparkR, sparkPaint);
+      )!;
+      final pos = Offset(x, y);
+      sparkPaint.color = col.withValues(alpha: alpha * 0.22 * outerGlow);
+      canvas.drawCircle(pos, sparkR * 1.9, sparkPaint);
+      sparkPaint.color = col.withValues(alpha: alpha * 0.45 * outerGlow);
+      canvas.drawCircle(pos, sparkR * 1.25, sparkPaint);
+      sparkPaint.color = col.withValues(alpha: alpha * 0.9 * outerGlow);
+      canvas.drawCircle(pos, sparkR, sparkPaint);
     }
   }
 
@@ -1024,13 +1051,14 @@ class FlameVoidRift extends PositionComponent with HasGameReference {
       ],
       stops: const [0.0, 0.18, 0.38, 0.56, 0.76, 1.0],
     ).createShader(Rect.fromCircle(center: center, radius: radius));
+    // Wider, fainter under-sweep gives the soft outer falloff that
+    // MaskFilter.blur used to provide — no full-screen pass.
     canvas.drawCircle(
       center,
-      radius,
-      Paint()
-        ..shader = shader
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      radius * 1.06,
+      Paint()..color = const Color(0xFF6A0DAD).withValues(alpha: opacity * 0.18),
     );
+    canvas.drawCircle(center, radius, Paint()..shader = shader);
   }
 }
 
@@ -1073,18 +1101,20 @@ class FlamePrismaticCascade extends PositionComponent with HasGameReference {
     canvas.save();
     canvas.translate(size.x / 2, size.y / 2);
 
-    // 1. Outer hue-cycling glow
+    // 1. Outer hue-cycling glow — denser layered concentric stack replaces
+    // the per-layer MaskFilter.blur. Outermost ring is faintest.
     for (int i = 0; i < 3; i++) {
       final layerHue = (hueBase + i * 60) % 360;
       final layerR = r * (1.8 - i * 0.3) * breathe;
       final opacity = (0.22 - i * 0.05).clamp(0.0, 1.0);
-      canvas.drawCircle(
-        Offset.zero,
-        layerR,
-        Paint()
-          ..color = _prismaticHsl(layerHue, a: opacity)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, layerR * 0.35),
-      );
+      final paint = Paint();
+      for (var k = 3; k >= 1; k--) {
+        paint.color = _prismaticHsl(
+          layerHue,
+          a: opacity * (0.18 + k * 0.18),
+        );
+        canvas.drawCircle(Offset.zero, layerR * (0.7 + k * 0.12), paint);
+      }
     }
 
     // 2. Outer rainbow ring
@@ -1127,8 +1157,7 @@ class FlamePrismaticCascade extends PositionComponent with HasGameReference {
       Paint()
         ..shader = shader
         ..style = PaintingStyle.stroke
-        ..strokeWidth = thickness
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, thickness * 0.4),
+        ..strokeWidth = thickness,
     );
   }
 
@@ -1187,11 +1216,21 @@ class FlamePrismaticCascade extends PositionComponent with HasGameReference {
           ..lineTo(0, shardLen)
           ..lineTo(-shardWidth, 0)
           ..close();
+        // Faint oversized halo replaces MaskFilter.blur — gives the soft
+        // edge for ~free since it's just one extra fill.
+        final halo = Path()
+          ..moveTo(0, -shardLen * 1.35)
+          ..lineTo(shardWidth * 1.6, 0)
+          ..lineTo(0, shardLen * 1.35)
+          ..lineTo(-shardWidth * 1.6, 0)
+          ..close();
+        canvas.drawPath(
+          halo,
+          Paint()..color = _prismaticHsl(hue, l: 0.8, a: alpha * 0.22),
+        );
         canvas.drawPath(
           path,
-          Paint()
-            ..color = _prismaticHsl(hue, l: 0.75, a: alpha)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, shardLen * 0.3),
+          Paint()..color = _prismaticHsl(hue, l: 0.75, a: alpha),
         );
         canvas.drawPath(
           path,
@@ -1203,6 +1242,31 @@ class FlamePrismaticCascade extends PositionComponent with HasGameReference {
         canvas.restore();
       }
     }
+  }
+
+  // Unit 4-point star (outer radius 1, inner 0.3), built once and reused for
+  // every sparkle via canvas.translate + canvas.scale. Avoids ~16 Path
+  // allocations per frame.
+  static final Path _unitStarPath = _buildUnitStarPath();
+
+  static Path _buildUnitStarPath() {
+    const pts = 4;
+    const outer = 1.0;
+    const inner = 0.3;
+    final path = Path();
+    for (int j = 0; j < pts * 2; j++) {
+      final rad = j.isEven ? outer : inner;
+      final a = (j / (pts * 2)) * 2 * math.pi - math.pi / 4;
+      final ox = math.cos(a) * rad;
+      final oy = math.sin(a) * rad;
+      if (j == 0) {
+        path.moveTo(ox, oy);
+      } else {
+        path.lineTo(ox, oy);
+      }
+    }
+    path.close();
+    return path;
   }
 
   void _drawSparkles(
@@ -1222,33 +1286,26 @@ class FlamePrismaticCascade extends PositionComponent with HasGameReference {
       final sparkR = (1.8 + (1 - phase) * 3.0) * breathe;
       final px = math.cos(sparkAngle) * dist;
       final py = math.sin(sparkAngle) * dist;
-      final pos = Offset(px, py);
 
-      const pts = 4;
-      final outer = sparkR;
-      final inner = sparkR * 0.3;
-      final path = Path();
-      for (int j = 0; j < pts * 2; j++) {
-        final rad = j.isEven ? outer : inner;
-        final a = (j / (pts * 2)) * 2 * math.pi - math.pi / 4;
-        final ox = pos.dx + math.cos(a) * rad;
-        final oy = pos.dy + math.sin(a) * rad;
-        if (j == 0) {
-          path.moveTo(ox, oy);
-        } else {
-          path.lineTo(ox, oy);
-        }
-      }
-      path.close();
+      // Concentric halo replaces MaskFilter.blur. Cheap two-disc falloff.
+      final haloPaint = Paint()
+        ..color = _prismaticHsl(hue, l: 0.85, a: alpha * 0.18);
+      canvas.drawCircle(Offset(px, py), sparkR * 1.6, haloPaint);
+      haloPaint.color = _prismaticHsl(hue, l: 0.85, a: alpha * 0.35);
+      canvas.drawCircle(Offset(px, py), sparkR * 1.15, haloPaint);
 
+      // Pre-baked unit star — scaled+translated, no per-frame Path build.
+      canvas.save();
+      canvas.translate(px, py);
+      canvas.scale(sparkR);
       canvas.drawPath(
-        path,
-        Paint()
-          ..color = _prismaticHsl(hue, l: 0.85, a: alpha * 0.9)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, sparkR * 0.5),
+        _unitStarPath,
+        Paint()..color = _prismaticHsl(hue, l: 0.85, a: alpha * 0.9),
       );
+      canvas.restore();
+
       canvas.drawCircle(
-        pos,
+        Offset(px, py),
         sparkR * 0.25,
         Paint()..color = Colors.white.withValues(alpha: alpha * 0.8),
       );

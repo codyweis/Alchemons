@@ -5,6 +5,11 @@ import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 
+// Warm parchment "off-white" — canonical textPrimary from the cosmic UI.
+// Used in place of Colors.white for broad fills/halos so boss VFX shares
+// the forge palette instead of cold pure-white.
+const Color _kParchment = Color(0xFFE8DCC8);
+
 /// Registry of all attack animations by element and move type
 class AttackAnimations {
   static AttackAnimation getAnimation(BattleMove move, String element) {
@@ -84,7 +89,7 @@ class AttackAnimations {
       case 'Mane':
         return ManeEntangleAnimation(element);
       case 'Horn':
-        return HornFortressAnimation();
+        return HornFortressAnimation(element);
       case 'Mask':
         return MaskHexFieldAnimation(element);
       case 'Wing':
@@ -321,10 +326,66 @@ class FamilyElementInfusedSpecialAnimation extends AttackAnimation {
   }
 
   Component _mysticArcaneInfusion(Vector2 p) {
-    return AttackAnimations._getElementalAnimation(
-      element,
-      MoveType.elemental,
-    ).createEffect(p);
+    final c = Component();
+    final color = _specialElementColor(element);
+    final bright = Color.lerp(color, _kParchment, 0.5) ?? color;
+
+    // Three orbs spiral around the impact point — echoes the persistent
+    // orbital fantasy from cosmic survival. Each orb leaves a fading
+    // trail so the orbit reads as motion, not stationary dots.
+    const orbCount = 3;
+    for (int i = 0; i < orbCount; i++) {
+      final phase = (i / orbCount) * 2 * pi;
+      final orbit = 38.0;
+      final orb = CircleComponent(
+        radius: 4.5,
+        position: p + Vector2(cos(phase) * orbit, sin(phase) * orbit * 0.5),
+        anchor: Anchor.center,
+        paint: Paint()..color = bright.withValues(alpha: 0.95),
+      );
+      // Quick sweep along the orbit path then collapse inward.
+      orb.add(
+        SequenceEffect([
+          MoveEffect.to(
+            p + Vector2(cos(phase + pi) * orbit, sin(phase + pi) * orbit * 0.5),
+            EffectController(duration: 0.32, curve: Curves.easeInOut),
+          ),
+          MoveEffect.to(p, EffectController(duration: 0.18, curve: Curves.easeIn)),
+        ]),
+      );
+      orb.add(
+        ScaleEffect.to(
+          Vector2.all(0),
+          EffectController(duration: 0.5, curve: Curves.easeIn),
+        ),
+      );
+      orb.add(RemoveEffect(delay: 0.52));
+      c.add(orb);
+
+      // Soft halo trailing the orb
+      final halo = CircleComponent(
+        radius: 9,
+        position: p + Vector2(cos(phase) * orbit, sin(phase) * orbit * 0.5),
+        anchor: Anchor.center,
+        paint: Paint()..color = color.withValues(alpha: 0.35),
+      );
+      halo.add(
+        ScaleEffect.to(
+          Vector2.all(0.4),
+          EffectController(duration: 0.5, curve: Curves.easeIn),
+        ),
+      );
+      halo.add(RemoveEffect(delay: 0.5));
+      c.add(halo);
+    }
+
+    c.add(
+      AttackAnimations._getElementalAnimation(
+        element,
+        MoveType.elemental,
+      ).createEffect(p),
+    );
+    return c;
   }
 }
 
@@ -337,7 +398,7 @@ Color _specialElementColor(String element) {
     case 'Earth':
       return Colors.brown.shade400;
     case 'Air':
-      return Colors.white;
+      return _kParchment;
     case 'Ice':
       return Colors.lightBlueAccent;
     case 'Lightning':
@@ -365,7 +426,7 @@ Color _specialElementColor(String element) {
     case 'Blood':
       return Colors.redAccent;
     default:
-      return Colors.white;
+      return _kParchment;
   }
 }
 
@@ -451,7 +512,7 @@ class FireAnimation extends AttackAnimation {
     }
 
     // Embers scatter outward in upper semicircle
-    for (int i = 0; i < 24; i++) {
+    for (int i = 0; i < 16; i++) {
       final angle = -pi + rng.nextDouble() * pi;
       final dist = 35.0 + rng.nextDouble() * 80;
       final ember = CircleComponent(
@@ -506,8 +567,8 @@ class WaterAnimation extends AttackAnimation {
     }
 
     // Droplets arc up then fall back down
-    for (int i = 0; i < 24; i++) {
-      final horizAngle = (i / 24) * 2 * pi;
+    for (int i = 0; i < 16; i++) {
+      final horizAngle = (i / 16) * 2 * pi;
       final xDist = cos(horizAngle) * (20 + rng.nextDouble() * 55);
       final drop = CircleComponent(
         radius: 2 + rng.nextDouble() * 2.5,
@@ -666,7 +727,7 @@ class AirAnimation extends AttackAnimation {
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.white.withValues(alpha: 0.45 - r * 0.08)
+          ..color = _kParchment.withValues(alpha: 0.45 - r * 0.08)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5 - r * 0.3,
       );
@@ -708,14 +769,14 @@ class AirAnimation extends AttackAnimation {
     }
 
     // Debris flung in all directions
-    for (int i = 0; i < 28; i++) {
+    for (int i = 0; i < 18; i++) {
       final angle = rng.nextDouble() * 2 * pi;
       final dist = 55.0 + rng.nextDouble() * 90;
       final debris = CircleComponent(
         radius: 1 + rng.nextDouble() * 1.5,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withValues(alpha: 0.4),
+        paint: Paint()..color = _kParchment.withValues(alpha: 0.4),
       );
       debris.add(
         MoveEffect.by(
@@ -801,7 +862,7 @@ class IceAnimation extends AttackAnimation {
     }
 
     // Snowflakes/crystals drift down from above
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 14; i++) {
       final snow = CircleComponent(
         radius: 1.5 + rng.nextDouble() * 2,
         position:
@@ -954,7 +1015,7 @@ class PlantAnimation extends AttackAnimation {
     }
 
     // Leaf/petal burst scattered outward
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 14; i++) {
       final angle = rng.nextDouble() * 2 * pi;
       final dist = 35.0 + rng.nextDouble() * 60;
       final leaf = RectangleComponent(
@@ -1057,7 +1118,7 @@ class PoisonAnimation extends AttackAnimation {
     }
 
     // Toxic gas drip particles
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 14; i++) {
       final angle = rng.nextDouble() * 2 * pi;
       final dist = 20.0 + rng.nextDouble() * 50;
       final drop = CircleComponent(
@@ -1098,7 +1159,7 @@ class SteamAnimation extends AttackAnimation {
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.white.withValues(alpha: 0.25)
+          ..color = _kParchment.withValues(alpha: 0.25)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3,
       );
@@ -1333,8 +1394,8 @@ class DustAnimation extends AttackAnimation {
     final rng = Random();
 
     // Swirling vortex: particles spawn in ring and spiral inward
-    for (int i = 0; i < 40; i++) {
-      final startAngle = (i / 40) * 2 * pi;
+    for (int i = 0; i < 24; i++) {
+      final startAngle = (i / 24) * 2 * pi;
       final startRadius = 80.0 + rng.nextDouble() * 40;
       final startPos =
           targetPosition +
@@ -1370,7 +1431,7 @@ class DustAnimation extends AttackAnimation {
     }
 
     // Outward burst after implosion
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 14; i++) {
       final angle = rng.nextDouble() * 2 * pi;
       final burst = CircleComponent(
         radius: 1 + rng.nextDouble() * 2,
@@ -1406,7 +1467,7 @@ class CrystalAnimation extends AttackAnimation {
       radius: 12,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.white.withValues(alpha: 0.9),
+      paint: Paint()..color = _kParchment.withValues(alpha: 0.9),
     );
     flash.add(
       ScaleEffect.to(
@@ -1511,7 +1572,7 @@ class SpiritAnimation extends AttackAnimation {
       radius: 22,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.white.withValues(alpha: 0.6),
+      paint: Paint()..color = _kParchment.withValues(alpha: 0.6),
     );
     impactFlash.add(
       ScaleEffect.to(Vector2.all(2.0), EffectController(duration: 0.2)),
@@ -1526,7 +1587,7 @@ class SpiritAnimation extends AttackAnimation {
         radius: 2.5 + rng.nextDouble() * 3,
         position: targetPosition + Vector2(xOff, rng.nextDouble() * 10),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withValues(alpha: 0.5),
+        paint: Paint()..color = _kParchment.withValues(alpha: 0.5),
       );
       trail.add(
         MoveEffect.by(
@@ -1549,8 +1610,8 @@ class DarkAnimation extends AttackAnimation {
     final rng = Random();
 
     // Phase 1: Void implosion — particles race inward
-    for (int i = 0; i < 36; i++) {
-      final angle = (i / 36) * 2 * pi;
+    for (int i = 0; i < 22; i++) {
+      final angle = (i / 22) * 2 * pi;
       final startR = 90.0 + rng.nextDouble() * 50;
       final particle = CircleComponent(
         radius: 2 + rng.nextDouble() * 3,
@@ -1575,7 +1636,7 @@ class DarkAnimation extends AttackAnimation {
     }
 
     // Phase 2: Dark nova burst outward
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 20; i++) {
       final angle = rng.nextDouble() * 2 * pi;
       final dist = 60.0 + rng.nextDouble() * 90;
       final nova = CircleComponent(
@@ -1681,7 +1742,7 @@ class LightAnimation extends AttackAnimation {
     }
 
     // Scatter sparkles
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 14; i++) {
       final angle = rng.nextDouble() * 2 * pi;
       final dist = 40.0 + rng.nextDouble() * 80;
       final sparkle = CircleComponent(
@@ -1803,7 +1864,7 @@ class GenericAnimation extends AttackAnimation {
       position: targetPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.white.withValues(alpha: 0.6)
+        ..color = _kParchment.withValues(alpha: 0.6)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
@@ -1824,7 +1885,7 @@ class GenericAnimation extends AttackAnimation {
         radius: 2 + rng.nextDouble() * 2,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withValues(alpha: 0.7),
+        paint: Paint()..color = _kParchment.withValues(alpha: 0.7),
       );
       spark.add(
         MoveEffect.by(
@@ -2106,7 +2167,7 @@ class PipFrenzyAnimation extends AttackAnimation {
       case 'Earth':
         return Colors.brown.shade400;
       case 'Air':
-        return Colors.white;
+        return _kParchment;
       case 'Ice':
         return Colors.lightBlue;
       case 'Lightning':
@@ -2122,7 +2183,7 @@ class PipFrenzyAnimation extends AttackAnimation {
       case 'Blood':
         return Colors.red.shade700;
       default:
-        return Colors.white;
+        return _kParchment;
     }
   }
 }
@@ -2231,23 +2292,27 @@ class ManeEntangleAnimation extends AttackAnimation {
 }
 
 class HornFortressAnimation extends AttackAnimation {
+  final String element;
+  HornFortressAnimation(this.element);
+
   @override
   Component createEffect(Vector2 targetPosition) {
     final container = Component();
     final rng = Random();
+    final base = _specialElementColor(element);
+    final bright =
+        Color.lerp(base, _kParchment, 0.45) ?? base; // warm highlight
+    final mid = Color.lerp(base, _kParchment, 0.25) ?? base;
 
-    // Shield barrier: 3 expanding rings, bright blue
+    // Shield barrier: 3 expanding rings — element-tinted, so a Fire Horn
+    // bashes with hot rings and a Plant Horn with green rings.
     for (int r = 0; r < 3; r++) {
       final shield = CircleComponent(
         radius: 15,
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = [
-            Colors.lightBlue,
-            Colors.cyan,
-            Colors.blue.shade300,
-          ][r].withValues(alpha: 0.7)
+          ..color = [base, mid, bright][r].withValues(alpha: 0.7)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4 - r * 1.0,
       );
@@ -2270,7 +2335,7 @@ class HornFortressAnimation extends AttackAnimation {
         position: targetPosition + Vector2(cos(angle) * 28, sin(angle) * 28),
         angle: angle,
         anchor: Anchor.bottomCenter,
-        paint: Paint()..color = Colors.lightBlue.withValues(alpha: 0.8),
+        paint: Paint()..color = base.withValues(alpha: 0.8),
       );
       spike.add(
         MoveEffect.by(
@@ -2293,7 +2358,7 @@ class HornFortressAnimation extends AttackAnimation {
       radius: 22,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.cyan.withValues(alpha: 0.3),
+      paint: Paint()..color = mid.withValues(alpha: 0.3),
     );
     fill.add(
       ScaleEffect.to(Vector2.all(2.5), EffectController(duration: 0.25)),
@@ -2313,8 +2378,15 @@ class MaskHexFieldAnimation extends AttackAnimation {
   Component createEffect(Vector2 targetPosition) {
     final container = Component();
     final rng = Random();
+    // Hex tendrils take the element color, mixed slightly toward the
+    // signature mask "dark hex" undertone for menace without losing
+    // identity. A Fire Hex reads orange-with-shadow, Plant Hex green
+    // -with-shadow, etc.
+    final base = _specialElementColor(element);
+    final shadow = Color.lerp(base, const Color(0xFF1A0A2A), 0.5) ?? base;
+    final mid = Color.lerp(base, const Color(0xFF1A0A2A), 0.25) ?? base;
 
-    // Dark tendrils spiral inward from a wide ring
+    // Tendrils spiral inward from a wide ring
     for (int i = 0; i < 12; i++) {
       final startAngle = (i / 12) * 2 * pi;
       final startR = 95.0 + rng.nextDouble() * 30;
@@ -2327,7 +2399,7 @@ class MaskHexFieldAnimation extends AttackAnimation {
             Vector2(cos(startAngle) * startR, sin(startAngle) * startR),
         angle: startAngle + pi / 2,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.purple.shade900.withValues(alpha: 0.85),
+        paint: Paint()..color = shadow.withValues(alpha: 0.85),
       );
       tendril.add(
         MoveEffect.to(
@@ -2347,9 +2419,9 @@ class MaskHexFieldAnimation extends AttackAnimation {
         anchor: Anchor.center,
         paint: Paint()
           ..color = [
-            Colors.purple.shade900,
-            Colors.deepPurple.shade800,
-            Colors.black87,
+            shadow,
+            mid,
+            Color.lerp(base, Colors.black, 0.5)!,
           ][rng.nextInt(3)].withValues(alpha: 0.8),
       );
       dot.add(
@@ -2367,7 +2439,7 @@ class MaskHexFieldAnimation extends AttackAnimation {
       radius: 12,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.deepPurple.shade900.withValues(alpha: 0.8),
+      paint: Paint()..color = shadow.withValues(alpha: 0.8),
     );
     nova.add(
       ScaleEffect.to(
@@ -2384,7 +2456,7 @@ class MaskHexFieldAnimation extends AttackAnimation {
       position: targetPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.purple.withValues(alpha: 0.7)
+        ..color = base.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
@@ -2515,19 +2587,19 @@ class KinSanctuaryAnimation extends AttackAnimation {
   Component createEffect(Vector2 targetPosition) {
     final container = Component();
     final rng = Random();
+    final base = _specialElementColor(element);
+    final soft = Color.lerp(base, _kParchment, 0.4) ?? base;
+    final glow = Color.lerp(base, _kParchment, 0.65) ?? base;
 
-    // Healing aura: 3 expanding green rings
+    // Sanctuary aura: 3 expanding rings in the element color so a
+    // Fire Kin sanctifies with hot rings, a Water Kin with cool.
     for (int r = 0; r < 3; r++) {
       final ring = CircleComponent(
         radius: 12,
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = [
-            Colors.green,
-            Colors.lightGreen,
-            Colors.greenAccent,
-          ][r].withValues(alpha: 0.6 - r * 0.12)
+          ..color = [base, soft, glow][r].withValues(alpha: 0.6 - r * 0.12)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3.5 - r * 0.8,
       );
@@ -2546,7 +2618,7 @@ class KinSanctuaryAnimation extends AttackAnimation {
       radius: 20,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withValues(alpha: 0.25),
+      paint: Paint()..color = base.withValues(alpha: 0.25),
     );
     fill.add(ScaleEffect.to(Vector2.all(3), EffectController(duration: 0.3)));
     fill.add(RemoveEffect(delay: 0.3));
@@ -2558,7 +2630,7 @@ class KinSanctuaryAnimation extends AttackAnimation {
         size: axis == 0 ? Vector2(40, 4) : Vector2(4, 40),
         position: targetPosition,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.lightGreen.withValues(alpha: 0.85),
+        paint: Paint()..color = soft.withValues(alpha: 0.85),
       );
       crossBar.add(
         ScaleEffect.to(
@@ -2571,18 +2643,14 @@ class KinSanctuaryAnimation extends AttackAnimation {
     }
 
     // Sparkles floating upward
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 14; i++) {
       final xOff = -45.0 + rng.nextDouble() * 90;
       final sparkle = CircleComponent(
         radius: 2 + rng.nextDouble() * 2.5,
         position: targetPosition + Vector2(xOff, rng.nextDouble() * 10),
         anchor: Anchor.center,
         paint: Paint()
-          ..color = [
-            Colors.greenAccent,
-            Colors.lightGreen,
-            Colors.yellow.shade400,
-          ][rng.nextInt(3)].withValues(alpha: 0.8),
+          ..color = [glow, soft, base][rng.nextInt(3)].withValues(alpha: 0.8),
       );
       sparkle.add(
         MoveEffect.by(
@@ -2628,18 +2696,19 @@ class MysticOrbitalsAnimation extends AttackAnimation {
     );
     container.add(base2.createEffect(targetPosition + offset));
 
-    // Arcane magic circles: 3 concentric rings in gold/white
+    final base = _specialElementColor(element);
+    final bright = Color.lerp(base, _kParchment, 0.55) ?? base;
+    final mid = Color.lerp(base, _kParchment, 0.3) ?? base;
+
+    // Arcane magic circles: 3 concentric rings in element-tinted gold
+    // so a Plant Mystic conjures green sigils, a Dark Mystic purple, etc.
     for (int r = 0; r < 3; r++) {
       final circle = CircleComponent(
         radius: 14,
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = [
-            Colors.amber,
-            Colors.white,
-            Colors.yellow.shade300,
-          ][r].withValues(alpha: 0.55 - r * 0.08)
+          ..color = [base, bright, mid][r].withValues(alpha: 0.55 - r * 0.08)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5,
       );
@@ -2662,7 +2731,7 @@ class MysticOrbitalsAnimation extends AttackAnimation {
         position: targetPosition,
         angle: angle,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.amber.withValues(alpha: 0.8),
+        paint: Paint()..color = bright.withValues(alpha: 0.8),
       );
       rune.add(
         MoveEffect.by(

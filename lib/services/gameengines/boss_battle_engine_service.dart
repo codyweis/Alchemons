@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:alchemons/models/boss/boss_model.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/gameengines/battlefield_zone.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 
 /// Represents a combatant (player creature or boss) in battle
@@ -240,37 +241,17 @@ class BattleCombatant {
   }
 
   void tickStatusEffects() {
-    final toRemove = <String>[];
-
-    for (final entry in statusEffects.entries) {
-      final effect = entry.value;
+    statusEffects.removeWhere((_, effect) {
       effect.tickDuration();
-
-      if (effect.isExpired) {
-        toRemove.add(entry.key);
-      }
-    }
-
-    for (final key in toRemove) {
-      statusEffects.remove(key);
-    }
+      return effect.isExpired;
+    });
   }
 
   void tickStatModifiers() {
-    final toRemove = <String>[];
-
-    for (final entry in statModifiers.entries) {
-      final modifier = entry.value;
+    statModifiers.removeWhere((_, modifier) {
       modifier.tickDuration();
-
-      if (modifier.isExpired) {
-        toRemove.add(entry.key);
-      }
-    }
-
-    for (final key in toRemove) {
-      statModifiers.remove(key);
-    }
+      return modifier.isExpired;
+    });
   }
 
   /// Tick down action cooldown (called at start of each player turn phase).
@@ -1337,6 +1318,12 @@ class BattleResult {
 class BattleEngine {
   static bool isSurvivalMode = false;
   static final Random _random = Random();
+
+  /// Set by the game layer (battle_game.dart) on battle start. When
+  /// non-null, ability payload helpers spawn persistent ground zones
+  /// here. Null in unit tests / survival mode — zone spawns become
+  /// no-ops via `?.`.
+  static BattlefieldZoneRegistry? zoneRegistry;
 
   // Type effectiveness from AdvantagesLogic.csv
   static const Map<String, List<String>> typeChart = {
@@ -2485,6 +2472,14 @@ class BattleEngine {
             duration: 3,
           ),
         );
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'let',
+          element: 'Fire',
+          turns: 3,
+          label: 'fire pool',
+          tickPctOfMax: 0.018,
+        );
         messages.add('Inferno payload ignited ${defender.name}!');
         break;
 
@@ -2535,6 +2530,13 @@ class BattleEngine {
         defender.applyStatModifier(
           StatModifier(type: 'speed_down', duration: 2),
         );
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'let',
+          element: 'Plant',
+          turns: 3,
+          label: 'vine bramble',
+        );
         messages.add('Thorn payload rooted ${defender.name} in place!');
         break;
 
@@ -2544,6 +2546,13 @@ class BattleEngine {
         );
         defender.applyStatModifier(
           StatModifier(type: 'speed_down', duration: 2),
+        );
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'let',
+          element: 'Ice',
+          turns: 3,
+          label: 'ice pillar',
         );
         messages.add('${defender.name} was frozen by permafrost impact!');
         break;
@@ -2572,6 +2581,14 @@ class BattleEngine {
             ),
             duration: 4,
           ),
+        );
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'let',
+          element: 'Poison',
+          turns: 4,
+          label: 'poison pool',
+          tickPctOfMax: 0.02,
         );
         messages.add('${defender.name} was drenched in volatile venom!');
         if (hadPoison) {
@@ -3175,6 +3192,14 @@ class BattleEngine {
             StatModifier(type: 'attack_down', duration: 1),
           );
         }
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'mask',
+          element: element,
+          turns: 2,
+          label: 'fire pool',
+          tickPctOfMax: 0.014,
+        );
         messages.add('Hexed flames scorched ${defender.name}.');
         break;
       case 'Water':
@@ -3194,6 +3219,13 @@ class BattleEngine {
           );
           messages.add('${defender.name} was flash-frozen by the shatter hex!');
         }
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'mask',
+          element: 'Ice',
+          turns: 2,
+          label: 'ice pillar',
+        );
         break;
       case 'Earth':
       case 'Plant':
@@ -3201,6 +3233,23 @@ class BattleEngine {
         defender.applyStatModifier(
           StatModifier(type: 'defense_down', duration: 2),
         );
+        if (element == 'Crystal') {
+          zoneRegistry?.spawnAt(
+            defender,
+            family: 'mask',
+            element: 'Crystal',
+            turns: 2,
+            label: 'crystal cluster',
+          );
+        } else if (element == 'Plant') {
+          zoneRegistry?.spawnAt(
+            defender,
+            family: 'mask',
+            element: 'Plant',
+            turns: 2,
+            label: 'vine bramble',
+          );
+        }
         messages.add('${defender.name} was sealed with fracture glyphs.');
         break;
       case 'Poison':
@@ -3217,6 +3266,18 @@ class BattleEngine {
             ),
             duration: 3,
           ),
+        );
+        // Persistent ground zone — the canonical Mask Poison fantasy
+        // from cosmic survival (`_drawMaskGroundZone` poison pool).
+        // Ticks a small chip on top of the per-target poison DoT, and
+        // gives the side a visible, durable hazard footprint.
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'mask',
+          element: 'Poison',
+          turns: 3,
+          label: 'poison pool',
+          tickPctOfMax: 0.018,
         );
         if (detonated) {
           bonusDamage = max(1, (defender.maxHp * 0.03).round());
@@ -3266,6 +3327,14 @@ class BattleEngine {
         defender.specialCooldown += 1;
         defender.applyStatModifier(
           StatModifier(type: 'attack_down', duration: 1),
+        );
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'mask',
+          element: element,
+          turns: 2,
+          label: 'void spiral',
+          tickPctOfMax: 0.012,
         );
         messages.add('A void seal delayed ${defender.name}\'s special cycle.');
         break;
@@ -3539,6 +3608,14 @@ class BattleEngine {
         );
         bonusDamage = max(1, (defender.maxHp * 0.04).round());
         defender.takeDamage(bonusDamage);
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'mystic',
+          element: 'Fire',
+          turns: 3,
+          label: 'solar pool',
+          tickPctOfMax: 0.015,
+        );
         messages.add('Solar collapse dealt $bonusDamage bonus damage!');
         break;
       case 'Water':
@@ -3599,6 +3676,15 @@ class BattleEngine {
             StatusEffect(type: 'regen', damagePerTurn: -regenTick, duration: 2),
           );
         }
+        // Persistent vine grove on the caster's side reinforces the
+        // "team regen aura" fantasy.
+        zoneRegistry?.spawnAt(
+          attacker,
+          family: 'mystic',
+          element: 'Plant',
+          turns: 2,
+          label: 'verdant grove',
+        );
         messages.add('Verdant orbitals seeded team regeneration.');
         break;
       case 'Ice':
@@ -3607,6 +3693,13 @@ class BattleEngine {
         );
         defender.applyStatModifier(
           StatModifier(type: 'speed_down', duration: 2),
+        );
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'mystic',
+          element: 'Ice',
+          turns: 2,
+          label: 'ice pillar',
         );
         break;
       case 'Lightning':
@@ -3633,6 +3726,14 @@ class BattleEngine {
           ),
         );
         defender.specialCooldown += 1;
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'mystic',
+          element: 'Poison',
+          turns: 3,
+          label: 'poison pool',
+          tickPctOfMax: 0.015,
+        );
         break;
       case 'Steam':
         defender.applyStatusEffect(
@@ -3695,6 +3796,15 @@ class BattleEngine {
               (ally.shieldHp ?? 0) + max(1, (ally.maxHp * 0.12).round());
           ally.statModifiers.remove('defense_down');
         }
+        // Persistent crystal cluster on caster's side gives the team
+        // shield a visible focal point — survival's "reflective crystal".
+        zoneRegistry?.spawnAt(
+          attacker,
+          family: 'mystic',
+          element: 'Crystal',
+          turns: 2,
+          label: 'crystal cluster',
+        );
         messages.add('Prism orbitals stabilized the entire team.');
         break;
       case 'Spirit':
@@ -3771,6 +3881,14 @@ class BattleEngine {
         messages.add('Radiant orbitals purified and recharged the team.');
         break;
       case 'Dark':
+        zoneRegistry?.spawnAt(
+          defender,
+          family: 'mystic',
+          element: 'Dark',
+          turns: 3,
+          label: 'void spiral',
+          tickPctOfMax: 0.014,
+        );
         defender.applyStatusEffect(
           StatusEffect(
             type: 'curse',

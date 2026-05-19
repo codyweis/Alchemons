@@ -24,6 +24,7 @@ import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/screens/boss/battle_screen.dart';
 import 'package:alchemons/screens/boss/boss_base_command_screen.dart';
+import 'package:alchemons/screens/inventory_screen.dart' show InventoryImageHelper;
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -1675,35 +1676,56 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         if (silver > 0) await db.currencyDao.addSilver(silver);
         if (gold > 0) await db.currencyDao.addGold(gold);
 
+        // Use the real inventory visuals (orbs, harvesters, relics, etc.)
+        // via `InventoryImageHelper` so the boss reward reveal matches
+        // the survival reveal — actual item art, not placeholder icons.
         final popupEntries = <LootOpeningEntry>[
           ...openedRewards.map((e) {
             final def = registry[e.key];
+            final imagePath = InventoryImageHelper.getImage(e.key);
             return LootOpeningEntry(
               icon: def?.icon ?? Icons.inventory_2_rounded,
               name: def?.name ?? e.key,
               label: 'x${e.value}',
               color: _C.amber,
+              imagePath: imagePath,
+              visualBuilder: (size) => InventoryImageHelper.getVisualWidget(
+                key: e.key,
+                assetName: imagePath,
+                icon: def?.icon,
+                size: size,
+              ),
             );
           }),
           ...powerupRewards.map((e) {
             final type = alchemicalPowerupTypeFromInventoryKey(e.key);
             final def = registry[e.key];
+            final imagePath = InventoryImageHelper.getImage(e.key);
             return LootOpeningEntry(
               icon: type?.icon ?? def?.icon ?? Icons.blur_on_rounded,
               name: type?.name ?? def?.name ?? e.key,
               label: 'x${e.value}',
               color: type?.color ?? _C.amberBright,
+              imagePath: imagePath,
+              visualBuilder: (size) => InventoryImageHelper.getVisualWidget(
+                key: e.key,
+                assetName: imagePath,
+                icon: type?.icon ?? def?.icon,
+                size: size,
+              ),
             );
           }),
           if (silver > 0)
             LootOpeningEntry(
               icon: Icons.monetization_on_rounded,
+              name: 'Silver',
               label: '+$silver',
               color: const Color(0xFFB0BEC5),
             ),
           if (gold > 0)
             LootOpeningEntry(
               icon: Icons.stars_rounded,
+              name: 'Gold',
               label: '+$gold',
               color: _C.amberBright,
             ),

@@ -131,13 +131,14 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
     const amber = Color(0xFFFFAA00);
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Loot opening Lottie animation — fill width, unconstrained
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -175,73 +176,119 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
               ),
               const SizedBox(height: 8),
               Container(height: 1, color: amber.withValues(alpha: 0.25)),
-              const SizedBox(height: 32),
+              const SizedBox(height: 12),
+              // Survival-parity hint — tells the player the list is
+              // interactive without shouting. Matches the small dimmed
+              // amber line in cosmic_survival's game-over screen.
+              Text(
+                'TAP FOR DETAILS',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: amber.withValues(alpha: 0.55),
+                  fontSize: 9,
+                  letterSpacing: 3.0,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 14),
               ...List.generate(widget.entries.length, (i) {
                 final e = widget.entries[i];
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 26),
+                  padding: const EdgeInsets.only(bottom: 14),
                   child: FadeTransition(
                     opacity: _rowFade[i],
                     child: SlideTransition(
                       position: _rowSlide[i],
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 46,
-                            height: 46,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showRewardDetail(context, e),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: e.color.withValues(alpha: 0.12),
+                              color: e.color.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: e.color.withValues(alpha: 0.35),
+                                color: e.color.withValues(alpha: 0.28),
                                 width: 1,
                               ),
                             ),
-                            child: e.imagePath != null
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Image.asset(
-                                      e.imagePath!,
-                                      width: 36,
-                                      height: 36,
-                                      fit: BoxFit.contain,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: e.color.withValues(alpha: 0.14),
+                                    border: Border.all(
+                                      color: e.color.withValues(alpha: 0.4),
+                                      width: 1,
                                     ),
-                                  )
-                                : e.visualBuilder != null
-                                ? Center(child: e.visualBuilder!(36))
-                                : Icon(e.icon, color: e.color, size: 22),
-                          ),
-                          const SizedBox(width: 18),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                e.label,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: e.color,
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.0,
-                                  height: 1.0,
+                                  ),
+                                  child: e.imagePath != null
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(6),
+                                          child: Image.asset(
+                                            e.imagePath!,
+                                            width: 32,
+                                            height: 32,
+                                            fit: BoxFit.contain,
+                                          ),
+                                        )
+                                      : e.visualBuilder != null
+                                      ? Center(child: e.visualBuilder!(32))
+                                      : Icon(e.icon, color: e.color, size: 22),
                                 ),
-                              ),
-                              if (e.name != null) ...[
-                                const SizedBox(height: 3),
-                                Text(
-                                  e.name!.toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Color(0xFF7A7A8A),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 2.0,
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (e.name != null)
+                                        Text(
+                                          e.name!.toUpperCase(),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: Color(0xFFE8DCC8),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 1.6,
+                                          ),
+                                        ),
+                                      Text(
+                                        e.label,
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: e.color,
+                                          fontSize: e.name != null ? 18 : 22,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.0,
+                                          height: 1.1,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
+                                const SizedBox(width: 6),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: e.color.withValues(alpha: 0.5),
+                                  size: 18,
+                                ),
                               ],
-                            ],
+                            ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -282,12 +329,126 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                   ),
                 ),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Detail modal for a single loot entry. Mirrors the survival
+/// game-over screen's reward detail dialog so the two flows feel
+/// like the same UI language. Tap the entry, get the rich view.
+void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
+  showDialog<void>(
+    context: ctx,
+    barrierColor: Colors.black.withValues(alpha: 0.85),
+    builder: (dialogCtx) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 320),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E1117),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: entry.color.withValues(alpha: 0.5),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: entry.color.withValues(alpha: 0.18),
+              blurRadius: 24,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: entry.color.withValues(alpha: 0.12),
+                border: Border.all(
+                  color: entry.color.withValues(alpha: 0.45),
+                  width: 1.5,
+                ),
+              ),
+              child: entry.imagePath != null
+                  ? Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Image.asset(
+                        entry.imagePath!,
+                        fit: BoxFit.contain,
+                      ),
+                    )
+                  : entry.visualBuilder != null
+                  ? Center(child: entry.visualBuilder!(52))
+                  : Icon(entry.icon, color: entry.color, size: 34),
+            ),
+            const SizedBox(height: 18),
+            if (entry.name != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  entry.name!.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFFE8DCC8),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+            Text(
+              entry.label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: entry.color,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 22),
+            GestureDetector(
+              onTap: () => Navigator.pop(dialogCtx),
+              child: Container(
+                width: double.infinity,
+                height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(
+                    color: entry.color.withValues(alpha: 0.5),
+                    width: 1.2,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    'CLOSE',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: entry.color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _LootFallbackAnimation extends StatefulWidget {

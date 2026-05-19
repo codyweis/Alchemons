@@ -8,6 +8,7 @@ import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
+import 'package:alchemons/widgets/battle_section.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
@@ -547,13 +548,27 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 ),
               ),
               child: battleFeed.isEmpty
-                  ? Text(
-                      'Battle feed will appear here...',
-                      style: TextStyle(
-                        color: fc.textMuted,
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic,
-                        fontFamily: 'monospace',
+                  ? Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.history_rounded,
+                            color: fc.textMuted.withValues(alpha: 0.6),
+                            size: 12,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'AWAITING ACTION',
+                            style: TextStyle(
+                              color: fc.textMuted,
+                              fontSize: 10,
+                              letterSpacing: 1.6,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   : ListView.builder(
@@ -561,28 +576,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                       itemCount: battleFeed.length,
                       itemBuilder: (context, index) {
                         final e = battleFeed[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildFeedTag(e),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  e.message,
-                                  style: TextStyle(
-                                    color: fc.textPrimary.withValues(
-                                      alpha: 0.95,
-                                    ),
-                                    fontSize: 11,
-                                    height: 1.25,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
+                        return _buildFeedRow(e);
                       },
                     ),
             ),
@@ -713,19 +707,6 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           ),
           const SizedBox(height: 1),
           _buildBossHealthBar(hpPercent),
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              '${widget.boss.currentHp}/${widget.boss.maxHp}',
-              style: TextStyle(
-                color: fc.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
           _buildBossDebuffsUnderHp(),
         ],
       ),
@@ -872,8 +853,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     final hpColor = _getHealthColor(hpPercent);
 
     return Container(
-      height: 18,
+      height: 22,
       padding: const EdgeInsets.all(2),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: fc.bg0.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(999),
@@ -882,40 +864,57 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: AnimatedFractionallySizedBox(
-              duration: Duration(milliseconds: 240),
-              curve: Curves.easeOut,
-              widthFactor: hpPercent,
-              alignment: Alignment.centerLeft,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      hpColor.withValues(alpha: 0.95),
-                      hpColor.withValues(alpha: 0.65),
-                    ],
-                  ),
+          AnimatedFractionallySizedBox(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOut,
+            widthFactor: hpPercent,
+            alignment: Alignment.centerLeft,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    hpColor.withValues(alpha: 0.95),
+                    hpColor.withValues(alpha: 0.65),
+                  ],
                 ),
               ),
             ),
           ),
           IgnorePointer(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: 0.2),
-                      Colors.transparent,
-                      fc.bg0.withValues(alpha: 0.2),
-                    ],
-                    stops: [0.0, 0.45, 1.0],
-                  ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    fc.textPrimary.withValues(alpha: 0.2),
+                    Colors.transparent,
+                    fc.bg0.withValues(alpha: 0.2),
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
+                ),
+              ),
+            ),
+          ),
+          // Inline HP numbers overlaid on the bar — saves vertical space
+          // and keeps the value glued to the visual it represents.
+          IgnorePointer(
+            child: Center(
+              child: Text(
+                '${widget.boss.currentHp} / ${widget.boss.maxHp}',
+                style: TextStyle(
+                  color: fc.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                  fontFamily: 'monospace',
+                  shadows: const [
+                    Shadow(
+                      offset: Offset(0, 0.5),
+                      blurRadius: 1.5,
+                      color: Color(0xCC000000),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -925,37 +924,44 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     );
   }
 
-  Widget _buildFeedTag(_BattleFeedEntry e) {
+  /// Color-coded left bar replaces the old YOU/BOSS/STS pill — same
+  /// information density, faster scan. The eye picks the source color
+  /// at the leading edge without parsing a 3-letter abbreviation.
+  Widget _buildFeedRow(_BattleFeedEntry e) {
     final fc = _fc;
     final Color color;
-    final String label;
-
     if (e.isStatus) {
       color = fc.amberBright;
-      label = 'STS';
     } else if (e.source == _FeedSource.team) {
       color = fc.teal;
-      label = 'YOU';
     } else {
       color = fc.danger;
-      label = 'BOSS';
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-          fontFamily: 'monospace',
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      // IntrinsicHeight gives the Row a bounded height so the colored
+      // left bar can stretch — without it the bar collapses to 0px and
+      // the feed entry has no visible source indicator.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 2.5, color: color.withValues(alpha: 0.85)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 1),
+                child: Text(
+                  e.message,
+                  style: TextStyle(
+                    color: fc.textPrimary.withValues(alpha: 0.95),
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -979,58 +985,48 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       ),
       child: Column(
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.4),
-                  end: Offset.zero,
-                ).animate(animation),
-                child: child,
+          // Party strip is always visible — players need to track their
+          // team during boss turns too.
+          BattleSection(
+            title: 'Party',
+            color: fc.amber,
+            child: _buildPartyStrip(),
+          ),
+          // Moves section slides out during boss/animation windows.
+          // Visibility IS the turn signal — the old YOUR TURN banner
+          // was redundant and just jittered the dock layout each turn.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.25),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
               ),
+              child: game.state == BattleState.playerTurn
+                  ? Padding(
+                      key: const ValueKey('moves_on'),
+                      padding: const EdgeInsets.only(top: 12),
+                      child: BattleSection(
+                        title: 'Moves',
+                        color: fc.amber,
+                        child: _buildMoveButtons(),
+                      ),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('moves_off')),
             ),
-            child: game.state == BattleState.playerTurn
-                ? Column(
-                    key: const ValueKey('turn_on'),
-                    children: [_buildTurnBanner(), const SizedBox(height: 10)],
-                  )
-                : const SizedBox.shrink(key: ValueKey('turn_off')),
           ),
-          _buildPartyStrip(),
-          const SizedBox(height: 10),
-          _buildMoveButtons(),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTurnBanner() {
-    final fc = _fc;
-    final color = fc.amberBright;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: fc.bg2.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
-      ),
-      child: Center(
-        child: Text(
-          'YOUR TURN',
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.8,
-            fontFamily: 'monospace',
-          ),
-        ),
       ),
     );
   }
@@ -1199,20 +1195,30 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     final hasSpecial = selected != null && selected.level >= 5;
     final specialReady = canAct && hasSpecial && !selected.needsRecharge;
 
-    // Build subtitle for special button
+    // Element/family identity drives the button's look so each creature
+    // reads as its own kit instead of a generic teal/amber pair.
+    final element = selected?.types.isNotEmpty == true
+        ? selected!.types.first
+        : 'Normal';
+    final basicColor = _elementColor(element, fc);
+    final basicIcon = _elementIcon(element);
+    final specialColor = _elementColor(element, fc);
+    final specialIcon = selected != null
+        ? _familyIcon(selected.family)
+        : Icons.auto_awesome_rounded;
+
     String specialSubtitle;
     if (selected == null) {
       specialSubtitle = 'Select Creature';
     } else if (!selected.canAct) {
       specialSubtitle =
-          'Action Cooldown: ${selected.actionCooldown} turn${selected.actionCooldown == 1 ? '' : 's'}';
+          'CD ${selected.actionCooldown} turn${selected.actionCooldown == 1 ? '' : 's'}';
     } else if (!hasSpecial) {
       specialSubtitle = 'Lv 5 Required';
     } else if (selected.specialCooldown > 0) {
-      specialSubtitle =
-          'Cooldown: ${selected.specialCooldown} turns • Recover via basics';
+      specialSubtitle = 'CD ${selected.specialCooldown} • via basics';
     } else {
-      specialSubtitle = 'Special Ready';
+      specialSubtitle = 'Ready';
     }
 
     return Row(
@@ -1226,17 +1232,19 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                       ? 'Physical'
                       : 'Elemental')
                 : 'Select Creature',
-            activeColor: fc.teal,
+            activeColor: basicColor,
+            icon: basicIcon,
             isActive: canAct,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: _buildActionButton(
             onPressed: specialReady ? _useSpecialMove : null,
             title: specialMove.name,
             subtitle: specialSubtitle,
-            activeColor: fc.amber,
+            activeColor: specialColor,
+            icon: specialIcon,
             isActive: specialReady,
           ),
         ),
@@ -1244,76 +1252,207 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     );
   }
 
+  /// Material icon for each element. Picks symbols the eye already
+  /// associates with the element so the button's identity reads at a
+  /// glance without parsing the move name.
+  IconData _elementIcon(String element) {
+    switch (element) {
+      case 'Fire':
+        return Icons.local_fire_department_rounded;
+      case 'Water':
+        return Icons.water_drop_rounded;
+      case 'Earth':
+        return Icons.landscape_rounded;
+      case 'Air':
+        return Icons.air_rounded;
+      case 'Ice':
+        return Icons.ac_unit_rounded;
+      case 'Lightning':
+        return Icons.bolt_rounded;
+      case 'Plant':
+        return Icons.eco_rounded;
+      case 'Poison':
+        return Icons.science_rounded;
+      case 'Steam':
+        return Icons.cloud_rounded;
+      case 'Lava':
+        return Icons.whatshot_rounded;
+      case 'Mud':
+        return Icons.terrain_rounded;
+      case 'Dust':
+        return Icons.blur_on_rounded;
+      case 'Crystal':
+        return Icons.diamond_rounded;
+      case 'Spirit':
+        return Icons.blur_circular_rounded;
+      case 'Dark':
+        return Icons.dark_mode_rounded;
+      case 'Light':
+        return Icons.light_mode_rounded;
+      case 'Blood':
+        return Icons.favorite_rounded;
+      default:
+        return Icons.bolt_rounded;
+    }
+  }
+
+  /// Element accent color used for the button border + icon tile.
+  Color _elementColor(String element, FC fc) {
+    switch (element) {
+      case 'Fire':
+      case 'Lava':
+        return const Color(0xFFFF7043);
+      case 'Water':
+        return const Color(0xFF4FC3F7);
+      case 'Earth':
+      case 'Mud':
+        return const Color(0xFF8D6E63);
+      case 'Air':
+        return const Color(0xFFB0BEC5);
+      case 'Ice':
+        return const Color(0xFF8FE0FF);
+      case 'Lightning':
+        return const Color(0xFFFFEE58);
+      case 'Plant':
+        return const Color(0xFF8BC34A);
+      case 'Poison':
+        return const Color(0xFFAB47BC);
+      case 'Steam':
+        return const Color(0xFFCFD8DC);
+      case 'Dust':
+        return const Color(0xFFFFCA28);
+      case 'Crystal':
+        return const Color(0xFF80DEEA);
+      case 'Spirit':
+        return const Color(0xFF9FA8DA);
+      case 'Dark':
+        return const Color(0xFF7E57C2);
+      case 'Light':
+        return const Color(0xFFFFE082);
+      case 'Blood':
+        return const Color(0xFFE53935);
+      default:
+        return fc.amber;
+    }
+  }
+
+  /// Family icon for the special button — Mane casts a vine, Let drops
+  /// a meteor, etc. Pairs with the element color so the same family at
+  /// different elements still reads differently.
+  IconData _familyIcon(String family) {
+    switch (family) {
+      case 'Let':
+        return Icons.flare_rounded;
+      case 'Pip':
+        return Icons.all_inclusive_rounded;
+      case 'Mane':
+        return Icons.grass_rounded;
+      case 'Mask':
+        return Icons.masks_rounded;
+      case 'Wing':
+        return Icons.flutter_dash_rounded;
+      case 'Horn':
+        return Icons.security_rounded;
+      case 'Kin':
+        return Icons.favorite_rounded;
+      case 'Mystic':
+        return Icons.auto_awesome_rounded;
+      default:
+        return Icons.auto_awesome_rounded;
+    }
+  }
+
   Widget _buildActionButton({
     required VoidCallback? onPressed,
     required String title,
     required String subtitle,
     required Color activeColor,
+    required IconData icon,
     required bool isActive,
   }) {
     final fc = _fc;
+    final tileColor = isActive
+        ? activeColor.withValues(alpha: 0.22)
+        : fc.bg3.withValues(alpha: 0.6);
+    final iconColor = isActive
+        ? activeColor
+        : fc.textMuted.withValues(alpha: 0.85);
+    final borderColor = isActive
+        ? activeColor.withValues(alpha: 0.85)
+        : fc.borderAccent.withValues(alpha: 0.45);
+
     return SizedBox(
-      height: 68,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isActive
-              ? activeColor.withValues(alpha: 0.88)
-              : fc.bg3.withValues(alpha: 0.92),
-          foregroundColor: fc.textPrimary,
-          disabledBackgroundColor: fc.bg3.withValues(alpha: 0.92),
-          disabledForegroundColor: fc.textMuted,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(
+      height: 56,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: Ink(
+            decoration: BoxDecoration(
               color: isActive
-                  ? activeColor.withValues(alpha: 0.95)
-                  : fc.borderAccent.withValues(alpha: 0.5),
+                  ? activeColor.withValues(alpha: 0.10)
+                  : fc.bg2.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor, width: 1.1),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                children: [
+                  // Element/family icon tile — the dominant visual cue.
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: tileColor,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: borderColor.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 22),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.6,
+                            fontFamily: 'monospace',
+                            color: isActive ? fc.textPrimary : fc.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                            color: isActive
+                                ? fc.textSecondary
+                                : fc.textMuted.withValues(alpha: 0.85),
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          elevation: isActive ? 1.5 : 0,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.8,
-                fontFamily: 'monospace',
-              ),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
-              decoration: BoxDecoration(
-                color: fc.bg0.withValues(alpha: 0.24),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: fc.borderAccent.withValues(alpha: 0.35),
-                ),
-              ),
-              child: Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w700,
-                  color: isActive
-                      ? fc.textPrimary
-                      : fc.textSecondary.withValues(alpha: 0.9),
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
