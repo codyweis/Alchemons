@@ -1,4 +1,5 @@
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -29,53 +30,60 @@ class FilterChipSolid extends StatelessWidget {
     this.unselectedTextColor,
     this.unselectedBorderColor,
     this.unselectedFillColor,
-    this.selectedFillOpacity = 0.08,
+    this.selectedFillOpacity = 0.18,
     this.labelFontSize = 12,
   });
   @override
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
     final tokens = ForgeTokens(theme);
     final displayColor = tokens.readableAccent(color);
     final resolvedSelectedTextColor = selectedTextColor ?? displayColor;
-    final resolvedUnselectedTextColor = unselectedTextColor ?? theme.text;
-    final resolvedUnselectedBorderColor = unselectedBorderColor ?? theme.border;
-    final resolvedUnselectedFillColor =
-        unselectedFillColor ??
-        (tokens.isDark ? tokens.bg2 : Colors.white.withValues(alpha: 0.96));
+    final resolvedUnselectedTextColor = unselectedTextColor ?? palette.muted;
+    final frameColor = selected
+        ? displayColor
+        : (unselectedBorderColor ?? palette.line.withValues(alpha: 0.55));
+    final fillColor = selected
+        ? palette.accentWash(
+            displayColor,
+            darkAlpha: selectedFillOpacity,
+            lightAlpha: selectedFillOpacity * 0.6,
+          )
+        : (unselectedFillColor ??
+              (palette.isDark ? Colors.transparent : palette.surfaceMutedFill()));
 
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        padding: padding,
-        decoration: BoxDecoration(
-          color: selected
-              ? displayColor.withValues(alpha: selectedFillOpacity)
-              : resolvedUnselectedFillColor,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: selected ? displayColor : resolvedUnselectedBorderColor,
-            width: selected ? 1.2 : 1,
-          ),
+      behavior: HitTestBehavior.opaque,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: frameColor,
+          bracketSize: 7,
+          strokeWidth: selected ? 1.2 : 1.0,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (leading != null) ...[leading!, const SizedBox(width: 5)],
-            Text(
-              label,
-              style: TextStyle(
-                color: selected
-                    ? resolvedSelectedTextColor
-                    : resolvedUnselectedTextColor,
-                fontWeight: FontWeight.w700,
-                fontSize: labelFontSize,
+        child: Container(
+          padding: padding,
+          color: fillColor,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (leading != null) ...[leading!, const SizedBox(width: 5)],
+              Text(
+                label,
+                style: bracketText(
+                  context,
+                  labelFontSize,
+                  selected
+                      ? resolvedSelectedTextColor
+                      : resolvedUnselectedTextColor,
+                  weight: selected ? FontWeight.w800 : FontWeight.w600,
+                  letterSpacing: 0.4,
+                ),
               ),
-            ),
-            if (trailing != null) ...[const SizedBox(width: 4), trailing!],
-          ],
+              if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+            ],
+          ),
         ),
       ),
     );

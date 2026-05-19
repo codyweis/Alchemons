@@ -8,46 +8,77 @@
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/utils/faction_util.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS
+// BRACKET CHIP HELPER
 // ──────────────────────────────────────────────────────────────────────────────
 
-TextStyle _chipLabel({
-  required bool active,
-  Color? activeColor,
-  required ForgeTokens t,
-}) {
-  final displayColor = t.readableAccent(activeColor ?? t.amberBright);
-  return TextStyle(
-    color: active ? displayColor : t.textPrimary,
-    fontSize: 12,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0.1,
-  );
-}
+class _BracketChip extends StatelessWidget {
+  const _BracketChip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.activeColor,
+    this.leading,
+    this.trailing,
+  });
 
-BoxDecoration _chipBox({
-  required bool active,
-  Color? activeColor,
-  required ForgeTokens t,
-}) {
-  final displayColor = t.readableAccent(activeColor ?? t.amber);
-  return BoxDecoration(
-    color: active
-        ? displayColor.withValues(alpha: 0.08)
-        : (t.isDark ? t.bg2 : Colors.white.withValues(alpha: 0.96)),
-    borderRadius: BorderRadius.circular(3),
-    border: Border.all(
-      color: active
-          ? displayColor.withValues(alpha: 0.8)
-          : (t.isDark ? t.borderDim : t.borderDim.withValues(alpha: 0.9)),
-      width: active ? 1.2 : 1.0,
-    ),
-  );
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final Color? activeColor;
+  final Widget? leading;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
+    final t = ForgeTokens(theme);
+    final accent = t.readableAccent(activeColor ?? theme.accentSoft);
+    final frameColor = active ? accent : palette.line.withValues(alpha: 0.55);
+    final fillColor = active
+        ? palette.accentWash(accent, darkAlpha: 0.16, lightAlpha: 0.09)
+        : (palette.isDark ? Colors.transparent : palette.surfaceMutedFill());
+    final textColor = active ? accent : palette.muted;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: frameColor,
+          bracketSize: 7,
+          strokeWidth: active ? 1.2 : 1.0,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          color: fillColor,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (leading != null) ...[leading!, const SizedBox(width: 5)],
+              Text(
+                label,
+                style: bracketText(
+                  context,
+                  12,
+                  textColor,
+                  weight: active ? FontWeight.w800 : FontWeight.w600,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -290,19 +321,7 @@ class _SortChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: _chipBox(active: selected, t: t),
-        child: Text(
-          label,
-          style: _chipLabel(active: selected, t: t),
-        ),
-      ),
-    );
+    return _BracketChip(label: label, active: selected, onTap: onTap);
   }
 }
 
@@ -316,65 +335,42 @@ class _StatCycleChip extends StatelessWidget {
     required this.onTap,
   });
 
-  (IconData, String, Color) _info() {
+  (IconData, String, Color?) _info() {
     final isStat = currentStat.isStatSort;
-    if (!isStat) {
-      return (Icons.bar_chart_rounded, 'STAT', const Color(0xFF8A7B6A));
-    }
+    if (!isStat) return (Icons.bar_chart_rounded, 'STAT', null);
     final label = '${currentStat.shortLabel} ↓';
     return switch (currentStat.statFamily) {
       'speed' => (Icons.speed, label, const Color(0xFFFDE047)),
       'intelligence' => (Icons.psychology, label, const Color(0xFFC084FC)),
       'strength' => (Icons.fitness_center, label, const Color(0xFFF87171)),
       'beauty' => (Icons.favorite, label, const Color(0xFFF9A8D4)),
-      _ => (Icons.bar_chart_rounded, 'STAT', const Color(0xFF8A7B6A)),
+      _ => (Icons.bar_chart_rounded, 'STAT', null),
     };
   }
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
+    final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
+    final t = ForgeTokens(theme);
     final (icon, label, color) = _info();
-    final displayColor = t.readableAccent(color);
     final isStat = currentStat.isStatSort;
-    return GestureDetector(
+    final iconColor = isStat
+        ? t.readableAccent(color ?? theme.accentSoft)
+        : palette.muted;
+
+    return _BracketChip(
+      label: label,
+      active: isStat,
+      activeColor: color,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: _chipBox(active: isStat, activeColor: color, t: t),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 12,
-              color: isStat ? displayColor : t.textSecondary,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: _chipLabel(active: isStat, activeColor: color, t: t),
-            ),
-            if (hasPotentialAnalyzer && isStat && currentStat.isPotentialSort)
-              Padding(
-                padding: const EdgeInsets.only(left: 5),
-                child: Icon(
-                  Icons.auto_graph_rounded,
-                  size: 11,
-                  color: displayColor,
-                ),
-              ),
-          ],
-        ),
-      ),
+      leading: Icon(icon, size: 12, color: iconColor),
+      trailing: (hasPotentialAnalyzer && isStat && currentStat.isPotentialSort)
+          ? Icon(Icons.auto_graph_rounded, size: 11, color: iconColor)
+          : null,
     );
   }
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// FILTER CHIPS
-// ──────────────────────────────────────────────────────────────────────────────
 
 class _CycleChip extends StatelessWidget {
   final IconData icon;
@@ -390,30 +386,15 @@ class _CycleChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
+    final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
     final active = valueText != null;
-    return GestureDetector(
+    final iconColor = active ? bracketReadableAccent(theme) : palette.muted;
+    return _BracketChip(
+      label: valueText ?? labelWhenAny,
+      active: active,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: _chipBox(active: active, t: t),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 12,
-              color: active ? t.amberBright : t.textSecondary,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              valueText ?? labelWhenAny,
-              style: _chipLabel(active: active, t: t),
-            ),
-          ],
-        ),
-      ),
+      leading: Icon(icon, size: 12, color: iconColor),
     );
   }
 }
@@ -434,26 +415,17 @@ class _ToggleChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    final color = activeColor ?? t.amberBright;
-    return GestureDetector(
+    final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
+    final t = ForgeTokens(theme);
+    final accent = t.readableAccent(activeColor ?? theme.accentSoft);
+    final iconColor = active ? accent : palette.muted;
+    return _BracketChip(
+      label: label,
+      active: active,
+      activeColor: activeColor,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: _chipBox(active: active, activeColor: color, t: t),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12, color: active ? color : t.textSecondary),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: _chipLabel(active: active, activeColor: color, t: t),
-            ),
-          ],
-        ),
-      ),
+      leading: Icon(icon, size: 12, color: iconColor),
     );
   }
 }
@@ -472,37 +444,19 @@ class _PickerChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
+    final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
     final active = value != null;
-    return GestureDetector(
+    final iconColor = active ? bracketReadableAccent(theme) : palette.muted;
+    return _BracketChip(
+      label: value?.toUpperCase() ?? '$label: ANY',
+      active: active,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: _chipBox(active: active, t: t),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 12,
-              color: active ? t.amberBright : t.textSecondary,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              value?.toUpperCase() ?? '$label: ANY',
-              style: _chipLabel(active: active, t: t),
-            ),
-            const SizedBox(width: 3),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 12,
-              color: active
-                  ? t.amberBright.withValues(alpha: 0.7)
-                  : t.textMuted,
-            ),
-          ],
-        ),
+      leading: Icon(icon, size: 12, color: iconColor),
+      trailing: Icon(
+        Icons.keyboard_arrow_down_rounded,
+        size: 12,
+        color: iconColor,
       ),
     );
   }
@@ -515,37 +469,12 @@ class _ClearChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
-    return GestureDetector(
+    return _BracketChip(
+      label: 'CLEAR',
+      active: true,
+      activeColor: t.danger,
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF7F1D1D).withValues(alpha: 0.25),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: t.danger.withValues(alpha: 0.45)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.close_rounded,
-              size: 11,
-              color: t.danger.withValues(alpha: 0.8),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              'CLEAR',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.danger.withValues(alpha: 0.8),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
-        ),
-      ),
+      leading: Icon(Icons.close_rounded, size: 11, color: t.danger),
     );
   }
 }

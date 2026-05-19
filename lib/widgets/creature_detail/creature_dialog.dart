@@ -36,6 +36,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 
 import '../../models/creature.dart';
@@ -104,32 +105,22 @@ class _T {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// BRACKET STYLE — shared helpers used by the redesigned dialog
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Returns the active bracket palette for the dialog. Centralized so future
+/// tweaks happen in one place.
+BracketPalette _bp(BuildContext context) => BracketPalette.of(context);
+
+Color _dialogAccent(BuildContext context, {Color? color}) {
+  return bracketReadableAccent(context.read<FactionTheme>(), color: color);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // SHARED MICRO WIDGETS
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _EtchedDivider extends StatelessWidget {
-  final String? label;
-  const _EtchedDivider({this.label});
-  @override
-  @override
-  Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final t = _T(c);
-    return Row(
-      children: [
-        Expanded(child: Container(height: 1, color: c.borderMid)),
-        if (label != null) ...[
-          const SizedBox(width: 10),
-          Text(label!, style: t.label),
-          const SizedBox(width: 10),
-        ],
-        Expanded(child: Container(height: 1, color: c.borderMid)),
-      ],
-    );
-  }
-}
-
-/// Flat analysis section — label + thin rule, no box or background
+/// Analysis section — bracket-style divider header followed by content.
 class _AnalysisSection extends StatelessWidget {
   final String title;
   final Widget child;
@@ -143,25 +134,11 @@ class _AnalysisSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final t = _T(c);
-    final accent = accentColor ?? c.amber;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Container(width: 3, height: 10, color: accent),
-            const SizedBox(width: 7),
-            Text(
-              title.toUpperCase(),
-              style: t.sectionTitle.copyWith(color: accent),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Container(height: 1, color: c.borderDim),
-        const SizedBox(height: 8),
+        BracketSectionDivider(label: title),
+        const SizedBox(height: 10),
         child,
       ],
     );
@@ -186,43 +163,46 @@ String _displayVariantFaction(String faction) {
   return trimmed[0].toUpperCase() + trimmed.substring(1);
 }
 
-/// Lozenge badge — rarity / type tag
+/// Bracket-style pill — rarity / type tag
 class _TagBadge extends StatelessWidget {
   final String label;
   final Color color;
   const _TagBadge({required this.label, required this.color});
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
-    ),
-    child: Text(
-      label.toUpperCase(),
-      style: TextStyle(
-        fontFamily: 'monospace',
-        color: color,
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.2,
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: color.withValues(alpha: 0.75),
+        bracketSize: 5,
+        strokeWidth: 1,
       ),
-    ),
-  );
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        color: color.withValues(alpha: 0.10),
+        child: Text(
+          label.toUpperCase(),
+          style: bracketText(
+            context,
+            11,
+            color,
+            weight: FontWeight.w700,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-/// Flat data row — label + value
+/// Label + value row in the bracket aesthetic.
 class _DataRow extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
   const _DataRow({required this.label, required this.value, this.valueColor});
   @override
-  @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final t = _T(c);
+    final palette = _bp(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -230,15 +210,28 @@ class _DataRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 130,
-            child: Text(label.toUpperCase(), style: t.label),
+            child: Text(
+              label.toUpperCase(),
+              style: bracketText(
+                context,
+                11,
+                palette.muted,
+                weight: FontWeight.w700,
+                letterSpacing: 0.9,
+              ),
+            ),
           ),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
-              style: t.body.copyWith(
-                color: valueColor ?? c.textPrimary,
-                fontSize: 12,
+              style: bracketText(
+                context,
+                12.5,
+                valueColor ?? palette.ink,
+                weight: FontWeight.w600,
               ),
+              strutStyle: const StrutStyle(height: 1.35),
             ),
           ),
         ],
@@ -247,7 +240,7 @@ class _DataRow extends StatelessWidget {
   }
 }
 
-/// Forge-style section container with etched header
+/// Bracket-framed content section with a centered title divider.
 class _ForgeSection extends StatelessWidget {
   final String title;
   final Widget child;
@@ -261,46 +254,26 @@ class _ForgeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final t = _T(c);
-    final accent = accentColor ?? c.amber;
-    return Container(
-      decoration: BoxDecoration(
-        color: c.bg2,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: c.borderDim),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header strip
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: c.bg3,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(2),
-              ),
-              border: Border(bottom: BorderSide(color: c.borderDim)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 3,
-                  height: 10,
-                  color: accent,
-                  margin: const EdgeInsets.only(right: 8),
-                ),
-                Text(
-                  title.toUpperCase(),
-                  style: t.sectionTitle.copyWith(color: accent),
-                ),
-              ],
-            ),
+    final palette = _bp(context);
+    final frame = accentColor ?? palette.line;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BracketSectionDivider(label: title),
+        const SizedBox(height: 10),
+        CustomPaint(
+          painter: BracketFramePainter(
+            color: frame.withValues(alpha: 0.9),
+            bracketSize: 10,
+            strokeWidth: 1.05,
           ),
-          Padding(padding: const EdgeInsets.all(12), child: child),
-        ],
-      ),
+          child: Container(
+            color: palette.surfaceFill(),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            child: child,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -806,35 +779,25 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     required bool hydrating,
     required CreatureInstance? instance,
   }) {
-    final c = _C.of(context);
-    final shellColor = c.isDark ? c.bg1 : Colors.white;
+    final palette = _bp(context);
+    final activeAccent = _dialogAccent(context);
     final discovered = widget.isDiscovered;
 
     return Dialog(
-      insetPadding: const EdgeInsets.all(2),
+      insetPadding: const EdgeInsets.all(4),
       backgroundColor: Colors.transparent,
-      child: Container(
+      child: SizedBox(
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height * 0.88,
-        decoration: BoxDecoration(
-          color: shellColor,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: c.borderAccent, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: c.amber.withValues(alpha: 0.08),
-              blurRadius: 32,
-              spreadRadius: 2,
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.7),
-              blurRadius: 40,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: activeAccent.withValues(alpha: 0.86),
+            bracketSize: 14,
+            strokeWidth: 1.3,
+          ),
+          child: Container(
+            color: palette.bg1,
+            child: Column(
           children: [
             _HeaderBar(
               creature: effective,
@@ -923,6 +886,8 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
             ),
           ],
         ),
+          ),
+        ),
       ),
     );
   }
@@ -967,186 +932,182 @@ class _HeaderBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
+    final palette = _bp(context);
     final rarityColor = _rarityColor(creature.rarity, c);
     final instance = this.instance;
     final isFavorite = instance?.isFavorite ?? false;
     final trimmedNickname = instance?.nickname?.trim();
     final hasNickname = trimmedNickname?.isNotEmpty == true;
     final displayName = hasNickname ? trimmedNickname! : creature.name;
+    final favoriteAccent = const Color(0xFFE91E63);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 12),
       decoration: BoxDecoration(
-        color: c.bg2,
-        border: Border(bottom: BorderSide(color: c.borderDim)),
+        color: palette.bg0,
+        border: Border(
+          bottom: BorderSide(color: palette.line.withValues(alpha: 0.5)),
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Left — name block
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (instance != null)
-                  InkWell(
-                    onTap: nicknameBusy ? null : onEditName,
-                    borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 2,
-                        vertical: 2,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              displayName.toUpperCase(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: c.textPrimary,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 2.0,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          if (nicknameBusy)
-                            SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  c.amberBright,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: instance != null
+                    ? InkWell(
+                        onTap: nicknameBusy ? null : onEditName,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: bracketText(
+                                    context,
+                                    20,
+                                    palette.ink,
+                                    weight: FontWeight.w600,
+                                    letterSpacing: 0.4,
+                                  ),
                                 ),
                               ),
-                            )
-                          else
-                            Icon(
-                              Icons.edit_outlined,
-                              size: 15,
-                              color: c.amberBright,
-                            ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  Text(
-                    creature.name.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: c.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                if (hasNickname) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    creature.name.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: c.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    _TagBadge(label: creature.rarity, color: rarityColor),
-                    const SizedBox(width: 6),
-                    ...creature.types
-                        .take(2)
-                        .map(
-                          (t) => Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: _TagBadge(label: t, color: c.teal),
+                              const SizedBox(width: 8),
+                              if (nicknameBusy)
+                                SizedBox(
+                                  width: 13,
+                                  height: 13,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.6,
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(
+                                          _dialogAccent(context),
+                                        ),
+                                  ),
+                                )
+                              else
+                                Icon(
+                                  Icons.edit_outlined,
+                                  size: 14,
+                                  color: palette.muted,
+                                ),
+                            ],
                           ),
                         ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Right — close
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (instance != null) ...[
-                GestureDetector(
-                  onTap: favoriteBusy ? null : onToggleFavorite,
-                  child: Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: isFavorite
-                          ? const Color(0xFFE91E63).withValues(alpha: 0.18)
-                          : c.bg3,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: isFavorite
-                            ? const Color(0xFFE91E63).withValues(alpha: 0.65)
-                            : c.borderDim,
+                      )
+                    : Text(
+                        creature.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: bracketText(
+                          context,
+                          20,
+                          palette.ink,
+                          weight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
                       ),
-                    ),
-                    child: favoriteBusy
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                isFavorite
-                                    ? const Color(0xFFE91E63)
-                                    : c.textSecondary,
-                              ),
-                            ),
-                          )
-                        : Icon(
-                            isFavorite
-                                ? Icons.star_rounded
-                                : Icons.star_border_rounded,
-                            color: isFavorite
-                                ? const Color(0xFFE91E63)
-                                : c.textSecondary,
-                            size: 16,
-                          ),
-                  ),
+              ),
+              const SizedBox(width: 10),
+              if (instance != null) ...[
+                _HeaderIconButton(
+                  icon: isFavorite
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                  iconColor: isFavorite ? favoriteAccent : palette.muted,
+                  frameColor: isFavorite ? favoriteAccent : palette.line,
+                  busy: favoriteBusy,
+                  onTap: favoriteBusy ? null : onToggleFavorite,
                 ),
                 const SizedBox(width: 8),
               ],
-              GestureDetector(
+              _HeaderIconButton(
+                icon: Icons.close_rounded,
+                iconColor: palette.muted,
+                frameColor: palette.line,
                 onTap: onClose,
-                child: Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: c.bg3,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: c.borderDim),
-                  ),
-                  child: Icon(
-                    Icons.close_rounded,
-                    color: c.textSecondary,
-                    size: 16,
-                  ),
-                ),
               ),
             ],
           ),
+          if (hasNickname) ...[
+            const SizedBox(height: 2),
+            Text(
+              creature.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: bracketText(
+                context,
+                12,
+                palette.muted,
+                weight: FontWeight.w500,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _TagBadge(label: creature.rarity, color: rarityColor),
+              ...creature.types
+                  .take(2)
+                  .map((t) => _TagBadge(label: t, color: _dialogAccent(context))),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.iconColor,
+    required this.frameColor,
+    required this.onTap,
+    this.busy = false,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final Color frameColor;
+  final VoidCallback? onTap;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _bp(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: frameColor.withValues(alpha: 0.8),
+          bracketSize: 7,
+          strokeWidth: 1,
+        ),
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          color: palette.surfaceFill(lightAlpha: 0.94),
+          child: busy
+              ? SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+                  ),
+                )
+              : Icon(icon, color: iconColor, size: 16),
+        ),
       ),
     );
   }
@@ -1160,41 +1121,58 @@ class _TabSelector extends StatelessWidget {
   final TabController tabController;
   const _TabSelector({required this.tabController});
 
+  static const _labels = ['Overview', 'Analysis', 'Battle'];
+
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: c.bg2,
-        border: Border(bottom: BorderSide(color: c.borderDim)),
-      ),
-      child: TabBar(
-        controller: tabController,
-        indicator: BoxDecoration(
-          color: c.bg3,
-          border: Border(bottom: BorderSide(color: c.amberBright, width: 2)),
+    final palette = _bp(context);
+    final theme = context.read<FactionTheme>();
+    final activeAccent = _dialogAccent(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      child: AnimatedBuilder(
+        animation: tabController,
+        builder: (context, _) => Row(
+          children: List.generate(_labels.length, (index) {
+            final selected = tabController.index == index;
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: index == _labels.length - 1 ? 0 : 8,
+                ),
+                child: GestureDetector(
+                  onTap: () => tabController.animateTo(index),
+                  child: CustomPaint(
+                    painter: BracketFramePainter(
+                      color: selected
+                          ? activeAccent
+                          : palette.line.withValues(alpha: 0.55),
+                      bracketSize: 10,
+                      strokeWidth: selected ? 1.4 : 1.0,
+                    ),
+                    child: Container(
+                      height: 40,
+                      alignment: Alignment.center,
+                      color: selected
+                          ? palette.accentWash(theme.accent, darkAlpha: 0.32)
+                          : palette.surfaceMutedFill(),
+                      child: Text(
+                        _labels[index],
+                        style: bracketText(
+                          context,
+                          13,
+                          selected ? palette.ink : palette.muted,
+                          weight: selected ? FontWeight.w800 : FontWeight.w600,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: c.amberBright,
-        unselectedLabelColor: c.textMuted,
-        labelStyle: const TextStyle(
-          fontFamily: 'monospace',
-          fontWeight: FontWeight.w800,
-          fontSize: 12,
-          letterSpacing: 1.8,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontFamily: 'monospace',
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-          letterSpacing: 1.8,
-        ),
-        tabs: const [
-          Tab(text: 'OVERVIEW'),
-          Tab(text: 'ANALYSIS'),
-          Tab(text: 'BATTLE'),
-        ],
       ),
     );
   }
@@ -1233,29 +1211,40 @@ class _LockedTabPlaceholder extends StatelessWidget {
   final String message;
   const _LockedTabPlaceholder({required this.message});
   @override
-  @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final t = _T(c);
+    final palette = _bp(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: c.bg2,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: c.borderDim),
+          CustomPaint(
+            painter: BracketFramePainter(
+              color: palette.line.withValues(alpha: 0.85),
+              bracketSize: 10,
+              strokeWidth: 1.1,
             ),
-            child: Icon(
-              Icons.lock_outline_rounded,
-              color: c.textMuted,
-              size: 28,
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              color: palette.surfaceFill(),
+              child: Icon(
+                Icons.lock_outline_rounded,
+                color: palette.muted,
+                size: 28,
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(message, style: t.label.copyWith(color: c.textMuted)),
+          const SizedBox(height: 14),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: bracketText(
+              context,
+              12,
+              palette.muted,
+              weight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
+          ),
         ],
       ),
     );
@@ -1301,7 +1290,7 @@ class _OverviewTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── Sprite hero ─────────────────────────────────────────────────────
-          _buildSpriteHero(c),
+          _buildSpriteHero(context, c),
           if (instance != null) ...[
             const SizedBox(height: 10),
             _StaminaRestoreButton(
@@ -1420,37 +1409,44 @@ class _OverviewTab extends StatelessWidget {
     );
   }
 
-  Widget _buildSpriteHero(_C c) {
+  Widget _buildSpriteHero(BuildContext context, _C c) {
+    final palette = _bp(context);
+    final theme = context.read<FactionTheme>();
+    final activeAccent = _dialogAccent(context);
     return Stack(
       children: [
-        // Background plate with scanlines
-        Container(
-          height: 210,
-          decoration: BoxDecoration(
-            color: c.bg2,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: c.borderDim),
+        // Bracket-framed sprite plate
+        CustomPaint(
+          painter: BracketFramePainter(
+            color: activeAccent.withValues(alpha: 0.82),
+            bracketSize: 12,
+            strokeWidth: 1.1,
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
-              // Radial glow behind sprite
-              Center(
-                child: Container(
-                  width: 175,
-                  height: 175,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        c.amber.withValues(alpha: 0.12),
-                        Colors.transparent,
-                      ],
+          child: ClipRect(
+            child: Container(
+              height: 210,
+              color: palette.bg0,
+              child: Stack(
+                children: [
+                Positioned.fill(
+                  child: CustomPaint(painter: _ScanlinePainter()),
+                ),
+                // Radial glow behind sprite
+                Center(
+                  child: Container(
+                    width: 175,
+                    height: 175,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          palette.accentWash(theme.accent, darkAlpha: 0.12),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
               // Sprite
               Center(
                 child: SizedBox(
@@ -1485,6 +1481,8 @@ class _OverviewTab extends StatelessWidget {
             ],
           ),
         ),
+      ),
+        ),
         // Prismatic shimmer badge (top-left)
         if (creature.isPrismaticSkin == true)
           Positioned(
@@ -1512,42 +1510,39 @@ class _OverviewTab extends StatelessWidget {
             child: Builder(
               builder: (context) {
                 final fColor = _variantFactionColor(instance!.variantFaction!);
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 4,
+                return CustomPaint(
+                  painter: BracketFramePainter(
+                    color: fColor.withValues(alpha: 0.85),
+                    bracketSize: 6,
+                    strokeWidth: 1,
                   ),
-                  decoration: BoxDecoration(
-                    color: fColor.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: fColor.withValues(alpha: 0.75),
-                      width: 1,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: fColor.withValues(alpha: 0.3),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.auto_awesome_rounded, color: fColor, size: 9),
-                      const SizedBox(width: 4),
-                      Text(
-                        _displayVariantFaction(instance!.variantFaction!),
-                        style: TextStyle(
-                          fontFamily: 'monospace',
+                    color: fColor.withValues(alpha: 0.12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome_rounded,
                           color: fColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.6,
+                          size: 10,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 5),
+                        Text(
+                          _displayVariantFaction(instance!.variantFaction!),
+                          style: bracketText(
+                            context,
+                            11,
+                            fColor,
+                            weight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -1593,29 +1588,25 @@ class _HeroCornerBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: c.bg1.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withValues(alpha: 0.7)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.18),
-            blurRadius: 10,
-            spreadRadius: 1,
-          ),
-        ],
+    final palette = _bp(context);
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: color.withValues(alpha: 0.8),
+        bracketSize: 6,
+        strokeWidth: 1,
       ),
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.0,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        color: palette.surfaceFill(lightAlpha: 0.96),
+        child: Text(
+          label.toUpperCase(),
+          style: bracketText(
+            context,
+            11,
+            color,
+            weight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
         ),
       ),
     );
@@ -1629,15 +1620,19 @@ class _HeroStaminaBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: c.bg1.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: c.borderAccent.withValues(alpha: 0.75)),
+    final palette = _bp(context);
+    final activeAccent = _dialogAccent(context);
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: activeAccent.withValues(alpha: 0.84),
+        bracketSize: 6,
+        strokeWidth: 1,
       ),
-      child: StaminaBadge(instanceId: instanceId, showCountdown: false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        color: palette.surfaceFill(lightAlpha: 0.96),
+        child: StaminaBadge(instanceId: instanceId, showCountdown: false),
+      ),
     );
   }
 }
@@ -1656,7 +1651,6 @@ class _StaminaRestoreButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
     final db = context.read<AlchemonsDatabase>();
     return StreamBuilder<CreatureInstance?>(
       stream: db.creatureDao.watchInstanceById(instanceId),
@@ -1679,44 +1673,63 @@ class _StaminaRestoreButton extends StatelessWidget {
             }
             if (qty <= 0) return const SizedBox.shrink();
 
+            final palette = _bp(context);
+            final theme = context.read<FactionTheme>();
+            final activeAccent = _dialogAccent(context);
             return Padding(
               padding: const EdgeInsets.only(top: 8),
               child: GestureDetector(
                 onTap: () => _use(context, qty),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.local_drink_rounded,
-                      color: c.amberBright,
-                      size: 16,
+                child: CustomPaint(
+                  painter: BracketFramePainter(
+                    color: activeAccent.withValues(alpha: 0.88),
+                    bracketSize: 8,
+                    strokeWidth: 1.05,
+                  ),
+                  child: Container(
+                    color: palette.accentWash(theme.accent, darkAlpha: 0.10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Restore Stamina',
-                        style: TextStyle(
-                          color: c.amberBright,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.local_drink_rounded,
+                          color: activeAccent,
+                          size: 14,
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Restore stamina',
+                            style: bracketText(
+                              context,
+                              12.5,
+                              palette.ink,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '×$qty',
+                          style: bracketText(
+                            context,
+                            12,
+                            palette.muted,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: palette.muted,
+                        ),
+                      ],
                     ),
-                    Text(
-                      '×$qty',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: c.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 16,
-                      color: c.textMuted,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             );
@@ -1820,53 +1833,49 @@ class _StatBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
-    final t = _T(c);
+    final palette = _bp(context);
     final ratio = (value / _maxStat).clamp(0.0, 1.0);
     final color = _barColor(c);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
           SizedBox(
             width: 110,
-            child: Text(label.toUpperCase(), style: t.label),
-          ),
-          Expanded(
-            child: Container(
-              height: 4,
-              decoration: BoxDecoration(
-                color: c.bg3,
-                borderRadius: BorderRadius.circular(2),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: ratio,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.4),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                ),
+            child: Text(
+              label.toUpperCase(),
+              style: bracketText(
+                context,
+                11,
+                palette.muted,
+                weight: FontWeight.w700,
+                letterSpacing: 0.9,
               ),
             ),
           ),
           const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              height: 5,
+              color: palette.lineSoft,
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: ratio,
+                child: Container(color: color),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           SizedBox(
-            width: 36,
+            width: 32,
             child: Text(
               value.toStringAsFixed(1),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
+              style: bracketText(
+                context,
+                12.5,
+                color,
+                weight: FontWeight.w700,
               ),
               textAlign: TextAlign.right,
             ),
@@ -2012,7 +2021,7 @@ class _AnalysisTab extends StatelessWidget {
 
           // Parent specimens
           if (parentage != null && parentage?.parentA.baseId != '') ...[
-            const _EtchedDivider(label: 'PARENT SPECIMENS'),
+            const BracketSectionDivider(label: 'Parent specimens'),
             const SizedBox(height: 12),
             ParentCard(
               theme: fTheme,
@@ -2107,18 +2116,22 @@ class _GatedContent extends StatelessWidget {
   final String message;
   const _GatedContent({required this.message});
   @override
-  @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final t = _T(c);
+    final palette = _bp(context);
     return Row(
       children: [
-        Icon(Icons.visibility_off_rounded, color: c.textMuted, size: 14),
+        Icon(Icons.visibility_off_rounded, color: palette.muted, size: 14),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             message,
-            style: t.body.copyWith(fontSize: 12, fontStyle: FontStyle.italic),
+            style: bracketText(
+              context,
+              12,
+              palette.muted,
+              weight: FontWeight.w500,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ),
       ],
@@ -2408,26 +2421,29 @@ class _SummaryBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
+    final palette = _bp(context);
     final summaryLine = report['summaryLine'] as String? ?? '';
     if (summaryLine.isEmpty) return const SizedBox.shrink();
     final parts = summaryLine.split(':');
     final cross = parts.isNotEmpty ? parts[0].trim() : summaryLine;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: c.bg3,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: c.borderDim),
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.9),
+        bracketSize: 8,
+        strokeWidth: 1.05,
       ),
-      child: Text(
-        cross.toUpperCase(),
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: c.textPrimary,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        color: palette.surfaceFill(),
+        child: Text(
+          cross,
+          style: bracketText(
+            context,
+            13,
+            palette.ink,
+            weight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
         ),
       ),
     );
@@ -2448,9 +2464,9 @@ class _InheritanceMechanicsSection extends StatelessWidget {
     if (mechanics.isEmpty) return const SizedBox.shrink();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _EtchedDivider(label: 'INHERITANCE MECHANICS'),
+        const BracketSectionDivider(label: 'Inheritance mechanics'),
         const SizedBox(height: 10),
         ...mechanics.map((m) => _MechanicCard(mechanic: m)),
       ],
@@ -2467,58 +2483,67 @@ class _PurityAnalysisCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
-    final t = _T(c);
+    final palette = _bp(context);
     final color = purity.isPure
         ? c.success
         : purity.isElementallyPure
         ? c.teal
         : purity.isSpeciesPure
         ? c.amberBright
-        : c.textMuted;
+        : palette.muted;
 
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: c.bg3,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: c.borderDim),
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: color.withValues(alpha: 0.65),
+        bracketSize: 8,
+        strokeWidth: 1.05,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.verified_rounded, size: 13, color: color),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Purity Bonus: ${purity.label}',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: c.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        color: palette.surfaceFill(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.verified_rounded, size: 13, color: color),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'Purity bonus: ${purity.label}',
+                    style: bracketText(
+                      context,
+                      13,
+                      palette.ink,
+                      weight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Text(
-            bonus.summary,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+              ],
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            bonus.explanationFor(purity),
-            style: t.body.copyWith(fontSize: 12),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              bonus.summary,
+              style: bracketText(
+                context,
+                12.5,
+                color,
+                weight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              bonus.explanationFor(purity),
+              style: bracketText(
+                context,
+                12,
+                palette.muted,
+                weight: FontWeight.w500,
+              ),
+              strutStyle: const StrutStyle(height: 1.4),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2531,7 +2556,7 @@ class _MechanicCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
-    final t = _T(c);
+    final palette = _bp(context);
     final category = mechanic['category'] as String? ?? '';
     final result = mechanic['result'] as String? ?? '';
     final mechanism = mechanic['mechanism'] as String? ?? '';
@@ -2540,60 +2565,77 @@ class _MechanicCard extends StatelessWidget {
     final color = _likelihoodColor(likelihood, c);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: c.bg3,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: c.borderDim),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: palette.line.withValues(alpha: 0.9),
+          bracketSize: 8,
+          strokeWidth: 1.05,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(_categoryIcon(category), size: 13, color: c.amberBright),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    '$category: $result',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: c.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          color: palette.surfaceFill(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _categoryIcon(category),
+                    size: 13,
+                    color: _dialogAccent(context),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      '$category: $result',
+                      style: bracketText(
+                        context,
+                        12.5,
+                        palette.ink,
+                        weight: FontWeight.w700,
+                      ),
                     ),
                   ),
+                  CustomPaint(
+                    painter: BracketFramePainter(
+                      color: color.withValues(alpha: 0.7),
+                      bracketSize: 5,
+                      strokeWidth: 1,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      color: color.withValues(alpha: 0.12),
+                      child: Text(
+                        '${percentage.toStringAsFixed(0)}%',
+                        style: bracketText(
+                          context,
+                          11,
+                          color,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                mechanism,
+                style: bracketText(
+                  context,
+                  12,
+                  palette.muted,
+                  weight: FontWeight.w500,
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(
-                      color: color.withValues(alpha: 0.4),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Text(
-                    '${percentage.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(mechanism, style: t.body.copyWith(fontSize: 12)),
-          ],
+                strutStyle: const StrutStyle(height: 1.4),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2642,15 +2684,15 @@ class _InheritedTraitsSimple extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final t = _T(c);
+    final palette = _bp(context);
+    final theme = context.read<FactionTheme>();
     final traits = analysis['traitJustifications'] as List? ?? [];
     if (traits.isEmpty) return const SizedBox.shrink();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _EtchedDivider(label: 'INHERITED TRAITS'),
+        const BracketSectionDivider(label: 'Inherited traits'),
         const SizedBox(height: 10),
         ...traits.map((raw) {
           final trait = raw as Map;
@@ -2659,43 +2701,51 @@ class _InheritedTraitsSimple extends StatelessWidget {
           final category = trait['category'] as String;
           final mechanism = trait['mechanism'] as String;
           return Padding(
-            padding: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.only(bottom: 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: c.amberDim.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: c.borderAccent, width: 0.8),
+                CustomPaint(
+                  painter: BracketFramePainter(
+                    color: _dialogAccent(context).withValues(alpha: 0.84),
+                    bracketSize: 5,
+                    strokeWidth: 1,
                   ),
-                  child: Icon(
-                    _MechanicCard._categoryIcon(category),
-                    size: 11,
-                    color: c.amberBright,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    color: palette.accentWash(theme.accent, darkAlpha: 0.12),
+                    child: Icon(
+                      _MechanicCard._categoryIcon(category),
+                      size: 12,
+                      color: _dialogAccent(context),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         '$traitName: $actualValue',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: c.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        style: bracketText(
+                          context,
+                          12.5,
+                          palette.ink,
+                          weight: FontWeight.w700,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         mechanism,
-                        style: t.body.copyWith(
-                          fontSize: 12,
+                        style: bracketText(
+                          context,
+                          12,
+                          palette.muted,
+                          weight: FontWeight.w500,
                           fontStyle: FontStyle.italic,
                         ),
+                        strutStyle: const StrutStyle(height: 1.4),
                       ),
                     ],
                   ),

@@ -6,6 +6,7 @@ import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -100,7 +101,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
-    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
+    final palette = BracketPalette.fromTheme(theme);
     final rarity = (widget.slot.rarity ?? 'common').toLowerCase();
     final rarityColor = BreedConstants.getRarityColor(rarity);
     final parentTypes = _extractParentTypes();
@@ -120,147 +121,198 @@ class ExtractionDialogState extends State<ExtractionDialog>
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── PARTICLE BANNER ──────────────────────────────────
-                _ParticleBanner(
-                  parentTypes: parentTypes,
-                  rarityColor: rarityColor,
-                  rarity: rarity,
-                  isUndiscovered: widget.isUndiscovered,
-                  theme: theme,
-                  quality: _cinematicQuality,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CustomPaint(
+                painter: BracketFramePainter(
+                  color: rarityColor.withValues(alpha: 0.85),
+                  bracketSize: 14,
+                  strokeWidth: 1.4,
                 ),
-
-                // ── INFO + ACTIONS PANEL ──────────────────────────────
-                Container(
-                  decoration: BoxDecoration(
-                    color: dialogSurface,
-                    border: Border(
-                      left: BorderSide(color: t.borderMid, width: 1),
-                      right: BorderSide(color: t.borderMid, width: 1),
-                      bottom: BorderSide(color: t.borderMid, width: 1),
-                    ),
-                  ),
+                child: Container(
+                  color: palette.surfaceFill(),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _ParticleBanner(
+                        parentTypes: parentTypes,
+                        rarityColor: rarityColor,
+                        rarity: rarity,
+                        isUndiscovered: widget.isUndiscovered,
+                        theme: theme,
+                        quality: _cinematicQuality,
+                      ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-                        child: Column(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 3,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    color: rarityColor,
-                                    borderRadius: BorderRadius.circular(2),
+                            Container(width: 3, height: 32, color: rarityColor),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Specimen ready',
+                                    style: bracketText(
+                                      context,
+                                      18,
+                                      palette.ink,
+                                      weight: FontWeight.w700,
+                                      letterSpacing: 0.3,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'SPECIMEN READY',
-                                        style: TextStyle(
-                                          color: theme.text,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 1.4,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Cultivation complete',
-                                        style: TextStyle(
-                                          color: theme.textMuted,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: .4,
-                                        ),
-                                      ),
-                                    ],
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Cultivation complete',
+                                    style: bracketText(
+                                      context,
+                                      12.5,
+                                      palette.muted,
+                                      weight: FontWeight.w500,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            Container(
-                              height: 1,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    rarityColor.withValues(alpha: .35),
-                                    Colors.transparent,
-                                  ],
-                                ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                      CultivationDialogActionArea(
+                  CultivationDialogActionArea(
+                    tokens: t,
+                    children: [
+                      CultivationDialogButton(
                         tokens: t,
-                        children: [
-                          CultivationDialogButton(
-                            tokens: t,
-                            label: 'EXTRACT SPECIMEN',
-                            icon: Icons.biotech_rounded,
-                            accentColor: rarityColor,
-                            emphasis: CultivationDialogButtonEmphasis.primary,
-                            useSolidBackground: true,
-                            foregroundColor: Colors.white,
-                            onTap: () {
-                              HapticFeedback.heavyImpact();
-                              widget.onExtract();
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              if (!widget.isTutorial) ...[
-                                Expanded(
-                                  child: CultivationDialogButton(
-                                    tokens: t,
-                                    label: 'DISCARD',
-                                    icon: Icons.delete_forever_rounded,
-                                    accentColor: t.danger,
-                                    emphasis:
-                                        CultivationDialogButtonEmphasis.danger,
-                                    onTap: widget.onDiscard,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              Expanded(
-                                child: CultivationDialogButton(
-                                  tokens: t,
-                                  label: 'CLOSE',
-                                  icon: Icons.close_rounded,
-                                  accentColor: t.textSecondary,
-                                  onTap: widget.onCancel,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        label: 'Extract specimen',
+                        icon: Icons.biotech_rounded,
+                        accentColor: rarityColor,
+                        emphasis: CultivationDialogButtonEmphasis.primary,
+                        useSolidBackground: true,
+                        foregroundColor: Colors.white,
+                        large: true,
+                        onTap: () {
+                          HapticFeedback.heavyImpact();
+                          widget.onExtract();
+                        },
                       ),
+                      if (!widget.isTutorial) ...[
+                        const SizedBox(height: 10),
+                        Center(
+                          child: _DialogTextLink(
+                            label: 'Discard specimen',
+                            icon: Icons.delete_outline_rounded,
+                            color: t.danger,
+                            onTap: widget.onDiscard,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: _DialogIconButton(
+                  icon: Icons.close_rounded,
+                  tooltip: 'Close',
+                  palette: palette,
+                  onTap: widget.onCancel,
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HEADER ICON BUTTON + TEXT LINK
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DialogIconButton extends StatelessWidget {
+  const _DialogIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final BracketPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: palette.line.withValues(alpha: 0.7),
+            bracketSize: 6,
+            strokeWidth: 1,
+          ),
+          child: Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            color: palette.surfaceMutedFill(),
+            child: Icon(icon, size: 16, color: palette.muted),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogTextLink extends StatelessWidget {
+  const _DialogTextLink({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color.withValues(alpha: 0.85)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: bracketText(
+                context,
+                12,
+                color.withValues(alpha: 0.85),
+                weight: FontWeight.w600,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
         ),
       ),
     );

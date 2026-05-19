@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class AllSpecimensPage extends StatefulWidget {
   final FactionTheme theme;
@@ -49,10 +51,8 @@ class AllSpecimensPage extends StatefulWidget {
   State<AllSpecimensPage> createState() => _AllSpecimensPageState();
 }
 
-class _AllSpecimensPageState extends State<AllSpecimensPage>
-    with SingleTickerProviderStateMixin {
+class _AllSpecimensPageState extends State<AllSpecimensPage> {
   late final TextEditingController _searchController;
-  late final AnimationController _blinkController;
   String _searchText = '';
   int _clearVersion = 0;
   bool _hasResettableState = false;
@@ -62,25 +62,19 @@ class _AllSpecimensPageState extends State<AllSpecimensPage>
   void initState() {
     super.initState();
     _searchController = TextEditingController();
-    _blinkController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-      lowerBound: 0.3,
-      upperBound: 1.0,
-    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _blinkController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
 
     return PopScope(
       canPop: !(widget.closeReturnsSelection && widget.selectionMode),
@@ -94,120 +88,132 @@ class _AllSpecimensPageState extends State<AllSpecimensPage>
         floatingActionButton: widget.showFloatingCloseButton
             ? FloatingCloseButton(onTap: _closePage, theme: theme)
             : null,
-        backgroundColor: t.bg0,
-        appBar: AppBar(
-          backgroundColor: t.bg1,
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-          leading: widget.leadingIcon == null
-              ? null
-              : Tooltip(
-                  message: widget.leadingTooltip,
-                  child: GestureDetector(
-                    onTap: widget.onLeadingTap ?? _closePage,
-                    child: Container(
-                      margin: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: t.bg2,
-                        borderRadius: BorderRadius.circular(3),
-                        border: Border.all(color: t.borderDim),
-                      ),
-                      child: Icon(
-                        widget.leadingIcon,
-                        color: t.textSecondary,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-          automaticallyImplyLeading: false,
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: Center(
-                child: GestureDetector(
-                  onTap: () => setState(() {
-                    _searchText = '';
-                    _searchController.clear();
-                    _clearVersion++;
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _hasResettableState
-                          ? t.amberDim.withValues(alpha: 0.18)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: _hasResettableState
-                            ? t.borderAccent
-                            : t.borderDim,
-                      ),
-                    ),
-                    child: Text(
-                      'CLEAR',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: _hasResettableState
-                            ? t.amberBright
-                            : t.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
+        backgroundColor: palette.bg1,
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(64),
+          child: Container(
+            decoration: BoxDecoration(
+              color: palette.bg0,
+              border: Border(
+                bottom: BorderSide(
+                  color: palette.line.withValues(alpha: 0.5),
                 ),
               ),
             ),
-          ],
-          title: Row(
-            children: [
-              FadeTransition(
-                opacity: _blinkController,
-                child: Container(
-                  width: 4,
-                  height: 14,
-                  color: t.amber,
-                  margin: const EdgeInsets.only(right: 8),
-                ),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  cursorColor: t.amberBright,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                    color: t.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    isCollapsed: true,
-                    border: InputBorder.none,
-                    hintText: widget.searchHint,
-                    hintStyle: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Row(
+                  children: [
+                    if (widget.leadingIcon != null) ...[
+                      _HeaderSquareButton(
+                        icon: widget.leadingIcon!,
+                        palette: palette,
+                        accent: theme.accentSoft,
+                        tooltip: widget.leadingTooltip,
+                        onTap: widget.onLeadingTap ?? _closePage,
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: CustomPaint(
+                        painter: BracketFramePainter(
+                          color: palette.line.withValues(alpha: 0.7),
+                          bracketSize: 8,
+                          strokeWidth: 1.05,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          color: palette.surfaceMutedFill(),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.search_rounded,
+                                size: 16,
+                                color: palette.muted,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  cursorColor: activeAccent,
+                                  style: bracketText(
+                                    context,
+                                    14,
+                                    palette.ink,
+                                    weight: FontWeight.w600,
+                                    letterSpacing: 0.2,
+                                  ),
+                                  decoration: InputDecoration(
+                                    isCollapsed: true,
+                                    border: InputBorder.none,
+                                    hintText: widget.searchHint,
+                                    hintStyle: bracketText(
+                                      context,
+                                      14,
+                                      palette.muted,
+                                      weight: FontWeight.w600,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                  onChanged: (value) {
+                                    setState(() => _searchText = value);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  onChanged: (value) {
-                    setState(() => _searchText = value);
-                  },
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _searchText = '';
+                        _searchController.clear();
+                        _clearVersion++;
+                      }),
+                      child: CustomPaint(
+                        painter: BracketFramePainter(
+                          color: _hasResettableState
+                              ? activeAccent
+                              : palette.line.withValues(alpha: 0.6),
+                          bracketSize: 7,
+                          strokeWidth: _hasResettableState ? 1.2 : 1.0,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          color: _hasResettableState
+                              ? palette.accentWash(theme.accent)
+                              : palette.surfaceMutedFill(),
+                          child: Text(
+                            'Clear',
+                            style: bracketText(
+                              context,
+                              12,
+                              _hasResettableState
+                                  ? palette.ink
+                                  : palette.muted,
+                              weight: _hasResettableState
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(1),
-            child: Container(height: 1, color: t.borderDim),
+            ),
           ),
         ),
         body: SafeArea(
@@ -251,5 +257,49 @@ class _AllSpecimensPageState extends State<AllSpecimensPage>
       return;
     }
     navigator.pop();
+  }
+}
+
+class _HeaderSquareButton extends StatelessWidget {
+  const _HeaderSquareButton({
+    required this.icon,
+    required this.palette,
+    required this.accent,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final BracketPalette palette;
+  final Color accent;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayAccent = bracketReadableAccent(
+      context.read<FactionTheme>(),
+      color: accent,
+    );
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: displayAccent.withValues(alpha: 0.82),
+            bracketSize: 7,
+            strokeWidth: 1.05,
+          ),
+          child: Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            color: palette.surfaceFill(lightAlpha: 0.94),
+            child: Icon(icon, color: displayAccent, size: 16),
+          ),
+        ),
+      ),
+    );
   }
 }

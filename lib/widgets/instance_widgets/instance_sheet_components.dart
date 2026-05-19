@@ -20,25 +20,9 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-
-// ──────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _ScanlinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withValues(alpha: 0.07);
-    for (double y = 0; y < size.height; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
 
 String _displayVariantFaction(String faction) {
   final trimmed = faction.trim();
@@ -152,168 +136,208 @@ class InstanceCard extends StatelessWidget {
             ),
           };
 
-    final selColor = isSelected ? _selectionColor(t) : t.borderDim;
+    final palette = BracketPalette.fromTheme(theme);
+    final selColor = isSelected ? _selectionColor(t) : palette.line;
 
     return FastLongPressDetector(
       onTap: onTap,
       onLongPress: onLongPress,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: isSelected ? selColor.withValues(alpha: 0.08) : t.bg2,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: selColor, width: isSelected ? 1.5 : 1.0),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: selColor.withValues(alpha: 0.15),
-                    blurRadius: 10,
-                  ),
-                ]
-              : null,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: isSelected
+              ? selColor
+              : palette.line.withValues(alpha: 0.75),
+          bracketSize: 10,
+          strokeWidth: isSelected ? 1.5 : 1.05,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: Stack(
+        child: Container(
+          decoration: BoxDecoration(
+            color: isSelected
+                ? palette.accentWash(selColor)
+                : palette.surfaceFill(),
+            border: Border.all(
+              color: isSelected
+                  ? selColor.withValues(alpha: 0.4)
+                  : palette.lineSoft.withValues(alpha: 0.5),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.all(6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Scanline texture
-              Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
-
-              Padding(
-                padding: const EdgeInsets.all(4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              // ── Sprite area ──────────────────────────────────────
+              Expanded(
+                child: Stack(
                   children: [
-                    // ── Sprite area ──────────────────────────────────────
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          Center(
-                            child: RepaintBoundary(
-                              child: sd != null
-                                  ? InstanceSprite(
-                                      creature: species,
-                                      instance: instance,
-                                      size: 90,
-                                    )
-                                  : Image.asset(
-                                      species.image,
-                                      fit: BoxFit.contain,
-                                    ),
-                            ),
-                          ),
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 3,
+                    Center(
+                      child: RepaintBoundary(
+                        child: sd != null
+                            ? InstanceSprite(
+                                creature: species,
+                                instance: instance,
+                                size: 90,
+                              )
+                            : Image.asset(
+                                species.image,
+                                fit: BoxFit.contain,
                               ),
-                              decoration: BoxDecoration(
-                                color: t.bg0.withValues(alpha: 0.82),
-                                borderRadius: BorderRadius.circular(2),
-                                border: Border.all(color: topLeftBorderColor),
-                              ),
-                              child: Text(
-                                topLeftLabel,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: topLeftTextColor,
-                                  fontSize: showSortBadge ? 7 : 8,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (instance.isFavorite ||
-                              (isSelected && selectionNumber != null))
-                            Positioned(
-                              top: 0,
-                              right: 0,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  if (instance.isFavorite)
-                                    Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: t.bg0.withValues(alpha: 0.82),
-                                        borderRadius: BorderRadius.circular(2),
-                                        border: Border.all(
-                                          color: const Color(
-                                            0xFFE91E63,
-                                          ).withValues(alpha: 0.45),
-                                        ),
-                                      ),
-                                      child: const Icon(
-                                        Icons.star_rounded,
-                                        size: 10,
-                                        color: Color(0xFFE91E63),
-                                      ),
-                                    ),
-                                  if (instance.isFavorite &&
-                                      isSelected &&
-                                      selectionNumber != null)
-                                    const SizedBox(height: 4),
-                                  if (isSelected && selectionNumber != null)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 5,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: selColor,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.merge_type_rounded,
-                                            color: t.bg0,
-                                            size: 9,
-                                          ),
-                                          const SizedBox(width: 2),
-                                          Text(
-                                            '$selectionNumber',
-                                            style: TextStyle(
-                                              fontFamily: 'monospace',
-                                              color: t.bg0,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                        ],
                       ),
                     ),
-
-                    const SizedBox(height: 5),
-
-                    if (!_isHarvestMode &&
-                        detailMode == InstanceDetailMode.genetics) ...[
-                      _CardNameLine(
-                        instance: instance,
-                        creatureName: species.name,
-                        trailing: _CompactStaminaSummary(instance: instance),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      child: _CardCornerPill(
+                        label: topLeftLabel,
+                        color: topLeftTextColor,
+                        frameColor: topLeftBorderColor,
+                        palette: palette,
+                        fontSize: showSortBadge ? 9 : 10,
                       ),
-                      const SizedBox(height: 4),
-                    ],
-
-                    bottomBlock,
+                    ),
+                    if (instance.isFavorite ||
+                        (isSelected && selectionNumber != null))
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (instance.isFavorite)
+                              _CardCornerIcon(
+                                icon: Icons.star_rounded,
+                                color: const Color(0xFFE91E63),
+                                palette: palette,
+                              ),
+                            if (instance.isFavorite &&
+                                isSelected &&
+                                selectionNumber != null)
+                              const SizedBox(height: 4),
+                            if (isSelected && selectionNumber != null)
+                              _CardSelectionBadge(
+                                number: selectionNumber!,
+                                color: selColor,
+                                palette: palette,
+                              ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
+
+              const SizedBox(height: 6),
+
+              if (!_isHarvestMode &&
+                  detailMode == InstanceDetailMode.genetics) ...[
+                _CardNameLine(
+                  instance: instance,
+                  creatureName: species.name,
+                  trailing: _CompactStaminaSummary(instance: instance),
+                ),
+                const SizedBox(height: 4),
+              ],
+
+              bottomBlock,
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CardCornerPill extends StatelessWidget {
+  const _CardCornerPill({
+    required this.label,
+    required this.color,
+    required this.frameColor,
+    required this.palette,
+    required this.fontSize,
+  });
+
+  final String label;
+  final Color color;
+  final Color frameColor;
+  final BracketPalette palette;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: palette.chromeFill(),
+        border: Border(
+          left: BorderSide(color: color, width: 2),
+        ),
+      ),
+      child: Text(
+        label,
+        style: bracketText(
+          context,
+          fontSize,
+          color,
+          weight: FontWeight.w800,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+}
+
+class _CardCornerIcon extends StatelessWidget {
+  const _CardCornerIcon({
+    required this.icon,
+    required this.color,
+    required this.palette,
+  });
+
+  final IconData icon;
+  final Color color;
+  final BracketPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      color: palette.chromeFill(),
+      child: Icon(icon, size: 11, color: color),
+    );
+  }
+}
+
+class _CardSelectionBadge extends StatelessWidget {
+  const _CardSelectionBadge({
+    required this.number,
+    required this.color,
+    required this.palette,
+  });
+
+  final int number;
+  final Color color;
+  final BracketPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      color: color,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.merge_type_rounded, color: palette.bg0, size: 10),
+          const SizedBox(width: 3),
+          Text(
+            '$number',
+            style: bracketText(
+              context,
+              12,
+              palette.bg0,
+              weight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -425,18 +449,18 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
     final displayColor = t.readableAccent(color);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      decoration: BoxDecoration(
-        color: t.bg0.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: displayColor.withValues(alpha: 0.2)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          Container(width: 2, height: 18, color: displayColor),
+          const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,27 +468,24 @@ class _StatTile extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: displayColor.withValues(alpha: 0.8),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    height: 1,
+                  style: bracketText(
+                    context,
+                    10,
+                    palette.muted,
+                    weight: FontWeight.w700,
+                    letterSpacing: 0.6,
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
                   potentialValue == null
                       ? currentValue.toStringAsFixed(1)
                       : '${currentValue.toStringAsFixed(1)} / ${potentialValue!.toStringAsFixed(1)}',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: displayColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                  style: bracketText(
+                    context,
+                    12.5,
+                    displayColor,
+                    weight: FontWeight.w700,
                     letterSpacing: 0.2,
-                    height: 1,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -637,24 +658,17 @@ class _MiniRow extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 4,
-          height: 4,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 5),
+        Container(width: 4, height: 4, color: color),
+        const SizedBox(width: 6),
         Flexible(
           fit: FlexFit.loose,
           child: Text(
             label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+            style: bracketText(
+              context,
+              11.5,
+              color,
+              weight: FontWeight.w600,
               letterSpacing: 0.3,
             ),
             maxLines: 1,
@@ -681,25 +695,24 @@ class _ParentChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = _color;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: c.withValues(alpha: 0.5)),
+        color: c.withValues(alpha: 0.14),
+        border: Border(left: BorderSide(color: c, width: 2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.merge_type_rounded, color: c, size: 9),
-          const SizedBox(width: 3),
+          Icon(Icons.merge_type_rounded, color: c, size: 10),
+          const SizedBox(width: 4),
           Text(
-            'PARENT $selectionNumber',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: c,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+            'Parent $selectionNumber',
+            style: bracketText(
+              context,
+              11,
+              c,
+              weight: FontWeight.w700,
+              letterSpacing: 0.4,
             ),
           ),
         ],
@@ -712,26 +725,26 @@ class _PrismaticChip extends StatelessWidget {
   const _PrismaticChip();
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-    decoration: BoxDecoration(
-      color: const Color(0xFFA855F7).withValues(alpha: 0.15),
-      borderRadius: BorderRadius.circular(2),
-      border: Border.all(
-        color: const Color(0xFFA855F7).withValues(alpha: 0.45),
+  Widget build(BuildContext context) {
+    const c = Color(0xFFE879F9);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.14),
+        border: Border(left: BorderSide(color: c, width: 2)),
       ),
-    ),
-    child: const Text(
-      'PRISMATIC',
-      style: TextStyle(
-        fontFamily: 'monospace',
-        color: Color(0xFFE879F9),
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.8,
+      child: Text(
+        'Prismatic',
+        style: bracketText(
+          context,
+          11,
+          c,
+          weight: FontWeight.w700,
+          letterSpacing: 0.4,
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _CardNameLine extends StatelessWidget {
@@ -747,7 +760,7 @@ class _CardNameLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
+    final palette = BracketPalette.of(context);
     final hasNick = instance.nickname?.trim().isNotEmpty == true;
     final nick = hasNick ? instance.nickname!.trim() : creatureName;
 
@@ -755,13 +768,13 @@ class _CardNameLine extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            nick.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
+            nick,
+            style: bracketText(
+              context,
+              13,
+              palette.ink,
+              weight: FontWeight.w700,
+              letterSpacing: 0.2,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -781,11 +794,12 @@ class _CompactStaminaSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
+    final palette = BracketPalette.of(context);
     final stamina = context.read<StaminaService>();
     final state = stamina.computeState(instance);
     final bars = state.bars.clamp(0, state.max);
     final max = state.max <= 0 ? 1 : state.max;
-    final textColor = t.readableAccent(const Color(0xFF86EFAC));
+    final textColor = t.readableAccent(const Color(0xFF22C55E));
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -795,19 +809,19 @@ class _CompactStaminaSummary extends StatelessWidget {
           max: max,
           size: 5,
           gap: 1.5,
-          fillColor: const Color(0xFF22C55E),
-          emptyColor: Colors.black26,
-          radius: const BorderRadius.all(Radius.circular(2)),
+          fillColor: textColor,
+          emptyColor: palette.lineSoft,
+          radius: BorderRadius.zero,
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 5),
         Text(
           '$bars/$max',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: textColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.3,
+          style: bracketText(
+            context,
+            11,
+            textColor,
+            weight: FontWeight.w700,
+            letterSpacing: 0.2,
           ),
         ),
       ],
@@ -823,6 +837,7 @@ class _InlineStaminaSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
+    final palette = BracketPalette.of(context);
     final stamina = context.read<StaminaService>();
     final state = stamina.computeState(instance);
     final bars = state.bars.clamp(0, state.max);
@@ -832,15 +847,15 @@ class _InlineStaminaSummary extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(Icons.local_fire_department, size: 12, color: t.success),
-        const SizedBox(width: 4),
+        const SizedBox(width: 5),
         StaminaBar(
           current: bars,
           max: max,
           size: 7,
           gap: 2,
           fillColor: t.success,
-          emptyColor: t.bg0,
-          radius: const BorderRadius.all(Radius.circular(2)),
+          emptyColor: palette.lineSoft,
+          radius: BorderRadius.zero,
         ),
       ],
     );
@@ -863,37 +878,42 @@ class InstancesEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
+    final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: t.borderAccent.withValues(alpha: 0.5),
+            CustomPaint(
+              painter: BracketFramePainter(
+                color: activeAccent.withValues(alpha: 0.82),
+                bracketSize: 10,
+                strokeWidth: 1.1,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(22),
+                color: palette.surfaceFill(),
+                child: Icon(
+                  hasFilters
+                      ? Icons.search_off_rounded
+                      : Icons.science_outlined,
+                  size: 36,
+                  color: palette.muted,
                 ),
               ),
-              child: Icon(
-                hasFilters ? Icons.search_off_rounded : Icons.science_outlined,
-                size: 36,
-                color: t.amberBright.withValues(alpha: 0.4),
-              ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Text(
-              hasFilters ? 'NO MATCHING SPECIMENS' : 'NO SPECIMENS CONTAINED',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
+              hasFilters ? 'No matching specimens' : 'No specimens contained',
+              style: bracketText(
+                context,
+                14,
+                palette.ink,
+                weight: FontWeight.w700,
+                letterSpacing: 0.4,
               ),
               textAlign: TextAlign.center,
             ),
@@ -901,14 +921,15 @@ class InstancesEmptyState extends StatelessWidget {
             Text(
               hasFilters
                   ? 'Adjust filters or clear your search'
-                  : 'Acquire specimens through fusion,\nrift portals, or planet summons',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textSecondary,
-                fontSize: 12,
-                letterSpacing: 0.3,
-                height: 1.6,
+                  : 'Acquire specimens through fusion, rift portals, or planet summons.',
+              style: bracketText(
+                context,
+                12.5,
+                palette.muted,
+                weight: FontWeight.w500,
+                fontStyle: FontStyle.italic,
               ),
+              strutStyle: const StrutStyle(height: 1.4),
               textAlign: TextAlign.center,
             ),
           ],

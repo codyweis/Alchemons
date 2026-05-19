@@ -20,17 +20,12 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
 
-class _InventoryPalette {
-  static const bg0 = Color(0xFF080A0E);
-  static const bg1 = Color(0xFF0E1117);
-  static const ink = Color(0xFFE8DCC8);
-  static const muted = Color(0xFF9A8D7C);
-  static const line = Color(0xFF384150);
-  static const lineSoft = Color(0xFF252D3A);
-}
+typedef _InventoryPalette = BracketPalette;
+typedef _BracketFramePainter = BracketFramePainter;
 
 TextStyle _display(
   BuildContext context,
@@ -39,59 +34,14 @@ TextStyle _display(
   FontWeight weight = FontWeight.w500,
   double letterSpacing = 0,
   FontStyle fontStyle = FontStyle.normal,
-}) {
-  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
-  return base.copyWith(
-    color: color,
-    fontSize: size,
-    fontWeight: weight,
-    letterSpacing: letterSpacing,
-    fontStyle: fontStyle,
-  );
-}
-
-class _BracketFramePainter extends CustomPainter {
-  const _BracketFramePainter({
-    required this.color,
-    this.bracketSize = 10,
-    this.strokeWidth = 1,
-  });
-
-  final Color color;
-  final double bracketSize;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    final s = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, s)
-      ..lineTo(0, 0)
-      ..lineTo(s, 0)
-      ..moveTo(w - s, 0)
-      ..lineTo(w, 0)
-      ..lineTo(w, s)
-      ..moveTo(0, h - s)
-      ..lineTo(0, h)
-      ..lineTo(s, h)
-      ..moveTo(w - s, h)
-      ..lineTo(w, h)
-      ..lineTo(w, h - s);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.bracketSize != bracketSize ||
-      oldDelegate.strokeWidth != strokeWidth;
-}
+}) => bracketText(
+  context,
+  size,
+  color,
+  weight: weight,
+  letterSpacing: letterSpacing,
+  fontStyle: fontStyle,
+);
 
 /// Helper to get images for inventory items from ShopService
 class InventoryImageHelper {
@@ -241,6 +191,8 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Widget _buildTabSelector(FactionTheme theme) {
+    final palette = _InventoryPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
       child: Row(
@@ -260,8 +212,8 @@ class _InventoryScreenState extends State<InventoryScreen>
                 child: CustomPaint(
                   painter: _BracketFramePainter(
                     color: selected
-                        ? theme.accentSoft.withValues(alpha: 0.9)
-                        : _InventoryPalette.line.withValues(alpha: 0.85),
+                        ? activeAccent.withValues(alpha: 0.9)
+                        : palette.line.withValues(alpha: 0.85),
                     bracketSize: 9,
                     strokeWidth: 1.1,
                   ),
@@ -269,16 +221,14 @@ class _InventoryScreenState extends State<InventoryScreen>
                     height: 44,
                     alignment: Alignment.center,
                     color: selected
-                        ? theme.accent.withValues(alpha: 0.14)
-                        : _InventoryPalette.bg1.withValues(alpha: 0.55),
+                        ? palette.accentWash(theme.accent)
+                        : palette.surfaceMutedFill(),
                     child: Text(
                       label,
                       style: _display(
                         context,
                         13,
-                        selected
-                            ? _InventoryPalette.ink
-                            : _InventoryPalette.muted,
+                        selected ? palette.ink : palette.muted,
                         weight: FontWeight.w700,
                         letterSpacing: 0.8,
                       ),
@@ -294,6 +244,7 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Widget _buildHeader(FactionTheme theme) {
+    final palette = _InventoryPalette.fromTheme(theme);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -308,7 +259,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 style: _display(
                   context,
                   27,
-                  _InventoryPalette.ink,
+                  palette.ink,
                   weight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -319,7 +270,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 style: _display(
                   context,
                   13,
-                  _InventoryPalette.muted,
+                  palette.muted,
                   weight: FontWeight.w500,
                   fontStyle: FontStyle.italic,
                 ),
@@ -335,7 +286,9 @@ class _InventoryScreenState extends State<InventoryScreen>
           child: Row(
             children: [
               Flexible(
-                child: CurrencyDisplayWidget(accentColor: theme.accentSoft),
+                child: CurrencyDisplayWidget(
+                  accentColor: bracketReadableAccent(theme),
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -357,7 +310,7 @@ class _InventoryScreenState extends State<InventoryScreen>
               Row(
                 children: [
                   Expanded(
-                    child: Container(height: 1, color: _InventoryPalette.lineSoft),
+                    child: Container(height: 1, color: palette.lineSoft),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -366,14 +319,14 @@ class _InventoryScreenState extends State<InventoryScreen>
                       style: _display(
                         context,
                         12,
-                        _InventoryPalette.muted,
+                        palette.muted,
                         weight: FontWeight.w700,
                         letterSpacing: 1.2,
                       ),
                     ),
                   ),
                   Expanded(
-                    child: Container(height: 1, color: _InventoryPalette.lineSoft),
+                    child: Container(height: 1, color: palette.lineSoft),
                   ),
                 ],
               ),
@@ -616,6 +569,8 @@ class _InventoryScreenState extends State<InventoryScreen>
   ) {
     final canUse = def.canUse;
     final canDelete = def.canDispose;
+    final palette = _InventoryPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
 
     final Widget visualWidget = InventoryImageHelper.getVisualWidget(
       key: item.key,
@@ -630,20 +585,20 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: Colors.transparent,
         child: CustomPaint(
           painter: _BracketFramePainter(
-            color: theme.accentSoft.withValues(alpha: 0.72),
+            color: activeAccent.withValues(alpha: 0.84),
             bracketSize: 12,
             strokeWidth: 1.2,
           ),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 380),
-            color: _InventoryPalette.bg1,
+            color: palette.bg1,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Container(
                   padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
-                  color: _InventoryPalette.bg0.withValues(alpha: 0.88),
+                  color: palette.chromeFill(),
                   child: Row(
                     children: [
                       Expanded(
@@ -655,7 +610,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                               style: _display(
                                 context,
                                 22,
-                                _InventoryPalette.ink,
+                                palette.ink,
                                 weight: FontWeight.w500,
                               ),
                             ),
@@ -667,7 +622,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                               style: _display(
                                 context,
                                 12,
-                                _InventoryPalette.muted,
+                                palette.muted,
                                 weight: FontWeight.w500,
                                 fontStyle: FontStyle.italic,
                               ),
@@ -676,7 +631,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                         ),
                       ),
                       _DialogCloseButton(
-                        color: _InventoryPalette.line,
+                        color: palette.line,
                         onTap: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -684,7 +639,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 ),
                 Container(
                   height: 130,
-                  color: _InventoryPalette.bg0,
+                  color: palette.bg0,
                   child: Center(child: visualWidget),
                 ),
                 Padding(
@@ -694,7 +649,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     style: _display(
                       context,
                       20,
-                      _InventoryPalette.ink,
+                      palette.ink,
                       weight: FontWeight.w600,
                     ),
                     textAlign: TextAlign.center,
@@ -705,7 +660,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                   Center(
                     child: CustomPaint(
                       painter: _BracketFramePainter(
-                        color: theme.accentSoft.withValues(alpha: 0.72),
+                        color: activeAccent.withValues(alpha: 0.84),
                         bracketSize: 8,
                         strokeWidth: 1,
                       ),
@@ -714,13 +669,13 @@ class _InventoryScreenState extends State<InventoryScreen>
                           horizontal: 14,
                           vertical: 6,
                         ),
-                        color: theme.accent.withValues(alpha: 0.10),
+                        color: palette.accentWash(theme.accent),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
                               Icons.inventory_2_rounded,
-                              color: theme.accentSoft,
+                              color: activeAccent,
                               size: 12,
                             ),
                             const SizedBox(width: 6),
@@ -729,7 +684,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                               style: _display(
                                 context,
                                 12,
-                                _InventoryPalette.ink,
+                                palette.ink,
                                 weight: FontWeight.w700,
                                 letterSpacing: 0.4,
                               ),
@@ -748,7 +703,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     style: _display(
                       context,
                       13,
-                      _InventoryPalette.muted,
+                      palette.muted,
                       weight: FontWeight.w500,
                     ),
                     strutStyle: const StrutStyle(height: 1.45),
@@ -782,7 +737,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                             child: _DialogActionButton(
                               label: 'Use item',
                               icon: Icons.play_arrow_rounded,
-                              color: theme.accentSoft,
+                              color: bracketReadableAccent(theme),
                               onTap: () {
                                 Navigator.pop(ctx);
                                 _useItem(item, def);
@@ -804,26 +759,28 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   // ===== VIAL DETAILS DIALOG =====
   void _showVialDetailsDialog(ExtractionVial vial, FactionTheme theme) {
+    final palette = _InventoryPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         child: CustomPaint(
           painter: _BracketFramePainter(
-            color: theme.accentSoft.withValues(alpha: 0.72),
+            color: activeAccent.withValues(alpha: 0.84),
             bracketSize: 12,
             strokeWidth: 1.2,
           ),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 380),
-            color: _InventoryPalette.bg1,
+            color: palette.bg1,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Container(
                   padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
-                  color: _InventoryPalette.bg0.withValues(alpha: 0.88),
+                  color: palette.chromeFill(),
                   child: Row(
                     children: [
                       Expanded(
@@ -835,7 +792,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                               style: _display(
                                 context,
                                 22,
-                                _InventoryPalette.ink,
+                                palette.ink,
                                 weight: FontWeight.w500,
                               ),
                             ),
@@ -845,7 +802,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                               style: _display(
                                 context,
                                 12,
-                                _InventoryPalette.muted,
+                                palette.muted,
                                 weight: FontWeight.w500,
                                 fontStyle: FontStyle.italic,
                               ),
@@ -854,7 +811,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                         ),
                       ),
                       _DialogCloseButton(
-                        color: _InventoryPalette.line,
+                        color: palette.line,
                         onTap: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -862,7 +819,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 ),
                 Container(
                   height: 150,
-                  color: _InventoryPalette.bg0,
+                  color: palette.bg0,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
                     vertical: 12,
@@ -876,7 +833,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     style: _display(
                       context,
                       20,
-                      _InventoryPalette.ink,
+                      palette.ink,
                       weight: FontWeight.w600,
                     ),
                     textAlign: TextAlign.center,
@@ -890,7 +847,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     style: _display(
                       context,
                       13,
-                      _InventoryPalette.muted,
+                      palette.muted,
                       weight: FontWeight.w500,
                     ),
                     strutStyle: const StrutStyle(height: 1.45),
@@ -920,7 +877,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                         child: _DialogActionButton(
                           label: 'Extract',
                           icon: Icons.science_rounded,
-                          color: theme.accentSoft,
+                          color: bracketReadableAccent(theme),
                           onTap: () {
                             Navigator.pop(ctx);
                             _useVial(vial);
@@ -1264,7 +1221,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         title: 'Remove item',
         subtitle: 'Choose how much to clear from your satchel.',
         message: 'You currently carry ${item.qty} ${def.name}.',
-        accent: theme.accentSoft,
+        accent: bracketReadableAccent(theme),
         options: [
           _InventoryDialogOption(
             value: 'one',
@@ -1338,7 +1295,8 @@ class _InventoryScreenState extends State<InventoryScreen>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: theme.accent.withValues(alpha: 0.5),
+            color: bracketReadableAccent(theme, color: theme.accent)
+                .withValues(alpha: 0.65),
             width: 2,
           ),
         ),
@@ -1404,7 +1362,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         title: 'Remove vial',
         subtitle: 'Choose how much to clear from your satchel.',
         message: 'This will discard ${vial.name} from your current stock.',
-        accent: theme.accentSoft,
+        accent: bracketReadableAccent(theme),
         options: [
           _InventoryDialogOption(
             value: 'one',
@@ -1495,6 +1453,8 @@ class _CleanItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = _InventoryPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
     final visualWidget = InventoryImageHelper.getVisualWidget(
       key: item.key,
       assetName: InventoryImageHelper.getImage(item.key),
@@ -1503,8 +1463,8 @@ class _CleanItemCard extends StatelessWidget {
     );
     final showQuantity = !def.isKeyItem;
     final frameColor = def.isKeyItem
-        ? theme.accentSoft.withValues(alpha: 0.72)
-        : _InventoryPalette.line.withValues(alpha: 0.9);
+        ? activeAccent.withValues(alpha: 0.84)
+        : palette.line.withValues(alpha: 0.9);
 
     return GestureDetector(
       onTap: onTap,
@@ -1515,7 +1475,7 @@ class _CleanItemCard extends StatelessWidget {
           strokeWidth: 1.05,
         ),
         child: Container(
-          color: _InventoryPalette.bg1.withValues(alpha: 0.72),
+          color: palette.surfaceFill(),
           padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
           child: Stack(
             children: [
@@ -1530,7 +1490,7 @@ class _CleanItemCard extends StatelessWidget {
                         style: _display(
                           context,
                           11,
-                          _InventoryPalette.muted,
+                          palette.muted,
                           weight: FontWeight.w700,
                           letterSpacing: 0.5,
                         ),
@@ -1546,7 +1506,7 @@ class _CleanItemCard extends StatelessWidget {
                     style: _display(
                       context,
                       10.75,
-                      _InventoryPalette.ink,
+                      palette.ink,
                       weight: FontWeight.w700,
                       letterSpacing: 0.15,
                     ),
@@ -1585,6 +1545,7 @@ class _DialogCloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = _InventoryPalette.of(context);
     return GestureDetector(
       onTap: onTap,
       child: CustomPaint(
@@ -1596,13 +1557,9 @@ class _DialogCloseButton extends StatelessWidget {
         child: Container(
           width: 34,
           height: 34,
-          color: _InventoryPalette.bg1.withValues(alpha: 0.7),
+          color: palette.surfaceFill(lightAlpha: 0.94),
           alignment: Alignment.center,
-          child: Icon(
-            Icons.close_rounded,
-            color: _InventoryPalette.muted,
-            size: 18,
-          ),
+          child: Icon(Icons.close_rounded, color: palette.muted, size: 18),
         ),
       ),
     );
@@ -1626,6 +1583,7 @@ class _DialogActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = _InventoryPalette.of(context);
     return GestureDetector(
       onTap: onTap,
       child: CustomPaint(
@@ -1636,7 +1594,7 @@ class _DialogActionButton extends StatelessWidget {
         ),
         child: Container(
           height: 44,
-          color: secondary ? Colors.transparent : color.withValues(alpha: 0.10),
+          color: secondary ? palette.surfaceMutedFill() : palette.accentWash(color),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1651,7 +1609,7 @@ class _DialogActionButton extends StatelessWidget {
                   style: _display(
                     context,
                     13,
-                    secondary ? _InventoryPalette.ink : color,
+                    secondary ? _InventoryPalette.of(context).ink : color,
                     weight: FontWeight.w700,
                     letterSpacing: 0.5,
                   ),
@@ -1698,17 +1656,22 @@ class _InventoryChoiceDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = _InventoryPalette.of(context);
+    final frameAccent = bracketReadableAccent(
+      context.read<FactionTheme>(),
+      color: accent,
+    );
     return Dialog(
       backgroundColor: Colors.transparent,
       child: CustomPaint(
         painter: _BracketFramePainter(
-          color: accent.withValues(alpha: 0.72),
+          color: frameAccent.withValues(alpha: 0.84),
           bracketSize: 12,
           strokeWidth: 1.2,
         ),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 380),
-          color: _InventoryPalette.bg1,
+          color: palette.bg1,
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1725,7 +1688,7 @@ class _InventoryChoiceDialog extends StatelessWidget {
                           style: _display(
                             context,
                             22,
-                            _InventoryPalette.ink,
+                            palette.ink,
                             weight: FontWeight.w500,
                           ),
                         ),
@@ -1735,7 +1698,7 @@ class _InventoryChoiceDialog extends StatelessWidget {
                           style: _display(
                             context,
                             12,
-                            _InventoryPalette.muted,
+                            palette.muted,
                             weight: FontWeight.w500,
                             fontStyle: FontStyle.italic,
                           ),
@@ -1744,7 +1707,7 @@ class _InventoryChoiceDialog extends StatelessWidget {
                     ),
                   ),
                   _DialogCloseButton(
-                    color: _InventoryPalette.line,
+                    color: palette.line,
                     onTap: () => Navigator.pop(context),
                   ),
                 ],
@@ -1755,7 +1718,7 @@ class _InventoryChoiceDialog extends StatelessWidget {
                 style: _display(
                   context,
                   13,
-                  _InventoryPalette.muted,
+                  palette.muted,
                   weight: FontWeight.w500,
                 ),
                 strutStyle: const StrutStyle(height: 1.45),
@@ -1777,7 +1740,7 @@ class _InventoryChoiceDialog extends StatelessWidget {
               _DialogActionButton(
                 label: 'Cancel',
                 icon: Icons.close_rounded,
-                color: _InventoryPalette.line,
+                color: palette.line,
                 secondary: true,
                 onTap: () => Navigator.pop(context),
               ),

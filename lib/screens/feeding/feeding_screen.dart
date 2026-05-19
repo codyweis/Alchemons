@@ -199,160 +199,169 @@ class _FeedingScreenState extends State<FeedingScreen>
     final db = context.watch<AlchemonsDatabase>();
 
     if (_entryMode == _EnhancementEntryMode.none) {
-      return ParticleBackgroundScaffold(
-        whiteBackground: false,
-        body: Scaffold(
-          backgroundColor: Colors.transparent,
-          floatingActionButtonLocation:
-              FloatingActionButtonLocation.centerDocked,
-          floatingActionButton: FloatingCloseButton(
-            size: 50,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.of(context).maybePop();
-            },
-            theme: theme,
-          ),
-          body: SafeArea(
-            child: _EnhancementEntryView(
-              theme: theme,
-              onFeedMons: () {
-                HapticFeedback.mediumImpact();
-                setState(() => _entryMode = _EnhancementEntryMode.feedMons);
-              },
-              onFeedPowerups: () async {
-                HapticFeedback.mediumImpact();
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const AlchemicalPowerupFeedingScreen(),
+      return ForcedFactionBrightness(
+        brightness: Brightness.dark,
+        child: Builder(
+          builder: (context) {
+            final theme = context.watch<FactionTheme>();
+            return ParticleBackgroundScaffold(
+              whiteBackground: false,
+              body: Scaffold(
+                backgroundColor: Colors.transparent,
+                floatingActionButtonLocation:
+                    FloatingActionButtonLocation.centerDocked,
+                floatingActionButton: FloatingCloseButton(
+                  size: 50,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.of(context).maybePop();
+                  },
+                  theme: theme,
+                ),
+                body: SafeArea(
+                  child: _EnhancementEntryView(
+                    theme: theme,
+                    onFeedMons: () {
+                      HapticFeedback.mediumImpact();
+                      setState(() => _entryMode = _EnhancementEntryMode.feedMons);
+                    },
+                    onFeedPowerups: () async {
+                      HapticFeedback.mediumImpact();
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AlchemicalPowerupFeedingScreen(),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-          ),
+                ),
+              ),
+            );
+          },
         ),
       );
     }
 
-    return PopScope(
-      canPop: _canLeaveScreen,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop || !mounted || _canLeaveScreen) return;
-        HapticFeedback.lightImpact();
-        _handleBack();
-      },
-      child: Scaffold(
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        floatingActionButton: _currentStage == 'species'
-            ? FloatingCloseButton(
-                size: 50,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.of(context).maybePop();
-                },
-                theme: theme,
-              )
-            : null,
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [t.bg1, t.bg0],
-                ),
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: Column(
-                  children: [
-                    StageHeader(
-                      theme: theme,
-                      stage: _currentStage,
-                      selectedCount: _selectedFodder.length,
-                      onBack: _handleBack,
-                      onOpenAllInstances: () {
+          return PopScope(
+            canPop: _canLeaveScreen,
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop || !mounted || _canLeaveScreen) return;
+              HapticFeedback.lightImpact();
+              _handleBack();
+            },
+            child: Scaffold(
+              floatingActionButtonLocation:
+                  FloatingActionButtonLocation.centerDocked,
+              floatingActionButton: _currentStage == 'species'
+                  ? FloatingCloseButton(
+                      size: 50,
+                      onTap: () {
                         HapticFeedback.lightImpact();
-                        setState(() {
-                          _showAllInstances = true;
-                          _targetSpeciesId = null;
-                          _targetInstanceId = null;
-                          _searchController.clear();
-                          _searchQuery = '';
-                        });
+                        Navigator.of(context).maybePop();
                       },
-                    ),
-                    if (_isPickingFodder)
-                      StreamBuilder<CreatureInstance?>(
-                        stream: context
-                            .read<AlchemonsDatabase>()
-                            .creatureDao
-                            .watchInstanceById(_targetInstanceId!),
-                        builder: (context, snapshot) {
-                          final targetInstance = snapshot.data;
-                          final repo = context.read<CreatureCatalog>();
-                          final targetCreature = targetInstance == null
-                              ? null
-                              : repo.getCreatureById(targetInstance.baseId);
-
-                          return FeedTargetPanel(
-                            theme: theme,
-                            targetInstance: targetInstance,
-                            targetCreature: targetCreature,
-                            preview: _preview,
-                            shouldAnimate: _shouldAnimateEnhancement,
-                            preFeedLevel: _preFeedLevel,
-                            preFeedXp: _preFeedXp,
-                          );
-                        },
-                      ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: StreamBuilder<List<CreatureInstance>>(
-                        stream: db.creatureDao.watchAllInstances(),
-                        builder: (context, snap) {
-                          final instances = snap.data ?? [];
-                          return _buildStageContent(theme, instances);
-                        },
+                      theme: theme,
+                    )
+                  : null,
+              backgroundColor: Colors.transparent,
+              body: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [t.bg1, t.bg0],
                       ),
                     ),
-                    if (_isPickingFodder)
-                      StreamBuilder<CreatureInstance?>(
-                        stream: context
-                            .read<AlchemonsDatabase>()
-                            .creatureDao
-                            .watchInstanceById(_targetInstanceId!),
-                        builder: (context, snapshot) {
-                          final targetInstance = snapshot.data;
-                          final repo = context.read<CreatureCatalog>();
-                          final targetCreature = targetInstance == null
-                              ? null
-                              : repo.getCreatureById(targetInstance.baseId);
-
-                          return FeedFooter(
+                    child: SafeArea(
+                      bottom: false,
+                      child: Column(
+                        children: [
+                          StageHeader(
                             theme: theme,
-                            targetInstance: targetInstance,
-                            targetCreature: targetCreature,
-                            preview: _preview,
-                            busy: _busy,
+                            stage: _currentStage,
                             selectedCount: _selectedFodder.length,
-                            onEnhance: _doFeed,
-                            shouldAnimate: _shouldAnimateEnhancement,
-                            preFeedLevel: _preFeedLevel,
-                            preFeedXp: _preFeedXp,
-                          );
-                        },
+                            onBack: _handleBack,
+                            onOpenAllInstances: () {
+                              HapticFeedback.lightImpact();
+                              setState(() {
+                                _showAllInstances = true;
+                                _targetSpeciesId = null;
+                                _targetInstanceId = null;
+                                _searchController.clear();
+                                _searchQuery = '';
+                              });
+                            },
+                          ),
+                          if (_isPickingFodder)
+                            StreamBuilder<CreatureInstance?>(
+                              stream: context
+                                  .read<AlchemonsDatabase>()
+                                  .creatureDao
+                                  .watchInstanceById(_targetInstanceId!),
+                              builder: (context, snapshot) {
+                                final targetInstance = snapshot.data;
+                                final repo = context.read<CreatureCatalog>();
+                                final targetCreature = targetInstance == null
+                                    ? null
+                                    : repo.getCreatureById(targetInstance.baseId);
+
+                                return FeedTargetPanel(
+                                  theme: theme,
+                                  targetInstance: targetInstance,
+                                  targetCreature: targetCreature,
+                                  preview: _preview,
+                                  shouldAnimate: _shouldAnimateEnhancement,
+                                  preFeedLevel: _preFeedLevel,
+                                  preFeedXp: _preFeedXp,
+                                );
+                              },
+                            ),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: StreamBuilder<List<CreatureInstance>>(
+                              stream: db.creatureDao.watchAllInstances(),
+                              builder: (context, snap) {
+                                final instances = snap.data ?? [];
+                                return _buildStageContent(theme, instances);
+                              },
+                            ),
+                          ),
+                          if (_isPickingFodder)
+                            StreamBuilder<CreatureInstance?>(
+                              stream: context
+                                  .read<AlchemonsDatabase>()
+                                  .creatureDao
+                                  .watchInstanceById(_targetInstanceId!),
+                              builder: (context, snapshot) {
+                                final targetInstance = snapshot.data;
+                                final repo = context.read<CreatureCatalog>();
+                                final targetCreature = targetInstance == null
+                                    ? null
+                                    : repo.getCreatureById(targetInstance.baseId);
+
+                                return FeedFooter(
+                                  theme: theme,
+                                  targetInstance: targetInstance,
+                                  targetCreature: targetCreature,
+                                  preview: _preview,
+                                  busy: _busy,
+                                  selectedCount: _selectedFodder.length,
+                                  onEnhance: _doFeed,
+                                  shouldAnimate: _shouldAnimateEnhancement,
+                                  preFeedLevel: _preFeedLevel,
+                                  preFeedXp: _preFeedXp,
+                                );
+                              },
+                            ),
+                        ],
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
+          );
   }
 
   Widget _buildStageContent(

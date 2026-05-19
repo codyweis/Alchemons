@@ -1489,93 +1489,76 @@ class _SwirlPainter extends CustomPainter {
   final double pulse;
   const _SwirlPainter({required this.t, required this.pulse});
 
+  static const _arms = 3;
+  static const _steps = 22;
+  static const _sweepRad = math.pi * (260 / 180);
+
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
     final center = Offset(cx, cy);
+    final baseAngle = t * math.pi * 2;
+    final innerR = size.width * 0.06;
+    final outerSpan = size.width * 0.42;
+    final softPulse = 0.5 + pulse * 0.5;
 
-    // ── Soft core bloom (no background, just the glow) ─────────────────
+    // Soft core bloom — single gentle layer
     canvas.drawCircle(
       center,
-      size.width * 0.18 + pulse * 4,
+      size.width * 0.15 + pulse * 2.0,
       Paint()
-        ..color = _C.voidBright.withValues(alpha: 0.18 + pulse * 0.18)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        ..color = _C.voidBright.withValues(alpha: 0.10 + pulse * 0.08)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
     );
 
-    // ── Spiral arms ───────────────────────────────────────────────────
-    // 3 arms, evenly spaced, each sweeps 300°, tapered tip→outer
-    const arms = 3;
-    const sweepRad = math.pi * (300 / 180);
-    const steps = 55;
+    // Spiral arms — one mutable Paint, eased taper for a refined ribbon
+    final armPaint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
 
-    for (int arm = 0; arm < arms; arm++) {
-      final armOffset = (arm / arms) * math.pi * 2;
+    for (int arm = 0; arm < _arms; arm++) {
+      final armOffset = (arm / _arms) * math.pi * 2;
+      double prevR = innerR;
+      double prevA = baseAngle + armOffset;
+      Offset prev = Offset(
+        cx + prevR * math.cos(prevA),
+        cy + prevR * math.sin(prevA),
+      );
 
-      // Draw arm as individual short segments so we can taper width + opacity
-      for (int s = 0; s < steps; s++) {
-        final fracA = s / steps;
-        final fracB = (s + 1) / steps;
-
-        final rA = size.width * 0.04 + fracA * size.width * 0.44;
-        final rB = size.width * 0.04 + fracB * size.width * 0.44;
-
-        final angleA = t * math.pi * 2 + armOffset + fracA * sweepRad;
-        final angleB = t * math.pi * 2 + armOffset + fracB * sweepRad;
-
-        final pA = Offset(
-          cx + rA * math.cos(angleA),
-          cy + rA * math.sin(angleA),
-        );
-        final pB = Offset(
-          cx + rB * math.cos(angleB),
-          cy + rB * math.sin(angleB),
+      for (int s = 1; s <= _steps; s++) {
+        final frac = s / _steps;
+        final r = innerR + frac * outerSpan;
+        final angle = baseAngle + armOffset + frac * _sweepRad;
+        final next = Offset(
+          cx + r * math.cos(angle),
+          cy + r * math.sin(angle),
         );
 
-        // Taper: thin+dim at core, thick+bright at outer tip
-        final opacity = (0.05 + fracA * 0.85).clamp(0.0, 1.0);
-        final strokeW = 0.5 + fracA * 2.8;
-
-        canvas.drawLine(
-          pA,
-          pB,
-          Paint()
-            ..color = _C.voidGlow.withValues(
-              alpha: opacity * (0.55 + pulse * 0.45),
-            )
-            ..strokeWidth = strokeW
-            ..strokeCap = StrokeCap.round,
-        );
-
-        // Thin white shimmer on outer half only
-        if (fracA > 0.5) {
-          final shimmerOp = ((fracA - 0.5) * 2 * 0.35 * (0.3 + pulse * 0.5))
-              .clamp(0.0, 1.0);
-          canvas.drawLine(
-            pA,
-            pB,
-            Paint()
-              ..color = Colors.white.withValues(alpha: shimmerOp)
-              ..strokeWidth = strokeW * 0.35
-              ..strokeCap = StrokeCap.round,
-          );
-        }
+        // Eased taper (frac²): faint, fine at the core; broader, brighter outward
+        final taper = frac * frac;
+        armPaint
+          ..color = _C.voidGlow.withValues(
+            alpha: (0.08 + taper * 0.50) * softPulse,
+          )
+          ..strokeWidth = 0.6 + taper * 2.0;
+        canvas.drawLine(prev, next, armPaint);
+        prev = next;
       }
     }
 
-    // ── Hot centre dot ────────────────────────────────────────────────
+    // Hot centre dot
     canvas.drawCircle(
       center,
-      3.0 + pulse * 1.6,
+      2.4 + pulse * 0.6,
       Paint()
-        ..color = _C.voidGlow.withValues(alpha: 0.80 + pulse * 0.20)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+        ..color = _C.voidGlow.withValues(alpha: 0.55 + pulse * 0.15)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
     );
     canvas.drawCircle(
       center,
-      1.4,
-      Paint()..color = Colors.white.withValues(alpha: 0.85 + pulse * 0.15),
+      1.1,
+      Paint()..color = Colors.white.withValues(alpha: 0.82),
     );
   }
 

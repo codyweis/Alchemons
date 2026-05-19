@@ -1,15 +1,14 @@
-// ignore_for_file: unused_element
-
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
-import 'package:alchemons/widgets/battle_section.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:provider/provider.dart';
 
-class ImprovedBattleScrollArea extends StatelessWidget {
+class ImprovedBattleScrollArea extends StatefulWidget {
   final FactionTheme? theme;
   final Creature creature;
   final CreatureInstance instance;
@@ -22,336 +21,872 @@ class ImprovedBattleScrollArea extends StatelessWidget {
   });
 
   @override
+  State<ImprovedBattleScrollArea> createState() =>
+      _ImprovedBattleScrollAreaState();
+}
+
+class _ImprovedBattleScrollAreaState extends State<ImprovedBattleScrollArea>
+    with SingleTickerProviderStateMixin {
+  static const _tabLabels = ['Cosmic', 'Boss'];
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _tabLabels.length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final family = creature.mutationFamily ?? 'Unknown';
+    final family = widget.creature.mutationFamily ?? 'Unknown';
 
     final bossProfile = BattleCombatant(
       id: 'view_boss',
-      name: creature.name,
-      types: creature.types,
+      name: widget.creature.name,
+      types: widget.creature.types,
       family: family,
-      statSpeed: instance.statSpeed,
-      statIntelligence: instance.statIntelligence,
-      statStrength: instance.statStrength,
-      statBeauty: instance.statBeauty,
-      level: instance.level,
+      statSpeed: widget.instance.statSpeed,
+      statIntelligence: widget.instance.statIntelligence,
+      statStrength: widget.instance.statStrength,
+      statBeauty: widget.instance.statBeauty,
+      level: widget.instance.level,
     );
     final battleSpecialMove = BattleMove.getSpecialMoveForCombatant(
       bossProfile,
     );
     final battleBasicMove = BattleMove.getBasicMove(family);
 
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            decoration: BoxDecoration(
-              color: fc.bg3,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: fc.borderDim),
-            ),
-            child: TabBar(
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: fc.amberBright,
-              unselectedLabelColor: fc.textSecondary,
-              labelStyle: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
-              ),
-              indicator: BoxDecoration(
-                color: fc.amber.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: fc.borderAccent),
-              ),
-              tabs: const [
-                Tab(text: 'COSMIC'),
-                Tab(text: 'BOSS'),
-              ],
-            ),
+    return Column(
+      children: [
+        AnimatedBuilder(
+          animation: _tabController,
+          builder: (context, _) => _BracketTabSelector(
+            labels: _tabLabels,
+            selectedIndex: _tabController.index,
+            onSelect: (i) {
+              HapticFeedback.selectionClick();
+              _tabController.animateTo(i);
+            },
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildExploreTab(family, creature.types, fc),
-                _buildBossTab(bossProfile, battleBasicMove, battleSpecialMove),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBossTab(
-    BattleCombatant bossProfile,
-    BattleMove battleBasicMove,
-    BattleMove battleSpecialMove,
-  ) {
-    // Boss tab shares the same forge-amber section rhythm as the Cosmic
-    // tab so the two tabs read as sibling views, not different design
-    // eras. The orange single-card was the legacy look — broken into
-    // Stats / Moves / Cooldowns / Scaling so each block stands alone.
-    return Builder(
-      builder: (context) {
-        final fc = FC.of(context);
-        final specialMoveSummary = BattleMove.specialSummaryForCombatant(
-          bossProfile,
-        );
-        final specialCooldownTurns = BattleMove.specialCooldownForFamily(
-          bossProfile.family,
-        );
-        final specialRecoveryPerBasic =
-            BattleMove.specialRecoveryPerBasicForCombatant(bossProfile);
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
             children: [
-              BattleSection(
-                title: 'Stats',
-                color: fc.amber,
-                child: _BossStatChipsCard(profile: bossProfile, fc: fc),
+              _ExploreTab(
+                instance: widget.instance,
+                family: family,
+                types: widget.creature.types,
               ),
-              const SizedBox(height: 20),
-              BattleSection(
-                title: 'Moves',
-                color: fc.amber,
-                child: _BossMovesCard(
-                  fc: fc,
-                  basicMoveName: battleBasicMove.name,
-                  specialMoveName: battleSpecialMove.name,
-                  specialMoveSummary: specialMoveSummary,
-                ),
-              ),
-              const SizedBox(height: 20),
-              BattleSection(
-                title: 'Cooldowns',
-                color: fc.amber,
-                child: _BossCooldownsCard(
-                  fc: fc,
-                  specialCooldownTurns: specialCooldownTurns,
-                  specialRecoveryPerBasic: specialRecoveryPerBasic,
-                ),
-              ),
-              const SizedBox(height: 20),
-              BattleSection(
-                title: 'Stat Scaling',
-                color: fc.amber,
-                child: _BossStatScalingCard(fc: fc),
+              _BossTab(
+                profile: bossProfile,
+                basicMove: battleBasicMove,
+                specialMove: battleSpecialMove,
               ),
             ],
           ),
-        );
-      },
+        ),
+      ],
     );
   }
+}
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // EXPLORE TAB — Cosmic / Exploration mode companion abilities
-  // ─────────────────────────────────────────────────────────────────────────
+class _BracketTabSelector extends StatelessWidget {
+  const _BracketTabSelector({
+    required this.labels,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
 
-  Widget _buildExploreTab(String family, List<String> types, FC fc) {
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final theme = context.read<FactionTheme>();
+    final activeAccent = bracketReadableAccent(theme);
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: palette.lineSoft, width: 1),
+        ),
+      ),
+      child: Row(
+        children: List.generate(labels.length, (index) {
+          final selected = selectedIndex == index;
+          return Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onSelect(index),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: selected ? activeAccent : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  labels[index],
+                  style: bracketText(
+                    context,
+                    12.5,
+                    selected ? palette.ink : palette.muted,
+                    weight: selected ? FontWeight.w700 : FontWeight.w500,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _ExploreTab extends StatelessWidget {
+  const _ExploreTab({
+    required this.instance,
+    required this.family,
+    required this.types,
+  });
+
+  final CreatureInstance instance;
+  final String family;
+  final List<String> types;
+
+  @override
+  Widget build(BuildContext context) {
     final element = types.firstOrNull ?? 'Normal';
-    final ft = FT(fc);
+    final role = _cosmicFamilyRole(family);
+    final basic = _cosmicFamilyBasicInfo(family, element);
+    final special = _cosmicFamilySpecialInfo(family, element);
+    final specialName = cosmicSpecialAbilityName(family, element);
+    final survivalPassive = _survivalElementPassive(family, element);
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Stats first — matches Boss tab layout so flipping between
-          // tabs always shows the numerical readout in the same place.
-          BattleSection(
-            title: 'Stats',
-            color: fc.amber,
-            child: _ExploreStatChipsCard(
-              instance: instance,
-              family: family,
-              fc: fc,
-            ),
+          const BracketSectionDivider(label: 'Stats'),
+          const SizedBox(height: 10),
+          _ExploreStatGrid(instance: instance, family: family),
+          const SizedBox(height: 18),
+          const BracketSectionDivider(label: 'Role'),
+          const SizedBox(height: 10),
+          _BracketInfoCard(
+            title: role.title,
+            description: role.description,
           ),
-          const SizedBox(height: 20),
-          BattleSection(
-            title: 'Role',
-            color: fc.amber,
-            child: _exploreRoleCard(family, element, fc, ft),
+          const SizedBox(height: 18),
+          const BracketSectionDivider(label: 'Basic'),
+          const SizedBox(height: 10),
+          _BracketInfoCard(
+            title: basic.name,
+            subtitle: basic.subtitle,
+            description: basic.description,
           ),
-          const SizedBox(height: 20),
-          BattleSection(
-            title: 'Basic',
-            color: fc.amber,
-            child: _exploreBasicCard(family, element, fc, ft),
+          const SizedBox(height: 18),
+          const BracketSectionDivider(label: 'Special'),
+          const SizedBox(height: 10),
+          _BracketInfoCard(
+            title: specialName,
+            subtitle: special.subtitle,
+            description: special.description,
+            footerLabel: survivalPassive != null ? 'Survival passive' : null,
+            footerBody: survivalPassive,
           ),
-          const SizedBox(height: 20),
-          BattleSection(
-            title: 'Special',
-            color: fc.amber,
-            child: _exploreSpecialCard(family, element, fc, ft),
-          ),
-          const SizedBox(height: 20),
-          BattleSection(
-            title: 'Survival',
-            color: fc.amber,
-            child: _buildExploreSurvivalCard(family, element, fc),
-          ),
+          const SizedBox(height: 18),
+          const BracketSectionDivider(label: 'Survival'),
+          const SizedBox(height: 10),
+          _SurvivalBracketCard(family: family, element: element),
         ],
       ),
     );
   }
+}
 
-  Widget _exploreRoleCard(String family, String element, FC fc, FT ft) {
-    final role = _cosmicFamilyRole(family);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          role.title.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: fc.textPrimary,
-            fontWeight: FontWeight.w900,
-            fontSize: 12,
-            letterSpacing: 0.8,
+class _BossTab extends StatelessWidget {
+  const _BossTab({
+    required this.profile,
+    required this.basicMove,
+    required this.specialMove,
+  });
+
+  final BattleCombatant profile;
+  final BattleMove basicMove;
+  final BattleMove specialMove;
+
+  @override
+  Widget build(BuildContext context) {
+    final specialMoveSummary = BattleMove.specialSummaryForCombatant(profile);
+    final specialCooldownTurns = BattleMove.specialCooldownForFamily(
+      profile.family,
+    );
+    final specialRecoveryPerBasic =
+        BattleMove.specialRecoveryPerBasicForCombatant(profile);
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const BracketSectionDivider(label: 'Stats'),
+          const SizedBox(height: 10),
+          _BossStatGrid(profile: profile),
+          const SizedBox(height: 18),
+          const BracketSectionDivider(label: 'Moves'),
+          const SizedBox(height: 10),
+          _BossMovesBracketCard(
+            basicMoveName: basicMove.name,
+            specialMoveName: specialMove.name,
+            specialMoveSummary: specialMoveSummary,
           ),
-        ),
-        const SizedBox(height: 10),
-        _ExpandableDetail(
+          const SizedBox(height: 18),
+          const BracketSectionDivider(label: 'Cooldowns'),
+          const SizedBox(height: 10),
+          _BossCooldownsBracketCard(
+            specialCooldownTurns: specialCooldownTurns,
+            specialRecoveryPerBasic: specialRecoveryPerBasic,
+          ),
+          const SizedBox(height: 18),
+          const BracketSectionDivider(label: 'Stat scaling'),
+          const SizedBox(height: 10),
+          const _BossStatScalingBracketCard(),
+        ],
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Bracket-style content cards (shared by Cosmic + Boss tabs)
+// ──────────────────────────────────────────────────────────────────────────
+
+class _BracketStatTile extends StatelessWidget {
+  const _BracketStatTile({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.9),
+        bracketSize: 8,
+        strokeWidth: 1.05,
+      ),
+      child: Container(
+        color: palette.surfaceFill(),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              role.description,
-              style: TextStyle(
-                color: fc.textSecondary,
-                fontSize: 12,
-                height: 1.4,
+              label.toUpperCase(),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: bracketText(
+                context,
+                10.5,
+                palette.muted,
+                weight: FontWeight.w700,
+                letterSpacing: 0.9,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: bracketText(
+                context,
+                15,
+                palette.ink,
+                weight: FontWeight.w700,
+                letterSpacing: 0.2,
               ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
+}
 
-  Widget _exploreBasicCard(String family, String element, FC fc, FT ft) {
-    final basicInfo = _cosmicFamilyBasicInfo(family, element);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          basicInfo.name.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: fc.textPrimary,
-            fontWeight: FontWeight.w900,
-            fontSize: 12,
-            letterSpacing: 0.8,
-          ),
-        ),
-        Text(
-          basicInfo.subtitle,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: fc.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 10),
-        _ExpandableDetail(
+class _ExploreStatGrid extends StatelessWidget {
+  const _ExploreStatGrid({required this.instance, required this.family});
+
+  final CreatureInstance instance;
+  final String family;
+
+  @override
+  Widget build(BuildContext context) {
+    final hp = CosmicBalance.companionMaxHp(
+      level: instance.level,
+      strength: instance.statStrength,
+      intelligence: instance.statIntelligence,
+    );
+    final physAtk = CosmicBalance.companionPhysAtk(
+      level: instance.level,
+      strength: instance.statStrength,
+    );
+    final elemAtk = CosmicBalance.companionElemAtk(
+      level: instance.level,
+      beauty: instance.statBeauty,
+    );
+    final physDef = CosmicBalance.companionPhysDef(
+      level: instance.level,
+      strength: instance.statStrength,
+      intelligence: instance.statIntelligence,
+    );
+    final elemDef = CosmicBalance.companionElemDef(
+      level: instance.level,
+      beauty: instance.statBeauty,
+      intelligence: instance.statIntelligence,
+    );
+    final cdr = CosmicBalance.companionCooldownReduction(instance.statSpeed);
+    final crit = CosmicBalance.companionCritChance(instance.statStrength);
+
+    final stats = <_StatEntry>[
+      _StatEntry('HP', hp.toString()),
+      _StatEntry('P-ATK', physAtk.toString()),
+      _StatEntry('E-ATK', elemAtk.toString()),
+      _StatEntry('P-DEF', physDef.toString()),
+      _StatEntry('E-DEF', elemDef.toString()),
+      _StatEntry('CD', '×${cdr.toStringAsFixed(2)}'),
+      _StatEntry('CRIT', '${(crit * 100).round()}%'),
+    ];
+
+    return _StatGrid(stats: stats);
+  }
+}
+
+class _BossStatGrid extends StatelessWidget {
+  const _BossStatGrid({required this.profile});
+
+  final BattleCombatant profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = <_StatEntry>[
+      _StatEntry('HP', profile.maxHp.toString()),
+      _StatEntry('ATK', profile.physAtk.toString()),
+      _StatEntry('DEF', profile.physDef.toString()),
+      _StatEntry('SPD', profile.speed.toString()),
+    ];
+    return _StatGrid(stats: stats, columns: 4);
+  }
+}
+
+class _StatEntry {
+  const _StatEntry(this.label, this.value);
+  final String label;
+  final String value;
+}
+
+class _StatGrid extends StatelessWidget {
+  const _StatGrid({required this.stats, this.columns = 4});
+
+  final List<_StatEntry> stats;
+  final int columns;
+
+  @override
+  Widget build(BuildContext context) {
+    const spacing = 8.0;
+    final rows = <Widget>[];
+    for (var i = 0; i < stats.length; i += columns) {
+      final rowItems = <Widget>[];
+      for (var c = 0; c < columns; c++) {
+        if (c > 0) rowItems.add(const SizedBox(width: spacing));
+        final idx = i + c;
+        if (idx < stats.length) {
+          rowItems.add(
+            Expanded(
+              child: _BracketStatTile(
+                label: stats[idx].label,
+                value: stats[idx].value,
+              ),
+            ),
+          );
+        } else {
+          rowItems.add(const Expanded(child: SizedBox.shrink()));
+        }
+      }
+      if (rows.isNotEmpty) rows.add(const SizedBox(height: spacing));
+      rows.add(Row(children: rowItems));
+    }
+    return Column(children: rows);
+  }
+}
+
+class _BracketInfoCard extends StatelessWidget {
+  const _BracketInfoCard({
+    required this.title,
+    this.subtitle,
+    required this.description,
+    this.footerLabel,
+    this.footerBody,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String description;
+  final String? footerLabel;
+  final String? footerBody;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final theme = context.read<FactionTheme>();
+    final activeAccent = bracketReadableAccent(theme);
+    final footer = (footerLabel != null && footerBody != null)
+        ? Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 10,
+                      color: activeAccent,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      footerLabel!.toUpperCase(),
+                      style: bracketText(
+                        context,
+                        11,
+                        activeAccent,
+                        weight: FontWeight.w700,
+                        letterSpacing: 0.9,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  footerBody!,
+                  style: bracketText(
+                    context,
+                    12.5,
+                    palette.muted,
+                    weight: FontWeight.w500,
+                  ),
+                  strutStyle: const StrutStyle(height: 1.45),
+                ),
+              ],
+            ),
+          )
+        : null;
+
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.9),
+        bracketSize: 10,
+        strokeWidth: 1.05,
+      ),
+      child: Container(
+        color: palette.surfaceFill(),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              basicInfo.description,
-              style: TextStyle(
-                color: fc.textSecondary,
-                fontSize: 12,
-                height: 1.4,
+              title,
+              style: bracketText(
+                context,
+                16,
+                palette.ink,
+                weight: FontWeight.w600,
+                letterSpacing: 0.2,
               ),
+            ),
+            if (subtitle != null && subtitle!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle!,
+                style: bracketText(
+                  context,
+                  12,
+                  palette.muted,
+                  weight: FontWeight.w500,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Text(
+              description,
+              style: bracketText(
+                context,
+                12.5,
+                palette.muted,
+                weight: FontWeight.w500,
+              ),
+              strutStyle: const StrutStyle(height: 1.45),
+            ),
+            if (footer != null) footer,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SurvivalBracketCard extends StatelessWidget {
+  const _SurvivalBracketCard({required this.family, required this.element});
+
+  final String family;
+  final String element;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final notes = _cosmicSurvivalNotes(family, element);
+    final accent = _survivalAccentColor(element);
+
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: accent.withValues(alpha: 0.6),
+        bracketSize: 10,
+        strokeWidth: 1.05,
+      ),
+      child: Container(
+        color: palette.surfaceFill(),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    Icons.blur_circular_rounded,
+                    size: 14,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    notes.summary,
+                    style: bracketText(
+                      context,
+                      12.5,
+                      palette.ink,
+                      weight: FontWeight.w600,
+                    ),
+                    strutStyle: const StrutStyle(height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+            if (notes.bullets.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              for (var i = 0; i < notes.bullets.length; i++) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Container(width: 5, height: 5, color: accent),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        notes.bullets[i],
+                        style: bracketText(
+                          context,
+                          12,
+                          palette.muted,
+                          weight: FontWeight.w500,
+                        ),
+                        strutStyle: const StrutStyle(height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+                if (i < notes.bullets.length - 1) const SizedBox(height: 8),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BossMovesBracketCard extends StatelessWidget {
+  const _BossMovesBracketCard({
+    required this.basicMoveName,
+    required this.specialMoveName,
+    required this.specialMoveSummary,
+  });
+
+  final String basicMoveName;
+  final String specialMoveName;
+  final String specialMoveSummary;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.9),
+        bracketSize: 10,
+        strokeWidth: 1.05,
+      ),
+      child: Container(
+        color: palette.surfaceFill(),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _BracketLabelValue(label: 'Basic', value: basicMoveName),
+            const SizedBox(height: 10),
+            _BracketLabelValue(label: 'Special', value: specialMoveName),
+            const SizedBox(height: 12),
+            Text(
+              specialMoveSummary,
+              style: bracketText(
+                context,
+                12.5,
+                palette.muted,
+                weight: FontWeight.w500,
+              ),
+              strutStyle: const StrutStyle(height: 1.4),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
+}
 
-  Widget _exploreSpecialCard(String family, String element, FC fc, FT ft) {
-    final abilityName = cosmicSpecialAbilityName(family, element);
-    final specialInfo = _cosmicFamilySpecialInfo(family, element);
-    final survivalPassive = _survivalElementPassive(family, element);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          abilityName.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: fc.textPrimary,
-            fontWeight: FontWeight.w900,
-            fontSize: 12,
-            letterSpacing: 0.8,
-          ),
-        ),
-        Text(
-          specialInfo.subtitle,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: fc.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 10),
-        _ExpandableDetail(
+class _BossCooldownsBracketCard extends StatelessWidget {
+  const _BossCooldownsBracketCard({
+    required this.specialCooldownTurns,
+    required this.specialRecoveryPerBasic,
+  });
+
+  final int specialCooldownTurns;
+  final int specialRecoveryPerBasic;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final rows = <(String, String)>[
+      ('Basic action', '2 turns'),
+      ('Special action', '3 turns'),
+      (
+        'Special CD',
+        '$specialCooldownTurns turn${specialCooldownTurns == 1 ? '' : 's'}',
+      ),
+      ('CD / basic', '$specialRecoveryPerBasic turn(s) recovered'),
+      ('Special unlock', 'Level 5'),
+    ];
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.9),
+        bracketSize: 10,
+        strokeWidth: 1.05,
+      ),
+      child: Container(
+        color: palette.surfaceFill(),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              specialInfo.description,
-              style: TextStyle(
-                color: fc.textSecondary,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-            if (survivalPassive != null) ...[
-              const SizedBox(height: 10),
+            for (var i = 0; i < rows.length; i++) ...[
+              _BracketLabelValue(label: rows[i].$1, value: rows[i].$2),
+              if (i < rows.length - 1) const SizedBox(height: 8),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BossStatScalingBracketCard extends StatelessWidget {
+  const _BossStatScalingBracketCard();
+
+  static const _entries = <(String, String, String)>[
+    (
+      'SPD',
+      'Tempo + cooldown',
+      'Turn order priority, plus extra special recovery on basics at SPD 2.0 / 3.0 / 4.0 / 4.8.',
+    ),
+    (
+      'INT',
+      'Elemental power',
+      'Raises elemental attack and boosts DoT/regen effect scaling.',
+    ),
+    (
+      'BEAUTY',
+      'Elemental defense',
+      'Raises elemental defense and adds to physical defense.',
+    ),
+    (
+      'STR',
+      'Physical core',
+      'Raises max HP, physical attack, and physical defense.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final theme = context.read<FactionTheme>();
+    final activeAccent = bracketReadableAccent(theme);
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.9),
+        bracketSize: 10,
+        strokeWidth: 1.05,
+      ),
+      child: Container(
+        color: palette.surfaceFill(),
+        padding: const EdgeInsets.fromLTRB(12, 12, 14, 14),
+        child: Column(
+          children: [
+            for (var i = 0; i < _entries.length; i++) ...[
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(width: 3, height: 9, color: fc.amberBright),
-                  const SizedBox(width: 6),
-                  Text(
-                    'SURVIVAL PASSIVE',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.amberBright,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.6,
+                  Container(
+                    width: 56,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 4,
+                    ),
+                    child: CustomPaint(
+                      painter: BracketFramePainter(
+                        color: activeAccent.withValues(alpha: 0.82),
+                        bracketSize: 6,
+                        strokeWidth: 1,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        alignment: Alignment.center,
+                        child: Text(
+                          _entries[i].$1,
+                          style: bracketText(
+                            context,
+                            11,
+                            palette.ink,
+                            weight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _entries[i].$2,
+                          style: bracketText(
+                            context,
+                            12.5,
+                            palette.ink,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _entries[i].$3,
+                          style: bracketText(
+                            context,
+                            12,
+                            palette.muted,
+                            weight: FontWeight.w500,
+                          ),
+                          strutStyle: const StrutStyle(height: 1.35),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                survivalPassive,
-                style: TextStyle(
-                  color: fc.textSecondary,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
+              if (i < _entries.length - 1) const SizedBox(height: 10),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BracketLabelValue extends StatelessWidget {
+  const _BracketLabelValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 96,
+          child: Text(
+            label.toUpperCase(),
+            style: bracketText(
+              context,
+              11,
+              palette.muted,
+              weight: FontWeight.w700,
+              letterSpacing: 0.9,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: bracketText(
+              context,
+              13,
+              palette.ink,
+              weight: FontWeight.w700,
+            ),
+          ),
         ),
       ],
     );
   }
+}
 
-  static _CosmicFamilyRole _cosmicFamilyRole(String family) {
+_CosmicFamilyRole _cosmicFamilyRole(String family) {
     switch (family) {
       case 'Horn':
         return const _CosmicFamilyRole(
@@ -432,682 +967,8 @@ class ImprovedBattleScrollArea extends StatelessWidget {
         );
     }
   }
-}
 
 /// Flat section header for the battle tab — no box, just accent bar + rule
-class _ExpandableDetail extends StatefulWidget {
-  final List<Widget> children;
-  const _ExpandableDetail({required this.children});
-  @override
-  State<_ExpandableDetail> createState() => _ExpandableDetailState();
-}
-
-class _ExpandableDetailState extends State<_ExpandableDetail> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
-                  size: 14,
-                  color: fc.textMuted,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _expanded ? 'LESS' : 'DETAILS',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: fc.textMuted,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (_expanded)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: widget.children,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-Widget _buildExploreSurvivalCard(String family, String element, FC fc) {
-  final notes = _cosmicSurvivalNotes(family, element);
-  final accent = _survivalAccentColor(element);
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: fc.bg3,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: accent.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.blur_circular_rounded, size: 16, color: accent),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                notes.summary,
-                style: TextStyle(
-                  color: fc.textPrimary,
-                  fontSize: 12,
-                  height: 1.35,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      if (notes.bullets.isNotEmpty) ...[
-        const SizedBox(height: 10),
-        _ExpandableDetail(
-          children: [
-            for (final bullet in notes.bullets) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Icon(Icons.circle, size: 5, color: accent),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      bullet,
-                      style: TextStyle(
-                        color: fc.textSecondary,
-                        fontSize: 12,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (bullet != notes.bullets.last) const SizedBox(height: 8),
-            ],
-          ],
-        ),
-      ],
-    ],
-  );
-}
-
-/// Boss tab: 4 stat chips (HP/ATK/DEF/SPD). Matches the Cosmic tab's
-/// stat-chip layout for visual parity between the two tabs.
-class _BossStatChipsCard extends StatelessWidget {
-  final BattleCombatant profile;
-  final FC fc;
-  const _BossStatChipsCard({required this.profile, required this.fc});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _chip('HP', profile.maxHp.toString())),
-        const SizedBox(width: 8),
-        Expanded(child: _chip('ATK', profile.physAtk.toString())),
-        const SizedBox(width: 8),
-        Expanded(child: _chip('DEF', profile.physDef.toString())),
-        const SizedBox(width: 8),
-        Expanded(child: _chip('SPD', profile.speed.toString())),
-      ],
-    );
-  }
-
-  Widget _chip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      decoration: BoxDecoration(
-        color: fc.bg2,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: fc.borderDim),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Boss tab: basic + special move names with the special summary tucked
-/// into an expandable detail block (matches Cosmic tab's expandable
-/// pattern).
-class _BossMovesCard extends StatelessWidget {
-  final FC fc;
-  final String basicMoveName;
-  final String specialMoveName;
-  final String specialMoveSummary;
-  const _BossMovesCard({
-    required this.fc,
-    required this.basicMoveName,
-    required this.specialMoveName,
-    required this.specialMoveSummary,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _row('BASIC', basicMoveName),
-        const SizedBox(height: 8),
-        _row('SPECIAL', specialMoveName),
-        const SizedBox(height: 10),
-        _ExpandableDetail(
-          children: [
-            Text(
-              specialMoveSummary,
-              style: TextStyle(
-                color: fc.textSecondary,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _row(String label, String value) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 76,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Boss tab: cooldown rows pulled out of the old combat-profile card.
-class _BossCooldownsCard extends StatelessWidget {
-  final FC fc;
-  final int specialCooldownTurns;
-  final int specialRecoveryPerBasic;
-  const _BossCooldownsCard({
-    required this.fc,
-    required this.specialCooldownTurns,
-    required this.specialRecoveryPerBasic,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _row('BASIC ACTION', '2 turns'),
-        const SizedBox(height: 6),
-        _row('SPECIAL ACTION', '3 turns'),
-        const SizedBox(height: 6),
-        _row(
-          'SPECIAL CD',
-          '$specialCooldownTurns turn${specialCooldownTurns == 1 ? '' : 's'}',
-        ),
-        const SizedBox(height: 6),
-        _row('CD / BASIC', '$specialRecoveryPerBasic turn(s) recovered'),
-        const SizedBox(height: 6),
-        _row('SPECIAL UNLOCK', 'Level 5'),
-      ],
-    );
-  }
-
-  Widget _row(String label, String value) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 110,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Boss tab: stat scaling reference block in its own section.
-class _BossStatScalingCard extends StatelessWidget {
-  final FC fc;
-  const _BossStatScalingCard({required this.fc});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _row(
-          'SPD',
-          'Tempo + Cooldown',
-          'Turn order priority, plus extra special recovery on basics at SPD 2.0 / 3.0 / 4.0 / 4.8.',
-        ),
-        const SizedBox(height: 8),
-        _row(
-          'INT',
-          'Elemental Power',
-          'Raises elemental attack and boosts DoT/regen effect scaling.',
-        ),
-        const SizedBox(height: 8),
-        _row(
-          'BEAUTY',
-          'Elemental Defense',
-          'Raises elemental defense and adds to physical defense.',
-        ),
-        const SizedBox(height: 8),
-        _row(
-          'STR',
-          'Physical Core',
-          'Raises max HP, physical attack, and physical defense.',
-        ),
-      ],
-    );
-  }
-
-  Widget _row(String stat, String title, String effect) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 50,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          decoration: BoxDecoration(
-            color: fc.bg3,
-            borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: fc.borderDim),
-          ),
-          child: Text(
-            stat,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.amberBright,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                effect,
-                style: TextStyle(
-                  color: fc.textSecondary,
-                  fontSize: 12,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BossCombatProfileCard extends StatelessWidget {
-  final BattleCombatant profile;
-  final String basicMoveName;
-  final String specialMoveName;
-  final String specialMoveSummary;
-
-  const _BossCombatProfileCard({
-    required this.profile,
-    required this.basicMoveName,
-    required this.specialMoveName,
-    required this.specialMoveSummary,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final specialCooldownTurns = BattleMove.specialCooldownForFamily(
-      profile.family,
-    );
-    final specialRecoveryPerBasic =
-        BattleMove.specialRecoveryPerBasicForCombatant(profile);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(child: _bossStatChip('HP', profile.maxHp.toString(), fc)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _bossStatChip('ATK', profile.physAtk.toString(), fc),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _bossStatChip('DEF', profile.physDef.toString(), fc),
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: _bossStatChip('SPD', profile.speed.toString(), fc)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _moveLine('Basic Move', basicMoveName, fc),
-        const SizedBox(height: 6),
-        _moveLine('Special Move', specialMoveName, fc),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.only(left: 90),
-          child: Text(
-            specialMoveSummary,
-            style: TextStyle(
-              color: fc.textSecondary,
-              fontSize: 12,
-              height: 1.3,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        _moveLine('Basic Action CD', '2 turns', fc),
-        const SizedBox(height: 6),
-        _moveLine('Special Action CD', '3 turns', fc),
-        const SizedBox(height: 6),
-        _moveLine(
-          'Special CD',
-          '$specialCooldownTurns turn${specialCooldownTurns == 1 ? '' : 's'}',
-          fc,
-        ),
-        const SizedBox(height: 6),
-        _moveLine(
-          'CD / Basic',
-          '$specialRecoveryPerBasic turn(s) recovered',
-          fc,
-        ),
-        const SizedBox(height: 6),
-        _moveLine('Special Unlock', 'Level 5', fc),
-        const SizedBox(height: 10),
-        Text(
-          'STAT SCALING',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: fc.textMuted,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.0,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: fc.bg2.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: fc.borderDim),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _scalingRow(
-                stat: 'SPD',
-                title: 'Tempo + Cooldown',
-                effect:
-                    'Turn order priority, plus extra special recovery on basics at SPD 2.0 / 3.0 / 4.0 / 4.8.',
-                fc: fc,
-              ),
-              const SizedBox(height: 6),
-              _scalingRow(
-                stat: 'INT',
-                title: 'Elemental Power',
-                effect:
-                    'Raises elemental attack and boosts DoT/regen effect scaling.',
-                fc: fc,
-              ),
-              const SizedBox(height: 6),
-              _scalingRow(
-                stat: 'BEAUTY',
-                title: 'Elemental Defense',
-                effect:
-                    'Raises elemental defense and adds to physical defense.',
-                fc: fc,
-              ),
-              const SizedBox(height: 6),
-              _scalingRow(
-                stat: 'STR',
-                title: 'Physical Core',
-                effect: 'Raises max HP, physical attack, and physical defense.',
-                fc: fc,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _bossStatChip(String label, String value, FC fc) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      decoration: BoxDecoration(
-        color: fc.bg2,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: fc.borderDim),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _moveLine(String label, String value, FC fc) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 90,
-          child: Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _scalingRow({
-    required String stat,
-    required String title,
-    required String effect,
-    required FC fc,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 50,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          decoration: BoxDecoration(
-            color: fc.bg3,
-            borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: fc.borderDim),
-          ),
-          child: Text(
-            stat,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.amberBright,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                effect,
-                style: TextStyle(
-                  color: fc.textSecondary,
-                  fontSize: 12,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// COSMIC FAMILY ROLE
-// ─────────────────────────────────────────────────────────────────────────────
 class _CosmicFamilyRole {
   final String title;
   final String description;
@@ -2414,303 +2275,3 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
 /// Stat chips for the COSMIC tab — shows actual derived combat numbers
 /// (HP, physical/elemental ATK + DEF, cooldown reduction, crit) the way
 /// Boss tab shows its stat chips, so both tabs read like the same UI.
-class _ExploreStatChipsCard extends StatelessWidget {
-  final CreatureInstance instance;
-  final String family;
-  final FC fc;
-
-  const _ExploreStatChipsCard({
-    required this.instance,
-    required this.family,
-    required this.fc,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hp = CosmicBalance.companionMaxHp(
-      level: instance.level,
-      strength: instance.statStrength,
-      intelligence: instance.statIntelligence,
-    );
-    final physAtk = CosmicBalance.companionPhysAtk(
-      level: instance.level,
-      strength: instance.statStrength,
-    );
-    final elemAtk = CosmicBalance.companionElemAtk(
-      level: instance.level,
-      beauty: instance.statBeauty,
-    );
-    final physDef = CosmicBalance.companionPhysDef(
-      level: instance.level,
-      strength: instance.statStrength,
-      intelligence: instance.statIntelligence,
-    );
-    final elemDef = CosmicBalance.companionElemDef(
-      level: instance.level,
-      beauty: instance.statBeauty,
-      intelligence: instance.statIntelligence,
-    );
-    final cdr = CosmicBalance.companionCooldownReduction(instance.statSpeed);
-    final crit = CosmicBalance.companionCritChance(instance.statStrength);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Top row: durability + offense at a glance
-        Row(
-          children: [
-            Expanded(child: _statChip('HP', hp.toString(), fc)),
-            const SizedBox(width: 8),
-            Expanded(child: _statChip('PHYS ATK', physAtk.toString(), fc)),
-            const SizedBox(width: 8),
-            Expanded(child: _statChip('ELEM ATK', elemAtk.toString(), fc)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // Bottom row: defenses + tempo/crit
-        Row(
-          children: [
-            Expanded(child: _statChip('PHYS DEF', physDef.toString(), fc)),
-            const SizedBox(width: 8),
-            Expanded(child: _statChip('ELEM DEF', elemDef.toString(), fc)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _statChip(
-                'COOLDOWN',
-                '×${cdr.toStringAsFixed(2)}',
-                fc,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _statChip(
-                'CRIT',
-                '${(crit * 100).round()}%',
-                fc,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _statChip(String label, String value, FC fc) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      decoration: BoxDecoration(
-        color: fc.bg2,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: fc.borderDim),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExploreStatEffectsCard extends StatelessWidget {
-  final String family;
-  const _ExploreStatEffectsCard({required this.family});
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final lines = _familyStatEffectLines(family);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < lines.length; i++) ...[
-          _statEffect(
-            icon: lines[i].icon,
-            stat: lines[i].stat,
-            effect: lines[i].effect,
-            fc: fc,
-          ),
-          if (i < lines.length - 1) const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-
-  List<_StatEffectLine> _familyStatEffectLines(String family) {
-    final f = family.toLowerCase();
-    final common = <_StatEffectLine>[
-      const _StatEffectLine(
-        icon: Icons.favorite,
-        stat: 'STR + INT -> HP',
-        effect: 'Both strength and intelligence feed companion durability',
-      ),
-      const _StatEffectLine(
-        icon: Icons.gps_fixed,
-        stat: 'Strength -> Basic DMG',
-        effect: 'Increases basic projectile damage',
-      ),
-      const _StatEffectLine(
-        icon: Icons.speed,
-        stat: 'Speed -> Cooldowns',
-        effect: 'Reduces time between attacks and specials',
-      ),
-      const _StatEffectLine(
-        icon: Icons.trending_up,
-        stat: 'Run Upgrades -> Scaling',
-        effect: 'In-run upgrades can push special scaling above base stats',
-      ),
-    ];
-
-    final familySpecific = switch (f) {
-      'kin' => const [
-        _StatEffectLine(
-          icon: Icons.shield,
-          stat: 'Kin Special Scaling',
-          effect:
-              'Support effects scale best when both Beauty and Intelligence are high',
-        ),
-      ],
-      'let' => const [
-        _StatEffectLine(
-          icon: Icons.auto_awesome,
-          stat: 'Let Special Scaling',
-          effect:
-              'Meteor follow-ups scale with Beauty + Intelligence and trigger on impact',
-        ),
-      ],
-      'wing' => const [
-        _StatEffectLine(
-          icon: Icons.radar,
-          stat: 'Wing Special Scaling',
-          effect:
-              'Long-range special control scales mainly with Intelligence + Beauty',
-        ),
-      ],
-      'horn' => const [
-        _StatEffectLine(
-          icon: Icons.shield,
-          stat: 'Horn Special Scaling',
-          effect:
-              'Shield/charge special scaling favors Strength + Intelligence',
-        ),
-      ],
-      'mane' => const [
-        _StatEffectLine(
-          icon: Icons.bolt,
-          stat: 'Mane Special Scaling',
-          effect: 'Bruiser special scaling favors Strength with Beauty support',
-        ),
-      ],
-      'mask' => const [
-        _StatEffectLine(
-          icon: Icons.theater_comedy,
-          stat: 'Mask Special Scaling',
-          effect:
-              'Control/trap special scaling favors Intelligence with Beauty support',
-        ),
-      ],
-      'pip' => const [
-        _StatEffectLine(
-          icon: Icons.flash_on,
-          stat: 'Pip Special Scaling',
-          effect:
-              'Tempo special scaling favors tactical stats and attack cadence',
-        ),
-      ],
-      'mystic' => const [
-        _StatEffectLine(
-          icon: Icons.auto_awesome,
-          stat: 'Mystic Special Scaling',
-          effect:
-              'Core spell output scales with Beauty + Intelligence; high Strength boosts burst',
-        ),
-      ],
-      _ => const [
-        _StatEffectLine(
-          icon: Icons.auto_awesome,
-          stat: 'Special Scaling',
-          effect:
-              'Special strength scales with family-specific stat combinations',
-        ),
-      ],
-    };
-
-    return [...familySpecific, ...common];
-  }
-
-  Widget _statEffect({
-    required IconData icon,
-    required String stat,
-    required String effect,
-    required FC fc,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: fc.amberDim.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(2),
-          ),
-          child: Icon(icon, size: 12, color: fc.amber),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                stat.toUpperCase(),
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              Text(
-                effect,
-                style: TextStyle(
-                  color: fc.textSecondary,
-                  fontSize: 12,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatEffectLine {
-  final IconData icon;
-  final String stat;
-  final String effect;
-
-  const _StatEffectLine({
-    required this.icon,
-    required this.stat,
-    required this.effect,
-  });
-}

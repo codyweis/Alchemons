@@ -19,7 +19,6 @@ import 'package:alchemons/widgets/background/alchemical_particle_background.dart
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
-import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flutter/material.dart';
@@ -310,135 +309,139 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
-    final t = ForgeTokens(theme);
-    return Scaffold(
-      extendBody: true,
-      backgroundColor: t.bg0,
-      body: withGameData(
-        context,
-        loadingBuilder: buildLoadingScreen,
-        builder:
-            (
-              context, {
-              required theme,
-              required catalog,
-              required entries,
-              required discovered,
-            }) {
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: theme.isDark
-                              ? [t.bg0, t.bg1, t.bg0]
-                              : [
-                                  theme.backgroundGradient.first,
-                                  theme.backgroundGradient.last,
-                                  t.bg0,
-                                ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: const Alignment(0, -0.7),
-                            radius: 1.15,
-                            colors: [
-                              t.amber.withValues(alpha: 0.12),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Positioned.fill(child: AlchemicalParticleBackground()),
-                  SafeArea(
-                    child: Column(
+    return ForcedFactionBrightness(
+      brightness: Brightness.dark,
+      child: Builder(
+        builder: (context) {
+          final theme = context.watch<FactionTheme>();
+          final t = ForgeTokens(theme);
+          return Scaffold(
+            extendBody: true,
+            backgroundColor: t.bg0,
+            body: withGameData(
+              context,
+              loadingBuilder: buildLoadingScreen,
+              builder:
+                  (
+                    context, {
+                    required theme,
+                    required catalog,
+                    required entries,
+                    required discovered,
+                  }) {
+                    return Stack(
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
-                          child: Text(
-                            'Harvest',
-                            textAlign: TextAlign.center,
-                            style: _display(
-                              context,
-                              22,
-                              t.textPrimary,
-                              weight: FontWeight.w500,
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [t.bg0, t.bg1, t.bg0],
+                              ),
                             ),
                           ),
                         ),
-                        Expanded(
-                          child: ListenableBuilder(
-                            listenable: _svc,
-                            builder: (_, __) {
-                              final farms = _svc.biomes;
-                              final completedCount = farms
-                                  .where((f) => f.completed)
-                                  .length;
-                              return Column(
-                                children: [
-                                  if (completedCount > 0)
-                                    _CollectAllBanner(
-                                      count: completedCount,
-                                      theme: theme,
-                                      onCollectAll: () => _collectAll(farms),
-                                    ),
-                                  Expanded(
-                                    child: _ExtractionBay(
-                                      farms: farms,
-                                      theme: theme,
-                                      service: _svc,
-                                      discoveredCreatures: discovered,
-                                      selectedBiomeId: _selectedBiomeId,
-                                      defaultDuration: const Duration(hours: 4),
-                                      onSelect: (farm) {
-                                        HapticFeedback.selectionClick();
-                                        setState(
-                                          () =>
-                                              _selectedBiomeId = farm.biome.id,
-                                        );
-                                      },
-                                      onUnlock: _promptUnlock,
-                                    ),
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: RadialGradient(
+                                  center: const Alignment(0, -0.7),
+                                  radius: 1.15,
+                                  colors: [
+                                    t.amber.withValues(alpha: 0.12),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Positioned.fill(
+                          child: AlchemicalParticleBackground(),
+                        ),
+                        SafeArea(
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
+                                child: Text(
+                                  'Harvest',
+                                  textAlign: TextAlign.center,
+                                  style: _display(
+                                    context,
+                                    22,
+                                    t.textPrimary,
+                                    weight: FontWeight.w500,
                                   ),
-                                ],
-                              );
-                            },
+                                ),
+                              ),
+                              Expanded(
+                                child: ListenableBuilder(
+                                  listenable: _svc,
+                                  builder: (_, __) {
+                                    final farms = _svc.biomes;
+                                    final completedCount = farms
+                                        .where((f) => f.completed)
+                                        .length;
+                                    return Column(
+                                      children: [
+                                        if (completedCount > 0)
+                                          _CollectAllBanner(
+                                            count: completedCount,
+                                            theme: theme,
+                                            onCollectAll: () => _collectAll(farms),
+                                          ),
+                                        Expanded(
+                                          child: _ExtractionBay(
+                                            farms: farms,
+                                            theme: theme,
+                                            service: _svc,
+                                            discoveredCreatures: discovered,
+                                            selectedBiomeId: _selectedBiomeId,
+                                            defaultDuration: const Duration(
+                                              hours: 4,
+                                            ),
+                                            onSelect: (farm) {
+                                              HapticFeedback.selectionClick();
+                                              setState(
+                                                () => _selectedBiomeId = farm.biome.id,
+                                              );
+                                            },
+                                            onUnlock: _promptUnlock,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 40,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: FloatingCloseButton(
+                              theme: theme,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                Navigator.of(context).maybePop();
+                              },
+                              accentColor: t.textPrimary,
+                              iconColor: t.textPrimary,
+                            ),
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 40,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: FloatingCloseButton(
-                        theme: theme,
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          Navigator.of(context).maybePop();
-                        },
-                        accentColor: t.textPrimary,
-                        iconColor: t.textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+                    );
+                  },
+            ),
+          );
+        },
       ),
     );
   }
@@ -510,12 +513,12 @@ class _ExtractionBay extends StatelessWidget {
         );
 
         return Padding(
-          padding: EdgeInsets.fromLTRB(12, 4, 12, bottomPad),
+          padding: EdgeInsets.fromLTRB(8, 4, 8, bottomPad),
           child: wide
               ? Row(
                   children: [
-                    SizedBox(width: 168, child: rail),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 154, child: rail),
+                    const SizedBox(width: 10),
                     Expanded(child: chamber),
                   ],
                 )
@@ -624,14 +627,11 @@ class _BiomeSelectorChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
     final accent = farm.currentColor;
-    final border = selected
-        ? accent.withValues(alpha: 0.9)
+    final lineColor = selected
+        ? accent
         : farm.completed
-        ? t.success.withValues(alpha: 0.55)
-        : t.borderDim.withValues(alpha: 0.7);
-    final fillColor = selected
-        ? accent.withValues(alpha: theme.isDark ? 0.18 : 0.12)
-        : t.bg2.withValues(alpha: theme.isDark ? 0.52 : 0.78);
+        ? t.success
+        : t.borderDim;
 
     return GestureDetector(
       onTap: onTap,
@@ -639,24 +639,26 @@ class _BiomeSelectorChip extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.fromLTRB(
-          vertical ? 12 : 10,
-          vertical ? 11 : 9,
-          vertical ? 12 : 10,
-          vertical ? 11 : 8,
+          vertical ? 10 : 8,
+          vertical ? 9 : 8,
+          vertical ? 8 : 8,
+          vertical ? 9 : 7,
         ),
         decoration: BoxDecoration(
-          color: fillColor,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: border, width: selected ? 1.4 : 1),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: theme.isDark ? 0.18 : 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+          color: Colors.transparent,
+          border: vertical
+              ? Border(
+                  left: BorderSide(
+                    color: lineColor.withValues(alpha: selected ? 0.95 : 0.42),
+                    width: selected ? 3 : 1,
                   ),
-                ]
-              : null,
+                )
+              : Border(
+                  bottom: BorderSide(
+                    color: lineColor.withValues(alpha: selected ? 0.95 : 0.42),
+                    width: selected ? 3 : 1,
+                  ),
+                ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -835,7 +837,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
   Offset? _tapLocal;
   late final AnimationController _collectCtrl;
   late final AnimationController _jobCtrl;
-  late final AnimationController _glowController;
   late final AnimationController _statusCtrl;
 
   Widget? _creatureWidget;
@@ -862,10 +863,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       upperBound: 1,
       value: 0,
     );
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
     _ticker = createTicker((elapsed) {
       if (mounted) setState(() => _tSeconds = elapsed.inMicroseconds / 1e6);
     })..start();
@@ -885,7 +882,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
   void dispose() {
     _ticker.dispose();
     _jobCtrl.dispose();
-    _glowController.dispose();
     _collectCtrl.dispose();
     _tapFxCtrl.dispose();
     _statusCtrl.dispose();
@@ -1487,6 +1483,159 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
               );
             }
 
+            if (widget.featured) {
+              return Stack(
+                children: [
+                  Positioned(
+                    top: 0,
+                    left: 6,
+                    right: 6,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 3,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.45),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                farm.biome.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _display(
+                                  context,
+                                  22,
+                                  t.textPrimary,
+                                  weight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                farm.biome.elementTypes.join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _display(
+                                  context,
+                                  12,
+                                  t.textSecondary,
+                                  weight: FontWeight.w700,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 54,
+                    bottom: panelHeight + 30,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _ChamberView(
+                          tSeconds: _tSeconds,
+                          progress: vm.progress,
+                          collectCtrl: _collectCtrl,
+                          tapFxCtrl: _tapFxCtrl,
+                          onTapBoost: () => _handleTapBoost(farm),
+                          farm: farm,
+                          accent: accent,
+                          statusOverlay: badge,
+                          effectiveFill: vm.effectiveFill,
+                          creatureWidget: _creatureWidget,
+                          onTapDown: (details, inner) {
+                            final lp = details.localPosition;
+                            final clamped = Offset(
+                              lp.dx.clamp(inner.left + 6, inner.right - 6),
+                              lp.dy.clamp(inner.top + 6, inner.bottom - 6),
+                            );
+                            setState(() => _tapLocal = clamped);
+                            _tapFxCtrl.forward(from: 0);
+                          },
+                          tapLocal: _tapLocal,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 2,
+                    right: 2,
+                    bottom: 0,
+                    child: CustomPaint(
+                      painter: _BracketFramePainter(
+                        color: accent.withValues(alpha: 0.46),
+                        bracketSize: 12,
+                        strokeWidth: 1,
+                      ),
+                      child: Container(
+                        height: panelHeight + 18,
+                        padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              t.bg2.withValues(alpha: 0.18),
+                              t.bg0.withValues(alpha: 0.54),
+                            ],
+                          ),
+                          border: Border(
+                            top: BorderSide(
+                              color: accent.withValues(alpha: 0.2),
+                            ),
+                          ),
+                        ),
+                        child: farm.hasActive
+                            ? _ActivePanel(
+                                color: accent,
+                                theme: theme,
+                                farm: farm,
+                                biome: farm.biome,
+                                remaining: vm.remaining,
+                                compact: compact,
+                                onCollect: farm.completed
+                                    ? () => _handleCollect(farm)
+                                    : null,
+                                onCancel: () => _handleCancel(theme),
+                              )
+                            : !farm.unlocked
+                            ? _LockedPanel(
+                                color: accent,
+                                theme: theme,
+                                compact: compact,
+                                onBack: widget.onUnlock,
+                              )
+                            : _StartPanel(
+                                color: accent,
+                                theme: theme,
+                                biome: farm.biome,
+                                defaultDuration: widget.defaultDuration,
+                                compact: compact,
+                                onPickAndStart: _handlePickAndStart,
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
             return Container(
               decoration: BoxDecoration(
                 color: t.bg2.withValues(
@@ -1567,18 +1716,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: GlowingIcon(
-                            icon: Icons.info_outline_rounded,
-                            color: accent.withValues(alpha: 0.7),
-                            controller: _glowController,
-                            dialogTitle: '${farm.biome.label} Extraction',
-                            dialogMessage:
-                                'Extract resources from creatures aligned with this biome. Output depends on creature element.',
                           ),
                         ),
                       ],

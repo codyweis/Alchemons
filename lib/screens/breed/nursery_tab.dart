@@ -7,6 +7,7 @@ import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
@@ -450,38 +451,32 @@ class _NurseryTabState extends State<NurseryTab> {
     Color color, {
     Widget? trailing,
   }) {
+    final palette = BracketPalette.of(context);
+    final formatted = _toSentenceCase(title);
     return Row(
       children: [
-        // Vertical accent bar with glow
-        Container(
-          width: 3,
-          height: 22,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 10),
-        // Title
-        Text(
-          title,
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2.0,
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Decorative fade-out line
         Expanded(
-          child: Container(
-            height: 1,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color.withValues(alpha: .35), Colors.transparent],
+          child: Row(
+            children: [
+              Container(width: 3, height: 16, color: color),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  formatted,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: bracketText(
+                    context,
+                    13,
+                    palette.ink,
+                    weight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(child: Container(height: 1, color: palette.lineSoft)),
+            ],
           ),
         ),
         if (trailing != null) ...[
@@ -490,6 +485,12 @@ class _NurseryTabState extends State<NurseryTab> {
         ],
       ],
     );
+  }
+
+  String _toSentenceCase(String value) {
+    if (value.isEmpty) return value;
+    final lower = value.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
   }
 
   void _showSlotInfoModal(
@@ -1336,43 +1337,42 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
 
   @override
   Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
+    final palette = BracketPalette.of(context);
     return GestureDetector(
       onTap: widget.onTap,
       child: AnimatedBuilder(
         animation: _pulseAnim,
         builder: (context, _) {
           final a = _pulseAnim.value;
-          return Container(
-            decoration: BoxDecoration(
-              color: isLight
-                  ? Colors.transparent
-                  : Colors.black.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: widget.primaryColor.withValues(alpha: a * .55),
-                width: 1,
-              ),
+          return CustomPaint(
+            painter: BracketFramePainter(
+              color: widget.primaryColor.withValues(alpha: a),
+              bracketSize: 12,
+              strokeWidth: 1.3,
             ),
-            child: CustomPaint(
-              foregroundPainter: _CornerBracketsPainter(
-                color: widget.primaryColor.withValues(alpha: a),
-                bracketLength: 14,
-                bracketWidth: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: palette.surfaceMutedFill(),
+                border: Border.all(
+                  color: palette.lineSoft.withValues(alpha: 0.5),
+                  width: 1,
+                ),
               ),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 42,
-                      height: 42,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: widget.primaryColor.withValues(alpha: a * .12),
                         border: Border.all(
-                          color: widget.primaryColor.withValues(alpha: a * .45),
-                          width: 1.5,
+                          color: widget.primaryColor.withValues(
+                            alpha: a * .45,
+                          ),
+                          width: 1.2,
                         ),
                       ),
                       child: Icon(
@@ -1383,16 +1383,15 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
                         size: 22,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Text(
-                      'PLACE SPECIMEN',
-                      style: TextStyle(
-                        color: widget.primaryColor.withValues(
-                          alpha: (a + .2).clamp(0, 1),
-                        ),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
+                      'Place specimen',
+                      style: bracketText(
+                        context,
+                        12.5,
+                        palette.muted,
+                        weight: FontWeight.w700,
+                        letterSpacing: 0.6,
                       ),
                     ),
                   ],
@@ -1404,60 +1403,6 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
       ),
     );
   }
-}
-
-// ============================================================================
-// CORNER BRACKETS PAINTER
-// ============================================================================
-
-class _CornerBracketsPainter extends CustomPainter {
-  final Color color;
-  final double bracketLength;
-  final double bracketWidth;
-
-  _CornerBracketsPainter({
-    required this.color,
-    this.bracketLength = 14,
-    this.bracketWidth = 2,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = bracketWidth
-      ..strokeCap = StrokeCap.square
-      ..style = PaintingStyle.stroke;
-
-    final l = bracketLength;
-    const m = 5.0; // margin from edge
-
-    // Top-left
-    final tl = Offset(m, m);
-    canvas.drawLine(tl, Offset(tl.dx + l, tl.dy), paint);
-    canvas.drawLine(tl, Offset(tl.dx, tl.dy + l), paint);
-
-    // Top-right
-    final tr = Offset(size.width - m, m);
-    canvas.drawLine(tr, Offset(tr.dx - l, tr.dy), paint);
-    canvas.drawLine(tr, Offset(tr.dx, tr.dy + l), paint);
-
-    // Bottom-left
-    final bl = Offset(m, size.height - m);
-    canvas.drawLine(bl, Offset(bl.dx + l, bl.dy), paint);
-    canvas.drawLine(bl, Offset(bl.dx, bl.dy - l), paint);
-
-    // Bottom-right
-    final br = Offset(size.width - m, size.height - m);
-    canvas.drawLine(br, Offset(br.dx - l, br.dy), paint);
-    canvas.drawLine(br, Offset(br.dx, br.dy - l), paint);
-  }
-
-  @override
-  bool shouldRepaint(_CornerBracketsPainter old) =>
-      old.color != color ||
-      old.bracketLength != bracketLength ||
-      old.bracketWidth != bracketWidth;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

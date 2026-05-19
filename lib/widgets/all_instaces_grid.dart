@@ -855,7 +855,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     )
                   : GridView.builder(
                       physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(5, 0, 5, 24),
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 24),
                       itemCount: instances.length,
                       gridDelegate:
                           SliverGridDelegateWithFixedCrossAxisCount(

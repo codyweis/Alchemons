@@ -7,6 +7,7 @@ import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,14 +58,13 @@ class _StorageSectionState extends State<StorageSection> {
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
 
     return StreamBuilder<List<Egg>>(
       stream: context.read<AlchemonsDatabase>().incubatorDao.watchInventory(),
       builder: (context, snap) {
         final allItems = snap.data ?? const [];
 
-        // Filter by selected faction
         final filteredItems = _selectedFaction == null
             ? allItems
             : allItems.where((egg) {
@@ -82,32 +82,41 @@ class _StorageSectionState extends State<StorageSection> {
               widget.primaryColor,
             ),
             const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: t.borderDim, width: 1),
+            CustomPaint(
+              painter: BracketFramePainter(
+                color: palette.line.withValues(alpha: 0.8),
+                bracketSize: 10,
+                strokeWidth: 1.05,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildStorageMetaRow(
-                    t: t,
-                    storedCount: filteredItems.length,
-                    hasFilter: _selectedFaction != null,
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: palette.surfaceFill(),
+                  border: Border.all(
+                    color: palette.lineSoft.withValues(alpha: 0.5),
+                    width: 1,
                   ),
-                  if (allItems.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    _buildFactionFilter(theme: theme, t: t),
+                ),
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildStorageMetaRow(
+                      theme: theme,
+                      palette: palette,
+                      storedCount: filteredItems.length,
+                    ),
+                    if (allItems.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildFactionFilter(theme: theme, palette: palette),
+                    ],
+                    const SizedBox(height: 12),
+                    if (filteredItems.isEmpty)
+                      _buildEmptyState(theme: theme, palette: palette)
+                    else
+                      _buildStorageGrid(filteredItems),
                   ],
-                  const SizedBox(height: 12),
-                  if (filteredItems.isEmpty)
-                    _buildEmptyState(t)
-                  else
-                    _buildStorageGrid(filteredItems),
-                ],
+                ),
               ),
             ),
           ],
@@ -117,32 +126,32 @@ class _StorageSectionState extends State<StorageSection> {
   }
 
   Widget _buildStorageMetaRow({
-    required ForgeTokens t,
+    required FactionTheme theme,
+    required BracketPalette palette,
     required int storedCount,
-    required bool hasFilter,
   }) {
+    final accent = theme.accentSoft;
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: t.amberDim.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: t.borderAccent, width: 1),
+          color: palette.accentWash(accent),
+          border: Border(left: BorderSide(color: accent, width: 2)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.ac_unit_rounded, color: t.amberBright, size: 10),
+            Icon(Icons.ac_unit_rounded, color: accent, size: 11),
             const SizedBox(width: 5),
             Text(
-              '$storedCount STORED',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.amberBright,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
+              '$storedCount stored',
+              style: bracketText(
+                context,
+                11.5,
+                palette.ink,
+                weight: FontWeight.w700,
+                letterSpacing: 0.4,
               ),
             ),
           ],
@@ -153,23 +162,23 @@ class _StorageSectionState extends State<StorageSection> {
 
   Widget _buildFactionFilter({
     required FactionTheme theme,
-    required ForgeTokens t,
+    required BracketPalette palette,
   }) {
     return SizedBox(
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _buildFactionChip(null, 'ALL', theme: theme, t: t),
+          _buildFactionChip(null, 'All', theme: theme, palette: palette),
           const SizedBox(width: 8),
           ...ElementalGroup.values.map(
             (group) => Padding(
               padding: const EdgeInsets.only(right: 8),
               child: _buildFactionChip(
                 group,
-                group.displayName.toUpperCase(),
+                group.displayName,
                 theme: theme,
-                t: t,
+                palette: palette,
               ),
             ),
           ),
@@ -182,109 +191,96 @@ class _StorageSectionState extends State<StorageSection> {
     ElementalGroup? group,
     String label, {
     required FactionTheme theme,
-    required ForgeTokens t,
+    required BracketPalette palette,
   }) {
     final isSelected = _selectedFaction == group;
-    final rim = t.readableAccent(group?.color ?? t.amberBright);
-    final background = isSelected
-        ? rim.withValues(alpha: theme.isDark ? 0.18 : 0.10)
-        : t.bg3;
-    final border = isSelected
-        ? rim.withValues(alpha: theme.isDark ? 0.70 : 0.45)
-        : t.borderDim;
-    final textColor = isSelected ? rim : t.textSecondary;
-    final swatchColor = isSelected ? rim : rim.withValues(alpha: 0.72);
+    final accent = bracketReadableAccent(theme, color: group?.color);
 
     return GestureDetector(
       onTap: () => setState(() => _selectedFaction = group),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: border, width: 1),
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: isSelected
+              ? accent
+              : palette.line.withValues(alpha: 0.55),
+          bracketSize: 6,
+          strokeWidth: isSelected ? 1.2 : 1.0,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: swatchColor,
-                borderRadius: BorderRadius.circular(1.5),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          color: isSelected
+              ? palette.accentWash(accent)
+              : (palette.isDark ? Colors.transparent : palette.surfaceMutedFill()),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 5, height: 5, color: accent),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: bracketText(
+                  context,
+                  12,
+                  isSelected ? accent : palette.muted,
+                  weight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  letterSpacing: 0.4,
+                ),
               ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: textColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState(ForgeTokens t) {
+  Widget _buildEmptyState({
+    required FactionTheme theme,
+    required BracketPalette palette,
+  }) {
     final message = _selectedFaction == null
         ? 'No specimens in cold storage'
         : 'No ${_selectedFaction!.displayName} specimens in cold storage';
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
-        color: t.bg3,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: t.borderDim, width: 1),
+        color: palette.bg0.withValues(alpha: 0.55),
+        border: Border(left: BorderSide(color: theme.accentSoft, width: 2)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: t.bg0,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t.borderAccent, width: 1),
-            ),
-            child: Icon(
-              Icons.inventory_2_outlined,
-              color: t.amberBright.withValues(alpha: 0.85),
-              size: 16,
-            ),
+          Icon(
+            Icons.inventory_2_outlined,
+            color: theme.accentSoft,
+            size: 16,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   message,
-                  style: TextStyle(
-                    color: t.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                  style: bracketText(
+                    context,
+                    12.5,
+                    palette.ink,
+                    weight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   'Stored specimens keep cultivating at reduced speed until you move them back into an active chamber.',
-                  style: TextStyle(
-                    color: t.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    height: 1.35,
+                  style: bracketText(
+                    context,
+                    12,
+                    palette.muted,
+                    weight: FontWeight.w500,
+                    fontStyle: FontStyle.italic,
                   ),
+                  strutStyle: const StrutStyle(height: 1.4),
                 ),
               ],
             ),
@@ -663,7 +659,7 @@ class EggDetailsModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
-    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
+    final palette = BracketPalette.fromTheme(theme);
     final skin = elementGroup.skin;
     final source = payload['source'] as String? ?? 'unknown';
     final parents = _extractParents();
@@ -671,175 +667,125 @@ class EggDetailsModal extends StatelessWidget {
       egg,
     );
     final isReady = ColdStorageService.isReady(egg);
+    final accent = bracketReadableAccent(theme, color: elementGroup.color);
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
-      ),
-      decoration: BoxDecoration(
-        color: dialogSurface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-        border: Border(top: BorderSide(color: t.borderAccent, width: 1.5)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header bar
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-            decoration: BoxDecoration(
-              color: t.bg0,
-              border: Border(
-                bottom: BorderSide(color: t.borderAccent, width: 1),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 3,
-                  height: 14,
-                  color: t.amber,
-                  margin: const EdgeInsets.only(right: 10),
-                ),
-                Expanded(
-                  child: Text(
-                    'SPECIMEN DETAILS',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.4,
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: t.bg2,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: t.borderDim, width: 1),
-                    ),
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: t.textSecondary,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ],
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          decoration: BoxDecoration(
+            color: palette.surfaceFill(),
+            border: Border(
+              top: BorderSide(color: accent.withValues(alpha: 0.85), width: 2),
             ),
           ),
-
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 22, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: SizedBox(
+                          height: 240,
+                          child: _buildLargeVialDisplay(
+                            skin,
+                            t,
+                            displayRemaining,
+                            isReady,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Center(
+                        child: Text(
+                          getEggLabel(payload),
+                          style: bracketText(
+                            context,
+                            18,
+                            palette.ink,
+                            weight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Center(
+                        child: Text(
+                          elementGroup.displayName,
+                          style: bracketText(
+                            context,
+                            12.5,
+                            palette.muted,
+                            weight: FontWeight.w500,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _buildInlineRow('Source', _formatSource(source), palette),
+                      if (parents.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        const BracketSectionDivider(label: 'Parents'),
+                        const SizedBox(height: 10),
+                        for (var i = 0; i < parents.length; i++) ...[
+                          _buildParentRow(parents[i], palette, accent),
+                          if (i < parents.length - 1)
+                            const SizedBox(height: 10),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              CultivationDialogActionArea(
+                tokens: t,
                 children: [
-                  // Large vial card display
+                  CultivationDialogButton(
+                    tokens: t,
+                    label: isReady ? 'Extract specimen' : 'Add to chamber',
+                    icon: isReady
+                        ? Icons.biotech_rounded
+                        : Icons.inventory_2_rounded,
+                    accentColor: isReady ? accent : t.amberBright,
+                    emphasis: CultivationDialogButtonEmphasis.primary,
+                    useSolidBackground: true,
+                    foregroundColor: Colors.white,
+                    large: true,
+                    onTap: () => isReady
+                        ? _extractFromStorage(context, t)
+                        : _addToIncubator(context, t),
+                  ),
+                  const SizedBox(height: 10),
                   Center(
-                    child: SizedBox(
-                      height: 240,
-                      child: _buildLargeVialDisplay(
-                        skin,
-                        t,
-                        displayRemaining,
-                        isReady,
-                      ),
+                    child: _DetailsTextLink(
+                      label: 'Delete specimen',
+                      icon: Icons.delete_outline_rounded,
+                      color: t.danger,
+                      onTap: () => _confirmDelete(context, t),
                     ),
                   ),
-
-                  const SizedBox(height: 16),
-
-                  // Name
-                  Center(
-                    child: Text(
-                      getEggLabel(payload).toUpperCase(),
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.6,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Center(
-                    child: Text(
-                      elementGroup.displayName,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Info sections
-                  _buildInfoSection('Source', _formatSource(source), t),
-
-                  if (parents.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _buildParentsSection(parents, t),
-                  ],
                 ],
               ),
-            ),
-          ),
-          CultivationDialogActionArea(
-            tokens: t,
-            children: [
-              if (isReady) ...[
-                CultivationDialogButton(
-                  tokens: t,
-                  label: 'EXTRACT SPECIMEN',
-                  icon: Icons.biotech_rounded,
-                  accentColor: t.amberBright,
-                  emphasis: CultivationDialogButtonEmphasis.primary,
-                  onTap: () => _extractFromStorage(context, t),
-                ),
-                const SizedBox(height: 8),
-                CultivationDialogButton(
-                  tokens: t,
-                  label: 'DELETE',
-                  icon: Icons.delete_outline_rounded,
-                  accentColor: t.danger,
-                  emphasis: CultivationDialogButtonEmphasis.danger,
-                  onTap: () => _confirmDelete(context, t),
-                ),
-              ] else ...[
-                CultivationDialogButton(
-                  tokens: t,
-                  label: 'ADD TO CHAMBER',
-                  icon: Icons.inventory_2_rounded,
-                  accentColor: t.amberBright,
-                  emphasis: CultivationDialogButtonEmphasis.primary,
-                  onTap: () => _addToIncubator(context, t),
-                ),
-                const SizedBox(height: 8),
-                CultivationDialogButton(
-                  tokens: t,
-                  label: 'DELETE',
-                  icon: Icons.delete_outline_rounded,
-                  accentColor: t.danger,
-                  emphasis: CultivationDialogButtonEmphasis.danger,
-                  onTap: () => _confirmDelete(context, t),
-                ),
-              ],
             ],
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          top: 10,
+          right: 10,
+          child: _DetailsCloseButton(
+            palette: palette,
+            onTap: () => Navigator.pop(context),
+          ),
+        ),
+      ],
     );
   }
 
@@ -971,118 +917,91 @@ class EggDetailsModal extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoSection(String label, String value, ForgeTokens t) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: t.bg2,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: t.borderDim),
-      ),
-      child: Row(
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
+  Widget _buildInlineRow(String label, String value, BracketPalette palette) {
+    return Builder(builder: (context) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 92,
+              child: Text(
+                label.toUpperCase(),
+                style: bracketText(
+                  context,
+                  11,
+                  palette.muted,
+                  weight: FontWeight.w700,
+                  letterSpacing: 0.9,
+                ),
               ),
-              textAlign: TextAlign.right,
             ),
-          ),
-        ],
-      ),
-    );
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value,
+                style: bracketText(
+                  context,
+                  12.5,
+                  palette.ink,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
-  Widget _buildParentsSection(List<_ParentDetail> parents, ForgeTokens t) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: t.bg2,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: t.borderDim),
-      ),
-      child: Column(
+  Widget _buildParentRow(
+    _ParentDetail parent,
+    BracketPalette palette,
+    Color accent,
+  ) {
+    return Builder(builder: (context) {
+      return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'PARENTS',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (var i = 0; i < parents.length; i++) ...[
-            _buildParentRow(parents[i], t),
-            if (i < parents.length - 1) ...[
-              const SizedBox(height: 8),
-              Divider(color: t.borderDim, height: 1),
-              const SizedBox(height: 8),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildParentRow(_ParentDetail parent, ForgeTokens t) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                parent.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (parent.subtitle != null) ...[
-                const SizedBox(height: 2),
+          Container(width: 2, height: 18, color: accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  parent.subtitle!,
-                  maxLines: 2,
+                  parent.name,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
+                  style: bracketText(
+                    context,
+                    13,
+                    palette.ink,
+                    weight: FontWeight.w700,
                   ),
                 ),
+                if (parent.subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    parent.subtitle!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: bracketText(
+                      context,
+                      12,
+                      palette.muted,
+                      weight: FontWeight.w500,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
+    });
   }
 
   List<_ParentDetail> _extractParents() {
@@ -1436,4 +1355,78 @@ class _ParentDetail {
   final String? subtitle;
 
   const _ParentDetail({required this.name, required this.subtitle});
+}
+
+class _DetailsCloseButton extends StatelessWidget {
+  const _DetailsCloseButton({required this.palette, required this.onTap});
+
+  final BracketPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Close',
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: palette.line.withValues(alpha: 0.7),
+            bracketSize: 6,
+            strokeWidth: 1,
+          ),
+          child: Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            color: palette.surfaceMutedFill(),
+            child: Icon(Icons.close_rounded, size: 16, color: palette.muted),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailsTextLink extends StatelessWidget {
+  const _DetailsTextLink({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color.withValues(alpha: 0.85)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: bracketText(
+                context,
+                12,
+                color.withValues(alpha: 0.85),
+                weight: FontWeight.w600,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -3,6 +3,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/providers/theme_provider.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:provider/provider.dart';
 
 class FactionTheme {
   final Brightness brightness;
@@ -98,28 +101,28 @@ const _darkRoles = <FactionId, _Role>{
 // Light theme: darker, saturated colors for contrast on light backgrounds
 const _lightRoles = <FactionId, _Role>{
   FactionId.volcanic: _Role(
-    Color.fromARGB(255, 255, 129, 129), // deep red
-    Color(0xFFE64A19), // deep orange
-    Color(0xFFFF5722), // vivid deep orange
-    Color(0xFFFF8A65), // medium coral
+    Color(0xFFC54D3F), // warm brick
+    Color(0xFFD36B47), // ember orange
+    Color(0xFFD6512B), // readable action accent
+    Color(0xFFA63E24), // darker frame accent
   ),
   FactionId.oceanic: _Role(
-    Color(0xFF1976D2), // deep blue
-    Color.fromARGB(255, 213, 240, 255), // dark cyan
-    Color(0xFF0288D1), // strong blue
-    Color(0xFF4FC3F7), // medium sky blue
+    Color(0xFF1C5FA9), // deep blue
+    Color(0xFF1E7998), // sea teal
+    Color(0xFF156FBE), // readable action accent
+    Color(0xFF0F567D), // darker frame accent
   ),
   FactionId.verdant: _Role(
-    Color(0xFF546E7A), // dark blue-grey
-    Color.fromARGB(255, 0, 0, 0),
-    Color(0xFF78909C), // medium blue-grey
-    Color(0xFF90A4AE), // light blue-grey
+    Color(0xFF4E6670), // muted slate
+    Color(0xFF6B8790), // pale steel
+    Color(0xFF627B85), // readable action accent
+    Color(0xFF475C63), // darker frame accent
   ),
   FactionId.earthen: _Role(
-    Color(0xFF5D4037), // deep brown
-    Color(0xFF388E3C), // deep green
-    Color(0xFF6D4C41), // rich brown
-    Color(0xFF8D6E63), // medium brown
+    Color(0xFF6B4E2F), // deep soil
+    Color(0xFF5F7D46), // moss green
+    Color(0xFF7B5A38), // readable action accent
+    Color(0xFF5C442A), // darker frame accent
   ),
 };
 
@@ -463,6 +466,33 @@ extension FactionMaterialTheme on FactionTheme {
       dividerColor: border,
       iconTheme: IconThemeData(color: text),
       dialogTheme: DialogThemeData(backgroundColor: surface),
+    );
+  }
+}
+
+class ForcedFactionBrightness extends StatelessWidget {
+  const ForcedFactionBrightness({
+    super.key,
+    required this.brightness,
+    required this.child,
+  });
+
+  final Brightness brightness;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final factionId = context.watch<FactionService>().current;
+    final themeNotifier = context.watch<ThemeNotifier>();
+    final forcedTheme = factionThemeFor(factionId, brightness: brightness);
+    final textTheme = themeNotifier.currentTextThemeFn(Theme.of(context).textTheme);
+
+    return Provider<FactionTheme>.value(
+      value: forcedTheme,
+      child: Theme(
+        data: forcedTheme.toMaterialTheme(textTheme),
+        child: child,
+      ),
     );
   }
 }

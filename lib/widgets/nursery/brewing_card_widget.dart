@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 
@@ -123,46 +124,54 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
         !media.disableAnimations &&
         particleCount > 0;
 
+    final palette = BracketPalette.fromTheme(theme);
+    final frameColor = widget.isReady
+        ? (isBloodborn ? kBloodbornReadyBorder : const Color(0xFFFFD700))
+        : (isBloodborn
+              ? kBloodbornSecondary.withValues(alpha: 0.85)
+              : palette.line.withValues(alpha: 0.75));
+    final fillColor = isLight ? palette.bg1 : Colors.black;
+
     return RepaintBoundary(
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isLight ? Colors.white : Colors.black,
-            borderRadius: BorderRadius.circular(5),
-            border: Border.all(
-              color: widget.isReady
-                  ? (isBloodborn
-                        ? kBloodbornReadyBorder
-                        : const Color(0xFFFFD700))
-                  : (isBloodborn
-                        ? kBloodbornSecondary.withValues(alpha: 0.75)
-                        : theme.text.withValues(alpha: 0.5)),
-              width: widget.isReady ? 1.0 : 0.5,
-            ),
-            boxShadow: null,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: frameColor,
+            bracketSize: 10,
+            strokeWidth: widget.isReady ? 1.4 : 1.05,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(5),
-            child: Stack(
-              children: [
-                if (showParticles &&
-                    _parentTypes != null &&
-                    _parentTypes!.isNotEmpty)
-                  Positioned.fill(
-                    child: AlchemyBrewingParticleSystem(
-                      parentATypeId: _parentTypes![0],
-                      parentBTypeId: _parentTypes!.length > 1
-                          ? _parentTypes![1]
-                          : null,
-                      particleCount: particleCount,
-                      speedMultiplier: _speedFromProgress,
-                      fusion: widget.isReady,
-                      useSimpleFusion: widget.useSimpleFusion,
-                      theme: widget.theme,
+          child: Container(
+            decoration: BoxDecoration(
+              color: fillColor,
+              border: Border.all(
+                color: widget.isReady
+                    ? frameColor.withValues(alpha: 0.55)
+                    : palette.lineSoft.withValues(alpha: 0.55),
+                width: 1,
+              ),
+            ),
+            child: ClipRect(
+              child: Stack(
+                children: [
+                  if (showParticles &&
+                      _parentTypes != null &&
+                      _parentTypes!.isNotEmpty)
+                    Positioned.fill(
+                      child: AlchemyBrewingParticleSystem(
+                        parentATypeId: _parentTypes![0],
+                        parentBTypeId: _parentTypes!.length > 1
+                            ? _parentTypes![1]
+                            : null,
+                        particleCount: particleCount,
+                        speedMultiplier: _speedFromProgress,
+                        fusion: widget.isReady,
+                        useSimpleFusion: widget.useSimpleFusion,
+                        theme: widget.theme,
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

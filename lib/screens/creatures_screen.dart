@@ -31,6 +31,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 
@@ -40,11 +41,6 @@ import '../models/creature.dart';
 // DESIGN TOKENS
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _C {
-  // Only textPrimary/textSecondary remain — used by _T static const TextStyles.
-  static const textSecondary = Color(0xFF8A7B6A);
-}
-
 class _T {
   static const heading = TextStyle(
     fontFamily: 'monospace',
@@ -52,14 +48,6 @@ class _T {
     fontSize: 13,
     fontWeight: FontWeight.w800,
     letterSpacing: 2.0,
-  );
-
-  static const label = TextStyle(
-    fontFamily: 'monospace',
-    color: _C.textSecondary,
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 1.6,
   );
 }
 
@@ -717,60 +705,36 @@ class _SolidHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
     return SliverAppBar(
       pinned: false,
       elevation: 0,
-      backgroundColor: t.bg1,
+      backgroundColor: Colors.transparent,
       automaticallyImplyLeading: false,
-      toolbarHeight: 64,
+      toolbarHeight: 68,
       flexibleSpace: Container(
         decoration: BoxDecoration(
-          color: t.bg1,
-          border: Border(bottom: BorderSide(color: t.borderDim)),
+          color: palette.bg0,
+          border: Border(
+            bottom: BorderSide(color: palette.line.withValues(alpha: 0.5)),
+          ),
         ),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         child: Row(
           children: [
-            // All instances button — highlights briefly after tutorial
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: highlightAllInstances
-                    ? t.amber.withValues(alpha: 0.15)
-                    : t.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(
-                  color: highlightAllInstances ? t.borderAccent : t.borderDim,
-                  width: highlightAllInstances ? 1.5 : 1.0,
-                ),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(3),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onOpenAllInstances();
-                  },
-                  child: Center(
-                    child: Icon(
-                      Icons.grid_view_rounded,
-                      size: 18,
-                      color: highlightAllInstances
-                          ? t.amberBright
-                          : t.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
+            _HeaderIconSquare(
+              icon: Icons.grid_view_rounded,
+              palette: palette,
+              accent: highlightAllInstances
+                  ? theme.accent
+                  : theme.accentSoft,
+              highlighted: highlightAllInstances,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onOpenAllInstances();
+              },
             ),
-
             const SizedBox(width: 12),
-
-            // Title
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -778,50 +742,99 @@ class _SolidHeader extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        width: 5,
-                        height: 5,
-                        margin: const EdgeInsets.only(right: 7, bottom: 1),
-                        decoration: BoxDecoration(
-                          color: t.amber,
-                          shape: BoxShape.circle,
+                      Container(width: 6, height: 6, color: theme.accent),
+                      const SizedBox(width: 7),
+                      Text(
+                        'Alchemon Database',
+                        style: bracketText(
+                          context,
+                          15,
+                          palette.ink,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.4,
                         ),
                       ),
-                      const Text('ALCHEMON DATABASE', style: _T.heading),
                     ],
                   ),
                   const SizedBox(height: 2),
-                  const Text('SPECIMEN CATALOGUING SYSTEM', style: _T.label),
+                  Text(
+                    'Specimen cataloguing system',
+                    style: bracketText(
+                      context,
+                      11.5,
+                      palette.muted,
+                      weight: FontWeight.w500,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
                 ],
               ),
             ),
-
-            const SizedBox(width: 12),
-
-            // Constellation button
-            GestureDetector(
+            const SizedBox(width: 10),
+            _HeaderIconSquare(
+              icon: Icons.show_chart_rounded,
+              palette: palette,
+              accent: theme.accentSoft,
+              highlighted: true,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => const ConstellationProgressOverviewScreen(),
                 ),
               ),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: t.amberDim.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: t.borderAccent),
-                ),
-                child: Icon(
-                  Icons.show_chart_rounded,
-                  size: 18,
-                  color: t.amberBright,
-                ),
-              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderIconSquare extends StatelessWidget {
+  const _HeaderIconSquare({
+    required this.icon,
+    required this.palette,
+    required this.accent,
+    required this.onTap,
+    this.highlighted = false,
+  });
+
+  final IconData icon;
+  final BracketPalette palette;
+  final Color accent;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final frameAccent = highlighted
+        ? bracketReadableAccent(
+            context.read<FactionTheme>(),
+            color: accent,
+          )
+        : palette.muted;
+    return GestureDetector(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: highlighted
+              ? frameAccent
+              : palette.line.withValues(alpha: 0.6),
+          bracketSize: 7,
+          strokeWidth: highlighted ? 1.2 : 1.0,
+        ),
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          color: highlighted
+              ? palette.accentWash(frameAccent)
+              : palette.surfaceMutedFill(),
+          child: Icon(
+            icon,
+            size: 17,
+            color: highlighted ? frameAccent : palette.muted,
+          ),
         ),
       ),
     );
@@ -855,182 +868,191 @@ class _StatsHeaderSolidState extends State<_StatsHeaderSolid> {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(widget.theme);
+    final palette = BracketPalette.fromTheme(widget.theme);
+    final activeAccent = bracketReadableAccent(widget.theme);
     final db = context.read<AlchemonsDatabase>();
     final remaining = math.max(0, widget.total - widget.discovered);
 
-    return SectionCard(
-      theme: widget.theme,
-      padding: EdgeInsets.zero,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.selectionClick();
-            setState(() => _expanded = !_expanded);
-          },
-          child: AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 54,
-                        height: 54,
-                        child: CustomPaint(
-                          painter: _ArcPainter(
-                            progress: widget.percent,
-                            color: t.amberBright,
-                            trackColor: t.borderMid,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${widget.discovered}',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.textPrimary,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: palette.line.withValues(alpha: 0.85),
+          bracketSize: 10,
+          strokeWidth: 1.05,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _expanded = !_expanded);
+            },
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: Container(
+                color: palette.surfaceFill(),
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 54,
+                          height: 54,
+                          child: CustomPaint(
+                            painter: _ArcPainter(
+                              progress: widget.percent,
+                              color: activeAccent,
+                              trackColor: palette.lineSoft,
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${widget.discovered}',
+                                style: bracketText(
+                                  context,
+                                  15,
+                                  palette.ink,
+                                  weight: FontWeight.w800,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'DISCOVERY PROGRESS',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: t.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.5,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Discovery progress',
+                                    style: bracketText(
+                                      context,
+                                      12,
+                                      palette.muted,
+                                      weight: FontWeight.w700,
+                                      letterSpacing: 0.8,
+                                    ),
                                   ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  '${widget.discovered} / ${widget.total}',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: t.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
+                                  const Spacer(),
+                                  Text(
+                                    '${widget.discovered} / ${widget.total}',
+                                    style: bracketText(
+                                      context,
+                                      12.5,
+                                      palette.ink,
+                                      weight: FontWeight.w700,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            ProgressBar(
-                              theme: widget.theme,
-                              value: widget.percent,
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Text(
-                                  _expanded
-                                      ? 'TAP TO HIDE EXTENDED STATS'
-                                      : 'TAP TO EXPAND EXTENDED STATS',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: t.textMuted,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.2,
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              ProgressBar(
+                                theme: widget.theme,
+                                value: widget.percent,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Text(
+                                    _expanded
+                                        ? 'Tap to hide extended stats'
+                                        : 'Tap to expand extended stats',
+                                    style: bracketText(
+                                      context,
+                                      11.5,
+                                      palette.muted,
+                                      weight: FontWeight.w500,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
-                                ),
-                                const Spacer(),
-                                AnimatedRotation(
-                                  turns: _expanded ? 0.5 : 0.0,
-                                  duration: const Duration(milliseconds: 240),
-                                  curve: Curves.easeOutCubic,
-                                  child: Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    color: t.textSecondary,
-                                    size: 18,
+                                  const Spacer(),
+                                  AnimatedRotation(
+                                    turns: _expanded ? 0.5 : 0.0,
+                                    duration: const Duration(milliseconds: 240),
+                                    curve: Curves.easeOutCubic,
+                                    child: Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      color: palette.muted,
+                                      size: 18,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
+                      ],
+                    ),
+                    if (_expanded) ...[
+                      const SizedBox(height: 14),
+                      Container(height: 1, color: palette.lineSoft),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _ExpandedStatTile(
+                              theme: widget.theme,
+                              label: 'Current specimens',
+                              value: '${widget.ownedCount}',
+                              accent: widget.theme.accentSoft,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _ExpandedStatTile(
+                              theme: widget.theme,
+                              label: 'Remaining unknown',
+                              value: '$remaining',
+                              accent: palette.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: StreamBuilder<int>(
+                              stream:
+                                  db.constellationDao.watchTotalBredCount(),
+                              initialData: 0,
+                              builder: (context, snapshot) {
+                                return _ExpandedStatTile(
+                                  theme: widget.theme,
+                                  label: 'Total alchemons bred',
+                                  value: '${snapshot.data ?? 0}',
+                                  accent: widget.theme.secondary,
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: StreamBuilder<int>(
+                              stream: db.creatureDao
+                                  .watchPrismaticInstanceCount(),
+                              initialData: 0,
+                              builder: (context, snapshot) {
+                                return _ExpandedStatTile(
+                                  theme: widget.theme,
+                                  label: 'Current prismatics',
+                                  value: '${snapshot.data ?? 0}',
+                                  accent: const Color(0xFFE879F9),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                  if (_expanded) ...[
-                    const SizedBox(height: 12),
-                    Container(height: 1, color: t.borderDim),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ExpandedStatTile(
-                            theme: widget.theme,
-                            label: 'CURRENT SPECIMENS',
-                            value: '${widget.ownedCount}',
-                            accent: t.amberBright,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _ExpandedStatTile(
-                            theme: widget.theme,
-                            label: 'REMAINING UNKNOWN',
-                            value: '$remaining',
-                            accent: t.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: StreamBuilder<int>(
-                            stream: db.constellationDao.watchTotalBredCount(),
-                            initialData: 0,
-                            builder: (context, snapshot) {
-                              return _ExpandedStatTile(
-                                theme: widget.theme,
-                                label: 'TOTAL ALCHEMONS BRED',
-                                value: '${snapshot.data ?? 0}',
-                                accent: t.teal,
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: StreamBuilder<int>(
-                            stream: db.creatureDao
-                                .watchPrismaticInstanceCount(),
-                            initialData: 0,
-                            builder: (context, snapshot) {
-                              return _ExpandedStatTile(
-                                theme: widget.theme,
-                                label: 'CURRENT PRISMATICS',
-                                value: '${snapshot.data ?? 0}',
-                                accent: const Color(0xFFE879F9),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -1055,13 +1077,13 @@ class _ExpandedStatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    final displayAccent = bracketReadableAccent(theme, color: accent);
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       decoration: BoxDecoration(
-        color: t.bg2.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: accent.withValues(alpha: 0.35)),
+        color: palette.chromeMutedFill(),
+        border: Border(left: BorderSide(color: displayAccent, width: 2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1070,23 +1092,23 @@ class _ExpandedStatTile extends StatelessWidget {
             label,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
+            style: bracketText(
+              context,
+              10.5,
+              palette.muted,
+              weight: FontWeight.w700,
+              letterSpacing: 0.6,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.6,
+            style: bracketText(
+              context,
+              17,
+              palette.ink,
+              weight: FontWeight.w800,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -1132,54 +1154,47 @@ class _FilterBarSolid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      theme: theme,
-      elevated: true,
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: SearchFieldSolid(
-                  theme: theme,
-                  controller: controller,
-                  focusNode: focusNode,
-                  hint: 'SEARCH ALCHEMONS...',
-                  onChanged: onQueryChanged,
-                ),
-              ),
-              const SizedBox(width: 4),
-              PillButton(
-                theme: theme,
-                label: scope.toUpperCase(),
-                icon: Icons.filter_list_rounded,
-                onTap: onScopeChanged,
-              ),
-              const SizedBox(width: 4),
-              IconButtonSolid(
-                theme: theme,
-                icon: showCounts
-                    ? Icons.numbers_rounded
-                    : Icons.numbers_outlined,
-                onTap: onToggleCounts,
-              ),
-              const SizedBox(width: 4),
-              IconButtonSolid(
-                theme: theme,
-                icon: isGrid
-                    ? Icons.view_list_rounded
-                    : Icons.grid_view_rounded,
-                onTap: onToggleView,
-              ),
-              const SizedBox(width: 4),
-              IconButtonSolid(
-                theme: theme,
-                icon: Icons.sort_rounded,
-                onTap: onSortTap,
-              ),
-            ],
+          Expanded(
+            child: SearchFieldSolid(
+              theme: theme,
+              controller: controller,
+              focusNode: focusNode,
+              hint: 'Search alchemons',
+              onChanged: onQueryChanged,
+            ),
+          ),
+          const SizedBox(width: 6),
+          PillButton(
+            theme: theme,
+            label: scope,
+            icon: Icons.filter_list_rounded,
+            onTap: onScopeChanged,
+          ),
+          const SizedBox(width: 6),
+          IconButtonSolid(
+            theme: theme,
+            icon: showCounts
+                ? Icons.numbers_rounded
+                : Icons.numbers_outlined,
+            onTap: onToggleCounts,
+          ),
+          const SizedBox(width: 6),
+          IconButtonSolid(
+            theme: theme,
+            icon: isGrid
+                ? Icons.view_list_rounded
+                : Icons.grid_view_rounded,
+            onTap: onToggleView,
+          ),
+          const SizedBox(width: 6),
+          IconButtonSolid(
+            theme: theme,
+            icon: Icons.sort_rounded,
+            onTap: onSortTap,
           ),
         ],
       ),
@@ -1289,72 +1304,84 @@ class _CreatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
     final spriteData = c.spriteData;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(color: t.bg2),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(6),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: Silhouette(
-                        enabled: !discovered,
-                        child: RepaintBoundary(
-                          child: spriteData != null
-                              ? CreatureSprite(
-                                  spritePath: spriteData.spriteSheetPath,
-                                  totalFrames: spriteData.totalFrames,
-                                  rows: spriteData.rows,
-                                  frameSize: Vector2(
-                                    spriteData.frameWidth.toDouble(),
-                                    spriteData.frameHeight.toDouble(),
-                                  ),
-                                  stepTime: spriteData.frameDurationMs / 1000.0,
-                                )
-                              : CreatureImage(
-                                  c: c,
-                                  discovered: discovered,
-                                  rounded: 3,
-                                ),
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: GestureDetector(
+        onTap: onTap,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: palette.line.withValues(alpha: 0.75),
+            bracketSize: 9,
+            strokeWidth: 1.05,
+          ),
+          child: Container(
+            color: palette.surfaceMutedFill(),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: Silhouette(
+                            enabled: !discovered,
+                            child: RepaintBoundary(
+                              child: spriteData != null
+                                  ? CreatureSprite(
+                                      spritePath: spriteData.spriteSheetPath,
+                                      totalFrames: spriteData.totalFrames,
+                                      rows: spriteData.rows,
+                                      frameSize: Vector2(
+                                        spriteData.frameWidth.toDouble(),
+                                        spriteData.frameHeight.toDouble(),
+                                      ),
+                                      stepTime:
+                                          spriteData.frameDurationMs / 1000.0,
+                                    )
+                                  : CreatureImage(
+                                      c: c,
+                                      discovered: discovered,
+                                      rounded: 3,
+                                    ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 6),
+                      Text(
+                        discovered ? c.name : 'Unknown',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: bracketText(
+                          context,
+                          13,
+                          discovered ? palette.ink : palette.muted,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      _RarityPill(
+                        rarity: discovered ? c.rarity : 'CLASS ?',
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    discovered ? c.name : 'Unknown',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: discovered ? t.textPrimary : t.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                    ),
+                ),
+                if (showCount && discovered && instanceCount > 0)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: _CountBadge(theme: theme, count: instanceCount),
                   ),
-                  const SizedBox(height: 3),
-                  _RarityPill(rarity: discovered ? c.rarity : 'CLASS ?'),
-                  const SizedBox(height: 3),
-                ],
-              ),
+              ],
             ),
-            if (showCount && discovered && instanceCount > 0)
-              Positioned(
-                top: 4,
-                right: 4,
-                child: _CountBadge(theme: theme, count: instanceCount),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -1380,117 +1407,122 @@ class _CreatureRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
     final spriteData = c.spriteData;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.bg2,
-          border: Border.all(color: t.borderDim),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              // Sprite plate
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: t.bg3,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: t.borderDim),
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Silhouette(
-                        enabled: !discovered,
-                        child: RepaintBoundary(
-                          child: spriteData != null
-                              ? CreatureSprite(
-                                  spritePath: spriteData.spriteSheetPath,
-                                  totalFrames: spriteData.totalFrames,
-                                  rows: spriteData.rows,
-                                  frameSize: Vector2(
-                                    spriteData.frameWidth.toDouble(),
-                                    spriteData.frameHeight.toDouble(),
-                                  ),
-                                  stepTime: spriteData.frameDurationMs / 1000.0,
-                                )
-                              : CreatureImage(
-                                  c: c,
-                                  discovered: discovered,
-                                  rounded: 3,
-                                  size: 42,
-                                ),
-                        ),
-                      ),
-                    ),
-                    if (showCount && discovered && instanceCount > 0)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: _CountBadge(
-                          theme: theme,
-                          count: instanceCount,
-                          small: true,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      discovered ? c.name.toUpperCase() : 'UNKNOWN SPECIMEN',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: discovered ? t.textPrimary : t.textMuted,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    if (discovered)
-                      Row(
-                        children: [
-                          Wrap(
-                            spacing: 5,
-                            runSpacing: 3,
-                            children: c.types
-                                .take(2)
-                                .map((t) => _TypeTiny(label: t))
-                                .toList(),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+      child: GestureDetector(
+        onTap: onTap,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: palette.line.withValues(alpha: 0.75),
+            bracketSize: 9,
+            strokeWidth: 1.05,
+          ),
+          child: Container(
+            color: palette.surfaceMutedFill(),
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 50,
+                  height: 50,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(
+                        child: Center(
+                          child: Silhouette(
+                            enabled: !discovered,
+                            child: RepaintBoundary(
+                              child: spriteData != null
+                                  ? CreatureSprite(
+                                      spritePath: spriteData.spriteSheetPath,
+                                      totalFrames: spriteData.totalFrames,
+                                      rows: spriteData.rows,
+                                      frameSize: Vector2(
+                                        spriteData.frameWidth.toDouble(),
+                                        spriteData.frameHeight.toDouble(),
+                                      ),
+                                      stepTime:
+                                          spriteData.frameDurationMs / 1000.0,
+                                    )
+                                  : CreatureImage(
+                                      c: c,
+                                      discovered: discovered,
+                                      rounded: 3,
+                                      size: 42,
+                                    ),
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          _RarityPill(rarity: c.rarity, small: true),
-                        ],
-                      )
-                    else
-                      Text(
-                        '— —',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textMuted,
-                          fontSize: 12,
                         ),
                       ),
-                  ],
+                      if (showCount && discovered && instanceCount > 0)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: _CountBadge(
+                            theme: theme,
+                            count: instanceCount,
+                            small: true,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 18),
-            ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        discovered ? c.name : 'Unknown specimen',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: bracketText(
+                          context,
+                          14,
+                          discovered ? palette.ink : palette.muted,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (discovered)
+                        Wrap(
+                          spacing: 5,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            ...c.types
+                                .take(2)
+                                .map((t) => _TypeTiny(label: t)),
+                            _RarityPill(rarity: c.rarity, small: true),
+                          ],
+                        )
+                      else
+                        Text(
+                          '— —',
+                          style: bracketText(
+                            context,
+                            12,
+                            palette.muted,
+                            weight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: palette.muted,
+                  size: 18,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1561,40 +1593,29 @@ class ProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
     final v = value.clamp(0.0, 1.0);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(3),
-      child: SizedBox(
-        height: 6,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            double w = constraints.maxWidth * v;
-            if (v > 0 && w < 2) w = 2;
-            return Stack(
-              children: [
-                Positioned.fill(child: Container(color: t.borderMid)),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    width: w,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(3),
-                      color: t.amberBright,
-                      boxShadow: [
-                        BoxShadow(
-                          color: t.amber.withValues(alpha: 0.4),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                  ),
+    return SizedBox(
+      height: 5,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          double w = constraints.maxWidth * v;
+          if (v > 0 && w < 2) w = 2;
+          return Stack(
+            children: [
+              Positioned.fill(child: Container(color: palette.lineSoft)),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  width: w,
+                  height: 5,
+                  color: activeAccent,
                 ),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1618,60 +1639,75 @@ class SearchFieldSolid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    return Container(
-      height: 38,
-      decoration: BoxDecoration(
-        color: t.bg2,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: t.borderDim),
+    final palette = BracketPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.7),
+        bracketSize: 8,
+        strokeWidth: 1.05,
       ),
-      child: Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 10),
-            child: Icon(Icons.search_rounded, color: t.textMuted, size: 16),
-          ),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              onChanged: onChanged,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textPrimary,
-                fontSize: 12,
-                letterSpacing: 0.3,
+      child: Container(
+        height: 40,
+        color: palette.surfaceMutedFill(),
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Icon(
+                Icons.search_rounded,
+                color: palette.muted,
+                size: 16,
               ),
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textMuted,
-                  fontSize: 12,
-                  letterSpacing: 0.8,
+            ),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                onChanged: onChanged,
+                cursorColor: activeAccent,
+                style: bracketText(
+                  context,
+                  13,
+                  palette.ink,
+                  weight: FontWeight.w600,
+                  letterSpacing: 0.2,
                 ),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 0,
+                decoration: InputDecoration(
+                  hintText: hint,
+                  hintStyle: bracketText(
+                    context,
+                    13,
+                    palette.muted,
+                    weight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 0,
+                  ),
                 ),
               ),
             ),
-          ),
-          if (controller.text.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                controller.clear();
-                onChanged('');
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(Icons.close_rounded, color: t.textMuted, size: 14),
+            if (controller.text.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  controller.clear();
+                  onChanged('');
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: palette.muted,
+                    size: 14,
+                  ),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1691,18 +1727,22 @@ class IconButtonSolid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: t.bg2,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: t.borderDim),
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: palette.line.withValues(alpha: 0.65),
+          bracketSize: 7,
+          strokeWidth: 1,
         ),
-        child: Icon(icon, color: t.textSecondary, size: 16),
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          color: palette.surfaceMutedFill(),
+          child: Icon(icon, color: palette.muted, size: 16),
+        ),
       ),
     );
   }
@@ -1724,35 +1764,39 @@ class PillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 9),
-        decoration: BoxDecoration(
-          color: t.amberDim.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: t.borderAccent),
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: activeAccent,
+          bracketSize: 7,
+          strokeWidth: 1.2,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: t.amberBright),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.amberBright,
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                letterSpacing: 1.2,
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          color: palette.accentWash(theme.accent),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: activeAccent),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: bracketText(
+                  context,
+                  12.5,
+                  palette.ink,
+                  weight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1775,24 +1819,21 @@ class _CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: small ? 4 : 5,
-        vertical: small ? 2 : 2,
+        horizontal: small ? 5 : 6,
+        vertical: 2,
       ),
-      decoration: BoxDecoration(
-        color: t.amberDim,
-        borderRadius: BorderRadius.circular(2),
-      ),
+      color: activeAccent,
       child: Text(
         '$count',
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: t.bg0,
-          fontSize: small ? 8 : 9,
-          fontWeight: FontWeight.w900,
-          height: 1.0,
+        style: bracketText(
+          context,
+          small ? 10 : 11,
+          palette.bg0,
+          weight: FontWeight.w800,
         ),
       ),
     );
@@ -1809,22 +1850,21 @@ class _RarityPill extends StatelessWidget {
     final color = _rarityColorForge(rarity);
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: small ? 5 : 7,
-        vertical: small ? 2 : 2,
+        horizontal: small ? 6 : 8,
+        vertical: small ? 2 : 3,
       ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
+        border: Border(left: BorderSide(color: color, width: 2)),
       ),
       child: Text(
         rarity.toUpperCase(),
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: small ? 7 : 8,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
+        style: bracketText(
+          context,
+          small ? 9.5 : 10.5,
+          color,
+          weight: FontWeight.w700,
+          letterSpacing: 0.6,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -1841,19 +1881,19 @@ class _TypeTiny extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = BreedConstants.getTypeColor(label);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
+        color: color.withValues(alpha: 0.10),
+        border: Border(left: BorderSide(color: color, width: 2)),
       ),
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
+        style: bracketText(
+          context,
+          10.5,
+          color,
+          weight: FontWeight.w700,
+          letterSpacing: 0.4,
         ),
         maxLines: 1,
         overflow: TextOverflow.visible,
@@ -2007,49 +2047,53 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    final activeAccent = bracketReadableAccent(theme);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: t.borderAccent.withValues(alpha: 0.5),
+            CustomPaint(
+              painter: BracketFramePainter(
+                color: activeAccent.withValues(alpha: 0.82),
+                bracketSize: 10,
+                strokeWidth: 1.1,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                color: palette.surfaceFill(),
+                child: Icon(
+                  Icons.search_off_rounded,
+                  size: 30,
+                  color: palette.muted,
                 ),
               ),
-              child: Icon(
-                Icons.search_off_rounded,
-                size: 30,
-                color: t.textMuted,
-              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Text(
-              'NO MATCHING SPECIMENS',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textPrimary,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                letterSpacing: 1.5,
+              'No matching specimens',
+              style: bracketText(
+                context,
+                14,
+                palette.ink,
+                weight: FontWeight.w700,
+                letterSpacing: 0.4,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               'Try a different search, adjust filters,\nor clear the type chip.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textSecondary,
-                fontSize: 12,
-                height: 1.6,
+              style: bracketText(
+                context,
+                12.5,
+                palette.muted,
+                weight: FontWeight.w500,
+                fontStyle: FontStyle.italic,
               ),
+              strutStyle: const StrutStyle(height: 1.45),
             ),
           ],
         ),
