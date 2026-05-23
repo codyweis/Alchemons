@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'cosmic_screen_styles.dart';
+
+// Cosmic HUD always renders on the dark space backdrop.
+const _palette = BracketPalette.dark;
 
 class TopHud extends StatefulWidget {
   const TopHud({
@@ -11,7 +16,6 @@ class TopHud extends StatefulWidget {
     required this.discoveryPct,
     required this.planetsFound,
     required this.planetsTotal,
-    required this.dustCount,
     required this.wallet,
     required this.onSettings,
     required this.onMiniMap,
@@ -29,7 +33,6 @@ class TopHud extends StatefulWidget {
   final double discoveryPct;
   final int planetsFound;
   final int planetsTotal;
-  final int dustCount;
   final ShipWallet wallet;
   final VoidCallback onSettings;
   final VoidCallback onMiniMap;
@@ -74,51 +77,44 @@ class TopHudState extends State<TopHud> {
       return Align(
         alignment: Alignment.topRight,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(0, 6, 12, 0),
+          padding: const EdgeInsets.fromLTRB(0, 8, 12, 0),
           child: GestureDetector(
             onTap: () => _setCollapsed(false),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xEA060B18),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  width: 0.8,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
+            child: CustomPaint(
+              painter: BracketFramePainter(
+                color: _palette.line.withValues(alpha: 0.7),
+                bracketSize: 7,
+                strokeWidth: 1.05,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.settings_rounded,
-                    color: Colors.white.withValues(alpha: 0.5),
-                    size: 15,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'COSMOS',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.55),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                color: _palette.bg0,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.public_rounded, color: _palette.muted, size: 14),
+                    const SizedBox(width: 7),
+                    Text(
+                      'Cosmos',
+                      style: bracketText(
+                        context,
+                        12,
+                        _palette.ink,
+                        weight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: Colors.white.withValues(alpha: 0.35),
-                    size: 16,
-                  ),
-                ],
+                    const SizedBox(width: 7),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: _palette.muted,
+                      size: 16,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -127,302 +123,227 @@ class TopHudState extends State<TopHud> {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
-        decoration: BoxDecoration(
-          color: const Color(0xEA060B18),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 0.8,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.55),
-              blurRadius: 18,
-              offset: const Offset(0, 4),
-            ),
-          ],
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: _palette.line.withValues(alpha: 0.7),
+          bracketSize: 10,
+          strokeWidth: 1.05,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Settings button — circle
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: widget.onSettings,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        width: 0.7,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.settings_rounded,
-                      color: Colors.white.withValues(alpha: 0.55),
-                      size: 17,
-                    ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          color: _palette.bg0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Settings button
+                  _HudIconButton(
+                    icon: Icons.settings_rounded,
+                    onTap: widget.onSettings,
                   ),
-                ),
-                const SizedBox(width: 10),
-                // Title + stats
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'COSMOS',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.88),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.6,
-                          height: 1.0,
-                          shadows: const [
-                            Shadow(color: Colors.black, blurRadius: 8),
-                          ],
+                  const SizedBox(width: 10),
+                  // Title + stats
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Cosmos',
+                          style: bracketText(
+                            context,
+                            15,
+                            _palette.ink,
+                            weight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${widget.planetsFound}/${widget.planetsTotal} planets  ·  ${(widget.discoveryPct * 100).toStringAsFixed(1)}% explored',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.38),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
-                          height: 1.0,
+                        const SizedBox(height: 1),
+                        Text(
+                          '${widget.planetsFound}/${widget.planetsTotal} planets  ·  ${(widget.discoveryPct * 100).toStringAsFixed(1)}% explored',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: bracketText(
+                            context,
+                            11,
+                            _palette.muted,
+                            weight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Resource chips
-                if (widget.dustCount > 0) ...[
-                  _ResourceChip(
-                    icon: Icons.auto_awesome,
-                    iconColor: const Color(0xFFFFD54F),
-                    label: '${widget.dustCount}/50',
-                    labelColor: const Color(0xFFFFD54F),
-                    borderColor: const Color(0xFFFFD700).withValues(alpha: 0.25),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                if (widget.wallet.shards > 0) ...[
-                  _ResourceChip(
-                    icon: Icons.diamond_rounded,
-                    iconColor: const Color(0xFFB388FF),
-                    label: '${widget.wallet.shards}',
-                    labelColor: widget.wallet.shardsFull
-                        ? Colors.redAccent
-                        : const Color(0xFFB388FF),
-                    borderColor: widget.wallet.shardsFull
-                        ? Colors.redAccent.withValues(alpha: 0.35)
-                        : const Color(0xFF7C4DFF).withValues(alpha: 0.25),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                // Zoom button — circle
-                if (widget.onZoomCycle != null)
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: widget.onZoomCycle,
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.06),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 0.7,
-                        ),
-                      ),
-                      child: Icon(
-                        switch (widget.zoomLevel) {
-                          0 => Icons.center_focus_strong_rounded,
-                          1 => Icons.zoom_out_map_rounded,
-                          _ => Icons.zoom_in_map_rounded,
-                        },
-                        color: const Color(0xFF4DD0E1),
-                        size: 15,
-                      ),
+                      ],
                     ),
                   ),
-                if (widget.onZoomCycle != null) const SizedBox(width: 6),
-                // Collapse button — circle
-                GestureDetector(
-                  onTap: () => _setCollapsed(true),
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        width: 0.7,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.keyboard_arrow_up_rounded,
-                      color: Colors.white.withValues(alpha: 0.35),
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            // Alchemical meter
-            if (widget.showMeter) ...[
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: widget.onMeterTap,
-                child: AnimatedBuilder(
-                  animation: widget.meterPulse,
-                  builder: (context, child) {
-                    final glow = widget.meter.isFull
-                        ? widget.meterPulse.value * 0.45
-                        : 0.0;
-                    return Container(
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(13),
-                        border: Border.all(
-                          color: widget.meter.isFull
-                              ? Colors.amberAccent.withValues(alpha: 0.45 + glow)
-                              : Colors.white.withValues(alpha: 0.07),
-                          width: widget.meter.isFull ? 1.0 : 0.6,
-                        ),
-                        boxShadow: widget.meter.isFull
-                            ? [
-                                BoxShadow(
-                                  color: Colors.amberAccent.withValues(
-                                    alpha: 0.1 + glow * 0.18,
-                                  ),
-                                  blurRadius: 16,
-                                  spreadRadius: 1,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final breakdown = widget.meter.breakdown;
-                      final total = widget.meter.total;
-                      if (total <= 0) {
-                        return Center(
-                          child: Text(
-                            'ALCHEMICAL METER',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 2.2,
+                  // Resource chips
+                  if (widget.wallet.shards > 0) ...[
+                    _ResourceChip(
+                      icon: CosmicScreenStyles.astralShardIcon,
+                      iconColor: CosmicScreenStyles.astralShardColor,
+                      label: '${widget.wallet.shards}',
+                      labelColor: widget.wallet.shardsFull
+                          ? Colors.redAccent
+                          : CosmicScreenStyles.astralShardColor,
+                      borderColor: widget.wallet.shardsFull
+                          ? Colors.redAccent.withValues(alpha: 0.35)
+                          : CosmicScreenStyles.astralShardColor.withValues(
+                              alpha: 0.25,
                             ),
-                          ),
-                        );
-                      }
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  // Zoom button
+                  if (widget.onZoomCycle != null) ...[
+                    _HudIconButton(
+                      icon: switch (widget.zoomLevel) {
+                        0 => Icons.center_focus_strong_rounded,
+                        1 => Icons.zoom_out_map_rounded,
+                        _ => Icons.zoom_in_map_rounded,
+                      },
+                      iconColor: const Color(0xFF5BC8E8),
+                      onTap: widget.onZoomCycle!,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  // Collapse button
+                  _HudIconButton(
+                    icon: Icons.keyboard_arrow_up_rounded,
+                    onTap: () => _setCollapsed(true),
+                  ),
+                ],
+              ),
 
-                      final sorted = breakdown.entries.toList()
-                        ..sort((a, b) => b.value.compareTo(a.value));
-
-                      return Stack(
-                        children: [
-                          Row(
-                            children: sorted.map((e) {
-                              final pct = e.value / ElementMeter.maxCapacity;
-                              return Expanded(
-                                flex: (pct * 1000).round().clamp(1, 1000),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Color.lerp(
-                                          elementColor(e.key),
-                                          Colors.white,
-                                          0.18,
-                                        )!,
-                                        elementColor(e.key),
-                                        Color.lerp(
-                                          elementColor(e.key),
-                                          Colors.black,
-                                          0.3,
-                                        )!,
-                                      ],
-                                      stops: const [0.0, 0.45, 1.0],
-                                    ),
-                                  ),
+              // Alchemical meter
+              if (widget.showMeter) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: widget.onMeterTap,
+                  child: AnimatedBuilder(
+                    animation: widget.meterPulse,
+                    builder: (context, child) {
+                      final full = widget.meter.isFull;
+                      final glow = full ? widget.meterPulse.value : 0.0;
+                      return CustomPaint(
+                        painter: BracketFramePainter(
+                          color: full
+                              ? const Color(
+                                  0xFFE4C16A,
+                                ).withValues(alpha: 0.6 + glow * 0.4)
+                              : _palette.line.withValues(alpha: 0.7),
+                          bracketSize: 6,
+                          strokeWidth: 1.05,
+                        ),
+                        child: SizedBox(height: 24, child: child),
+                      );
+                    },
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final breakdown = widget.meter.breakdown;
+                        final total = widget.meter.total;
+                        if (total <= 0) {
+                          return ColoredBox(
+                            color: _palette.bg1,
+                            child: Center(
+                              child: Text(
+                                'Alchemical meter',
+                                style: bracketText(
+                                  context,
+                                  10.5,
+                                  _palette.muted,
+                                  weight: FontWeight.w700,
+                                  letterSpacing: 1.0,
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                          // Specular sheen
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            height: 6,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.white.withValues(alpha: 0.22),
-                                    Colors.white.withValues(alpha: 0.0),
+                              ),
+                            ),
+                          );
+                        }
+
+                        final sorted = breakdown.entries.toList()
+                          ..sort((a, b) => b.value.compareTo(a.value));
+
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: ColoredBox(color: _palette.bg1),
+                            ),
+                            // Filled element segments — stretched to the full
+                            // bar height so the colour actually shows.
+                            Positioned.fill(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: sorted.map((e) {
+                                  final pct =
+                                      e.value / ElementMeter.maxCapacity;
+                                  return Expanded(
+                                    flex: (pct * 1000).round().clamp(1, 1000),
+                                    child: ColoredBox(
+                                      color: elementColor(e.key),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                            Center(
+                              child: Text(
+                                widget.meter.isFull
+                                    ? 'METER FULL — FLY TO A PLANET'
+                                    : '${(widget.meter.fillPct * 100).toStringAsFixed(0)}% ALCHEMICAL',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                  shadows: [
+                                    Shadow(color: Colors.black, blurRadius: 4),
                                   ],
                                 ),
                               ),
                             ),
-                          ),
-                          // Label
-                          Center(
-                            child: Text(
-                              widget.meter.isFull
-                                  ? 'METER FULL — FLY TO A PLANET'
-                                  : '${(widget.meter.fillPct * 100).toStringAsFixed(0)}%  ALCHEMICAL',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.88),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.0,
-                                shadows: const [
-                                  Shadow(color: Colors.black, blurRadius: 4),
-                                  Shadow(color: Colors.black, blurRadius: 2),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HudIconButton extends StatelessWidget {
+  const _HudIconButton({
+    required this.icon,
+    required this.onTap,
+    this.iconColor,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: _palette.line.withValues(alpha: 0.7),
+          bracketSize: 6,
+          strokeWidth: 1,
+        ),
+        child: Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          color: _palette.surfaceMutedFill(),
+          child: Icon(icon, color: iconColor ?? _palette.muted, size: 16),
         ),
       ),
     );
@@ -448,25 +369,23 @@ class _ResourceChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor, width: 0.7),
+        color: iconColor.withValues(alpha: 0.12),
+        border: Border(left: BorderSide(color: iconColor, width: 2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: iconColor, size: 11),
-          const SizedBox(width: 4),
+          Icon(icon, color: iconColor, size: 12),
+          const SizedBox(width: 5),
           Text(
             label,
-            style: TextStyle(
-              color: labelColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-              height: 1.0,
+            style: bracketText(
+              context,
+              11.5,
+              labelColor,
+              weight: FontWeight.w800,
             ),
           ),
         ],

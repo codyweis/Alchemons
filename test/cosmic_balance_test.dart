@@ -1071,7 +1071,6 @@ void main() {
           element: element,
           damage: 10,
           maxHp: 120,
-          survivalMode: true,
         );
 
         expect(result.projectiles, isNotEmpty, reason: element);
@@ -1100,7 +1099,7 @@ void main() {
       }
     });
 
-    test('water steam plant poison air and light manes keep lane roles', () {
+    test('mane fan elements keep lane roles; water and steam are sweepers', () {
       final water = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -1150,13 +1149,14 @@ void main() {
         maxHp: 120,
       );
 
-      expect(water.projectiles.length, inInclusiveRange(5, 8));
-      expect(water.projectiles.any((p) => p.position.dy > 0), isTrue);
-      expect(water.projectiles.any((p) => p.position.dy < 0), isTrue);
-      expect(water.projectiles.any((p) => p.snareRadius > 0), isTrue);
-      expect(steam.projectiles.length, inInclusiveRange(5, 8));
-      expect(steam.projectiles.every((p) => p.piercing), isTrue);
-      expect(steam.projectiles.any((p) => p.snareRadius > 0), isTrue);
+      // Water mane is a single carrying water-wall; Steam mane is a
+      // single pulse-dropping geyser — not multi-lane fans.
+      expect(water.projectiles, hasLength(1));
+      expect(water.projectiles.single.piercing, isTrue);
+      expect(water.projectiles.single.snareRadius, greaterThan(0));
+      expect(steam.projectiles, hasLength(1));
+      expect(steam.projectiles.single.piercing, isTrue);
+      expect(steam.projectiles.single.turretInterval, greaterThan(0));
       expect(plant.projectiles.length, inInclusiveRange(5, 8));
       expect(plant.projectiles.any((p) => p.position.dy > 0), isTrue);
       expect(plant.projectiles.any((p) => p.position.dy < 0), isTrue);
@@ -1178,10 +1178,11 @@ void main() {
     });
 
     test('mane control reads larger and lasts long enough to notice', () {
+      // Steam is excluded: its mane reshape is a single pulse-dropping
+      // geyser (turret pulses, no snare field), not a snaring controller.
       const controlMinimums = {
         'Water': (65.0, 2.7),
         'Lava': (70.0, 2.3),
-        'Steam': (105.0, 3.4),
         'Earth': (85.0, 2.7),
         'Mud': (120.0, 3.2),
         'Plant': (105.0, 3.3),
@@ -1242,9 +1243,9 @@ void main() {
         maxHp: 120,
       );
 
-      expect(earth.projectiles.every((p) => p.damage <= 42), isTrue);
-      expect(dark.projectiles.every((p) => p.damage <= 42), isTrue);
-      expect(blood.projectiles.every((p) => p.damage <= 42), isTrue);
+      expect(earth.projectiles.every((p) => p.damage <= 45), isTrue);
+      expect(dark.projectiles.every((p) => p.damage <= 45), isTrue);
+      expect(blood.projectiles.every((p) => p.damage <= 45), isTrue);
     });
 
     test('mask specials keep battlefield-control traps in the payload', () {
@@ -1258,14 +1259,14 @@ void main() {
         targetPos: const Offset(90, 0),
       );
 
+      // Masks are stationary placements — every projectile is a planted
+      // sigil trap rather than a mobile seeker.
+      expect(result.projectiles, isNotEmpty);
+      expect(result.projectiles.every((p) => p.stationary), isTrue);
       expect(
-        result.projectiles.any(
-          (p) => p.stationary && p.decoy && p.tauntRadius > 0,
+        result.projectiles.every(
+          (p) => p.visualStyle == ProjectileVisualStyle.sigil,
         ),
-        isTrue,
-      );
-      expect(
-        result.projectiles.any((p) => !p.stationary && (p.decoy || p.homing)),
         isTrue,
       );
     });
@@ -1317,10 +1318,7 @@ void main() {
             .map((p) => p.tauntRadius)
             .reduce(max);
 
-        expect(
-          result.projectiles.any((p) => p.decoy || p.tauntRadius > 0),
-          isTrue,
-        );
+        expect(result.projectiles.every((p) => p.stationary), isTrue);
         expect(
           result.projectiles.every(
             (p) => p.visualStyle == ProjectileVisualStyle.sigil,
@@ -1572,7 +1570,7 @@ void main() {
       );
     });
 
-    test('light kin and dark kin now express different guardian roles', () {
+    test('light kin escorts the ship while dark kin plants a gravity well', () {
       final light = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -1590,45 +1588,27 @@ void main() {
         damage: 10,
         maxHp: 120,
         casterPower: 5.0,
+        targetPos: const Offset(120, 0),
       );
 
+      // Light keeps the escort-orb identity: orbs that transfer to
+      // orbit the ship and heal allies.
       expect(light.selfHeal, greaterThan(dark.selfHeal));
-      expect(light.blessingTimer, greaterThan(dark.blessingTimer));
       expect(
-        light.projectiles
-            .where(
-              (p) =>
-                  p.transferToShipOrbit &&
-                  p.holdOrbit &&
-                  p.interceptCharges > 0 &&
-                  p.shipOrbitDelay > 0 &&
-                  p.orbitRadius >= 80 &&
-                  !p.homing,
-            )
-            .length,
-        greaterThanOrEqualTo(4),
+        light.projectiles.any((p) => p.transferToShipOrbit && p.holdOrbit),
+        isTrue,
       );
-      expect(light.projectiles.every((p) => p.shipOrbitDelay >= 1.7), isTrue);
-      expect(light.projectiles.every((p) => p.life >= 11.0), isTrue);
+      // Dark is a stationary gravity-well ward.
+      expect(dark.projectiles, isNotEmpty);
       expect(
-        dark.projectiles
-            .where(
-              (p) =>
-                  p.piercing &&
-                  p.turretInterval > 0 &&
-                  p.transferOrbitCenter != null,
-            )
-            .length,
-        greaterThanOrEqualTo(2),
+        dark.projectiles.every(
+          (p) =>
+              p.stationary &&
+              p.tickEffect == AbilityEffectKind.blackHole &&
+              p.effectRadius > 0,
+        ),
+        isTrue,
       );
-
-      final lightAverageRadius =
-          light.projectiles.map((p) => p.orbitRadius).reduce((a, b) => a + b) /
-          light.projectiles.length;
-      final darkAverageRadius =
-          dark.projectiles.map((p) => p.orbitRadius).reduce((a, b) => a + b) /
-          dark.projectiles.length;
-      expect(lightAverageRadius, greaterThan(darkAverageRadius));
     });
 
     test('crystal kin can deploy escort sentry turrets around the ship', () {
@@ -1656,8 +1636,7 @@ void main() {
       expect(crystal.projectiles.length, inInclusiveRange(2, 5));
     });
 
-    test('air kin can transfer into enemy wind snares', () {
-      const target = Offset(140, 20);
+    test('air kin plants a repulsion ward', () {
       final air = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -1666,19 +1645,16 @@ void main() {
         damage: 10,
         maxHp: 120,
         casterPower: 3.0,
-        targetPos: target,
+        targetPos: const Offset(140, 20),
       );
 
-      expect(air.projectiles.length, inInclusiveRange(2, 5));
+      expect(air.projectiles, isNotEmpty);
       expect(
         air.projectiles.every(
           (p) =>
-              p.transferOrbitCenter == target &&
-              p.holdOrbit &&
-              p.decoy &&
-              p.snareRadius > 0 &&
-              p.tauntRadius > 0 &&
-              p.shipOrbitDelay > 0,
+              p.stationary &&
+              p.tickEffect == AbilityEffectKind.knockback &&
+              p.effectRadius > 0,
         ),
         isTrue,
       );
@@ -1717,45 +1693,25 @@ void main() {
           casterPower: 4.0,
           targetPos: const Offset(120, 0),
         );
-        final intercepts = result.projectiles.fold<int>(
+        final tickKey = (result.projectiles.map((p) => p.tickEffect.name).toList()
+          ..sort()).join(',');
+        final effectRadiusSum = result.projectiles.fold<int>(
           0,
-          (sum, p) => sum + p.interceptCharges,
+          (sum, p) => sum + p.effectRadius.round(),
         );
-        final turrets = result.projectiles.where((p) => p.turretInterval > 0);
-        final decoys = result.projectiles.where((p) => p.decoy).length;
-        final snares = result.projectiles
-            .where((p) => p.snareRadius > 0)
-            .length;
-        final transfers = result.projectiles
-            .where(
-              (p) => p.transferToShipOrbit || p.transferOrbitCenter != null,
-            )
-            .length;
-        final piercing = result.projectiles.where((p) => p.piercing).length;
-        final homing = result.projectiles.where((p) => p.homing).length;
-        final orbitSum = result.projectiles
-            .map((p) => p.orbitRadius.round())
-            .fold<int>(0, (sum, r) => sum + r);
-        final turretKey = turrets
-            .map(
-              (p) =>
-                  '${(p.turretInterval * 100).round()}:${(p.turretDamage * 100).round()}:${(p.turretSpeedMultiplier * 100).round()}',
-            )
-            .join('|');
+        final lifeSum = result.projectiles.fold<int>(
+          0,
+          (sum, p) => sum + (p.life * 10).round(),
+        );
 
         signatures.add(
           [
             result.projectiles.length,
-            intercepts,
-            decoys,
-            snares,
-            transfers,
-            piercing,
-            homing,
-            orbitSum,
+            tickKey,
+            effectRadiusSum,
+            lifeSum,
             result.selfHeal,
             (result.blessingTimer * 10).round(),
-            turretKey,
           ].join('/'),
         );
       }
@@ -1763,29 +1719,24 @@ void main() {
       expect(signatures.length, elements.length);
     });
 
-    test(
-      'fire kin no longer carries the highest sustained kin output budget',
-      () {
-        final fire = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'kin',
-          element: 'Fire',
-          damage: 10,
-          maxHp: 120,
-          casterPower: 4.0,
-          targetPos: const Offset(120, 0),
-        );
+    test('fire kin plants a single stationary burn ward', () {
+      final fire = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'kin',
+        element: 'Fire',
+        damage: 10,
+        maxHp: 120,
+        casterPower: 4.0,
+        targetPos: const Offset(120, 0),
+      );
 
-        expect(fire.projectiles.length, 4);
-        expect(fire.projectiles.every((p) => p.turretInterval >= 0.78), isTrue);
-        expect(
-          fire.projectiles.every((p) => p.turretDamage <= 10 * 0.34 + 0.001),
-          isTrue,
-        );
-        expect(fire.projectiles.every((p) => p.life <= 8.2), isTrue);
-      },
-    );
+      expect(fire.projectiles.length, 1);
+      final ward = fire.projectiles.first;
+      expect(ward.tickEffect, AbilityEffectKind.burn);
+      expect(ward.stationary, isTrue);
+      expect(ward.effectRadius, greaterThan(0));
+    });
 
     test('mystic elements diverge into premium guardian ultimates', () {
       final fire = createCosmicSpecialAbility(

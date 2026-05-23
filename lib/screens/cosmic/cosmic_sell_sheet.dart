@@ -18,7 +18,7 @@
 //   Shards → 5x
 //
 // Random ±20 % multiplier on every price.
-// Daily bonus: one random creature gets a 50 % price boost.
+// Daily bonus: one random creature gets a 100 % price boost.
 // Player picks currency (silver or shards).
 
 import 'dart:math';
@@ -29,6 +29,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -176,10 +177,10 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       final multiplier = 0.8 + rng.nextDouble() * 0.4;
       var price = (raw * multiplier).round().clamp(1, 999);
 
-      // Daily 50 % bonus
+      // Daily 100 % bonus
       final isDailyBonus = inst.baseId == _dailyBonusBaseId;
       if (isDailyBonus) {
-        price = (price * 1.5).round();
+        price = (price * 2).round();
       }
 
       list.add(
@@ -262,7 +263,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       case _SaleCurrency.silver:
         return Icons.monetization_on;
       case _SaleCurrency.shards:
-        return Icons.diamond;
+        return CosmicScreenStyles.astralShardIcon;
     }
   }
 
@@ -271,7 +272,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       case _SaleCurrency.silver:
         return const Color(0xFFC0C0C0);
       case _SaleCurrency.shards:
-        return const Color(0xFFAB47BC);
+        return CosmicScreenStyles.astralShardColor;
     }
   }
 
@@ -515,7 +516,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
               TextSpan(
                 children: [
                   const TextSpan(
-                    text: 'DAILY BONUS +30%  ',
+                    text: 'DAILY BONUS +100%  ',
                     style: TextStyle(
                       color: Color(0xFF76FF03),
                       fontWeight: FontWeight.w800,
@@ -710,7 +711,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
     };
     final color = switch (cur) {
       _SaleCurrency.silver => const Color(0xFFC0C0C0),
-      _SaleCurrency.shards => const Color(0xFFAB47BC),
+      _SaleCurrency.shards => CosmicScreenStyles.astralShardColor,
     };
     return GestureDetector(
       onTap: () => setState(() => _currency = cur),
@@ -847,7 +848,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: const Text(
-                              '+30%',
+                              '+100%',
                               style: TextStyle(
                                 color: Color(0xFF76FF03),
                                 fontSize: 12,

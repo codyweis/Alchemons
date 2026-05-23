@@ -3308,10 +3308,16 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
   }
 
+  // All ship-damage values (enemy contact, boss collision/projectile) are
+  // authored against the legacy 6 HP ship pool. The pool was widened to
+  // give heal math and the HUD usable resolution; rescaling damage here
+  // keeps ship survivability and relative threat exactly unchanged.
+  static const double _legacyShipHp = 6.0;
+
   void _damageShip(double damage) {
     if (_shipDead || _shipInvincible > 0) return;
     if (sandboxMode) return; // Ship is invincible in sandbox
-    shipHealth -= damage;
+    shipHealth -= damage * (CosmicGame.shipMaxHealth / _legacyShipHp);
     _shipInvincible = 0.65; // brief invincibility after hit
 
     // Hit flash particles around ship

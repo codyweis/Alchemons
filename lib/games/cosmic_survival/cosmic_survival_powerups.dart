@@ -61,33 +61,45 @@ class PowerUpDef {
 
 const kCompanionStatBoosts = [
   PowerUpDef(
-    id: 'attack_boost',
-    name: 'Forged Strikes',
-    description: '+18% Strength scaling for one alchemon',
+    id: 'strength_up',
+    name: 'Strength Surge',
+    description: "Raise one alchemon's Strength",
     icon: '⚔️',
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
     maxStacks: 3,
-    tags: [PowerUpTag.basicAttack, PowerUpTag.chainExecute],
+    tags: [PowerUpTag.basicAttack, PowerUpTag.chainExecute, PowerUpTag.fortress],
     favoredFamilies: ['horn', 'mane', 'pip'],
     favoredStats: [PowerUpStatFocus.strength],
   ),
   PowerUpDef(
-    id: 'defense_boost',
-    name: 'Forgeplate',
-    description: '+16% Intelligence scaling for one alchemon',
-    icon: '🛡️',
+    id: 'intelligence_up',
+    name: 'Insight Surge',
+    description: "Raise one alchemon's Intelligence",
+    icon: '🧠',
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
     maxStacks: 3,
-    tags: [PowerUpTag.fortress, PowerUpTag.sustain],
+    tags: [PowerUpTag.fortress, PowerUpTag.control, PowerUpTag.sustain],
     favoredFamilies: ['horn', 'kin', 'mask', 'mane'],
-    favoredStats: [PowerUpStatFocus.strength, PowerUpStatFocus.intelligence],
+    favoredStats: [PowerUpStatFocus.intelligence],
   ),
   PowerUpDef(
-    id: 'speed_boost',
-    name: 'Quicksilver Step',
-    description: '+14% move speed for one alchemon',
+    id: 'beauty_up',
+    name: 'Radiance Surge',
+    description: "Raise one alchemon's Beauty",
+    icon: '🌸',
+    category: PowerUpCategory.statBoost,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.specialCast, PowerUpTag.sustain],
+    favoredFamilies: ['mystic', 'let', 'wing', 'kin'],
+    favoredStats: [PowerUpStatFocus.beauty],
+  ),
+  PowerUpDef(
+    id: 'speed_up',
+    name: 'Swiftness Surge',
+    description: "Raise one alchemon's Speed",
     icon: '💨',
     category: PowerUpCategory.statBoost,
     rarity: PowerUpRarity.uncommon,
@@ -97,53 +109,49 @@ const kCompanionStatBoosts = [
     favoredFamilies: ['pip', 'mask', 'mane', 'wing'],
     favoredStats: [PowerUpStatFocus.speed],
   ),
-  PowerUpDef(
-    id: 'hp_boost',
-    name: 'Vital Ember',
-    description: '+22% durability scaling for one alchemon',
-    icon: '❤️',
-    category: PowerUpCategory.statBoost,
-    scope: PowerUpScope.companion,
-    maxStacks: 3,
-    tags: [PowerUpTag.fortress, PowerUpTag.sustain],
-    favoredFamilies: ['horn', 'kin', 'mane', 'let'],
-    favoredStats: [PowerUpStatFocus.strength, PowerUpStatFocus.beauty],
-  ),
-  PowerUpDef(
-    id: 'cooldown_reduction',
-    name: 'Chrono Grit',
-    description: '+8% Speed-based cadence for one alchemon',
-    icon: '⏱️',
-    category: PowerUpCategory.statBoost,
-    rarity: PowerUpRarity.uncommon,
-    scope: PowerUpScope.companion,
-    maxStacks: 3,
-    tags: [PowerUpTag.tempo, PowerUpTag.specialCast, PowerUpTag.control],
-    favoredFamilies: ['pip', 'wing', 'kin', 'mystic', 'mask', 'let'],
-    favoredStats: [PowerUpStatFocus.speed, PowerUpStatFocus.intelligence],
-  ),
 ];
 
 const kGlobalStatBoosts = [
   PowerUpDef(
-    id: 'command_attack',
+    id: 'command_strength',
     name: 'War Banner',
-    description: '+6% Strength scaling to all alchemons',
+    description: 'Raise Strength for all alchemons',
     icon: '🚩',
     category: PowerUpCategory.statBoost,
     maxStacks: 3,
-    tags: [PowerUpTag.basicAttack, PowerUpTag.specialCast],
-    favoredStats: [PowerUpStatFocus.strength, PowerUpStatFocus.beauty],
+    tags: [PowerUpTag.basicAttack, PowerUpTag.fortress],
+    favoredStats: [PowerUpStatFocus.strength],
   ),
   PowerUpDef(
-    id: 'command_defense',
-    name: 'Bulwark Orders',
-    description: '+6% Intelligence scaling to all alchemons',
+    id: 'command_intelligence',
+    name: 'Strategist Banner',
+    description: 'Raise Intelligence for all alchemons',
     icon: '🧱',
     category: PowerUpCategory.statBoost,
     maxStacks: 3,
-    tags: [PowerUpTag.fortress, PowerUpTag.sustain],
-    favoredStats: [PowerUpStatFocus.strength, PowerUpStatFocus.intelligence],
+    tags: [PowerUpTag.fortress, PowerUpTag.control],
+    favoredStats: [PowerUpStatFocus.intelligence],
+  ),
+  PowerUpDef(
+    id: 'command_beauty',
+    name: 'Resplendent Banner',
+    description: 'Raise Beauty for all alchemons',
+    icon: '🎏',
+    category: PowerUpCategory.statBoost,
+    maxStacks: 3,
+    tags: [PowerUpTag.specialCast, PowerUpTag.sustain],
+    favoredStats: [PowerUpStatFocus.beauty],
+  ),
+  PowerUpDef(
+    id: 'command_speed',
+    name: 'Vanguard Banner',
+    description: 'Raise Speed for all alchemons',
+    icon: '🏳️',
+    category: PowerUpCategory.statBoost,
+    rarity: PowerUpRarity.uncommon,
+    maxStacks: 3,
+    tags: [PowerUpTag.tempo],
+    favoredStats: [PowerUpStatFocus.speed],
   ),
   PowerUpDef(
     id: 'orb_vitality',
@@ -570,32 +578,32 @@ class PowerUpState {
     return true;
   }
 
-  double companionAttackMultiplier(int slotIndex) =>
-      (1.0 +
-          getGlobalStacks('command_attack') * 0.06 +
-          (hasSpellbloomEngine ? 0.16 : 0.0) +
-          (hasWarpathDoctrine ? 0.22 : 0.0)) *
-      (1.0 + getCompanionStacks(slotIndex, 'attack_boost') * 0.18);
+  // Stat-point bonuses added to a companion's raw stat. Each fold companion
+  // stacks (+0.20/level), team-wide banner stacks (+0.10/level) and keystone
+  // contributions into one effective-stat value used everywhere.
+  double strengthBonus(int slotIndex) =>
+      getCompanionStacks(slotIndex, 'strength_up') * 0.20 +
+      getGlobalStacks('command_strength') * 0.10 +
+      (hasWarpathDoctrine ? 0.35 : 0.0) +
+      (hasBastionHeart ? 0.10 : 0.0);
 
-  double companionDefenseMultiplier(int slotIndex) =>
-      (1.0 +
-          getGlobalStacks('command_defense') * 0.06 +
-          (hasBastionHeart ? 0.12 : 0.0)) *
-      (1.0 + getCompanionStacks(slotIndex, 'defense_boost') * 0.16);
+  double intelligenceBonus(int slotIndex) =>
+      getCompanionStacks(slotIndex, 'intelligence_up') * 0.20 +
+      getGlobalStacks('command_intelligence') * 0.10 +
+      (hasBastionHeart ? 0.18 : 0.0) +
+      (hasSpellbloomEngine ? 0.20 : 0.0);
 
-  double companionSpeedMultiplier(int slotIndex) =>
-      1.0 +
-      getCompanionStacks(slotIndex, 'speed_boost') * 0.14 +
-      (hasChronoSurge ? 0.16 : 0.0);
+  double beautyBonus(int slotIndex) =>
+      getCompanionStacks(slotIndex, 'beauty_up') * 0.20 +
+      getGlobalStacks('command_beauty') * 0.10 +
+      (hasSpellbloomEngine ? 0.30 : 0.0) +
+      (hasBastionHeart ? 0.20 : 0.0);
 
-  double companionHpMultiplier(int slotIndex) =>
-      1.0 +
-      getCompanionStacks(slotIndex, 'hp_boost') * 0.22 +
-      (hasBastionHeart ? 0.14 : 0.0);
-  double companionCooldownReduction(int slotIndex) =>
-      getCompanionStacks(slotIndex, 'cooldown_reduction') * 0.08 +
-      (hasChronoSurge ? 0.10 : 0.0) +
-      (hasSpellbloomEngine ? 0.12 : 0.0);
+  double speedBonus(int slotIndex) =>
+      getCompanionStacks(slotIndex, 'speed_up') * 0.20 +
+      getGlobalStacks('command_speed') * 0.10 +
+      (hasChronoSurge ? 0.45 : 0.0) +
+      (hasSpellbloomEngine ? 0.15 : 0.0);
 
   double companionBloodPactHealPercent(int slotIndex) =>
       switch (getCompanionStacks(slotIndex, 'lifesteal')) {
@@ -702,13 +710,14 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
     };
   }
   return switch (def.id) {
-    'attack_boost' => '+18% Strength scaling',
-    'defense_boost' => '+16% Intelligence scaling',
-    'speed_boost' => '+14% speed boost',
-    'hp_boost' => '+22% durability scaling',
-    'cooldown_reduction' => '+8% Speed cadence',
-    'command_attack' => '+6% team Strength scaling',
-    'command_defense' => '+6% team Intelligence scaling',
+    'strength_up' => 'Strength increased',
+    'intelligence_up' => 'Intelligence increased',
+    'beauty_up' => 'Beauty increased',
+    'speed_up' => 'Speed increased',
+    'command_strength' => 'Team Strength increased',
+    'command_intelligence' => 'Team Intelligence increased',
+    'command_beauty' => 'Team Beauty increased',
+    'command_speed' => 'Team Speed increased',
     'orb_vitality' => '+10% orb max HP',
     'fire_rate' => '+22% ship fire rate',
     'spread_shot' => '+2 side shots',
@@ -762,13 +771,6 @@ String? powerUpTotalLabel(OfferedPowerUpChoice choice) {
   if (def.isKeystone) return 'Keystone: only one can be claimed.';
   if (choice.currentLevel <= 0 || def.maxStacks <= 1) return null;
   return switch (def.id) {
-    'attack_boost' => '+${18 * nextLevel}% total Strength scaling',
-    'defense_boost' => '+${16 * nextLevel}% total Intelligence scaling',
-    'speed_boost' => '+${14 * nextLevel}% total speed',
-    'hp_boost' => '+${22 * nextLevel}% total durability scaling',
-    'cooldown_reduction' => '+${8 * nextLevel}% total Speed cadence',
-    'command_attack' => '+${6 * nextLevel}% total team Strength scaling',
-    'command_defense' => '+${6 * nextLevel}% total team Intelligence scaling',
     'orb_vitality' => '+${10 * nextLevel}% total orb max HP',
     'fire_rate' => '+${22 * nextLevel}% total ship fire rate',
     'ship_damage' => '+${18 * nextLevel}% total ship impact scaling',

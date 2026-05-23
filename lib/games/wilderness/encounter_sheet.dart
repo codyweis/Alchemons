@@ -22,7 +22,6 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
-import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -41,11 +40,16 @@ import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/services/breeding_engine.dart';
+import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/models/wilderness.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/wilderness/device_selection_dialog.dart';
+
+// Wild encounters render over dark scene backdrops — always dark.
+const _kPalette = BracketPalette.dark;
 
 class EncounterOverlay extends StatefulWidget {
   final WildEncounter encounter;
@@ -59,6 +63,9 @@ class EncounterOverlay extends StatefulWidget {
   final bool isCaptureTutorial;
   final bool warnOnRun; // show a confirmation before running away
   final bool showFusionAction;
+  // Whether to show the "Map" (return-to-map) action. Portal and planet
+  // encounters have their own exit affordance, so they hide it.
+  final bool showMapAction;
 
   const EncounterOverlay({
     super.key,
@@ -73,6 +80,7 @@ class EncounterOverlay extends StatefulWidget {
     this.isCaptureTutorial = false,
     this.warnOnRun = false,
     this.showFusionAction = true,
+    this.showMapAction = true,
   });
 
   @override
@@ -102,10 +110,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   void initState() {
     super.initState();
     _status = widget.isCaptureTutorial
-        ? 'Use a harvester to capture this wild Alchemon.'
+        ? 'Harvester calibrated. Secure the specimen.'
         : _supportsFusion
-        ? 'Select a party member to act'
-        : 'Choose an action.';
+        ? 'Select a party ally to begin fusion.'
+        : 'Choose an encounter protocol.';
     // Auto-show on mount
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _show();
@@ -165,25 +173,89 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     await showDialog<void>(
       context: context,
       builder: (ctx) {
-        final theme = context.read<FactionTheme>();
-        return AlertDialog(
-          title: Text(
-            'Further Research Required',
-            style: TextStyle(color: theme.text),
-          ),
-          content: Text(
-            'Your current field protocols only support fusion within the '
-            'same lineage family.\n\n'
-            'To attempt wild breeding between $familyA and $familyB specimens, '
-            'unlock the Cross-Species Lineage node in the Breeder constellation.',
-            style: TextStyle(color: theme.text),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
+        const amber = Color(0xFFE4C16A);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: CustomPaint(
+              painter: BracketFramePainter(
+                color: amber.withValues(alpha: 0.85),
+                bracketSize: 12,
+                strokeWidth: 1.3,
+              ),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                color: _kPalette.surfaceFill(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(width: 3, height: 24, color: amber),
+                        const SizedBox(width: AppSpace.md),
+                        Expanded(
+                          child: Text(
+                            'Further research required',
+                            style: bracketText(
+                              ctx,
+                              17,
+                              _kPalette.ink,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    Text(
+                      'Your current field protocols only support fusion '
+                      'within the same lineage family.\n\n'
+                      'To attempt wild breeding between $familyA and $familyB '
+                      'specimens, unlock the Cross-Species Lineage node in '
+                      'the Breeder constellation.',
+                      style: bracketText(
+                        ctx,
+                        12.5,
+                        _kPalette.muted,
+                        weight: FontWeight.w500,
+                      ),
+                      strutStyle: const StrutStyle(height: 1.45),
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    GestureDetector(
+                      onTap: () => Navigator.of(ctx).pop(),
+                      behavior: HitTestBehavior.opaque,
+                      child: CustomPaint(
+                        painter: BracketFramePainter(
+                          color: amber,
+                          bracketSize: 8,
+                          strokeWidth: 1.2,
+                        ),
+                        child: Container(
+                          height: 42,
+                          alignment: Alignment.center,
+                          color: amber.withValues(alpha: 0.14),
+                          child: Text(
+                            'Acknowledge',
+                            style: bracketText(
+                              ctx,
+                              13,
+                              amber,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
+          ),
         );
       },
     );
@@ -202,72 +274,105 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     }
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0D0D1A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-          side: const BorderSide(color: Color(0xFFD4AF37), width: 1),
-        ),
-        title: const Text(
-          'LEAVE THE VOID?',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: Color(0xFFD4AF37),
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 2,
-          ),
-        ),
-        content: const Text(
-          'The void will remain in the rift, but this encounter will be lost if you return.',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: Colors.white54,
-            fontSize: 12,
-            height: 1.6,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'STAY',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: Colors.white38,
-                letterSpacing: 1.5,
+      builder: (ctx) {
+        const danger = Color(0xFFC0392B);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: CustomPaint(
+              painter: BracketFramePainter(
+                color: danger.withValues(alpha: 0.85),
+                bracketSize: 12,
+                strokeWidth: 1.3,
+              ),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                color: _kPalette.surfaceFill(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(width: 3, height: 24, color: danger),
+                        const SizedBox(width: AppSpace.md),
+                        Expanded(
+                          child: Text(
+                            'Leave the void?',
+                            style: bracketText(
+                              ctx,
+                              17,
+                              _kPalette.ink,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    Text(
+                      'The void will remain in the rift, but this encounter '
+                      'will be lost if you return.',
+                      style: bracketText(
+                        ctx,
+                        12.5,
+                        _kPalette.muted,
+                        weight: FontWeight.w500,
+                      ),
+                      strutStyle: const StrutStyle(height: 1.45),
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _DialogChoice(
+                            label: 'Stay',
+                            color: _kPalette.muted,
+                            filled: false,
+                            onTap: () => Navigator.of(ctx).pop(false),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpace.sm),
+                        Expanded(
+                          child: _DialogChoice(
+                            label: 'Leave',
+                            color: danger,
+                            filled: true,
+                            onTap: () => Navigator.of(ctx).pop(true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'LEAVE',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: Color(0xFFD4AF37),
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
     if (confirmed == true) _hide(false);
   }
 
   void _hide([bool success = false]) {
-    _slideController.reverse().then((_) {
-      if (mounted) {
-        widget.onClosedWithResult?.call(success);
-      }
-    });
-    _fadeController.reverse();
     setState(() {
       _breedChance = null;
       _chosenInstanceId = null;
     });
+    if (success) {
+      // Notify the host immediately so the wild + party actors are
+      // cleared from the scene before any result notification appears.
+      widget.onClosedWithResult?.call(true);
+      return;
+    }
+    _slideController.reverse().then((_) {
+      if (mounted) {
+        widget.onClosedWithResult?.call(false);
+      }
+    });
+    _fadeController.reverse();
   }
 
   @override
@@ -287,16 +392,22 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           animation: _slideController,
           builder: (_, __) {
             final slide = Curves.easeOutCubic.transform(_slideController.value);
+            final size = MediaQuery.sizeOf(context);
+            final isLandscape = size.width > size.height;
+            // Inset so the FIELD STATUS card clears the side HUDs
+            // (party strip + scene controls) in landscape.
+            final sideInset = isLandscape ? 210.0 : 16.0;
             return Positioned(
-              top: 20,
-              left: 0,
-              right: 0,
+              top: 16,
+              left: sideInset,
+              right: sideInset,
               child: Opacity(
                 opacity: slide,
                 child: _WildCreatureTitle(
                   creature: wildCreature,
                   rarity: widget.encounter.rarity,
                   status: _status,
+                  breedChance: _supportsFusion ? _breedChance : null,
                 ),
               ),
             );
@@ -347,7 +458,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                   offset: Offset(0, 100 * (1 - slide)),
                   child: _ActionPanel(
                     isPartySelected: _chosenInstanceId != null,
-                    status: _status,
                     canAct: !_busy,
                     isTutorial: widget.isTutorial, // 🆕 Pass tutorial flag
                     isCaptureTutorial: widget.isCaptureTutorial,
@@ -358,8 +468,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                         ? () => _handleCapture(context, wildCreature)
                         : null,
                     onRun: () => _handleRun(context),
-                    breedChance: _breedChance,
                     showFusionAction: _supportsFusion,
+                    showMapAction: widget.showMapAction,
                   ),
                 ),
               ),
@@ -427,7 +537,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final p = _computeWildBreedChance(instRow, wilderness, constellation);
 
     setState(() {
-      _status = 'Selected ${hydrated.name}. Choose an action.';
+      _status = '${hydrated.name} locked in. Choose a protocol.';
       _chosenInstanceId = instanceId;
       _breedChance = p;
     });
@@ -438,7 +548,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
   Future<void> _handleBreed(BuildContext ctx, Creature wildCreature) async {
     if (_chosenInstanceId == null) {
-      setState(() => _status = 'Select a partner first');
+      setState(() => _status = 'Select a party ally first.');
       return;
     }
 
@@ -452,7 +562,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       final instance = await db.creatureDao.getInstance(_chosenInstanceId!);
       if (instance == null) {
-        setState(() => _status = 'Error loading specimen data');
+        setState(() => _status = 'Specimen sync failed.');
         return;
       }
 
@@ -461,7 +571,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       final speciesB = wildCreature;
 
       if (speciesA == null) {
-        setState(() => _status = 'Error loading species data');
+        setState(() => _status = 'Wild record lookup failed.');
         return;
       }
 
@@ -476,7 +586,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         if (!ctx.mounted) return;
         await _showCrossSpeciesLockedDialog(ctx, famA, famB);
         setState(() {
-          _status = 'Further research required for cross-species fusion.';
+          _status = 'Cross-lineage fusion requires more research.';
         });
         return;
       }
@@ -494,13 +604,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       final spent = await wilderness.trySpendForAttempt(_chosenInstanceId!);
       if (spent == null) {
-        setState(() => _status = 'Out of stamina!');
+        setState(() => _status = 'This Alchemon is out of stamina.');
         return;
       }
 
       widget.onPreRollShake?.call();
       HapticFeedback.mediumImpact();
-      setState(() => _status = 'Calibrating alchemical matrix…');
+      setState(() => _status = 'Calibrating the alchemical matrix...');
       await Future.delayed(const Duration(milliseconds: 650));
 
       final success = wilderness.rollSuccess(p);
@@ -548,12 +658,19 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         );
 
         if (didBreed != true) return;
-        if (!mounted) return;
+        if (!mounted || !ctx.mounted) return;
 
-        // 🆕 Hide AFTER cinematic completes
+        // Capture the messenger + message, close the encounter (which
+        // clears the scene actors), then surface a lightweight
+        // notification — no blocking modal.
+        final messenger = ScaffoldMessenger.maybeOf(ctx);
+        final resultMessage = _status;
         _hide(true);
+        if (messenger != null) {
+          _showFusionResultNotification(messenger, resultMessage);
+        }
       } else {
-        setState(() => _status = 'Failed… try again.');
+        setState(() => _status = 'Fusion destabilized. Try again.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -612,7 +729,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       if (success) {
         HapticFeedback.heavyImpact();
         setState(
-          () => _status = 'Specimen sent to Cultivations for extraction',
+          () => _status = 'Extraction complete. Specimen sent to Cultivations.',
         );
 
         if (!ctx.mounted) return;
@@ -623,11 +740,11 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         _hide(true);
       } else {
         HapticFeedback.lightImpact();
-        setState(() => _status = 'Harvest failed!');
+        setState(() => _status = 'Harvester failed to secure the specimen.');
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _status = 'Error: $e');
+        setState(() => _status = 'Encounter error: $e');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -656,7 +773,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
     if (!result.success) {
       if (mounted) {
-        setState(() => _status = 'Breeding failed: ${result.message}');
+        setState(() => _status = 'Fusion failed: ${result.message}');
       }
       return false;
     }
@@ -664,12 +781,87 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     if (mounted) {
       setState(
         () => _status = result.placement == EggPlacement.storage
-            ? 'Incubator full — specimen transferred to cold storage'
-            : 'Specimen sent to Cultivations for extraction',
+            ? 'Cultivation chambers were full — the specimen was moved to cold storage.'
+            : 'The new specimen was sent to a cultivation chamber.',
       );
     }
 
     return true;
+  }
+
+  /// Lightweight, non-blocking result notification shown after a
+  /// successful fusion (the encounter has already closed).
+  void _showFusionResultNotification(
+    ScaffoldMessengerState messenger,
+    String message,
+  ) {
+    const success = Color(0xFF22C55E);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        padding: EdgeInsets.zero,
+        margin: const EdgeInsets.all(16),
+        content: CustomPaint(
+          painter: BracketFramePainter(
+            color: success.withValues(alpha: 0.85),
+            bracketSize: 9,
+            strokeWidth: 1.2,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF12161D),
+              border: const Border(
+                left: BorderSide(color: success, width: 3),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: success,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Fusion complete',
+                        style: bracketText(
+                          messenger.context,
+                          13,
+                          Colors.white,
+                          weight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        message,
+                        style: bracketText(
+                          messenger.context,
+                          11.5,
+                          Colors.white70,
+                          weight: FontWeight.w500,
+                        ),
+                        strutStyle: const StrutStyle(height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _placeWildEgg(
@@ -734,103 +926,215 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 // ==========================================
 // WILD CREATURE TITLE (Center top)
 // ==========================================
+class _EncounterStatusStyle {
+  final Color accent;
+  final IconData icon;
+
+  const _EncounterStatusStyle({required this.accent, required this.icon});
+
+  static const _danger = Color(0xFFC0392B);
+  static const _amber = Color(0xFFE4C16A);
+  static const _success = Color(0xFF22C55E);
+  static const _teal = Color(0xFF5BC8E8);
+
+  factory _EncounterStatusStyle.resolve(String status) {
+    final normalized = status.toLowerCase();
+
+    if (normalized.contains('failed') ||
+        normalized.contains('error') ||
+        normalized.contains('lost')) {
+      return const _EncounterStatusStyle(
+        accent: _danger,
+        icon: Icons.warning_amber_rounded,
+      );
+    }
+    if (normalized.contains('research') ||
+        normalized.contains('stamina') ||
+        normalized.contains('capacity')) {
+      return const _EncounterStatusStyle(
+        accent: _amber,
+        icon: Icons.bolt_rounded,
+      );
+    }
+    if (normalized.contains('complete') ||
+        normalized.contains('sent to cultivations') ||
+        normalized.contains('transferred')) {
+      return const _EncounterStatusStyle(
+        accent: _success,
+        icon: Icons.check_circle_rounded,
+      );
+    }
+    if (normalized.contains('calibrating') ||
+        normalized.contains('select') ||
+        normalized.contains('choose') ||
+        normalized.contains('secure')) {
+      return const _EncounterStatusStyle(
+        accent: _teal,
+        icon: Icons.tune_rounded,
+      );
+    }
+    return const _EncounterStatusStyle(
+      accent: _amber,
+      icon: Icons.auto_awesome_rounded,
+    );
+  }
+}
+
 class _WildCreatureTitle extends StatelessWidget {
   final Creature creature;
   final String rarity;
   final String status;
+  final double? breedChance;
 
   const _WildCreatureTitle({
     required this.creature,
     required this.rarity,
     required this.status,
+    this.breedChance,
   });
 
   Color get _rarityColor {
     switch (rarity.toLowerCase()) {
-      case 'common':
-        return Colors.grey.shade700;
       case 'uncommon':
-        return Colors.green.shade600;
+        return const Color(0xFF34D399);
       case 'rare':
-        return Colors.blue.shade600;
+        return const Color(0xFF60A5FA);
       case 'epic':
-        return Colors.purple.shade600;
+        return const Color(0xFFA855F7);
       case 'legendary':
-        return Colors.orange.shade600;
+        return const Color(0xFFF59E0B);
       default:
-        return Colors.grey.shade700;
+        return const Color(0xFF9AA0AC);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final statusStyle = _EncounterStatusStyle.resolve(status);
+    final chancePct = breedChance == null
+        ? null
+        : '${(breedChance! * 100).toStringAsFixed(1)}%';
+
     return Column(
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          margin: const EdgeInsets.only(left: 250, right: 250, bottom: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A2E),
-            borderRadius: BorderRadius.circular(4),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 12,
-                offset: Offset(0, 4),
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpace.md),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: CustomPaint(
+              painter: BracketFramePainter(
+                color: statusStyle.accent.withValues(alpha: 0.8),
+                bracketSize: 9,
+                strokeWidth: 1.1,
               ),
-            ],
-          ),
-          child: Text(
-            status,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.md,
+                  vertical: AppSpace.sm,
+                ),
+                color: _kPalette.surfaceFill(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          statusStyle.icon,
+                          color: statusStyle.accent,
+                          size: AppIcon.sm,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'FIELD STATUS',
+                          style: bracketText(
+                            context,
+                            10,
+                            _kPalette.muted,
+                            weight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        if (chancePct != null) ...[
+                          const Spacer(),
+                          Text(
+                            'STABILITY ',
+                            style: bracketText(
+                              context,
+                              9.5,
+                              _kPalette.muted,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                          Text(
+                            chancePct,
+                            style: bracketText(
+                              context,
+                              11.5,
+                              const Color(0xFF22C55E),
+                              weight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      status,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(
+                        context,
+                        13,
+                        _kPalette.ink,
+                        weight: FontWeight.w700,
+                      ),
+                      strutStyle: const StrutStyle(height: 1.25),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-        // Classification Rank badge (was Rarity)
+        // Classification rank badge
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: _rarityColor,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: _rarityColor.withValues(alpha: 0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            color: _rarityColor.withValues(alpha: 0.16),
+            border: Border(left: BorderSide(color: _rarityColor, width: 2)),
           ),
           child: Text(
-            rarity.toUpperCase(), // Added 'RANK'
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8, // Increased for a more technical look
+            rarity.toUpperCase(),
+            style: bracketText(
+              context,
+              11,
+              _rarityColor,
+              weight: FontWeight.w800,
+              letterSpacing: 1.0,
             ),
           ),
         ),
-        const SizedBox(height: 1),
-        // Creature designation (was name)
+        const SizedBox(height: 6),
+        // Creature designation
         _DigitalAnimatedText(
-          // <--- NEW WIDGET
           text: creature.name.toUpperCase(),
           duration: const Duration(milliseconds: 900),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 34,
+          style: TextStyle(
+            color: _kPalette.ink,
+            fontSize: 32,
             fontWeight: FontWeight.w900,
-            letterSpacing: 4.0,
+            letterSpacing: 3.0,
             shadows: [
-              Shadow(
+              const Shadow(
                 color: Colors.black87,
                 blurRadius: 12,
                 offset: Offset(0, 3),
+              ),
+              Shadow(
+                color: _rarityColor.withValues(alpha: 0.34),
+                blurRadius: 20,
               ),
             ],
           ),
@@ -940,26 +1244,28 @@ class _PartyHUD extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: t.bg1.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: t.borderDim, width: 1),
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: _kPalette.line.withValues(alpha: 0.7),
+        bracketSize: 7,
+        strokeWidth: 1.05,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < party.length; i++) ...[
-            _PartyMemberCard(
-              member: party[i],
-              selected: party[i].instanceId == chosenInstanceId,
-              onTap: () => onSelect(party[i].instanceId),
-            ),
-            if (i < party.length - 1) const SizedBox(width: 6),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        color: _kPalette.surfaceFill(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < party.length; i++) ...[
+              _PartyMemberCard(
+                member: party[i],
+                selected: party[i].instanceId == chosenInstanceId,
+                onTap: () => onSelect(party[i].instanceId),
+              ),
+              if (i < party.length - 1) const SizedBox(width: 6),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -980,11 +1286,11 @@ class _PartyMemberCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = context.read<CreatureCatalog>();
     final stamina = context.read<StaminaService>();
-    final t = ForgeTokens(context.read<FactionTheme>());
     final instanceStream = context
         .read<AlchemonsDatabase>()
         .creatureDao
         .watchInstanceById(member.instanceId);
+    const selAccent = Color(0xFF22C55E);
 
     return StreamBuilder<CreatureInstance?>(
       stream: instanceStream,
@@ -997,46 +1303,40 @@ class _PartyMemberCard extends StatelessWidget {
 
         return GestureDetector(
           onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 56,
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: selected ? t.amber.withValues(alpha: 0.12) : t.bg2,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(
-                color: selected ? t.amber : t.borderDim,
-                width: selected ? 1.5 : 1,
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: t.amber.withValues(alpha: 0.28),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : null,
+          child: CustomPaint(
+            painter: BracketFramePainter(
+              color: selected
+                  ? selAccent
+                  : _kPalette.line.withValues(alpha: 0.7),
+              bracketSize: 6,
+              strokeWidth: selected ? 1.4 : 1.0,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (inst != null && base != null)
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: InstanceSprite(
-                      creature: base,
-                      instance: inst,
-                      size: 36,
-                    ),
-                  )
-                else
-                  const SizedBox(width: 36, height: 36),
-                const SizedBox(height: 4),
-                if (state != null)
-                  StaminaBar(current: state.bars, max: state.max),
-              ],
+            child: Container(
+              width: 56,
+              padding: const EdgeInsets.all(5),
+              color: selected
+                  ? selAccent.withValues(alpha: 0.12)
+                  : _kPalette.surfaceMutedFill(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (inst != null && base != null)
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: InstanceSprite(
+                        creature: base,
+                        instance: inst,
+                        size: 36,
+                      ),
+                    )
+                  else
+                    const SizedBox(width: 36, height: 36),
+                  const SizedBox(height: 4),
+                  if (state != null)
+                    StaminaBar(current: state.bars, max: state.max),
+                ],
+              ),
             ),
           ),
         );
@@ -1049,89 +1349,68 @@ class _PartyMemberCard extends StatelessWidget {
 // ACTION PANEL (Bottom) - Horizontal row
 // ==========================================
 class _ActionPanel extends StatelessWidget {
-  final String status;
   final bool canAct;
   final VoidCallback? onBreed;
   final VoidCallback? onCapture;
   final VoidCallback onRun;
-  final double? breedChance; // 👈 NEW
   final bool isPartySelected;
   final bool isTutorial; // 🆕 Tutorial mode flag
   final bool isCaptureTutorial;
   final bool showFusionAction;
+  final bool showMapAction;
 
   const _ActionPanel({
-    required this.status,
     required this.canAct,
     required this.onBreed,
     required this.onCapture,
     required this.onRun,
     required this.isPartySelected,
-    this.breedChance,
     this.isTutorial = false, // 🆕 Default to false
     this.isCaptureTutorial = false,
     this.showFusionAction = true,
+    this.showMapAction = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    final chanceText = showFusionAction && breedChance != null
-        ? 'Fusion success: ${(breedChance! * 100).toStringAsFixed(1)}%'
-        : null;
+    const success = Color(0xFF22C55E);
+    const danger = Color(0xFFC0392B);
+    const teal = Color(0xFF5BC8E8);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (chanceText != null)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8.0, right: 4.0),
-              child: Text(
-                chanceText,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.success,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ),
-          ),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            if (showFusionAction && !isCaptureTutorial)
+            if (showFusionAction && !isCaptureTutorial) ...[
               _ActionButton(
                 disabled: !isPartySelected,
-                label: 'FUSION',
-                sublabel: 'ATTEMPT ALCHEMICAL',
+                label: 'Fusion',
                 icon: Icons.science_rounded,
-                accentColor: t.success,
+                accentColor: success,
                 onPressed: canAct ? onBreed : null,
               ),
-            if (showFusionAction && !isCaptureTutorial)
-              const SizedBox(width: 8),
-            if (!isTutorial || isCaptureTutorial)
+              const SizedBox(width: AppSpace.sm),
+            ],
+            if (!isTutorial || isCaptureTutorial) ...[
               TutorialHighlight(
                 enabled: isCaptureTutorial,
                 label: 'Use your harvester',
                 child: _ActionButton(
-                  label: 'HARVEST',
-                  sublabel: 'PROTOCOL',
-                  accentColor: t.danger,
+                  label: 'Harvest',
+                  icon: Icons.catching_pokemon_rounded,
+                  accentColor: danger,
                   onPressed: canAct ? onCapture : null,
                 ),
               ),
-            if (!isTutorial && !isCaptureTutorial) const SizedBox(width: 8),
-            if (!isCaptureTutorial)
+              const SizedBox(width: AppSpace.sm),
+            ],
+            if (!isCaptureTutorial && showMapAction)
               _ActionButton(
-                label: 'MAP',
-                sublabel: 'RETURN',
-                accentColor: t.teal,
+                label: 'Map',
+                icon: Icons.explore_rounded,
+                accentColor: teal,
                 onPressed: onRun,
               ),
           ],
@@ -1143,87 +1422,100 @@ class _ActionPanel extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   final String label;
-  final String sublabel;
-  final IconData? icon;
+  final IconData icon;
   final Color accentColor;
   final VoidCallback? onPressed;
   final bool disabled;
 
   const _ActionButton({
     required this.label,
-    required this.sublabel,
+    required this.icon,
     required this.accentColor,
-    this.icon,
     this.onPressed,
     this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
     final isDisabled = onPressed == null || disabled;
-    final effectiveAccent = isDisabled ? t.textMuted : accentColor;
+    final accent = isDisabled ? _kPalette.muted : accentColor;
 
-    return GestureDetector(
-      onTap: isDisabled ? null : onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
-        decoration: BoxDecoration(
-          color: t.bg1,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: isDisabled ? t.borderDim : effectiveAccent,
-            width: 1.5,
+    return Opacity(
+      opacity: isDisabled ? 0.55 : 1,
+      child: GestureDetector(
+        onTap: isDisabled ? null : onPressed,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            // Solid opaque fill so the button stays readable on any
+            // scene backdrop — no translucent neon wash.
+            color: const Color(0xFF12161D),
+            border: Border.all(color: accent, width: 1.4),
           ),
-          boxShadow: isDisabled
-              ? null
-              : [
-                  BoxShadow(
-                    color: effectiveAccent.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(
-                icon,
-                color: isDisabled ? t.textMuted : effectiveAccent,
-                size: 18,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: accent, size: 17),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: bracketText(
+                  context,
+                  13.5,
+                  isDisabled ? _kPalette.muted : Colors.white,
+                  weight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                ),
               ),
-              const SizedBox(width: 10),
             ],
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  sublabel,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: isDisabled ? t.textMuted : t.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: isDisabled ? t.textMuted : effectiveAccent,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogChoice extends StatelessWidget {
+  const _DialogChoice({
+    required this.label,
+    required this.color,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: filled ? color : color.withValues(alpha: 0.6),
+          bracketSize: 8,
+          strokeWidth: filled ? 1.3 : 1.1,
+        ),
+        child: Container(
+          height: 42,
+          alignment: Alignment.center,
+          color: filled ? color : color.withValues(alpha: 0.10),
+          child: Text(
+            label,
+            style: bracketText(
+              context,
+              13,
+              filled ? Colors.white : color,
+              weight: FontWeight.w700,
+              letterSpacing: 0.4,
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -10,6 +10,8 @@ import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'cosmic_overlay_chrome.dart';
+import 'cosmic_screen_styles.dart';
 
 class CosmicPartyPickerOverlay extends StatefulWidget {
   const CosmicPartyPickerOverlay({
@@ -48,6 +50,9 @@ class CosmicPartyPickerOverlay extends StatefulWidget {
 }
 
 class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
+  static const double _slotCardHeight = 118.0;
+  static const double _slotSpriteSize = 46.0;
+
   // Which slot is being assigned (-1 = not assigning)
   int _assigningSlot = -1;
 
@@ -175,233 +180,273 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GestureDetector(
+    return CosmicOverlayBackdrop(
       onTap: widget.onClose,
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.75),
-        child: GestureDetector(
-          onTap: () {}, // absorb inner taps
-          child: SafeArea(
-            child: Column(
-              children: [
-                // ── Header ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      alpha: 0.84,
+      child: GestureDetector(
+        onTap: () {}, // absorb inner taps
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: const Alignment(0.2, -0.35),
+              radius: 1.2,
+              colors: [
+                CosmicScreenStyles.bg3.withValues(alpha: 0.34),
+                CosmicScreenStyles.bg0.withValues(alpha: 0.05),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.54, 1.0],
+            ),
+          ),
+          child: Column(
+            children: [
+              // ── Header ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+                child: CosmicPlate(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                  accent: CosmicScreenStyles.amber,
+                  background: CosmicScreenStyles.bg1.withValues(alpha: 0.92),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          widget.title,
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: Color(0xFF00E5FF),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 3,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.title,
+                              style: TextStyle(
+                                fontFamily: appFontFamily(context),
+                                color: CosmicScreenStyles.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 3,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              'SHIP CREW LOADOUT',
+                              style: TextStyle(
+                                fontFamily: appFontFamily(context),
+                                color: CosmicScreenStyles.amber.withValues(
+                                  alpha: 0.78,
+                                ),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.7,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white54),
-                        onPressed: widget.onClose,
+                      CosmicIconButton(
+                        icon: Icons.close,
+                        accent: CosmicScreenStyles.textSecondary,
+                        onTap: widget.onClose,
                       ),
                     ],
                   ),
                 ),
+              ),
 
-                // ── Party Slots ──
-                if (_assigningSlot < 0)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        const crossAxisCount = 3;
-                        const gap = 8.0;
-                        final cardWidth =
-                            (constraints.maxWidth -
-                                gap * (crossAxisCount - 1)) /
-                            crossAxisCount;
+              // ── Party Slots ──
+              if (_assigningSlot < 0)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const crossAxisCount = 3;
+                      const gap = 10.0;
+                      final cardWidth =
+                          (constraints.maxWidth - gap * (crossAxisCount - 1)) /
+                          crossAxisCount;
 
-                        return Wrap(
-                          spacing: gap,
-                          runSpacing: gap,
-                          children: List.generate(widget.maxSlots, (i) {
-                            final locked = i >= widget.slotsUnlocked;
-                            final member = i < widget.partyMembers.length
-                                ? widget.partyMembers[i]
-                                : null;
-                            final isActive = widget.activeSlot == i;
+                      return Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: List.generate(widget.maxSlots, (i) {
+                          final locked = i >= widget.slotsUnlocked;
+                          final member = i < widget.partyMembers.length
+                              ? widget.partyMembers[i]
+                              : null;
+                          final isActive = widget.activeSlot == i;
 
-                            return SizedBox(
-                              width: cardWidth,
-                              child: _buildPartySlotCard(
-                                i,
-                                locked,
-                                member,
-                                isActive,
-                                theme,
-                              ),
-                            );
-                          }),
-                        );
-                      },
-                    ),
+                          return SizedBox(
+                            width: cardWidth,
+                            child: _buildPartySlotCard(
+                              i,
+                              locked,
+                              member,
+                              isActive,
+                              theme,
+                            ),
+                          );
+                        }),
+                      );
+                    },
                   ),
+                ),
 
-                // ── Instance picker (when assigning) ──
-                if (_assigningSlot >= 0) ...[
-                  // Back button + slot info
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+              // ── Instance picker (when assigning) ──
+              if (_assigningSlot >= 0) ...[
+                // Back button + slot info
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back,
+                          color: CosmicScreenStyles.textSecondary,
+                        ),
+                        onPressed: () => setState(() => _assigningSlot = -1),
+                      ),
+                      Text(
+                        'ASSIGN TO SLOT ${_assigningSlot + 1}',
+                        style: TextStyle(
+                          fontFamily: appFontFamily(context),
+                          color: CosmicScreenStyles.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Search bar
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Container(
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: CosmicScreenStyles.bg2,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: CosmicScreenStyles.borderDim),
+                    ),
                     child: Row(
                       children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.white54,
-                          ),
-                          onPressed: () => setState(() => _assigningSlot = -1),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.search,
+                          color: CosmicScreenStyles.textMuted,
+                          size: 18,
                         ),
-                        Text(
-                          'ASSIGN TO SLOT ${_assigningSlot + 1}',
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Search bar
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                    child: Container(
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Row(
-                        children: [
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.search,
-                            color: Colors.white38,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              onChanged: (_) => setState(() => _applyFilters()),
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (_) => setState(() => _applyFilters()),
+                            style: TextStyle(
+                              color: CosmicScreenStyles.textPrimary,
+                              fontSize: 13,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Search…',
+                              hintStyle: TextStyle(
+                                color: CosmicScreenStyles.textMuted,
                               ),
-                              decoration: const InputDecoration(
-                                hintText: 'Search…',
-                                hintStyle: TextStyle(color: Colors.white24),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+                        if (_searchController.text.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _applyFilters());
+                            },
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6),
+                              child: Icon(
+                                Icons.clear,
+                                color: CosmicScreenStyles.textMuted,
+                                size: 16,
                               ),
                             ),
                           ),
-                          if (_searchController.text.isNotEmpty)
-                            GestureDetector(
-                              onTap: () {
-                                _searchController.clear();
-                                setState(() => _applyFilters());
-                              },
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 6),
-                                child: Icon(
-                                  Icons.clear,
-                                  color: Colors.white38,
-                                  size: 16,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Sort + filter row
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        _sortChip('Level', SortBy.levelHigh),
-                        const SizedBox(width: 6),
-                        _sortChip('SPD', SortBy.statSpeed),
-                        const SizedBox(width: 6),
-                        _sortChip('STR', SortBy.statStrength),
-                        const SizedBox(width: 6),
-                        _sortChip('INT', SortBy.statIntelligence),
-                        const SizedBox(width: 6),
-                        _sortChip('BEA', SortBy.statBeauty),
-                        const Spacer(),
-                        _filterToggle(
-                          Icons.star_rounded,
-                          _filterFavorites,
-                          const Color(0xFFFFD700),
-                          () => setState(() {
-                            _filterFavorites = !_filterFavorites;
-                            _applyFilters();
-                          }),
-                        ),
-                        const SizedBox(width: 6),
-                        _filterToggle(
-                          Icons.auto_awesome,
-                          _filterPrismatic,
-                          const Color(0xFFE040FB),
-                          () => setState(() {
-                            _filterPrismatic = !_filterPrismatic;
-                            _applyFilters();
-                          }),
-                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  // Instance grid
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            childAspectRatio: 0.75,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                          ),
-                      itemCount: _filteredInstances.length,
-                      itemBuilder: (_, idx) {
-                        final ci = _filteredInstances[idx];
-                        return _buildInstanceCard(ci, theme);
-                      },
-                    ),
-                  ),
-                ] else
-                  // Hint text when not assigning
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      widget.hintText,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white38,
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
+                ),
+                // Sort + filter row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      _sortChip('Level', SortBy.levelHigh),
+                      const SizedBox(width: 6),
+                      _sortChip('SPD', SortBy.statSpeed),
+                      const SizedBox(width: 6),
+                      _sortChip('STR', SortBy.statStrength),
+                      const SizedBox(width: 6),
+                      _sortChip('INT', SortBy.statIntelligence),
+                      const SizedBox(width: 6),
+                      _sortChip('BEA', SortBy.statBeauty),
+                      const Spacer(),
+                      _filterToggle(
+                        Icons.star_rounded,
+                        _filterFavorites,
+                        const Color(0xFFFFD700),
+                        () => setState(() {
+                          _filterFavorites = !_filterFavorites;
+                          _applyFilters();
+                        }),
                       ),
+                      const SizedBox(width: 6),
+                      _filterToggle(
+                        Icons.auto_awesome,
+                        _filterPrismatic,
+                        const Color(0xFFE040FB),
+                        () => setState(() {
+                          _filterPrismatic = !_filterPrismatic;
+                          _applyFilters();
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Instance grid
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          childAspectRatio: 0.75,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                        ),
+                    itemCount: _filteredInstances.length,
+                    itemBuilder: (_, idx) {
+                      final ci = _filteredInstances[idx];
+                      return _buildInstanceCard(ci, theme);
+                    },
+                  ),
+                ),
+              ] else
+                // Hint text when not assigning
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 22, 32, 12),
+                  child: Text(
+                    widget.hintText,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
+                      color: CosmicScreenStyles.textSecondary.withValues(
+                        alpha: 0.72,
+                      ),
+                      fontSize: 13,
+                      height: 1.35,
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -417,17 +462,23 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
   ) {
     if (locked) {
       return Container(
-        height: 120,
+        height: _slotCardHeight,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white10),
+          color: CosmicScreenStyles.bg1.withValues(alpha: 0.84),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: CosmicScreenStyles.borderDim.withValues(alpha: 0.82),
+          ),
         ),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_outline, color: Colors.white24, size: 24),
+              Icon(
+                Icons.lock_outline,
+                color: CosmicScreenStyles.textMuted,
+                size: 24,
+              ),
               SizedBox(height: 4),
               Text(
                 'LOCKED',
@@ -449,13 +500,20 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
       return GestureDetector(
         onTap: () => setState(() => _assigningSlot = slotIndex),
         child: Container(
-          height: 120,
+          height: _slotCardHeight,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(12),
+            color: CosmicScreenStyles.bg1.withValues(alpha: 0.86),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+              color: CosmicScreenStyles.teal.withValues(alpha: 0.34),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: CosmicScreenStyles.teal.withValues(alpha: 0.05),
+                blurRadius: 18,
+                spreadRadius: 1,
+              ),
+            ],
           ),
           child: Center(
             child: Column(
@@ -463,7 +521,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               children: [
                 Icon(
                   Icons.add_circle_outline,
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                  color: CosmicScreenStyles.teal.withValues(alpha: 0.5),
                   size: 28,
                 ),
                 const SizedBox(height: 4),
@@ -471,7 +529,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   'SLOT ${slotIndex + 1}',
                   style: TextStyle(
                     fontFamily: appFontFamily(context),
-                    color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                    color: CosmicScreenStyles.teal.withValues(alpha: 0.5),
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 2,
@@ -488,104 +546,167 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     final eColor = elementColor(member.element);
     return GestureDetector(
       onTap: () => _showSlotOptions(slotIndex, member),
-      child: Container(
-        height: 120,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: _slotCardHeight,
         decoration: BoxDecoration(
-          color: isActive
-              ? eColor.withValues(alpha: 0.15)
-              : Colors.white.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isActive ? eColor : eColor.withValues(alpha: 0.3),
-            width: isActive ? 2 : 1,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              eColor.withValues(alpha: isActive ? 0.22 : 0.10),
+              CosmicScreenStyles.bg1.withValues(alpha: 0.94),
+              CosmicScreenStyles.bg0.withValues(alpha: 0.90),
+            ],
           ),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isActive
+                ? eColor.withValues(alpha: 0.92)
+                : eColor.withValues(alpha: 0.35),
+            width: isActive ? 1.6 : 1,
+          ),
+          boxShadow: [
+            if (isActive)
+              BoxShadow(
+                color: eColor.withValues(alpha: 0.18),
+                blurRadius: 20,
+                spreadRadius: 1,
+              ),
+          ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
           children: [
-            // Creature sprite
-            SizedBox(
-              width: 52,
-              height: 52,
-              child: member.spriteSheet != null
-                  ? CreatureSprite(
-                      spritePath: member.spriteSheet!.path,
-                      totalFrames: member.spriteSheet!.totalFrames,
-                      rows: member.spriteSheet!.rows,
-                      frameSize: member.spriteSheet!.frameSize,
-                      stepTime: member.spriteSheet!.stepTime,
-                      scale: member.spriteVisuals?.scale ?? 1.0,
-                      saturation: member.spriteVisuals?.saturation ?? 1.0,
-                      brightness: member.spriteVisuals?.brightness ?? 1.0,
-                      hueShift: member.spriteVisuals?.hueShiftDeg ?? 0.0,
-                      isPrismatic: member.spriteVisuals?.isPrismatic ?? false,
-                      tint: member.spriteVisuals?.tint,
-                      alchemyEffect: member.spriteVisuals?.alchemyEffect,
-                      variantFaction: member.spriteVisuals?.variantFaction,
-                      effectSlotSize: 52,
-                    )
-                  : member.imagePath != null
-                  ? ClipOval(
-                      child: Image.asset(
-                        member.imagePath!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
-                          Icons.catching_pokemon,
-                          color: eColor,
-                          size: 22,
-                        ),
-                      ),
-                    )
-                  : Icon(Icons.catching_pokemon, color: eColor, size: 22),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              member.displayName.length > 8
-                  ? '${member.displayName.substring(0, 8)}…'
-                  : member.displayName,
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: eColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              isActive ? '▶ ACTIVE' : 'Lv${member.level}',
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: isActive ? eColor : Colors.white38,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Text(
+                'SLOT ${slotIndex + 1}',
+                style: TextStyle(
+                  fontFamily: appFontFamily(context),
+                  color: CosmicScreenStyles.textMuted.withValues(alpha: 0.82),
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                ),
               ),
             ),
-            const SizedBox(height: 3),
-            // Stamina dots
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                member.staminaMax,
-                (si) => Container(
-                  width: 6,
-                  height: 6,
-                  margin: const EdgeInsets.symmetric(horizontal: 1),
+            if (isActive)
+              Positioned(
+                top: 7,
+                right: 7,
+                child: Container(
+                  width: 7,
+                  height: 7,
                   decoration: BoxDecoration(
+                    color: eColor,
                     shape: BoxShape.circle,
-                    color: si < member.staminaBars
-                        ? const Color(0xFF00E676)
-                        : Colors.white12,
-                    border: Border.all(
-                      color: si < member.staminaBars
-                          ? const Color(0xFF00E676).withValues(alpha: 0.5)
-                          : Colors.white10,
-                      width: 0.5,
-                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: eColor.withValues(alpha: 0.7),
+                        blurRadius: 8,
+                      ),
+                    ],
                   ),
                 ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(7, 18, 7, 6),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Creature sprite
+                  SizedBox(
+                    width: _slotSpriteSize,
+                    height: _slotSpriteSize,
+                    child: member.spriteSheet != null
+                        ? CreatureSprite(
+                            spritePath: member.spriteSheet!.path,
+                            totalFrames: member.spriteSheet!.totalFrames,
+                            rows: member.spriteSheet!.rows,
+                            frameSize: member.spriteSheet!.frameSize,
+                            stepTime: member.spriteSheet!.stepTime,
+                            scale: member.spriteVisuals?.scale ?? 1.0,
+                            saturation: member.spriteVisuals?.saturation ?? 1.0,
+                            brightness: member.spriteVisuals?.brightness ?? 1.0,
+                            hueShift: member.spriteVisuals?.hueShiftDeg ?? 0.0,
+                            isPrismatic:
+                                member.spriteVisuals?.isPrismatic ?? false,
+                            tint: member.spriteVisuals?.tint,
+                            alchemyEffect: member.spriteVisuals?.alchemyEffect,
+                            variantFaction:
+                                member.spriteVisuals?.variantFaction,
+                            effectSlotSize: _slotSpriteSize,
+                          )
+                        : member.imagePath != null
+                        ? ClipOval(
+                            child: Image.asset(
+                              member.imagePath!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.catching_pokemon,
+                                color: eColor,
+                                size: 22,
+                              ),
+                            ),
+                          )
+                        : Icon(Icons.catching_pokemon, color: eColor, size: 22),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    member.displayName,
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
+                      color: eColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.25,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    isActive ? 'ACTIVE' : 'Lv${member.level}',
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
+                      color: isActive
+                          ? CosmicScreenStyles.textPrimary
+                          : CosmicScreenStyles.textMuted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: isActive ? 1.2 : 0,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  // Stamina dots
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      member.staminaMax,
+                      (si) => Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 1.2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: si < member.staminaBars
+                              ? CosmicScreenStyles.success
+                              : Colors.white12,
+                          border: Border.all(
+                            color: si < member.staminaBars
+                                ? CosmicScreenStyles.success.withValues(
+                                    alpha: 0.55,
+                                  )
+                                : Colors.white10,
+                            width: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -791,76 +912,182 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
   }
 
   void _showSlotOptions(int slotIndex, CosmicPartyMember member) {
+    final eColor = elementColor(member.element);
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.46),
       builder: (_) => SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                member.displayName,
-                style: TextStyle(
-                  color: elementColor(member.element),
-                  fontFamily: appFontFamily(context),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          child: CosmicPlate(
+            accent: eColor,
+            background: CosmicScreenStyles.bg1,
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: CosmicScreenStyles.borderAccent.withValues(
+                      alpha: 0.78,
+                    ),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.info_outline, color: Colors.white54),
-                title: Text(
-                  'View Details',
-                  style: TextStyle(color: Colors.white70),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: eColor.withValues(alpha: 0.10),
+                        border: Border.all(
+                          color: eColor.withValues(alpha: 0.42),
+                        ),
+                      ),
+                      child: member.spriteSheet != null
+                          ? CreatureSprite(
+                              spritePath: member.spriteSheet!.path,
+                              totalFrames: member.spriteSheet!.totalFrames,
+                              rows: member.spriteSheet!.rows,
+                              frameSize: member.spriteSheet!.frameSize,
+                              stepTime: member.spriteSheet!.stepTime,
+                              scale: member.spriteVisuals?.scale ?? 1.0,
+                              saturation:
+                                  member.spriteVisuals?.saturation ?? 1.0,
+                              brightness:
+                                  member.spriteVisuals?.brightness ?? 1.0,
+                              hueShift:
+                                  member.spriteVisuals?.hueShiftDeg ?? 0.0,
+                              isPrismatic:
+                                  member.spriteVisuals?.isPrismatic ?? false,
+                              tint: member.spriteVisuals?.tint,
+                              alchemyEffect:
+                                  member.spriteVisuals?.alchemyEffect,
+                              variantFaction:
+                                  member.spriteVisuals?.variantFaction,
+                              effectSlotSize: 46,
+                            )
+                          : Icon(
+                              Icons.catching_pokemon,
+                              color: eColor,
+                              size: 22,
+                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            member.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: CosmicScreenStyles.textPrimary,
+                              fontFamily: appFontFamily(context),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${member.element.toUpperCase()} · LV ${member.level}',
+                            style: TextStyle(
+                              color: eColor.withValues(alpha: 0.86),
+                              fontFamily: appFontFamily(context),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showCondensedStats(
-                    name: member.displayName,
-                    element: member.element,
-                    level: member.level,
-                    speed: member.statSpeed,
-                    strength: member.statStrength,
-                    intelligence: member.statIntelligence,
-                    beauty: member.statBeauty,
-                    spriteSheet: member.spriteSheet,
-                    spriteVisuals: member.spriteVisuals,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.swap_horiz, color: Colors.white54),
-                title: Text(
-                  'Replace',
-                  style: TextStyle(color: Colors.white70),
+                const SizedBox(height: 14),
+                const CosmicEtchedDivider(),
+                const SizedBox(height: 8),
+                _slotActionRow(
+                  icon: Icons.info_outline,
+                  label: 'View Details',
+                  color: CosmicScreenStyles.textSecondary,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showCondensedStats(
+                      name: member.displayName,
+                      element: member.element,
+                      level: member.level,
+                      speed: member.statSpeed,
+                      strength: member.statStrength,
+                      intelligence: member.statIntelligence,
+                      beauty: member.statBeauty,
+                      spriteSheet: member.spriteSheet,
+                      spriteVisuals: member.spriteVisuals,
+                    );
+                  },
                 ),
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() => _assigningSlot = slotIndex);
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.remove_circle_outline,
-                  color: Color(0xFFE53935),
+                _slotActionRow(
+                  icon: Icons.swap_horiz,
+                  label: 'Replace',
+                  color: CosmicScreenStyles.textSecondary,
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _assigningSlot = slotIndex);
+                  },
                 ),
-                title: Text(
-                  'Remove',
-                  style: TextStyle(color: Color(0xFFE53935)),
+                _slotActionRow(
+                  icon: Icons.remove_circle_outline,
+                  label: 'Remove',
+                  color: const Color(0xFFE53935),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onClear(slotIndex);
+                  },
                 ),
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onClear(slotIndex);
-                },
-              ),
-            ],
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _slotActionRow({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      splashColor: color.withValues(alpha: 0.08),
+      highlightColor: color.withValues(alpha: 0.05),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontFamily: appFontFamily(context),
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
         ),
       ),
     );

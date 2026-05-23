@@ -67,6 +67,16 @@ class _BreedScreenState extends State<BreedScreen> {
     );
   }
 
+  void _handleModeSwipe(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < 250) return;
+    if (velocity < 0) {
+      _setMode(_BreedMode.fusion);
+      return;
+    }
+    _setMode(_BreedMode.cultivations);
+  }
+
   void _maybeShowColdStorageIntroIfEligible() {
     if (!mounted || !widget.isActive) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -209,43 +219,47 @@ class _BreedScreenState extends State<BreedScreen> {
                   backgroundColor: Colors.transparent,
                   body: SafeArea(
                     bottom: false,
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                          child: _FuseModeToggle(
-                            theme: theme,
-                            mode: _mode,
-                            onTap: _toggleMode,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: _handleModeSwipe,
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            child: _FuseModeToggle(
+                              theme: theme,
+                              mode: _mode,
+                              onTap: _toggleMode,
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: IndexedStack(
-                            index: isCultivations ? 0 : 1,
-                            sizing: StackFit.expand,
-                            children: [
-                              TickerMode(
-                                enabled: isCultivations,
-                                child: NurseryTab(
-                                  maxSeenNowUtc: DateTime.now().toUtc(),
-                                  onHatchComplete: _handleExtractionComplete,
-                                  onRequestAddEgg: () =>
-                                      _setMode(_BreedMode.fusion),
-                                  onRequestFusion: () =>
-                                      _setMode(_BreedMode.fusion),
+                          Expanded(
+                            child: IndexedStack(
+                              index: isCultivations ? 0 : 1,
+                              sizing: StackFit.expand,
+                              children: [
+                                TickerMode(
+                                  enabled: isCultivations,
+                                  child: NurseryTab(
+                                    maxSeenNowUtc: DateTime.now().toUtc(),
+                                    onHatchComplete: _handleExtractionComplete,
+                                    onRequestAddEgg: () =>
+                                        _setMode(_BreedMode.fusion),
+                                    onRequestFusion: () =>
+                                        _setMode(_BreedMode.fusion),
+                                  ),
                                 ),
-                              ),
-                              TickerMode(
-                                enabled: !isCultivations,
-                                child: BreedingTab(
-                                  discoveredCreatures: entries,
-                                  onBreedingComplete: _noop,
+                                TickerMode(
+                                  enabled: !isCultivations,
+                                  child: BreedingTab(
+                                    discoveredCreatures: entries,
+                                    onBreedingComplete: _noop,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -350,12 +364,7 @@ class _FuseModeToggleState extends State<_FuseModeToggle>
     final radius = BorderRadius.circular(6);
 
     return AnimatedBuilder(
-      animation: Listenable.merge([
-        _sigilSpin,
-        _sigilCounter,
-        _press,
-        _ignite,
-      ]),
+      animation: Listenable.merge([_sigilSpin, _sigilCounter, _press, _ignite]),
       builder: (context, _) {
         final pressed = _press.value;
         final ignite = _ignite.value;
@@ -392,8 +401,7 @@ class _FuseModeToggleState extends State<_FuseModeToggle>
                       child: CustomPaint(
                         painter: _AlchemySigilPainter(
                           rotation: _sigilSpin.value * 2 * 3.1415926,
-                          counterRotation:
-                              -_sigilCounter.value * 2 * 3.1415926,
+                          counterRotation: -_sigilCounter.value * 2 * 3.1415926,
                           color: onColor,
                           igniteProgress: ignite,
                         ),
@@ -577,11 +585,7 @@ class _HexagramPainter extends CustomPainter {
     canvas.drawPath(triangle(math.pi / 2), stroke);
 
     // Small center dot — the "quintessence"
-    canvas.drawCircle(
-      center,
-      1.4,
-      Paint()..color = color,
-    );
+    canvas.drawCircle(center, 1.4, Paint()..color = color);
   }
 
   @override
@@ -707,8 +711,7 @@ class _RuneRingPainter extends CustomPainter {
     for (int i = 0; i < dashes; i++) {
       final a = (i / dashes) * 2 * 3.1415926;
       final p1 = center + Offset((r + 1) * math.cos(a), (r + 1) * math.sin(a));
-      final p2 =
-          center + Offset((r + 4) * math.cos(a), (r + 4) * math.sin(a));
+      final p2 = center + Offset((r + 4) * math.cos(a), (r + 4) * math.sin(a));
       canvas.drawLine(p1, p2, dashPaint);
     }
   }

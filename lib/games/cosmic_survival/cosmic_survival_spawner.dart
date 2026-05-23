@@ -14,7 +14,13 @@ enum CosmicEnemyRole { striker, orbiter, shooter, hunter }
 
 enum CosmicEnemyTarget { orb, ship, companion }
 
-enum SurvivalEnemyVariant { standard, orbBreaker, siegeShooter }
+enum SurvivalEnemyVariant {
+  standard,
+  orbBreaker,
+  siegeShooter,
+  crusher,
+  pouncer,
+}
 
 enum SurvivalBossDiscipline {
   standard,
@@ -32,6 +38,7 @@ enum SurvivalWavePattern {
   hunterPack,
   siegePush,
   shooterScreen,
+  swarmRush,
 }
 
 enum SurvivalEliteAffix {
@@ -89,6 +96,9 @@ class CosmicSurvivalEnemy {
   // Wing+Dust disorient: while > 0, shooter-role enemies target
   // other enemies instead of the orb/ship.
   double disorientTimer;
+  // Wing+Ice frost buildup: a sustained ice beam ramps this from 0→1;
+  // at 1 the enemy snaps into a hard freeze and it resets.
+  double frostBuildup;
 
   CosmicSurvivalEnemy({
     required this.position,
@@ -117,6 +127,7 @@ class CosmicSurvivalEnemy {
     this.pipMudTrail = false,
     this.pipMudTrailTimer = 0,
     this.disorientTimer = 0,
+    this.frostBuildup = 0,
   });
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
@@ -366,6 +377,8 @@ class CosmicSurvivalSpawner {
   static const double earlyAdvanceKillThreshold = 0.90;
 
   final Random _rng = Random();
+  final List<String> _recentBossNames = <String>[];
+  final List<String> _recentBossElements = <String>[];
 
   int currentWave = 0;
   bool intermission = false;
@@ -407,12 +420,19 @@ class CosmicSurvivalSpawner {
   static bool isBossWaveNumber(int wave) => wave > 0 && wave % 5 == 0;
 
   int _enemyCountForWave(int wave) {
-    final base = (4 + wave * 1.9 + pow(wave, 1.08) * 0.38).round();
+    final base = (4 + wave * 1.55 + pow(wave, 1.05) * 0.40).round();
+    final earlyPressureBonus = switch (wave) {
+      <= 2 => 2,
+      <= 4 => 3,
+      <= 7 => 4,
+      _ => 0,
+    };
     final multiplier = switch (currentPattern) {
-      SurvivalWavePattern.wispHorde => 1.45,
+      SurvivalWavePattern.wispHorde => 1.35,
       SurvivalWavePattern.hunterPack => 1.10,
       SurvivalWavePattern.siegePush => 0.78,
       SurvivalWavePattern.shooterScreen => 0.92,
+      SurvivalWavePattern.swarmRush => 1.24,
       SurvivalWavePattern.mixed => 1.0,
     };
     final mutatorMultiplier = switch (currentMutator) {
@@ -424,7 +444,9 @@ class CosmicSurvivalSpawner {
       SurvivalWaveMutator.manaFlux => 1.0,
       null => 1.0,
     };
-    return (base * multiplier * mutatorMultiplier).round().clamp(5, 108);
+    return ((base + earlyPressureBonus) * multiplier * mutatorMultiplier)
+        .round()
+        .clamp(5, 96);
   }
 
   double _spawnInterval(int wave) {
@@ -434,6 +456,7 @@ class CosmicSurvivalSpawner {
       SurvivalWavePattern.hunterPack => max(0.16, base * 0.72),
       SurvivalWavePattern.siegePush => min(0.88, base * 1.08),
       SurvivalWavePattern.shooterScreen => max(0.18, base * 0.76),
+      SurvivalWavePattern.swarmRush => max(0.14, base * 0.58),
       SurvivalWavePattern.mixed => base,
     };
     final mutatorFactor = switch (currentMutator) {
@@ -462,6 +485,7 @@ class CosmicSurvivalSpawner {
   SurvivalWavePattern _patternForWave(int wave) {
     if (wave <= 2) return SurvivalWavePattern.mixed;
     if (wave % 9 == 0) return SurvivalWavePattern.siegePush;
+    if (wave >= 8 && wave % 11 == 0) return SurvivalWavePattern.swarmRush;
     if (wave % 7 == 0) return SurvivalWavePattern.wispHorde;
     if (wave >= 10 && wave % 6 == 0) return SurvivalWavePattern.shooterScreen;
     if (wave >= 5 && wave.isOdd) {
@@ -472,7 +496,8 @@ class CosmicSurvivalSpawner {
     final roll = _rng.nextDouble();
     if (roll < 0.18) return SurvivalWavePattern.wispHorde;
     if (roll < 0.32) return SurvivalWavePattern.hunterPack;
-    if (wave >= 10 && roll < 0.44) return SurvivalWavePattern.shooterScreen;
+    if (wave >= 8 && roll < 0.44) return SurvivalWavePattern.swarmRush;
+    if (wave >= 10 && roll < 0.58) return SurvivalWavePattern.shooterScreen;
     return SurvivalWavePattern.mixed;
   }
 
@@ -508,6 +533,13 @@ class CosmicSurvivalSpawner {
         if (wave >= 10 && roll < 0.46) return EnemyTier.phantom;
         if (roll < 0.82) return EnemyTier.sentinel;
         return EnemyTier.drone;
+      case SurvivalWavePattern.swarmRush:
+        final roll = _rng.nextDouble();
+        if (wave >= 16 && roll < 0.08) return EnemyTier.brute;
+        if (wave >= 10 && roll < 0.24) return EnemyTier.phantom;
+        if (wave >= 12 && roll < 0.40) return EnemyTier.sentinel;
+        if (roll < 0.78) return EnemyTier.drone;
+        return EnemyTier.wisp;
       case SurvivalWavePattern.mixed:
         break;
     }
@@ -574,6 +606,7 @@ class CosmicSurvivalSpawner {
       SurvivalWavePattern.hunterPack => 5,
       SurvivalWavePattern.siegePush => 3,
       SurvivalWavePattern.shooterScreen => 4,
+      SurvivalWavePattern.swarmRush => 6,
       SurvivalWavePattern.mixed => 4,
     };
     final batchSize = min(batchLimit, _targetCountThisWave - _spawnedThisWave);
@@ -589,15 +622,25 @@ class CosmicSurvivalSpawner {
     final tier = _tierForWave(currentWave);
     final element = _kElements[_rng.nextInt(_kElements.length)];
     final role = _roleForWave(currentWave, tier);
-    final variant = switch (role) {
-      CosmicEnemyRole.shooter when _rng.nextDouble() < 0.36 =>
-        SurvivalEnemyVariant.siegeShooter,
-      CosmicEnemyRole.striker || CosmicEnemyRole.orbiter
-          when (tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
-              _rng.nextDouble() < 0.34 =>
-        SurvivalEnemyVariant.orbBreaker,
-      _ => SurvivalEnemyVariant.standard,
-    };
+    var variant = SurvivalEnemyVariant.standard;
+    if (role == CosmicEnemyRole.shooter && _rng.nextDouble() < 0.36) {
+      variant = SurvivalEnemyVariant.siegeShooter;
+    } else if ((tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
+        (currentPattern == SurvivalWavePattern.siegePush ||
+            currentMutator == SurvivalWaveMutator.fortified) &&
+        _rng.nextDouble() < 0.34) {
+      variant = SurvivalEnemyVariant.crusher;
+    } else if ((role == CosmicEnemyRole.striker ||
+            role == CosmicEnemyRole.orbiter) &&
+        (tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
+        _rng.nextDouble() < 0.34) {
+      variant = SurvivalEnemyVariant.orbBreaker;
+    } else if ((tier == EnemyTier.drone || tier == EnemyTier.phantom) &&
+        (currentPattern == SurvivalWavePattern.hunterPack ||
+            currentPattern == SurvivalWavePattern.swarmRush) &&
+        _rng.nextDouble() < 0.32) {
+      variant = SurvivalEnemyVariant.pouncer;
+    }
 
     // Spawn outside view
     final margin = max(viewW, viewH) * 0.55;
@@ -641,16 +684,22 @@ class CosmicSurvivalSpawner {
     final variantHpMult = switch (variant) {
       SurvivalEnemyVariant.orbBreaker => 1.22,
       SurvivalEnemyVariant.siegeShooter => 0.92,
+      SurvivalEnemyVariant.crusher => 1.38,
+      SurvivalEnemyVariant.pouncer => 0.88,
       SurvivalEnemyVariant.standard => 1.0,
     };
     final variantSpeedMult = switch (variant) {
       SurvivalEnemyVariant.orbBreaker => 0.84,
       SurvivalEnemyVariant.siegeShooter => 0.95,
+      SurvivalEnemyVariant.crusher => 0.76,
+      SurvivalEnemyVariant.pouncer => 1.22,
       SurvivalEnemyVariant.standard => 1.0,
     };
     final variantDamageMult = switch (variant) {
       SurvivalEnemyVariant.orbBreaker => 1.2,
       SurvivalEnemyVariant.siegeShooter => 1.16,
+      SurvivalEnemyVariant.crusher => 1.26,
+      SurvivalEnemyVariant.pouncer => 1.10,
       SurvivalEnemyVariant.standard => 1.0,
     };
 
@@ -692,9 +741,10 @@ class CosmicSurvivalSpawner {
             ? CosmicEnemyRole.striker
             : CosmicEnemyRole.orbiter;
       case SurvivalWavePattern.hunterPack:
-        return _rng.nextDouble() < 0.72
-            ? CosmicEnemyRole.hunter
-            : CosmicEnemyRole.striker;
+        final roll = _rng.nextDouble();
+        if (roll < 0.56) return CosmicEnemyRole.hunter;
+        if (roll < 0.84) return CosmicEnemyRole.striker;
+        return CosmicEnemyRole.orbiter;
       case SurvivalWavePattern.siegePush:
         if (tier.index >= EnemyTier.sentinel.index &&
             _rng.nextDouble() < 0.42) {
@@ -702,20 +752,25 @@ class CosmicSurvivalSpawner {
         }
         return CosmicEnemyRole.striker;
       case SurvivalWavePattern.shooterScreen:
-        if (_rng.nextDouble() < 0.58) return CosmicEnemyRole.shooter;
-        return _rng.nextDouble() < 0.5
-            ? CosmicEnemyRole.orbiter
-            : CosmicEnemyRole.hunter;
+        final roll = _rng.nextDouble();
+        if (roll < 0.48) return CosmicEnemyRole.shooter;
+        if (roll < 0.78) return CosmicEnemyRole.orbiter;
+        return CosmicEnemyRole.striker;
+      case SurvivalWavePattern.swarmRush:
+        final roll = _rng.nextDouble();
+        if (roll < 0.58) return CosmicEnemyRole.striker;
+        if (roll < 0.92) return CosmicEnemyRole.orbiter;
+        return CosmicEnemyRole.hunter;
       case SurvivalWavePattern.mixed:
         break;
     }
 
     final roll = _rng.nextDouble();
-    if (wave >= 12 && tier.index >= EnemyTier.drone.index && roll < 0.18) {
+    if (wave >= 12 && tier.index >= EnemyTier.drone.index && roll < 0.14) {
       return CosmicEnemyRole.shooter;
     }
-    if (wave >= 8 && roll < 0.35) return CosmicEnemyRole.hunter;
-    if (roll < 0.58) return CosmicEnemyRole.orbiter;
+    if (wave >= 10 && roll < 0.28) return CosmicEnemyRole.hunter;
+    if (roll < 0.62) return CosmicEnemyRole.orbiter;
     return CosmicEnemyRole.striker;
   }
 
@@ -771,22 +826,133 @@ class CosmicSurvivalSpawner {
     _advanceWave();
   }
 
+  static String bossDisciplineLabel(SurvivalBossDiscipline discipline) {
+    return switch (discipline) {
+      SurvivalBossDiscipline.artillery => 'Artillery',
+      SurvivalBossDiscipline.trickster => 'Trickster',
+      SurvivalBossDiscipline.duelist => 'Duelist',
+      SurvivalBossDiscipline.conductor => 'Conductor',
+      SurvivalBossDiscipline.siegebreaker => 'Siegebreaker',
+      SurvivalBossDiscipline.riftcaller => 'Riftcaller',
+      SurvivalBossDiscipline.standard => 'Vanguard',
+    };
+  }
+
+  static String bossDisciplineSummary(SurvivalBossDiscipline discipline) {
+    return switch (discipline) {
+      SurvivalBossDiscipline.artillery => 'Long-range salvos and lane denial.',
+      SurvivalBossDiscipline.trickster => 'Blink dives with flanking pouncers.',
+      SurvivalBossDiscipline.duelist =>
+        'High-tempo hunter pressure on your backline.',
+      SurvivalBossDiscipline.conductor => 'Orb siege with rotating escorts.',
+      SurvivalBossDiscipline.siegebreaker =>
+        'Heavy crushers forcing the orb line.',
+      SurvivalBossDiscipline.riftcaller =>
+        'Portal volleys and crossfire screens.',
+      SurvivalBossDiscipline.standard =>
+        'Classic boss patterns with light support.',
+    };
+  }
+
+  List<BossType> _preferredBossTypesForDiscipline(
+    SurvivalBossDiscipline discipline,
+  ) {
+    return switch (discipline) {
+      SurvivalBossDiscipline.artillery => const [
+        BossType.gunner,
+        BossType.warden,
+      ],
+      SurvivalBossDiscipline.trickster => const [
+        BossType.skirmisher,
+        BossType.charger,
+      ],
+      SurvivalBossDiscipline.duelist => const [
+        BossType.skirmisher,
+        BossType.charger,
+      ],
+      SurvivalBossDiscipline.conductor => const [
+        BossType.carrier,
+        BossType.warden,
+      ],
+      SurvivalBossDiscipline.siegebreaker => const [
+        BossType.bulwark,
+        BossType.charger,
+      ],
+      SurvivalBossDiscipline.riftcaller => const [
+        BossType.warden,
+        BossType.gunner,
+      ],
+      SurvivalBossDiscipline.standard => const [
+        BossType.charger,
+        BossType.gunner,
+        BossType.warden,
+      ],
+    };
+  }
+
+  void _rememberBossTemplate(BossTemplate template) {
+    _recentBossNames.add(template.name);
+    if (_recentBossNames.length > 3) {
+      _recentBossNames.removeAt(0);
+    }
+    _recentBossElements.add(template.element);
+    if (_recentBossElements.length > 2) {
+      _recentBossElements.removeAt(0);
+    }
+  }
+
+  BossTemplate _pickBossTemplateForWave(
+    int wave,
+    SurvivalBossDiscipline discipline,
+  ) {
+    final forceTitanic = wave % 25 == 0;
+    var pool = kBossTemplates
+        .where((t) => forceTitanic ? t.isTitanic : !t.isTitanic)
+        .toList();
+    if (pool.isEmpty) {
+      pool = List<BossTemplate>.of(kBossTemplates);
+    }
+
+    final preferredTypes = _preferredBossTypesForDiscipline(discipline);
+    var candidates = pool
+        .where(
+          (t) =>
+              t.preferredType == null ||
+              preferredTypes.contains(t.preferredType),
+        )
+        .toList();
+    if (candidates.isEmpty) candidates = pool;
+
+    final freshNames = candidates
+        .where((t) => !_recentBossNames.contains(t.name))
+        .toList();
+    if (freshNames.isNotEmpty) {
+      candidates = freshNames;
+    }
+
+    final freshElements = candidates
+        .where((t) => !_recentBossElements.contains(t.element))
+        .toList();
+    if (freshElements.isNotEmpty) {
+      candidates = freshElements;
+    }
+
+    final template = candidates[_rng.nextInt(candidates.length)];
+    _rememberBossTemplate(template);
+    return template;
+  }
+
+  double _survivalBossRadius(BossTemplate template) {
+    if (template.isTitanic) {
+      return (template.radius * 0.64).clamp(84.0, 104.0);
+    }
+    return (template.radius * 0.9).clamp(24.0, 46.0);
+  }
+
   /// Create a boss for a boss wave.
   SurvivalBoss? createBossForWave(int wave, Offset spawnPos) {
     if (kBossTemplates.isEmpty) return null;
-    final titanicPool = kBossTemplates.where((t) => t.isTitanic).toList();
-    final forceTitanic = wave == 25 || wave == 50;
-    final template = forceTitanic && titanicPool.isNotEmpty
-        ? titanicPool[_rng.nextInt(titanicPool.length)]
-        : pickBossTemplate(_rng, titanicChance: 0.06);
     final bossLevel = (wave ~/ 5).clamp(1, 20);
-    final hpScale =
-        (1.0 + (bossLevel - 1) * 0.38) * (template.isTitanic ? 2.5 : 1.0);
-    final speedScale =
-        (1.0 + (bossLevel - 1) * 0.04) * (template.isTitanic ? 0.84 : 1.0);
-    final hp = template.health * 16 * hpScale;
-    final speed = (template.speed * speedScale).clamp(45.0, double.infinity);
-    final type = template.preferredType ?? bossTypeForLevel(bossLevel);
     final discipline = switch (wave) {
       >= 35 when wave % 35 == 0 => SurvivalBossDiscipline.riftcaller,
       >= 30 when wave % 30 == 0 => SurvivalBossDiscipline.siegebreaker,
@@ -796,6 +962,23 @@ class CosmicSurvivalSpawner {
       >= 10 when wave % 10 == 0 => SurvivalBossDiscipline.artillery,
       _ => SurvivalBossDiscipline.standard,
     };
+    final template = _pickBossTemplateForWave(wave, discipline);
+    // Boss HP is normalized off a fixed base rather than template.health
+    // (which ranged 28–65 purely as element flavor), so same-wave bosses
+    // are consistently tuned. It scales on the same wave curve as trash
+    // enemies so a boss never falls behind the elites escorting it, and
+    // because the curve is wave-based it keeps scaling past wave 100.
+    final normalizedHealth = template.isTitanic ? 150.0 : 42.0;
+    final bossHpMultiplier = template.isTitanic ? 3.0 : 1.55;
+    final hp =
+        normalizedHealth *
+        16 *
+        CosmicSurvivalBalance.enemyWaveHpScale(wave) *
+        bossHpMultiplier;
+    final speedScale =
+        (1.0 + (bossLevel - 1) * 0.04) * (template.isTitanic ? 0.84 : 1.0);
+    final speed = (template.speed * speedScale).clamp(45.0, double.infinity);
+    final type = template.preferredType ?? bossTypeForLevel(bossLevel);
 
     return SurvivalBoss(
       template: template,
@@ -807,7 +990,7 @@ class CosmicSurvivalSpawner {
       maxHp: hp,
       speed: speed,
       baseSpeed: speed,
-      radius: template.radius,
+      radius: _survivalBossRadius(template),
       color: elementColor(template.element),
     );
   }
@@ -820,7 +1003,15 @@ class CosmicSurvivalSpawner {
     double viewH,
   ) {
     final adds = <CosmicSurvivalEnemy>[];
-    final count = 3 + (boss.level ~/ 2).clamp(0, 5);
+    final count = switch (boss.discipline) {
+      SurvivalBossDiscipline.artillery => 2 + (boss.level >= 10 ? 1 : 0),
+      SurvivalBossDiscipline.duelist => 2 + (boss.level >= 12 ? 1 : 0),
+      SurvivalBossDiscipline.siegebreaker => 3 + (boss.level ~/ 5).clamp(0, 2),
+      SurvivalBossDiscipline.trickster => 3 + (boss.level ~/ 4).clamp(0, 3),
+      SurvivalBossDiscipline.conductor => 4 + (boss.level ~/ 4).clamp(0, 3),
+      SurvivalBossDiscipline.riftcaller => 4 + (boss.level ~/ 4).clamp(0, 4),
+      SurvivalBossDiscipline.standard => 3 + (boss.level ~/ 2).clamp(0, 5),
+    };
     for (var i = 0; i < count; i++) {
       final angle = _rng.nextDouble() * 2 * pi;
       final offset = Offset(
@@ -828,22 +1019,108 @@ class CosmicSurvivalSpawner {
         sin(angle) * boss.radius * 2,
       );
       final pos = boss.position + offset;
-      final tier = boss.level >= 10 ? EnemyTier.sentinel : EnemyTier.drone;
+      final tier = switch (boss.discipline) {
+        SurvivalBossDiscipline.artillery =>
+          (i == 0 && boss.level >= 10) ? EnemyTier.phantom : EnemyTier.sentinel,
+        SurvivalBossDiscipline.duelist =>
+          (i == 0 || boss.level >= 12) ? EnemyTier.phantom : EnemyTier.drone,
+        SurvivalBossDiscipline.siegebreaker =>
+          (i == 0 || boss.level >= 10) ? EnemyTier.brute : EnemyTier.sentinel,
+        SurvivalBossDiscipline.trickster =>
+          (i == 0 || boss.level >= 10) ? EnemyTier.phantom : EnemyTier.drone,
+        SurvivalBossDiscipline.riftcaller =>
+          i == 0 ? EnemyTier.phantom : EnemyTier.sentinel,
+        SurvivalBossDiscipline.conductor =>
+          (i % 3 == 0 && boss.level >= 10)
+              ? EnemyTier.sentinel
+              : EnemyTier.drone,
+        _ => boss.level >= 10 ? EnemyTier.sentinel : EnemyTier.drone,
+      };
+      final role = switch (boss.discipline) {
+        SurvivalBossDiscipline.artillery =>
+          i == 0 ? CosmicEnemyRole.shooter : CosmicEnemyRole.orbiter,
+        SurvivalBossDiscipline.duelist =>
+          i.isEven ? CosmicEnemyRole.hunter : CosmicEnemyRole.striker,
+        SurvivalBossDiscipline.siegebreaker =>
+          i.isEven ? CosmicEnemyRole.striker : CosmicEnemyRole.orbiter,
+        SurvivalBossDiscipline.trickster =>
+          i.isEven ? CosmicEnemyRole.hunter : CosmicEnemyRole.shooter,
+        SurvivalBossDiscipline.riftcaller =>
+          i.isEven ? CosmicEnemyRole.shooter : CosmicEnemyRole.orbiter,
+        SurvivalBossDiscipline.conductor =>
+          i.isEven ? CosmicEnemyRole.orbiter : CosmicEnemyRole.striker,
+        _ => CosmicEnemyRole.striker,
+      };
+      final variant = switch (boss.discipline) {
+        SurvivalBossDiscipline.artillery when role == CosmicEnemyRole.shooter =>
+          SurvivalEnemyVariant.siegeShooter,
+        SurvivalBossDiscipline.artillery => SurvivalEnemyVariant.standard,
+        SurvivalBossDiscipline.duelist => SurvivalEnemyVariant.pouncer,
+        SurvivalBossDiscipline.siegebreaker
+            when role == CosmicEnemyRole.striker =>
+          SurvivalEnemyVariant.crusher,
+        SurvivalBossDiscipline.siegebreaker => SurvivalEnemyVariant.orbBreaker,
+        SurvivalBossDiscipline.trickster => SurvivalEnemyVariant.pouncer,
+        SurvivalBossDiscipline.riftcaller
+            when role == CosmicEnemyRole.shooter =>
+          SurvivalEnemyVariant.siegeShooter,
+        SurvivalBossDiscipline.conductor when role == CosmicEnemyRole.orbiter =>
+          SurvivalEnemyVariant.orbBreaker,
+        _ => SurvivalEnemyVariant.standard,
+      };
       final hp =
           tierBaseHp(tier) *
           CosmicSurvivalBalance.enemyWaveHpScale(currentWave);
+      final variantHpMult = switch (variant) {
+        SurvivalEnemyVariant.orbBreaker => 1.22,
+        SurvivalEnemyVariant.siegeShooter => 0.92,
+        SurvivalEnemyVariant.crusher => 1.38,
+        SurvivalEnemyVariant.pouncer => 0.88,
+        SurvivalEnemyVariant.standard => 1.0,
+      };
+      final variantSpeedMult = switch (variant) {
+        SurvivalEnemyVariant.orbBreaker => 0.84,
+        SurvivalEnemyVariant.siegeShooter => 0.95,
+        SurvivalEnemyVariant.crusher => 0.76,
+        SurvivalEnemyVariant.pouncer => 1.22,
+        SurvivalEnemyVariant.standard => 1.0,
+      };
+      final variantDamageMult = switch (variant) {
+        SurvivalEnemyVariant.orbBreaker => 1.2,
+        SurvivalEnemyVariant.siegeShooter => 1.16,
+        SurvivalEnemyVariant.crusher => 1.26,
+        SurvivalEnemyVariant.pouncer => 1.10,
+        SurvivalEnemyVariant.standard => 1.0,
+      };
       adds.add(
         CosmicSurvivalEnemy(
           position: pos,
-          hp: hp,
-          maxHp: hp,
-          speed: tierBaseSpeed(tier),
-          damage: tierBaseDamage(tier),
+          hp: hp * variantHpMult,
+          maxHp: hp * variantHpMult,
+          speed: tierBaseSpeed(tier) * variantSpeedMult,
+          damage: tierBaseDamage(tier) * variantDamageMult,
           radius: tierRadius(tier),
           tier: tier,
           element: boss.template.element,
-          role: CosmicEnemyRole.striker,
-          target: CosmicEnemyTarget.orb,
+          role: role,
+          variant: variant,
+          target: switch (role) {
+            CosmicEnemyRole.shooter
+                when boss.discipline == SurvivalBossDiscipline.artillery =>
+              CosmicEnemyTarget.orb,
+            CosmicEnemyRole.hunter
+                when boss.discipline == SurvivalBossDiscipline.duelist =>
+              CosmicEnemyTarget.companion,
+            CosmicEnemyRole.striker
+                when boss.discipline == SurvivalBossDiscipline.siegebreaker =>
+              CosmicEnemyTarget.orb,
+            CosmicEnemyRole.shooter
+                when boss.discipline == SurvivalBossDiscipline.riftcaller =>
+              CosmicEnemyTarget.orb,
+            CosmicEnemyRole.shooter => CosmicEnemyTarget.companion,
+            CosmicEnemyRole.hunter => CosmicEnemyTarget.ship,
+            _ => CosmicEnemyTarget.orb,
+          },
         ),
       );
     }

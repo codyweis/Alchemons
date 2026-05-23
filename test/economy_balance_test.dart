@@ -50,8 +50,16 @@ void main() {
           wave,
           Random(wave),
         );
-        expect(reward, isNotNull, reason: 'wave $wave should always award loot');
-        expect(reward!.quantity, 1, reason: 'wave $wave should stay on the smallest loot tier');
+        expect(
+          reward,
+          isNotNull,
+          reason: 'wave $wave should always award loot',
+        );
+        expect(
+          reward!.quantity,
+          1,
+          reason: 'wave $wave should stay on the smallest loot tier',
+        );
       }
 
       var lootDrops = 0;
@@ -61,8 +69,21 @@ void main() {
         }
       }
 
-      expect(lootDrops, greaterThan(400));
-      expect(lootDrops, lessThan(600));
+      expect(lootDrops, greaterThan(550));
+      expect(lootDrops, lessThan(750));
+    });
+
+    test('survival late clears can occasionally tier up loot boxes', () {
+      var doubled = 0;
+      for (var i = 0; i < 2000; i++) {
+        final reward = LootBoxConfig.rollSurvivalLootBoxReward(45, Random(i));
+        if (reward != null && reward.quantity == 2) {
+          doubled++;
+        }
+      }
+
+      expect(doubled, greaterThan(450));
+      expect(doubled, lessThan(900));
     });
   });
 }

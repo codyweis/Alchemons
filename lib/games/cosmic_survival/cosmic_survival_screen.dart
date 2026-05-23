@@ -28,6 +28,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -40,23 +41,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _C {
-  static const bg0 = Color(0xFF080A0E);
-  static const bg1 = Color(0xFF0E1117);
-  static const bg2 = Color(0xFF141820);
-  static const bg3 = Color(0xFF1C2230);
+  static const bg0 = Color(0xFF080808);
+  static const bg1 = Color(0xFF111111);
+  static const bg2 = Color(0xFF171511);
+  static const bg3 = Color(0xFF201D17);
   static const bg = bg0;
-  static const panelBg = bg2;
-  static const amber = Color(0xFFD97706);
-  static const amberBright = Color(0xFFF59E0B);
+  static const amber = Color(0xFFC4A35A);
+  static const amberBright = Color(0xFFE4C16A);
   static const accent = amber;
-  static const teal = Color(0xFF0EA5E9);
-  static const textPrimary = Color(0xFFE8DCC8);
-  static const textSecondary = Color(0xFF8A7B6A);
-  static const textMuted = Color(0xFF4A3F35);
+  static const teal = Color(0xFF5BC8E8);
+  static const textPrimary = Color(0xFFE8DFC8);
+  static const textSecondary = Color(0xFFB5A98A);
+  static const textMuted = Color(0xFF6B6050);
   static const danger = Color(0xFFC0392B);
-  static const success = Color(0xFF4CAF50);
-  static const borderDim = Color(0xFF252D3A);
-  static const borderAccent = Color(0xFF6B4C20);
+  static const success = Color(0xFF22C55E);
+  static const borderDim = Color(0xFF2E2A23);
+  static const borderAccent = Color(0xFF74613A);
 }
 
 class _T {
@@ -157,6 +157,48 @@ class _EtchedDivider extends StatelessWidget {
   }
 }
 
+class _SurvivalPlate extends StatelessWidget {
+  final Widget child;
+  final Color accent;
+  final EdgeInsetsGeometry padding;
+  final Color? background;
+  final double bracketSize;
+
+  const _SurvivalPlate({
+    required this.child,
+    this.accent = _C.accent,
+    this.padding = const EdgeInsets.all(12),
+    this.background,
+    this.bracketSize = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _BracketFramePainter(
+        color: accent.withValues(alpha: 0.62),
+        bracketSize: bracketSize,
+        strokeWidth: 1.15,
+      ),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: background ?? _C.bg1.withValues(alpha: 0.9),
+          border: Border.all(color: _C.borderDim.withValues(alpha: 0.85)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.10),
+              blurRadius: 18,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 class _HudPill extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -170,29 +212,35 @@ class _HudPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: _C.bg1.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
+    return CustomPaint(
+      painter: _BracketFramePainter(
+        color: color.withValues(alpha: 0.50),
+        bracketSize: 7,
+        strokeWidth: 1.05,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: _C.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: _C.bg1.withValues(alpha: 0.88),
+          border: Border.all(color: _C.borderDim.withValues(alpha: 0.85)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: _C.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -350,6 +398,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   // Boss announcement
   String? _bossAnnouncement;
+  String? _bossAnnouncementSubtitle;
   Timer? _bossAnnouncementTimer;
   String? _waveAnnouncementTitle;
   String? _waveAnnouncementSubtitle;
@@ -822,6 +871,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       _gameOverRewardEntries = [];
       _powerUpChoices = [];
       _bossAnnouncement = null;
+      _bossAnnouncementSubtitle = null;
       _waveAnnouncementTitle = null;
       _waveAnnouncementSubtitle = null;
       _pendingWaveAnnouncements.clear();
@@ -886,10 +936,20 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(() => _bossAnnouncement = boss.template.name);
+      setState(() {
+        _bossAnnouncement = boss.template.name;
+        _bossAnnouncementSubtitle =
+            '${CosmicSurvivalSpawner.bossDisciplineLabel(boss.discipline)}'
+            ' • ${CosmicSurvivalSpawner.bossDisciplineSummary(boss.discipline)}';
+      });
       _bossAnnouncementTimer?.cancel();
       _bossAnnouncementTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _bossAnnouncement = null);
+        if (mounted) {
+          setState(() {
+            _bossAnnouncement = null;
+            _bossAnnouncementSubtitle = null;
+          });
+        }
       });
     });
   }
@@ -1115,6 +1175,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       _powerUpChoices = [];
       _showPauseMenu = false;
       _bossAnnouncement = null;
+      _bossAnnouncementSubtitle = null;
       _waveAnnouncementTitle = null;
       _waveAnnouncementSubtitle = null;
       _pendingWaveAnnouncements.clear();
@@ -1333,6 +1394,161 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   color: _C.textPrimary,
                   fontSize: 13,
                   height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _PauseActionButton(
+                  label: 'CLOSE',
+                  icon: Icons.close_rounded,
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCompanionStats(int slotIndex) {
+    final game = _game;
+    final party = _party;
+    if (game == null || party == null || slotIndex >= party.length) return;
+    final member = party[slotIndex];
+    final s = game.companionRunStats[slotIndex];
+    final heal = game.healingStats;
+    final deployed =
+        game.activeCompanions.containsKey(slotIndex) ||
+        (s != null && (s.damageDealt > 0 || s.damageTaken > 0 || s.kills > 0));
+
+    final fam = member.family.isEmpty
+        ? member.family
+        : '${member.family[0].toUpperCase()}${member.family.substring(1)}';
+    final specialInfo = cosmicFamilySpecialInfo(fam, member.element);
+
+    String n(num v) => v.round().toString();
+
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: _C.bg1,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: _C.teal.withValues(alpha: 0.5)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.insights_rounded, color: _C.teal, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      member.displayName,
+                      style: const TextStyle(
+                        color: _C.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'RUN STATS',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: _C.textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _EtchedDivider(label: 'COMBAT ROLE'),
+                      const SizedBox(height: 10),
+                      _InfoBlock(
+                        label: 'Special Ability',
+                        value: cosmicSpecialAbilityName(
+                          member.family,
+                          member.element,
+                        ),
+                        text: specialInfo.description,
+                      ),
+                      _InfoBlock(
+                        label: 'Focus',
+                        text: _familyFocusBlurb(member.family),
+                      ),
+                      _InfoBlock(
+                        label: 'Positioning',
+                        text: _familyPositionBlurb(member.family),
+                      ),
+                      const SizedBox(height: 14),
+                      const _EtchedDivider(label: 'CONTRIBUTION'),
+                      const SizedBox(height: 10),
+                      if (!deployed)
+                        const Text(
+                          'Not deployed yet this run.',
+                          style: TextStyle(
+                            color: _C.textSecondary,
+                            fontSize: 12,
+                          ),
+                        )
+                      else ...[
+                        _StatLine(
+                          label: 'Damage dealt',
+                          value: n(s?.damageDealt ?? 0),
+                          tint: _C.amberBright,
+                        ),
+                        _StatLine(
+                          label: 'Enemies killed',
+                          value: n(s?.kills ?? 0),
+                          tint: _C.amberBright,
+                        ),
+                        _StatLine(
+                          label: 'Damage taken',
+                          value: n(s?.damageTaken ?? 0),
+                          tint: _C.danger,
+                        ),
+                        _StatLine(
+                          label: 'Healing done',
+                          value: n(s?.healingDone ?? 0),
+                          tint: _C.success,
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      const _EtchedDivider(label: 'TEAM HEALING'),
+                      const SizedBox(height: 10),
+                      _StatLine(
+                        label: 'To alchemons',
+                        value: n(heal.toMons),
+                        tint: _C.teal,
+                      ),
+                      _StatLine(
+                        label: 'To ship',
+                        value: n(heal.toShip),
+                        tint: _C.teal,
+                      ),
+                      _StatLine(
+                        label: 'To orb',
+                        value: n(heal.toOrb),
+                        tint: _C.teal,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
@@ -1964,102 +2180,129 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
         // Boss announcement
         if (_bossAnnouncement != null)
-          Positioned(
-            top: 80,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0E1117).withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _C.danger.withValues(alpha: 0.6)),
-                ),
-                child: Text(
-                  'BOSS: ${_bossAnnouncement!}',
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    color: _C.danger,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
+          Positioned.fill(
+            child: SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 60),
+                  child: _SurvivalPlate(
+                    accent: _C.danger,
+                    bracketSize: 9,
+                    background: _C.bg0.withValues(alpha: 0.94),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 10,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              color: _C.danger,
+                              size: 13,
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'BOSS INCOMING',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: _C.danger,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          _bossAnnouncement!.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: _C.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.6,
+                          ),
+                        ),
+                        if (_bossAnnouncementSubtitle != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            _bossAnnouncementSubtitle!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              color: _C.textSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
         if (_waveAnnouncementTitle != null)
-          Positioned(
-            top: 118,
-            left: 0,
-            right: 0,
+          Positioned.fill(
             child: IgnorePointer(
-              child: Center(
-                child: AnimatedOpacity(
-                  opacity: _waveAnnouncementTitle == null ? 0 : 1,
-                  duration: const Duration(milliseconds: 420),
-                  curve: Curves.easeOut,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 14,
+              child: SafeArea(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      top: _bossAnnouncement != null ? 152 : 60,
                     ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xCC090B12),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: _C.teal.withValues(alpha: 0.18),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _C.teal.withValues(alpha: 0.10),
-                          blurRadius: 26,
-                          spreadRadius: 2,
+                    child: AnimatedOpacity(
+                      opacity: _waveAnnouncementTitle == null ? 0 : 1,
+                      duration: const Duration(milliseconds: 420),
+                      curve: Curves.easeOut,
+                      child: _SurvivalPlate(
+                        accent: _C.amber,
+                        background: _C.bg0.withValues(alpha: 0.94),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 26,
+                          vertical: 13,
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ShaderMask(
-                          shaderCallback: (bounds) => LinearGradient(
-                            colors: [
-                              const Color(0xFFF3EBD0),
-                              _C.teal.withValues(alpha: 0.95),
-                              _C.accent.withValues(alpha: 0.92),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _waveAnnouncementTitle!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                color: _C.amberBright,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 3.4,
+                              ),
+                            ),
+                            if (_waveAnnouncementSubtitle != null) ...[
+                              const SizedBox(height: 7),
+                              Text(
+                                _waveAnnouncementSubtitle!.toUpperCase(),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: _C.textSecondary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.8,
+                                ),
+                              ),
                             ],
-                          ).createShader(bounds),
-                          child: Text(
-                            _waveAnnouncementTitle!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 3.2,
-                            ),
-                          ),
+                          ],
                         ),
-                        if (_waveAnnouncementSubtitle != null) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            _waveAnnouncementSubtitle!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: _C.textSecondary.withValues(alpha: 0.92),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.8,
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -2275,7 +2518,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 label: game.stats.formattedTime,
                 color: _C.textSecondary,
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               _HudIconButton(
                 icon: _showPauseMenu
                     ? Icons.play_arrow_rounded
@@ -2283,7 +2526,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 color: _C.accent,
                 onTap: _togglePauseMenu,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _HudIconButton(
                 icon: zoomIcon,
                 color: _C.teal,
@@ -2291,22 +2534,25 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               ),
               const SizedBox(width: 8),
               // Ship HP
-              if (game.isLoaded)
-                _HudBar(
-                  label: game.ship.isDead ? 'GHOST' : 'SHIP',
-                  percent: game.ship.isDead ? 1.0 : game.ship.hpPercent,
-                  color: game.ship.isDead
-                      ? const Color(0xFF9FE8FF)
-                      : const Color(0xFF00E5FF),
-                  width: 70,
+              if (game.isLoaded) ...[
+                Flexible(
+                  child: _HudBar(
+                    label: game.ship.isDead ? 'GHOST' : 'SHIP',
+                    percent: game.ship.isDead ? 1.0 : game.ship.hpPercent,
+                    color: game.ship.isDead
+                        ? const Color(0xFF9FE8FF)
+                        : const Color(0xFF00E5FF),
+                  ),
                 ),
-              if (game.isLoaded) const SizedBox(width: 8),
+                const SizedBox(width: 6),
+              ],
               // Orb HP
-              _HudBar(
-                label: 'ORB',
-                percent: game.isLoaded ? game.orb.hpPercent : 1.0,
-                color: _C.accent,
-                width: 70,
+              Flexible(
+                child: _HudBar(
+                  label: 'ORB',
+                  percent: game.isLoaded ? game.orb.hpPercent : 1.0,
+                  color: _C.accent,
+                ),
               ),
             ],
           ),
@@ -2345,7 +2591,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     return GestureDetector(
       onTap: _closePauseMenu,
       child: Container(
-        color: Colors.black.withValues(alpha: 0.72),
+        decoration: BoxDecoration(
+          color: _C.bg0.withValues(alpha: 0.84),
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.15,
+            colors: [
+              _C.bg3.withValues(alpha: 0.36),
+              _C.bg0.withValues(alpha: 0.88),
+            ],
+          ),
+        ),
         child: SafeArea(
           child: GestureDetector(
             onTap: () {},
@@ -2353,139 +2609,128 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               width: double.infinity,
               height: double.infinity,
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF121720),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _C.accent.withValues(alpha: 0.7)),
-                boxShadow: [
-                  BoxShadow(
-                    color: _C.accent.withValues(alpha: 0.16),
-                    blurRadius: 24,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: _C.accent.withValues(alpha: 0.18),
+              child: _SurvivalPlate(
+                accent: _C.amber,
+                padding: EdgeInsets.zero,
+                background: _C.bg1.withValues(alpha: 0.96),
+                child: Column(
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: _C.borderAccent.withValues(alpha: 0.36),
+                          ),
                         ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.pause_circle_outline_rounded,
-                          color: _C.accent,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'PAUSED',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: _C.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                        ),
-                        _PauseActionButton(
-                          label: 'RESUME',
-                          icon: Icons.play_arrow_rounded,
-                          onTap: _closePauseMenu,
-                        ),
-                        const SizedBox(width: 8),
-                        _PauseActionButton(
-                          label: 'QUIT',
-                          icon: Icons.exit_to_app_rounded,
-                          onTap: _quitRunFromPause,
-                          fillColor: _C.danger,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          _PauseStatRow(
-                            children: [
-                              _PauseStatChip(
-                                label: 'Wave',
-                                value: '${game.spawner.currentWave}',
-                              ),
-                              _PauseStatChip(
-                                label: 'Kills',
-                                value: '${game.stats.kills}',
-                              ),
-                              _PauseStatChip(
-                                label: 'Score',
-                                value: '${game.stats.score}',
-                              ),
-                            ],
+                          const Icon(
+                            Icons.pause_circle_outline_rounded,
+                            color: _C.amberBright,
+                            size: 20,
                           ),
-                          const SizedBox(height: 8),
-                          _PauseStatRow(
-                            children: [
-                              _PauseStatChip(
-                                label: 'Time',
-                                value: game.stats.formattedTime,
-                              ),
-                              _PauseStatChip(
-                                label: 'Ship',
-                                value: game.ship.isDead
-                                    ? 'Down'
-                                    : '${(game.ship.hpPercent * 100).round()}%',
-                              ),
-                              _PauseStatChip(
-                                label: 'Orb',
-                                value: '${(game.orb.hpPercent * 100).round()}%',
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          _PauseStatRow(
-                            children: [
-                              _PauseStatChip(
-                                label: 'Alchemy',
-                                value:
-                                    '${game.alchemicalMeter.round()}/${game.alchemicalMeterMax.round()}',
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          if (keystoneHistory.isNotEmpty) ...[
-                            const Text(
-                              'KEYSTONE',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.teal,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.6,
-                              ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'SURVIVAL PAUSED',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: _C.textPrimary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'TACTICAL READOUT',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: _C.textMuted,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.6,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: _C.panelBg,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: _C.teal.withValues(alpha: 0.18),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _PauseStatRow(
+                              children: [
+                                _PauseStatChip(
+                                  label: 'Wave',
+                                  value: '${game.spawner.currentWave}',
+                                ),
+                                _PauseStatChip(
+                                  label: 'Kills',
+                                  value: '${game.stats.kills}',
+                                ),
+                                _PauseStatChip(
+                                  label: 'Score',
+                                  value: '${game.stats.score}',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _PauseStatRow(
+                              children: [
+                                _PauseStatChip(
+                                  label: 'Time',
+                                  value: game.stats.formattedTime,
+                                ),
+                                _PauseStatChip(
+                                  label: 'Ship',
+                                  value: game.ship.isDead
+                                      ? 'Down'
+                                      : '${(game.ship.hpPercent * 100).round()}%',
+                                ),
+                                _PauseStatChip(
+                                  label: 'Orb',
+                                  value:
+                                      '${(game.orb.hpPercent * 100).round()}%',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _PauseStatRow(
+                              children: [
+                                _PauseStatChip(
+                                  label: 'Alchemy',
+                                  value:
+                                      '${game.alchemicalMeter.round()}/${game.alchemicalMeterMax.round()}',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            if (keystoneHistory.isNotEmpty) ...[
+                              const Text(
+                                'KEYSTONE',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: _C.teal,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.6,
                                 ),
                               ),
-                              child: Wrap(
+                              const SizedBox(height: 8),
+                              Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: keystoneHistory.map((entry) {
@@ -2503,8 +2748,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                         vertical: 6,
                                       ),
                                       decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6),
-                                        color: const Color(0xFF0F141B),
+                                        color: _C.bg1,
                                         border: Border.all(
                                           color: _C.teal.withValues(
                                             alpha: 0.45,
@@ -2523,38 +2767,28 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                   );
                                 }).toList(),
                               ),
-                            ),
-                            const SizedBox(height: 14),
-                          ],
-                          const Text(
-                            'POWERUPS',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: _C.accent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Tap a perk to see what it does.',
-                            style: TextStyle(
-                              color: _C.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: _C.panelBg,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _C.textSecondary.withValues(alpha: 0.18),
+                              const SizedBox(height: 14),
+                            ],
+                            const Text(
+                              'POWERUPS',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: _C.accent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.6,
                               ),
                             ),
-                            child: globalHistory.isEmpty
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Tap a perk to see what it does.',
+                              style: TextStyle(
+                                color: _C.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            globalHistory.isEmpty
                                 ? const Text(
                                     'No global upgrades taken yet.',
                                     style: TextStyle(
@@ -2595,10 +2829,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                             vertical: 6,
                                           ),
                                           decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                            color: const Color(0xFF0F141B),
+                                            color: _C.bg1,
                                             border: Border.all(
                                               color: _rarityColor(
                                                 entry.def.rarity,
@@ -2621,141 +2852,174 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                       );
                                     }).toList(),
                                   ),
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'ALCHEMON STATS',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: _C.teal,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.6,
+                            const SizedBox(height: 14),
+                            const Text(
+                              'ALCHEMON STATS',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: _C.teal,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.6,
+                              ),
                             ),
+                            const SizedBox(height: 8),
+                            ListView.separated(
+                              itemCount: party.length,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (_, index) {
+                                final member = party[index];
+                                final comp = game.activeCompanions[index];
+                                return _PauseCompanionCard(
+                                  member: member,
+                                  companion: comp,
+                                  appliedPowerUps:
+                                      companionHistory[index] ?? const [],
+                                  powerUps: game.powerUps,
+                                  onPowerUpTap: (entry) => _showPowerUpInfo(
+                                    entry.def,
+                                    game.powerUps,
+                                    slotIndex: entry.targetSlot,
+                                    targetName: entry.targetName,
+                                  ),
+                                  onTap: () => _showCompanionStats(index),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // ── Footer: Actions + Controls ──
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                            color: _C.borderAccent.withValues(alpha: 0.36),
                           ),
-                          const SizedBox(height: 8),
-                          ListView.separated(
-                            itemCount: party.length,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 8),
-                            itemBuilder: (_, index) {
-                              final member = party[index];
-                              final comp = game.activeCompanions[index];
-                              return _PauseCompanionCard(
-                                member: member,
-                                companion: comp,
-                                appliedPowerUps:
-                                    companionHistory[index] ?? const [],
-                                powerUps: game.powerUps,
-                                attackMultiplier: game.powerUps
-                                    .companionAttackMultiplier(index),
-                                defenseMultiplier: game.powerUps
-                                    .companionDefenseMultiplier(index),
-                                speedMultiplier: game.powerUps
-                                    .companionSpeedMultiplier(index),
-                                onPowerUpTap: (entry) => _showPowerUpInfo(
-                                  entry.def,
-                                  game.powerUps,
-                                  slotIndex: entry.targetSlot,
-                                  targetName: entry.targetName,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              _PauseActionButton(
+                                label: 'QUIT',
+                                icon: Icons.exit_to_app_rounded,
+                                onTap: _quitRunFromPause,
+                                fillColor: _C.danger,
+                                filled: false,
+                                compact: true,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _PauseActionButton(
+                                  label: 'RESUME',
+                                  icon: Icons.play_arrow_rounded,
+                                  onTap: _closePauseMenu,
                                 ),
-                              );
-                            },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    const Text(
+                                      'JOYSTICK',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        color: _C.textSecondary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    SizedBox(
+                                      height: 24,
+                                      child: Switch.adaptive(
+                                        value: _showJoystick,
+                                        activeThumbColor: _C.accent,
+                                        activeTrackColor: _C.accent.withValues(
+                                          alpha: 0.34,
+                                        ),
+                                        inactiveThumbColor: _C.textMuted,
+                                        inactiveTrackColor: _C.borderDim,
+                                        onChanged: (v) async {
+                                          setState(() {
+                                            _showJoystick = v;
+                                            if (!v) {
+                                              game.setJoystickInput(
+                                                Offset.zero,
+                                              );
+                                            }
+                                          });
+                                          final prefs =
+                                              await SharedPreferences.getInstance();
+                                          await prefs.setBool(
+                                            'cosmic_survival_joystick_enabled',
+                                            v,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    const Text(
+                                      'LARGE',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        color: _C.textSecondary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    SizedBox(
+                                      height: 24,
+                                      child: Switch.adaptive(
+                                        value: _largeJoystick,
+                                        activeThumbColor: _C.accent,
+                                        activeTrackColor: _C.accent.withValues(
+                                          alpha: 0.34,
+                                        ),
+                                        inactiveThumbColor: _C.textMuted,
+                                        inactiveTrackColor: _C.borderDim,
+                                        onChanged: (v) async {
+                                          setState(() => _largeJoystick = v);
+                                          final prefs =
+                                              await SharedPreferences.getInstance();
+                                          await prefs.setBool(
+                                            'cosmic_survival_large_joystick',
+                                            v,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  // ── Footer: Controls ──
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(
-                          color: _C.accent.withValues(alpha: 0.18),
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              const Text(
-                                'JOYSTICK',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: _C.textSecondary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                              const Spacer(),
-                              SizedBox(
-                                height: 24,
-                                child: Switch.adaptive(
-                                  value: _showJoystick,
-                                  activeThumbColor: _C.accent,
-                                  onChanged: (v) async {
-                                    setState(() {
-                                      _showJoystick = v;
-                                      if (!v) {
-                                        game.setJoystickInput(Offset.zero);
-                                      }
-                                    });
-                                    final prefs =
-                                        await SharedPreferences.getInstance();
-                                    await prefs.setBool(
-                                      'cosmic_survival_joystick_enabled',
-                                      v,
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              const Text(
-                                'LARGE',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: _C.textSecondary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                              const Spacer(),
-                              SizedBox(
-                                height: 24,
-                                child: Switch.adaptive(
-                                  value: _largeJoystick,
-                                  activeThumbColor: _C.accent,
-                                  onChanged: (v) async {
-                                    setState(() => _largeJoystick = v);
-                                    final prefs =
-                                        await SharedPreferences.getInstance();
-                                    await prefs.setBool(
-                                      'cosmic_survival_large_joystick',
-                                      v,
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -2776,13 +3040,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       right: 12,
       top: 100,
       child: SafeArea(
-        child: Container(
+        child: _SurvivalPlate(
+          accent: tethered ? _C.teal : _C.borderAccent,
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xCC0A0E17),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-          ),
+          background: _C.bg1.withValues(alpha: 0.82),
+          bracketSize: 8,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: slotsMaxHeight + 56),
             child: Column(
@@ -2805,12 +3067,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     decoration: BoxDecoration(
                       color: tethered
                           ? _C.teal.withValues(alpha: 0.20)
-                          : Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8),
+                          : _C.bg2.withValues(alpha: 0.72),
                       border: Border.all(
                         color: tethered
-                            ? _C.teal
-                            : _C.textSecondary.withValues(alpha: 0.3),
+                            ? _C.teal.withValues(alpha: 0.74)
+                            : _C.borderDim,
                         width: 1.5,
                       ),
                     ),
@@ -2907,154 +3168,175 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         }
         setState(() {});
       },
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: isDead
-              ? _C.danger.withValues(alpha: 0.1)
-              : isTethered
-              ? _C.teal.withValues(alpha: 0.16)
-              : isActive
-              ? _C.accent.withValues(alpha: 0.15)
-              : _C.panelBg,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isDead
-                ? _C.danger.withValues(alpha: 0.5)
-                : isTethered
-                ? _C.teal
-                : isActive
-                ? _C.accent
-                : _C.textSecondary.withValues(alpha: 0.3),
-            width: isActive || isTethered ? 2 : 1,
-          ),
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color:
+              (isDead
+                      ? _C.danger
+                      : isTethered
+                      ? _C.teal
+                      : isActive
+                      ? _C.amberBright
+                      : _C.borderAccent)
+                  .withValues(alpha: isActive || isTethered ? 0.76 : 0.42),
+          bracketSize: 5,
+          strokeWidth: isActive || isTethered ? 1.15 : 0.9,
         ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // Creature image or placeholder
-            Center(
-              child: member.imagePath != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Image.asset(
-                        member.imagePath!,
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Text(
-                          member.displayName[0],
-                          style: const TextStyle(
-                            color: _C.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: isDead
+                ? _C.danger.withValues(alpha: 0.1)
+                : isTethered
+                ? _C.teal.withValues(alpha: 0.16)
+                : isActive
+                ? _C.accent.withValues(alpha: 0.15)
+                : _C.bg2.withValues(alpha: 0.86),
+            border: Border.all(color: _C.borderDim.withValues(alpha: 0.82)),
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Creature image or placeholder
+              Center(
+                child: member.imagePath != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: Image.asset(
+                          member.imagePath!,
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Text(
+                            member.displayName[0],
+                            style: const TextStyle(
+                              color: _C.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
+                      )
+                    : Text(
+                        member.displayName[0],
+                        style: const TextStyle(
+                          color: _C.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    )
-                  : Text(
-                      member.displayName[0],
+              ),
+              // HP bar at bottom
+              if (isActive || hp < 1.0)
+                Positioned(
+                  bottom: 2,
+                  left: 4,
+                  right: 4,
+                  child: Container(
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        width: 0.6,
+                      ),
+                    ),
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: hp.clamp(0.0, 1.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: hp > 0.5
+                              ? _C.success
+                              : hp > 0.25
+                              ? Colors.orange
+                              : _C.danger,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  (hp > 0.5
+                                          ? _C.success
+                                          : hp > 0.25
+                                          ? Colors.orange
+                                          : _C.danger)
+                                      .withValues(alpha: 0.45),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Special cooldown timer (bottom-left)
+              if (showCooldown)
+                Positioned(
+                  bottom: -2,
+                  left: -2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.82),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: isActive
+                            ? const Color(0xFFE53935).withValues(alpha: 0.8)
+                            : _C.teal.withValues(alpha: 0.75),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      specialCooldown.ceil().toString(),
                       style: const TextStyle(
-                        color: _C.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-            // HP bar at bottom
-            if (isActive || hp < 1.0)
-              Positioned(
-                bottom: 2,
-                left: 4,
-                right: 4,
-                child: Container(
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  alignment: Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: hp.clamp(0.0, 1.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: hp > 0.5
-                            ? _C.success
-                            : hp > 0.25
-                            ? Colors.orange
-                            : _C.danger,
-                        borderRadius: BorderRadius.circular(2),
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
                       ),
                     ),
                   ),
                 ),
-              ),
-            // Special cooldown timer (bottom-left)
-            if (showCooldown)
-              Positioned(
-                bottom: -2,
-                left: -2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: isActive
-                          ? const Color(0xFFE53935).withValues(alpha: 0.8)
-                          : _C.teal.withValues(alpha: 0.75),
-                      width: 1,
+              if (isTethered)
+                Positioned(
+                  top: -3,
+                  right: -3,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: _C.teal,
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(
+                        color: const Color(0xFF10151B),
+                        width: 1.5,
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    specialCooldown.ceil().toString(),
-                    style: const TextStyle(
+                    child: const Icon(
+                      Icons.link_rounded,
+                      size: 8,
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      height: 1,
                     ),
                   ),
                 ),
-              ),
-            if (isTethered)
-              Positioned(
-                top: -3,
-                right: -3,
-                child: Container(
-                  width: 14,
-                  height: 14,
+              // Dead overlay
+              if (isDead)
+                Container(
                   decoration: BoxDecoration(
-                    color: _C.teal,
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(
-                      color: const Color(0xFF10151B),
-                      width: 1.5,
-                    ),
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(7),
                   ),
-                  child: const Icon(
-                    Icons.link_rounded,
-                    size: 8,
-                    color: Colors.white,
+                  child: const Center(
+                    child: Icon(Icons.close, color: _C.danger, size: 20),
                   ),
                 ),
-              ),
-            // Dead overlay
-            if (isDead)
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: const Center(
-                  child: Icon(Icons.close, color: _C.danger, size: 20),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -3573,15 +3855,21 @@ class _HudIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: _C.panelBg.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.55)),
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: color.withValues(alpha: 0.68),
+          bracketSize: 6,
+          strokeWidth: 1.1,
         ),
-        child: Icon(icon, size: 18, color: color),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: _C.bg1.withValues(alpha: 0.88),
+            border: Border.all(color: _C.borderDim),
+          ),
+          child: Icon(icon, size: 19, color: color),
+        ),
       ),
     );
   }
@@ -3591,48 +3879,99 @@ class _HudBar extends StatelessWidget {
   final String label;
   final double percent;
   final Color color;
-  final double width;
 
   const _HudBar({
     required this.label,
     required this.percent,
     required this.color,
-    required this.width,
   });
 
   @override
   Widget build(BuildContext context) {
+    final clampedPercent = percent.clamp(0.0, 1.0);
+    final percentLabel = '${(clampedPercent * 100).round()}%';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'monospace',
-            color: _C.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: _C.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                percentLabel,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: color.withValues(alpha: 0.95),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.9,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
         Container(
-          width: width,
-          height: 6,
+          width: double.infinity,
+          height: 10,
           decoration: BoxDecoration(
-            color: Colors.black45,
-            borderRadius: BorderRadius.circular(3),
+            color: _C.bg0.withValues(alpha: 0.88),
+            border: Border.all(color: _C.borderDim),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.18),
+                blurRadius: 10,
+                spreadRadius: 0.5,
+              ),
+            ],
           ),
           alignment: Alignment.centerLeft,
-          child: FractionallySizedBox(
-            widthFactor: percent.clamp(0.0, 1.0),
-            child: Container(
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(3),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.06),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
+              FractionallySizedBox(
+                widthFactor: clampedPercent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Color.lerp(color, Colors.white, 0.18) ?? color,
+                        color,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -3645,41 +3984,61 @@ class _PauseActionButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final Color fillColor;
+  final bool filled;
+  final bool compact;
 
   const _PauseActionButton({
     required this.label,
     required this.icon,
     required this.onTap,
     this.fillColor = _C.accent,
+    this.filled = true,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: fillColor.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: fillColor.withValues(alpha: 0.65)),
+      child: CustomPaint(
+        painter: _BracketFramePainter(
+          color: fillColor.withValues(alpha: filled ? 0.72 : 0.42),
+          bracketSize: 6,
+          strokeWidth: 1.05,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: fillColor),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: fillColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 10 : 12,
+            vertical: compact ? 8 : 11,
+          ),
+          decoration: BoxDecoration(
+            color: filled
+                ? fillColor.withValues(alpha: 0.13)
+                : Colors.transparent,
+            border: Border.all(color: _C.borderDim.withValues(alpha: 0.85)),
+          ),
+          child: Row(
+            mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: compact ? 14 : 16,
+                color: fillColor.withValues(alpha: filled ? 1.0 : 0.8),
               ),
-            ),
-          ],
+              SizedBox(width: compact ? 5 : 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: fillColor.withValues(alpha: filled ? 1.0 : 0.8),
+                  fontSize: compact ? 11 : 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3719,36 +4078,42 @@ class _PauseStatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = tint ?? _C.textPrimary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: _C.panelBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: accent.withValues(alpha: 0.18)),
+    return CustomPaint(
+      painter: _BracketFramePainter(
+        color: accent.withValues(alpha: 0.30),
+        bracketSize: 5,
+        strokeWidth: 0.9,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: _C.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+        decoration: BoxDecoration(
+          color: _C.bg2.withValues(alpha: 0.88),
+          border: Border.all(color: _C.borderDim.withValues(alpha: 0.72)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: _C.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              color: accent,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                color: accent,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3759,20 +4124,16 @@ class _PauseCompanionCard extends StatelessWidget {
   final CosmicSurvivalCompanion? companion;
   final List<AppliedPowerUp> appliedPowerUps;
   final PowerUpState powerUps;
-  final double attackMultiplier;
-  final double defenseMultiplier;
-  final double speedMultiplier;
   final ValueChanged<AppliedPowerUp> onPowerUpTap;
+  final VoidCallback onTap;
 
   const _PauseCompanionCard({
     required this.member,
     required this.companion,
     required this.appliedPowerUps,
     required this.powerUps,
-    required this.attackMultiplier,
-    required this.defenseMultiplier,
-    required this.speedMultiplier,
     required this.onPowerUpTap,
+    required this.onTap,
   });
 
   @override
@@ -3785,10 +4146,13 @@ class _PauseCompanionCard extends StatelessWidget {
     int basePhysDef = 0;
     int baseElemDef = 0;
     double baseCrit = 0;
+    final slotIndex = member.slotIndex;
+    final effSpeed = member.statSpeed + powerUps.speedBonus(slotIndex);
     if (live == null) {
-      final str = member.statStrength;
-      final intel = member.statIntelligence;
-      final beauty = member.statBeauty;
+      final str = member.statStrength + powerUps.strengthBonus(slotIndex);
+      final intel =
+          member.statIntelligence + powerUps.intelligenceBonus(slotIndex);
+      final beauty = member.statBeauty + powerUps.beautyBonus(slotIndex);
       final level = member.level;
       final family = member.family;
 
@@ -3833,135 +4197,139 @@ class _PauseCompanionCard extends StatelessWidget {
       baseCrit = ((0.05 + strPow * 0.32) * critMult).clamp(0.05, 0.55);
     }
 
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: _C.panelBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _C.textSecondary.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  member.displayName,
-                  style: const TextStyle(
-                    color: _C.textPrimary,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: _C.bg2.withValues(alpha: 0.86),
+          border: Border.all(color: _C.textSecondary.withValues(alpha: 0.18)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    member.displayName,
+                    style: const TextStyle(
+                      color: _C.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Text(
+                  live == null
+                      ? 'BENCHED'
+                      : '${(live.hpPercent * 100).round()}% HP',
+                  style: TextStyle(
+                    color: live == null ? _C.textSecondary : _C.success,
                     fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-              Text(
-                live == null
-                    ? 'BENCHED'
-                    : '${(live.hpPercent * 100).round()}% HP',
-                style: TextStyle(
-                  color: live == null ? _C.textSecondary : _C.success,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MiniReadout(
-                label: 'ATK',
-                value: live != null
-                    ? '${(live.physAtk * attackMultiplier).round()}'
-                    : '${(basePhysAtk * attackMultiplier).round()}',
-              ),
-              _MiniReadout(
-                label: 'ELEM',
-                value: live != null
-                    ? '${(live.elemAtk * attackMultiplier).round()}'
-                    : '${(baseElemAtk * attackMultiplier).round()}',
-              ),
-              _MiniReadout(
-                label: 'PDEF',
-                value: live != null
-                    ? '${(live.physDef * defenseMultiplier).round()}'
-                    : '${(basePhysDef * defenseMultiplier).round()}',
-              ),
-              _MiniReadout(
-                label: 'EDEF',
-                value: live != null
-                    ? '${(live.elemDef * defenseMultiplier).round()}'
-                    : '${(baseElemDef * defenseMultiplier).round()}',
-              ),
-              _MiniReadout(
-                label: 'SPD',
-                value: '${speedMultiplier.toStringAsFixed(2)}x',
-              ),
-              _MiniReadout(
-                label: 'CRIT',
-                value: live != null
-                    ? '${(live.critChance * 100).round()}%'
-                    : '${(baseCrit * 100).round()}%',
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'ALCHEMON PERKS',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: _C.teal,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
+                const SizedBox(width: 6),
+                const Icon(Icons.insights_rounded, size: 14, color: _C.teal),
+              ],
             ),
-          ),
-          const SizedBox(height: 6),
-          if (appliedPowerUps.isEmpty)
-            const Text(
-              'No personal upgrades yet.',
-              style: TextStyle(color: _C.textSecondary, fontSize: 12),
-            )
-          else
+            const SizedBox(height: 8),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: appliedPowerUps.map((entry) {
-                return InkWell(
-                  borderRadius: BorderRadius.circular(6),
-                  onTap: () => onPowerUpTap(entry),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F141B),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: _rarityColor(
-                          entry.def.rarity,
-                        ).withValues(alpha: 0.45),
-                      ),
-                    ),
-                    child: _PausePowerUpChipContent(
-                      name: entry.def.name,
-                      tint: _rarityColor(entry.def.rarity),
-                      level: powerUps.displayedLevel(
-                        entry.def,
-                        slotIndex: entry.targetSlot,
-                      ),
-                      maxStacks: entry.def.maxStacks,
-                      showLevel: entry.def.showLevel,
-                    ),
-                  ),
-                );
-              }).toList(),
+              spacing: 16,
+              runSpacing: 7,
+              children: [
+                _MiniReadout(
+                  label: 'ATK',
+                  value: live != null
+                      ? '${live.physAtk}'
+                      : '$basePhysAtk',
+                ),
+                _MiniReadout(
+                  label: 'ELEM',
+                  value: live != null
+                      ? '${live.elemAtk}'
+                      : '$baseElemAtk',
+                ),
+                _MiniReadout(
+                  label: 'PDEF',
+                  value: live != null
+                      ? '${live.physDef}'
+                      : '$basePhysDef',
+                ),
+                _MiniReadout(
+                  label: 'EDEF',
+                  value: live != null
+                      ? '${live.elemDef}'
+                      : '$baseElemDef',
+                ),
+                _MiniReadout(
+                  label: 'SPD',
+                  value: effSpeed.toStringAsFixed(1),
+                ),
+                _MiniReadout(
+                  label: 'CRIT',
+                  value: live != null
+                      ? '${(live.critChance * 100).round()}%'
+                      : '${(baseCrit * 100).round()}%',
+                ),
+              ],
             ),
-        ],
+            const SizedBox(height: 8),
+            const Text(
+              'ALCHEMON PERKS',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: _C.teal,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            if (appliedPowerUps.isEmpty)
+              const Text(
+                'No personal upgrades yet.',
+                style: TextStyle(color: _C.textSecondary, fontSize: 12),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: appliedPowerUps.map((entry) {
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () => onPowerUpTap(entry),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _C.bg1,
+                        border: Border.all(
+                          color: _rarityColor(
+                            entry.def.rarity,
+                          ).withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: _PausePowerUpChipContent(
+                        name: entry.def.name,
+                        tint: _rarityColor(entry.def.rarity),
+                        level: powerUps.displayedLevel(
+                          entry.def,
+                          slotIndex: entry.targetSlot,
+                        ),
+                        maxStacks: entry.def.maxStacks,
+                        showLevel: entry.def.showLevel,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -4028,25 +4396,11 @@ class _PausePowerUpChipContent extends StatelessWidget {
           ],
         ),
         if (showLevel) ...[
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _PausePowerUpLevelPips(
-                level: clampedLevel,
-                maxStacks: maxStacks,
-                tint: tint,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '$clampedLevel/$maxStacks',
-                style: TextStyle(
-                  color: tint.withValues(alpha: 0.92),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+          const SizedBox(height: 5),
+          _PausePowerUpLevelPips(
+            level: clampedLevel,
+            maxStacks: maxStacks,
+            tint: tint,
           ),
         ],
       ],
@@ -4072,19 +4426,131 @@ class _PausePowerUpLevelPips extends StatelessWidget {
       children: List.generate(maxStacks, (index) {
         final filled = index < level;
         return Container(
-          width: 7,
-          height: 7,
-          margin: EdgeInsets.only(right: index == maxStacks - 1 ? 0 : 3),
+          width: 9,
+          height: 9,
+          margin: EdgeInsets.only(right: index == maxStacks - 1 ? 0 : 5),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: filled ? tint : tint.withValues(alpha: 0.18),
+            color: filled ? tint : Colors.transparent,
             border: Border.all(
-              color: filled ? tint : tint.withValues(alpha: 0.35),
-              width: 0.8,
+              color: filled ? tint : tint.withValues(alpha: 0.3),
+              width: 1.1,
             ),
+            boxShadow: filled
+                ? [
+                    BoxShadow(
+                      color: tint.withValues(alpha: 0.55),
+                      blurRadius: 6,
+                      spreadRadius: 0.5,
+                    ),
+                  ]
+                : null,
           ),
         );
       }),
+    );
+  }
+}
+
+String _familyFocusBlurb(String family) => switch (family.toLowerCase()) {
+  'let' => 'Highest-HP enemies — softens up the toughest targets.',
+  'pip' => 'Lowest-HP enemies — finishes off the weakened.',
+  'horn' => 'Enemies closest to the orb — guards the core.',
+  'wing' => 'Enemies furthest from the orb — picks off the outer ring.',
+  _ => 'Nearest threat.',
+};
+
+String _familyPositionBlurb(String family) => switch (family.toLowerCase()) {
+  'let' || 'horn' || 'kin' => 'Inner ring — patrols close to the orb.',
+  'mane' || 'mask' => 'Mid ring — patrols the middle of the arena.',
+  'wing' => 'Outer ring — patrols along the arena rim.',
+  'pip' || 'mystic' => 'Roaming — no fixed zone, goes wherever needed.',
+  _ => 'Roaming.',
+};
+
+class _InfoBlock extends StatelessWidget {
+  final String label;
+  final String? value;
+  final String text;
+
+  const _InfoBlock({required this.label, this.value, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: _C.teal,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
+          ),
+          const SizedBox(height: 2),
+          if (value != null)
+            Text(
+              value!,
+              style: const TextStyle(
+                color: _C.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          if (value != null) const SizedBox(height: 2),
+          Text(
+            text,
+            style: const TextStyle(
+              color: _C.textSecondary,
+              fontSize: 12,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatLine extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color tint;
+
+  const _StatLine({
+    required this.label,
+    required this.value,
+    required this.tint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: _C.textSecondary, fontSize: 13),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: tint,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -4097,34 +4563,28 @@ class _MiniReadout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F141B),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: RichText(
-        text: TextSpan(
-          children: [
-            TextSpan(
-              text: '$label ',
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                color: _C.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: '$label ',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: _C.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
             ),
-            TextSpan(
-              text: value,
-              style: const TextStyle(
-                color: _C.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
+          ),
+          TextSpan(
+            text: value,
+            style: const TextStyle(
+              color: _C.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

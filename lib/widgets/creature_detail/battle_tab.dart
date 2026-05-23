@@ -116,9 +116,7 @@ class _BracketTabSelector extends StatelessWidget {
     final activeAccent = bracketReadableAccent(theme);
     return Container(
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: palette.lineSoft, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: palette.lineSoft, width: 1)),
       ),
       child: Row(
         children: List.generate(labels.length, (index) {
@@ -173,9 +171,9 @@ class _ExploreTab extends StatelessWidget {
     final element = types.firstOrNull ?? 'Normal';
     final role = _cosmicFamilyRole(family);
     final basic = _cosmicFamilyBasicInfo(family, element);
-    final special = _cosmicFamilySpecialInfo(family, element);
+    final special = cosmicFamilySpecialInfo(family, element);
     final specialName = cosmicSpecialAbilityName(family, element);
-    final survivalPassive = _survivalElementPassive(family, element);
+    final mechanicNote = _elementMechanicNote(family, element);
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -189,10 +187,7 @@ class _ExploreTab extends StatelessWidget {
           const SizedBox(height: 18),
           const BracketSectionDivider(label: 'Role'),
           const SizedBox(height: 10),
-          _BracketInfoCard(
-            title: role.title,
-            description: role.description,
-          ),
+          _BracketInfoCard(title: role.title, description: role.description),
           const SizedBox(height: 18),
           const BracketSectionDivider(label: 'Basic'),
           const SizedBox(height: 10),
@@ -208,8 +203,12 @@ class _ExploreTab extends StatelessWidget {
             title: specialName,
             subtitle: special.subtitle,
             description: special.description,
-            footerLabel: survivalPassive != null ? 'Survival passive' : null,
-            footerBody: survivalPassive,
+            icon: special.icon,
+            tags: special.tags,
+            accent: _survivalAccentColor(element),
+            featured: true,
+            footerLabel: mechanicNote?.label,
+            footerBody: mechanicNote?.body,
           ),
           const SizedBox(height: 18),
           const BracketSectionDivider(label: 'Survival'),
@@ -443,6 +442,10 @@ class _BracketInfoCard extends StatelessWidget {
     required this.title,
     this.subtitle,
     required this.description,
+    this.icon,
+    this.tags = const [],
+    this.accent,
+    this.featured = false,
     this.footerLabel,
     this.footerBody,
   });
@@ -450,6 +453,10 @@ class _BracketInfoCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String description;
+  final IconData? icon;
+  final List<String> tags;
+  final Color? accent;
+  final bool featured;
   final String? footerLabel;
   final String? footerBody;
 
@@ -457,7 +464,7 @@ class _BracketInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = BracketPalette.of(context);
     final theme = context.read<FactionTheme>();
-    final activeAccent = bracketReadableAccent(theme);
+    final activeAccent = bracketReadableAccent(theme, color: accent);
     final footer = (footerLabel != null && footerBody != null)
         ? Padding(
             padding: const EdgeInsets.only(top: 12),
@@ -466,11 +473,7 @@ class _BracketInfoCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 3,
-                      height: 10,
-                      color: activeAccent,
-                    ),
+                    Container(width: 3, height: 10, color: activeAccent),
                     const SizedBox(width: 7),
                     Text(
                       footerLabel!.toUpperCase(),
@@ -502,26 +505,93 @@ class _BracketInfoCard extends StatelessWidget {
 
     return CustomPaint(
       painter: BracketFramePainter(
-        color: palette.line.withValues(alpha: 0.9),
-        bracketSize: 10,
-        strokeWidth: 1.05,
+        color: featured
+            ? activeAccent.withValues(alpha: 0.95)
+            : palette.line.withValues(alpha: 0.9),
+        bracketSize: featured ? 12 : 10,
+        strokeWidth: featured ? 1.35 : 1.05,
       ),
       child: Container(
-        color: palette.surfaceFill(),
+        color: featured
+            ? Color.alphaBlend(
+                activeAccent.withValues(alpha: palette.isDark ? 0.10 : 0.07),
+                palette.surfaceFill(),
+              )
+            : palette.surfaceFill(),
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: bracketText(
-                context,
-                16,
-                palette.ink,
-                weight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (icon != null) ...[
+                  Container(
+                    width: featured ? 32 : 26,
+                    height: featured ? 32 : 26,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: activeAccent.withValues(
+                        alpha: palette.isDark ? 0.16 : 0.12,
+                      ),
+                      border: Border.all(
+                        color: activeAccent.withValues(alpha: 0.55),
+                      ),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: featured ? 17 : 15,
+                      color: activeAccent,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    title,
+                    style: bracketText(
+                      context,
+                      featured ? 17 : 16,
+                      palette.ink,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            if (tags.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final tag in tags.take(5))
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: activeAccent.withValues(
+                          alpha: palette.isDark ? 0.13 : 0.10,
+                        ),
+                        border: Border.all(
+                          color: activeAccent.withValues(alpha: 0.32),
+                        ),
+                      ),
+                      child: Text(
+                        tag,
+                        style: bracketText(
+                          context,
+                          10.5,
+                          featured ? activeAccent : palette.muted,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
             if (subtitle != null && subtitle!.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
@@ -887,86 +957,86 @@ class _BracketLabelValue extends StatelessWidget {
 }
 
 _CosmicFamilyRole _cosmicFamilyRole(String family) {
-    switch (family) {
-      case 'Horn':
-        return const _CosmicFamilyRole(
-          title: 'Frontline Bastion',
-          description:
-              'Horns force close fights. They push into short range, soak '
-              'pressure with shields, trade some raw damage for durability, '
-              'and convert specials into charge impacts, '
-              'body-blocking zones, taunts, slows, and interceptions that hold '
-              'danger in front of the team.',
-        );
-      case 'Wing':
-        return const _CosmicFamilyRole(
-          title: 'Beam Hunter',
-          description:
-              'Wings are long-range pursuit attackers. They hold safer '
-              'spacing, fire quickly, and use piercing beam specials to line '
-              'through packs, bosses, and drifting targets.',
-        );
-      case 'Let':
-        return const _CosmicFamilyRole(
-          title: 'Siege Caster',
-          description:
-              'Lets are long-range siege casters. They stay back, commit to '
-              'lanes, and drop a heavy meteor core followed by distinct '
-              'elemental pressure: lances, shards, orbiting blades, guided '
-              'finishers, or persistent control fields.',
-        );
-      case 'Pip':
-        return const _CosmicFamilyRole(
-          title: 'Tempo Carry',
-          description:
-              'Pips are fast skirmish finishers. They cycle attacks quickly, '
-              'chase weak or scattered targets, and turn specials into tempo '
-              'bursts: ricochets, pursuit darts, moving snares, quick haste, '
-              'or heavy cleanup shots depending on element. They excel at wave '
-              'cleanup but are less efficient into bosses than most families.',
-        );
-      case 'Mane':
-        return const _CosmicFamilyRole(
-          title: 'Barrage Bruiser',
-          description:
-              'Manes are martial barrage bruisers. They step into medium '
-              'range and convert element into forward techniques: cleaves, '
-              'cross-cuts, pressure lanes, readable staggers, and tempo combos that '
-              'punish whatever is directly in front of them.',
-        );
-      case 'Kin':
-        return const _CosmicFamilyRole(
-          title: 'Guardian Support',
-          description:
-              'Kins are guardian supports. Their specials heal, bless, and '
-              'deploy element-shaped constructs such as ship wards, escort '
-              'sentries, snares, peel veils, interceptors, and other support '
-              'tools instead of one generic orbital move.',
-        );
-      case 'Mystic':
-        return const _CosmicFamilyRole(
-          title: 'Guardian Ultimate',
-          description:
-              'Mystics are single-slot guardian power picks. Their specials '
-              'are intentionally slower and much more powerful, with each '
-              'element behaving like a distinct showpiece ultimate rather than '
-              'a generic orbital burst.',
-        );
-      case 'Mask':
-        return const _CosmicFamilyRole(
-          title: 'Control Trapper',
-          description:
-              'Masks shape the battlefield. They bait enemies into taunt '
-              'totems, decoys, and seeker swarms so pressure shifts off your '
-              'ship and into prepared kill zones.',
-        );
-      default:
-        return const _CosmicFamilyRole(
-          title: 'Companion',
-          description: 'A loyal companion that fights alongside your ship.',
-        );
-    }
+  switch (family) {
+    case 'Horn':
+      return const _CosmicFamilyRole(
+        title: 'Frontline Bastion',
+        description:
+            'Horns force close fights. They push into short range, soak '
+            'pressure with shields, trade some raw damage for durability, '
+            'and convert specials into charge impacts, '
+            'body-blocking zones, taunts, slows, and interceptions that hold '
+            'danger in front of the team.',
+      );
+    case 'Wing':
+      return const _CosmicFamilyRole(
+        title: 'Beam Hunter',
+        description:
+            'Wings are long-range pursuit attackers. They hold safer '
+            'spacing, fire quickly, and use piercing beam specials to line '
+            'through packs, bosses, and drifting targets.',
+      );
+    case 'Let':
+      return const _CosmicFamilyRole(
+        title: 'Siege Caster',
+        description:
+            'Lets are long-range siege casters. They stay back, commit to '
+            'lanes, and drop a heavy meteor core followed by distinct '
+            'elemental pressure: lances, shards, orbiting blades, guided '
+            'finishers, or persistent control fields.',
+      );
+    case 'Pip':
+      return const _CosmicFamilyRole(
+        title: 'Tempo Carry',
+        description:
+            'Pips are fast skirmish finishers. They cycle attacks quickly, '
+            'chase weak or scattered targets, and turn specials into tempo '
+            'bursts: ricochets, pursuit darts, moving snares, quick haste, '
+            'or heavy cleanup shots depending on element. They excel at wave '
+            'cleanup but are less efficient into bosses than most families.',
+      );
+    case 'Mane':
+      return const _CosmicFamilyRole(
+        title: 'Barrage Bruiser',
+        description:
+            'Manes are martial barrage bruisers. They step into medium '
+            'range and convert element into forward techniques: cleaves, '
+            'cross-cuts, pressure lanes, readable staggers, and tempo combos that '
+            'punish whatever is directly in front of them.',
+      );
+    case 'Kin':
+      return const _CosmicFamilyRole(
+        title: 'Guardian Support',
+        description:
+            'Kins are guardian supports. Their specials heal, bless, and '
+            'deploy element-shaped constructs such as ship wards, escort '
+            'sentries, snares, peel veils, interceptors, and other support '
+            'tools instead of one generic orbital move.',
+      );
+    case 'Mystic':
+      return const _CosmicFamilyRole(
+        title: 'Guardian Ultimate',
+        description:
+            'Mystics are single-slot guardian power picks. Their specials '
+            'are intentionally slower and much more powerful, with each '
+            'element behaving like a distinct showpiece ultimate rather than '
+            'a generic orbital burst.',
+      );
+    case 'Mask':
+      return const _CosmicFamilyRole(
+        title: 'Control Trapper',
+        description:
+            'Masks shape the battlefield. They bait enemies into taunt '
+            'totems, decoys, and seeker swarms so pressure shifts off your '
+            'ship and into prepared kill zones.',
+      );
+    default:
+      return const _CosmicFamilyRole(
+        title: 'Companion',
+        description: 'A loyal companion that fights alongside your ship.',
+      );
   }
+}
 
 /// Flat section header for the battle tab — no box, just accent bar + rule
 class _CosmicFamilyRole {
@@ -1135,7 +1205,7 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
         'Fire' =>
           'Fire Mane is a high-tempo advancing arc burst meant to shred regular waves before they settle.',
         'Lightning' =>
-          'Lightning Mane emphasizes fast fork cuts with a guided center line for aggressive chase-through pressure.',
+          'Lightning Mane plants a field of 5–10 stationary rods that continuously shock nearby enemies — board control rather than forward cuts.',
         'Air' =>
           'Air Mane is a wide split-sweep style with speed-first lane clear and high forward tempo.',
         'Dust' =>
@@ -1147,7 +1217,7 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
         'Lava' =>
           'Lava Mane trades volume for hotter, heavier cleaves that spike frontline pressure.',
         'Spirit' =>
-          'Spirit Mane keeps a disciplined barrage but threads a guided center finisher through it.',
+          'Spirit Mane ramps its lane count 1→10 across successive casts, then resets — each cast widens the soul-slash fan.',
         'Light' =>
           'Light Mane adds a disciplined parry-intercept line on top of forward pressure cuts.',
         _ =>
@@ -1400,12 +1470,12 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
 // ─────────────────────────────────────────────────────────────────────────────
 // COSMIC SPECIAL ATTACK INFO (per element)
 // ─────────────────────────────────────────────────────────────────────────────
-class _CosmicSpecialInfo {
+class CosmicSpecialInfo {
   final String subtitle;
   final String description;
   final IconData icon;
   final List<String> tags;
-  const _CosmicSpecialInfo({
+  const CosmicSpecialInfo({
     required this.subtitle,
     required this.description,
     required this.icon,
@@ -1413,187 +1483,254 @@ class _CosmicSpecialInfo {
   });
 }
 
-/// Returns the survival-mode passive identity for a given (family, element)
-/// pair, or null when there is no special passive. These describe the
-/// in-game *passive* mechanics players should know about — things that
-/// trigger automatically beyond just casting the special.
-String? _survivalElementPassive(String family, String element) {
+class _ElementMechanicNote {
+  const _ElementMechanicNote({required this.label, required this.body});
+
+  final String label;
+  final String body;
+}
+
+_ElementMechanicNote _survivalPassive(String body) =>
+    _ElementMechanicNote(label: 'Survival passive', body: body);
+
+_ElementMechanicNote _sharedEffect(String body) =>
+    _ElementMechanicNote(label: 'Shared effect', body: body);
+
+/// Returns the extra mechanic players should know after the base special
+/// description. Ability-shape details stay in the main description; this footer
+/// is only for extra cross-mode effects or survival-only hooks such as orb
+/// interactions, kill stacks, and survival rewrites.
+_ElementMechanicNote? _elementMechanicNote(String family, String element) {
   switch (family) {
     case 'Pip':
       switch (element) {
         case 'Plant':
-          return 'Killed enemies grant +50% alchemy meter on death.';
+          return _survivalPassive(
+            'Killed enemies grant +50% alchemy meter on death.',
+          );
         case 'Earth':
-          return 'Each basic attack shaves 0.4s off the special cooldown.';
+          return _sharedEffect(
+            'Each basic attack shaves 0.4s off the special cooldown.',
+          );
         case 'Spirit':
-          return '8 credited kills empower this Pip for 6s — basic attacks ~55% faster.';
+          return _sharedEffect(
+            '8 credited kills empower this Pip for 6s — basic attacks fire ~10× as fast.',
+          );
         case 'Steam':
-          return 'Permanent steam aura — basic attacks fire ~35% faster.';
+          return _sharedEffect(
+            'A steam cloud cycles around this Pip, ramping basic attack speed from +50% up to +300%.',
+          );
         case 'Mud':
-          return 'Hit enemies are tagged: they continuously drop mud trail puffs that slow other enemies.';
+          return _sharedEffect(
+            'Hit enemies are tagged: they continuously drop mud trail puffs that slow other enemies.',
+          );
         case 'Poison':
-          return 'Each basic-hit draws a persistent poison line of zones from the previous hit to the new one.';
+          return _sharedEffect(
+            'Each basic-hit draws a persistent poison line of zones from the previous hit to the new one.',
+          );
         case 'Fire':
-          return 'Kills drop a persistent burning fire pool DoT zone.';
+          return _sharedEffect(
+            'Kills drop a persistent burning fire pool DoT zone.',
+          );
         case 'Dust':
-          return 'Kills drop a slowing dust cloud zone.';
+          return _sharedEffect('Kills drop a slowing dust cloud zone.');
         case 'Crystal':
-          return 'Kills drop a stationary taunting crystal that pulls enemy aggro for ~9s.';
+          return _sharedEffect(
+            'Kills drop a stationary taunting crystal that pulls enemy aggro for ~9s.',
+          );
         case 'Dark':
-          return 'Kills create a black-hole pull at the kill site.';
+          return _sharedEffect(
+            'Kills form a persistent black hole that drags nearby enemies inward and executes near-dead ones.',
+          );
         case 'Lightning':
-          return 'Double the ricochet — bounce count is the highest in the family.';
+          return null;
         case 'Lava':
-          return 'Each pierce drops a lava blob DoT zone at the enemy.';
+          return _sharedEffect(
+            'Each pierce drops a lava blob DoT zone at the enemy.',
+          );
+        case 'Water':
+          return _sharedEffect(
+            'Kills splash nearby enemies; a kill on the ricochet’s final hit erupts a much larger splash.',
+          );
       }
       return null;
     case 'Mane':
       switch (element) {
         case 'Plant':
-          return 'Pierced enemies are rooted; if they die while rooted, they explode in a 130-radius AOE.';
+          return _sharedEffect(
+            'Pierced enemies are rooted; if they die while rooted, they explode in a 130-radius AOE.',
+          );
         case 'Light':
-          return 'Each pierce grows the projectile — damage, radius, and visual scale up per hit.';
+          return _sharedEffect(
+            'Each pierce grows the projectile: damage, radius, and visual scale up per hit.',
+          );
         case 'Lava':
-          return 'Each pierce drops a persistent lava blob DoT zone behind.';
+          return _sharedEffect(
+            'Each pierce drops a persistent lava blob DoT zone behind.',
+          );
         case 'Crystal':
-          return 'Direct boss collision deals 25× damage + 200-radius AOE.';
+          return _sharedEffect(
+            'Direct boss collision deals 25x damage plus a 200-radius AOE.',
+          );
         case 'Water':
-          return 'Pierce drags enemies along the projectile path instead of pushing them back.';
+          return _sharedEffect(
+            'Pierce drags enemies along the projectile path instead of pushing them back.',
+          );
         case 'Mud':
-          return 'Survival: first enemy hit splits the projectile into 10 fragments in a ring.';
+          return _sharedEffect(
+            'First enemy hit splits the projectile into 10 fragments in a ring.',
+          );
         case 'Spirit':
-          return 'Survival: each cast adds another full barrage (1→10 stacks, then resets).';
+          return _sharedEffect(
+            'Cast fires 1 soul slash, +1 lane per successive cast up to 10, then resets.',
+          );
         case 'Earth':
-          return 'Survival: cast becomes a single massive boulder that shrinks while shedding shards along its path.';
+          return _sharedEffect(
+            'Cast becomes a single massive boulder that shrinks while shedding shards along its path.',
+          );
         case 'Lightning':
-          return 'Survival: cast plants 5–10 stationary lightning rods that chain-zap nearby enemies.';
+          return _sharedEffect(
+            'Cast plants 5-10 stationary lightning rods that continuously shock all nearby enemies.',
+          );
         case 'Steam':
-          return 'Survival: cast becomes a traveling geyser that drops persistent steam puffs along its path.';
+          return _sharedEffect(
+            'Cast becomes a traveling geyser that drops persistent steam puffs along its path.',
+          );
       }
       return null;
     case 'Wing':
       switch (element) {
-        case 'Dark':
-          return 'Auto-attacks and laser pulses fire 2× as fast (cooldowns halved).';
         case 'Plant':
-          return 'Beam-killed enemies leave flower pickups; orb collects them to permanently power up the beam (+4% damage per flower, capped at +200%).';
-        case 'Mud':
-          return 'Hit enemies are permanently slowed (60s effect duration).';
-        case 'Dust':
-          return 'Hit shooter enemies are disoriented — they shoot other enemies instead of allies.';
-        case 'Lava':
-          return 'Beam tip drops persistent ground-scar burn zones, painting a damaging line across the field.';
+          return _survivalPassive(
+            'Beam-killed enemies leave flower pickups; orb collects them to permanently power up the beam (+4% damage per flower, capped at +200%).',
+          );
+        case 'Earth':
+          return _survivalPassive(
+            'The orb co-fires its own mirror beam alongside the wing: two lasers at once.',
+          );
       }
       return null;
     case 'Mask':
       switch (element) {
         case 'Spirit':
-          return 'Kills credited to this Mask stack wisps; 6 kills triggers a 220-radius AOE wisp burst.';
+          return _sharedEffect(
+            'Kills credited to this Mask stack wisps; 6 kills triggers a 220-radius AOE wisp burst.',
+          );
         case 'Ice':
-          return 'Ice pillar broadcasts a ×2.4 damage amp to all allies within range while active.';
+          return _sharedEffect(
+            'Ice pillar broadcasts a 2.4x damage amp to all allies within range while active.',
+          );
         case 'Plant':
-          return 'Vine snare grows in radius and slow-strength over the trap’s lifetime.';
+          return _sharedEffect(
+            'Vine snare grows in radius and slow-strength over the trap’s lifetime.',
+          );
         case 'Light':
-          return 'Survival: traps become stationary execute voids that persist until expiring.';
+          return _sharedEffect(
+            'Traps become stationary execute voids that persist until expiring.',
+          );
         case 'Air':
-          return 'Survival: spawns 8–18 stationary gust pads instead of homing seekers.';
+          return _sharedEffect(
+            'Spawns 8-18 stationary gust pads instead of homing seekers.',
+          );
       }
       return null;
     case 'Let':
       switch (element) {
         case 'Plant':
-          return 'Kill spawns 4 root zones whose effect radius grows over time.';
+          return null;
         case 'Spirit':
-          return '20% chance per hit to instantly kill — scales up to 38% with Intelligence.';
+          return null;
         case 'Crystal':
-          return 'Cooldown halved, damage reduced 42%, but on impact slows enemies by 90%.';
+          return _sharedEffect(
+            'Cooldown is halved and damage is lower, but impacts deliver a heavy slow.',
+          );
         case 'Dark':
-          return 'Each kill spawns 2–5 follow-up meteors (twice as big) targeting nearby enemies. Chain capped to one generation.';
+          return null;
         case 'Steam':
-          return 'Kill spawns a persistent geyser zone that pushes enemies (~24–40s in survival).';
+          return null;
         case 'Light':
-          return 'Kill spawns a persistent heal pool that heals allies and ship.';
+          return null;
         case 'Blood':
-          return 'Kill drains nearby enemies; drained HP heals every alchemon + ship.';
+          return null;
         case 'Air':
-          return 'Kill blows back all surrounding enemies in 180 radius.';
+          return null;
         case 'Earth':
-          return 'On collision, heals the lowest-HP ally or ship for percent of damage dealt.';
+          return null;
         case 'Fire':
-          return 'Kill triggers a big AOE explosion damaging nearby enemies.';
+          return null;
         case 'Mud':
-          return 'Kill spawns a persistent stun pool.';
+          return null;
       }
       return null;
     case 'Kin':
       switch (element) {
         case 'Dark':
-          return 'Signature aura: orbs continuously pull enemies inward (black-hole tick).';
+          return null;
         case 'Fire':
-          return 'Signature aura: orbs ignite enemies in range with persistent burn ticks.';
+          return null;
         case 'Water':
-          return 'Signature aura: orbs continuously heal orb + ship as they orbit.';
+          return null;
         case 'Ice':
-          return 'Signature aura: orbs freeze enemies caught in their orbit zone.';
+          return null;
         case 'Lightning':
-          return 'Signature aura: orbs chain-zap enemies (3-target chain per tick) — formation crackles together.';
+          return null;
         case 'Spirit':
-          return 'Signature aura: orbs execute low-HP enemies caught in their orbit.';
+          return null;
         case 'Blood':
-          return 'Signature aura: orbs leech HP from enemies, healing orb + ship.';
+          return null;
         case 'Plant':
-          return 'Signature aura: orbs root enemies in the orbit zone.';
+          return null;
         case 'Poison':
-          return 'Signature aura: orbs stack poison DoT on enemies in range.';
+          return null;
         case 'Mud':
-          return 'Signature aura: orbs slow-stack enemies + heavy snare + taunt.';
+          return null;
         case 'Air':
-          return 'Signature aura: orbs continuously blow back approaching enemies.';
+          return null;
         case 'Earth':
-          return 'Signature aura: orbs briefly stun enemies caught in their taunt — monolith turns them to stone.';
+          return null;
         case 'Steam':
-          return 'Signature aura: orbs erupt geyser-pulses on enemies stuck in the fog.';
+          return null;
         case 'Light':
-          return 'Signature aura: orbs continuously heal orb + ship; ship-orbital + intercept defense.';
+          return null;
         case 'Crystal':
-          return 'Signature aura: piercing prism turrets + local splash damage.';
+          return null;
         case 'Dust':
-          return 'Signature aura: orbs suppress shooting — shooters caught in the swarm can’t fire.';
+          return null;
         case 'Lava':
-          return 'Signature: massive piercing boulders (not little orbs) + burn aura.';
+          return null;
       }
       return null;
     case 'Mystic':
       switch (element) {
         case 'Blood':
-          return 'Crimson font + satellite blood pools, each periodically summoning Blood Thralls that hunt enemies. Pools leech HP → heal orb + ship.';
+          return null;
         case 'Lightning':
-          return 'Plants 4–9 persistent storm rods in a ring; each fires chain lightning at nearby enemies.';
+          return null;
         case 'Crystal':
-          return '5–8 stationary prism towers fire splitting crystal shards; explode into shrapnel when destroyed.';
+          return null;
         case 'Dust':
-          return 'Central sandstorm zone suppresses shooting + slows; golden-spiral mote swarm rakes the storm.';
+          return null;
         case 'Fire':
-          return 'Persistent ring of fire pillars + blast orbs that charge and home back.';
+          return null;
         case 'Lava':
-          return 'Boulders drop persistent magma pools every 0.45s, painting long lava furrows.';
+          return null;
         case 'Water':
-          return 'Persistent tidepool at convergence point heals allies + damages enemies. Plus ship blessing tick.';
+          return null;
         case 'Ice':
-          return 'Inner ring of permanent freezing pillars + outer ring of launching ice lances.';
+          return null;
         case 'Poison':
-          return 'Stationary venom field at target — central super-cloud + 4–8 satellite clouds.';
+          return null;
         case 'Dark':
-          return 'Gravity wells that actively pull + execute low-HP enemies (black-hole ticks).';
+          return null;
         case 'Spirit':
-          return 'Reaper bolts — slow homing wraiths that execute low-HP enemies on contact.';
+          return null;
       }
       return null;
   }
   return null;
 }
 
-_CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
+CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
   switch (family) {
     case 'Horn':
       final anchorElement = [
@@ -1648,7 +1785,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         _ =>
           'Element changes how the Horn protects the front line after impact.',
       };
-      return _CosmicSpecialInfo(
+      return CosmicSpecialInfo(
         subtitle: 'Shield Charge • Frontline impact',
         description:
             'Raises a shield, erupts with an elemental guard burst, then '
@@ -1681,46 +1818,43 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       final heavyElement = ['Earth', 'Lava', 'Mud'].contains(element);
       final followThrough = switch (element) {
         'Lightning' =>
-          'Lightning forks into a rapid chain web of piercing side bolts.',
+          'Lightning charges briefly, then releases a heavy blast through the beam lane.',
         'Crystal' =>
-          'Crystal refracts from the beam tip into guided prism shards.',
-        'Fire' =>
-          'Fire widens into a sweeping inferno line with a burning trail.',
+          'Crystal turns beam contact into sustain while refracting prism pressure.',
+        'Fire' => 'Fire widens into a sweeping inferno ring and burning trail.',
         'Ice' =>
-          'Ice leaves freezing anchors, then throws back-fanning splinters.',
+          'Ice builds frost on sustained contact until targets snap into a hard freeze.',
         'Dark' =>
-          'Dark rakes the lane with rupture lances before execution seekers peel out.',
+          'Dark doubles the tempo: basic attacks and beam pulses fire twice as fast.',
         'Blood' =>
-          'Blood fires fewer heavier hunter bolts after the primary crimson lance.',
+          'Blood hunts the lowest-HP target and executes enemies below the threshold.',
         'Water' =>
-          'Water sends undertow ribbons that hook back inward through the beam lane.',
+          'Water heals allies and the ship while still cutting through enemies.',
         'Lava' =>
-          'Lava becomes an eruption trench of slow massive piercing chunks.',
+          'Lava scars the ground with lingering burn zones along the beam path.',
         'Steam' =>
-          'Steam pulses shells down the lane, then releases drifting cutter shots.',
+          'Steam executes the first target it catches, then erupts into lingering steam clouds.',
         'Earth' =>
           'Earth trades speed for a few enormous boulder beams with the widest body.',
-        'Mud' =>
-          'Mud rakes the lane with bog slugs and sticky guided glob follow-up.',
-        'Dust' =>
-          'Dust sandblasts a wide scatter of very fast short-lived shards.',
+        'Mud' => 'Mud applies a long heavy slow to anything held in the beam.',
+        'Dust' => 'Dust sandblasts the lane and disrupts enemy pressure.',
         'Air' =>
-          'Air drills forward with fast spiraling wind bolts around the beam.',
+          'Air drills forward with wind pressure that knocks enemies back.',
         'Plant' =>
           'Plant grows guided vine tendrils from the beam for pursuit pressure.',
         'Poison' =>
-          'Poison rides the beam with venom spines, then feeds guided toxins through the lane.',
+          'Poison forms a venom ring around the caster for close-range area control.',
         'Spirit' =>
-          'Spirit sends piercing reaper hunters that keep the long-range execution feel.',
+          'Spirit tethers through the ship, letting the ship fire the follow-up laser.',
         'Light' =>
-          'Light bursts from the tip into radiant guided motes for cleanup.',
+          'Light refracts beam kills into smaller hunting beams for cleanup.',
         _ =>
           'Element determines the beam follow-through: chains, refractions, hunters, or scatter effects.',
       };
-      return _CosmicSpecialInfo(
+      return CosmicSpecialInfo(
         subtitle: 'Piercing Beam • Long-range line attack',
         description:
-            'Fires a powerful $element beam that pierces through all enemies in its path. '
+            'A long-range line special for piercing packs and pressuring bosses. '
             '${hasTrail ? 'Leaves a lingering $element damage trail behind the beam. ' : ''}'
             '$followThrough',
         icon: Icons.arrow_forward,
@@ -1781,10 +1915,10 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
           'Light crowns the impact with guided motes, finishers, and ship sustain.',
         _ => 'Element determines the follow-through pattern after impact.',
       };
-      return _CosmicSpecialInfo(
+      return CosmicSpecialInfo(
         subtitle: 'Meteor Strike • Siege follow-through',
         description:
-            'Drops a massive $element meteor on the target with a large impact burst. '
+            'A heavy siege cast that lands on the target area, then turns the lane into an elemental problem. '
             '${hasCluster ? 'The meteor fragments mid-flight, splitting into sub-projectiles. ' : ''}'
             '$followThrough',
         icon: Icons.south,
@@ -1852,10 +1986,10 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         _ =>
           'Element determines the tempo pattern, target priority, and rebound behavior.',
       };
-      return _CosmicSpecialInfo(
+      return CosmicSpecialInfo(
         subtitle: 'Tempo Salvo • Fast skirmish special',
         description:
-            'Fires a burst of fast $element darts for cleanup and target hopping. '
+            'A quick cleanup special built for target hopping, leak control, and finishing scattered enemies. '
             '$followThrough',
         icon: Icons.bolt,
         tags: [
@@ -1877,21 +2011,17 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         'Dark',
         'Lava',
         'Water',
-      ].contains(element);
-      final tempoElement = [
-        'Fire',
         'Lightning',
-        'Air',
-        'Dust',
       ].contains(element);
+      final tempoElement = ['Fire', 'Air', 'Dust'].contains(element);
       final finisherElement = ['Blood', 'Spirit', 'Crystal'].contains(element);
       final followThrough = switch (element) {
         'Fire' =>
           'Fire is an advancing flame-arc burst with a high-tempo follow-through.',
         'Lightning' =>
-          'Lightning is a fast fork-cut package with a guided center lane.',
+          'Lightning plants a scattered field of 5–10 stationary rods that continuously shock nearby enemies.',
         'Air' =>
-          'Air sweeps the widest split cone for speed-first lane clearing.',
+          'Air sweeps the widest split cone and is the one fast Mane — its slashes travel at ~2× speed.',
         'Dust' => 'Dust floods lanes with a high-count sandblade fan.',
         'Water' =>
           'Water fires dual crossing tide-cuts that form a distinct X-lane slow.',
@@ -1913,7 +2043,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         'Blood' =>
           'Blood fires twin spear-cuts plus a central finisher and sustain payoff.',
         'Spirit' =>
-          'Spirit threads a guided center finisher through a disciplined barrage.',
+          'Spirit ramps lane count 1→10 across successive casts, then resets — each cast a wider soul-slash fan.',
         'Crystal' =>
           'Crystal is a fixed 3-lance prism burst with refracted side follow-ups.',
         'Light' =>
@@ -1921,7 +2051,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         _ =>
           'Element changes the forward technique while keeping Mane focused on lane pressure.',
       };
-      return _CosmicSpecialInfo(
+      return CosmicSpecialInfo(
         subtitle: 'Barrage Volley • Martial lane pressure',
         description:
             'Unloads a forward $element slash technique meant to suppress what '
@@ -2001,7 +2131,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         _ =>
           'Element changes the bait pattern, trap pressure, and punishment style.',
       };
-      return _CosmicSpecialInfo(
+      return CosmicSpecialInfo(
         subtitle: decoyElement
             ? 'Decoy Totem • Control setup'
             : 'Seeker Swarm • Control setup',
@@ -2092,11 +2222,11 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
           'Element changes whether the guardian pieces escort, intercept, '
               'taunt, snare, heal, or pressure enemies.',
       };
-      return _CosmicSpecialInfo(
+      return CosmicSpecialInfo(
         subtitle: 'Blessing Pulse • Guardian support',
         description:
-            'Heals self, applies a blessing-over-time, and deploys $element '
-            'guardian pieces. $followThrough',
+            'A support cast that heals, blesses over time, and keeps guardian pieces active. '
+            '$followThrough',
         icon: Icons.favorite,
         tags: [
           'HEAL',
@@ -2252,14 +2382,14 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
           <String>['GUARDIAN', 'ULTIMATE'],
         ),
       };
-      return _CosmicSpecialInfo(
+      return CosmicSpecialInfo(
         subtitle: subtitle,
         description: desc,
         icon: Icons.auto_awesome,
         tags: [...tags, 'ULTIMATE', 'LONG CD', element.toUpperCase()],
       );
     default:
-      return const _CosmicSpecialInfo(
+      return const CosmicSpecialInfo(
         subtitle: '30s cooldown',
         description:
             'Unleashes a burst of elemental energy at 2× damage. '

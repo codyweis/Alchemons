@@ -40,7 +40,6 @@ import 'package:alchemons/screens/cosmic/blood_ring_ending_screen.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/game.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/scheduler.dart';
@@ -48,6 +47,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 
 // Scorched Forge design tokens
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
@@ -59,6 +59,8 @@ import 'widgets/widgets.dart';
 import 'widgets/mini_map_circle.dart';
 import 'widgets/contest_arena_overlays.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
+
+const _cosmicMeterPalette = BracketPalette.dark;
 
 class CosmicScreen extends StatefulWidget {
   const CosmicScreen({super.key, this.memoryTutorial = false});
@@ -79,7 +81,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       'cosmic_planet_recipe_arrival_intro_seen_v1';
   static const _cosmicIntroPromptedKey = 'cosmic_intro_prompted_v1';
   static const _cosmicIntroCompletedKey = 'cosmic_intro_completed_v1';
-    static const _cosmicSurvivalIntroCompletedKey =
+  static const _cosmicSurvivalIntroCompletedKey =
       'cosmic_survival_intro_completed_v1';
 
   late int _worldSeed;
@@ -89,17 +91,17 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _showMiniMap = false;
   bool _showPinnedMiniMap = true;
   bool _topHudCollapsed = false;
-    String? _pinnedRecipeElement;
-    CosmicSummonResult? _summonResult;
-    bool _arcaneUnlocked = false;
+  String? _pinnedRecipeElement;
+  CosmicSummonResult? _summonResult;
+  bool _arcaneUnlocked = false;
 
-    // Recipe & storage state
-    CosmicPlanet? _nearPlanet;
-    bool _showingPlanetRecipeArrivalIntro = false;
-    CosmicRecipeState _recipeState = CosmicRecipeState.fresh();
-    ElementStorage _elementStorage = ElementStorage();
-    bool _showElementsCaptured = false;
-    Map<String, double> _capturedBreakdown = {};
+  // Recipe & storage state
+  CosmicPlanet? _nearPlanet;
+  bool _showingPlanetRecipeArrivalIntro = false;
+  CosmicRecipeState _recipeState = CosmicRecipeState.fresh();
+  ElementStorage _elementStorage = ElementStorage();
+  bool _showElementsCaptured = false;
+  Map<String, double> _capturedBreakdown = {};
 
   // Star dust state
   Set<int> _collectedDust = {};
@@ -250,13 +252,19 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool get _survivalSignalTutorialActive =>
       !widget.memoryTutorial &&
       !_survivalIntroCompleted &&
-      (_awaitingSurvivalMapTap || _survivalGuidanceActive);
+      (_awaitingSurvivalMapTap ||
+          _survivalMapTapped ||
+          _survivalGuidanceActive);
 
   SpacePOI? get _survivalPortalPoi {
     final game = _game;
     if (game == null) return null;
-    for (final poi in game.spacePOIs) {
-      if (poi.type == POIType.survivalPortal) return poi;
+    try {
+      for (final poi in game.spacePOIs) {
+        if (poi.type == POIType.survivalPortal) return poi;
+      }
+    } catch (_) {
+      return null;
     }
     return null;
   }
@@ -284,6 +292,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   late AnimationController _planetMeterCtrl;
   late AnimationController _bloodRitualCtrl;
   late AnimationController _screenShakeCtrl;
+  late AnimationController _survivalSignalArrowCtrl;
   late Animation<double> _screenShakeAnim;
   bool _showBloodRitualOverlay = false;
 
@@ -351,6 +360,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
+    _survivalSignalArrowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
     _screenShakeAnim =
         TweenSequence<double>([
           TweenSequenceItem(tween: Tween(begin: 0.0, end: -14.0), weight: 1),
@@ -585,6 +598,10 @@ class _CosmicScreenState extends State<CosmicScreen>
         savedFog = parsed;
       }
     }
+    final cosmicIntroCompleted =
+        prefs.getBool(_cosmicIntroCompletedKey) ?? false;
+    final shouldNudgeInitialSpawnTowardSignal =
+        !widget.memoryTutorial && !cosmicIntroCompleted && savedFog == null;
 
     final game = CosmicGame(
       world_: _world,
@@ -613,6 +630,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       initialCustomizations: _customizationState.activeIds,
       initialOptions: _customizationState.options,
       initialAmmoId: _customizationState.activeAmmo?.id,
+      startCloserToSurvivalSignal: shouldNudgeInitialSpawnTowardSignal,
     );
     game.tapToShootMode = widget.memoryTutorial ? false : _tapToShoot;
     game.activeWeaponId = widget.memoryTutorial
@@ -1781,13 +1799,16 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  void _showQuote(String quote) {
+  void _showQuote(
+    String quote, {
+    Duration holdFor = const Duration(seconds: 2),
+  }) {
     void doShow() {
       if (!mounted) return;
       setState(() => _activeQuote = quote);
       _quoteFade.forward(from: 0).then((_) {
-        // Hold for 2 seconds, then fade out
-        Future.delayed(const Duration(seconds: 2), () {
+        // Hold briefly, then fade out
+        Future.delayed(holdFor, () {
           if (!mounted) return;
           _quoteFade.reverse().then((_) {
             if (mounted) setState(() => _activeQuote = null);
@@ -1868,6 +1889,8 @@ class _CosmicScreenState extends State<CosmicScreen>
           if (planet != null) {
             _planetMeterCtrl.forward(from: 0.0);
             unawaited(_maybeShowPlanetRecipeArrivalIntro(planet));
+          } else if (_pinnedRecipeElement != null) {
+            _planetMeterCtrl.forward(from: _planetMeterCtrl.value);
           } else {
             _planetMeterCtrl.reverse();
           }
@@ -1884,6 +1907,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (introSeen || !mounted || _nearPlanet != planet) return;
 
     _showingPlanetRecipeArrivalIntro = true;
+    final game = _game;
+    game?.pauseEngine();
     try {
       await LandscapeDialog.show(
         context,
@@ -1897,6 +1922,12 @@ class _CosmicScreenState extends State<CosmicScreen>
       );
       await prefs.setBool(_planetRecipeArrivalIntroSeenKey, true);
     } finally {
+      if (mounted &&
+          identical(_game, game) &&
+          !_showMiniMap &&
+          !_anyOverlayOpen) {
+        game?.resumeEngine();
+      }
       _showingPlanetRecipeArrivalIntro = false;
     }
   }
@@ -2049,7 +2080,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (waterBossKey <= 0) missing.add('Leviathan Scale');
       if (earthBossKey <= 0) missing.add('Terra Core');
       if (airBossKey <= 0) missing.add('Gale Plume');
-      _showQuote('Missing boss keys: ${missing.join(", ")}');
+      _showQuote(
+        'Need 1 relic from each main element (Fire, Earth, Water, Air). Missing: ${missing.join(", ")}',
+      );
       HapticFeedback.lightImpact();
       return;
     }
@@ -2057,13 +2090,21 @@ class _CosmicScreenState extends State<CosmicScreen>
     // Meter requirement: must be full and contain ≥ 20% of each element
     final meter = _game!.meter;
     if (!meter.isFull) {
-      _showQuote('Alchemeal meter must be full to enter the Nexus.');
+      _showQuote(
+        'One boss relic from each main element is required: Fire, Earth, Water, Air\n\n'
+        'Alchemical meter must be full with an even split of Fire, Earth, Water, and Air elements',
+        holdFor: const Duration(seconds: 6),
+      );
       HapticFeedback.lightImpact();
       return;
     }
     final nexus0 = _game!.elementalNexus;
     if (!nexus0.meetsRequirement(meter.breakdown, meter.total)) {
-      _showQuote('Meter must contain ≥ 20% Fire, Water, Earth & Air.');
+      _showQuote(
+        'One boss relic from each main element is required: Fire, Earth, Water, Air\n\n'
+        'Alchemical meter must be full with an even split of Fire, Earth, Water, and Air elements',
+        holdFor: const Duration(seconds: 6),
+      );
       HapticFeedback.lightImpact();
       return;
     }
@@ -4349,7 +4390,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         context,
         title: 'Establish Home Base',
         message:
-          'Fly around and choose where you want to anchor your home base. Most systems stay locked until home is built.',
+            'Fly around and choose where you want to anchor your home base. Most systems stay locked until home is built.',
         typewriter: true,
         kind: LandscapeDialogKind.info,
         showIcon: false,
@@ -4639,156 +4680,179 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
-  Widget _buildShipButton() {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _showShipMenu = true;
-          if (_awaitingShipMenuTap) {
-            _awaitingShipMenuTap = false;
-            _awaitingBuildHomeTap = _homePlanet == null;
-          }
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: _awaitingShipMenuTap
-              ? const Color(0xFF00E5FF).withValues(alpha: 0.18)
-              : CosmicScreenStyles.bg1,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
+  Widget _buildLeftActionRail({required bool showHomeActions}) {
+    final home = _homePlanet;
+    final canDeposit =
+        (_game?.meter.total ?? 0) > 0 || (_game?.shipWallet.shards ?? 0) > 0;
+    final shipAction = Tooltip(
+      message: 'Ship',
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _showShipMenu = true;
+            if (_awaitingShipMenuTap) {
+              _awaitingShipMenuTap = false;
+              _awaitingBuildHomeTap = _homePlanet == null;
+            }
+          });
+        },
+        child: _CosmicSquareHudButton(
+          accent: const Color(0xFF00E5FF),
+          active: _awaitingShipMenuTap,
+          child: Icon(
+            Icons.rocket_launch_rounded,
             color: _awaitingShipMenuTap
                 ? const Color(0xFF00E5FF)
-                : const Color(0xFF00E5FF).withValues(alpha: 0.6),
-            width: _awaitingShipMenuTap ? 2 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(
-                0xFF00E5FF,
-              ).withValues(alpha: _awaitingShipMenuTap ? 0.45 : 0.18),
-              blurRadius: _awaitingShipMenuTap ? 22 : 12,
-              spreadRadius: _awaitingShipMenuTap ? 2 : 0,
-            ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          'SHIP',
-          style: TextStyle(
-            fontFamily: appFontFamily(context),
-            color: CosmicScreenStyles.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 2.0,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSlowModeButton() {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _slowMode = !_slowMode);
-        _game?.slowMode = _slowMode;
-        HapticFeedback.selectionClick();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: _slowMode
-              ? const Color(0xFFFFB300).withValues(alpha: 0.18)
-              : Colors.black45,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: _slowMode
-                ? const Color(0xFFFFB300).withValues(alpha: 0.8)
-                : Colors.white10,
-            width: 1,
-          ),
-        ),
-        child: Center(
-          child: Icon(
-            Icons.slow_motion_video,
-            color: _slowMode ? const Color(0xFFFFB300) : Colors.white38,
+                : _cosmicMeterPalette.muted,
             size: 20,
           ),
         ),
       ),
     );
+    final actions = <Widget>[shipAction];
+
+    if (showHomeActions && home != null) {
+      actions.clear();
+      actions.addAll([
+        Tooltip(
+          message: canDeposit ? 'Deposit' : 'Nothing to deposit',
+          child: GestureDetector(
+            onTap: _handleDepositAll,
+            child: _CosmicSquareHudButton(
+              accent: CosmicScreenStyles.amber,
+              active: canDeposit,
+              disabled: !canDeposit,
+              child: Icon(
+                Icons.file_upload_rounded,
+                color: canDeposit
+                    ? CosmicScreenStyles.amber
+                    : _cosmicMeterPalette.muted,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+        Tooltip(
+          message: 'Home base',
+          child: GestureDetector(
+            onTap: () => setState(() => _showHomeMenu = true),
+            child: _CosmicSquareHudButton(
+              accent: CosmicScreenStyles.amber,
+              active: true,
+              child: Container(
+                width: 19,
+                height: 19,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Color.lerp(home.blendedColor, Colors.white, 0.3)!,
+                      home.blendedColor,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: home.blendedColor.withValues(alpha: 0.42),
+                      blurRadius: 6,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        shipAction,
+      ]);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < actions.length; i++) ...[
+          actions[i],
+          if (i < actions.length - 1) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRightHudButton({
+    required IconData icon,
+    required Color accent,
+    required bool active,
+    required VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: _CosmicSquareHudButton(
+        accent: accent,
+        active: active,
+        child: Icon(
+          icon,
+          color: active ? accent : _cosmicMeterPalette.muted,
+          size: 20,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeaponHudButton({
+    required Color accent,
+    required bool active,
+    required Widget child,
+  }) {
+    return _CosmicSquareHudButton(
+      size: 50,
+      accent: accent,
+      active: active,
+      child: child,
+    );
+  }
+
+  Widget _buildPartyHudSlotFrame({
+    required bool active,
+    required bool disabled,
+    required bool dead,
+    required Widget child,
+  }) {
+    final accent = active
+        ? const Color(0xFFE53935)
+        : dead
+        ? const Color(0xFFE53935)
+        : const Color(0xFF00E676);
+    return _CosmicSquareHudButton(
+      size: 44,
+      accent: accent,
+      active: active || (!disabled && !dead),
+      disabled: disabled || dead,
+      child: child,
+    );
+  }
+
+  Widget _buildSlowModeButton() {
+    return _buildRightHudButton(
+      icon: Icons.slow_motion_video,
+      accent: const Color(0xFFFFB300),
+      active: _slowMode,
+      onTap: () {
+        setState(() => _slowMode = !_slowMode);
+        _game?.slowMode = _slowMode;
+        HapticFeedback.selectionClick();
+      },
+    );
   }
 
   Widget _buildCompanionTetherButton() {
-    return GestureDetector(
+    return _buildRightHudButton(
+      icon: _companionTethered ? Icons.link : Icons.link_off,
+      accent: const Color(0xFF42A5F5),
+      active: _companionTethered,
       onTap: () {
         setState(() => _companionTethered = !_companionTethered);
         _game?.companionTethered = _companionTethered;
         _onMemoryTetherToggled();
         HapticFeedback.selectionClick();
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: _companionTethered
-              ? const Color(0xFF42A5F5).withValues(alpha: 0.18)
-              : Colors.black45,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: _companionTethered
-                ? const Color(0xFF42A5F5).withValues(alpha: 0.8)
-                : Colors.white10,
-            width: 1,
-          ),
-        ),
-        child: Center(
-          child: Icon(
-            _companionTethered ? Icons.link : Icons.link_off,
-            color: _companionTethered
-                ? const Color(0xFF42A5F5)
-                : Colors.white38,
-            size: 20,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSandboxButton() {
-    return GestureDetector(
-      onTap: _toggleSandboxPanel,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: _sandboxMode
-              ? const Color(0xFF7CFFB2).withValues(alpha: 0.18)
-              : Colors.black45,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: _sandboxMode
-                ? const Color(0xFF7CFFB2).withValues(alpha: 0.8)
-                : Colors.white10,
-            width: 1,
-          ),
-        ),
-        child: Center(
-          child: Icon(
-            Icons.science_rounded,
-            color: _sandboxMode ? const Color(0xFF7CFFB2) : Colors.white38,
-            size: 20,
-          ),
-        ),
-      ),
     );
   }
 
@@ -4828,30 +4892,10 @@ class _CosmicScreenState extends State<CosmicScreen>
           ? _handleReturnCompanion
           : () => _handleSummonCompanion(i),
       onLongPress: () => _handlePartySlotLongPress(i),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: isActive
-              ? const Color(0xFFE53935).withValues(alpha: 0.18)
-              : isDead
-              ? const Color(0xFFE53935).withValues(alpha: 0.06)
-              : isDisabled
-              ? Colors.black45
-              : const Color(0xFF00E676).withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: isActive
-                ? const Color(0xFFE53935).withValues(alpha: 0.8)
-                : isDead
-                ? const Color(0xFFE53935).withValues(alpha: 0.25)
-                : isDisabled
-                ? Colors.white10
-                : const Color(0xFF00E676).withValues(alpha: 0.5),
-            width: 1,
-          ),
-        ),
+      child: _buildPartyHudSlotFrame(
+        active: isActive,
+        disabled: isDisabled,
+        dead: isDead,
         child: member != null
             ? Opacity(
                 opacity: isDisabled ? 0.25 : 1.0,
@@ -5402,7 +5446,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (level >= HomeCustomizationState.maxFuelUpgradeLevel) return;
       final cost = HomeCustomizationState.fuelUpgradeCosts[level];
       if (_homePlanet!.astralBank < cost) {
-        _showQuote('Not enough Astral Shards! Need $cost ✦');
+        _showQuote('Not enough Astral Shards! Need $cost.');
         return;
       }
       _homePlanet!.astralBank -= cost;
@@ -5429,7 +5473,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (level >= HomeCustomizationState.maxUpgradeLevel) return;
     final cost = HomeCustomizationState.upgradeCosts[level];
     if (_homePlanet!.astralBank < cost) {
-      _showQuote('Not enough Astral Shards! Need $cost ✦');
+      _showQuote('Not enough Astral Shards! Need $cost.');
       return;
     }
     _homePlanet!.astralBank -= cost;
@@ -5469,12 +5513,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     final cost = _homePlanet!.nextTierCost;
     if (cost == null) return; // already max
     if (_homePlanet!.astralBank < cost) {
-      _showQuote('Not enough Astral Shards! Need $cost ✦');
+      _showQuote('Not enough Astral Shards! Need $cost.');
       return;
     }
     final confirmed = await _showConfirmPurchase(
       title: 'Upgrade planet size?',
-      cost: '$cost ✦ Astral Shards',
+      cost: '$cost Astral Shards',
     );
     if (!confirmed || !mounted) return;
     _homePlanet!.astralBank -= cost;
@@ -5784,6 +5828,16 @@ class _CosmicScreenState extends State<CosmicScreen>
       seed: _worldSeed,
       level: level,
     );
+  }
+
+  /// How many of a planet's 3 recipe levels are complete (0..3).
+  int _completedRecipeLevelsForPlanet(CosmicPlanet planet) {
+    final mask = _recipeState.completedMaskFor(planet.element) & 0x7;
+    var count = 0;
+    for (var bit = 0; bit < 3; bit++) {
+      if ((mask & (1 << bit)) != 0) count++;
+    }
+    return count;
   }
 
   List<String> _rarityPoolForRecipeLevel(int level) {
@@ -6163,6 +6217,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _planetMeterCtrl.dispose();
     _bloodRitualCtrl.dispose();
     _screenShakeCtrl.dispose();
+    _survivalSignalArrowCtrl.dispose();
     // Auto-save fog on exit
     if (!widget.memoryTutorial) {
       _saveFogState();
@@ -6299,102 +6354,13 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     if (!mounted) return;
     setState(() => _pinnedRecipeElement = next);
+    if (next != null) {
+      _planetMeterCtrl.forward(from: _planetMeterCtrl.value);
+    } else if (_nearPlanet == null) {
+      _planetMeterCtrl.reverse();
+    }
     HapticFeedback.selectionClick();
     _showQuote(next == null ? 'Recipe unpinned.' : 'Recipe pinned.');
-  }
-
-  Widget _buildPinnedRecipeMeter({
-    required CosmicPlanet planet,
-    required PlanetRecipe recipe,
-    required VoidCallback onTogglePin,
-  }) {
-    final entries = recipe.components.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final usedPct = entries.fold<double>(0.0, (sum, e) => sum + e.value);
-    final randomPct = (100.0 - usedPct).clamp(0.0, 100.0);
-
-    return GestureDetector(
-      onTap: onTogglePin,
-      child: Container(
-        height: 22,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.white.withValues(alpha: 0.06),
-              Colors.white.withValues(alpha: 0.02),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: planet.color.withValues(alpha: 0.22),
-            width: 0.9,
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(9),
-          child: Stack(
-            children: [
-              Row(
-                children: [
-                  for (final e in entries)
-                    Expanded(
-                      flex: (e.value * 10).round().clamp(1, 1000),
-                      child: Container(color: elementColor(e.key)),
-                    ),
-                  if (randomPct > 0)
-                    Expanded(
-                      flex: (randomPct * 10).round().clamp(1, 1000),
-                      child: Container(
-                        color: Colors.white.withValues(alpha: 0.15),
-                      ),
-                    ),
-                ],
-              ),
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.26),
-                        Colors.white.withValues(alpha: 0.0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Center(
-                child: Text(
-                  'PINNED ${planetName(planet.element).toUpperCase()} RECIPE',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.9,
-                    shadows: const [
-                      Shadow(color: Colors.black, blurRadius: 6),
-                      Shadow(color: Colors.black, blurRadius: 3),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 6,
-                top: 3,
-                child: Icon(
-                  Icons.push_pin,
-                  size: 14,
-                  color: Colors.white.withValues(alpha: 0.8),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -6430,15 +6396,15 @@ class _CosmicScreenState extends State<CosmicScreen>
         ? _planetForElement(_pinnedRecipeElement!)
         : null;
     final hasPinnedRecipe = pinnedPlanet != null;
-    final showingPinnedOnly = hasPinnedRecipe && _nearPlanet == null;
     final hudPlanet = hasPinnedRecipe ? pinnedPlanet : _nearPlanet;
+    final recipeHudVisible = hudPlanet != null && !_isNearHome;
     final hudPathwayUnlocked = hudPlanet != null
         ? _recipeState.isMaxMastered(hudPlanet.element)
         : false;
     final hudCanAct =
         _nearPlanet != null && (hudPathwayUnlocked || _game!.meter.isFull);
-    final baseMapColumnTop =
-        120.0 + (_nearPlanet != null && !_isNearHome ? 240.0 : 0.0);
+    const starDustTotal = 50;
+    final baseMapColumnTop = 120.0 + (recipeHudVisible ? 240.0 : 0.0);
     final mapColumnTop = (_topHudCollapsed ? 0.0 : baseMapColumnTop)
         .clamp(0.0, 400.0)
         .toDouble();
@@ -6467,6 +6433,26 @@ class _CosmicScreenState extends State<CosmicScreen>
             children: [
               // ── Flame game canvas ──
               Positioned.fill(child: GameWidget(game: _game!)),
+
+              if (showCosmicHud &&
+                  _survivalGuidanceActive &&
+                  !_survivalIntroCompleted &&
+                  tutorialTargetPos != null &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _SurvivalSignalEdgeArrowPainter(
+                        game: _game!,
+                        targetPos: tutorialTargetPos,
+                        progress: _survivalSignalArrowCtrl,
+                        viewPadding: MediaQuery.of(context).padding,
+                      ),
+                    ),
+                  ),
+                ),
 
               // ── Tap-to-shoot full-screen listener ──
               if (showCosmicHud &&
@@ -6714,8 +6700,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
               // ── Planet recipe HUD (moved to top safe-area, compact)
               if (showCosmicHud &&
-                  hudPlanet != null &&
-                  !_isNearHome &&
+                  recipeHudVisible &&
                   _summonResult == null &&
                   !_showElementsCaptured &&
                   !_showMiniMap &&
@@ -6723,7 +6708,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 280),
                   curve: Curves.easeOutCubic,
-                  top: 74,
+                  top: 76,
                   left: 0,
                   right: 0,
                   child: SafeArea(
@@ -6731,101 +6716,82 @@ class _CosmicScreenState extends State<CosmicScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // Animated alchemical meter above the planet HUD
-                        if (!showingPinnedOnly) ...[
-                          AnimatedBuilder(
-                            animation: _planetMeterCtrl,
-                            builder: (context, child) {
-                              final t = Curves.easeOut.transform(
-                                _planetMeterCtrl.value,
-                              );
-                              return Opacity(
-                                opacity: t.clamp(0.0, 1.0),
-                                child: Transform.translate(
-                                  offset: Offset(0, (1 - t) * 8),
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: GestureDetector(
-                              onTap: _handleMeterTap,
-                              child: AnimatedBuilder(
-                                animation: _meterPulse,
-                                builder: (context, child) {
+                        AnimatedBuilder(
+                          animation: _planetMeterCtrl,
+                          builder: (context, child) {
+                            final t = Curves.easeOut.transform(
+                              _planetMeterCtrl.value,
+                            );
+                            return Opacity(
+                              opacity: t.clamp(0.0, 1.0),
+                              child: Transform.translate(
+                                offset: Offset(0, (1 - t) * 8),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: GestureDetector(
+                            onTap: _handleMeterTap,
+                            child: AnimatedBuilder(
+                              animation: _meterPulse,
+                              builder: (context, child) {
+                                final meter = _game!.meter;
+                                final glow = meter.isFull
+                                    ? _meterPulse.value * 0.4
+                                    : 0.0;
+                                return CustomPaint(
+                                  painter: BracketFramePainter(
+                                    color: meter.isFull
+                                        ? const Color(
+                                            0xFFE4C16A,
+                                          ).withValues(alpha: 0.6 + glow * 0.4)
+                                        : _cosmicMeterPalette.line.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                    bracketSize: 6,
+                                    strokeWidth: 1.05,
+                                  ),
+                                  child: SizedBox(height: 24, child: child),
+                                );
+                              },
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
                                   final meter = _game!.meter;
-                                  final glow = meter.isFull
-                                      ? _meterPulse.value * 0.4
-                                      : 0.0;
-                                  return Container(
-                                    height: 24,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          Colors.white.withValues(alpha: 0.07),
-                                          Colors.white.withValues(alpha: 0.02),
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: meter.isFull
-                                            ? Colors.amberAccent.withValues(
-                                                alpha: 0.4 + glow,
-                                              )
-                                            : Colors.white.withValues(
-                                                alpha: 0.06,
-                                              ),
-                                        width: meter.isFull ? 1.0 : 0.5,
-                                      ),
-                                      boxShadow: meter.isFull
-                                          ? [
-                                              BoxShadow(
-                                                color: Colors.amberAccent
-                                                    .withValues(
-                                                      alpha: 0.12 + glow * 0.2,
-                                                    ),
-                                                blurRadius: 14,
-                                                spreadRadius: 1,
-                                              ),
-                                            ]
-                                          : null,
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(9),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final meter = _game!.meter;
-                                    final breakdown = meter.breakdown;
-                                    final total = meter.total;
-                                    if (total <= 0) {
-                                      return Container(
-                                        alignment: Alignment.center,
+                                  final breakdown = meter.breakdown;
+                                  final total = meter.total;
+                                  if (total <= 0) {
+                                    return ColoredBox(
+                                      color: _cosmicMeterPalette.bg1,
+                                      child: Center(
                                         child: Text(
                                           'ALCHEMICAL METER',
                                           style: TextStyle(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.18,
-                                            ),
-                                            fontSize: 12,
+                                            color: _cosmicMeterPalette.muted,
+                                            fontSize: 10.5,
                                             fontWeight: FontWeight.w700,
-                                            letterSpacing: 2,
+                                            letterSpacing: 1.0,
                                           ),
                                         ),
-                                      );
-                                    }
+                                      ),
+                                    );
+                                  }
 
-                                    final sorted = breakdown.entries.toList()
-                                      ..sort(
-                                        (a, b) => b.value.compareTo(a.value),
-                                      );
+                                  final sorted = breakdown.entries.toList()
+                                    ..sort(
+                                      (a, b) => b.value.compareTo(a.value),
+                                    );
 
-                                    return Stack(
-                                      children: [
-                                        Row(
+                                  return Stack(
+                                    children: [
+                                      Positioned.fill(
+                                        child: ColoredBox(
+                                          color: _cosmicMeterPalette.bg1,
+                                        ),
+                                      ),
+                                      Positioned.fill(
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
                                           children: sorted.map((e) {
                                             final pct =
                                                 e.value /
@@ -6835,112 +6801,55 @@ class _CosmicScreenState extends State<CosmicScreen>
                                                 1,
                                                 1000,
                                               ),
-                                              child: Container(
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    begin: Alignment.topCenter,
-                                                    end: Alignment.bottomCenter,
-                                                    colors: [
-                                                      Color.lerp(
-                                                        elementColor(e.key),
-                                                        Colors.white,
-                                                        0.2,
-                                                      )!,
-                                                      elementColor(e.key),
-                                                      Color.lerp(
-                                                        elementColor(e.key),
-                                                        Colors.black,
-                                                        0.25,
-                                                      )!,
-                                                    ],
-                                                    stops: const [
-                                                      0.0,
-                                                      0.4,
-                                                      1.0,
-                                                    ],
-                                                  ),
-                                                ),
+                                              child: ColoredBox(
+                                                color: elementColor(e.key),
                                               ),
                                             );
                                           }).toList(),
                                         ),
-                                        Positioned(
-                                          top: 0,
-                                          left: 0,
-                                          right: 0,
-                                          height: 7,
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                begin: Alignment.topCenter,
-                                                end: Alignment.bottomCenter,
-                                                colors: [
-                                                  Colors.white.withValues(
-                                                    alpha: 0.3,
-                                                  ),
-                                                  Colors.white.withValues(
-                                                    alpha: 0.0,
-                                                  ),
-                                                ],
+                                      ),
+                                      Center(
+                                        child: Text(
+                                          meter.isFull
+                                              ? 'METER FULL — FLY TO A PLANET'
+                                              : '${(meter.fillPct * 100).toStringAsFixed(0)}% ALCHEMICAL',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.8,
+                                            shadows: [
+                                              Shadow(
+                                                color: Colors.black,
+                                                blurRadius: 4,
                                               ),
-                                            ),
+                                            ],
                                           ),
                                         ),
-                                        Center(
-                                          child: Text(
-                                            meter.isFull
-                                                ? 'METER FULL — FLY TO A PLANET'
-                                                : '${(meter.fillPct * 100).toStringAsFixed(0)}%',
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.9,
-                                              ),
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 0.8,
-                                              shadows: const [
-                                                Shadow(
-                                                  color: Colors.black,
-                                                  blurRadius: 6,
-                                                ),
-                                                Shadow(
-                                                  color: Colors.black,
-                                                  blurRadius: 3,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                        if (hasPinnedRecipe)
-                          _buildPinnedRecipeMeter(
-                            planet: hudPlanet,
-                            recipe: _getRecipeForPlanet(hudPlanet),
-                            onTogglePin: () => _togglePinnedRecipe(hudPlanet),
-                          )
-                        else
-                          PlanetRecipeHud(
-                            planet: hudPlanet,
-                            recipe: _getRecipeForPlanet(hudPlanet),
-                            meter: _game!.meter,
-                            actionLabel: hudPathwayUnlocked
-                                ? 'ENTER PLANET'
-                                : 'SUMMON',
-                            hideLevel: hudPathwayUnlocked,
-                            onSummon: hudCanAct
-                                ? _triggerScreenShakeAndSummon
-                                : null,
-                            onTogglePin: () => _togglePinnedRecipe(hudPlanet),
-                            isPinned: _pinnedRecipeElement == hudPlanet.element,
-                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        PlanetRecipeHud(
+                          planet: hudPlanet,
+                          recipe: _getRecipeForPlanet(hudPlanet),
+                          meter: _game!.meter,
+                          actionLabel: hudPathwayUnlocked
+                              ? 'ENTER PLANET'
+                              : 'SUMMON',
+                          hideLevel: hudPathwayUnlocked,
+                          onSummon: hudCanAct
+                              ? _triggerScreenShakeAndSummon
+                              : null,
+                          onTogglePin: () => _togglePinnedRecipe(hudPlanet),
+                          isPinned: _pinnedRecipeElement == hudPlanet.element,
+                          showPinnedTag: hasPinnedRecipe,
+                        ),
                       ],
                     ),
                   ),
@@ -6960,15 +6869,13 @@ class _CosmicScreenState extends State<CosmicScreen>
                       discoveryPct: _game!.discoveryPct,
                       planetsFound: _world.discoveredCount,
                       planetsTotal: _world.totalCount,
-                      dustCount: _collectedDust.length,
                       wallet: _game!.shipWallet,
-                      onSettings: () =>
-                          _homeBuildTutorialLock
+                      onSettings: () => _homeBuildTutorialLock
                           ? _showQuote('Build your home base first.')
                           : setState(() => _showSettingsMenu = true),
                       onMiniMap: _toggleMiniMap,
                       onMeterTap: _handleMeterTap,
-                      showMeter: _nearPlanet == null || _isNearHome,
+                      showMeter: !recipeHudVisible,
                       collapsed: _topHudCollapsed,
                       onCollapsedChanged: (collapsed) {
                         if (_topHudCollapsed == collapsed) return;
@@ -6980,6 +6887,18 @@ class _CosmicScreenState extends State<CosmicScreen>
                         setState(() {});
                       },
                     ),
+                  ),
+                ),
+
+              if (showCosmicHud &&
+                  !_anyOverlayOpen &&
+                  _collectedDust.isNotEmpty)
+                Positioned(
+                  top: 14,
+                  right: 18,
+                  child: _StarDustCollectorBadge(
+                    count: _collectedDust.length,
+                    total: starDustTotal,
                   ),
                 ),
 
@@ -7005,6 +6924,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                         game: _game!,
                         theme: theme,
                         markers: _mapMarkers,
+                        completedLevelsFor: _completedRecipeLevelsForPlanet,
                         tutorialTargetPos: tutorialTargetPos,
                         tutorialTargetColor: const Color(0xFF8B5CF6),
                         tutorialTargetLabel: 'SIGNAL',
@@ -7615,12 +7535,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.blur_circular,
-                                  color: Colors.deepPurpleAccent,
-                                  size: 22,
-                                ),
-                                const SizedBox(width: 10),
                                 Text(
                                   'ENTER ELEMENTAL NEXUS',
                                   style: TextStyle(
@@ -7769,349 +7683,35 @@ class _CosmicScreenState extends State<CosmicScreen>
 
               // Companion HUD moved: small health bars are shown above each
               // companion slot button below (no floating HUD).
-              // ── Home Base + Deposit buttons (bottom center, near home) ──
-              if (showCosmicHud && _homePlanet != null)
+              // ── Left action rail (ship, plus home actions when nearby) ──
+              if (showCosmicHud &&
+                  _summonResult == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
                 Positioned(
-                  bottom: 20,
-                  left: showJoystickControl
-                      ? (largeJoystickControl ? 146.0 : 120.0)
-                      : 0,
-                  right: showJoystickControl ? 74 : 0,
+                  bottom: showJoystickControl
+                      ? (largeJoystickControl ? 238.0 : 190.0)
+                      : 20,
+                  left: 12,
                   child: AnimatedOpacity(
-                    opacity:
-                        (_isNearHome &&
-                            _summonResult == null &&
-                            !_showElementsCaptured &&
-                            !_showMiniMap &&
-                            !_anyOverlayOpen)
-                        ? 1.0
-                        : 0.0,
+                    opacity: _nearPlanet != null && !_isNearHome ? 0.25 : 1.0,
                     duration: const Duration(milliseconds: 350),
                     child: AnimatedSlide(
-                      offset:
-                          (_isNearHome &&
-                              _summonResult == null &&
-                              !_showElementsCaptured &&
-                              !_showMiniMap &&
-                              !_anyOverlayOpen)
-                          ? Offset.zero
-                          : const Offset(0, 0.4),
+                      offset: Offset.zero,
                       duration: const Duration(milliseconds: 350),
                       curve: Curves.easeOutCubic,
-                      child: IgnorePointer(
-                        ignoring:
-                            !(_isNearHome &&
-                                _summonResult == null &&
-                                !_showElementsCaptured &&
-                                !_showMiniMap &&
-                                !_anyOverlayOpen),
-                        child: SafeArea(
-                          child: Center(
-                            child: showJoystickControl
-                                ? Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      // HOME BASE button
-                                      GestureDetector(
-                                        onTap: () => setState(
-                                          () => _showHomeMenu = true,
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: CosmicScreenStyles.bg1,
-                                            borderRadius: BorderRadius.circular(
-                                              3,
-                                            ),
-                                            border: Border.all(
-                                              color: CosmicScreenStyles.amber
-                                                  .withValues(alpha: 0.6),
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: CosmicScreenStyles.amber
-                                                    .withValues(alpha: 0.25),
-                                                blurRadius: 16,
-                                                spreadRadius: 1,
-                                              ),
-                                            ],
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Container(
-                                                width: 18,
-                                                height: 18,
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  gradient: RadialGradient(
-                                                    colors: [
-                                                      Color.lerp(
-                                                        _homePlanet!
-                                                            .blendedColor,
-                                                        Colors.white,
-                                                        0.3,
-                                                      )!,
-                                                      _homePlanet!.blendedColor,
-                                                    ],
-                                                  ),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: _homePlanet!
-                                                          .blendedColor
-                                                          .withValues(
-                                                            alpha: 0.5,
-                                                          ),
-                                                      blurRadius: 6,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                'HOME BASE',
-                                                style: TextStyle(
-                                                  fontFamily: appFontFamily(
-                                                    context,
-                                                  ),
-                                                  color: CosmicScreenStyles
-                                                      .textPrimary,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w800,
-                                                  letterSpacing: 1.5,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      // SHIP button
-                                      _buildShipButton(),
-                                      const SizedBox(height: 6),
-                                      // DEPOSIT button
-                                      GestureDetector(
-                                        onTap: _handleDepositAll,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: CosmicScreenStyles.amber,
-                                            borderRadius: BorderRadius.circular(
-                                              3,
-                                            ),
-                                            border: Border.all(
-                                              color:
-                                                  CosmicScreenStyles.amberGlow,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: CosmicScreenStyles.amber
-                                                    .withValues(alpha: 0.35),
-                                                blurRadius: 12,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            'DEPOSIT',
-                                            style: TextStyle(
-                                              fontFamily: appFontFamily(
-                                                context,
-                                              ),
-                                              color: CosmicScreenStyles.bg0,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 0.8,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // HOME BASE button
-                                      GestureDetector(
-                                        onTap: () => setState(
-                                          () => _showHomeMenu = true,
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: CosmicScreenStyles.bg1,
-                                            borderRadius: BorderRadius.circular(
-                                              3,
-                                            ),
-                                            border: Border.all(
-                                              color: CosmicScreenStyles.amber
-                                                  .withValues(alpha: 0.6),
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: CosmicScreenStyles.amber
-                                                    .withValues(alpha: 0.25),
-                                                blurRadius: 16,
-                                                spreadRadius: 1,
-                                              ),
-                                            ],
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Container(
-                                                width: 22,
-                                                height: 22,
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  gradient: RadialGradient(
-                                                    colors: [
-                                                      Color.lerp(
-                                                        _homePlanet!
-                                                            .blendedColor,
-                                                        Colors.white,
-                                                        0.3,
-                                                      )!,
-                                                      _homePlanet!.blendedColor,
-                                                    ],
-                                                  ),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: _homePlanet!
-                                                          .blendedColor
-                                                          .withValues(
-                                                            alpha: 0.5,
-                                                          ),
-                                                      blurRadius: 6,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Text(
-                                                'HOME BASE',
-                                                style: TextStyle(
-                                                  fontFamily: appFontFamily(
-                                                    context,
-                                                  ),
-                                                  color: CosmicScreenStyles
-                                                      .textPrimary,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w800,
-                                                  letterSpacing: 2.0,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      // SHIP button
-                                      _buildShipButton(),
-                                      const SizedBox(height: 6),
-                                      // DEPOSIT button
-                                      GestureDetector(
-                                        onTap: _handleDepositAll,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: CosmicScreenStyles.amber,
-                                            borderRadius: BorderRadius.circular(
-                                              3,
-                                            ),
-                                            border: Border.all(
-                                              color:
-                                                  CosmicScreenStyles.amberGlow,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: CosmicScreenStyles.amber
-                                                    .withValues(alpha: 0.35),
-                                                blurRadius: 12,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Text(
-                                            'DEPOSIT',
-                                            style: TextStyle(
-                                              fontFamily: appFontFamily(
-                                                context,
-                                              ),
-                                              color: CosmicScreenStyles.bg0,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 0.8,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ),
+                      child: SafeArea(
+                        child: _buildLeftActionRail(
+                          showHomeActions:
+                              _isNearHome &&
+                              _homePlanet != null &&
+                              !_showElementsCaptured,
                         ),
                       ),
                     ),
                   ),
                 ),
               // (Fuel & missiles now auto-refill at home — no buttons needed)
-
-              // ── SHIP button (bottom center, hidden when near home) ──
-              Positioned(
-                bottom: 20,
-                left: showJoystickControl
-                    ? (largeJoystickControl ? 146.0 : 120.0)
-                    : 0,
-                right: showJoystickControl ? 74 : 0,
-                child: AnimatedOpacity(
-                  opacity:
-                      (showCosmicHud &&
-                          !_isNearHome &&
-                          _summonResult == null &&
-                          !_showMiniMap &&
-                          !_anyOverlayOpen)
-                      ? (_nearPlanet != null ? 0.25 : 1.0)
-                      : 0.0,
-                  duration: const Duration(milliseconds: 350),
-                  child: AnimatedSlide(
-                    offset:
-                        (showCosmicHud &&
-                            !_isNearHome &&
-                            _summonResult == null &&
-                            !_showMiniMap &&
-                            !_anyOverlayOpen)
-                        ? Offset.zero
-                        : const Offset(0, 0.4),
-                    duration: const Duration(milliseconds: 350),
-                    curve: Curves.easeOutCubic,
-                    child: IgnorePointer(
-                      ignoring:
-                          !showCosmicHud ||
-                          _isNearHome ||
-                          _summonResult != null ||
-                          _showMiniMap ||
-                          _anyOverlayOpen,
-                      child: SafeArea(child: _buildShipButton()),
-                    ),
-                  ),
-                ),
-              ),
 
               // ── Combat buttons (right side) ──
               if (_summonResult == null && !_showMiniMap && !_anyOverlayOpen)
@@ -8141,23 +7741,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   ? null
                                   : _stopBoosting,
                               onTap: _boostToggleMode ? _toggleBoosting : null,
-                              child: Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  color: _isBoosting
-                                      ? const Color(
-                                          0xFFFF6F00,
-                                        ).withValues(alpha: 0.2)
-                                      : Colors.black54,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: _isBoosting
-                                        ? const Color(0xFFFF6F00)
-                                        : Colors.white24,
-                                    width: _isBoosting ? 2 : 1,
-                                  ),
-                                ),
+                              child: _buildWeaponHudButton(
+                                accent: const Color(0xFFFF6F00),
+                                active: _isBoosting,
                                 child: Icon(
                                   Icons.local_fire_department_rounded,
                                   color: _isBoosting
@@ -8181,23 +7767,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                               children: [
                                 if (showCosmicHud &&
                                     _customizationState.hasMissiles)
-                                  Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: _isShootingMissiles
-                                          ? const Color(
-                                              0xFFE53935,
-                                            ).withValues(alpha: 0.2)
-                                          : Colors.black54,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: _isShootingMissiles
-                                            ? const Color(0xFFE53935)
-                                            : Colors.white24,
-                                        width: _isShootingMissiles ? 2 : 1,
-                                      ),
-                                    ),
+                                  _buildWeaponHudButton(
+                                    accent: const Color(0xFFE53935),
+                                    active: _isShootingMissiles,
                                     child: Column(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
@@ -8227,23 +7799,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                                     _customizationState.hasMissiles)
                                   const SizedBox(height: 10),
                                 if (isMemoryTutorial || !_tapToShoot)
-                                  Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: _isShooting
-                                          ? const Color(
-                                              0xFF00E5FF,
-                                            ).withValues(alpha: 0.2)
-                                          : Colors.black54,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: _isShooting
-                                            ? const Color(0xFF00E5FF)
-                                            : Colors.white24,
-                                        width: _isShooting ? 2 : 1,
-                                      ),
-                                    ),
+                                  _buildWeaponHudButton(
+                                    accent: const Color(0xFF00E5FF),
+                                    active: _isShooting,
                                     child: Icon(
                                       Icons.flash_on_rounded,
                                       color: _isShooting
@@ -8267,8 +7825,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned(
-                  right: 72,
-                  bottom: 84,
+                  left: 78,
+                  bottom: showJoystickControl
+                      ? (largeJoystickControl ? 258.0 : 210.0)
+                      : 40,
                   child: IgnorePointer(
                     child: Container(
                       constraints: const BoxConstraints(maxWidth: 260),
@@ -8364,16 +7924,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                   right: 12,
                   top: isMemoryTutorial
                       ? 88
-                      : 120 +
-                            (_nearPlanet != null && !_isNearHome ? 240.0 : 0.0),
+                      : 120 + (recipeHudVisible ? 240.0 : 0.0),
                   child: SafeArea(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (showCosmicHud && kDebugMode) ...[
-                          _buildSandboxButton(),
-                          const SizedBox(height: 10),
-                        ],
                         if (showCosmicHud) ...[
                           _buildSlowModeButton(),
                           const SizedBox(height: 10),
@@ -9446,6 +9001,105 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
   }
 }
 
+class _SurvivalSignalEdgeArrowPainter extends CustomPainter {
+  _SurvivalSignalEdgeArrowPainter({
+    required this.game,
+    required this.targetPos,
+    required this.progress,
+    required this.viewPadding,
+  }) : super(repaint: progress);
+
+  final CosmicGame game;
+  final Offset targetPos;
+  final Animation<double> progress;
+  final EdgeInsets viewPadding;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+
+    final worldSize = game.world_.worldSize;
+    var dx = targetPos.dx - game.ship.pos.dx;
+    var dy = targetPos.dy - game.ship.pos.dy;
+    if (dx > worldSize.width / 2) dx -= worldSize.width;
+    if (dx < -worldSize.width / 2) dx += worldSize.width;
+    if (dy > worldSize.height / 2) dy -= worldSize.height;
+    if (dy < -worldSize.height / 2) dy += worldSize.height;
+
+    final distance = Offset(dx, dy).distance;
+    if (distance < 1) return;
+
+    final dir = Offset(dx / distance, dy / distance);
+    final bounds = Rect.fromLTRB(
+      viewPadding.left + 34,
+      viewPadding.top + 98,
+      size.width - viewPadding.right - 34,
+      size.height - viewPadding.bottom - 118,
+    );
+    if (bounds.width <= 0 || bounds.height <= 0) return;
+
+    final center = bounds.center;
+    final halfW = bounds.width / 2;
+    final halfH = bounds.height / 2;
+    final tx = dir.dx.abs() < 0.001 ? double.infinity : halfW / dir.dx.abs();
+    final ty = dir.dy.abs() < 0.001 ? double.infinity : halfH / dir.dy.abs();
+    final edgeDistance = min(tx, ty);
+    final anchor = center + dir * (edgeDistance - 30).clamp(0.0, edgeDistance);
+
+    final wave = progress.value * pi * 2;
+    final flash = 0.5 + 0.5 * sin(wave);
+    final alpha = 0.48 + flash * 0.42;
+    final angle = atan2(dir.dy, dir.dx);
+    final shove = 3.5 + flash * 4.5;
+    final scale = 0.92 + flash * 0.16;
+    const signalColor = Color(0xFFB794F6);
+
+    canvas.save();
+    canvas.translate(anchor.dx, anchor.dy);
+    canvas.rotate(angle);
+    canvas.translate(shove, 0);
+    canvas.scale(scale, scale);
+
+    final glowPaint = Paint()
+      ..color = signalColor.withValues(alpha: 0.28 + flash * 0.18)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    final glowPath = Path()
+      ..moveTo(34, 0)
+      ..lineTo(-14, 24)
+      ..lineTo(-6, 0)
+      ..lineTo(-14, -24)
+      ..close();
+    canvas.drawPath(glowPath, glowPaint);
+
+    final arrowPath = Path()
+      ..moveTo(32, 0)
+      ..lineTo(-18, 25)
+      ..lineTo(-7, 0)
+      ..lineTo(-18, -25)
+      ..close();
+    canvas.drawPath(
+      arrowPath,
+      Paint()..color = signalColor.withValues(alpha: alpha),
+    );
+    canvas.drawPath(
+      arrowPath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = Colors.white.withValues(alpha: 0.38 + flash * 0.24),
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _SurvivalSignalEdgeArrowPainter oldDelegate) {
+    return game != oldDelegate.game ||
+        targetPos != oldDelegate.targetPos ||
+        viewPadding != oldDelegate.viewPadding;
+  }
+}
+
 class _BloodRitualSpaceOverlayPainter extends CustomPainter {
   _BloodRitualSpaceOverlayPainter({required this.game, required this.progress});
 
@@ -9637,7 +9291,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.7),
+      color: CosmicScreenStyles.bg0.withValues(alpha: 0.82),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onClose,
@@ -9648,15 +9302,32 @@ class _CosmicSettingsOverlay extends StatelessWidget {
             child: Container(
               constraints: const BoxConstraints(maxWidth: 360),
               margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
               decoration: BoxDecoration(
-                color: const Color(0xFF10151E),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    CosmicScreenStyles.bg3.withValues(alpha: 0.96),
+                    CosmicScreenStyles.bg1.withValues(alpha: 0.98),
+                    CosmicScreenStyles.bg0.withValues(alpha: 0.98),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: CosmicScreenStyles.borderAccent.withValues(alpha: 0.7),
+                  width: 1.2,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 24,
+                    color: Colors.black.withValues(alpha: 0.55),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                  BoxShadow(
+                    color: CosmicScreenStyles.amber.withValues(alpha: 0.07),
+                    blurRadius: 30,
+                    spreadRadius: 1,
                   ),
                 ],
               ),
@@ -9665,30 +9336,75 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.settings_rounded, color: Colors.white70),
-                      const SizedBox(width: 8),
-                      Text(
-                        'SETTINGS',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: CosmicScreenStyles.amber.withValues(
+                            alpha: 0.11,
+                          ),
+                          border: Border.all(
+                            color: CosmicScreenStyles.amber.withValues(
+                              alpha: 0.34,
+                            ),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.settings_rounded,
+                          color: CosmicScreenStyles.amberBright,
+                          size: 17,
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'SHIP SETTINGS',
+                              style: TextStyle(
+                                fontFamily: appFontFamily(context),
+                                color: CosmicScreenStyles.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.8,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'CONTROL BAY',
+                              style: TextStyle(
+                                fontFamily: appFontFamily(context),
+                                color: CosmicScreenStyles.amber.withValues(
+                                  alpha: 0.82,
+                                ),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.6,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       IconButton(
                         onPressed: onClose,
                         icon: const Icon(Icons.close_rounded),
-                        color: Colors.white60,
+                        color: CosmicScreenStyles.textSecondary,
                         splashRadius: 18,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 1,
+                    color: CosmicScreenStyles.borderMid.withValues(alpha: 0.7),
+                  ),
+                  const SizedBox(height: 12),
                   _SettingsToggleRow(
                     icon: Icons.gamepad_rounded,
                     label: 'Joystick',
+                    subtitle: 'Show the movement stick on screen',
                     value: joystickEnabled,
                     onChanged: onToggleJoystick,
                   ),
@@ -9696,6 +9412,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   _SettingsToggleRow(
                     icon: Icons.open_in_full_rounded,
                     label: 'Large Joystick',
+                    subtitle: 'Use the expanded movement pad',
                     value: largeJoystickEnabled,
                     onChanged: onToggleLargeJoystick,
                   ),
@@ -9703,6 +9420,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   _SettingsToggleRow(
                     icon: Icons.touch_app_rounded,
                     label: 'Tap To Shoot',
+                    subtitle: 'Tap space to fire toward a point',
                     value: tapToShootEnabled,
                     onChanged: onToggleTapToShoot,
                   ),
@@ -9710,22 +9428,49 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   _SettingsToggleRow(
                     icon: Icons.local_fire_department_rounded,
                     label: 'Boost Toggle',
+                    subtitle: 'Tap once to lock boost on/off',
                     value: boostToggleEnabled,
                     onChanged: onToggleBoostToggle,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: onLeaveSpace,
-                      icon: const Icon(Icons.logout_rounded),
-                      label: Text('Leave Space'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        side: BorderSide(
-                          color: Colors.redAccent.withValues(alpha: 0.6),
+                    child: GestureDetector(
+                      onTap: onLeaveSpace,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        decoration: BoxDecoration(
+                          color: CosmicScreenStyles.danger.withValues(
+                            alpha: 0.10,
+                          ),
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(
+                            color: CosmicScreenStyles.danger.withValues(
+                              alpha: 0.58,
+                            ),
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.logout_rounded,
+                              color: CosmicScreenStyles.danger,
+                              size: 17,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'LEAVE SPACE',
+                              style: TextStyle(
+                                fontFamily: appFontFamily(context),
+                                color: CosmicScreenStyles.danger,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -9743,43 +9488,84 @@ class _SettingsToggleRow extends StatelessWidget {
   const _SettingsToggleRow({
     required this.icon,
     required this.label,
+    required this.subtitle,
     required this.value,
     required this.onChanged,
   });
 
   final IconData icon;
   final String label;
+  final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(10, 9, 7, 9),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: CosmicScreenStyles.bg2.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: CosmicScreenStyles.borderDim),
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white60, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.7,
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: CosmicScreenStyles.teal.withValues(alpha: 0.10),
+              border: Border.all(
+                color: CosmicScreenStyles.teal.withValues(alpha: 0.28),
               ),
             ),
+            child: Icon(icon, color: CosmicScreenStyles.teal, size: 15),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    color: CosmicScreenStyles.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    color: CosmicScreenStyles.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Transform.scale(
+            scale: 0.82,
+            child: Switch.adaptive(
+              value: value,
+              activeTrackColor: CosmicScreenStyles.teal.withValues(alpha: 0.45),
+              activeThumbColor: CosmicScreenStyles.teal,
+              inactiveTrackColor: CosmicScreenStyles.borderDim,
+              inactiveThumbColor: CosmicScreenStyles.textMuted,
+              onChanged: (v) {
+                HapticFeedback.selectionClick();
+                onChanged(v);
+              },
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ],
       ),
@@ -10054,7 +9840,7 @@ class _PlanetApproachTransitionPageState
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 520),
     );
     _controller.forward().whenComplete(() {
       if (!mounted) return;
@@ -10080,41 +9866,154 @@ class _PlanetApproachTransitionPageState
         animation: curve,
         builder: (context, _) {
           final t = curve.value.clamp(0.0, 1.0);
-          final scale = 0.15 + (14.0 - 0.15) * t;
-          final glow = (1.0 - t).clamp(0.0, 1.0);
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Container(color: Colors.black.withValues(alpha: 0.58 + 0.42 * t)),
-              Center(
-                child: Transform.scale(
-                  scale: scale,
-                  child: Container(
-                    width: 220,
-                    height: 220,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          widget.color.withValues(alpha: 0.95),
-                          widget.color.withValues(alpha: 0.65),
-                          widget.color.withValues(alpha: 0.22),
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: widget.color.withValues(alpha: 0.58 * glow),
-                          blurRadius: 90,
-                          spreadRadius: 22,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          return CustomPaint(
+            painter: _PlanetApproachPainter(color: widget.color, progress: t),
+            child: const SizedBox.expand(),
           );
         },
+      ),
+    );
+  }
+}
+
+class _PlanetApproachPainter extends CustomPainter {
+  const _PlanetApproachPainter({required this.color, required this.progress});
+
+  final Color color;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = progress.clamp(0.0, 1.0);
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxRadius = size.longestSide * 0.78;
+    final radius = 18 + (maxRadius - 18) * t;
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Colors.black.withValues(alpha: 0.58 + 0.42 * t),
+    );
+
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.95),
+            color.withValues(alpha: 0.58),
+            color.withValues(alpha: 0.0),
+          ],
+          stops: const [0.0, 0.45, 1.0],
+        ).createShader(rect),
+    );
+
+    canvas.drawCircle(
+      center,
+      radius * 0.72,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..color = color.withValues(alpha: (1.0 - t) * 0.42),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlanetApproachPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
+  }
+}
+
+class _StarDustCollectorBadge extends StatelessWidget {
+  const _StarDustCollectorBadge({required this.count, required this.total});
+
+  final int count;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFFFD54F);
+    final safeTotal = total <= 0 ? 50 : total;
+
+    return RepaintBoundary(
+      child: Tooltip(
+        message: 'Star dust collected',
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: gold.withValues(alpha: 0.66),
+            bracketSize: 5,
+            strokeWidth: 1.05,
+          ),
+          child: Container(
+            height: 26,
+            padding: const EdgeInsets.symmetric(horizontal: 7),
+            color: _cosmicMeterPalette.bg0.withValues(alpha: 0.84),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.auto_awesome, color: gold, size: 13),
+                const SizedBox(width: 4),
+                Text(
+                  '$count/$safeTotal',
+                  style: bracketText(
+                    context,
+                    11,
+                    gold,
+                    weight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CosmicSquareHudButton extends StatelessWidget {
+  const _CosmicSquareHudButton({
+    required this.accent,
+    required this.child,
+    this.active = false,
+    this.disabled = false,
+    this.size = 44,
+  });
+
+  final Color accent;
+  final Widget child;
+  final bool active;
+  final bool disabled;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final lineColor = disabled
+        ? _cosmicMeterPalette.line.withValues(alpha: 0.22)
+        : active
+        ? accent.withValues(alpha: 0.82)
+        : _cosmicMeterPalette.line.withValues(alpha: 0.52);
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 160),
+      opacity: disabled ? 0.52 : 1.0,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: lineColor,
+          bracketSize: size >= 50 ? 8 : 6,
+          strokeWidth: active ? 1.35 : 1.05,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          color: active
+              ? accent.withValues(alpha: 0.16)
+              : _cosmicMeterPalette.bg0.withValues(alpha: 0.76),
+          child: child,
+        ),
       ),
     );
   }

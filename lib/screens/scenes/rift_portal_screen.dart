@@ -8,7 +8,7 @@ import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/services/wilderness_service.dart';
-import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -65,7 +65,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     _entryCtrl =
         AnimationController(
             vsync: this,
-            duration: const Duration(milliseconds: 2200),
+            duration: const Duration(milliseconds: 850),
           )
           ..forward().whenComplete(() {
             if (mounted) setState(() => _entryDone = true);
@@ -158,7 +158,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
+    const palette = BracketPalette.dark;
     final color = widget.faction.primaryColor;
     final factionName = widget.faction.displayName.toUpperCase();
 
@@ -185,7 +185,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                 animation: _controller,
                 builder: (context, _) {
                   return CustomPaint(
-                    size: const Size(320, 320),
+                    size: const Size(280, 280),
                     painter: _PortalPainter(
                       faction: widget.faction,
                       time: _controller.value * pi * 2 * 4,
@@ -203,45 +203,30 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(false),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: t.bg1.withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(3),
-                        border: Border.all(color: t.borderDim, width: 1),
-                      ),
-                      child: Icon(
-                        Icons.arrow_back,
-                        color: t.textPrimary,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Container(width: 3, height: 3, color: color),
+                      const SizedBox(height: 4),
                       Text(
                         'RIFT PORTAL',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: color,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.5,
+                        style: bracketText(
+                          context,
+                          11,
+                          color,
+                          weight: FontWeight.w700,
+                          letterSpacing: 1.6,
                         ),
                       ),
                       Text(
                         factionName,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.0,
+                        style: bracketText(
+                          context,
+                          19,
+                          palette.ink,
+                          weight: FontWeight.w800,
+                          letterSpacing: 0.6,
                         ),
                       ),
                     ],
@@ -301,6 +286,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
               highlightPartyHUD: false,
               isTutorial: false,
               showFusionAction: false,
+              showMapAction: false,
               warnOnRun: true,
               onPreRollShake: () {},
               onPartyCreatureSelected: (c) {
@@ -403,9 +389,10 @@ class _PortalPainter extends CustomPainter {
 
   static List<_PData> _buildParticles() {
     final rng = Random(42);
-    return List.generate(28, (i) {
+    const particleCount = 18;
+    return List.generate(particleCount, (i) {
       return _PData(
-        angle: (i / 28) * pi * 2,
+        angle: (i / particleCount) * pi * 2,
         radius: 0.46 + rng.nextDouble() * 0.38,
         speed: 0.30 + rng.nextDouble() * 0.80,
         size: 1.4 + rng.nextDouble() * 2.6,
@@ -428,18 +415,14 @@ class _PortalPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(cx, cy),
       r * 2.6,
-      Paint()
-        ..color = color.withValues(alpha: 0.08 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 36),
+      Paint()..color = color.withValues(alpha: 0.08 * pulse),
     );
 
     // Mid glow
     canvas.drawCircle(
       Offset(cx, cy),
       r * 1.8,
-      Paint()
-        ..color = color.withValues(alpha: 0.16 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+      Paint()..color = color.withValues(alpha: 0.16 * pulse),
     );
 
     // Accretion disk
@@ -486,9 +469,7 @@ class _PortalPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(px, py),
         p.size * pulse,
-        Paint()
-          ..color = color.withValues(alpha: p.opacity * pulse)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8),
+        Paint()..color = color.withValues(alpha: p.opacity * pulse),
       );
     }
 
@@ -524,8 +505,7 @@ class _PortalPainter extends CustomPainter {
       Paint()
         ..color = color.withValues(alpha: 0.22 * pulse)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+        ..strokeWidth = 1.4,
     );
   }
 
@@ -625,15 +605,16 @@ class _EntryFlashPainter extends CustomPainter {
     if (flashAlpha > 0) {
       canvas.drawRect(
         Offset.zero & size,
-        Paint()..color = Colors.white.withValues(alpha: flashAlpha * overlayAlpha),
+        Paint()
+          ..color = Colors.white.withValues(alpha: flashAlpha * overlayAlpha),
       );
     }
 
     // ── Expanding rings ───────────────────────────────────────────────────────
     // 5 rings with staggered starts; each ring lifespan = 0.25 of progress
     // appearing from progress 0.25 to 0.75
-    for (int i = 0; i < 5; i++) {
-      final start = 0.25 + i * 0.06;
+    for (int i = 0; i < 3; i++) {
+      final start = 0.25 + i * 0.10;
       final end = start + 0.35;
       if (progress < start || progress > end) continue;
       final t = ((progress - start) / (end - start)).clamp(0.0, 1.0);
@@ -646,8 +627,7 @@ class _EntryFlashPainter extends CustomPainter {
         Paint()
           ..color = color.withValues(alpha: ringAlpha * overlayAlpha)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = ringWidth
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+          ..strokeWidth = ringWidth,
       );
     }
 
@@ -657,9 +637,7 @@ class _EntryFlashPainter extends CustomPainter {
       canvas.drawCircle(
         center,
         maxR * 0.25,
-        Paint()
-          ..color = color.withValues(alpha: glowAlpha * overlayAlpha)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
+        Paint()..color = color.withValues(alpha: glowAlpha * overlayAlpha),
       );
     }
   }

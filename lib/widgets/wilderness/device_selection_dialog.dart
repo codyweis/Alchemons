@@ -1,10 +1,25 @@
 // lib/widgets/wilderness/device_selection_dialog.dart
+import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
-import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
+/// Resolves the shop artwork for a harvester device via its inventory key.
+String? _harvesterAsset(CatchDeviceType device) {
+  for (final offer in ShopService.allOffers) {
+    if (offer.inventoryKey == device.inventoryKey) return offer.assetName;
+  }
+  return null;
+}
+
+// Capture dialog renders over dark scene backdrops — always dark.
+const _palette = BracketPalette.dark;
+const _amber = Color(0xFFE4C16A);
+const _success = Color(0xFF22C55E);
 
 class DeviceSelectionDialog extends StatefulWidget {
   final Creature wildCreature;
@@ -53,7 +68,6 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
       curve: Curves.easeOutBack,
     );
     _controller.forward();
-
     _loadDevices();
   }
 
@@ -63,14 +77,10 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
       widget.wildCreature,
     );
     final deviceMap = <CatchDeviceType, int>{};
-
     for (final device in usableDevices) {
       final qty = await catchService.getDeviceCount(device);
-      if (qty > 0) {
-        deviceMap[device] = qty;
-      }
+      if (qty > 0) deviceMap[device] = qty;
     }
-
     if (mounted) {
       setState(() {
         _availableDevices = deviceMap;
@@ -87,7 +97,6 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.watch<FactionTheme>());
     final size = MediaQuery.of(context).size;
     final isLandscape = size.width > size.height;
 
@@ -99,83 +108,101 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
           horizontal: isLandscape ? 80 : 40,
           vertical: 24,
         ),
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: isLandscape ? 800 : 500,
-            maxHeight: size.height * 0.9,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: _amber.withValues(alpha: 0.85),
+            bracketSize: 13,
+            strokeWidth: 1.35,
           ),
-          decoration: BoxDecoration(
-            color: t.bg1,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: t.borderAccent, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: t.amber.withValues(alpha: 0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildHeader(t),
-              if (_loading)
-                Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: CircularProgressIndicator(
-                    color: t.amber,
-                    strokeWidth: 2,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: isLandscape ? 800 : 500,
+              maxHeight: size.height * 0.9,
+            ),
+            color: _palette.surfaceFill(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeader(),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: CircularProgressIndicator(
+                      color: _amber,
+                      strokeWidth: 2,
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: isLandscape
+                        ? _buildLandscapeDeviceGrid()
+                        : _buildPortraitDeviceList(),
                   ),
-                )
-              else
-                Flexible(
-                  child: isLandscape
-                      ? _buildLandscapeDeviceGrid(t)
-                      : _buildPortraitDeviceList(t),
-                ),
-              _buildCancelButton(t),
-            ],
+                _buildCancelButton(),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader(ForgeTokens t) {
+  Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
       decoration: BoxDecoration(
-        color: t.bg2,
-        border: Border(bottom: BorderSide(color: t.borderDim)),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+        color: _palette.bg0,
+        border: Border(
+          bottom: BorderSide(color: _palette.lineSoft.withValues(alpha: 0.7)),
+        ),
       ),
       child: Row(
         children: [
-          Container(
-            width: 6,
-            height: 6,
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(color: t.amber, shape: BoxShape.circle),
-          ),
-          Text(
-            'SELECT HARVESTER',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2.0,
+          Container(width: 3, height: 30, color: _amber),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Select harvester',
+                  style: bracketText(
+                    context,
+                    16,
+                    _palette.ink,
+                    weight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Choose a device to capture the specimen.',
+                  style: bracketText(
+                    context,
+                    11.5,
+                    _palette.muted,
+                    weight: FontWeight.w500,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ),
+          ),
+          _PickerCloseButton(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.pop(context);
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLandscapeDeviceGrid(ForgeTokens t) {
-    if (_availableDevices.isEmpty) return _buildEmptyState(t);
+  Widget _buildLandscapeDeviceGrid() {
+    if (_availableDevices.isEmpty) return _buildEmptyState();
     return SingleChildScrollView(
       padding: const EdgeInsets.all(14),
       child: LayoutBuilder(
@@ -193,7 +220,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                 width:
                     (constraints.maxWidth - (spacing * (crossAxisCount - 1))) /
                     crossAxisCount,
-                child: _buildDeviceCard(t, entry.key, entry.value),
+                child: _buildDeviceCard(entry.key, entry.value),
               );
             }).toList(),
           );
@@ -202,8 +229,8 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
     );
   }
 
-  Widget _buildPortraitDeviceList(ForgeTokens t) {
-    if (_availableDevices.isEmpty) return _buildEmptyState(t);
+  Widget _buildPortraitDeviceList() {
+    if (_availableDevices.isEmpty) return _buildEmptyState();
     return SingleChildScrollView(
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -211,39 +238,44 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
         children: _availableDevices.entries.map((entry) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: _buildDeviceCard(t, entry.key, entry.value),
+            child: _buildDeviceCard(entry.key, entry.value),
           );
         }).toList(),
       ),
     );
   }
 
-  Widget _buildEmptyState(ForgeTokens t) {
+  Widget _buildEmptyState() {
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(AppSpace.xxl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inventory_2_outlined, color: t.borderAccent, size: 36),
+          Icon(
+            Icons.inventory_2_outlined,
+            color: _palette.muted,
+            size: 36,
+          ),
           const SizedBox(height: 12),
           Text(
-            'NO COMPATIBLE DEVICES',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2.0,
+            'No compatible devices',
+            style: bracketText(
+              context,
+              13,
+              _palette.ink,
+              weight: FontWeight.w700,
+              letterSpacing: 0.4,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Purchase harvesters from the shop',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textMuted,
-              fontSize: 12,
-              letterSpacing: 0.5,
+            'Purchase harvesters from the shop to stock your field kit.',
+            style: bracketText(
+              context,
+              12,
+              _palette.muted,
+              weight: FontWeight.w500,
+              fontStyle: FontStyle.italic,
             ),
             textAlign: TextAlign.center,
           ),
@@ -252,163 +284,247 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
     );
   }
 
-  Widget _buildDeviceCard(ForgeTokens t, CatchDeviceType device, int quantity) {
+  Widget _buildDeviceCard(CatchDeviceType device, int quantity) {
     final catchService = context.read<CatchService>();
     final chance = catchService.calculateCatchChance(device, widget.rarity);
     final isGuaranteed = device == CatchDeviceType.guaranteed;
-    final accentColor = isGuaranteed ? t.amberBright : t.success;
+    final accent = isGuaranteed ? _amber : _success;
 
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
         Navigator.pop(context, device);
       },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: accentColor.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 1),
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: accent.withValues(alpha: 0.75),
+          bracketSize: 8,
+          strokeWidth: 1.1,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: t.bg2,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: accentColor.withValues(alpha: 0.4)),
-                  ),
-                  child: Icon(
-                    isGuaranteed
-                        ? Icons.shield_rounded
-                        : Icons.catching_pokemon_rounded,
-                    color: accentColor,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        device.label.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'OWNED  $quantity',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 18),
-              ],
+        child: Container(
+          padding: const EdgeInsets.all(AppSpace.md),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.08),
+            border: Border.all(
+              color: _palette.lineSoft.withValues(alpha: 0.45),
+              width: 1,
             ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: t.borderDim),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
                 children: [
-                  Text(
-                    isGuaranteed ? 'CAPTURE RATE' : 'CAPTURE RATE',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  if (!isGuaranteed)
-                    Text(
-                      '${(chance * 100).toStringAsFixed(0)}%',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.success,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    )
-                  else
-                    Row(
+                  _DeviceThumb(device: device, accent: accent),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.check_circle_rounded,
-                          color: t.amberBright,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 4),
                         Text(
-                          'GUARANTEED',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.amberBright,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
+                          device.label,
+                          style: bracketText(
+                            context,
+                            13,
+                            _palette.ink,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'Owned · $quantity',
+                          style: bracketText(
+                            context,
+                            11,
+                            _palette.muted,
+                            weight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: accent,
+                    size: 18,
+                  ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                color: _palette.bg0.withValues(alpha: 0.6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'CAPTURE RATE',
+                      style: bracketText(
+                        context,
+                        10,
+                        _palette.muted,
+                        weight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    if (!isGuaranteed)
+                      Text(
+                        '${(chance * 100).toStringAsFixed(0)}%',
+                        style: bracketText(
+                          context,
+                          12,
+                          _success,
+                          weight: FontWeight.w800,
+                        ),
+                      )
+                    else
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: _amber,
+                            size: 13,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'GUARANTEED',
+                            style: bracketText(
+                              context,
+                              10,
+                              _amber,
+                              weight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCancelButton(ForgeTokens t) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        Navigator.pop(context);
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: t.bg2,
-          border: Border(top: BorderSide(color: t.borderDim)),
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(3)),
+  Widget _buildCancelButton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: _palette.bg0,
+        border: Border(
+          top: BorderSide(color: _palette.lineSoft.withValues(alpha: 0.7)),
         ),
-        child: Text(
-          'CANCEL',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: t.textMuted,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
+      ),
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          Navigator.pop(context);
+        },
+        behavior: HitTestBehavior.opaque,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: _palette.line.withValues(alpha: 0.7),
+            bracketSize: 8,
+            strokeWidth: 1.1,
+          ),
+          child: Container(
+            height: 44,
+            alignment: Alignment.center,
+            color: _palette.surfaceMutedFill(),
+            child: Text(
+              'Cancel',
+              style: bracketText(
+                context,
+                13,
+                _palette.muted,
+                weight: FontWeight.w700,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Leading thumbnail for a harvester card — uses the shop artwork when
+/// available, falling back to a device icon.
+class _DeviceThumb extends StatelessWidget {
+  const _DeviceThumb({required this.device, required this.accent});
+
+  final CatchDeviceType device;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = _harvesterAsset(device);
+    final isGuaranteed = device == CatchDeviceType.guaranteed;
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: _palette.bg0,
+        border: Border.all(color: accent.withValues(alpha: 0.5)),
+      ),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(3),
+      child: asset != null
+          ? Image.asset(
+              asset,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+              errorBuilder: (_, __, ___) => Icon(
+                isGuaranteed
+                    ? Icons.shield_rounded
+                    : Icons.catching_pokemon_rounded,
+                color: accent,
+                size: 20,
+              ),
+            )
+          : Icon(
+              isGuaranteed
+                  ? Icons.shield_rounded
+                  : Icons.catching_pokemon_rounded,
+              color: accent,
+              size: 20,
+            ),
+    );
+  }
+}
+
+class _PickerCloseButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _PickerCloseButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: _palette.line.withValues(alpha: 0.7),
+          bracketSize: 6,
+          strokeWidth: 1,
+        ),
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          color: _palette.surfaceMutedFill(),
+          child: Icon(
+            Icons.close_rounded,
+            color: _palette.muted,
+            size: AppIcon.sm,
           ),
         ),
       ),

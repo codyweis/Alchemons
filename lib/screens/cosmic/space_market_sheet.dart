@@ -13,6 +13,7 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/screens/shop/shop_widgets.dart';
+import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -287,7 +288,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
     return switch (type) {
       'gold' => Icons.hexagon_rounded,
       'silver' => Icons.monetization_on_rounded,
-      'shards' => Icons.diamond_rounded,
+      'shards' => CosmicScreenStyles.astralShardIcon,
       _ => Icons.hexagon_rounded,
     };
   }
@@ -296,7 +297,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
     return switch (type) {
       'gold' => const Color(0xFFFFD700),
       'silver' => t.textSecondary,
-      'shards' => const Color(0xFFAB47BC),
+      'shards' => CosmicScreenStyles.astralShardColor,
       _ => _accent,
     };
   }
@@ -364,10 +365,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
     return confirmed == true;
   }
 
-  void _showMarketToast(
-    String message, {
-    required bool success,
-  }) {
+  void _showMarketToast(String message, {required bool success}) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
     final tone = success ? const Color(0xFF22C55E) : const Color(0xFFC0392B);
@@ -387,7 +385,9 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
           child: Row(
             children: [
               Icon(
-                success ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                success
+                    ? Icons.check_circle_rounded
+                    : Icons.warning_amber_rounded,
                 size: 16,
                 color: tone,
               ),
@@ -425,7 +425,10 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
         _carriedShards >= shardCost && silver >= silverCost && gold >= goldCost;
     if (!canAfford) {
       if (!mounted) return;
-      _showMarketToast('Insufficient resources for this purchase.', success: false);
+      _showMarketToast(
+        'Insufficient resources for this purchase.',
+        success: false,
+      );
       return;
     }
 
@@ -568,8 +571,8 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                     ),
                     Container(width: 1, height: 16, color: t.borderDim),
                     CurrencyPill(
-                      icon: Icons.diamond_rounded,
-                      color: const Color(0xFFAB47BC),
+                      icon: CosmicScreenStyles.astralShardIcon,
+                      color: CosmicScreenStyles.astralShardColor,
                       amount: _carriedShards,
                     ),
                   ],

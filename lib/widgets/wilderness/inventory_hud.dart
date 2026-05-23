@@ -1,4 +1,5 @@
 // lib/widgets/wilderness/game_inventory_overlay.dart
+import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -54,75 +55,13 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
         return Column(
           children: [
-            // Header
-            Container(
-              color: t.bg2,
-              padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: t.amber,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Text(
-                    'ITEMS',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.bg3,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: t.borderDim),
-                    ),
-                    child: Text(
-                      '${items.length}',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.of(context).pop();
-                    },
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: t.bg3,
-                        borderRadius: BorderRadius.circular(3),
-                        border: Border.all(color: t.borderDim),
-                      ),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: t.textSecondary,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            _InventoryPanelHeader(
+              title: 'Field Inventory',
+              itemCount: items.length,
+              onClose: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).pop();
+              },
             ),
             Container(height: 1, color: t.borderAccent.withValues(alpha: 0.4)),
             // Grid
@@ -164,53 +103,12 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
   Widget _buildEmptyState(ForgeTokens t) {
     return Column(
       children: [
-        Container(
-          color: t.bg2,
-          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-          child: Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  color: t.amber,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              Text(
-                'ITEMS',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.0,
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.of(context).pop();
-                },
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: t.bg3,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: t.borderDim),
-                  ),
-                  child: Icon(
-                    Icons.close_rounded,
-                    color: t.textSecondary,
-                    size: 16,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        _InventoryPanelHeader(
+          title: 'Field Inventory',
+          onClose: () {
+            HapticFeedback.lightImpact();
+            Navigator.of(context).pop();
+          },
         ),
         Container(height: 1, color: t.borderAccent.withValues(alpha: 0.4)),
         Expanded(
@@ -225,7 +123,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'NO ITEMS',
+                  'NO ITEMS IN FIELD PACK',
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: t.textSecondary,
@@ -236,12 +134,11 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Visit the shop',
+                  'Visit the shop to stock your expedition.',
                   style: TextStyle(
-                    fontFamily: 'monospace',
                     color: t.textMuted,
-                    fontSize: 12,
-                    letterSpacing: 0.5,
+                    fontSize: AppType.body,
+                    fontWeight: AppWeight.medium,
                   ),
                 ),
               ],
@@ -268,70 +165,32 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
           child: Container(
             constraints: const BoxConstraints(maxWidth: 300),
             decoration: BoxDecoration(
-              color: t2.bg1,
-              borderRadius: BorderRadius.circular(4),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [t2.bg2, t2.bg1],
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
               border: Border.all(color: t2.borderAccent, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.32),
+                  blurRadius: 20,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-                  decoration: BoxDecoration(
-                    color: t2.bg2,
-                    border: Border(bottom: BorderSide(color: t2.borderDim)),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: t2.amber,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          def.name.toUpperCase(),
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t2.textPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          Navigator.pop(ctx);
-                        },
-                        child: Container(
-                          width: 26,
-                          height: 26,
-                          decoration: BoxDecoration(
-                            color: t2.bg3,
-                            borderRadius: BorderRadius.circular(2),
-                            border: Border.all(color: t2.borderDim),
-                          ),
-                          child: Icon(
-                            Icons.close_rounded,
-                            color: t2.textSecondary,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                _InventoryPanelHeader(
+                  title: def.name,
+                  onClose: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(ctx);
+                  },
                 ),
                 // Icon + qty row
                 Padding(
@@ -768,25 +627,164 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
   void _showToast(String msg, {IconData? icon, Color? color}) {
     if (!mounted) return;
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final accent = color ?? t.teal;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            if (icon != null) Icon(icon, color: Colors.white, size: 18),
+            if (icon != null) Icon(icon, color: accent, size: AppIcon.md),
             if (icon != null) const SizedBox(width: 10),
             Expanded(
               child: Text(
                 msg,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: t.textPrimary,
+                  fontWeight: AppWeight.semibold,
+                  fontSize: AppType.body,
+                ),
               ),
             ),
           ],
         ),
-        backgroundColor: color ?? Colors.teal,
+        backgroundColor: t.bg2,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: BorderSide(color: accent.withValues(alpha: 0.55), width: 1.2),
+        ),
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+}
+
+class _InventoryPanelHeader extends StatelessWidget {
+  final String title;
+  final int? itemCount;
+  final VoidCallback onClose;
+
+  const _InventoryPanelHeader({
+    required this.title,
+    required this.onClose,
+    this.itemCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: t.bg2,
+        border: Border(bottom: BorderSide(color: t.borderDim)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: t.amber.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: t.amber.withValues(alpha: 0.28)),
+            ),
+            child: Icon(
+              Icons.inventory_2_rounded,
+              color: t.amberBright,
+              size: AppIcon.md,
+            ),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'WILDERNESS',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textMuted,
+                    fontSize: AppType.caption,
+                    fontWeight: AppWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  title.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textPrimary,
+                    fontSize: AppType.body,
+                    fontWeight: AppWeight.bold,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (itemCount != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.sm,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: t.bg3,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(color: t.borderDim),
+              ),
+              child: Text(
+                '$itemCount',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.amberBright,
+                  fontSize: AppType.caption,
+                  fontWeight: AppWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+          ],
+          _OverlayCloseButton(onTap: onClose),
+        ],
+      ),
+    );
+  }
+}
+
+class _OverlayCloseButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _OverlayCloseButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: t.bg3,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: t.borderDim),
+          ),
+          child: Icon(
+            Icons.close_rounded,
+            color: t.textSecondary,
+            size: AppIcon.sm,
+          ),
+        ),
       ),
     );
   }

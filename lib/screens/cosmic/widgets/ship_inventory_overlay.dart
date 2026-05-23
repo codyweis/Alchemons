@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
 
 class ShipInventoryOverlay extends StatefulWidget {
@@ -87,9 +88,11 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: Container(
-        color: CosmicScreenStyles.bg0.withValues(alpha: 0.95),
-        child: SafeArea(
+      child: CosmicOverlayBackdrop(
+        alpha: 0.96,
+        child: CosmicPlate(
+          accent: CosmicScreenStyles.amber,
+          padding: EdgeInsets.zero,
           child: Column(
             children: [
               // ── Header ──
@@ -145,7 +148,10 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                   ],
                 ),
               ),
-              Container(height: 1, color: CosmicScreenStyles.borderDim),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: CosmicEtchedDivider(),
+              ),
 
               // ── Body ──
               Expanded(
@@ -254,7 +260,9 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                                             child: Text(
                                               _invDisplayName(e.key),
                                               style: TextStyle(
-                                                fontFamily: appFontFamily(context),
+                                                fontFamily: appFontFamily(
+                                                  context,
+                                                ),
                                                 color: isSelected
                                                     ? col
                                                     : CosmicScreenStyles
@@ -286,7 +294,9 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                                             child: Text(
                                               'x${e.value}',
                                               style: TextStyle(
-                                                fontFamily: appFontFamily(context),
+                                                fontFamily: appFontFamily(
+                                                  context,
+                                                ),
                                                 color: col,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w800,

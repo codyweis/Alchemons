@@ -4,9 +4,15 @@ import 'package:provider/provider.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 
 import 'package:alchemons/models/wilderness.dart';
+
+// Encounter sheets sit on dark scene/space backdrops — always dark.
+const _palette = BracketPalette.dark;
+const _breedAccent = Color(0xFF22C55E);
+const _runColor = Color(0xFFC0392B);
 
 class EncounterScaffold extends StatelessWidget {
   final String chanceText;
@@ -38,108 +44,103 @@ class EncounterScaffold extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     final isLandscape = size.width > size.height;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      decoration: _buildSheetDecoration(context),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildGrabHandle(),
-
-            if (isLandscape)
-              // Landscape: Single row with all content side-by-side
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Left: Chance pill & buttons (compact)
-                  SizedBox(
-                    width: 200,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: _breedAccent.withValues(alpha: 0.8),
+        bracketSize: 14,
+        strokeWidth: 1.4,
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+        decoration: BoxDecoration(
+          color: _palette.surfaceFill(),
+          border: Border(
+            top: BorderSide(
+              color: _breedAccent.withValues(alpha: 0.8),
+              width: 2,
+            ),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildGrabHandle(),
+              if (isLandscape)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 200,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildChancePill(context),
+                          const SizedBox(height: 12),
+                          _buildActionButtons(context, canTry),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildStatusText(context),
+                          const SizedBox(height: 12),
+                          _buildPartySection(context),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
                       children: [
                         _buildChancePill(context),
-                        const SizedBox(height: 12),
-                        _buildActionButtons(context, canTry),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildStatusText(context)),
                       ],
                     ),
-                  ),
-
-                  const SizedBox(width: 16),
-
-                  // Right: Status + Party list (takes remaining space)
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildStatusText(context),
-                        const SizedBox(height: 12),
-                        _buildPartySection(context),
-                      ],
-                    ),
-                  ),
-                ],
-              )
-            else
-              // Portrait: Original stacked layout
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildChanceAndStatus(context),
-                  const SizedBox(height: 16),
-                  _buildPartySection(context),
-                  const SizedBox(height: 16),
-                  _buildActionButtons(context, canTry),
-                ],
-              ),
-          ],
+                    const SizedBox(height: 16),
+                    _buildPartySection(context),
+                    const SizedBox(height: 16),
+                    _buildActionButtons(context, canTry),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  BoxDecoration _buildSheetDecoration(BuildContext context) {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.15),
-          blurRadius: 12,
-          offset: const Offset(0, -4),
-        ),
-      ],
-      border: Border.all(color: Colors.indigo.shade100),
-    );
-  }
-
   Widget _buildGrabHandle() {
-    return Container(
-      height: 24,
-      margin: const EdgeInsets.only(bottom: 12),
+    return SizedBox(
+      height: 26,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Container(
-            height: 5,
-            width: 56,
-            decoration: BoxDecoration(
-              color: Colors.indigo.shade100,
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ),
+          Container(height: 4, width: 48, color: _palette.lineSoft),
           Align(
             alignment: Alignment.centerRight,
-            child: IconButton(
-              padding: const EdgeInsets.all(0),
-              icon: Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: Colors.indigo.shade400,
+            child: GestureDetector(
+              onTap: onMinimize,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: _palette.muted,
+                  size: 22,
+                ),
               ),
-              onPressed: onMinimize,
             ),
           ),
         ],
@@ -147,35 +148,27 @@ class EncounterScaffold extends StatelessWidget {
     );
   }
 
-  // Portrait version: chance + status in a row
-  Widget _buildChanceAndStatus(BuildContext context) {
-    return Row(
-      children: [
-        _buildChancePill(context),
-        const SizedBox(width: 8),
-        Expanded(child: _buildStatusText(context)),
-      ],
-    );
-  }
-
   Widget _buildChancePill(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.indigo.shade200),
+        color: _breedAccent.withValues(alpha: 0.14),
+        border: const Border(
+          left: BorderSide(color: _breedAccent, width: 2),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.favorite_rounded, size: 16, color: Colors.indigo.shade600),
-          const SizedBox(width: 6),
+          const Icon(Icons.favorite_rounded, size: 14, color: _breedAccent),
+          const SizedBox(width: 7),
           Text(
             chanceText,
-            style: TextStyle(
-              color: Colors.indigo.shade700,
-              fontWeight: FontWeight.w700,
+            style: bracketText(
+              context,
+              12.5,
+              _palette.ink,
+              weight: FontWeight.w700,
             ),
           ),
         ],
@@ -186,10 +179,11 @@ class EncounterScaffold extends StatelessWidget {
   Widget _buildStatusText(BuildContext context) {
     return Text(
       status,
-      style: TextStyle(
-        color: Colors.grey.shade700,
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
+      style: bracketText(
+        context,
+        12.5,
+        _palette.muted,
+        weight: FontWeight.w500,
       ),
       overflow: TextOverflow.ellipsis,
       maxLines: 2,
@@ -203,26 +197,27 @@ class EncounterScaffold extends StatelessWidget {
       children: [
         Text(
           'Choose a partner',
-          style: TextStyle(
-            color: Colors.indigo.shade700,
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
+          style: bracketText(
+            context,
+            12,
+            _palette.muted,
+            weight: FontWeight.w700,
+            letterSpacing: 0.6,
           ),
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 108,
+          height: 96,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
             itemCount: party.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, i) {
               final m = party[i];
-              final selected = m.instanceId == chosenInstanceId;
               return _PartyMemberTile(
                 instanceId: m.instanceId,
-                selected: selected,
+                selected: m.instanceId == chosenInstanceId,
                 onTap: () => onSelectParty(m.instanceId),
               );
             },
@@ -237,37 +232,90 @@ class EncounterScaffold extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        ElevatedButton.icon(
-          icon: const Icon(Icons.favorite_rounded, size: 18),
-          label: const Text('Try to Breed'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: canTry
-                ? Colors.green.shade600
-                : Colors.grey.shade400,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: canTry ? 2 : 0,
-          ),
-          onPressed: canTry ? onTry : null,
+        _EncounterButton(
+          label: 'Try to breed',
+          icon: Icons.favorite_rounded,
+          color: _breedAccent,
+          filled: true,
+          large: true,
+          onTap: canTry ? onTry : null,
         ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.run_circle_rounded, size: 18),
-          label: const Text('Run'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.indigo.shade700,
-            side: BorderSide(color: Colors.indigo.shade200, width: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          onPressed: onRun,
+        const SizedBox(height: 10),
+        _EncounterButton(
+          label: 'Run',
+          icon: Icons.run_circle_rounded,
+          color: _runColor,
+          filled: false,
+          large: false,
+          onTap: onRun,
         ),
       ],
+    );
+  }
+}
+
+class _EncounterButton extends StatelessWidget {
+  const _EncounterButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.filled,
+    required this.large,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool filled;
+  final bool large;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final baseColor = enabled ? color : _palette.muted;
+    final fg = filled
+        ? (enabled ? Colors.white : _palette.muted)
+        : baseColor;
+    final height = large ? 50.0 : 44.0;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: enabled
+              ? baseColor
+              : _palette.line.withValues(alpha: 0.6),
+          bracketSize: 9,
+          strokeWidth: large ? 1.4 : 1.1,
+        ),
+        child: Container(
+          height: height,
+          alignment: Alignment.center,
+          color: filled
+              ? (enabled ? baseColor : _palette.surfaceMutedFill())
+              : baseColor.withValues(alpha: enabled ? 0.12 : 0.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: large ? 17 : 15, color: fg),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: bracketText(
+                  context,
+                  large ? 14 : 13,
+                  fg,
+                  weight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -294,123 +342,115 @@ class _PartyMemberTile extends StatelessWidget {
         final inst = snap.data;
         final base = inst == null ? null : repo.getCreatureById(inst.baseId);
         final name = base?.name ?? (inst?.baseId ?? 'Unknown');
+        final frameColor = selected
+            ? _breedAccent
+            : _palette.line.withValues(alpha: 0.7);
 
         return GestureDetector(
           onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 220,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(
-                color: selected
-                    ? Colors.green.shade500
-                    : Colors.indigo.shade100,
-                width: selected ? 3 : 2,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                if (selected)
-                  BoxShadow(
-                    color: Colors.green.shade100,
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-              ],
+          child: CustomPaint(
+            painter: BracketFramePainter(
+              color: frameColor,
+              bracketSize: 8,
+              strokeWidth: selected ? 1.4 : 1.05,
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.indigo.shade200),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: TextStyle(
-                      color: Colors.indigo.shade700,
-                      fontWeight: FontWeight.w800,
+            child: Container(
+              width: 210,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: selected
+                    ? _breedAccent.withValues(alpha: 0.10)
+                    : _palette.surfaceMutedFill(),
+                border: Border.all(
+                  color: _palette.lineSoft.withValues(alpha: 0.45),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _palette.bg0,
+                      border: Border.all(
+                        color: frameColor.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: bracketText(
+                        context,
+                        18,
+                        _palette.ink,
+                        weight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.indigo.shade800,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          if (inst != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.shade100,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: Colors.amber.shade300,
-                                ),
-                              ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
                               child: Text(
-                                'L${inst.level}',
-                                style: TextStyle(
-                                  color: Colors.amber.shade800,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: bracketText(
+                                  context,
+                                  13,
+                                  _palette.ink,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      if (inst != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green.shade200),
-                          ),
-                          child: StaminaBadge(
+                            if (inst != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFFE4C16A,
+                                  ).withValues(alpha: 0.16),
+                                  border: const Border(
+                                    left: BorderSide(
+                                      color: Color(0xFFE4C16A),
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Lv ${inst.level}',
+                                  style: bracketText(
+                                    context,
+                                    10.5,
+                                    const Color(0xFFE4C16A),
+                                    weight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (inst != null) ...[
+                          const SizedBox(height: 6),
+                          StaminaBadge(
                             instanceId: inst.instanceId,
                             showCountdown: true,
                           ),
-                        ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.auto_awesome_rounded,
-                            size: 14,
-                            color: Colors.purple.shade600,
-                          ),
                         ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );

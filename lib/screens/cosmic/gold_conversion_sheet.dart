@@ -9,6 +9,7 @@
 
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -114,10 +115,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         dateUtc: DateTime.now().toUtc(),
       );
 
-  void _showConversionToast(
-    String message, {
-    required bool success,
-  }) {
+  void _showConversionToast(String message, {required bool success}) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
     final tone = success ? const Color(0xFF22C55E) : const Color(0xFFC0392B);
@@ -137,7 +135,9 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
           child: Row(
             children: [
               Icon(
-                success ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                success
+                    ? Icons.check_circle_rounded
+                    : Icons.warning_amber_rounded,
                 size: 16,
                 color: tone,
               ),
@@ -255,12 +255,12 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
               children: [
                 Icon(
                   _isShardsMode
-                      ? Icons.diamond_rounded
+                      ? CosmicScreenStyles.astralShardIcon
                       : ElementResources.byBiomeId[_selectedResource]?.icon ??
                             Icons.circle,
                   size: 18,
                   color: _isShardsMode
-                      ? const Color(0xFFAB47BC)
+                      ? CosmicScreenStyles.astralShardColor
                       : ElementResources.byBiomeId[_selectedResource]?.color ??
                             Colors.white,
                 ),
@@ -523,9 +523,9 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             ),
             const SizedBox(width: 20),
             const Icon(
-              Icons.diamond_rounded,
+              CosmicScreenStyles.astralShardIcon,
               size: 18,
-              color: Color(0xFFAB47BC),
+              color: CosmicScreenStyles.astralShardColor,
             ),
             const SizedBox(width: 4),
             Text(
@@ -555,8 +555,8 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
 
         // Shards option
         _buildOptionTile(
-          icon: Icons.diamond_rounded,
-          iconColor: const Color(0xFFAB47BC),
+          icon: CosmicScreenStyles.astralShardIcon,
+          iconColor: CosmicScreenStyles.astralShardColor,
           label: 'Astral Shards',
           subtitle: '$_shardsPer shards per 5 gold',
           selected: _isShardsMode,
@@ -727,10 +727,10 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
 
   Widget _buildSummary(ForgeTokens t) {
     final outputIcon = _isShardsMode
-        ? Icons.diamond_rounded
+        ? CosmicScreenStyles.astralShardIcon
         : ElementResources.byBiomeId[_selectedResource]?.icon ?? Icons.circle;
     final outputColor = _isShardsMode
-        ? const Color(0xFFAB47BC)
+        ? CosmicScreenStyles.astralShardColor
         : ElementResources.byBiomeId[_selectedResource]?.color ?? Colors.white;
 
     return Container(

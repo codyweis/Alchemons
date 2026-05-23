@@ -127,6 +127,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   // Ship discovery state
   bool _shipPresent = false;
   String? _shipSceneId;
+  bool _shipBeaconPlaced = false;
   late final AnimationController _biomeAmbienceCtrl;
   bool get _isCosmicPlanetMode => widget.isCosmicPlanetEntry;
 
@@ -769,6 +770,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       }
       if (visitedCount >= 4 && existingShip == null && !claimed) {
         await settings.setSetting('cosmic_ship_scene', 'valley');
+        // Arm the crash-landing cinematic for the next time Valley renders.
+        await settings.setSetting('cosmic_ship_arrival_pending', '1');
         if (mounted) {
           setState(() {
             _shipSceneId = 'valley';
@@ -836,6 +839,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
         _shipPresent = false;
         _shipSceneId = null;
         _shipSpawnId = null;
+        _shipBeaconPlaced = false;
       });
       _game.clearShipBeacon();
     }
@@ -865,9 +869,14 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
         widget.sceneId == 'valley';
     if (!shouldShow) {
       _shipSpawnId = null;
+      _shipBeaconPlaced = false;
       _game.clearShipBeacon();
       return;
     }
+
+    // Already placed this session — don't clobber it (and avoid replaying
+    // the crash-landing cinematic on a redundant sync call).
+    if (_shipBeaconPlaced) return;
 
     final spawnId = _pickShipSpawnId();
     if (spawnId == null) return;
@@ -880,7 +889,48 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       await _spawnService.removeSpawn(widget.sceneId, spawnId);
     }
     _syncSpawnsFromService();
-    _game.placeShipBeaconAt(spawnId, onTap: _onShipTapped);
+
+    // Consume the one-shot arrival flag — if set, the ship crash-lands.
+    final settings = _db.settingsDao;
+    final flyIn =
+        (await settings.getSetting('cosmic_ship_arrival_pending')) == '1';
+    if (flyIn) {
+      await settings.deleteSetting('cosmic_ship_arrival_pending');
+    }
+
+    _game.placeShipBeaconAt(
+      spawnId,
+      onTap: _onShipTapped,
+      flyIn: flyIn,
+      onCrashLanded: _onShipCrashLanded,
+    );
+    _shipBeaconPlaced = true;
+
+    if (flyIn) {
+      HapticFeedback.mediumImpact();
+      // Low rumble while the ship descends; the impact shake fires on landing.
+      _game.shake(duration: const Duration(milliseconds: 1500), amplitude: 6);
+    }
+  }
+
+  void _onShipCrashLanded() {
+    if (!mounted) return;
+    HapticFeedback.heavyImpact();
+    _game.shake(duration: const Duration(milliseconds: 700), amplitude: 24);
+  }
+
+  void _showShipBeckoning() {
+    HapticFeedback.mediumImpact();
+    _game.shake(duration: const Duration(milliseconds: 320), amplitude: 5);
+    LandscapeDialog.show(
+      context,
+      title: 'The Cosmic Ship',
+      message: 'The ship is beckoning.',
+      kind: LandscapeDialogKind.warning,
+      icon: Icons.rocket_launch_rounded,
+      primaryLabel: 'Stay',
+      barrierDismissible: true,
+    );
   }
 
   Future<void> _maybeRestoreWaterParty() async {
@@ -934,8 +984,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       PageRouteBuilder<void>(
         opaque: true,
         barrierDismissible: false,
-        transitionDuration: const Duration(milliseconds: 900),
-        reverseTransitionDuration: const Duration(milliseconds: 400),
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 180),
         pageBuilder: (ctx, animation, secondary) => _RiftVoidPage(
           faction: faction,
           party: widget.party,
@@ -1243,6 +1293,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     highlightPartyHUD: _showTutorialHighlight,
                     isTutorial: widget.isTutorial,
                     isCaptureTutorial: _isCaptureTutorialScene,
+                    // Keep the encounter Map action as the single cosmic exit.
+                    showMapAction: true,
                     onPreRollShake: () {
                       _game.shake(
                         duration: const Duration(milliseconds: 800),
@@ -1331,39 +1383,30 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       }
                     },
                   ),
-                // Back / leave button - 🆕 Hidden in tutorial
-                if (!widget.isTutorial && !_isCaptureTutorialScene)
-                  SafeArea(
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: WildernessControls(
-                          party: widget.party,
-                          leaveTooltip: _isCosmicPlanetMode
-                              ? 'Exit Planet'
-                              : 'Leave Scene',
-                          leaveDialogTitle: _isCosmicPlanetMode
-                              ? 'EXIT PLANET?'
-                              : 'LEAVE SCENE?',
-                          leaveDialogBody: _isCosmicPlanetMode
-                              ? 'This planet encounter will end and you will return to space.'
-                              : 'Any active encounters will be lost.',
-                          leaveConfirmLabel: _isCosmicPlanetMode
-                              ? 'EXIT'
-                              : 'LEAVE',
-                          leaveCancelLabel: 'CANCEL',
-                          onLeave: () async {
-                            if (!_isCosmicPlanetMode) {
-                              await _db.delete(_db.activeSceneEntry).go();
-                            }
+                // Back / leave button - hidden in tutorial and cosmic planets.
+                if (!widget.isTutorial &&
+                    !_isCaptureTutorialScene &&
+                    !_isCosmicPlanetMode)
+                  Positioned.fill(
+                    child: WildernessControls(
+                      party: widget.party,
+                      leaveTooltip: 'Leave Scene',
+                      leaveDialogTitle: 'LEAVE SCENE?',
+                      leaveDialogBody: 'Any active encounters will be lost.',
+                      leaveConfirmLabel: 'LEAVE',
+                      leaveCancelLabel: 'CANCEL',
+                      canLeave: () =>
+                          !(_shipPresent && _shipSceneId == widget.sceneId),
+                      onLeaveBlocked: _showShipBeckoning,
+                      onLeave: () async {
+                        if (!_isCosmicPlanetMode) {
+                          await _db.delete(_db.activeSceneEntry).go();
+                        }
 
-                            if (!context.mounted) return;
+                        if (!context.mounted) return;
 
-                            VoidPortal.pop(context);
-                          },
-                        ),
-                      ),
+                        VoidPortal.pop(context);
+                      },
                     ),
                   ),
               ],

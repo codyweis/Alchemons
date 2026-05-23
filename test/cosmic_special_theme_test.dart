@@ -26,11 +26,11 @@ void main() {
       );
 
       final lowTrapLife = lowResult.projectiles
-          .where((p) => p.stationary && p.decoy)
+          .where((p) => p.stationary)
           .map((p) => p.life)
           .reduce((a, b) => a > b ? a : b);
       final highTrapLife = highResult.projectiles
-          .where((p) => p.stationary && p.decoy)
+          .where((p) => p.stationary)
           .map((p) => p.life)
           .reduce((a, b) => a > b ? a : b);
 
@@ -92,9 +92,7 @@ void main() {
       );
 
       expect(
-        result.projectiles.any(
-          (p) => p.stationary && p.decoy && p.snareRadius > 0,
-        ),
+        result.projectiles.any((p) => p.stationary && p.snareRadius > 0),
         isTrue,
       );
       expect(
@@ -246,7 +244,6 @@ void main() {
             casterIntelligence: 5,
             casterStrength: 5,
             targetPos: const Offset(90, 0),
-            survivalMode: true,
           );
           final hasSupportPayload =
               result.beams.isNotEmpty ||
@@ -290,7 +287,7 @@ void main() {
       expect(result.basicHasteMultiplier, lessThan(1.0));
     });
 
-    test('kin escort control pieces persist longer with intelligence', () {
+    test('kin ward control pieces persist longer with intelligence', () {
       final lowResult = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -312,11 +309,10 @@ void main() {
         targetPos: const Offset(120, 0),
       );
 
-      final lowEscort = lowResult.projectiles.firstWhere((p) => p.holdOrbit);
-      final highEscort = highResult.projectiles.firstWhere((p) => p.holdOrbit);
+      final lowWard = lowResult.projectiles.firstWhere((p) => p.stationary);
+      final highWard = highResult.projectiles.firstWhere((p) => p.stationary);
 
-      expect(highEscort.life, greaterThan(lowEscort.life));
-      expect(highEscort.orbitTime, greaterThan(lowEscort.orbitTime));
+      expect(highWard.life, greaterThan(lowWard.life));
     });
 
     test('mystic spirit now stages a brief chorus orbit before release', () {

@@ -45,13 +45,23 @@ void main() {
     test('enemy scaling stays gentle early and serious late', () {
       expect(
         CosmicSurvivalBalance.enemyWaveHpScale(15),
-        inInclusiveRange(1.8, 2.3),
+        inInclusiveRange(1.7, 2.3),
       );
       expect(
         CosmicSurvivalBalance.enemyWaveHpScale(50),
-        inInclusiveRange(5.0, 6.2),
+        inInclusiveRange(3.9, 4.7),
       );
-      expect(CosmicSurvivalBalance.enemyWaveDamageScale(50), lessThan(2.0));
+      // Damage now climbs alongside HP so late waves stay threatening
+      // instead of becoming pure damage sponges, while still trailing
+      // the HP curve so fights don't become lethal coin-flips.
+      expect(
+        CosmicSurvivalBalance.enemyWaveDamageScale(50),
+        inInclusiveRange(2.5, 3.3),
+      );
+      expect(
+        CosmicSurvivalBalance.enemyWaveDamageScale(50),
+        lessThan(CosmicSurvivalBalance.enemyWaveHpScale(50)),
+      );
     });
 
     test(

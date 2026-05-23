@@ -93,6 +93,8 @@ class SceneGame extends FlameGame with ScaleDetector {
   _ShipBeaconComponent? _shipBeacon;
   String? _pendingShipSpawnId;
   VoidCallback? _pendingShipTap;
+  bool _pendingShipFlyIn = false;
+  VoidCallback? _pendingShipCrash;
 
   // Party creature during encounter
   WildMonComponent? _partyCreature;
@@ -284,7 +286,12 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     // Ship placement may be requested before spawn anchors are ready.
     if (_pendingShipSpawnId != null && _pendingShipTap != null) {
-      placeShipBeaconAt(_pendingShipSpawnId!, onTap: _pendingShipTap!);
+      placeShipBeaconAt(
+        _pendingShipSpawnId!,
+        onTap: _pendingShipTap!,
+        flyIn: _pendingShipFlyIn,
+        onCrashLanded: _pendingShipCrash,
+      );
     }
 
     // Center camera initially
@@ -404,17 +411,28 @@ class SceneGame extends FlameGame with ScaleDetector {
     _wildBySpawnId.remove(spawnId)?.removeFromParent();
   }
 
-  void placeShipBeaconAt(String spawnId, {required VoidCallback onTap}) {
+  void placeShipBeaconAt(
+    String spawnId, {
+    required VoidCallback onTap,
+    bool flyIn = false,
+    VoidCallback? onCrashLanded,
+  }) {
     clearShipBeacon();
 
     final anchor = _spawnPointComps[spawnId];
     if (anchor == null) {
       _pendingShipSpawnId = spawnId;
       _pendingShipTap = onTap;
+      _pendingShipFlyIn = flyIn;
+      _pendingShipCrash = onCrashLanded;
       return;
     }
 
-    final comp = _ShipBeaconComponent(onTap: onTap)
+    final comp = _ShipBeaconComponent(
+      onTap: onTap,
+      flyIn: flyIn,
+      onCrashLanded: onCrashLanded,
+    )
       ..anchor = Anchor.center
       ..position = Vector2.zero()
       ..priority = 200;
@@ -422,6 +440,8 @@ class SceneGame extends FlameGame with ScaleDetector {
     _shipBeacon = comp;
     _pendingShipSpawnId = null;
     _pendingShipTap = null;
+    _pendingShipFlyIn = false;
+    _pendingShipCrash = null;
   }
 
   void clearShipBeacon() {
@@ -429,6 +449,8 @@ class SceneGame extends FlameGame with ScaleDetector {
     _shipBeacon = null;
     _pendingShipSpawnId = null;
     _pendingShipTap = null;
+    _pendingShipFlyIn = false;
+    _pendingShipCrash = null;
   }
 
   // ── Rift portal ────────────────────────────────────────────────────────────
@@ -1308,55 +1330,159 @@ class _CreatureBacklightComponent extends PositionComponent {
 }
 
 class _ShipBeaconComponent extends PositionComponent with TapCallbacks {
-  _ShipBeaconComponent({required this.onTap})
-    : super(size: Vector2(132, 132), anchor: Anchor.center);
+  _ShipBeaconComponent({
+    required this.onTap,
+    this.flyIn = false,
+    this.onCrashLanded,
+  }) : super(size: Vector2(132, 132), anchor: Anchor.center);
 
   final VoidCallback onTap;
+
+  /// When true, the ship streaks in from above and crash-lands before it
+  /// becomes tappable. When false, it simply renders at rest (restored state).
+  final bool flyIn;
+
+  /// Fired once, the moment the ship touches down (for the impact shake).
+  final VoidCallback? onCrashLanded;
+
+  static const double _entryDuration = 1.5;
+
   double _elapsed = 0.0;
+  double _entryT = 0.0;
+  double _postLand = 0.0;
+  bool _landed = false;
+  bool _crashFired = false;
+
+  @override
+  void onMount() {
+    super.onMount();
+    if (!flyIn) {
+      _landed = true;
+      _entryT = _entryDuration;
+    }
+  }
 
   @override
   void update(double dt) {
     super.update(dt);
     _elapsed += dt;
+    if (flyIn && !_landed) {
+      _entryT += dt;
+      if (_entryT >= _entryDuration) {
+        _entryT = _entryDuration;
+        _landed = true;
+        if (!_crashFired) {
+          _crashFired = true;
+          onCrashLanded?.call();
+        }
+      }
+    } else if (_landed && _postLand < 1.3) {
+      _postLand += dt;
+    }
   }
 
   @override
-  void onTapDown(TapDownEvent event) => onTap();
+  void onTapDown(TapDownEvent event) {
+    // Ignore taps until the crash-landing cinematic finishes.
+    if (!_landed) return;
+    onTap();
+  }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
     final c = Offset(size.x * 0.5, size.y * 0.5);
-    final pulse = 1.0 + 0.06 * sin(_elapsed * 3.6);
+
+    final p = flyIn ? (_entryT / _entryDuration).clamp(0.0, 1.0) : 1.0;
+    final descending = p < 1.0;
+
+    // Entry transform: dive in from the upper-right and straighten on landing.
+    double dx = 0, dy = 0, tilt = 0;
+    if (descending) {
+      final eIn = p * p; // accelerate downward
+      final eOut = 1 - (1 - p) * (1 - p); // ease horizontal drift
+      dx = 150 * (1 - eOut);
+      dy = -880 * (1 - eIn);
+      tilt = -0.4 * (1 - p);
+    }
+
+    // Post-impact squash bounce.
+    double bounceY = 0, sq = 0;
+    if (flyIn && _landed && _postLand < 0.55) {
+      final b = _postLand / 0.55;
+      bounceY = -sin(b * pi) * 6 * (1 - b);
+      sq = 0.18 * sin(b * pi) * (1 - b);
+    }
+
+    // Impact dust ring.
+    if (flyIn && _landed && _postLand < 0.85) {
+      final dp = _postLand / 0.85;
+      final dustPaint = Paint()
+        ..color = const Color(0xFFCFF3FF).withValues(alpha: 0.55 * (1 - dp))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5 * (1 - dp)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+      canvas.drawCircle(Offset(c.dx, c.dy + 22), 22 + 92 * dp, dustPaint);
+    }
+
     final glowPulse = 0.78 + 0.22 * sin(_elapsed * 2.8);
 
-    final auraPaint = Paint()
-      ..shader = ui.Gradient.radial(
-        c,
-        56,
-        [
-          const Color(0xFF5BEBFF).withValues(alpha: 0.46 * glowPulse),
-          const Color(0xFF5BEBFF).withValues(alpha: 0.20 * glowPulse),
-          Colors.transparent,
-        ],
-        const [0.0, 0.62, 1.0],
-      )
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-    canvas.drawCircle(c, 56, auraPaint);
+    // Idle beacon aura — only once the ship is fully landed.
+    if (!descending) {
+      final auraPaint = Paint()
+        ..shader = ui.Gradient.radial(
+          c,
+          56,
+          [
+            const Color(0xFF5BEBFF).withValues(alpha: 0.46 * glowPulse),
+            const Color(0xFF5BEBFF).withValues(alpha: 0.20 * glowPulse),
+            Colors.transparent,
+          ],
+          const [0.0, 0.62, 1.0],
+        )
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+      canvas.drawCircle(c, 56, auraPaint);
 
-    final ringRadius = 42 + (2.5 * sin(_elapsed * 3.4));
-    final ringPaint = Paint()
-      ..color = const Color(0xFF7BF1FF).withValues(alpha: 0.58 * glowPulse)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    canvas.drawCircle(c, ringRadius, ringPaint);
+      final ringRadius = 42 + (2.5 * sin(_elapsed * 3.4));
+      final ringPaint = Paint()
+        ..color = const Color(0xFF7BF1FF).withValues(alpha: 0.58 * glowPulse)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      canvas.drawCircle(c, ringRadius, ringPaint);
+    }
 
     canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.scale(pulse);
+    canvas.translate(c.dx + dx, c.dy + dy + bounceY);
+    canvas.rotate(tilt);
+    final pulse = descending ? 1.0 : 1.0 + 0.06 * sin(_elapsed * 3.6);
+    canvas.scale(pulse * (1 + sq), pulse * (1 - sq));
 
-    final enginePulse = 0.85 + 0.15 * sin(_elapsed * 9);
+    // Re-entry streak trailing up behind the diving ship.
+    if (descending) {
+      final streakLen = 60 + 170 * p;
+      final streakPaint = Paint()
+        ..shader = ui.Gradient.linear(
+          const Offset(0, -38),
+          Offset(0, -38 - streakLen),
+          [
+            const Color(0xFF9BF3FF).withValues(alpha: 0.6),
+            const Color(0x005BEBFF),
+          ],
+        )
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 10
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      canvas.drawLine(
+        const Offset(0, -38),
+        Offset(0, -38 - streakLen),
+        streakPaint,
+      );
+    }
+
+    final enginePulse = descending
+        ? 1.0
+        : 0.85 + 0.15 * sin(_elapsed * 9);
 
     // Engine glow
     final glowPaint = Paint()
@@ -1372,8 +1498,8 @@ class _ShipBeaconComponent extends PositionComponent with TapCallbacks {
       );
     }
 
-    // Trail particles
-    for (var i = 1; i <= 4; i++) {
+    // Trail particles — idle hover wisps, suppressed during the dive.
+    for (var i = 1; !descending && i <= 4; i++) {
       final wobble = sin(_elapsed * 8 + i * 1.35) * (2.8 + i * 0.25);
       final trailPaint = Paint()
         ..color = const Color(0xFF5ED8FF).withValues(alpha: 0.24 - i * 0.04);

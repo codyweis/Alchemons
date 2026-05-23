@@ -3032,6 +3032,50 @@ class _StarParticle {
 }
 
 // ─────────────────────────────────────────────────────────
+// PARALLAX STAR LAYER
+// ─────────────────────────────────────────────────────────
+
+class _ParallaxStar {
+  _ParallaxStar({
+    required this.x,
+    required this.y,
+    required this.brightness,
+    required this.size,
+    required this.twinkleSpeed,
+  });
+
+  final double x, y, brightness, size, twinkleSpeed;
+}
+
+class _ParallaxLayer {
+  _ParallaxLayer({
+    required this.factor,
+    required int count,
+    required double tile,
+    required double maxSize,
+    required double maxBrightness,
+    required int seed,
+  }) {
+    final rng = Random(seed);
+    for (var i = 0; i < count; i++) {
+      stars.add(
+        _ParallaxStar(
+          x: rng.nextDouble() * tile,
+          y: rng.nextDouble() * tile,
+          brightness: maxBrightness * (0.4 + rng.nextDouble() * 0.6),
+          size: 0.5 + rng.nextDouble() * (maxSize - 0.5),
+          twinkleSpeed: 0.3 + rng.nextDouble() * 1.2,
+        ),
+      );
+    }
+  }
+
+  // Fraction of camera movement this layer scrolls at (0 = fixed, 1 = world).
+  final double factor;
+  final List<_ParallaxStar> stars = [];
+}
+
+// ─────────────────────────────────────────────────────────
 // ELEMENT PARTICLE (collectible)
 // ─────────────────────────────────────────────────────────
 
@@ -3114,6 +3158,16 @@ class _GarrisonCreature {
   // Temporary basic-attack haste granted by some specials.
   double basicHasteTimer = 0;
   double basicHasteMultiplier = 1.0;
+  double damageAmpTimer = 0;
+  double damageAmpMultiplier = 1.0;
+
+  int abilityKillStacks = 0;
+  double pipSpiritEmpowerTimer = 0;
+  double pipSteamWindowTimer = 0;
+  Offset? lastPipPoisonHitPos;
+  List<Projectile>? pendingChargeBurst;
+  Offset? pendingChargeOrigin;
+  double pendingChargeAngle = 0;
 
   // Movement
   static const double wanderSpeed = 14.0;

@@ -227,12 +227,14 @@ List<MapEntry<String, int>> rollCosmicSurvivalPowerupRewards(
 ) {
   final dropChance = wave >= 50
       ? 1.0
+      : wave >= 40
+      ? 0.75
       : wave >= 30
-      ? 0.50
+      ? 0.60
       : wave >= 20
-      ? 0.20
+      ? 0.30
       : wave >= 10
-      ? 0.10
+      ? 0.16
       : 0.0;
   if (dropChance <= 0 || rng.nextDouble() > dropChance) return const [];
 

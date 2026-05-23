@@ -62,6 +62,49 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     super.dispose();
   }
 
+  Widget _shardCostLabel(
+    BuildContext context, {
+    required String label,
+    required int amount,
+    required bool enabled,
+    double fontSize = 12,
+    double iconSize = 12,
+    double letterSpacing = 0.5,
+  }) {
+    final color = enabled
+        ? CosmicScreenStyles.astralShardColor
+        : CosmicScreenStyles.textMuted;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: appFontFamily(context),
+            color: color,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w800,
+            letterSpacing: letterSpacing,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Icon(CosmicScreenStyles.astralShardIcon, color: color, size: iconSize),
+        const SizedBox(width: 3),
+        Text(
+          _fmt(amount),
+          style: TextStyle(
+            fontFamily: appFontFamily(context),
+            color: color,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w800,
+            letterSpacing: letterSpacing,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // If showing a detail view, render that instead
@@ -200,8 +243,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         const Spacer(),
                         if (widget.homePlanet != null) ...[
                           const Icon(
-                            Icons.diamond_rounded,
-                            color: CosmicScreenStyles.amberBright,
+                            CosmicScreenStyles.astralShardIcon,
+                            color: CosmicScreenStyles.astralShardColor,
                             size: 12,
                           ),
                           const SizedBox(width: 4),
@@ -209,7 +252,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                             _fmt(bankBalance),
                             style: TextStyle(
                               fontFamily: appFontFamily(context),
-                              color: CosmicScreenStyles.amberBright,
+                              color: CosmicScreenStyles.astralShardColor,
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                             ),
@@ -353,8 +396,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.diamond_rounded,
-                          color: CosmicScreenStyles.amberBright,
+                          CosmicScreenStyles.astralShardIcon,
+                          color: CosmicScreenStyles.astralShardColor,
                           size: 14,
                         ),
                         const SizedBox(width: 8),
@@ -362,7 +405,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           'ASTRAL SHARDS',
                           style: TextStyle(
                             fontFamily: appFontFamily(context),
-                            color: CosmicScreenStyles.amberBright,
+                            color: CosmicScreenStyles.astralShardColor,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
@@ -373,7 +416,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           _fmt(bankBalance),
                           style: TextStyle(
                             fontFamily: appFontFamily(context),
-                            color: CosmicScreenStyles.amberBright,
+                            color: CosmicScreenStyles.astralShardColor,
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
@@ -560,10 +603,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           level: widget.customizationState.ammoUpgradeLevel,
           bonusPercent:
               ((HomeCustomizationState.damageMultiplier(
-                        widget.customizationState.ammoUpgradeLevel,
-                      ) -
-                      1.0) *
-                  100)
+                            widget.customizationState.ammoUpgradeLevel,
+                          ) -
+                          1.0) *
+                      100)
                   .round(),
           icon: Icons.bolt_rounded,
           onUpgrade: () => widget.onUpgradePowerUp('ammo'),
@@ -574,10 +617,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           level: widget.customizationState.missileUpgradeLevel,
           bonusPercent:
               ((HomeCustomizationState.missileDamageMultiplier(
-                        widget.customizationState.missileUpgradeLevel,
-                      ) -
-                      1.0) *
-                  100)
+                            widget.customizationState.missileUpgradeLevel,
+                          ) -
+                          1.0) *
+                      100)
                   .round(),
           icon: Icons.rocket_launch_rounded,
           onUpgrade: () => widget.onUpgradePowerUp('missile'),
@@ -659,7 +702,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       decoration: BoxDecoration(
                         color: nextCost == null
                             ? CosmicScreenStyles.success.withValues(alpha: 0.12)
-                            : CosmicScreenStyles.amberBright.withValues(
+                            : CosmicScreenStyles.astralShardColor.withValues(
                                 alpha: 0.12,
                               ),
                         borderRadius: BorderRadius.circular(999),
@@ -668,23 +711,29 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                               ? CosmicScreenStyles.success.withValues(
                                   alpha: 0.3,
                                 )
-                              : CosmicScreenStyles.amberBright.withValues(
+                              : CosmicScreenStyles.astralShardColor.withValues(
                                   alpha: 0.28,
                                 ),
                         ),
                       ),
-                      child: Text(
-                        nextCost == null ? 'MAXED' : 'NEXT $nextCost ✦',
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: nextCost == null
-                              ? CosmicScreenStyles.success
-                              : CosmicScreenStyles.amberBright,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
+                      child: nextCost == null
+                          ? Text(
+                              'MAXED',
+                              style: TextStyle(
+                                fontFamily: appFontFamily(context),
+                                color: CosmicScreenStyles.success,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            )
+                          : _shardCostLabel(
+                              context,
+                              label: 'NEXT',
+                              amount: nextCost,
+                              enabled: true,
+                              letterSpacing: 0.8,
+                            ),
                     ),
                   ],
                 ),
@@ -794,31 +843,27 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       ),
                       decoration: BoxDecoration(
                         color: canAffordUpgrade
-                            ? CosmicScreenStyles.amberBright.withValues(
+                            ? CosmicScreenStyles.astralShardColor.withValues(
                                 alpha: 0.15,
                               )
                             : CosmicScreenStyles.bg3,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: canAffordUpgrade
-                              ? CosmicScreenStyles.amberBright.withValues(
+                              ? CosmicScreenStyles.astralShardColor.withValues(
                                   alpha: 0.4,
                                 )
                               : CosmicScreenStyles.borderDim,
                         ),
                       ),
                       alignment: Alignment.center,
-                      child: Text(
-                        'UNLOCK ${HomePlanet.tierNames[(maxTier + 1).clamp(0, 4)].toUpperCase()} ($nextCost ✦)',
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: canAffordUpgrade
-                              ? CosmicScreenStyles.amberBright
-                              : CosmicScreenStyles.textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.7,
-                        ),
+                      child: _shardCostLabel(
+                        context,
+                        label:
+                            'UNLOCK ${HomePlanet.tierNames[(maxTier + 1).clamp(0, 4)].toUpperCase()}',
+                        amount: nextCost,
+                        enabled: canAffordUpgrade,
+                        letterSpacing: 0.7,
                       ),
                     ),
                   ),
@@ -1450,17 +1495,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           : CosmicScreenStyles.borderDim,
                     ),
                   ),
-                  child: Text(
-                    'UPGRADE LV${level + 1} ($nextCost ✦)',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: canAfford
-                          ? CosmicScreenStyles.amberBright
-                          : CosmicScreenStyles.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                    ),
+                  child: _shardCostLabel(
+                    context,
+                    label: 'UPGRADE LV${level + 1}',
+                    amount: nextCost,
+                    enabled: canAfford,
                   ),
                 ),
               ),
@@ -1597,17 +1636,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           : CosmicScreenStyles.borderDim,
                     ),
                   ),
-                  child: Text(
-                    'UPGRADE LV${level + 1} ($nextCost ✦)',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: canAfford
-                          ? const Color(0xFFFF6F00)
-                          : CosmicScreenStyles.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                    ),
+                  child: _shardCostLabel(
+                    context,
+                    label: 'UPGRADE LV${level + 1}',
+                    amount: nextCost,
+                    enabled: canAfford,
                   ),
                 ),
               ),

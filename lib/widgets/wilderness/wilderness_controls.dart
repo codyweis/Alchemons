@@ -1,12 +1,17 @@
 // lib/widgets/wilderness/wilderness_controls.dart
-import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/constants/design_tokens.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/wilderness/inventory_hud.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/models/wilderness.dart';
-import 'package:provider/provider.dart';
 
-/// Simple three-button control panel for wilderness scenes
+// Wilderness HUD sits on dark scene backdrops — always dark.
+const _wPalette = BracketPalette.dark;
+const _wDanger = Color(0xFFC0392B);
+const _wAmber = Color(0xFFE4C16A);
+
+/// Compact wilderness HUD controls for leaving the scene and opening items.
 class WildernessControls extends StatelessWidget {
   final VoidCallback onLeave;
   final List<PartyMember> party;
@@ -15,6 +20,11 @@ class WildernessControls extends StatelessWidget {
   final String leaveDialogBody;
   final String leaveConfirmLabel;
   final String leaveCancelLabel;
+
+  /// Optional gate: when it returns false, the leave confirmation is suppressed
+  /// and [onLeaveBlocked] is invoked instead.
+  final bool Function()? canLeave;
+  final VoidCallback? onLeaveBlocked;
 
   const WildernessControls({
     super.key,
@@ -25,33 +35,38 @@ class WildernessControls extends StatelessWidget {
     this.leaveDialogBody = 'Any active encounters will be lost.',
     this.leaveConfirmLabel = 'LEAVE',
     this.leaveCancelLabel = 'CANCEL',
+    this.canLeave,
+    this.onLeaveBlocked,
   });
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
           children: [
-            _ControlButton(
-              icon: Icons.exit_to_app_rounded,
-              bgColor: t.danger.withValues(alpha: 0.85),
-              borderColor: t.danger,
-              glowColor: t.danger,
-              tooltip: leaveTooltip,
-              onPressed: () => _showLeaveConfirmation(context),
+            // Exit stays anchored top-left.
+            Align(
+              alignment: Alignment.topLeft,
+              child: _ControlButton(
+                label: 'Exit',
+                icon: Icons.exit_to_app_rounded,
+                accentColor: _wDanger,
+                tooltip: leaveTooltip,
+                onPressed: () => _showLeaveConfirmation(context),
+              ),
             ),
-            const SizedBox(width: 8),
-            _ControlButton(
-              icon: Icons.inventory_2_rounded,
-              bgColor: t.bg2,
-              borderColor: t.borderAccent,
-              glowColor: t.amber,
-              tooltip: 'Inventory',
-              onPressed: () => _showInventoryOverlay(context),
+            // Items moved down to the bottom-left corner.
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: _ControlButton(
+                label: 'Items',
+                icon: Icons.inventory_2_rounded,
+                accentColor: _wAmber,
+                tooltip: 'Inventory',
+                onPressed: () => _showInventoryOverlay(context),
+              ),
             ),
           ],
         ),
@@ -60,144 +75,113 @@ class WildernessControls extends StatelessWidget {
   }
 
   void _showLeaveConfirmation(BuildContext context) {
+    if (canLeave != null && !canLeave!()) {
+      onLeaveBlocked?.call();
+      return;
+    }
     HapticFeedback.mediumImpact();
     showDialog(
       context: context,
       builder: (ctx) {
-        final t2 = ForgeTokens(ctx.read<FactionTheme>());
         return Dialog(
           backgroundColor: Colors.transparent,
-          child: Container(
+          child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
-            decoration: BoxDecoration(
-              color: t2.bg1,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: t2.danger.withValues(alpha: 0.5),
-                width: 1.5,
+            child: CustomPaint(
+              painter: BracketFramePainter(
+                color: _wDanger.withValues(alpha: 0.85),
+                bracketSize: 12,
+                strokeWidth: 1.3,
               ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  decoration: BoxDecoration(
-                    color: t2.bg2,
-                    border: Border(bottom: BorderSide(color: t2.borderDim)),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: t2.danger,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      Text(
-                        leaveDialogTitle,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t2.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 2.0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    leaveDialogBody,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t2.textSecondary,
-                      fontSize: 12,
-                      letterSpacing: 0.3,
-                      height: 1.6,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          Navigator.pop(ctx);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
+              child: Container(
+                color: _wPalette.surfaceFill(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 3,
+                            height: 26,
+                            color: _wDanger,
                           ),
-                          decoration: BoxDecoration(
-                            color: t2.bg2,
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: t2.borderDim),
-                          ),
-                          child: Text(
-                            leaveCancelLabel,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t2.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2,
+                          const SizedBox(width: AppSpace.md),
+                          Expanded(
+                            child: Text(
+                              _toSentenceCase(leaveDialogTitle),
+                              style: bracketText(
+                                ctx,
+                                17,
+                                _wPalette.ink,
+                                weight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.heavyImpact();
-                          Navigator.pop(ctx);
-                          onLeave();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: t2.danger.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: t2.danger),
-                          ),
-                          child: Text(
-                            leaveConfirmLabel,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t2.danger,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.5,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                      child: Text(
+                        leaveDialogBody,
+                        style: bracketText(
+                          ctx,
+                          12.5,
+                          _wPalette.muted,
+                          weight: FontWeight.w500,
+                        ),
+                        strutStyle: const StrutStyle(height: 1.4),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _DialogButton(
+                              label: _toSentenceCase(leaveCancelLabel),
+                              color: _wPalette.muted,
+                              filled: false,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                Navigator.pop(ctx);
+                              },
                             ),
                           ),
-                        ),
+                          const SizedBox(width: AppSpace.sm),
+                          Expanded(
+                            child: _DialogButton(
+                              label: _toSentenceCase(leaveConfirmLabel),
+                              color: _wDanger,
+                              filled: true,
+                              onTap: () {
+                                HapticFeedback.heavyImpact();
+                                Navigator.pop(ctx);
+                                onLeave();
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );
       },
     );
+  }
+
+  static String _toSentenceCase(String v) {
+    if (v.isEmpty) return v;
+    final lower = v.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
   }
 
   void _showInventoryOverlay(BuildContext context) {
@@ -225,7 +209,6 @@ class _InventoryOverlayShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
     return GestureDetector(
       onTap: () => Navigator.of(context).pop(),
       behavior: HitTestBehavior.opaque,
@@ -242,21 +225,16 @@ class _InventoryOverlayShell extends StatelessWidget {
                     vertical: 32,
                   ),
                   constraints: const BoxConstraints(maxWidth: 450),
-                  decoration: BoxDecoration(
-                    color: t.bg1,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: t.borderAccent, width: 1),
-                    boxShadow: [
-                      BoxShadow(
-                        color: t.amber.withValues(alpha: 0.08),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: const GameInventoryOverlay(),
+                  child: CustomPaint(
+                    painter: BracketFramePainter(
+                      color: _wAmber.withValues(alpha: 0.8),
+                      bracketSize: 12,
+                      strokeWidth: 1.3,
+                    ),
+                    child: ColoredBox(
+                      color: _wPalette.surfaceFill(),
+                      child: const GameInventoryOverlay(),
+                    ),
                   ),
                 ),
               ),
@@ -269,18 +247,16 @@ class _InventoryOverlayShell extends StatelessWidget {
 }
 
 class _ControlButton extends StatelessWidget {
+  final String label;
   final IconData icon;
-  final Color bgColor;
-  final Color borderColor;
-  final Color glowColor;
+  final Color accentColor;
   final String tooltip;
   final VoidCallback onPressed;
 
   const _ControlButton({
+    required this.label,
     required this.icon,
-    required this.bgColor,
-    required this.borderColor,
-    required this.glowColor,
+    required this.accentColor,
     required this.tooltip,
     required this.onPressed,
   });
@@ -291,22 +267,85 @@ class _ControlButton extends StatelessWidget {
       message: tooltip,
       child: GestureDetector(
         onTap: onPressed,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: borderColor, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: glowColor.withValues(alpha: 0.25),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+        behavior: HitTestBehavior.opaque,
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: accentColor.withValues(alpha: 0.8),
+            bracketSize: 8,
+            strokeWidth: 1.1,
           ),
-          child: Icon(icon, color: Colors.white, size: 18),
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 66, minHeight: 54),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.md,
+              vertical: AppSpace.sm,
+            ),
+            color: _wPalette.surfaceFill(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: accentColor, size: AppIcon.md),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  style: bracketText(
+                    context,
+                    10.5,
+                    _wPalette.ink,
+                    weight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogButton extends StatelessWidget {
+  const _DialogButton({
+    required this.label,
+    required this.color,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: CustomPaint(
+        painter: BracketFramePainter(
+          color: filled ? color : color.withValues(alpha: 0.6),
+          bracketSize: 8,
+          strokeWidth: filled ? 1.3 : 1.1,
+        ),
+        child: Container(
+          height: 42,
+          alignment: Alignment.center,
+          color: filled
+              ? color
+              : color.withValues(alpha: 0.10),
+          child: Text(
+            label,
+            style: bracketText(
+              context,
+              13,
+              filled ? Colors.white : color,
+              weight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
         ),
       ),
     );

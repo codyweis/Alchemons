@@ -362,13 +362,19 @@ class LootBoxConfig {
     if (wave >= 50) {
       return SurvivalLootBoxReward(boxKey: picked, quantity: 2);
     }
+    if (wave >= 45) {
+      return SurvivalLootBoxReward(
+        boxKey: picked,
+        quantity: rng.nextDouble() < 0.35 ? 2 : 1,
+      );
+    }
     if (wave >= 35) {
-      return rng.nextDouble() < 0.75
+      return rng.nextDouble() < 0.85
           ? SurvivalLootBoxReward(boxKey: picked, quantity: 1)
           : null;
     }
     if (wave > 20) {
-      return rng.nextDouble() < 0.5
+      return rng.nextDouble() < 0.65
           ? SurvivalLootBoxReward(boxKey: picked, quantity: 1)
           : null;
     }
@@ -398,12 +404,18 @@ class LootBoxConfig {
     final int base = wave < 10
         ? 50 + wave * 5
         : wave < 15
-        ? 100 + (wave - 10) * 10   // 100 → 150
+        ? 100 +
+              (wave - 10) *
+                  10 // 100 → 150
         : wave < 20
-        ? 150 + (wave - 15) * 20   // 150 → 250
+        ? 150 +
+              (wave - 15) *
+                  20 // 150 → 250
         : wave < 30
-        ? 250 + (wave - 20) * 25   // 250 → 500
-        : 500 + (wave - 30) * 30;  // 500+ beyond w30
+        ? 270 +
+              (wave - 20) *
+                  30 // 270 → 570
+        : 570 + (wave - 30) * 38; // 570+ beyond w30
     final variance = rng.nextInt((base * 0.25).ceil().clamp(1, 300));
     final silver = base + variance;
 

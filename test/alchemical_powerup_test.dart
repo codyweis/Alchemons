@@ -119,6 +119,18 @@ void main() {
       }
     });
 
+    test('cosmic survival midgame powerup drops happen more reliably', () {
+      var drops = 0;
+      for (var seed = 0; seed < 1000; seed++) {
+        if (rollCosmicSurvivalPowerupRewards(30, Random(seed)).isNotEmpty) {
+          drops++;
+        }
+      }
+
+      expect(drops, greaterThan(500));
+      expect(drops, lessThan(700));
+    });
+
     test('boss rift rolls at most one of each orb type', () {
       for (var seed = 0; seed < 50; seed++) {
         final rewards = rollBossRiftPowerupRewards(Random(seed));

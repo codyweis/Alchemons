@@ -78,7 +78,7 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
     _entryCtrl =
         AnimationController(
             vsync: this,
-            duration: const Duration(milliseconds: 2200),
+            duration: const Duration(milliseconds: 850),
           )
           ..forward().whenComplete(() {
             if (mounted) setState(() => _entryDone = true);
@@ -154,8 +154,9 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
           // ── Particle background ─────────────────────────────────────────
           IgnorePointer(
             child: AlchemicalParticleBackground(
-              opacity: 0.55,
+              opacity: 0.32,
               backgroundColor: Colors.transparent,
+              densityMultiplier: 0.35,
               colors: [
                 color.withValues(alpha: 0.7),
                 color.withValues(alpha: 0.4),
@@ -166,18 +167,20 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
 
           // ── Portal ──────────────────────────────────────────────────────
           Center(
-            child: AnimatedBuilder(
-              animation: _portalCtrl,
-              builder: (context, _) {
-                return CustomPaint(
-                  size: const Size(320, 320),
-                  painter: _SummonPortalPainter(
-                    color: color,
-                    coreColor: _coreColor,
-                    time: _portalCtrl.value * pi * 2 * 4,
-                  ),
-                );
-              },
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _portalCtrl,
+                builder: (context, _) {
+                  return CustomPaint(
+                    size: const Size(280, 280),
+                    painter: _SummonPortalPainter(
+                      color: color,
+                      coreColor: _coreColor,
+                      time: _portalCtrl.value * pi * 2 * 4,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
 
@@ -188,23 +191,6 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(false),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(3),
-                        border: Border.all(color: Colors.white12, width: 1),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: Colors.white70,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -368,9 +354,10 @@ class _SummonPortalPainter extends CustomPainter {
 
   static List<_PData> _buildParticles() {
     final rng = Random(42);
-    return List.generate(28, (i) {
+    const particleCount = 18;
+    return List.generate(particleCount, (i) {
       return _PData(
-        angle: (i / 28) * pi * 2,
+        angle: (i / particleCount) * pi * 2,
         radius: 0.46 + rng.nextDouble() * 0.38,
         speed: 0.30 + rng.nextDouble() * 0.80,
         size: 1.4 + rng.nextDouble() * 2.6,
@@ -396,18 +383,14 @@ class _SummonPortalPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(cx, cy),
       r * 2.6,
-      Paint()
-        ..color = color.withValues(alpha: 0.08 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 36),
+      Paint()..color = color.withValues(alpha: 0.08 * pulse),
     );
 
     // Mid glow
     canvas.drawCircle(
       Offset(cx, cy),
       r * 1.8,
-      Paint()
-        ..color = color.withValues(alpha: 0.16 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+      Paint()..color = color.withValues(alpha: 0.16 * pulse),
     );
 
     // Accretion disk
@@ -454,9 +437,7 @@ class _SummonPortalPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(px, py),
         p.size * pulse,
-        Paint()
-          ..color = color.withValues(alpha: p.opacity * pulse)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8),
+        Paint()..color = color.withValues(alpha: p.opacity * pulse),
       );
     }
 
@@ -492,8 +473,7 @@ class _SummonPortalPainter extends CustomPainter {
       Paint()
         ..color = color.withValues(alpha: 0.22 * pulse)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+        ..strokeWidth = 1.4,
     );
   }
 
@@ -556,12 +536,6 @@ class _SummonFlashPainter extends CustomPainter {
     }
     if (overlayAlpha <= 0) return;
 
-    canvas.saveLayer(
-      Offset.zero & size,
-      Paint()
-        ..color = Color.fromARGB((overlayAlpha * 255).round(), 255, 255, 255),
-    );
-
     // Dark radial base
     canvas.drawRect(
       Offset.zero & size,
@@ -570,8 +544,12 @@ class _SummonFlashPainter extends CustomPainter {
           center: Alignment.center,
           radius: 0.8,
           colors: [
-            Color.lerp(color, Colors.black, 0.3)!.withValues(alpha: 0.85),
-            Colors.black.withValues(alpha: 0.95),
+            Color.lerp(
+              color,
+              Colors.black,
+              0.3,
+            )!.withValues(alpha: 0.85 * overlayAlpha),
+            Colors.black.withValues(alpha: 0.95 * overlayAlpha),
           ],
         ).createShader(Offset.zero & size),
     );
@@ -586,13 +564,14 @@ class _SummonFlashPainter extends CustomPainter {
     if (flashAlpha > 0) {
       canvas.drawRect(
         Offset.zero & size,
-        Paint()..color = Colors.white.withValues(alpha: flashAlpha),
+        Paint()
+          ..color = Colors.white.withValues(alpha: flashAlpha * overlayAlpha),
       );
     }
 
     // Expanding rings
-    for (int i = 0; i < 5; i++) {
-      final start = 0.25 + i * 0.06;
+    for (int i = 0; i < 3; i++) {
+      final start = 0.25 + i * 0.10;
       final end = start + 0.35;
       if (progress < start || progress > end) continue;
       final t = ((progress - start) / (end - start)).clamp(0.0, 1.0);
@@ -603,10 +582,9 @@ class _SummonFlashPainter extends CustomPainter {
         center,
         ringR,
         Paint()
-          ..color = color.withValues(alpha: ringAlpha)
+          ..color = color.withValues(alpha: ringAlpha * overlayAlpha)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = ringWidth
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+          ..strokeWidth = ringWidth,
       );
     }
 
@@ -616,13 +594,9 @@ class _SummonFlashPainter extends CustomPainter {
       canvas.drawCircle(
         center,
         maxR * 0.25,
-        Paint()
-          ..color = color.withValues(alpha: glowAlpha)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
+        Paint()..color = color.withValues(alpha: glowAlpha * overlayAlpha),
       );
     }
-
-    canvas.restore();
   }
 
   @override

@@ -45,7 +45,7 @@ void main() {
         beauty: 2.4,
       );
       final tempoDef = kCompanionStatBoosts.firstWhere(
-        (def) => def.id == 'speed_boost',
+        (def) => def.id == 'speed_up',
       );
 
       expect(
@@ -171,8 +171,7 @@ void main() {
       expect(state.apply(keystone), isTrue);
       expect(state.hasKeystone, isTrue);
       expect(state.fireRateMultiplier, closeTo(1.20, 0.0001));
-      expect(state.companionSpeedMultiplier(0), closeTo(1.16, 0.0001));
-      expect(state.companionCooldownReduction(0), closeTo(0.10, 0.0001));
+      expect(state.speedBonus(0), closeTo(0.45, 0.0001));
       expect(generateKeystoneChoices(state, 9, party: const []), isEmpty);
     });
   });

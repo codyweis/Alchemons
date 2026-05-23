@@ -20,6 +20,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/wilderness.dart';
+import 'package:alchemons/screens/cosmic/widgets/encounter_entry_button.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/services/wilderness_service.dart';
@@ -377,23 +378,12 @@ class _BattleRingScreenState extends State<BattleRingScreen>
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: GestureDetector(
+                child: CosmicEncounterEntryButton(
+                  label: 'EXIT',
+                  accentColor: Colors.white70,
                   onTap: () => Navigator.of(
                     context,
                   ).pop(const BattleRingResult(won: false)),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(color: Colors.white24, width: 1),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: Colors.white54,
-                      size: 18,
-                    ),
-                  ),
                 ),
               ),
             ),
