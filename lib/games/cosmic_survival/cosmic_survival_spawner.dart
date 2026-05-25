@@ -132,6 +132,7 @@ class CosmicSurvivalEnemy {
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
   double get effectiveSpeed {
+    if (maneRootTimer > 0 || slowMultiplier <= 0) return 0;
     if (slowTimer <= 0) return speed;
     return speed * (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }

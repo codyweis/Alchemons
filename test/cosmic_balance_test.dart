@@ -174,8 +174,6 @@ void main() {
       expect(meteor.trailInterval, 0);
       expect(meteor.clusterCount, 0);
       expect(meteor.abilityFamily, 'let');
-      expect(meteor.spawnLetElementalOnImpact, isTrue);
-      expect(meteor.killEffect, AbilityEffectKind.splash);
     });
 
     test('let light and dark payloads diverge into distinct bombardments', () {
@@ -207,7 +205,11 @@ void main() {
       expect(dark.projectiles, isNotEmpty);
     });
 
-    test('let elements carry authored meteor aftermath descriptors', () {
+    test('every let element produces a single tagged meteor projectile', () {
+      // Per-element aftermaths (DoT zones, executes, knockbacks, etc.) are
+      // resolved by the survival/open-world runtime on impact — see
+      // _resolveLetMeteorHit/Kill. At cast time the special should reduce to
+      // one meteor projectile so the runtime has a single anchor to react to.
       const elements = [
         'Fire',
         'Lava',
@@ -228,28 +230,6 @@ void main() {
         'Blood',
       ];
 
-      const hitEffects = {
-        'Lava': AbilityEffectKind.burn,
-        'Poison': AbilityEffectKind.poison,
-        'Dust': AbilityEffectKind.slow,
-        'Crystal': AbilityEffectKind.slow,
-        'Lightning': AbilityEffectKind.chain,
-        'Ice': AbilityEffectKind.freeze,
-        'Water': AbilityEffectKind.splash,
-        'Earth': AbilityEffectKind.zoneHeal,
-        'Spirit': AbilityEffectKind.execute,
-      };
-      const killEffects = {
-        'Fire': AbilityEffectKind.splash,
-        'Air': AbilityEffectKind.knockback,
-        'Plant': AbilityEffectKind.root,
-        'Blood': AbilityEffectKind.leech,
-        'Light': AbilityEffectKind.zoneHeal,
-        'Steam': AbilityEffectKind.geyser,
-        'Dark': AbilityEffectKind.blackHole,
-        'Mud': AbilityEffectKind.stun,
-      };
-
       for (final element in elements) {
         final result = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
@@ -264,14 +244,8 @@ void main() {
 
         expect(meteor.abilityFamily, 'let');
         expect(meteor.visualStyle, ProjectileVisualStyle.meteor);
-        expect(meteor.spawnLetElementalOnImpact, isTrue);
         expect(meteor.trailInterval, 0);
         expect(meteor.clusterCount, 0);
-        expect(meteor.hitEffect, hitEffects[element] ?? AbilityEffectKind.none);
-        expect(
-          meteor.killEffect,
-          killEffects[element] ?? AbilityEffectKind.none,
-        );
       }
 
       final crystal = createCosmicSpecialAbility(
@@ -1062,7 +1036,7 @@ void main() {
       expect(signatures.length, elements.length);
     });
 
-    test('mane specials are slow catapult payloads in survival', () {
+    test('mane specials are piercing catapult payloads in survival', () {
       for (final element in kCosmicAbilityElements) {
         final result = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
@@ -1086,11 +1060,19 @@ void main() {
           isTrue,
           reason: element,
         );
-        expect(
-          result.projectiles.every((p) => p.speedMultiplier <= 0.96),
-          isTrue,
-          reason: element,
-        );
+        if (element == 'Air') {
+          expect(
+            result.projectiles.every((p) => p.speedMultiplier >= 1.5),
+            isTrue,
+            reason: element,
+          );
+        } else {
+          expect(
+            result.projectiles.every((p) => p.speedMultiplier <= 0.96),
+            isTrue,
+            reason: element,
+          );
+        }
         expect(
           result.projectiles.every((p) => p.piercing),
           isTrue,
@@ -1148,6 +1130,14 @@ void main() {
         damage: 10,
         maxHp: 120,
       );
+      final fire = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Fire',
+        damage: 10,
+        maxHp: 120,
+      );
 
       // Water mane is a single carrying water-wall; Steam mane is a
       // single pulse-dropping geyser — not multi-lane fans.
@@ -1169,12 +1159,39 @@ void main() {
       expect(poison.projectiles.any((p) => p.piercing), isTrue);
       expect(air.projectiles.length, inInclusiveRange(5, 10));
       expect(air.projectiles.any((p) => p.piercing), isTrue);
-      expect(light.projectiles.length, inInclusiveRange(5, 8));
-      expect(light.projectiles.any((p) => p.piercing), isTrue);
-      expect(
-        light.projectiles.fold<int>(0, (sum, p) => sum + p.interceptCharges),
-        greaterThanOrEqualTo(1),
+      expect(light.projectiles.length, inInclusiveRange(4, 10));
+      expect(light.projectiles.every((p) => p.piercing), isTrue);
+      expect(light.projectiles.every((p) => p.speedMultiplier <= 0.38), isTrue);
+      expect(light.projectiles.every((p) => p.radiusMultiplier < 1.2), isTrue);
+      expect(fire.projectiles.length, inInclusiveRange(6, 16));
+      expect(fire.projectiles.every((p) => p.piercing), isTrue);
+    });
+
+    test('light mane orb count scales from strength and beauty', () {
+      final low = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Light',
+        damage: 10,
+        maxHp: 120,
+        casterStrength: 1,
+        casterBeauty: 1,
       );
+      final high = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Light',
+        damage: 10,
+        maxHp: 120,
+        casterStrength: 5,
+        casterBeauty: 5,
+      );
+
+      expect(low.projectiles, hasLength(4));
+      expect(high.projectiles, hasLength(10));
+      expect(high.projectiles.length, greaterThan(low.projectiles.length));
     });
 
     test('mane control reads larger and lasts long enough to notice', () {
@@ -1243,9 +1260,41 @@ void main() {
         maxHp: 120,
       );
 
-      expect(earth.projectiles.every((p) => p.damage <= 45), isTrue);
+      expect(earth.projectiles.every((p) => p.damage <= 58), isTrue);
       expect(dark.projectiles.every((p) => p.damage <= 45), isTrue);
       expect(blood.projectiles.every((p) => p.damage <= 45), isTrue);
+    });
+
+    test('earth mane usefulness scales through damage control and quakes', () {
+      final low = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Earth',
+        damage: 10,
+        maxHp: 120,
+        casterBeauty: 2,
+        casterIntelligence: 2,
+        casterStrength: 2,
+      ).projectiles.single;
+      final high = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Earth',
+        damage: 10,
+        maxHp: 120,
+        casterBeauty: 5,
+        casterIntelligence: 5,
+        casterStrength: 5,
+      ).projectiles.single;
+
+      expect(high.damage, greaterThan(low.damage * 1.45));
+      expect(high.effectPower, greaterThan(low.effectPower * 1.45));
+      expect(high.effectRadius, greaterThan(low.effectRadius * 1.20));
+      expect(high.life, greaterThan(low.life * 1.20));
+      expect(high.turretDamage, greaterThan(low.turretDamage * 1.45));
+      expect(high.turretInterval, lessThan(low.turretInterval));
     });
 
     test('mask specials keep battlefield-control traps in the payload', () {
@@ -1693,8 +1742,9 @@ void main() {
           casterPower: 4.0,
           targetPos: const Offset(120, 0),
         );
-        final tickKey = (result.projectiles.map((p) => p.tickEffect.name).toList()
-          ..sort()).join(',');
+        final tickKey =
+            (result.projectiles.map((p) => p.tickEffect.name).toList()..sort())
+                .join(',');
         final effectRadiusSum = result.projectiles.fold<int>(
           0,
           (sum, p) => sum + p.effectRadius.round(),
@@ -1771,10 +1821,7 @@ void main() {
       // Fire mystic redesigned: persistent fire pillars + blast orbs.
       // Spectacle signals are the trail-leaving blast orbs (any of them
       // having a trail counts), not the leading pillar in the list.
-      expect(
-        fire.projectiles.any((p) => p.trailInterval > 0),
-        isTrue,
-      );
+      expect(fire.projectiles.any((p) => p.trailInterval > 0), isTrue);
       // Crystal mystic redesigned to a stationary "Prism Cathedral" of
       // turret towers that explode into shrapnel. Premium-feel signals
       // are the persistent turret + the on-destroy burst, not bounce

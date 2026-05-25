@@ -1245,20 +1245,24 @@ class CosmicGame extends FlameGame with PanDetector {
     Projectile p, {
     Offset? position,
     double? angle,
+    double? life,
+    double? speedMultiplier,
+    double? radiusMultiplier,
+    double? visualScale,
     int? sourceSlotIndex,
   }) {
     final copy = Projectile(
       position: position ?? p.position,
       angle: angle ?? p.angle,
-      life: p.life,
+      life: life ?? p.life,
       element: p.element,
       damage: p.damage,
-      speedMultiplier: p.speedMultiplier,
-      radiusMultiplier: p.radiusMultiplier,
+      speedMultiplier: speedMultiplier ?? p.speedMultiplier,
+      radiusMultiplier: radiusMultiplier ?? p.radiusMultiplier,
       piercing: p.piercing,
       homing: p.homing,
       homingStrength: p.homingStrength,
-      visualScale: p.visualScale,
+      visualScale: visualScale ?? p.visualScale,
       visualStyle: p.visualStyle,
       stationary: p.stationary,
       orbitCenter: p.orbitCenter,
@@ -1294,9 +1298,6 @@ class CosmicGame extends FlameGame with PanDetector {
       clusterCount: p.clusterCount,
       clusterDamage: p.clusterDamage,
       sourceSlotIndex: sourceSlotIndex ?? p.sourceSlotIndex,
-      spawnLetElementalOnImpact: p.spawnLetElementalOnImpact,
-      letFollowupDamageSeed: p.letFollowupDamageSeed,
-      letCasterBeauty: p.letCasterBeauty,
       letCasterIntelligence: p.letCasterIntelligence,
       chainLightningCharges: p.chainLightningCharges,
       abilityFamily: p.abilityFamily,
@@ -1441,17 +1442,22 @@ class CosmicGame extends FlameGame with PanDetector {
     if (!_isManeMember(member, member.element) || projectiles.isEmpty) return;
     if (member.element == 'Spirit') {
       final stacks = currentStack.clamp(0, 9);
-      final lanes = 1 + stacks;
+      final shotCount = 1 + stacks;
       final base = projectiles.first;
-      final arc = pi * 0.05 * (lanes - 1);
+      final dir = Offset(cos(angle), sin(angle));
+      final perp = Offset(-dir.dy, dir.dx);
       projectiles.clear();
-      for (var i = 0; i < lanes; i++) {
-        final t = lanes > 1 ? (i / (lanes - 1)) - 0.5 : 0.0;
+      for (var i = 0; i < shotCount; i++) {
+        final laneOffset = ((i % 3) - 1) * 2.5;
         projectiles.add(
           _cloneOpenProjectile(
             base,
-            position: base.position,
-            angle: angle + t * arc,
+            position: base.position - dir * (i * 9.0) + perp * laneOffset,
+            angle: angle + (i.isEven ? -0.018 : 0.018),
+            life: base.life + i * 0.025,
+            speedMultiplier: min(base.speedMultiplier + i * 0.012, 0.74),
+            radiusMultiplier: max(base.radiusMultiplier * 0.88, 0.72),
+            visualScale: max(base.visualScale * 0.86, 0.72),
             sourceSlotIndex: member.slotIndex,
           ),
         );
@@ -1459,35 +1465,123 @@ class CosmicGame extends FlameGame with PanDetector {
       setStack(currentStack >= 9 ? 0 : currentStack + 1);
     } else if (member.element == 'Lightning') {
       final base = projectiles.first;
-      final rodCount = 5 + _rng.nextInt(6);
+      final orbCount = 5 + _rng.nextInt(6);
+      final scatterCenter = ship.pos;
+      final scatterRadius = max(
+        220.0,
+        min(520.0, max(size.x, size.y) / max(0.7, _currentZoom) * 0.42),
+      );
       projectiles.clear();
-      for (var i = 0; i < rodCount; i++) {
-        final t = rodCount > 1 ? (i / (rodCount - 1)) - 0.5 : 0.0;
-        final a = angle + t * pi * 0.62;
-        final dist = 70.0 + (i % 4) * 56.0;
-        projectiles.add(
-          Projectile(
-            position: origin + Offset(cos(a), sin(a)) * dist,
-            angle: 0,
-            element: 'Lightning',
-            damage: 0,
-            life: 3.8,
-            speedMultiplier: 0,
-            stationary: true,
-            piercing: true,
-            radiusMultiplier: 1.0,
-            visualScale: 1.3,
-            visualStyle: ProjectileVisualStyle.sigil,
-            sourceSlotIndex: member.slotIndex,
-            abilityFamily: 'mane',
-            tickEffect: AbilityEffectKind.zoneDamage,
-            effectPower: base.damage * 0.30,
-            effectRadius: 108,
-            effectDuration: 1.0,
-          ),
+      for (var i = 0; i < orbCount; i++) {
+        final a = angle + i * 2.399963 + (_rng.nextDouble() - 0.5) * 0.42;
+        final dist = 160.0 + _rng.nextDouble() * scatterRadius;
+        final rawTarget = scatterCenter + Offset(cos(a), sin(a)) * dist;
+        final target = Offset(
+          rawTarget.dx.clamp(64.0, world_.worldSize.width - 64.0).toDouble(),
+          rawTarget.dy.clamp(64.0, world_.worldSize.height - 64.0).toDouble(),
         );
+        final launchAngle = atan2(target.dy - origin.dy, target.dx - origin.dx);
+        final orb = Projectile(
+          position: origin + Offset(cos(launchAngle), sin(launchAngle)) * 24,
+          angle: launchAngle,
+          element: 'Lightning',
+          damage: 0,
+          life: 2.9,
+          speedMultiplier: 0.82 + (i % 3) * 0.05,
+          piercing: true,
+          radiusMultiplier: 0.58,
+          visualScale: 0.62,
+          visualStyle: ProjectileVisualStyle.sigil,
+          sourceSlotIndex: member.slotIndex,
+          abilityFamily: 'mane',
+          effectPower: base.damage * 0.30,
+          effectRadius: 44,
+          effectDuration: 1.0,
+          effectStacks: 1,
+        );
+        orb.cachedHomingTarget = target;
+        projectiles.add(orb);
       }
     }
+  }
+
+  bool _updateOpenManeLightningOrbTransfer(Projectile p, double dt) {
+    if (p.abilityFamily != 'mane' ||
+        p.element != 'Lightning' ||
+        p.effectStacks != 1) {
+      return false;
+    }
+    final target = p.cachedHomingTarget;
+    if (target == null) return false;
+    final toTarget = target - p.position;
+    final dist = toTarget.distance;
+    final step = Projectile.speed * max(0.25, p.speedMultiplier) * dt;
+    if (dist <= step || dist < 8) {
+      _spawnOpenManeLightningShockField(p, target);
+      p.life = 0;
+      return true;
+    }
+    final dir = toTarget / dist;
+    p.angle = atan2(dir.dy, dir.dx);
+    p.position += dir * step;
+    return true;
+  }
+
+  void _spawnOpenManeLightningShockField(Projectile source, Offset target) {
+    companionProjectiles.add(
+      Projectile(
+        position: target,
+        angle: 0,
+        element: 'Lightning',
+        damage: 0,
+        life: 4.0,
+        speedMultiplier: 0,
+        stationary: true,
+        piercing: true,
+        radiusMultiplier: 0.95,
+        visualScale: 1.05,
+        visualStyle: ProjectileVisualStyle.sigil,
+        sourceSlotIndex: source.sourceSlotIndex,
+        abilityFamily: 'mane',
+        tickEffect: AbilityEffectKind.zoneDamage,
+        effectPower: source.effectPower,
+        effectRadius: source.effectRadius.clamp(36.0, 48.0).toDouble(),
+        effectDuration: source.effectDuration,
+        effectStacks: 2,
+      ),
+    );
+    _spawnHitSpark(target, elementColor('Lightning'));
+  }
+
+  void _spawnOpenManeEarthQuakePulse(Projectile source) {
+    final dir = Offset(cos(source.angle), sin(source.angle));
+    final perp = Offset(-dir.dy, dir.dx);
+    final offset = perp * ((_rng.nextDouble() - 0.5) * 56.0) - dir * 18.0;
+    final pulsePos = source.position + offset;
+    companionProjectiles.add(
+      Projectile(
+        position: pulsePos,
+        angle: source.angle,
+        element: 'Earth',
+        damage: 0,
+        life: 1.05,
+        speedMultiplier: 0,
+        stationary: true,
+        piercing: true,
+        radiusMultiplier: 0.92,
+        visualScale: 0.92,
+        visualStyle: ProjectileVisualStyle.sigil,
+        sourceSlotIndex: source.sourceSlotIndex,
+        abilityFamily: 'mane',
+        tickEffect: AbilityEffectKind.zoneDamage,
+        effectPower: max(source.turretDamage * 0.62, source.damage * 0.16),
+        effectRadius: max(54.0, source.effectRadius * 0.42),
+        effectDuration: 0.85,
+        snareRadius: max(48.0, source.snareRadius * 0.40),
+        snareMoveMultiplier: min(source.snareMoveMultiplier, 0.52),
+      ),
+    );
+    _spawnHitSpark(pulsePos, elementColor('Earth'));
   }
 
   double _openSourceElementPower(Projectile p) {
@@ -1655,10 +1749,13 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     if (enemy.maneRootSlot != null && enemy.maneRootTimer > 0) {
+      const explodeRadius = 165.0;
       for (final target in enemies) {
         if (target.dead || identical(target, enemy)) continue;
-        if ((target.position - enemy.position).distance <= 130) {
-          _damageOpenEnemy(target, _openSourceElementPower(source) * 1.5);
+        if ((target.position - enemy.position).distance <= explodeRadius) {
+          _damageOpenEnemy(target, _openSourceElementPower(source) * 2.1);
+          target.maneRootSlot = enemy.maneRootSlot;
+          target.maneRootTimer = max(target.maneRootTimer, 1.4);
         }
       }
       _spawnHitSpark(enemy.position, elementColor('Plant'));
@@ -4454,17 +4551,40 @@ class CosmicGame extends FlameGame with PanDetector {
     void resolveAbilityPierce(Projectile projectile, CosmicEnemy enemy) {
       final id = identityHashCode(enemy);
       if (!projectile.effectHitIds.add(id)) return;
-      if (projectile.pierceEffect == AbilityEffectKind.carry) {
-        final dragDistance = CosmicAbilityRuntime.maneCarryDistance(
-          projectile.effectPower,
+      if (projectile.abilityFamily == 'mane' && projectile.element == 'Air') {
+        final pushDistance = max(
+          95.0,
+          projectile.effectPower * 0.72,
+        ).clamp(95.0, 180.0).toDouble();
+        enemy.position = Offset(
+          enemy.position.dx + cos(projectile.angle) * pushDistance,
+          enemy.position.dy + sin(projectile.angle) * pushDistance,
         );
+        enemy.driftTimer += CosmicAbilityRuntime.openSpaceCrowdControlDuration(
+          max(0.45, projectile.effectDuration * 0.35),
+        );
+        _spawnHitSpark(enemy.position, elementColor('Air'));
+        return;
+      }
+      if (projectile.pierceEffect == AbilityEffectKind.carry) {
+        final isManeWaterWall =
+            projectile.abilityFamily == 'mane' && projectile.element == 'Water';
+        final dragDistance = isManeWaterWall
+            ? max(
+                120.0,
+                projectile.effectPower * 0.85,
+              ).clamp(120.0, 190.0).toDouble()
+            : CosmicAbilityRuntime.maneCarryDistance(projectile.effectPower);
         enemy.position = Offset(
           enemy.position.dx + cos(projectile.angle) * dragDistance,
           enemy.position.dy + sin(projectile.angle) * dragDistance,
         );
         enemy.driftTimer += CosmicAbilityRuntime.openSpaceCrowdControlDuration(
-          projectile.effectDuration,
+          projectile.effectDuration + (isManeWaterWall ? 0.8 : 0.0),
         );
+        if (isManeWaterWall) {
+          _spawnHitSpark(enemy.position, elementColor('Water'));
+        }
         return;
       }
       if (projectile.abilityFamily == 'mane') {
@@ -4472,14 +4592,26 @@ class CosmicGame extends FlameGame with PanDetector {
           case 'Plant':
             enemy.maneRootSlot = projectile.sourceSlotIndex;
             enemy.maneRootTimer = max(enemy.maneRootTimer, 2.6);
+            enemy.driftTimer +=
+                CosmicAbilityRuntime.openSpaceCrowdControlDuration(1.6);
+            _spawnHitSpark(enemy.position, elementColor('Plant'));
             break;
           case 'Light':
-            projectile.damage *= 1.18;
-            projectile.radiusMultiplier = min(
-              projectile.radiusMultiplier * 1.12,
-              4.5,
-            );
-            projectile.visualScale = min(projectile.visualScale * 1.10, 4.0);
+            const maxLightManeRadius = 28.0;
+            const maxLightManeVisual = 24.0;
+            if (projectile.radiusMultiplier < maxLightManeRadius) {
+              projectile.damage *= 2.0;
+              projectile.radiusMultiplier = min(
+                projectile.radiusMultiplier * 2.0,
+                maxLightManeRadius,
+              );
+              projectile.visualScale = min(
+                projectile.visualScale * 2.0,
+                maxLightManeVisual,
+              );
+              projectile.effectRadius = min(projectile.effectRadius * 2.0, 360);
+            }
+            _spawnHitSpark(enemy.position, elementColor('Light'));
             break;
           case 'Lava':
             companionProjectiles.add(
@@ -4611,6 +4743,10 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
 
+      if (_updateOpenManeLightningOrbTransfer(p, dt)) {
+        transferringToShip = true;
+      }
+
       final pSpeed = Projectile.speed * p.speedMultiplier;
 
       // Orbital projectiles: orbit their center before launching
@@ -4721,15 +4857,12 @@ class CosmicGame extends FlameGame with PanDetector {
         if (p.turretInterval > 0 && p.abilityFamily == 'mane') {
           if (p.element == 'Earth') {
             p.turretTimer += dt;
-            if (p.turretTimer >= p.turretInterval) {
+            while (p.turretTimer >= p.turretInterval) {
               p.turretTimer -= p.turretInterval;
-              final target = _nearestEscortTarget(p.position);
-              if (target != null) {
-                companionProjectiles.add(_createEscortTurretShot(p, target));
-              }
+              _spawnOpenManeEarthQuakePulse(p);
             }
-            p.radiusMultiplier = max(p.radiusMultiplier - dt * 0.55, 1.4);
-            p.visualScale = max(p.visualScale - dt * 0.45, 1.2);
+            p.radiusMultiplier = max(p.radiusMultiplier - dt * 0.36, 2.15);
+            p.visualScale = max(p.visualScale - dt * 0.30, 1.85);
           } else if (p.element == 'Steam') {
             p.turretTimer += dt;
             while (p.turretTimer >= p.turretInterval) {
@@ -4849,6 +4982,8 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       p.life -= dt;
+      if (p.life <= 0) continue;
+
       final isPlantTrap =
           p.element == 'Plant' &&
           (p.abilityFamily == 'mask' || p.abilityFamily == 'let');
@@ -4894,31 +5029,23 @@ class CosmicGame extends FlameGame with PanDetector {
         final edy = p.position.dy - enemy.position.dy;
         final hitR = enemy.radius + hitRadius;
         if (edx * edx + edy * edy < hitR * hitR) {
-          if (p.spawnLetElementalOnImpact && p.abilityFamily != 'let') {
-            companionProjectiles.addAll(
-              createLetImpactFollowupProjectiles(
-                impactPosition: enemy.position,
-                baseAngle: p.angle,
-                element: p.element ?? 'Fire',
-                damage: p.letFollowupDamageSeed > 0
-                    ? p.letFollowupDamageSeed
-                    : (p.damage * 0.34),
-                casterBeauty: p.letCasterBeauty,
-                casterIntelligence: p.letCasterIntelligence,
-              ),
-            );
-          }
           // Piercing projectiles deal reduced damage after first hit
           final pierceFalloff = p.piercing
               ? pow(0.7, p.pierceCount).toDouble()
               : 1.0;
+          final preRootForPlantKill =
+              p.piercing && p.abilityFamily == 'mane' && p.element == 'Plant';
+          if (preRootForPlantKill) resolveAbilityPierce(p, enemy);
           final wasAlive = enemy.health > 0 && !enemy.dead;
           enemy.health -= p.damage * pierceFalloff;
           final killedByBase = wasAlive && enemy.health <= 0;
           resolveAbilityHit(p, enemy, killed: killedByBase);
           if (p.piercing) resolveAbilityPierce(p, enemy);
           _applyOpenBasicHitIdentityHooks(p, enemy, killed: enemy.health <= 0);
-          if (p.abilityFamily == 'mane' && p.element == 'Mud' && !p.clustered) {
+          if (p.abilityFamily == 'mane' &&
+              p.element == 'Mud' &&
+              !p.clustered &&
+              p.effectStacks == 0) {
             p.clustered = true;
             for (var fi = 0; fi < 10; fi++) {
               final fragAngle = fi * (pi * 2 / 10);
@@ -4940,6 +5067,7 @@ class CosmicGame extends FlameGame with PanDetector {
                   effectPower: p.effectPower * 0.6,
                   effectRadius: 40,
                   effectDuration: 1.5,
+                  effectStacks: 1,
                 ),
               );
             }
@@ -5014,29 +5142,26 @@ class CosmicGame extends FlameGame with PanDetector {
           final bdy = cp.position.dy - boss.position.dy;
           if (bdx * bdx + bdy * bdy <
               (boss.radius + hitRadius) * (boss.radius + hitRadius)) {
-            if (cp.spawnLetElementalOnImpact && cp.abilityFamily != 'let') {
-              companionProjectiles.addAll(
-                createLetImpactFollowupProjectiles(
-                  impactPosition: boss.position,
-                  baseAngle: cp.angle,
-                  element: cp.element ?? 'Fire',
-                  damage: cp.letFollowupDamageSeed > 0
-                      ? cp.letFollowupDamageSeed
-                      : (cp.damage * 0.34),
-                  casterBeauty: cp.letCasterBeauty,
-                  casterIntelligence: cp.letCasterIntelligence,
-                ),
-              );
-            }
             final pierceFalloff = cp.piercing
                 ? pow(0.7, cp.pierceCount).toDouble()
                 : 1.0;
-            final bossDamage =
-                cp.damage *
-                pierceFalloff *
-                (cp.abilityFamily == 'mane' && cp.element == 'Crystal'
-                    ? 25.0
-                    : 1.0);
+            final isCrystalmaneBossHit =
+                cp.abilityFamily == 'mane' && cp.element == 'Crystal';
+            if (isCrystalmaneBossHit) {
+              boss.shieldUp = false;
+              boss.shieldHealth = 0;
+              for (final enemy in enemies) {
+                if (enemy.dead) continue;
+                if ((enemy.position - boss.position).distance <= 240) {
+                  _damageOpenEnemy(enemy, cp.damage * 3.0, element: 'Crystal');
+                }
+              }
+              _damageOpenBoss(boss.health + 1, element: 'Crystal');
+              _spawnHitSpark(boss.position, elementColor('Crystal'));
+              companionProjectiles.removeAt(i);
+              continue;
+            }
+            final bossDamage = cp.damage * pierceFalloff;
             if (boss.shieldUp &&
                 (boss.type == BossType.gunner ||
                     boss.type == BossType.bulwark)) {
@@ -5048,18 +5173,6 @@ class CosmicGame extends FlameGame with PanDetector {
               }
             } else {
               boss.health -= bossDamage;
-              if (cp.abilityFamily == 'mane' && cp.element == 'Crystal') {
-                for (final enemy in enemies) {
-                  if (enemy.dead) continue;
-                  if ((enemy.position - boss.position).distance <= 200) {
-                    _damageOpenEnemy(
-                      enemy,
-                      cp.damage * 1.8,
-                      element: 'Crystal',
-                    );
-                  }
-                }
-              }
               _spawnHitSpark(cp.position, elementColor(boss.element));
               if (boss.health <= 0) {
                 _handleBossKill(boss);
@@ -5088,20 +5201,6 @@ class CosmicGame extends FlameGame with PanDetector {
           final hitRadius = Projectile.radius * cp.radiusMultiplier;
           if (rdx * rdx + rdy * rdy <
               (rm.radius + hitRadius) * (rm.radius + hitRadius)) {
-            if (cp.spawnLetElementalOnImpact && cp.abilityFamily != 'let') {
-              companionProjectiles.addAll(
-                createLetImpactFollowupProjectiles(
-                  impactPosition: rm.position,
-                  baseAngle: cp.angle,
-                  element: cp.element ?? 'Fire',
-                  damage: cp.letFollowupDamageSeed > 0
-                      ? cp.letFollowupDamageSeed
-                      : (cp.damage * 0.34),
-                  casterBeauty: cp.letCasterBeauty,
-                  casterIntelligence: cp.letCasterIntelligence,
-                ),
-              );
-            }
             final pierceFalloff = cp.piercing
                 ? pow(0.7, cp.pierceCount).toDouble()
                 : 1.0;
@@ -5137,20 +5236,6 @@ class CosmicGame extends FlameGame with PanDetector {
         final odx = cp.position.dx - opp.position.dx;
         final ody = cp.position.dy - opp.position.dy;
         if (odx * odx + ody * ody < (15 + hitRadius) * (15 + hitRadius)) {
-          if (cp.spawnLetElementalOnImpact && cp.abilityFamily != 'let') {
-            companionProjectiles.addAll(
-              createLetImpactFollowupProjectiles(
-                impactPosition: opp.position,
-                baseAngle: cp.angle,
-                element: cp.element ?? 'Fire',
-                damage: cp.letFollowupDamageSeed > 0
-                    ? cp.letFollowupDamageSeed
-                    : (cp.damage * 0.34),
-                casterBeauty: cp.letCasterBeauty,
-                casterIntelligence: cp.letCasterIntelligence,
-              ),
-            );
-          }
           final pierceFalloff = cp.piercing
               ? pow(0.7, cp.pierceCount).toDouble()
               : 1.0;
@@ -5518,7 +5603,9 @@ class CosmicGame extends FlameGame with PanDetector {
           );
         }
       }
-      _updateEnemyAI(e, dt);
+      if (e.maneRootTimer <= 0) {
+        _updateEnemyAI(e, dt);
+      }
     }
 
     // ── initial swarm clusters (seeded at first update) ──

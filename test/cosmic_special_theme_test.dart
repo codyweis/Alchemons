@@ -37,47 +37,25 @@ void main() {
       expect(highTrapLife, greaterThan(lowTrapLife));
     });
 
-    test('let core reads as a meteor and dark let carries void aftermath', () {
-      final result = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'let',
-        element: 'Dark',
-        damage: 10,
-        maxHp: 100,
-        targetPos: const Offset(120, 0),
-      );
+    test('let core reads as a meteor', () {
+      // Each let element collapses to a single meteor at cast time; the
+      // per-element aftermath (Dark cascade, Poison contamination, etc.) is
+      // handled by the runtime on impact — see _resolveLetMeteorHit/Kill.
+      for (final element in const ['Dark', 'Poison']) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'let',
+          element: element,
+          damage: 10,
+          maxHp: 100,
+          targetPos: const Offset(120, 0),
+        );
 
-      expect(
-        result.projectiles.any(
-          (p) => p.visualStyle == ProjectileVisualStyle.meteor,
-        ),
-        isTrue,
-      );
-      expect(
-        result.projectiles.any(
-          (p) =>
-              p.spawnLetElementalOnImpact &&
-              p.killEffect == AbilityEffectKind.blackHole,
-        ),
-        isTrue,
-      );
-    });
-
-    test('poison let defers anchored contamination until impact follow-up', () {
-      final result = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'let',
-        element: 'Poison',
-        damage: 10,
-        maxHp: 100,
-        targetPos: const Offset(120, 0),
-      );
-
-      final meteor = result.projectiles.single;
-      expect(meteor.spawnLetElementalOnImpact, isTrue);
-      expect(meteor.hitEffect, AbilityEffectKind.poison);
+        final meteor = result.projectiles.single;
+        expect(meteor.visualStyle, ProjectileVisualStyle.meteor);
+        expect(meteor.abilityFamily, 'let');
+      }
     });
 
     test('mask trap families keep snaring control in the payload', () {
@@ -197,7 +175,9 @@ void main() {
       );
 
       expect(let.projectiles.first.abilityFamily, 'let');
-      expect(let.projectiles.first.hitEffect, AbilityEffectKind.chain);
+      // Let meteors don't carry hitEffect — per-element aftermath (chain,
+      // splash, freeze, etc.) is resolved by the runtime on impact via
+      // _resolveLetMeteorHit/Kill.
       expect(
         pip.projectiles.any((p) => p.killEffect == AbilityEffectKind.buff),
         isTrue,

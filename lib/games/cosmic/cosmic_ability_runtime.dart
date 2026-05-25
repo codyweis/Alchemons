@@ -106,7 +106,7 @@ class CosmicAbilityRuntime {
   static double survivalSlowMultiplier(AbilityEffectKind effect) {
     return switch (effect) {
       AbilityEffectKind.freeze => 0.05,
-      AbilityEffectKind.root => 0.12,
+      AbilityEffectKind.root => 0.0,
       AbilityEffectKind.stun => 0.08,
       AbilityEffectKind.suppressShooting => 0.72,
       _ => 0.45,

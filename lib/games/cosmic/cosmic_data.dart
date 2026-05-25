@@ -3917,13 +3917,10 @@ class Projectile {
 
   /// If true, this projectile spawns a delayed Let elemental follow-up on
   /// first impact instead of casting all secondary effects immediately.
-  final bool spawnLetElementalOnImpact;
 
   /// Base damage seed used to generate delayed Let elemental follow-ups.
-  final double letFollowupDamageSeed;
 
   /// Caster Beauty used for delayed Let follow-up tier scaling.
-  final double letCasterBeauty;
 
   /// Caster Intelligence carried into delayed Let follow-up generation.
   final double letCasterIntelligence;
@@ -4003,9 +4000,6 @@ class Projectile {
     this.clusterCount = 0,
     this.clusterDamage = 0,
     this.sourceSlotIndex,
-    this.spawnLetElementalOnImpact = false,
-    this.letFollowupDamageSeed = 0,
-    this.letCasterBeauty = 4.0,
     this.letCasterIntelligence = 4.0,
     this.chainLightningCharges = 0,
     this.abilityFamily = '',
@@ -4270,6 +4264,7 @@ CosmicSpecialResult createCosmicSpecialAbility({
         maxHp,
         casterBeauty,
         casterIntelligence,
+        casterStrength,
       );
       break;
     case 'mask':
@@ -4488,12 +4483,18 @@ CosmicSpecialResult _applyGuardianFamilyThresholds(
     4 => 1.06,
     _ => 1.14,
   };
-  final maxProjectiles = switch (tier) {
-    0 => 1,
-    1 => 2,
-    2 => 4,
-    _ => 999,
-  };
+  final preservesAuthoredProjectileCount =
+      family == 'mane' &&
+      result.projectiles.isNotEmpty &&
+      result.projectiles.every((p) => p.element == 'Light');
+  final maxProjectiles = preservesAuthoredProjectileCount
+      ? 999
+      : switch (tier) {
+          0 => 1,
+          1 => 2,
+          2 => 4,
+          _ => 999,
+        };
 
   final scaledProjectiles = result.projectiles
       .take(maxProjectiles)
@@ -4648,9 +4649,6 @@ Projectile _copyProjectile(
   double? snareMoveMultiplier,
   int? clusterCount,
   double? clusterDamage,
-  bool? spawnLetElementalOnImpact,
-  double? letFollowupDamageSeed,
-  double? letCasterBeauty,
   double? letCasterIntelligence,
   int? sourceSlotIndex,
   int? chainLightningCharges,
@@ -4715,10 +4713,6 @@ Projectile _copyProjectile(
     snareMoveMultiplier: snareMoveMultiplier ?? p.snareMoveMultiplier,
     clusterCount: clusterCount ?? p.clusterCount,
     clusterDamage: clusterDamage ?? p.clusterDamage,
-    spawnLetElementalOnImpact:
-        spawnLetElementalOnImpact ?? p.spawnLetElementalOnImpact,
-    letFollowupDamageSeed: letFollowupDamageSeed ?? p.letFollowupDamageSeed,
-    letCasterBeauty: letCasterBeauty ?? p.letCasterBeauty,
     letCasterIntelligence: letCasterIntelligence ?? p.letCasterIntelligence,
     sourceSlotIndex: sourceSlotIndex ?? p.sourceSlotIndex,
     chainLightningCharges: chainLightningCharges ?? p.chainLightningCharges,
@@ -4900,31 +4894,6 @@ double elementalSpecialCooldownMultiplier(String family, String element) {
   };
 }
 
-AbilityEffectKind _letHitEffect(String element) => switch (element) {
-  'Dust' => AbilityEffectKind.slow,
-  'Lava' => AbilityEffectKind.burn,
-  'Poison' => AbilityEffectKind.poison,
-  'Earth' => AbilityEffectKind.zoneHeal,
-  'Spirit' => AbilityEffectKind.execute,
-  'Crystal' => AbilityEffectKind.slow,
-  'Lightning' => AbilityEffectKind.chain,
-  'Ice' => AbilityEffectKind.freeze,
-  'Water' => AbilityEffectKind.splash,
-  _ => AbilityEffectKind.none,
-};
-
-AbilityEffectKind _letKillEffect(String element) => switch (element) {
-  'Air' => AbilityEffectKind.knockback,
-  'Plant' => AbilityEffectKind.root,
-  'Blood' => AbilityEffectKind.leech,
-  'Fire' => AbilityEffectKind.splash,
-  'Light' => AbilityEffectKind.zoneHeal,
-  'Steam' => AbilityEffectKind.geyser,
-  'Dark' => AbilityEffectKind.blackHole,
-  'Mud' => AbilityEffectKind.stun,
-  _ => AbilityEffectKind.none,
-};
-
 AbilityEffectKind _pipHitEffect(String element) => switch (element) {
   'Air' => AbilityEffectKind.knockback,
   'Lava' => AbilityEffectKind.burn,
@@ -4961,7 +4930,7 @@ AbilityEffectKind _manePierceEffect(String element) => switch (element) {
   'Fire' => AbilityEffectKind.burn,
   'Lightning' => AbilityEffectKind.chain,
   'Steam' => AbilityEffectKind.geyser,
-  'Dark' => AbilityEffectKind.pull,
+  'Dark' => AbilityEffectKind.blackHole,
   'Ice' => AbilityEffectKind.freeze,
   'Mud' => AbilityEffectKind.split,
   'Water' => AbilityEffectKind.carry,
@@ -4987,107 +4956,6 @@ AbilityEffectKind _maskHitEffect(String element) => switch (element) {
   'Water' => AbilityEffectKind.splash,
   _ => AbilityEffectKind.none,
 };
-
-int _letBeautyTier(double beauty) {
-  final b = CosmicBalance.clampStat(beauty);
-  if (b < 1.0) return 0;
-  if (b < 2.0) return 1;
-  if (b < 3.0) return 2;
-  if (b < 4.0) return 3;
-  if (b < 4.6) return 4;
-  return 5;
-}
-
-double _letBeautyTierFollowupMul(int tier) => switch (tier) {
-  0 => 0.42,
-  1 => 0.56,
-  2 => 0.70,
-  3 => 0.84,
-  4 => 1.00,
-  _ => 1.22,
-};
-
-List<Projectile> createLetImpactFollowupProjectiles({
-  required Offset impactPosition,
-  required double baseAngle,
-  required String element,
-  required double damage,
-  required double casterBeauty,
-  required double casterIntelligence,
-}) {
-  final tier = _letBeautyTier(casterBeauty);
-  final tierMul = _letBeautyTierFollowupMul(tier);
-  final intelScale = _specialStatScaleFromBaseline(
-    casterIntelligence,
-    perPoint: 0.08,
-    min: 0.86,
-    max: 1.18,
-  );
-  final count = (4 + tier).clamp(3, 10);
-  final dmgMul = (1.05 + tier * 0.18) * tierMul;
-  final speedMul = (0.90 + tier * 0.06) * intelScale;
-  final spread = (0.95 - tier * 0.06).clamp(0.55, 0.95);
-
-  final followups = <Projectile>[];
-  for (var i = 0; i < count; i++) {
-    final t = count > 1 ? (i / (count - 1)) - 0.5 : 0.0;
-    final a = baseAngle + t * spread;
-    followups.add(
-      Projectile(
-        position: impactPosition,
-        angle: a,
-        element: element,
-        damage: damage * dmgMul,
-        life: 1.2 + tier * 0.18,
-        speedMultiplier: speedMul,
-        radiusMultiplier: 1.1 + tier * 0.10,
-        visualScale: 0.95 + tier * 0.10,
-        visualStyle: ProjectileVisualStyle.letShard,
-        piercing:
-            element == 'Fire' || element == 'Lightning' || element == 'Dust',
-        homing: const {
-          'Water',
-          'Air',
-          'Plant',
-          'Blood',
-          'Spirit',
-          'Light',
-        }.contains(element),
-        homingStrength:
-            const {
-              'Water',
-              'Air',
-              'Plant',
-              'Blood',
-              'Spirit',
-              'Light',
-            }.contains(element)
-            ? (2.0 + tier * 0.45)
-            : 0,
-        snareRadius:
-            const {'Ice', 'Mud', 'Poison', 'Steam', 'Dark'}.contains(element)
-            ? (68.0 + tier * 14.0)
-            : 0,
-        snareMoveMultiplier:
-            const {'Ice', 'Mud', 'Poison', 'Steam', 'Dark'}.contains(element)
-            ? (0.75 - tier * 0.07).clamp(0.28, 0.75)
-            : 1.0,
-        bounceCount: element == 'Lightning' || element == 'Crystal'
-            ? (tier >= 4 ? 2 : 1)
-            : 0,
-        abilityFamily: 'let',
-        hitEffect: _letHitEffect(element),
-        killEffect: _letKillEffect(element),
-        effectPower: damage * (0.22 + tier * 0.04),
-        effectRadius: 84.0 + tier * 14.0,
-        effectDuration: 1.8 + tier * 0.35,
-        effectCount: count,
-      ),
-    );
-  }
-
-  return followups;
-}
 
 class _MaskSurvivalTrap {
   final double life;
@@ -5440,12 +5308,8 @@ Projectile _scaleLetProjectile(
     clusterCount: scaledClusterCount,
     clusterDamage: p.clusterDamage * impactScale,
     abilityFamily: 'let',
-    hitEffect: p.hitEffect == AbilityEffectKind.none
-        ? _letHitEffect(p.element ?? '')
-        : p.hitEffect,
-    killEffect: p.killEffect == AbilityEffectKind.none
-        ? _letKillEffect(p.element ?? '')
-        : p.killEffect,
+    hitEffect: p.hitEffect,
+    killEffect: p.killEffect,
     effectPower: p.effectPower > 0
         ? p.effectPower * impactScale
         : p.damage * impactScale * 0.32,
@@ -7296,25 +7160,6 @@ CosmicSpecialResult _letSpecial(
       );
   final toTarget = target - origin;
   final angle = atan2(toTarget.dy, toTarget.dx);
-  final projs = <Projectile>[];
-  final clusterDamageMul = _letElementClusterDamage(element);
-  Offset impactPoint([double dist = 84.0]) =>
-      Offset(origin.dx + cos(angle) * dist, origin.dy + sin(angle) * dist);
-  int scaledLetCount(int base, {int min = 2, int max = 18}) {
-    final scale = _specialCountScaleFromBaseline(
-      casterBeauty,
-      casterIntelligence,
-      beautyPerPoint: 0.08,
-      intelligencePerPoint: 0.10,
-      min: 0.78,
-      max: 1.30,
-    );
-    // Bullet-hell readability: cap elemental secondaries hard so meteors
-    // don't blanket the screen with 8–10 lances/forks per cast.
-    final effectiveMin = min.clamp(2, 3);
-    const effectiveMax = 4;
-    return (base * scale).round().clamp(effectiveMin, effectiveMax);
-  }
 
   final sustainScale = _specialStatScaleFromBaseline(
     casterBeauty,
@@ -7322,737 +7167,86 @@ CosmicSpecialResult _letSpecial(
     min: 0.82,
     max: 1.20,
   );
+
+  // Earth = "moon drop": same meteor visual, but heavier and slower so the
+  // landing hits like a hammer. Every other element uses the standard core.
+  final isEarth = element == 'Earth';
+  final meteor = Projectile(
+    position: Offset(
+      origin.dx + cos(angle) * 22,
+      origin.dy + sin(angle) * 22,
+    ),
+    angle: angle,
+    element: element,
+    damage: damage * (isEarth ? 12.0 : 6.0),
+    life: isEarth ? 2.0 : 1.8,
+    speedMultiplier: isEarth ? 0.38 : 0.55,
+    radiusMultiplier: isEarth ? 5.0 : 3.5,
+    visualScale: isEarth ? 4.0 : 3.0,
+    visualStyle: ProjectileVisualStyle.meteor,
+  );
+
+  // Cast-time heal / blessing for Water, Blood, Light — applied to the
+  // caster (or ship) when the special fires, independent of impact.
   var selfHeal = 0;
   var shipHeal = 0;
   var blessingTimer = 0.0;
   var blessingHealPerTick = 0.0;
-  const deferElementalFollowupUntilImpact = true;
-
-  // Main meteor — always large, always threatening
-  projs.add(
-    Projectile(
-      position: Offset(
-        origin.dx + cos(angle) * 22,
-        origin.dy + sin(angle) * 22,
-      ),
-      angle: angle,
-      element: element,
-      damage: damage * 6.0,
-      life: 1.8,
-      speedMultiplier: 0.55,
-      radiusMultiplier: 3.5,
-      visualScale: 3.0,
-      visualStyle: ProjectileVisualStyle.meteor,
-      clusterCount: 0,
-      clusterDamage: damage * clusterDamageMul,
-    ),
-  );
-
-  // Element secondaries
   switch (element) {
-    case 'Fire':
-      // Burning lance: the strike bursts forward into clear ember lances
-      // without leaving extra residue dots behind.
-      final center = impactPoint(84);
-      final lanceCount = scaledLetCount(6, min: 4, max: 9);
-      for (var i = 0; i < lanceCount; i++) {
-        final lane = (i - (lanceCount - 1) / 2) * 0.18;
-        final a = angle + lane;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * lane * 30,
-              center.dy + sin(angle + pi / 2) * lane * 30,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 1.85,
-            life: 1.55,
-            speedMultiplier: 1.9,
-            radiusMultiplier: 1.7,
-            piercing: true,
-            visualScale: 1.2,
-          ),
-        );
-      }
-      break;
-
-    case 'Lightning':
-      // Fork lattice: impact raises a lightning fork wall that snaps forward in staggered arcs.
-      final center = impactPoint(84);
-      final forkCount = scaledLetCount(7, min: 5, max: 10);
-      for (var i = 0; i < forkCount; i++) {
-        final lane = (i - (forkCount - 1) / 2) * 0.22;
-        final a = angle + lane;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * lane * 34,
-              center.dy + sin(angle + pi / 2) * lane * 34,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 1.7,
-            life: 1.35,
-            speedMultiplier: 2.6,
-            piercing: true,
-            bounceCount: i.isEven ? 3 : 2,
-            visualScale: 1.05,
-          ),
-        );
-      }
-      break;
-
-    case 'Ice':
-      // Glacial calving: the strike fractures forward into heavy ice lances,
-      // then the splinters keep hunting instead of just lingering as set dressing.
-      final center = impactPoint(86);
-      final lanceCount = scaledLetCount(4, min: 3, max: 6);
-      for (var i = 0; i < lanceCount; i++) {
-        final offset = (i - (lanceCount - 1) / 2) * 0.12;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * offset * 36,
-              center.dy + sin(angle + pi / 2) * offset * 36,
-            ),
-            angle: angle + offset,
-            element: element,
-            damage: damage * 2.4,
-            life: 3.6,
-            speedMultiplier: 0.62,
-            radiusMultiplier: 2.8,
-            piercing: true,
-            visualScale: 2.1,
-            visualStyle: ProjectileVisualStyle.letShard,
-            snareRadius: 92.0,
-            snareMoveMultiplier: 0.42,
-          ),
-        );
-      }
-      final splinterCount = scaledLetCount(8, min: 6, max: 12);
-      for (var i = 0; i < splinterCount; i++) {
-        final a = angle + (i - (splinterCount - 1) / 2) * 0.16;
-        projs.add(
-          Projectile(
-            position: Offset(center.dx + cos(a) * 20, center.dy + sin(a) * 20),
-            angle: a,
-            element: element,
-            damage: damage * 0.82,
-            life: 2.8,
-            speedMultiplier: 1.0,
-            radiusMultiplier: 1.45,
-            homing: true,
-            homingStrength: 3.1,
-            visualScale: 0.96,
-          ),
-        );
-      }
-      break;
-
-    case 'Earth':
-      // Moon drop: ENORMOUS single boulder with slow aftershock plates.
-      projs[0] = Projectile(
-        position: projs[0].position,
-        angle: angle,
-        element: element,
-        damage: damage * 12.0,
-        life: 2.0,
-        speedMultiplier: 0.38,
-        radiusMultiplier: 5.0,
-        visualScale: 4.0,
-        visualStyle: ProjectileVisualStyle.meteor,
-      );
-      final center = impactPoint(84);
-      final quakeCount = scaledLetCount(3, min: 2, max: 4);
-      for (var i = 0; i < quakeCount; i++) {
-        final dist = 24.0 + i * 28.0;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle) * dist,
-              center.dy + sin(angle) * dist,
-            ),
-            angle: 0,
-            element: element,
-            damage: damage * 1.65,
-            life: 5.8,
-            speedMultiplier: 0.0,
-            stationary: true,
-            radiusMultiplier: 2.8,
-            piercing: true,
-            visualScale: 2.2,
-            snareRadius: 118.0,
-            snareMoveMultiplier: 0.55,
-          ),
-        );
-      }
-      break;
-
-    case 'Spirit':
-      // Soul harvest: phantoms hover at the impact before seeking wounded paths.
-      final spiritCount = scaledLetCount(5, min: 4, max: 8);
-      final center = impactPoint(80);
-      for (var i = 0; i < spiritCount; i++) {
-        final a = angle + (i - (spiritCount - 1) / 2) * 0.5;
-        projs.add(
-          Projectile(
-            position: Offset(center.dx + cos(a) * 18, center.dy + sin(a) * 18),
-            angle: a,
-            element: element,
-            damage: damage * 2.5,
-            life: 3.5,
-            speedMultiplier: 0.7,
-            homing: true,
-            homingStrength: 4.5,
-            piercing: true,
-            orbitCenter: center,
-            orbitAngle: a,
-            orbitRadius: 22.0,
-            orbitSpeed: 3.4,
-            orbitTime: 0.65,
-            visualScale: 1.4,
-          ),
-        );
-      }
-      break;
-
-    case 'Poison':
-      // Blight bloom: toxic bulbs claim the impact zone, then guided seed shots
-      // punish enemies trying to leave the contamination field.
-      final center = impactPoint(88);
-      final bulbCount = scaledLetCount(4, min: 3, max: 6);
-      for (var i = 0; i < bulbCount; i++) {
-        final a = angle + (i - (bulbCount - 1) / 2) * 0.44;
-        projs.add(
-          Projectile(
-            position: Offset(center.dx + cos(a) * 20, center.dy + sin(a) * 20),
-            angle: 0,
-            element: element,
-            damage: damage * 0.95,
-            life: 6.2,
-            speedMultiplier: 0.0,
-            stationary: true,
-            radiusMultiplier: 2.35,
-            piercing: true,
-            visualScale: 1.5,
-            visualStyle: ProjectileVisualStyle.letShard,
-            snareRadius: 124.0,
-            snareMoveMultiplier: 0.36,
-          ),
-        );
-      }
-      final seedCount = scaledLetCount(6, min: 4, max: 9);
-      for (var i = 0; i < seedCount; i++) {
-        final a = angle + (i / (seedCount - 1) - 0.5) * (pi * 0.56);
-        projs.add(
-          Projectile(
-            position: center,
-            angle: a,
-            element: element,
-            damage: damage * 0.82,
-            life: 2.8,
-            speedMultiplier: 0.82,
-            radiusMultiplier: 1.55,
-            homing: true,
-            homingStrength: 2.8,
-            visualScale: 0.95,
-          ),
-        );
-      }
-      break;
-
     case 'Water':
-      // Undertow gate: two curved water jaws open around impact, then collapse inward.
-      final center = impactPoint(88);
       shipHeal = (CosmicBalance.shipMaxHealth * 0.025 * sustainScale).round();
-      final jawRows = scaledLetCount(5, min: 4, max: 7);
-      for (var i = 0; i < jawRows * 2; i++) {
-        final side = i < jawRows ? -1.0 : 1.0;
-        final local = (i % jawRows) - (jawRows - 1) / 2;
-        final lane = angle + pi / 2;
-        final launch = angle + side * (0.18 + local * 0.10);
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(lane) * side * 34 + cos(angle) * local * 10,
-              center.dy + sin(lane) * side * 34 + sin(angle) * local * 10,
-            ),
-            angle: launch + pi,
-            element: element,
-            damage: damage * 1.55,
-            life: 2.8,
-            speedMultiplier: 1.0,
-            radiusMultiplier: 2.15,
-            homing: true,
-            homingStrength: 2.2,
-            visualScale: 1.45,
-            snareRadius: 88.0,
-            snareMoveMultiplier: 0.64,
-          ),
-        );
-      }
       break;
-
-    case 'Lava':
-      // Volcanic debris: 4 massive slow piercing magma chunks
-      final chunkCount = scaledLetCount(4, min: 3, max: 5);
-      for (var i = 0; i < chunkCount; i++) {
-        final a = angle + (i - (chunkCount - 1) / 2) * 0.55;
-        projs.add(
-          Projectile(
-            position: Offset(
-              origin.dx + cos(angle) * 80,
-              origin.dy + sin(angle) * 80,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 3.5,
-            life: 3.0,
-            speedMultiplier: 0.35,
-            radiusMultiplier: 3.0,
-            piercing: true,
-            visualScale: 2.5,
-            visualStyle: ProjectileVisualStyle.letShard,
-            clusterCount: 2,
-            clusterDamage: damage * 1.0,
-          ),
-        );
-      }
-      break;
-
-    case 'Steam':
-      // Pressure breach: compressed shells establish a pressure wall, then a
-      // smaller set of cutters peel away from the breach.
-      final center = impactPoint(92);
-      final wallCount = scaledLetCount(6, min: 4, max: 8);
-      for (var i = 0; i < wallCount; i++) {
-        final offset = (i - (wallCount - 1) / 2) * 0.14;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * offset * 42,
-              center.dy + sin(angle + pi / 2) * offset * 42,
-            ),
-            angle: 0,
-            element: element,
-            damage: damage * 1.3,
-            life: 5.6,
-            speedMultiplier: 0.0,
-            stationary: true,
-            radiusMultiplier: 2.0,
-            piercing: true,
-            visualScale: 1.5,
-            snareRadius: 118.0,
-            snareMoveMultiplier: 0.24,
-          ),
-        );
-      }
-      final cutterCount = scaledLetCount(4, min: 3, max: 6);
-      for (var i = 0; i < cutterCount; i++) {
-        final side = i < (cutterCount / 2).ceil() ? -1.0 : 1.0;
-        final tier = (i % 2) == 0 ? 0.18 : 0.34;
-        final a = angle + side * tier;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * side * 22,
-              center.dy + sin(angle + pi / 2) * side * 22,
-            ),
-            angle: a + pi,
-            element: element,
-            damage: damage * 0.9,
-            life: 2.4,
-            speedMultiplier: 1.05,
-            radiusMultiplier: 1.45,
-            homing: true,
-            homingStrength: 2.8,
-            visualScale: 1.0,
-          ),
-        );
-      }
-      break;
-
-    case 'Mud':
-      // Bogslide: mire anchors lock the lane down, then a few heavy slugs
-      // hunt anything trying to slip through the muck.
-      final center = impactPoint(90);
-      final anchorCount = scaledLetCount(4, min: 3, max: 6);
-      for (var i = 0; i < anchorCount; i++) {
-        final offset = (i - (anchorCount - 1) / 2) * 0.16;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * offset * 46,
-              center.dy + sin(angle + pi / 2) * offset * 46,
-            ),
-            angle: 0,
-            element: element,
-            damage: damage * 1.05,
-            life: 6.0,
-            speedMultiplier: 0.0,
-            stationary: true,
-            radiusMultiplier: 2.7,
-            piercing: true,
-            visualScale: 1.8,
-            snareRadius: 150.0,
-            snareMoveMultiplier: 0.24,
-          ),
-        );
-      }
-      final slugCount = scaledLetCount(4, min: 3, max: 6);
-      for (var i = 0; i < slugCount; i++) {
-        final a = angle + (i - (slugCount - 1) / 2) * 0.18;
-        projs.add(
-          Projectile(
-            position: center,
-            angle: a,
-            element: element,
-            damage: damage * 1.15,
-            life: 2.8,
-            speedMultiplier: 0.58,
-            radiusMultiplier: 2.0,
-            homing: true,
-            homingStrength: 2.1,
-            visualScale: 1.2,
-          ),
-        );
-      }
-      break;
-
-    case 'Dust':
-      // Haboob burst: a wide sand front strips across the impact zone.
-      final center = impactPoint(86);
-      final grainCount = scaledLetCount(12, min: 8, max: 16);
-      for (var i = 0; i < grainCount; i++) {
-        final arcT = (i / (grainCount - 1)) - 0.5;
-        final a = angle + arcT * (pi * 0.95);
-        projs.add(
-          Projectile(
-            position: Offset(center.dx + cos(a) * 18, center.dy + sin(a) * 18),
-            angle: a,
-            element: element,
-            damage: damage * 1.1,
-            life: 2.2,
-            speedMultiplier: 1.45,
-            radiusMultiplier: 1.4,
-            piercing: true,
-            bounceCount: 1,
-            visualScale: 0.8,
-          ),
-        );
-      }
-      break;
-
-    case 'Crystal':
-      // Starfall: 7 homing crystal shards
-      final shardCount = scaledLetCount(7, min: 5, max: 10);
-      for (var i = 0; i < shardCount; i++) {
-        final a = angle + (i - (shardCount - 1) / 2) * 0.38;
-        projs.add(
-          Projectile(
-            position: Offset(
-              origin.dx + cos(angle) * 80,
-              origin.dy + sin(angle) * 80,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 2.5,
-            life: 3.0,
-            speedMultiplier: 0.9,
-            homing: true,
-            homingStrength: 3.5,
-            visualScale: 1.2,
-            bounceCount: 2,
-            clusterCount: 2,
-            clusterDamage: damage * 0.8,
-          ),
-        );
-      }
-      break;
-
-    case 'Air':
-      // Cyclone burst: wind blades orbit the strike before peeling away.
-      final center = impactPoint(80);
-      final bladeCount = scaledLetCount(8, min: 6, max: 12);
-      for (var i = 0; i < bladeCount; i++) {
-        final a = i * (pi * 2 / bladeCount);
-        projs.add(
-          Projectile(
-            position: Offset(center.dx + cos(a) * 28, center.dy + sin(a) * 28),
-            angle: a,
-            element: element,
-            damage: damage * 1.5,
-            life: 2.0,
-            speedMultiplier: 1.9,
-            homing: true,
-            homingStrength: 2.5,
-            orbitCenter: center,
-            orbitAngle: a,
-            orbitRadius: 28.0,
-            orbitSpeed: 5.8,
-            orbitTime: 1.05,
-            radiusMultiplier: 1.6,
-            visualScale: 1.1,
-            bounceCount: 1,
-          ),
-        );
-      }
-      break;
-
-    case 'Plant':
-      // Seed bombardment: impact seeds whip outward into seeking vine pods
-      // instead of relying on rooted traps.
-      final center = impactPoint(88);
-      final podCount = scaledLetCount(6, min: 4, max: 9);
-      for (var i = 0; i < podCount; i++) {
-        final a = angle + (i - (podCount - 1) / 2) * 0.20;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(a + pi / 2) * (i - (podCount - 1) / 2) * 8,
-              center.dy + sin(a + pi / 2) * (i - (podCount - 1) / 2) * 8,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 1.5,
-            life: 4.0,
-            speedMultiplier: 0.85,
-            radiusMultiplier: 1.9,
-            piercing: true,
-            homing: true,
-            homingStrength: 3.6,
-            visualScale: 1.2,
-            snareRadius: 82.0,
-            snareMoveMultiplier: 0.72,
-          ),
-        );
-      }
-      final vineCount = scaledLetCount(4, min: 3, max: 6);
-      for (var i = 0; i < vineCount; i++) {
-        final side = i < (vineCount / 2).ceil() ? -1.0 : 1.0;
-        final tier = (i % 2) == 0 ? 0.18 : 0.34;
-        final a = angle + side * tier;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * side * 20,
-              center.dy + sin(angle + pi / 2) * side * 20,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 1.05,
-            life: 3.5,
-            speedMultiplier: 0.78,
-            homing: true,
-            homingStrength: 4.2,
-            visualScale: 1.18,
-            radiusMultiplier: 1.6,
-          ),
-        );
-      }
-      break;
-
     case 'Blood':
-      // Bloodburst: heavy homing blood orbs that return life through the impact pulse.
       selfHeal = (damage * 5.5 * sustainScale).round();
       blessingTimer = 2.2;
       blessingHealPerTick = damage * 0.10 * sustainScale;
-      final orbCount = scaledLetCount(3, min: 2, max: 5);
-      for (var i = 0; i < orbCount; i++) {
-        final a = angle + (i - (orbCount - 1) / 2) * 0.32;
-        projs.add(
-          Projectile(
-            position: Offset(
-              origin.dx + cos(angle) * 78,
-              origin.dy + sin(angle) * 78,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 3.5,
-            life: 4.0,
-            speedMultiplier: 0.6,
-            homing: true,
-            homingStrength: 4.5,
-            radiusMultiplier: 2.5,
-            visualScale: 1.8,
-          ),
-        );
-      }
       break;
-
-    case 'Dark':
-      // Void collapse: rupture lances punch through, while anchored wells
-      // hold the impact zone and force enemies to commit.
-      final center = impactPoint(82);
-      final lanceCount = scaledLetCount(5, min: 4, max: 7);
-      for (var i = 0; i < lanceCount; i++) {
-        final offset = (i - (lanceCount - 1) / 2) * 0.16;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * offset * 36,
-              center.dy + sin(angle + pi / 2) * offset * 36,
-            ),
-            angle: angle + offset,
-            element: element,
-            damage: damage * 1.9,
-            life: 1.9,
-            speedMultiplier: 1.4,
-            radiusMultiplier: 2.1,
-            piercing: true,
-            visualScale: 1.7,
-          ),
-        );
-      }
-      final wellCount = scaledLetCount(3, min: 3, max: 5);
-      for (var i = 0; i < wellCount; i++) {
-        final side = i - (wellCount - 1) / 2;
-        projs.add(
-          Projectile(
-            position: Offset(
-              center.dx + cos(angle + pi / 2) * side * 24,
-              center.dy + sin(angle + pi / 2) * side * 24,
-            ),
-            angle: 0,
-            element: element,
-            damage: damage * 1.45,
-            life: 6.4,
-            speedMultiplier: 0.0,
-            stationary: true,
-            radiusMultiplier: 2.2,
-            piercing: true,
-            visualScale: 1.9,
-            visualStyle: ProjectileVisualStyle.letShard,
-            tauntRadius: 260.0,
-            tauntStrength: 2.2,
-            snareRadius: 112.0,
-            snareMoveMultiplier: 0.30,
-          ),
-        );
-      }
-      break;
-
     case 'Light':
-      // Celestial crown: radiant motes briefly crown the impact, then collapse
-      // inward and descend as guided finishers.
-      final center = impactPoint(90);
       shipHeal = (CosmicBalance.shipMaxHealth * 0.035 * sustainScale).round();
       blessingTimer = 2.8;
       blessingHealPerTick = damage * 0.08 * sustainScale;
-      final moteCount = scaledLetCount(10, min: 7, max: 14);
-      for (var i = 0; i < moteCount; i++) {
-        final a = i * (pi * 2 / moteCount);
-        projs.add(
-          Projectile(
-            position: Offset(center.dx + cos(a) * 34, center.dy + sin(a) * 34),
-            angle: a + pi,
-            element: element,
-            damage: damage * 1.35,
-            life: 2.7,
-            speedMultiplier: 1.0,
-            homing: true,
-            homingStrength: 3.4,
-            orbitCenter: center,
-            orbitAngle: a,
-            orbitRadius: 34.0,
-            orbitSpeed: 4.8,
-            orbitTime: 0.55,
-            visualScale: 0.95,
-            radiusMultiplier: 1.35,
-            interceptRadius: 18.0,
-            interceptCharges: 1,
-          ),
-        );
-      }
-      final finisherCount = scaledLetCount(4, min: 3, max: 6);
-      for (var i = 0; i < finisherCount; i++) {
-        final a = angle + (i - (finisherCount - 1) / 2) * 0.22;
-        projs.add(
-          Projectile(
-            position: center,
-            angle: a,
-            element: element,
-            damage: damage * 1.6,
-            life: 2.4,
-            speedMultiplier: 1.25,
-            homing: true,
-            homingStrength: 3.8,
-            radiusMultiplier: 1.6,
-            visualScale: 1.1,
-          ),
-        );
-      }
-      break;
-
-    default:
       break;
   }
 
-  final scaledProjectiles = List.generate(projs.length, (i) {
-    return _scaleLetProjectile(
-      projs[i],
-      beauty: casterBeauty,
-      intelligence: casterIntelligence,
-      isMeteorCore: i == 0,
-    );
-  });
+  var scaledMeteor = _scaleLetProjectile(
+    meteor,
+    beauty: casterBeauty,
+    intelligence: casterIntelligence,
+    isMeteorCore: true,
+  );
 
-  if (scaledProjectiles.isNotEmpty) {
-    final crystalDamageMul = element == 'Crystal' ? 0.58 : 1.0;
-    // Spirit one-shot chance scales across the wider effective stat
-    // range (0.5 floor → 8.0 ceiling) so booster-stacked builds can
-    // actually reach the 0.38 cap instead of being capped at 5.0
-    // genetic and getting stuck at ~0.245.
-    final spiritChance = element == 'Spirit'
-        ? (0.20 +
-                  (casterIntelligence.clamp(
-                            _abilityStatFloor,
-                            _abilityStatCeiling,
-                          ) -
-                          4.0) *
-                      0.045)
-              .clamp(0.10, 0.38)
-              .toDouble()
-        : 1.0;
-    scaledProjectiles[0] = _copyProjectile(
-      scaledProjectiles[0],
-      damage: scaledProjectiles[0].damage * crystalDamageMul,
-      spawnLetElementalOnImpact: deferElementalFollowupUntilImpact,
-      letFollowupDamageSeed: damage,
-      letCasterBeauty: casterBeauty,
-      letCasterIntelligence: casterIntelligence,
-      effectChance: spiritChance,
-    );
-  }
-
-  if (deferElementalFollowupUntilImpact && scaledProjectiles.length > 1) {
-    scaledProjectiles.removeRange(1, scaledProjectiles.length);
-  }
+  // Per-element meteor-core modifiers:
+  //  - Crystal trades damage for a halved cooldown (see _specialCooldown).
+  //  - Spirit carries the one-shot proc chance, scaled by intelligence so
+  //    booster-stacked builds can actually reach the 0.38 cap instead of
+  //    capping out at ~0.245 from the 5.0 genetic ceiling alone.
+  final crystalDamageMul = element == 'Crystal' ? 0.58 : 1.0;
+  final spiritChance = element == 'Spirit'
+      ? (0.20 +
+                (casterIntelligence.clamp(
+                          _abilityStatFloor,
+                          _abilityStatCeiling,
+                        ) -
+                        4.0) *
+                    0.045)
+            .clamp(0.10, 0.38)
+            .toDouble()
+      : 1.0;
+  scaledMeteor = _copyProjectile(
+    scaledMeteor,
+    damage: scaledMeteor.damage * crystalDamageMul,
+    letCasterIntelligence: casterIntelligence,
+    effectChance: spiritChance,
+  );
 
   return CosmicSpecialResult(
-    projectiles: scaledProjectiles,
+    projectiles: [scaledMeteor],
     selfHeal: selfHeal,
     shipHeal: shipHeal,
     blessingTimer: blessingTimer,
     blessingHealPerTick: blessingHealPerTick,
   );
 }
-
-// Per-element cluster damage multiplier for Let meteors. The count
-// field was dead — every call site hardcodes clusterCount — so only
-// the damage multiplier remains.
-double _letElementClusterDamage(String element) => switch (element) {
-  'Crystal' => 1.2,
-  'Dust' => 0.8,
-  'Ice' => 1.2,
-  'Water' => 1.0,
-  'Lava' => 1.8,
-  'Air' => 0.8,
-  'Fire' => 1.0,
-  'Lightning' => 1.2,
-  _ => 0,
-};
 
 // ─────────────────────────────────────────────────────────
 // PIP — Ricochet Salvo
@@ -8833,6 +8027,7 @@ CosmicSpecialResult _maneSpecial(
   int maxHp,
   double casterBeauty,
   double casterIntelligence,
+  double casterStrength,
 ) {
   Projectile slash({
     required Offset position,
@@ -8892,6 +8087,14 @@ CosmicSpecialResult _maneSpecial(
     return (base * scale * 0.58).round().clamp(min, max);
   }
 
+  int scaledManePowerCount({int min = 4, int max = 10}) {
+    final weightedStat = (casterStrength * 0.62 + casterBeauty * 0.38)
+        .clamp(1.0, 5.0)
+        .toDouble();
+    final t = (weightedStat - 1.0) / 4.0;
+    return (min + (max - min) * t).round().clamp(min, max);
+  }
+
   double scaledSpread(double base) {
     final beautySpread = _specialStatScaleFromBaseline(
       casterBeauty,
@@ -8915,6 +8118,14 @@ CosmicSpecialResult _maneSpecial(
       min: 0.82,
       max: 1.20,
     );
+    final earthForceScale = p.element == 'Earth'
+        ? _specialStatScaleFromBaseline(
+            casterStrength,
+            perPoint: 0.08,
+            min: 0.86,
+            max: 1.18,
+          )
+        : 1.0;
     final visualScaleMul = _specialStatScaleFromBaseline(
       casterBeauty,
       perPoint: 0.14,
@@ -8934,8 +8145,8 @@ CosmicSpecialResult _maneSpecial(
       max: 1.18,
     );
     final rawSpeed = p.speedMultiplier * controlScale;
-    // Manes are slow piercing catapults — except Air, which is the
-    // designated fast variant and travels at roughly 2× normal speed.
+    // Manes are slow piercing catapults, except Air: its template identity is
+    // a fast gale that pushes enemies along the shot path.
     final catapultSpeed = p.stationary
         ? 0.0
         : p.element == 'Air'
@@ -8943,7 +8154,7 @@ CosmicSpecialResult _maneSpecial(
         : rawSpeed.clamp(0.24, 0.58).toDouble();
     return _copyProjectile(
       p,
-      damage: p.damage * impactScale * 1.65,
+      damage: p.damage * impactScale * earthForceScale * 1.65,
       life: p.life * durationScale * (p.stationary ? 1.0 : 1.55),
       speedMultiplier: catapultSpeed,
       radiusMultiplier: p.radiusMultiplier * visualScaleMul * 1.18,
@@ -8953,6 +8164,10 @@ CosmicSpecialResult _maneSpecial(
       visualScale: p.visualScale * visualScaleMul,
       trailDamage: p.trailDamage * impactScale,
       trailLife: p.trailLife * durationScale,
+      turretInterval: p.turretInterval > 0
+          ? (p.turretInterval / controlScale).clamp(0.48, 1.25).toDouble()
+          : p.turretInterval,
+      turretDamage: p.turretDamage * impactScale * earthForceScale,
       snareRadius: p.snareRadius * visualScaleMul,
       abilityFamily: 'mane',
       pierceEffect: p.pierceEffect == AbilityEffectKind.none
@@ -8967,8 +8182,8 @@ CosmicSpecialResult _maneSpecial(
           ? _manePierceEffect(p.element ?? '')
           : p.killEffect,
       effectPower: p.effectPower > 0
-          ? p.effectPower * impactScale
-          : p.damage * impactScale * 0.34,
+          ? p.effectPower * impactScale * earthForceScale
+          : p.damage * impactScale * earthForceScale * 0.34,
       effectRadius: p.effectRadius > 0
           ? p.effectRadius * visualScaleMul
           : 92.0 * visualScaleMul,
@@ -9120,8 +8335,8 @@ CosmicSpecialResult _maneSpecial(
 
   switch (element) {
     case 'Earth':
-      // One massive boulder that slowly breaks apart, shedding
-      // sub-projectiles as it shrinks.
+      // One massive fault slab that slowly grinds forward. It breaks down
+      // into quake bursts along its path instead of firing cute auto-shots.
       return finalize(
         CosmicSpecialResult(
           basicHasteTimer: 1.4,
@@ -9131,23 +8346,23 @@ CosmicSpecialResult _maneSpecial(
               position: origin,
               angle: baseAngle,
               element: 'Earth',
-              damage: damage * 2.6,
-              life: 4.5,
-              speedMultiplier: 0.45,
-              radiusMultiplier: 4.2,
-              visualScale: 3.4,
+              damage: damage * 3.15,
+              life: 4.8,
+              speedMultiplier: 0.38,
+              radiusMultiplier: 4.9,
+              visualScale: 4.0,
               piercing: true,
               visualStyle: ProjectileVisualStyle.slash,
               abilityFamily: 'mane',
               pierceEffect: _manePierceEffect('Earth'),
-              effectPower: damage * 0.42,
-              effectRadius: 100,
-              effectDuration: 1.6,
-              snareRadius: 88,
-              snareMoveMultiplier: 0.76,
-              // Repurpose turret fields to shed shards every 0.4s.
-              turretInterval: 0.4,
-              turretDamage: damage * 0.55,
+              effectPower: damage * 0.86,
+              effectRadius: 138,
+              effectDuration: 2.2,
+              snareRadius: 118,
+              snareMoveMultiplier: 0.58,
+              // Reused by the runtimes as path quake-pulse cadence/damage.
+              turretInterval: 0.72,
+              turretDamage: damage * 1.05,
             ),
           ],
         ),
@@ -9185,14 +8400,15 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Fire':
+      final fireballCount = scaledCount(6, min: 3, max: 8) * 2;
       return finalize(
         fanResult(
-          lanes: scaledCount(6, min: 3, max: 8),
-          arc: pi * 0.78,
-          damageMultiplier: 1.24,
+          lanes: fireballCount.clamp(6, 16),
+          arc: pi * 0.92,
+          damageMultiplier: 1.12,
           life: 2.55,
-          speed: 0.92,
-          visualScale: 1.18,
+          speed: 0.96,
+          visualScale: 1.10,
           piercing: true,
           basicHasteTimer: 1.8,
           basicHasteMultiplier: 0.80,
@@ -9215,8 +8431,8 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Air':
-      // Air is the fast outlier — its projectiles skip the slow
-      // catapult speed clamp and travel at ~2× normal speed.
+      // Air is the fast Mane outlier: a wide piercing gale that travels at
+      // roughly 2x speed and shoves enemies along its path on pierce.
       return finalize(
         fanResult(
           lanes: scaledCount(8, min: 5, max: 10),
@@ -9466,19 +8682,36 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Light':
+      final orbCount = scaledManePowerCount();
       return finalize(
-        fanResult(
-          lanes: scaledCount(7, min: 5, max: 9),
-          arc: pi * 0.50,
-          damageMultiplier: 1.16,
-          life: 3.1,
-          speed: 0.88,
-          visualScale: 0.96,
-          piercing: true,
-          interceptCharges: 1,
-          interceptRadius: 40,
+        CosmicSpecialResult(
           basicHasteTimer: 1.4,
           basicHasteMultiplier: 0.84,
+          projectiles: List.generate(orbCount, (i) {
+            final t = orbCount > 1 ? (i / (orbCount - 1)) - 0.5 : 0.0;
+            final a = baseAngle + t * pi * 0.34;
+            final stagger = (i - orbCount / 2) * 5.0;
+            return Projectile(
+              position:
+                  origin +
+                  Offset(cos(a), sin(a)) * (12.0 + t.abs() * 8.0) -
+                  Offset(cos(baseAngle), sin(baseAngle)) * stagger,
+              angle: a,
+              element: 'Light',
+              damage: damage * 1.35,
+              life: 5.2,
+              speedMultiplier: 0.30,
+              radiusMultiplier: 0.74,
+              visualScale: 0.76,
+              piercing: true,
+              visualStyle: ProjectileVisualStyle.slash,
+              abilityFamily: 'mane',
+              pierceEffect: _manePierceEffect('Light'),
+              effectPower: damage * 0.34,
+              effectRadius: 76,
+              effectDuration: 1.2,
+            );
+          }),
         ),
       );
     default:

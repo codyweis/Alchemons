@@ -375,13 +375,8 @@ bool drawManeElementalProjectileVisual({
     // strongest. Reads as soft glow but is essentially free.
     final glowPaint = ui.Paint();
     for (var i = 4; i >= 1; i--) {
-      glowPaint.color =
-          color.withValues(alpha: (0.04 + i * 0.025) * pulse);
-      canvas.drawCircle(
-        position,
-        glowR * (0.6 + i * 0.12),
-        glowPaint,
-      );
+      glowPaint.color = color.withValues(alpha: (0.04 + i * 0.025) * pulse);
+      canvas.drawCircle(position, glowR * (0.6 + i * 0.12), glowPaint);
     }
     final visScale = projectile.visualScale.clamp(0.7, 4.0).toDouble();
     switch (element) {
@@ -392,30 +387,68 @@ bool drawManeElementalProjectileVisual({
         _paintMudPool(canvas, position, radius, color, time, pulse, visScale);
         return true;
       case 'Steam':
-        _paintSteamGeyser(canvas, position, radius, color, time, pulse, visScale);
+        _paintSteamGeyser(
+          canvas,
+          position,
+          radius,
+          color,
+          time,
+          pulse,
+          visScale,
+        );
         return true;
       case 'Plant':
         _paintPlantZone(canvas, position, radius, color, time, pulse, visScale);
         return true;
       case 'Lightning':
         _paintLightningField(
-            canvas, position, radius, color, white, time, pulse, visScale);
+          canvas,
+          position,
+          radius,
+          color,
+          white,
+          time,
+          pulse,
+          visScale,
+        );
         return true;
       case 'Fire':
         _paintFireZone(
-            canvas, position, radius, color, white, time, pulse, visScale);
+          canvas,
+          position,
+          radius,
+          color,
+          white,
+          time,
+          pulse,
+          visScale,
+        );
         return true;
       case 'Poison':
         _paintPoisonPool(
-            canvas, position, radius, color, time, pulse, visScale);
+          canvas,
+          position,
+          radius,
+          color,
+          time,
+          pulse,
+          visScale,
+        );
         return true;
       case 'Ice':
         _paintIcePillar(
-            canvas, position, radius, color, white, time, pulse, visScale);
+          canvas,
+          position,
+          radius,
+          color,
+          white,
+          time,
+          pulse,
+          visScale,
+        );
         return true;
       case 'Water':
-        _paintWaterPool(
-            canvas, position, radius, color, time, pulse, visScale);
+        _paintWaterPool(canvas, position, radius, color, time, pulse, visScale);
         return true;
       default:
         // Fall through to the slash renderer below for elements without
@@ -424,7 +457,9 @@ bool drawManeElementalProjectileVisual({
     }
   }
 
-  final vs = projectile.visualScale.clamp(0.75, 3.4).toDouble();
+  final vs = element == 'Light'
+      ? projectile.visualScale.clamp(0.75, 24.0).toDouble()
+      : projectile.visualScale.clamp(0.75, 3.4).toDouble();
   final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
   final perp = ui.Offset(-dir.dy, dir.dx);
   // Heavier catapult shots — slash body bigger so the projectile feels
@@ -517,68 +552,60 @@ bool drawManeElementalProjectileVisual({
   }
 
   void drawEarthRockProjectile() {
-    final rockLen = len * projectile.radiusMultiplier.clamp(1.0, 4.8) * 0.72;
-    final rockWidth = rockLen * 0.58;
-    final front = position + dir * rockLen * 0.58;
-    final rear = position - dir * rockLen * 0.55;
-    final body = ui.Path()
-      ..moveTo(front.dx, front.dy)
-      ..lineTo(
-        position.dx + dir.dx * rockLen * 0.16 + perp.dx * rockWidth * 0.58,
-        position.dy + dir.dy * rockLen * 0.16 + perp.dy * rockWidth * 0.58,
-      )
-      ..lineTo(
-        rear.dx + perp.dx * rockWidth * 0.44,
-        rear.dy + perp.dy * rockWidth * 0.44,
-      )
-      ..lineTo(
-        rear.dx - perp.dx * rockWidth * 0.34,
-        rear.dy - perp.dy * rockWidth * 0.34,
-      )
-      ..lineTo(
-        position.dx + dir.dx * rockLen * 0.10 - perp.dx * rockWidth * 0.64,
-        position.dy + dir.dy * rockLen * 0.10 - perp.dy * rockWidth * 0.64,
-      )
-      ..close();
-
+    final rockRadius =
+        5.8 * vs * sqrt(projectile.radiusMultiplier.clamp(1.0, 4.6).toDouble());
     final base = ui.Color.lerp(color, const ui.Color(0xFF4A362B), 0.32)!;
     final high = ui.Color.lerp(color, const ui.Color(0xFFE2C6A8), 0.34)!;
     final low = ui.Color.lerp(color, const ui.Color(0xFF241915), 0.48)!;
-    canvas.drawPath(body, fillPaint..color = base.withValues(alpha: 0.92));
+    final body = ui.Path();
+    const points = 13;
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    canvas.rotate(projectile.angle + time * 0.45);
+    for (var i = 0; i < points; i++) {
+      final a = i * pi * 2 / points;
+      final wobble = 0.88 + 0.18 * sin(i * 2.17 + 0.7);
+      final p = ui.Offset(cos(a), sin(a)) * rockRadius * wobble;
+      if (i == 0) {
+        body.moveTo(p.dx, p.dy);
+      } else {
+        body.lineTo(p.dx, p.dy);
+      }
+    }
+    body.close();
 
-    final topPlane = ui.Path()
-      ..moveTo(front.dx, front.dy)
-      ..lineTo(
-        position.dx + dir.dx * rockLen * 0.16 + perp.dx * rockWidth * 0.58,
-        position.dy + dir.dy * rockLen * 0.16 + perp.dy * rockWidth * 0.58,
-      )
-      ..lineTo(
-        position.dx - dir.dx * rockLen * 0.18 + perp.dx * rockWidth * 0.08,
-        position.dy - dir.dy * rockLen * 0.18 + perp.dy * rockWidth * 0.08,
-      )
-      ..close();
-    canvas.drawPath(topPlane, fillPaint..color = high.withValues(alpha: 0.46));
-
-    final lowerPlane = ui.Path()
-      ..moveTo(front.dx, front.dy)
-      ..lineTo(
-        position.dx - dir.dx * rockLen * 0.18 + perp.dx * rockWidth * 0.08,
-        position.dy - dir.dy * rockLen * 0.18 + perp.dy * rockWidth * 0.08,
-      )
-      ..lineTo(
-        position.dx + dir.dx * rockLen * 0.10 - perp.dx * rockWidth * 0.64,
-        position.dy + dir.dy * rockLen * 0.10 - perp.dy * rockWidth * 0.64,
-      )
-      ..close();
-    canvas.drawPath(lowerPlane, fillPaint..color = low.withValues(alpha: 0.26));
-
+    canvas.drawPath(body, fillPaint..color = base.withValues(alpha: 0.94));
     canvas.drawPath(
       body,
       strokePaint
-        ..color = const ui.Color(0xFFD6B18F).withValues(alpha: 0.44)
-        ..strokeWidth = max(1.0, 0.55 * vs)
+        ..color = const ui.Color(0xFFD6B18F).withValues(alpha: 0.46)
+        ..strokeWidth = max(1.0, 0.62 * vs)
         ..maskFilter = null,
     );
+    canvas.drawCircle(
+      ui.Offset(-rockRadius * 0.24, -rockRadius * 0.18),
+      rockRadius * 0.26,
+      fillPaint..color = high.withValues(alpha: 0.36),
+    );
+    canvas.drawCircle(
+      ui.Offset(rockRadius * 0.20, rockRadius * 0.20),
+      rockRadius * 0.20,
+      fillPaint..color = low.withValues(alpha: 0.24),
+    );
+    for (var i = 0; i < 4; i++) {
+      final a = i * pi * 0.5 + 0.35;
+      final start = ui.Offset(cos(a), sin(a)) * rockRadius * 0.20;
+      final end = ui.Offset(cos(a + 0.22), sin(a + 0.22)) * rockRadius * 0.68;
+      canvas.drawLine(
+        start,
+        end,
+        linePaint
+          ..color = low.withValues(alpha: 0.22)
+          ..strokeWidth = max(0.8, 0.34 * vs)
+          ..maskFilter = null,
+      );
+    }
+    canvas.restore();
   }
 
   void drawGroundPatch() {
@@ -643,28 +670,38 @@ bool drawManeElementalProjectileVisual({
   switch (element) {
     case 'Fire':
       drawGroundPatch();
-      drawCoreSlash(width: 3.4, glowWidth: 10.0, alpha: 0.9);
-      for (var i = 0; i < 3; i++) {
-        final t = (i - 1) * 0.35;
-        final flame = ui.Path()
-          ..moveTo(
-            start.dx + perp.dx * t * 10 * vs,
-            start.dy + perp.dy * t * 10 * vs,
-          )
-          ..quadraticBezierTo(
-            position.dx + perp.dx * (8 + i * 2) * vs,
-            position.dy + perp.dy * (8 + i * 2) * vs,
-            end.dx,
-            end.dy,
-          );
-        canvas.drawPath(
-          flame,
-          strokePaint
-            ..color = const ui.Color(0xFFFFD28A).withValues(alpha: 0.34)
-            ..strokeWidth = 1.3 * vs
+      for (var i = 1; i <= 3; i++) {
+        final fade = 1.0 - i * 0.24;
+        canvas.drawCircle(
+          position - dir * (5.2 * i * vs) + perp * sin(time * 5.0 + i) * vs,
+          (5.0 - i * 0.45) * vs,
+          fillPaint
+            ..color = color.withValues(alpha: 0.18 * fade)
             ..maskFilter = null,
         );
       }
+      canvas.drawCircle(
+        position,
+        7.2 * vs,
+        fillPaint
+          ..color = color.withValues(alpha: 0.92)
+          ..maskFilter = null,
+      );
+      canvas.drawCircle(
+        position - dir * 1.8 * vs - perp * 1.2 * vs,
+        3.0 * vs,
+        fillPaint
+          ..color = const ui.Color(0xFFFFE4A8).withValues(alpha: 0.86)
+          ..maskFilter = null,
+      );
+      canvas.drawCircle(
+        position,
+        11.0 * vs * pulse,
+        strokePaint
+          ..color = const ui.Color(0xFFFFD28A).withValues(alpha: 0.38)
+          ..strokeWidth = max(1.0, 1.1 * vs)
+          ..maskFilter = null,
+      );
       drawControlRead(scale: 1.05);
       break;
     case 'Lightning':
@@ -816,8 +853,35 @@ bool drawManeElementalProjectileVisual({
       drawControlRead(scale: 1.06);
       break;
     case 'Light':
-      drawCoreSlash(width: 3.4, glowWidth: 9.0, alpha: 0.86);
-      _drawLightCrown(canvas, position, color, 13.0 * vs, vs, time);
+      canvas.drawCircle(
+        position,
+        15.0 * vs * pulse,
+        fillPaint
+          ..color = color.withValues(alpha: 0.16)
+          ..maskFilter = null,
+      );
+      canvas.drawCircle(
+        position,
+        7.0 * vs,
+        fillPaint
+          ..color = color.withValues(alpha: 0.82)
+          ..maskFilter = null,
+      );
+      canvas.drawCircle(
+        position - dir * 1.6 * vs - perp * 1.2 * vs,
+        3.2 * vs,
+        fillPaint
+          ..color = white.withValues(alpha: 0.72)
+          ..maskFilter = null,
+      );
+      canvas.drawCircle(
+        position,
+        11.0 * vs,
+        strokePaint
+          ..color = white.withValues(alpha: 0.38 * pulse)
+          ..strokeWidth = max(1.0, 0.9 * vs)
+          ..maskFilter = null,
+      );
       drawControlRead(scale: 1.0);
       break;
     case 'Blood':
@@ -2298,8 +2362,7 @@ bool drawMaskElementalProjectileVisual({
   // vine zones, etc.) deserve the rich ground-zone art too — without
   // this, they fall back to a generic colored circle.
   final hasGroundZoneSignal =
-      projectile.stationary &&
-      projectile.tickEffect != AbilityEffectKind.none;
+      projectile.stationary && projectile.tickEffect != AbilityEffectKind.none;
   final hasMaskSignals =
       hasGroundZoneSignal ||
       projectile.decoy ||
@@ -2391,10 +2454,7 @@ void _drawSkyfallMeteor(
     ..shader = ui.Gradient.linear(
       trailStart,
       position,
-      [
-        color.withValues(alpha: 0.0),
-        color.withValues(alpha: 0.55 * pulse),
-      ],
+      [color.withValues(alpha: 0.0), color.withValues(alpha: 0.55 * pulse)],
       const [0.0, 1.0],
     )
     ..strokeWidth = 5.5 * vs

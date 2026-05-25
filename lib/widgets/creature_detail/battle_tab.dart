@@ -204,7 +204,6 @@ class _ExploreTab extends StatelessWidget {
             subtitle: special.subtitle,
             description: special.description,
             icon: special.icon,
-            tags: special.tags,
             accent: _survivalAccentColor(element),
             featured: true,
             footerLabel: mechanicNote?.label,
@@ -443,7 +442,6 @@ class _BracketInfoCard extends StatelessWidget {
     this.subtitle,
     required this.description,
     this.icon,
-    this.tags = const [],
     this.accent,
     this.featured = false,
     this.footerLabel,
@@ -454,7 +452,6 @@ class _BracketInfoCard extends StatelessWidget {
   final String? subtitle;
   final String description;
   final IconData? icon;
-  final List<String> tags;
   final Color? accent;
   final bool featured;
   final String? footerLabel;
@@ -559,39 +556,6 @@ class _BracketInfoCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (tags.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final tag in tags.take(5))
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: activeAccent.withValues(
-                          alpha: palette.isDark ? 0.13 : 0.10,
-                        ),
-                        border: Border.all(
-                          color: activeAccent.withValues(alpha: 0.32),
-                        ),
-                      ),
-                      child: Text(
-                        tag,
-                        style: bracketText(
-                          context,
-                          10.5,
-                          featured ? activeAccent : palette.muted,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
             if (subtitle != null && subtitle!.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
@@ -1182,51 +1146,51 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
       );
     case 'Mane':
       bullets.addAll([
-        'Manes are offense-first barrage bruisers: they step up and fire active forward cut patterns instead of setting traps.',
-        'They are best when paired with a true anchor behind them, because Mane wins by pressure cadence and lane carving, not by bunker control.',
+        'Mane species are offense-first catapult bruisers: they step up and fire piercing specials with a distinct payoff per species.',
+        'They are best when paired with a true anchor behind them, because Mane species win by pressure cadence and lane control, not by bunker control.',
       ]);
       final elementDetail = switch (normalizedElement) {
         'Water' =>
-          'Water Mane uses dual crossing tide-cuts, creating an X-shaped pressure lane that slows pushes from two angles.',
+          'Watermane launches a massive water wall that carries enemies with it as it travels.',
         'Steam' =>
-          'Steam Mane fires a two-beat sequence: fast openers followed by heavier delayed pressure cuts.',
+          'Steammane fires a big traveling geyser that releases damaging steam puffs along its path.',
         'Plant' =>
-          'Plant Mane fires a core slash lane that forks into branch cuts, giving it a distinctive split-pressure rhythm.',
+          'Plantmane roots every enemy it hits; rooted kills burst into plant area damage that can root nearby enemies too.',
         'Poison' =>
-          'Poison Mane leans into drifting venom slashes with longer duration and visible lane denial without becoming static.',
+          'Poisonmane poisons every enemy pierced, stacking toxin pressure across the whole line.',
         'Crystal' =>
-          'Crystal Mane is a disciplined 3-lance prism burst with refracted side follow-ups for precise pierce pressure.',
+          'Crystalmane pierces packs normally, but detonates into a huge boss-shattering crystal burst on boss contact.',
         'Blood' =>
-          'Blood Mane uses two heavy spear-cuts plus a center finisher, with sustain tied into that focused burst.',
+          'Bloodmane heals from every enemy it pierces, turning a clean line through a pack into direct sustain.',
         'Dark' =>
-          'Dark Mane is a narrow suppression package: fewer lanes, heavier cuts, stronger focused control.',
+          'Darkmane sends a slow void cut that pulls enemies inward and punishes weakened targets caught in it.',
         'Earth' =>
-          'Earth Mane advances with marching slab-cuts that stagger forward in sequence and hold lane leverage.',
+          'Earthmane launches a huge slow fault slab that grinds through enemies and leaves quake bursts as it breaks apart.',
         'Fire' =>
-          'Fire Mane is a high-tempo advancing arc burst meant to shred regular waves before they settle.',
+          'Firemane throws a dense wave of fast fireballs through the lane for immediate piercing pressure.',
         'Lightning' =>
-          'Lightning Mane plants a field of 5–10 stationary rods that continuously shock nearby enemies — board control rather than forward cuts.',
+          'Lightningmane shoots small lightning balls to scattered map spots; each lands as a compact zap trap.',
         'Air' =>
-          'Air Mane is a wide split-sweep style with speed-first lane clear and high forward tempo.',
+          'Airmane pierces in a wide gust pattern and pushes every enemy in its path forward with the projectile.',
         'Dust' =>
-          'Dust Mane throws the broadest fan pattern in the family, flooding lanes with rapid low-mass cuts.',
+          'Dustmane leaves suppressing dust clouds behind its projectile so enemies caught in the trail stop shooting.',
         'Ice' =>
-          'Ice Mane favors heavier chill cleaves with firmer slowing follow-through in a tight frontal lane.',
+          'Icemane freezes anything its piercing frost shot touches while traveling.',
         'Mud' =>
-          'Mud Mane applies stumbling heavy cross-cuts that drag enemy movement while still pressing forward.',
+          'Mudmane breaks apart on the first enemy hit, scattering ten mud shards in every direction.',
         'Lava' =>
-          'Lava Mane trades volume for hotter, heavier cleaves that spike frontline pressure.',
+          'Lavamane leaves a burning lava blob at every enemy collision, turning the pierce path into damage-over-time zones.',
         'Spirit' =>
-          'Spirit Mane ramps its lane count 1→10 across successive casts, then resets — each cast widens the soul-slash fan.',
+          'Spiritmane starts with one soul shot and ramps into a machine-gun stream up to ten shots before resetting.',
         'Light' =>
-          'Light Mane adds a disciplined parry-intercept line on top of forward pressure cuts.',
+          'Lightmane launches a slow glowing orb that grows bigger and hits harder every time it pierces an enemy.',
         _ =>
-          '$normalizedElement Mane keeps the offense-first lane pressure pattern with an element-specific firing cadence.',
+          '$normalizedElement Mane keeps the offense-first catapult pattern with a species-specific piercing payoff.',
       };
       bullets.add(elementDetail);
       return _CosmicSurvivalNotes(
         summary:
-            'Mane is an offense-first bruiser family in survival. It wins through active forward slash patterns and element-specific firing signatures rather than trap setups.',
+            'Mane species are offense-first catapult bruisers in survival. Each one has a distinct piercing payoff instead of a generic slash.',
         bullets: bullets,
       );
     case 'Kin':
@@ -1491,15 +1455,780 @@ class _ElementMechanicNote {
 }
 
 _ElementMechanicNote _survivalPassive(String body) =>
-    _ElementMechanicNote(label: 'Survival passive', body: body);
+    _ElementMechanicNote(label: 'Survival only', body: body);
 
-_ElementMechanicNote _sharedEffect(String body) =>
-    _ElementMechanicNote(label: 'Shared effect', body: body);
+CosmicSpecialInfo? _speciesSpecificCosmicSpecialInfo(
+  String family,
+  String element,
+) {
+  final f = family.toLowerCase();
+  final species = '$element$f';
+  final abilityName = cosmicSpecialAbilityName(f, element);
 
-/// Returns the extra mechanic players should know after the base special
-/// description. Ability-shape details stay in the main description; this footer
-/// is only for extra cross-mode effects or survival-only hooks such as orb
-/// interactions, kill stacks, and survival rewrites.
+  (String, String, IconData, List<String>)? data;
+  switch (f) {
+    case 'horn':
+      data = switch (element) {
+        'Fire' => (
+          'Blaze ram',
+          '$species raises a shield, makes a fast forward charge, and fires a tight cone of fireballs that leave brief burning trails.',
+          Icons.local_fire_department,
+          ['CHARGE', 'BURN', 'WAKE', 'FIRE'],
+        ),
+        'Lava' => (
+          'Molten plow',
+          '$species raises a larger shield, makes a slow heavy charge, and releases massive piercing magma boulders that leave lava trails and split into slag.',
+          Icons.volcano,
+          ['CHARGE', 'TRAIL', 'BOULDER', 'LAVA'],
+        ),
+        'Lightning' => (
+          'Snap parry',
+          '$species raises a light shield, snaps forward in the quickest charge, and shoots bouncing lightning rods that can intercept incoming fire.',
+          Icons.flash_on,
+          ['FAST', 'PARRY', 'BOUNCE', 'LIGHTNING'],
+        ),
+        'Water' => (
+          'Surf guard',
+          '$species raises a shield, shoves forward on a surf charge, sends crossing water tusks through the lane, and returns a small ship heal.',
+          Icons.water,
+          ['CHARGE', 'HEAL', 'CRASH', 'WATER'],
+        ),
+        'Ice' => (
+          'Glacier body-check',
+          '$species raises a sturdy shield, lumbers forward with a broad crash, and plants stationary ice slabs that heavily slow the front lane.',
+          Icons.ac_unit,
+          ['HEAVY', 'SLOW', 'FRONTLINE', 'ICE'],
+        ),
+        'Steam' => (
+          'Pressure vents',
+          '$species raises a shield, bursts forward, and leaves stationary steam vents that taunt, slow, and keep firing steam puffs.',
+          Icons.blur_on,
+          ['TAUNT', 'VENTS', 'PUFFS', 'STEAM'],
+        ),
+        'Earth' => (
+          'Fortress crash',
+          '$species raises the biggest shield, makes the slowest wide charge, and drops taunting stone bulwarks that can break apart into shrapnel.',
+          Icons.terrain,
+          ['ANCHOR', 'TAUNT', 'BULWARK', 'EARTH'],
+        ),
+        'Mud' => (
+          'Quagmire shove',
+          '$species raises a shield, drags a short wide charge through the lane, and sprays heavy mud globs that linger as slowing sludge.',
+          Icons.grain,
+          ['SLOW', 'SLUDGE', 'CHARGE', 'MUD'],
+        ),
+        'Dust' => (
+          'Skitter ram',
+          '$species raises a light shield, skitters through a long narrow charge, and fans bouncing sandwake shots behind the ram lane.',
+          Icons.cloud,
+          ['DASH', 'DISRUPT', 'NARROW', 'DUST'],
+        ),
+        'Crystal' => (
+          'Mirror guard',
+          '$species raises a reflective shield, takes a measured charge step, and spins orbiting crystal mirror plates that intercept and bounce shots.',
+          Icons.diamond,
+          ['INTERCEPT', 'REFRACT', 'GUARD', 'CRYSTAL'],
+        ),
+        'Air' => (
+          'Gale dash',
+          '$species raises a light shield, makes the longest and fastest gale charge, and fires crosswind crescents ahead of it that can intercept incoming shots.',
+          Icons.air,
+          ['DASH', 'PEEL', 'INTERCEPT', 'AIR'],
+        ),
+        'Plant' => (
+          'Thorn hedge',
+          '$species raises a large shield, advances slowly, and plants a stationary thorn hedge that roots enemies and fires thorn shots.',
+          Icons.local_florist,
+          ['ROOT', 'TURRET', 'HEDGE', 'PLANT'],
+        ),
+        'Poison' => (
+          'Venom shove',
+          '$species raises a guard shield, crashes forward, and leaves toxic fang posts plus poison clouds where it lands.',
+          Icons.biotech,
+          ['POISON', 'CHOKE', 'GUARD', 'VENOM'],
+        ),
+        'Spirit' => (
+          'Phase bastion',
+          '$species raises a phase shield, slips farther through the target, and leaves guarded spirit plates across the impact lane.',
+          Icons.auto_awesome,
+          ['PHASE', 'GUARD', 'PLATES', 'SPIRIT'],
+        ),
+        'Dark' => (
+          'Execution ram',
+          '$species raises a small shield, makes a quick narrow crash, and drops dark taunt pieces that pull enemies into a tight kill lane.',
+          Icons.dark_mode,
+          ['TAUNT', 'EXECUTE', 'NARROW', 'DARK'],
+        ),
+        'Light' => (
+          'Radiant ward',
+          '$species raises a radiant shield, takes a short guardian charge, plants wide parry plates, and heals the ship.',
+          Icons.wb_sunny,
+          ['PARRY', 'HEAL', 'WARD', 'LIGHT'],
+        ),
+        'Blood' => (
+          'Crimson fortress',
+          '$species raises a heavy shield, body-slams forward, heals itself, and leaves blood bulwarks in the impact lane.',
+          Icons.bloodtype,
+          ['HEAL', 'BULWARK', 'SUSTAIN', 'BLOOD'],
+        ),
+        _ => null,
+      };
+      break;
+    case 'wing':
+      data = switch (element) {
+        'Fire' => (
+          'Inferno sweep',
+          '$species widens its beam into a sweeping fire ring and leaves a burning trail through the lane.',
+          Icons.local_fire_department,
+          ['BEAM', 'RING', 'TRAIL', 'FIRE'],
+        ),
+        'Lava' => (
+          'Ground scar',
+          '$species carves the beam path into lingering lava scars that keep burning after the beam passes.',
+          Icons.volcano,
+          ['BEAM', 'TRAIL', 'BURN', 'LAVA'],
+        ),
+        'Lightning' => (
+          'Charged blast',
+          '$species briefly charges, then releases a heavy lightning blast down the beam lane.',
+          Icons.flash_on,
+          ['BEAM', 'CHARGE', 'BURST', 'LIGHTNING'],
+        ),
+        'Water' => (
+          'Healing tide',
+          '$species cuts through enemies while sending healing through allies and the ship.',
+          Icons.water,
+          ['BEAM', 'HEAL', 'SUPPORT', 'WATER'],
+        ),
+        'Ice' => (
+          'Frost buildup',
+          '$species builds frost on sustained beam contact until targets snap into a hard freeze.',
+          Icons.ac_unit,
+          ['BEAM', 'FREEZE', 'RAMP', 'ICE'],
+        ),
+        'Steam' => (
+          'Boiler execute',
+          '$species executes the first target it catches, then erupts into lingering steam clouds.',
+          Icons.blur_on,
+          ['BEAM', 'EXECUTE', 'CLOUDS', 'STEAM'],
+        ),
+        'Earth' => (
+          'Boulder beam',
+          '$species fires a few enormous slow boulder beams that cover a wider lane than normal beams.',
+          Icons.terrain,
+          ['BEAM', 'HEAVY', 'WIDE', 'EARTH'],
+        ),
+        'Mud' => (
+          'Mire rake',
+          '$species rakes the lane with a beam that applies a long heavy slow to anything held inside it.',
+          Icons.grain,
+          ['BEAM', 'SLOW', 'CONTROL', 'MUD'],
+        ),
+        'Dust' => (
+          'Sandblast',
+          '$species sandblasts the beam lane and disorients enemy shooters so their shots can be redirected.',
+          Icons.cloud,
+          ['BEAM', 'DISRUPT', 'PIERCE', 'DUST'],
+        ),
+        'Crystal' => (
+          'Prism heal',
+          '$species heals from beam contact while refracting extra prism hits through the target line.',
+          Icons.diamond,
+          ['BEAM', 'REFRACT', 'SUSTAIN', 'CRYSTAL'],
+        ),
+        'Air' => (
+          'Tornado drill',
+          '$species drills forward with a wind beam that knocks enemies back out of the lane.',
+          Icons.air,
+          ['BEAM', 'KNOCKBACK', 'DRILL', 'AIR'],
+        ),
+        'Plant' => (
+          'Vine pursuit',
+          '$species grows guided vine tendrils from the beam that keep chasing enemies after contact.',
+          Icons.local_florist,
+          ['BEAM', 'VINES', 'HUNTER', 'PLANT'],
+        ),
+        'Poison' => (
+          'Venom ring',
+          '$species forms a venom ring around the caster that poisons enemies caught near the beam setup.',
+          Icons.biotech,
+          ['BEAM', 'RING', 'POISON', 'VENOM'],
+        ),
+        'Spirit' => (
+          'Ship tether',
+          '$species tethers through the ship, letting the ship fire the follow-up laser.',
+          Icons.auto_awesome,
+          ['BEAM', 'TETHER', 'SHIP', 'SPIRIT'],
+        ),
+        'Dark' => (
+          'Double pulse',
+          '$species makes both basic attacks and beam pulses fire twice as often.',
+          Icons.dark_mode,
+          ['BEAM', 'HASTE', 'PULSE', 'DARK'],
+        ),
+        'Light' => (
+          'Radiant refraction',
+          '$species refracts beam kills into two smaller beams that hunt nearby enemies.',
+          Icons.wb_sunny,
+          ['BEAM', 'REFRACT', 'HUNTER', 'LIGHT'],
+        ),
+        'Blood' => (
+          'Crimson lance',
+          '$species hunts the lowest-health target and executes enemies that fall below the threshold.',
+          Icons.bloodtype,
+          ['BEAM', 'HUNTER', 'EXECUTE', 'BLOOD'],
+        ),
+        _ => null,
+      };
+      break;
+    case 'let':
+      data = switch (element) {
+        'Fire' => (
+          'Ember follow-up',
+          '$species drops a fire meteor, then follows with fast ember lances instead of lingering residue.',
+          Icons.local_fire_department,
+          ['METEOR', 'LANCES', 'FAST', 'FIRE'],
+        ),
+        'Lava' => (
+          'Magma split',
+          '$species throws slow massive magma chunks that split into burning debris after impact.',
+          Icons.volcano,
+          ['METEOR', 'CLUSTER', 'BURN', 'LAVA'],
+        ),
+        'Lightning' => (
+          'Fork lattice',
+          '$species turns the strike into a bouncing lightning lattice that chains through the pack.',
+          Icons.flash_on,
+          ['METEOR', 'BOUNCE', 'CHAIN', 'LIGHTNING'],
+        ),
+        'Water' => (
+          'Undertow jaws',
+          '$species opens water jaws that collapse inward on enemies and restore ship health.',
+          Icons.water,
+          ['METEOR', 'COLLAPSE', 'HEAL', 'WATER'],
+        ),
+        'Ice' => (
+          'Comet splinters',
+          '$species sends heavy snaring ice lances and guided splinters after the meteor.',
+          Icons.ac_unit,
+          ['METEOR', 'SNARE', 'SPLINTERS', 'ICE'],
+        ),
+        'Steam' => (
+          'Pressure wall',
+          '$species establishes a steam wall, then launches cutter shots outward from that wall.',
+          Icons.blur_on,
+          ['METEOR', 'WALL', 'CUTTERS', 'STEAM'],
+        ),
+        'Earth' => (
+          'Moon drop',
+          '$species drops a huge slow moon-like meteor and leaves lingering quake plates where it lands.',
+          Icons.terrain,
+          ['METEOR', 'HEAVY', 'QUAKE', 'EARTH'],
+        ),
+        'Mud' => (
+          'Bog anchors',
+          '$species drops bog anchors that heavily slow a lane before heavy slugs follow.',
+          Icons.grain,
+          ['METEOR', 'SLOW', 'SLUGS', 'MUD'],
+        ),
+        'Dust' => (
+          'Sand front',
+          '$species throws a wide bouncing sand front across the impact zone.',
+          Icons.cloud,
+          ['METEOR', 'BOUNCE', 'WIDE', 'DUST'],
+        ),
+        'Crystal' => (
+          'Starfall shards',
+          '$species launches homing crystal shards that ricochet and split.',
+          Icons.diamond,
+          ['METEOR', 'HOMING', 'CLUSTER', 'CRYSTAL'],
+        ),
+        'Air' => (
+          'Wind orbit',
+          '$species spins wind blades around the strike before releasing them outward.',
+          Icons.air,
+          ['METEOR', 'ORBIT', 'BLADES', 'AIR'],
+        ),
+        'Plant' => (
+          'Vine pods',
+          '$species sends seeking vine pods after the strike, and the pods snare enemies while they move.',
+          Icons.local_florist,
+          ['METEOR', 'SEEK', 'SNARE', 'PLANT'],
+        ),
+        'Poison' => (
+          'Toxic bulbs',
+          '$species plants toxic bulbs that slow a lane, then releases guided poison seeds.',
+          Icons.biotech,
+          ['METEOR', 'POISON', 'SEEDS', 'VENOM'],
+        ),
+        'Spirit' => (
+          'Phantom staging',
+          '$species stages orbiting phantoms around the meteor before they seek targets.',
+          Icons.auto_awesome,
+          ['METEOR', 'ORBIT', 'SEEK', 'SPIRIT'],
+        ),
+        'Dark' => (
+          'Void wells',
+          '$species punches rupture lances forward, then opens taunting void wells.',
+          Icons.dark_mode,
+          ['METEOR', 'TAUNT', 'VOID', 'DARK'],
+        ),
+        'Light' => (
+          'Celestial crown',
+          '$species crowns the impact with guided motes, execute-style finishers, and ship healing.',
+          Icons.wb_sunny,
+          ['METEOR', 'MOTES', 'SUSTAIN', 'LIGHT'],
+        ),
+        'Blood' => (
+          'Transfusion orbs',
+          '$species releases heavy homing blood orbs and heals from the meteor impact.',
+          Icons.bloodtype,
+          ['METEOR', 'HOMING', 'HEAL', 'BLOOD'],
+        ),
+        _ => null,
+      };
+      break;
+    case 'pip':
+      data = switch (element) {
+        'Fire' => (
+          'Overheat flurry',
+          '$species fires a quick ricochet flurry and briefly speeds up basic attacks.',
+          Icons.local_fire_department,
+          ['TEMPO', 'HASTE', 'RICOCHET', 'FIRE'],
+        ),
+        'Lava' => (
+          'Heavy magma chain',
+          '$species launches slow heavy piercing magma chunks that hit fewer targets harder.',
+          Icons.volcano,
+          ['TEMPO', 'HEAVY', 'PIERCE', 'LAVA'],
+        ),
+        'Lightning' => (
+          'Thunder chain',
+          '$species fires the fastest ricochet chain volley, bouncing rapidly between nearby enemies.',
+          Icons.flash_on,
+          ['TEMPO', 'CHAIN', 'RICOCHET', 'LIGHTNING'],
+        ),
+        'Water' => (
+          'Curling tide',
+          '$species opens inward curling darts that collapse back through a target lane.',
+          Icons.water,
+          ['TEMPO', 'COLLAPSE', 'DARTS', 'WATER'],
+        ),
+        'Ice' => (
+          'Chill chase',
+          '$species sends chill darts that chase enemies and snare them on contact.',
+          Icons.ac_unit,
+          ['TEMPO', 'SNARE', 'CHASE', 'ICE'],
+        ),
+        'Steam' => (
+          'Vent cutters',
+          '$species vents short piercing cutter darts through the forward lane.',
+          Icons.blur_on,
+          ['TEMPO', 'CUTTERS', 'PIERCE', 'STEAM'],
+        ),
+        'Earth' => (
+          'Stone finisher',
+          '$species fires fewer heavier homing stone darts that hit durable targets harder.',
+          Icons.terrain,
+          ['TEMPO', 'HOMING', 'FINISHER', 'EARTH'],
+        ),
+        'Mud' => (
+          'Sticky rebound',
+          '$species launches sticky rebound slugs that slow enemies while chasing them.',
+          Icons.grain,
+          ['TEMPO', 'SLOW', 'REBOUND', 'MUD'],
+        ),
+        'Dust' => (
+          'Sand spray',
+          '$species sprays many tiny sand darts across a wide area.',
+          Icons.cloud,
+          ['TEMPO', 'SPRAY', 'CLEANUP', 'DUST'],
+        ),
+        'Crystal' => (
+          'Prism bank-shot',
+          '$species fires piercing prism darts with the strongest bank-shot behavior.',
+          Icons.diamond,
+          ['TEMPO', 'PIERCE', 'BANK', 'CRYSTAL'],
+        ),
+        'Air' => (
+          'Cyclone rebound',
+          '$species throws non-homing wind darts that rely on rebound movement instead of lock-on.',
+          Icons.air,
+          ['TEMPO', 'REBOUND', 'WIND', 'AIR'],
+        ),
+        'Plant' => (
+          'Thorn pursuit',
+          '$species fires vine darts that pierce and lightly snare moving targets.',
+          Icons.local_florist,
+          ['TEMPO', 'SNARE', 'PIERCE', 'PLANT'],
+        ),
+        'Poison' => (
+          'Venom tags',
+          '$species fires venom tag darts that slow enemies as they move and leaves no static residue field.',
+          Icons.biotech,
+          ['TEMPO', 'POISON', 'SLOW', 'VENOM'],
+        ),
+        'Spirit' => (
+          'Phase chase',
+          '$species uses high-guidance phase darts that pierce and reacquire targets.',
+          Icons.auto_awesome,
+          ['TEMPO', 'HOMING', 'PIERCE', 'SPIRIT'],
+        ),
+        'Dark' => (
+          'Shadow pursuit',
+          '$species fires tight piercing shadow darts that chase and finish weakened targets.',
+          Icons.dark_mode,
+          ['TEMPO', 'PIERCE', 'FINISHER', 'DARK'],
+        ),
+        'Light' => (
+          'Halo rebound',
+          '$species forms a halo of ricochet darts that can intercept threats as it cleans up.',
+          Icons.wb_sunny,
+          ['TEMPO', 'RICOCHET', 'INTERCEPT', 'LIGHT'],
+        ),
+        'Blood' => (
+          'Crimson finish',
+          '$species sends fewer heavy homing blood darts that focus one target at a time.',
+          Icons.bloodtype,
+          ['TEMPO', 'HOMING', 'FINISHER', 'BLOOD'],
+        ),
+        _ => null,
+      };
+      break;
+    case 'mask':
+      data = switch (element) {
+        'Fire' => (
+          'Inferno bait',
+          '$species skips durable decoys and instead releases fast fire seekers from the trap.',
+          Icons.local_fire_department,
+          ['TRAP', 'SEEKERS', 'BURST', 'FIRE'],
+        ),
+        'Lava' => (
+          'Volatile idol',
+          '$species drops volatile idols that pull attention before erupting into heavy molten bursts.',
+          Icons.volcano,
+          ['TRAP', 'TAUNT', 'BURST', 'LAVA'],
+        ),
+        'Lightning' => (
+          'Tesla scramble',
+          '$species turns the trap into a tesla chain with fast bouncing seekers for clustered enemies.',
+          Icons.flash_on,
+          ['TRAP', 'BOUNCE', 'CHAIN', 'LIGHTNING'],
+        ),
+        'Water' => (
+          'Bubble decoy',
+          '$species uses bubble decoys to pull enemy aggro away from the ship, then fires guided water splashes.',
+          Icons.water,
+          ['TRAP', 'DECOY', 'SPLASH', 'WATER'],
+        ),
+        'Ice' => (
+          'Frost lure',
+          '$species traps enemies in freezing lures, then follows with slow heavy shards.',
+          Icons.ac_unit,
+          ['TRAP', 'FREEZE', 'SHARDS', 'ICE'],
+        ),
+        'Steam' => (
+          'Pressure lure',
+          '$species places slow steam vents around the trap instead of sending a large seeker swarm.',
+          Icons.blur_on,
+          ['TRAP', 'VENTS', 'SLOW', 'STEAM'],
+        ),
+        'Earth' => (
+          'Monolith lure',
+          '$species uses the toughest monolith lure, taunting enemies before breaking into boulder punishment.',
+          Icons.terrain,
+          ['TRAP', 'TAUNT', 'BOULDER', 'EARTH'],
+        ),
+        'Mud' => (
+          'Bog snare',
+          '$species snares enemies in a bog trap, then damages enemies caught trying to leave it.',
+          Icons.grain,
+          ['TRAP', 'SNARE', 'CONTROL', 'MUD'],
+        ),
+        'Dust' => (
+          'Caltrop scatter',
+          '$species scatters caltrop motes and fast ricochets from the trap point.',
+          Icons.cloud,
+          ['TRAP', 'RICOCHET', 'DISRUPT', 'DUST'],
+        ),
+        'Crystal' => (
+          'Prism decoy',
+          '$species uses prism decoys and bouncing shards to punish enemies that take the bait.',
+          Icons.diamond,
+          ['TRAP', 'DECOY', 'BOUNCE', 'CRYSTAL'],
+        ),
+        'Air' => (
+          'Gust lure',
+          '$species uses gust lures to break formation, then dives wind blades onto displaced enemies.',
+          Icons.air,
+          ['TRAP', 'GUST', 'DISPLACE', 'AIR'],
+        ),
+        'Plant' => (
+          'Vine construct',
+          '$species grows vine constructs that taunt enemies before thorn pods punish the cluster.',
+          Icons.local_florist,
+          ['TRAP', 'TAUNT', 'THORNS', 'PLANT'],
+        ),
+        'Poison' => (
+          'Contamination grid',
+          '$species establishes contamination traps first, then sends guided toxins through slowed targets.',
+          Icons.biotech,
+          ['TRAP', 'POISON', 'GUIDED', 'VENOM'],
+        ),
+        'Spirit' => (
+          'Phantom lure',
+          '$species sends phantom lures and phase seekers, splitting enemy attention across several false targets.',
+          Icons.auto_awesome,
+          ['TRAP', 'DECOY', 'SEEKERS', 'SPIRIT'],
+        ),
+        'Dark' => (
+          'Void well',
+          '$species builds a void well that pulls enemies into a snaring lure before execution seekers arrive.',
+          Icons.dark_mode,
+          ['TRAP', 'PULL', 'EXECUTE', 'DARK'],
+        ),
+        'Light' => (
+          'Beacon decoy',
+          '$species creates beacon decoys that draw aggro, then releases ricochet light motes.',
+          Icons.wb_sunny,
+          ['TRAP', 'DECOY', 'RICOCHET', 'LIGHT'],
+        ),
+        'Blood' => (
+          'Blood obelisk',
+          '$species plants a tougher obelisk lure backed by fewer, heavier blood punishers.',
+          Icons.bloodtype,
+          ['TRAP', 'TAUNT', 'HEAVY', 'BLOOD'],
+        ),
+        _ => null,
+      };
+      break;
+    case 'kin':
+      data = switch (element) {
+        'Fire' => (
+          'Ember guardians',
+          '$species creates guardian embers that move forward and fire rapid turret shots.',
+          Icons.local_fire_department,
+          ['BLESS', 'GUARDIAN', 'TURRET', 'FIRE'],
+        ),
+        'Lava' => (
+          'Heavy guardians',
+          '$species deploys slower volcanic guardians with bigger impact shots.',
+          Icons.volcano,
+          ['BLESS', 'GUARDIAN', 'HEAVY', 'LAVA'],
+        ),
+        'Lightning' => (
+          'Spark guardians',
+          '$species creates fast guardian sparks that fire turret shots more frequently.',
+          Icons.flash_on,
+          ['BLESS', 'GUARDIAN', 'FAST', 'LIGHTNING'],
+        ),
+        'Water' => (
+          'Escort fountain',
+          '$species keeps wards near the ship that heal, intercept threats, and fire small turret shots.',
+          Icons.water,
+          ['BLESS', 'HEAL', 'ESCORT', 'WATER'],
+        ),
+        'Ice' => (
+          'Chill guardians',
+          '$species places chill guardians that slow a target area and fire slow shots.',
+          Icons.ac_unit,
+          ['BLESS', 'SLOW', 'CONTROL', 'ICE'],
+        ),
+        'Steam' => (
+          'Pressure decoys',
+          '$species creates steam decoys that hard-snare enemies while venting small turret shots.',
+          Icons.blur_on,
+          ['BLESS', 'SNARE', 'DECOY', 'STEAM'],
+        ),
+        'Earth' => (
+          'Stone guardians',
+          '$species sends sturdy guardian stones forward as taunting decoys that intercept threats and fire slow turret shots.',
+          Icons.terrain,
+          ['BLESS', 'TAUNT', 'INTERCEPT', 'EARTH'],
+        ),
+        'Mud' => (
+          'Bog guardians',
+          '$species creates forward bog guardians that taunt and slow enemies for a longer duration.',
+          Icons.grain,
+          ['BLESS', 'TAUNT', 'SLOW', 'MUD'],
+        ),
+        'Dust' => (
+          'Distraction motes',
+          '$species sends lightweight distraction guardians that disrupt and pepper the target area.',
+          Icons.cloud,
+          ['BLESS', 'DISRUPT', 'MOTES', 'DUST'],
+        ),
+        'Crystal' => (
+          'Prism sentries',
+          '$species deploys ship-escort sentries that pierce and fire from orbit while adding a small ship heal.',
+          Icons.diamond,
+          ['BLESS', 'ESCORT', 'SENTRY', 'CRYSTAL'],
+        ),
+        'Air' => (
+          'Wind decoys',
+          '$species transfers wind decoys to the fight, taunting and snaring enemies away from the ship.',
+          Icons.air,
+          ['BLESS', 'TAUNT', 'PEEL', 'AIR'],
+        ),
+        'Plant' => (
+          'Vine guardians',
+          '$species grows vine guardians that taunt, lightly snare, and fire guided support thorns.',
+          Icons.local_florist,
+          ['BLESS', 'TAUNT', 'THORNS', 'PLANT'],
+        ),
+        'Poison' => (
+          'Toxin guardians',
+          '$species sets contamination guardians that slow an area and feed guided toxin shots.',
+          Icons.biotech,
+          ['BLESS', 'POISON', 'SLOW', 'VENOM'],
+        ),
+        'Spirit' => (
+          'Phase guardians',
+          '$species sends piercing phase guardians with strong homing support fire.',
+          Icons.auto_awesome,
+          ['BLESS', 'PIERCE', 'HOMING', 'SPIRIT'],
+        ),
+        'Dark' => (
+          'Eclipse hunters',
+          '$species leans into offensive guardian hunters that transfer to the fight and fire high-guidance shots.',
+          Icons.dark_mode,
+          ['BLESS', 'HUNTER', 'HOMING', 'DARK'],
+        ),
+        'Light' => (
+          'Pure escort',
+          '$species is the pure guardian escort: long ship-orbiting wards that intercept threats and provide the strongest healing.',
+          Icons.wb_sunny,
+          ['BLESS', 'HEAL', 'INTERCEPT', 'LIGHT'],
+        ),
+        'Blood' => (
+          'Sustain guardians',
+          '$species creates blood guardians that taunt enemies, fire piercing shots, and support self-heal.',
+          Icons.bloodtype,
+          ['BLESS', 'HEAL', 'TAUNT', 'BLOOD'],
+        ),
+        _ => null,
+      };
+      break;
+    case 'mystic':
+      data = switch (element) {
+        'Fire' => (
+          'Supernova collapse',
+          '$species erupts an outward fire-orb procession, then collapses it inward around a massive splitting core.',
+          Icons.local_fire_department,
+          ['ULTIMATE', 'COLLAPSE', 'CLUSTER', 'FIRE'],
+        ),
+        'Lava' => (
+          'Cataclysm moons',
+          '$species launches massive slow molten moons that pierce, leave lava trails, and split on impact.',
+          Icons.volcano,
+          ['ULTIMATE', 'PIERCE', 'TRAIL', 'LAVA'],
+        ),
+        'Lightning' => (
+          'Storm lattice',
+          '$species fills the fight with rapid zigzag bolts that bounce and chain through grouped enemies.',
+          Icons.flash_on,
+          ['ULTIMATE', 'BOUNCE', 'CHAIN', 'LIGHTNING'],
+        ),
+        'Water' => (
+          'Tidal crescent',
+          '$species sweeps crescent waves from both flanks so the tide collapses inward on the target.',
+          Icons.water,
+          ['ULTIMATE', 'PINCER', 'HOMING', 'WATER'],
+        ),
+        'Ice' => (
+          'Glacier crown',
+          '$species forms orbiting ice pillars as a barrier, then launches them outward as splitting frost lances.',
+          Icons.ac_unit,
+          ['ULTIMATE', 'BARRIER', 'LANCES', 'ICE'],
+        ),
+        'Steam' => (
+          'Whiteout veil',
+          '$species lays down a fog snare field with orbiting turret orbs that keep firing inside the whiteout.',
+          Icons.blur_on,
+          ['ULTIMATE', 'SNARE', 'TURRET', 'STEAM'],
+        ),
+        'Earth' => (
+          'Monolith constellation',
+          '$species summons orbiting stone pillars that taunt enemies, soak hits, and explode into shrapnel.',
+          Icons.terrain,
+          ['ULTIMATE', 'TAUNT', 'DECOY', 'EARTH'],
+        ),
+        'Mud' => (
+          'Mire eclipse',
+          '$species locks the target area in a huge snare zone, then sends piercing homing mud slugs through it.',
+          Icons.grain,
+          ['ULTIMATE', 'SNARE', 'PIERCE', 'MUD'],
+        ),
+        'Dust' => (
+          'Sirocco halo',
+          '$species unleashes a golden spiral swarm of tiny bouncing projectiles that hit groups of enemies.',
+          Icons.cloud,
+          ['ULTIMATE', 'SWARM', 'BOUNCE', 'DUST'],
+        ),
+        'Crystal' => (
+          'Prism cathedral',
+          '$species fires prism shards that pierce, bounce, and split into chain-reaction crystal fragments.',
+          Icons.diamond,
+          ['ULTIMATE', 'PIERCE', 'CLUSTER', 'CRYSTAL'],
+        ),
+        'Air' => (
+          'Cyclone halo',
+          '$species wraps the ship in interceptor orbs that block projectiles and damage enemies on contact.',
+          Icons.air,
+          ['ULTIMATE', 'INTERCEPT', 'ORBIT', 'AIR'],
+        ),
+        'Plant' => (
+          'Verdant procession',
+          '$species plants a line of vine turrets toward the target, creating a sustained thorn-fire lane.',
+          Icons.local_florist,
+          ['ULTIMATE', 'TURRET', 'THORNS', 'PLANT'],
+        ),
+        'Poison' => (
+          'Venom halo',
+          '$species deploys ship-following poison clouds that snare enemies and leave toxic trails.',
+          Icons.biotech,
+          ['ULTIMATE', 'POISON', 'TRAIL', 'VENOM'],
+        ),
+        'Spirit' => (
+          'Wraith chorus',
+          '$species launches piercing ghost bolts that strongly home onto enemies.',
+          Icons.auto_awesome,
+          ['ULTIMATE', 'HOMING', 'PIERCE', 'SPIRIT'],
+        ),
+        'Dark' => (
+          'Eclipse procession',
+          '$species opens dark wells that pull enemies inward and releases hunters that chase them.',
+          Icons.dark_mode,
+          ['ULTIMATE', 'PULL', 'HUNTER', 'DARK'],
+        ),
+        'Light' => (
+          'Radiant crown',
+          '$species crowns the ship with radiant protection, healing, and threat interception.',
+          Icons.wb_sunny,
+          ['ULTIMATE', 'HEAL', 'INTERCEPT', 'LIGHT'],
+        ),
+        'Blood' => (
+          'Crimson coronation',
+          '$species creates a blood field that heals while enemies are trapped inside it.',
+          Icons.bloodtype,
+          ['ULTIMATE', 'HEAL', 'SUSTAIN', 'BLOOD'],
+        ),
+        _ => null,
+      };
+      break;
+  }
+
+  if (data == null) return null;
+  return CosmicSpecialInfo(
+    subtitle: '$abilityName • ${data.$1}',
+    description: data.$2,
+    icon: data.$3,
+    tags: data.$4,
+  );
+}
+
+/// Returns only mode-specific mechanics that differ in Cosmic Survival.
+/// Baseline species mechanics belong in the main special description.
 _ElementMechanicNote? _elementMechanicNote(String family, String element) {
   switch (family) {
     case 'Pip':
@@ -1507,94 +2236,6 @@ _ElementMechanicNote? _elementMechanicNote(String family, String element) {
         case 'Plant':
           return _survivalPassive(
             'Killed enemies grant +50% alchemy meter on death.',
-          );
-        case 'Earth':
-          return _sharedEffect(
-            'Each basic attack shaves 0.4s off the special cooldown.',
-          );
-        case 'Spirit':
-          return _sharedEffect(
-            '8 credited kills empower this Pip for 6s — basic attacks fire ~10× as fast.',
-          );
-        case 'Steam':
-          return _sharedEffect(
-            'A steam cloud cycles around this Pip, ramping basic attack speed from +50% up to +300%.',
-          );
-        case 'Mud':
-          return _sharedEffect(
-            'Hit enemies are tagged: they continuously drop mud trail puffs that slow other enemies.',
-          );
-        case 'Poison':
-          return _sharedEffect(
-            'Each basic-hit draws a persistent poison line of zones from the previous hit to the new one.',
-          );
-        case 'Fire':
-          return _sharedEffect(
-            'Kills drop a persistent burning fire pool DoT zone.',
-          );
-        case 'Dust':
-          return _sharedEffect('Kills drop a slowing dust cloud zone.');
-        case 'Crystal':
-          return _sharedEffect(
-            'Kills drop a stationary taunting crystal that pulls enemy aggro for ~9s.',
-          );
-        case 'Dark':
-          return _sharedEffect(
-            'Kills form a persistent black hole that drags nearby enemies inward and executes near-dead ones.',
-          );
-        case 'Lightning':
-          return null;
-        case 'Lava':
-          return _sharedEffect(
-            'Each pierce drops a lava blob DoT zone at the enemy.',
-          );
-        case 'Water':
-          return _sharedEffect(
-            'Kills splash nearby enemies; a kill on the ricochet’s final hit erupts a much larger splash.',
-          );
-      }
-      return null;
-    case 'Mane':
-      switch (element) {
-        case 'Plant':
-          return _sharedEffect(
-            'Pierced enemies are rooted; if they die while rooted, they explode in a 130-radius AOE.',
-          );
-        case 'Light':
-          return _sharedEffect(
-            'Each pierce grows the projectile: damage, radius, and visual scale up per hit.',
-          );
-        case 'Lava':
-          return _sharedEffect(
-            'Each pierce drops a persistent lava blob DoT zone behind.',
-          );
-        case 'Crystal':
-          return _sharedEffect(
-            'Direct boss collision deals 25x damage plus a 200-radius AOE.',
-          );
-        case 'Water':
-          return _sharedEffect(
-            'Pierce drags enemies along the projectile path instead of pushing them back.',
-          );
-        case 'Mud':
-          return _sharedEffect(
-            'First enemy hit splits the projectile into 10 fragments in a ring.',
-          );
-        case 'Spirit':
-          return _sharedEffect(
-            'Cast fires 1 soul slash, +1 lane per successive cast up to 10, then resets.',
-          );
-        case 'Earth':
-          return _sharedEffect(
-            'Cast becomes a single massive boulder that shrinks while shedding shards along its path.',
-          );
-        case 'Lightning':
-          return _sharedEffect(
-            'Cast plants 5-10 stationary lightning rods that continuously shock all nearby enemies.',
-          );
-        case 'Steam':
-          return _sharedEffect(
-            'Cast becomes a traveling geyser that drops persistent steam puffs along its path.',
           );
       }
       return null;
@@ -1610,127 +2251,14 @@ _ElementMechanicNote? _elementMechanicNote(String family, String element) {
           );
       }
       return null;
-    case 'Mask':
-      switch (element) {
-        case 'Spirit':
-          return _sharedEffect(
-            'Kills credited to this Mask stack wisps; 6 kills triggers a 220-radius AOE wisp burst.',
-          );
-        case 'Ice':
-          return _sharedEffect(
-            'Ice pillar broadcasts a 2.4x damage amp to all allies within range while active.',
-          );
-        case 'Plant':
-          return _sharedEffect(
-            'Vine snare grows in radius and slow-strength over the trap’s lifetime.',
-          );
-        case 'Light':
-          return _sharedEffect(
-            'Traps become stationary execute voids that persist until expiring.',
-          );
-        case 'Air':
-          return _sharedEffect(
-            'Spawns 8-18 stationary gust pads instead of homing seekers.',
-          );
-      }
-      return null;
-    case 'Let':
-      switch (element) {
-        case 'Plant':
-          return null;
-        case 'Spirit':
-          return null;
-        case 'Crystal':
-          return _sharedEffect(
-            'Cooldown is halved and damage is lower, but impacts deliver a heavy slow.',
-          );
-        case 'Dark':
-          return null;
-        case 'Steam':
-          return null;
-        case 'Light':
-          return null;
-        case 'Blood':
-          return null;
-        case 'Air':
-          return null;
-        case 'Earth':
-          return null;
-        case 'Fire':
-          return null;
-        case 'Mud':
-          return null;
-      }
-      return null;
-    case 'Kin':
-      switch (element) {
-        case 'Dark':
-          return null;
-        case 'Fire':
-          return null;
-        case 'Water':
-          return null;
-        case 'Ice':
-          return null;
-        case 'Lightning':
-          return null;
-        case 'Spirit':
-          return null;
-        case 'Blood':
-          return null;
-        case 'Plant':
-          return null;
-        case 'Poison':
-          return null;
-        case 'Mud':
-          return null;
-        case 'Air':
-          return null;
-        case 'Earth':
-          return null;
-        case 'Steam':
-          return null;
-        case 'Light':
-          return null;
-        case 'Crystal':
-          return null;
-        case 'Dust':
-          return null;
-        case 'Lava':
-          return null;
-      }
-      return null;
-    case 'Mystic':
-      switch (element) {
-        case 'Blood':
-          return null;
-        case 'Lightning':
-          return null;
-        case 'Crystal':
-          return null;
-        case 'Dust':
-          return null;
-        case 'Fire':
-          return null;
-        case 'Lava':
-          return null;
-        case 'Water':
-          return null;
-        case 'Ice':
-          return null;
-        case 'Poison':
-          return null;
-        case 'Dark':
-          return null;
-        case 'Spirit':
-          return null;
-      }
-      return null;
   }
   return null;
 }
 
 CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
+  final speciesInfo = _speciesSpecificCosmicSpecialInfo(family, element);
+  if (speciesInfo != null) return speciesInfo;
+
   switch (family) {
     case 'Horn':
       final anchorElement = [
@@ -2001,70 +2529,121 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ],
       );
     case 'Mane':
-      final controlElement = [
-        'Ice',
-        'Steam',
-        'Earth',
-        'Mud',
-        'Plant',
-        'Poison',
-        'Dark',
-        'Lava',
-        'Water',
-        'Lightning',
-      ].contains(element);
-      final tempoElement = ['Fire', 'Air', 'Dust'].contains(element);
-      final finisherElement = ['Blood', 'Spirit', 'Crystal'].contains(element);
-      final followThrough = switch (element) {
-        'Fire' =>
-          'Fire is an advancing flame-arc burst with a high-tempo follow-through.',
-        'Lightning' =>
-          'Lightning plants a scattered field of 5–10 stationary rods that continuously shock nearby enemies.',
-        'Air' =>
-          'Air sweeps the widest split cone and is the one fast Mane — its slashes travel at ~2× speed.',
-        'Dust' => 'Dust floods lanes with a high-count sandblade fan.',
-        'Water' =>
-          'Water fires dual crossing tide-cuts that form a distinct X-lane slow.',
-        'Steam' =>
-          'Steam fires a two-beat slash sequence: quick opener into delayed pressure cuts.',
-        'Plant' =>
-          'Plant opens a core lane and forks into branch cuts for split pressure.',
-        'Poison' =>
-          'Poison uses drifting long-life venom slashes with stronger lane denial.',
-        'Ice' =>
-          'Ice keeps heavier chill cleaves with firmer frontal slow pressure.',
-        'Earth' =>
-          'Earth advances in marching slab-cuts that stagger the lane step by step.',
-        'Mud' =>
-          'Mud uses heavy stumbling cross-cuts to drag movement in front of it.',
-        'Lava' => 'Lava is lower-volume, heavier molten cleave pressure.',
-        'Dark' =>
-          'Dark is a narrow, high-pressure suppression line with heavier cuts.',
-        'Blood' =>
-          'Blood fires twin spear-cuts plus a central finisher and sustain payoff.',
-        'Spirit' =>
-          'Spirit ramps lane count 1→10 across successive casts, then resets — each cast a wider soul-slash fan.',
-        'Crystal' =>
-          'Crystal is a fixed 3-lance prism burst with refracted side follow-ups.',
-        'Light' =>
-          'Light adds a disciplined parry lane that can intercept one threat.',
-        _ =>
-          'Element changes the forward technique while keeping Mane focused on lane pressure.',
+      final maneInfo = switch (element) {
+        'Air' => (
+          'Gale Pierce • Push-through catapult',
+          'Fires a wide piercing gust that shoves every enemy it passes through along the shot path.',
+          Icons.air,
+          ['PIERCE', 'PUSH', 'WIDE', 'AIR'],
+        ),
+        'Dust' => (
+          'Dustwake Fan • Projectile silence',
+          'Cuts a sand trail across the lane. Enemies that enter the dust cloud lose their ability to shoot for a moment.',
+          Icons.cloud,
+          ['TRAIL', 'SUPPRESS', 'PIERCE', 'DUST'],
+        ),
+        'Lava' => (
+          'Molten Cleave • Burning residue',
+          'Pierces through enemies and drops lava blobs at each collision, turning the path into lingering burn damage.',
+          Icons.local_fire_department,
+          ['BURN', 'BLOBS', 'PIERCE', 'LAVA'],
+        ),
+        'Poison' => (
+          'Venom Edge • Stacking toxin',
+          'Poisons every enemy the slash passes through. The more bodies it tags, the more the toxin pressure adds up.',
+          Icons.biotech,
+          ['POISON', 'STACKS', 'PIERCE', 'VENOM'],
+        ),
+        'Blood' => (
+          'Bloodedge Rush • Lifesteal pierce',
+          'Pierces through the lane and restores health for each enemy it cuts, making Bloodmane the sustain Mane.',
+          Icons.bloodtype,
+          ['HEAL', 'SUSTAIN', 'PIERCE', 'BLOOD'],
+        ),
+        'Earth' => (
+          'Fault Slab • Grinding quake path',
+          'Launches a huge slow stone slab that crushes through the lane and leaves quake bursts as it breaks apart.',
+          Icons.terrain,
+          ['SLAB', 'QUAKE', 'HEAVY', 'EARTH'],
+        ),
+        'Light' => (
+          'Radiant Growth • Scaling pierce',
+          'Launches a slow glowing orb that grows larger and hits harder each time it pierces an enemy.',
+          Icons.wb_sunny,
+          ['GROWTH', 'PIERCE', 'SCALING', 'LIGHT'],
+        ),
+        'Spirit' => (
+          'Phaseblade Rush • Ramping stream',
+          'Starts as one soul shot, then adds another shot on each cast up to ten before resetting into a new ramp.',
+          Icons.auto_awesome,
+          ['RAMP', 'STREAM', 'RESET', 'SPIRIT'],
+        ),
+        'Crystal' => (
+          'Prism Edge • Boss shatter',
+          'Pierces normally through packs, but detonates on bosses for a huge crystal burst and wide area damage.',
+          Icons.diamond,
+          ['BOSS', 'BURST', 'AOE', 'CRYSTAL'],
+        ),
+        'Fire' => (
+          'Fireball Rush • Dense fire spread',
+          'Throws a doubled wave of quick fireballs through the forward lane for immediate multi-hit pressure.',
+          Icons.whatshot,
+          ['FIREBALLS', 'MULTI', 'PIERCE', 'FIRE'],
+        ),
+        'Lightning' => (
+          'Storm Orb Field • Remote zaps',
+          'Shoots small lightning balls around the map. When they land, they form compact zap traps.',
+          Icons.flash_on,
+          ['ORBS', 'FIELD', 'ZAP', 'LIGHTNING'],
+        ),
+        'Steam' => (
+          'Pressure Geyser • Traveling vent',
+          'Launches a large geyser shot that releases damaging steam puffs as it travels.',
+          Icons.blur_on,
+          ['GEYSER', 'PUFFS', 'PIERCE', 'STEAM'],
+        ),
+        'Dark' => (
+          'Voidcut Drive • Pull and consume',
+          'Moves slowly through the lane, pulling enemies toward it and punishing weakened targets caught in the drag.',
+          Icons.dark_mode,
+          ['PULL', 'EXECUTE', 'SLOW', 'DARK'],
+        ),
+        'Ice' => (
+          'Frostguard Cleave • Contact freeze',
+          'A piercing frost ball freezes enemies it touches as it pushes through the lane.',
+          Icons.ac_unit,
+          ['FREEZE', 'PIERCE', 'CONTROL', 'ICE'],
+        ),
+        'Mud' => (
+          'Bogbreaker Split • Ten-way burst',
+          'The first enemy hit breaks the shot apart into ten mud shards that scatter in every direction.',
+          Icons.grain,
+          ['SPLIT', 'SHARDS', 'BURST', 'MUD'],
+        ),
+        'Plant' => (
+          'Vine Lariat • Root bloom',
+          'Roots every enemy it hits. If a rooted enemy dies, it bursts into plant area damage that can root nearby enemies too.',
+          Icons.local_florist,
+          ['ROOT', 'EXPLODE', 'AOE', 'PLANT'],
+        ),
+        'Water' => (
+          'Tidewall Crash • Carrying wave',
+          'Fires a massive water wall that drags enemies with it instead of merely damaging them.',
+          Icons.water,
+          ['WALL', 'CARRY', 'PIERCE', 'WATER'],
+        ),
+        _ => (
+          'Barrage Volley • Piercing technique',
+          'Fires a piercing Mane technique with an element-specific combat rule.',
+          Icons.waves,
+          ['PIERCE', 'BARRAGE', element.toUpperCase()],
+        ),
       };
       return CosmicSpecialInfo(
-        subtitle: 'Barrage Volley • Martial lane pressure',
-        description:
-            'Unloads a forward $element slash technique meant to suppress what '
-            'is directly in front of the Mane. $followThrough',
-        icon: Icons.waves,
-        tags: [
-          'BARRAGE',
-          if (tempoElement) 'TEMPO',
-          if (controlElement) 'STAGGER',
-          if (finisherElement) 'FINISHER',
-          if (element == 'Light') 'PARRY',
-          element.toUpperCase(),
-        ],
+        subtitle: maneInfo.$1,
+        description: maneInfo.$2,
+        icon: maneInfo.$3,
+        tags: maneInfo.$4,
       );
     case 'Mask':
       final decoyElement = [

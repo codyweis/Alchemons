@@ -231,7 +231,9 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                                       width: 1,
                                     ),
                                   ),
-                                  child: e.imagePath != null
+                                  child: e.visualBuilder != null
+                                      ? Center(child: e.visualBuilder!(32))
+                                      : e.imagePath != null
                                       ? ClipRRect(
                                           borderRadius: BorderRadius.circular(6),
                                           child: Image.asset(
@@ -241,8 +243,6 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                                             fit: BoxFit.contain,
                                           ),
                                         )
-                                      : e.visualBuilder != null
-                                      ? Center(child: e.visualBuilder!(32))
                                       : Icon(e.icon, color: e.color, size: 22),
                                 ),
                                 const SizedBox(width: 14),
@@ -379,7 +379,9 @@ void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
                   width: 1.5,
                 ),
               ),
-              child: entry.imagePath != null
+              child: entry.visualBuilder != null
+                  ? Center(child: entry.visualBuilder!(52))
+                  : entry.imagePath != null
                   ? Padding(
                       padding: const EdgeInsets.all(8),
                       child: Image.asset(
@@ -387,8 +389,6 @@ void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
                         fit: BoxFit.contain,
                       ),
                     )
-                  : entry.visualBuilder != null
-                  ? Center(child: entry.visualBuilder!(52))
                   : Icon(entry.icon, color: entry.color, size: 34),
             ),
             const SizedBox(height: 18),
