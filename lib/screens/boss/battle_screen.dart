@@ -527,7 +527,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                       // full battle log dialog.
                       Positioned(
                         left: 8,
-                        top: constraints.maxHeight * 0.105,
+                        top: constraints.maxHeight * 0.12,
                         width: constraints.maxWidth * 0.62,
                         child: _buildLastActionLine(),
                       ),

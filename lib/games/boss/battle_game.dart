@@ -122,8 +122,11 @@ class BattleGame extends FlameGame with TapCallbacks {
   /// boss sits in the upper-right. Matches the VoidPet-style battle HUD
   /// where the bottom band is reserved for the move card.
   static const double teamColumnX = 0.13;
-  static const double teamRailTopY = 0.19;
-  static const double teamRailBottomY = 0.62;
+  // Wider Y span so each sprite+pill block has ~30px of breathing
+  // room above the next sprite. Without this the pill of slot N visually
+  // floats halfway between slot N and N+1's sprites.
+  static const double teamRailTopY = 0.20;
+  static const double teamRailBottomY = 0.70;
   static const double bossArenaX = 0.70;
   static const double bossArenaY = 0.34;
 
