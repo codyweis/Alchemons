@@ -123,9 +123,10 @@ class BattleGame extends FlameGame with TapCallbacks {
   /// where the bottom band is reserved for the move card.
   static const double teamColumnX = 0.14;
   // Wider Y span — larger sprites (~86px) + nameplate + breathing room
-  // need ~140px per slot to read cleanly.
+  // need ~140px per slot to read cleanly. Bottom kept above the move
+  // card so the last slot's pill doesn't crash into the card title.
   static const double teamRailTopY = 0.18;
-  static const double teamRailBottomY = 0.74;
+  static const double teamRailBottomY = 0.68;
   static const double bossArenaX = 0.70;
   static const double bossArenaY = 0.34;
 

@@ -32,11 +32,14 @@ class BattleScreenFlame extends StatefulWidget {
   State<BattleScreenFlame> createState() => _BattleScreenFlameState();
 }
 
-class _BattleScreenFlameState extends State<BattleScreenFlame> {
+class _BattleScreenFlameState extends State<BattleScreenFlame>
+    with SingleTickerProviderStateMixin {
   final FactionTheme _battleFactionTheme = FactionTheme.scorchForge();
   late final FC _fc = FC(_battleFactionTheme);
   late BattleGame game;
   late final BossAttackGraphxOverlayController _bossAttackGraphxController;
+  // Drives the slow rotation on the armed orb's crystalline crown.
+  late final AnimationController _crownController;
   int? selectedCreatureIndex;
   // Which orb is currently armed (0 = basic, 1 = special). First tap on
   // an orb selects it and shows its details; a second tap on the armed
@@ -49,6 +52,10 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
   void initState() {
     super.initState();
     _bossAttackGraphxController = BossAttackGraphxOverlayController();
+    _crownController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat();
     game = BattleGame(
       boss: widget.boss,
       playerTeam: widget.playerTeam,
@@ -495,6 +502,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
   @override
   void dispose() {
     _bossAttackGraphxController.dispose();
+    _crownController.dispose();
     super.dispose();
   }
 
@@ -999,47 +1007,66 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
       decoration: BoxDecoration(
-        color: fc.bg0.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: accent.withValues(alpha: 0.45), width: 1.0),
+        // Soft top-down gradient — no border. The gradient gives the
+        // header presence without boxing it in.
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            fc.bg0.withValues(alpha: 0.65),
+            accent.withValues(alpha: 0.12),
+            fc.bg0.withValues(alpha: 0.65),
+          ],
+          stops: const [0.0, 0.55, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  widget.bossDisplayName.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: fc.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'monospace',
-                    letterSpacing: 1.2,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Tall accent bar gives the title weight without a box.
+                Container(width: 4, height: 26, color: accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.bossDisplayName.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fc.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'monospace',
+                      letterSpacing: 2.4,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${widget.boss.currentHp} / ${widget.boss.maxHp}',
-                style: TextStyle(
-                  color: fc.textSecondary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'monospace',
-                  letterSpacing: 0.3,
+                const SizedBox(width: 8),
+                Text(
+                  '${widget.boss.currentHp} / ${widget.boss.maxHp}',
+                  style: TextStyle(
+                    color: fc.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'monospace',
+                    letterSpacing: 0.4,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 6),
-          _buildBossHealthBar(hpPercent),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+            child: _buildBossHealthBar(hpPercent),
+          ),
         ],
       ),
     );
@@ -1084,13 +1111,12 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     final hpColor = _getHealthColor(hpPercent);
 
     return Container(
-      height: 14,
-      padding: const EdgeInsets.all(2),
+      height: 10,
+      padding: const EdgeInsets.all(1),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: fc.bg0.withValues(alpha: 0.85),
+        color: fc.bg0.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: fc.borderAccent.withValues(alpha: 0.55)),
       ),
       child: Stack(
         fit: StackFit.expand,
@@ -1212,11 +1238,17 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     // and which orb gets the crystalline crown.
     final armedIsSpecial = _armedMoveSlot == 1;
     final armedMove = armedIsSpecial ? specialMove : basicMove;
-    final armedSubtitle = armedIsSpecial
-        ? (selected != null
-              ? 'Special · CD ${BattleMove.specialCooldownForFamily(selected.family)}'
-              : 'Special · Unlocks at Lv 5')
-        : 'Basic · ${basicMove.type == MoveType.physical ? 'Physical' : 'Elemental'}';
+    final armedKindLabel = armedIsSpecial ? 'Special' : 'Basic';
+    final armedTypeLabel = armedIsSpecial
+        ? (selected != null && hasSpecial
+              ? 'Cooldown ${BattleMove.specialCooldownForFamily(selected.family)}'
+              : 'Unlocks at Lv 5')
+        : (basicMove.type == MoveType.physical ? 'Physical' : 'Elemental');
+    final armedSubtitle = [
+      selected?.name ?? 'No selection',
+      armedKindLabel,
+      armedTypeLabel,
+    ].join('  ·  ');
     final armedDescription = armedIsSpecial
         ? specialDescription
         : basicDescription;
@@ -1226,26 +1258,49 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Move name large; creature/kind/cooldown sit on the subhead so
+        // the title doesn't clip when both names are long.
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(width: 3, height: 18, color: accent),
-            const SizedBox(width: 8),
+            Container(width: 3, height: 28, color: accent),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                selected == null
-                    ? 'NO SELECTION'
-                    : '${selected.name.toUpperCase()} · ${armedMove.name.toUpperCase()}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: fc.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                  fontFamily: 'monospace',
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    selected == null
+                        ? 'NO SELECTION'
+                        : armedMove.name.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fc.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.9,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    armedSubtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: accent.withValues(alpha: 0.95),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
               ),
             ),
+            const SizedBox(width: 6),
             Text(
               armedCanExecute && isPlayerTurn ? 'TAP TO USE' : turnLabel,
               style: TextStyle(
@@ -1260,18 +1315,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          armedSubtitle,
-          style: TextStyle(
-            color: accent,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.4,
-            fontFamily: 'monospace',
-          ),
-        ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           armedDescription,
           maxLines: 2,
@@ -1432,9 +1476,14 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
               alignment: Alignment.center,
               children: [
                 if (isFeatured)
-                  CustomPaint(
-                    size: const Size(86, 86),
-                    painter: _OrbCrownPainter(color: color),
+                  // Slow continuous rotation so the armed orb visibly
+                  // tracks instead of sitting as a static highlight.
+                  RotationTransition(
+                    turns: _crownController,
+                    child: CustomPaint(
+                      size: const Size(92, 92),
+                      painter: _OrbCrownPainter(color: color),
+                    ),
                   ),
                 Container(
                   width: 64,
