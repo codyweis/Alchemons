@@ -107,15 +107,17 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     );
     add(statusIconContainer);
 
-    // Selection indicator (behind creature)
+    // Platform ring at the creature's feet — flattens into an ellipse
+    // so it reads as "standing on a disc" rather than a halo. Driven by
+    // setSelectionIndicator; element color is set by the host screen.
     selectionIndicator = CircleComponent(
-      radius: 52,
+      radius: 30,
       paint: Paint()
-        ..color = Colors.yellow.withValues(alpha: 0)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = .5,
+        ..color = Colors.amber.withValues(alpha: 0)
+        ..style = PaintingStyle.fill,
       anchor: Anchor.center,
-      position: size / 2,
+      position: Vector2(size.x / 2, size.y * 0.82),
+      scale: Vector2(1.2, 0.32),
     );
     add(selectionIndicator..priority = -1);
   }
@@ -591,8 +593,8 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
 
   void setSelectionIndicator(bool selected) {
     selectionIndicator.paint.color = selected
-        ? Colors.yellow.withValues(alpha: 0.2)
-        : Colors.yellow.withValues(alpha: 0);
+        ? Colors.amber.withValues(alpha: 0.55)
+        : Colors.amber.withValues(alpha: 0);
   }
 
   void setSelected(bool selected) {

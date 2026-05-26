@@ -520,11 +520,13 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                           controller: _bossAttackGraphxController,
                         ),
                       ),
-                      // Boss HUD — compact card pinned upper-right.
+                      // Boss HUD — compact card pinned upper-right, anchored
+                      // directly above the boss sprite so HP info reads as
+                      // attached to the boss rather than floating.
                       Positioned(
-                        top: 8,
+                        top: 6,
                         right: 8,
-                        width: constraints.maxWidth * 0.5,
+                        width: constraints.maxWidth * 0.42,
                         child: _buildBossHud(),
                       ),
                       // Left party rail — vertical stack of slot cards
@@ -543,9 +545,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                       // Floating recent event feed — fades in over the
                       // arena instead of eating top-of-screen space.
                       Positioned(
-                        left: constraints.maxWidth * 0.4,
+                        left: constraints.maxWidth * 0.55,
                         right: 8,
-                        bottom: constraints.maxHeight * 0.30,
+                        bottom: constraints.maxHeight * 0.34,
                         child: IgnorePointer(child: _buildFloatingFeed()),
                       ),
                       // Bottom move card — single compact panel.
@@ -904,7 +906,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     final hpColor = _getHealthColor(hpPercent);
 
     return Container(
-      height: 22,
+      height: 14,
       padding: const EdgeInsets.all(2),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -955,9 +957,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                 '${widget.boss.currentHp} / ${widget.boss.maxHp}',
                 style: TextStyle(
                   color: fc.textPrimary,
-                  fontSize: 12,
+                  fontSize: 9,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
+                  letterSpacing: 0.4,
                   fontFamily: 'monospace',
                   shadows: const [
                     Shadow(
@@ -1231,12 +1233,31 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
         },
         behavior: HitTestBehavior.opaque,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              // Reserved sprite slot — Flame renders its creature behind
-              // this gap, so the HP card sits flush against the sprite.
-              const SizedBox(width: 84),
+              // Reserved sprite area — Flame renders the creature here.
+              // Sized to roughly match the 88px sprite footprint so the
+              // card lands flush against the sprite's right edge.
+              const SizedBox(width: 66),
+              // Left-pointing nub on the card so it visually attaches to
+              // the sprite rather than floating as a separate island.
+              CustomPaint(
+                size: const Size(8, 18),
+                painter: _SlotNubPainter(
+                  fill: isSelected
+                      ? elementColor.withValues(alpha: 0.22)
+                      : fc.bg2.withValues(alpha: 0.86),
+                  stroke: isSelected
+                      ? elementColor
+                      : isOnCooldown
+                      ? fc.teal.withValues(alpha: 0.55)
+                      : isDead
+                      ? fc.borderDim
+                      : fc.borderAccent.withValues(alpha: 0.4),
+                  strokeWidth: isSelected ? 1.6 : 1,
+                ),
+              ),
               Expanded(
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
@@ -1258,16 +1279,41 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                               fc.bg0.withValues(alpha: 0.82),
                             ],
                     ),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isSelected
-                          ? elementColor
-                          : isOnCooldown
-                          ? fc.teal.withValues(alpha: 0.55)
-                          : isDead
-                          ? fc.borderDim
-                          : fc.borderAccent.withValues(alpha: 0.4),
-                      width: isSelected ? 1.6 : 1,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(8),
+                      bottomRight: Radius.circular(8),
+                    ),
+                    border: Border(
+                      top: BorderSide(
+                        color: isSelected
+                            ? elementColor
+                            : isOnCooldown
+                            ? fc.teal.withValues(alpha: 0.55)
+                            : isDead
+                            ? fc.borderDim
+                            : fc.borderAccent.withValues(alpha: 0.4),
+                        width: isSelected ? 1.6 : 1,
+                      ),
+                      right: BorderSide(
+                        color: isSelected
+                            ? elementColor
+                            : isOnCooldown
+                            ? fc.teal.withValues(alpha: 0.55)
+                            : isDead
+                            ? fc.borderDim
+                            : fc.borderAccent.withValues(alpha: 0.4),
+                        width: isSelected ? 1.6 : 1,
+                      ),
+                      bottom: BorderSide(
+                        color: isSelected
+                            ? elementColor
+                            : isOnCooldown
+                            ? fc.teal.withValues(alpha: 0.55)
+                            : isDead
+                            ? fc.borderDim
+                            : fc.borderAccent.withValues(alpha: 0.4),
+                        width: isSelected ? 1.6 : 1,
+                      ),
                     ),
                     boxShadow: isSelected
                         ? [
@@ -1661,9 +1707,13 @@ class _BossBattleStagePainter extends CustomPainter {
     if (size.isEmpty) return;
 
     // Arena ring sits under the boss in the upper-right; dashed circle
-    // mirrors the VoidPet reference.
-    final bossCenter = Offset(size.width * 0.66, size.height * 0.38);
-    final radius = math.min(size.width * 0.30, size.height * 0.22);
+    // mirrors the VoidPet reference. Centered on the boss sprite at
+    // BattleGame.bossArenaX/Y so the boss reads as standing in the ring.
+    final bossCenter = Offset(
+      size.width * BattleGame.bossArenaX,
+      size.height * (BattleGame.bossArenaY + 0.05),
+    );
+    final radius = math.min(size.width * 0.24, size.height * 0.17);
     final ringRect = Rect.fromCircle(center: bossCenter, radius: radius);
 
     final vignette = Paint()
@@ -1748,6 +1798,50 @@ class _BossBattleStagePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _BossBattleStagePainter oldDelegate) {
     return oldDelegate.accent != accent || oldDelegate.danger != danger;
+  }
+}
+
+/// Triangular left-pointing connector painted between the sprite gutter
+/// and the rail card body. Tip kisses the sprite, base aligns with the
+/// card's left edge so they read as one unit.
+class _SlotNubPainter extends CustomPainter {
+  final Color fill;
+  final Color stroke;
+  final double strokeWidth;
+
+  const _SlotNubPainter({
+    required this.fill,
+    required this.stroke,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, size.height / 2)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = fill);
+    final strokePath = Path()
+      ..moveTo(size.width, 0)
+      ..lineTo(0, size.height / 2)
+      ..lineTo(size.width, size.height);
+    canvas.drawPath(
+      strokePath,
+      Paint()
+        ..color = stroke
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SlotNubPainter old) {
+    return old.fill != fill ||
+        old.stroke != stroke ||
+        old.strokeWidth != strokeWidth;
   }
 }
 
