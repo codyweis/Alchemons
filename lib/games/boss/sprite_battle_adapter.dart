@@ -74,7 +74,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     creatureVisual = CreatureSpriteComponentBattle(
       sheet: sheet,
       visuals: visuals,
-      desiredSize: Vector2(72, 72), // Battle display — compact to fit nameplates
+      desiredSize: Vector2(86, 86), // Battle display — 20% bigger than baseline
       variantFaction: combatant.instanceRef?.variantFaction,
     );
     creatureVisual.position = size / 2;
@@ -100,10 +100,11 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       _addEffectComponent(alchemyEffect!);
     }
 
-    // Status/debuff badges live beneath the creature sprite.
+    // Status/debuff badges live ABOVE the creature's head so they don't
+    // collide with the Flutter HP nameplate sitting under the sprite.
     statusIconContainer = PositionComponent(
-      anchor: Anchor.center,
-      position: Vector2(size.x / 2, size.y - 6),
+      anchor: Anchor.bottomCenter,
+      position: Vector2(size.x / 2, 16),
     );
     add(statusIconContainer);
 

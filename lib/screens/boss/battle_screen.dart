@@ -851,9 +851,12 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                     : ListView.builder(
                         shrinkWrap: true,
                         itemCount: battleFeed.length,
-                        reverse: false,
+                        // Newest first — the most recent entry sits at
+                        // the top of the dialog with a NEW marker.
                         itemBuilder: (_, i) {
-                          final e = battleFeed[i];
+                          final entryIndex = battleFeed.length - 1 - i;
+                          final e = battleFeed[entryIndex];
+                          final isLatest = entryIndex == battleFeed.length - 1;
                           final color = e.isStatus
                               ? fc.amberBright
                               : e.source == _FeedSource.team
@@ -875,12 +878,50 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                                   child: Text(
                                     e.message,
                                     style: TextStyle(
-                                      color: fc.textPrimary,
+                                      color: isLatest
+                                          ? fc.textPrimary
+                                          : fc.textPrimary.withValues(
+                                              alpha: 0.7,
+                                            ),
                                       fontSize: 12,
+                                      fontWeight: isLatest
+                                          ? FontWeight.w700
+                                          : FontWeight.w400,
                                       height: 1.3,
                                     ),
                                   ),
                                 ),
+                                if (isLatest) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: fc.amberBright.withValues(
+                                        alpha: 0.18,
+                                      ),
+                                      borderRadius: BorderRadius.circular(3),
+                                      border: Border.all(
+                                        color: fc.amberBright.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'NEW',
+                                      style: TextStyle(
+                                        color: fc.amberBright,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.6,
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           );
@@ -1440,9 +1481,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     final left = math.max(2.0, spriteCenterX - pillWidth / 2);
 
     return Positioned(
-      // Sprite visible bottom ≈ centerY + 36 (72px sprite, anchored
-      // center). Pill top placed 6px below that.
-      top: spriteCenterY + 42,
+      // Sprite visible bottom ≈ centerY + 43 (86px sprite, anchored
+      // center). Pill top placed 7px below that.
+      top: spriteCenterY + 50,
       left: left,
       width: pillWidth,
       child: _buildHpPill(index),
