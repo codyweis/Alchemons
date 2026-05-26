@@ -64,7 +64,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     this.alchemyEffect, // 💡 Must be provided when the effect is active
   }) : super(
          position: position,
-         size: Vector2(100, 120),
+         size: Vector2(108, 128),
          anchor: Anchor.center,
        );
 
@@ -74,7 +74,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     creatureVisual = CreatureSpriteComponentBattle(
       sheet: sheet,
       visuals: visuals,
-      desiredSize: Vector2(80, 80), // Size for battle display
+      desiredSize: Vector2(88, 88), // Size for battle display
       variantFaction: combatant.instanceRef?.variantFaction,
     );
     creatureVisual.position = size / 2;
@@ -109,7 +109,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
 
     // Selection indicator (behind creature)
     selectionIndicator = CircleComponent(
-      radius: 48,
+      radius: 52,
       paint: Paint()
         ..color = Colors.yellow.withValues(alpha: 0)
         ..style = PaintingStyle.stroke
@@ -123,9 +123,9 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   void _addEffectComponent(String effectName) {
     Component effectComponent;
 
-    // The visual size of the creature is ~80x80. Compute a normalized effect
+    // The visual size of the creature is ~88x88. Compute a normalized effect
     // base from this and use the centralized helper to get consistent sizes.
-    const double baseVisualSize = 80.0;
+    const double baseVisualSize = 88.0;
     final displayBase = displayBaseFromVisuals(
       baseBox: baseVisualSize,
       visualsScale: visuals.scale,
@@ -1056,7 +1056,8 @@ class FlameVoidRift extends PositionComponent with HasGameReference {
     canvas.drawCircle(
       center,
       radius * 1.06,
-      Paint()..color = const Color(0xFF6A0DAD).withValues(alpha: opacity * 0.18),
+      Paint()
+        ..color = const Color(0xFF6A0DAD).withValues(alpha: opacity * 0.18),
     );
     canvas.drawCircle(center, radius, Paint()..shader = shader);
   }
@@ -1109,10 +1110,7 @@ class FlamePrismaticCascade extends PositionComponent with HasGameReference {
       final opacity = (0.22 - i * 0.05).clamp(0.0, 1.0);
       final paint = Paint();
       for (var k = 3; k >= 1; k--) {
-        paint.color = _prismaticHsl(
-          layerHue,
-          a: opacity * (0.18 + k * 0.18),
-        );
+        paint.color = _prismaticHsl(layerHue, a: opacity * (0.18 + k * 0.18));
         canvas.drawCircle(Offset.zero, layerR * (0.7 + k * 0.12), paint);
       }
     }

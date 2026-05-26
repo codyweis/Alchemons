@@ -3503,8 +3503,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.bubble_chart, color: frame, size: 26),
-                      const SizedBox(width: 12),
                       Text(
                         'ORB DESTROYED',
                         style: TextStyle(

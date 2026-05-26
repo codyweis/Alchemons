@@ -442,10 +442,16 @@ class _CompanionTargetChoice {
   final CosmicSurvivalEnemy? enemy;
   final bool isBoss;
 
+  /// Radius of the target's hitbox (boss radius for bosses, enemy radius
+  /// otherwise). Drives standoff distance so companions don't park on top
+  /// of huge bosses.
+  final double radius;
+
   const _CompanionTargetChoice({
     required this.position,
     this.enemy,
     this.isBoss = false,
+    this.radius = 0,
   });
 }
 
@@ -622,6 +628,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final CosmicSurvivalSpawner spawner = CosmicSurvivalSpawner();
   final List<CosmicSurvivalEnemy> enemies = [];
   SurvivalBoss? activeBoss;
+  // Additional bosses spawned on multi-boss waves. Updated/rendered/targeted
+  // alongside [activeBoss]. Dead entries are pruned each wave cleanup.
+  final List<SurvivalBoss> extraBosses = [];
+  Iterable<SurvivalBoss> get allLivingBosses sync* {
+    final primary = activeBoss;
+    if (primary != null && !primary.isDead) yield primary;
+    for (final b in extraBosses) {
+      if (!b.isDead) yield b;
+    }
+  }
+
+  bool get anyBossAlive {
+    final primary = activeBoss;
+    if (primary != null && !primary.isDead) return true;
+    for (final b in extraBosses) {
+      if (!b.isDead) return true;
+    }
+    return false;
+  }
+
   final List<SurvivalBossProjectile> bossProjectiles = [];
   final List<SurvivalEnemyProjectile> enemyProjectiles = [];
 
@@ -1042,23 +1068,43 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Spawn boss on boss waves
     if (spawner.isBossWave && !spawner.bossSpawned && activeBoss == null) {
+      final wave = spawner.currentWave;
       final bossAngle = _rng.nextDouble() * 2 * pi;
       final bossTargetRadius = max(260.0, _arenaRadius - 130.0);
       final bossSpawnPos = Offset(
         orb.position.dx + cos(bossAngle) * bossTargetRadius,
         orb.position.dy + sin(bossAngle) * bossTargetRadius,
       );
-      activeBoss = spawner.createBossForWave(spawner.currentWave, bossSpawnPos);
+      activeBoss = spawner.createBossForWave(wave, bossSpawnPos);
       spawner.markBossSpawned();
       if (activeBoss != null) {
         _beginBossEntrance(activeBoss!, bossAngle);
         onBossSpawn?.call(activeBoss!);
       }
+      // Multi-boss waves: boss-level N spawns N bosses simultaneously, capped
+      // for sanity. Ultimate / titanic waves stay solo for readability.
+      extraBosses.clear();
+      final isUltimateWave = wave % 25 == 0;
+      if (activeBoss != null && !isUltimateWave) {
+        final bossLevel = (wave ~/ 5).clamp(1, 20);
+        final extraCount = (bossLevel - 1).clamp(0, 5);
+        for (var i = 0; i < extraCount; i++) {
+          final extraAngle = bossAngle + (i + 1) * (2 * pi / (extraCount + 1));
+          final extraPos = Offset(
+            orb.position.dx + cos(extraAngle) * bossTargetRadius,
+            orb.position.dy + sin(extraAngle) * bossTargetRadius,
+          );
+          final extra = spawner.createBossForWave(wave, extraPos);
+          if (extra == null) continue;
+          extraBosses.add(extra);
+          _beginBossEntrance(extra, extraAngle);
+        }
+      }
     }
 
     // Check wave completion
     final alive = enemies.length;
-    final bossAlive = activeBoss != null && !activeBoss!.isDead;
+    final bossAlive = anyBossAlive;
     spawner.checkWaveComplete(alive, bossAlive: bossAlive);
 
     _maybeTriggerPowerUpSelection();
@@ -1170,9 +1216,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       Offset? fireTarget;
       if (target != null) {
         fireTarget = target.position;
-      } else if (activeBoss != null && !activeBoss!.isDead) {
-        final bd = (activeBoss!.position - ship.position).distance;
-        if (bd < 500) fireTarget = activeBoss!.position;
+      } else {
+        double bestDist = double.infinity;
+        for (final b in allLivingBosses) {
+          final bd = (b.position - ship.position).distance;
+          if (bd < 500 && bd < bestDist) {
+            bestDist = bd;
+            fireTarget = b.position;
+          }
+        }
       }
       if (fireTarget != null) {
         ship.fireTimer = 0;
@@ -1377,19 +1429,27 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             life: 0.08,
           );
           _damageEnemy(target, beamDamage);
-        } else if (activeBoss != null && !activeBoss!.isDead) {
-          final boss = activeBoss!;
-          if ((boss.position - ship.position).distance < 560) {
+        } else {
+          SurvivalBoss? best;
+          double bestDist = 560;
+          for (final b in allLivingBosses) {
+            final d = (b.position - ship.position).distance;
+            if (d < bestDist) {
+              best = b;
+              bestDist = d;
+            }
+          }
+          if (best != null) {
             final beamDamage =
                 (7.0 + turretLevel * 5.0) * powerUps.shipDamageMultiplier;
             _spawnBeam(
               ship.position,
-              boss.position,
+              best.position,
               const Color(0xFF9FE8FF),
               width: 2.1 + turretLevel * 0.35,
               life: 0.08,
             );
-            damageBoss(beamDamage);
+            damageBoss(beamDamage, target: best);
           }
         }
       }
@@ -2068,7 +2128,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // When few regular enemies remain, lock onto the boss.
       if (enemies.where((e) => !e.isDead).length < 4) bossScore += 200;
       if (bossScore >= bestEnemyScore) {
-        return _CompanionTargetChoice(position: boss.position, isBoss: true);
+        return _CompanionTargetChoice(
+          position: boss.position,
+          isBoss: true,
+          radius: boss.radius,
+        );
       }
     }
 
@@ -2076,10 +2140,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return _CompanionTargetChoice(
         position: bestEnemy.position,
         enemy: bestEnemy,
+        radius: bestEnemy.radius,
       );
     }
     if (boss != null && !boss.isDead) {
-      return _CompanionTargetChoice(position: boss.position, isBoss: true);
+      return _CompanionTargetChoice(
+        position: boss.position,
+        isBoss: true,
+        radius: boss.radius,
+      );
     }
     return null;
   }
@@ -2099,6 +2168,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         return _CompanionTargetChoice(
           position: current.position,
           enemy: current,
+          radius: current.radius,
         );
       }
 
@@ -2115,6 +2185,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           return _CompanionTargetChoice(
             position: current.position,
             enemy: current,
+            radius: current.radius,
           );
         }
       }
@@ -2152,7 +2223,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final toTarget = targetPos - comp.position;
     final dist = toTarget.distance;
     if (dist <= 0.001) return null;
-    final desiredRange = _familyPreferredDistance(comp, family);
+    final basePreferred = _familyPreferredDistance(comp, family);
+    // Stand off based on the target's hitbox so a 90u-radius boss doesn't
+    // end up with companions hugging its center. Bosses also get a flat
+    // bonus + a small per-slot variance so a stack of companions doesn't
+    // converge onto the exact same point on the boss perimeter.
+    final standoffRadius = choice.radius;
+    final bossBonus = choice.isBoss ? 70.0 + slotIndex * 8.0 : 0.0;
+    final desiredRange = basePreferred + standoffRadius + bossBonus;
 
     // Slot-based fanning: each companion takes a distinct angular slot on
     // the orb-side of the target so same-family members don't all stack
@@ -2160,7 +2238,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // toward the target; each slot offsets by a fixed amount, fanning
     // companions across the orb-facing arc of the target (especially
     // important on bosses where 4-5 companions would otherwise pile on).
-    const slotSpreads = [0.0, 0.55, -0.55, 1.10, -1.10];
+    // Wider fan on boss targets so they form a clear arc instead of a
+    // tight clump on the boss perimeter.
+    final slotSpreads = choice.isBoss
+        ? const [0.0, 0.80, -0.80, 1.55, -1.55]
+        : const [0.0, 0.55, -0.55, 1.10, -1.10];
     final orbToTarget = targetPos - orb.position;
     final orbAngle = orbToTarget.distance > 0.001
         ? atan2(orbToTarget.dy, orbToTarget.dx)
@@ -2169,9 +2251,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         slotSpreads[slotIndex.clamp(0, slotSpreads.length - 1)];
     // orbAngle + pi puts the companion between the target and the orb.
     final approachAngle = orbAngle + pi + spreadOffset;
+    // Subtle per-companion bob so they don't look statue-locked when
+    // sitting at attack range. Small radius so it reads as "alive" not
+    // "drifting away".
+    final bobPhase = comp.position.dx * 0.013 + slotIndex * 0.9;
+    final bob = choice.isBoss
+        ? Offset(
+            sin(stats.timeElapsed * 1.6 + bobPhase) * 14.0,
+            cos(stats.timeElapsed * 1.4 + bobPhase * 0.8) * 10.0,
+          )
+        : Offset(
+            sin(stats.timeElapsed * 1.8 + bobPhase) * 6.0,
+            cos(stats.timeElapsed * 1.5 + bobPhase * 0.7) * 5.0,
+          );
     var combatPos =
         targetPos +
-        Offset(cos(approachAngle), sin(approachAngle)) * desiredRange;
+        Offset(cos(approachAngle), sin(approachAngle)) * desiredRange +
+        bob;
 
     // Zone loyalty: clamp combat position to stay within the patrol zone.
     // Companions will not chase past their zone boundary at all — they
@@ -2207,7 +2303,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final threatPos = choice?.position;
     if (threatPos != null) {
-      final minEnemyGap = _familyMinimumEnemyGap(comp, family);
+      // Base gap plus the target's hitbox so a colossus/boss doesn't have
+      // companions glued to its surface. Bosses get an extra cushion so
+      // they read as "engaging" rather than "embracing".
+      final baseGap = _familyMinimumEnemyGap(comp, family);
+      final minEnemyGap =
+          baseGap + choice!.radius + (choice.isBoss ? 50.0 : 0.0);
       final toThreat = resolved - threatPos;
       final threatDist = toThreat.distance;
       if (threatDist < minEnemyGap) {
@@ -2868,7 +2969,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // == Enemies =============================================================
 
   void _updateEnemies(double dt, _ProjectileControlBuckets controlBuckets) {
-    for (final enemy in enemies) {
+    // Variants can append enemies while the current wave is being updated.
+    // Iterate a snapshot so new spawns join cleanly on the next frame.
+    for (final enemy in List<CosmicSurvivalEnemy>.of(enemies)) {
       if (enemy.isDead) continue;
 
       enemy.slowTimer = (enemy.slowTimer - dt).clamp(0, 100);
@@ -2884,6 +2987,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // Wing+Ice: frost slowly thaws when the beam isn't on the enemy.
       if (enemy.frostBuildup > 0) {
         enemy.frostBuildup = max(0.0, enemy.frostBuildup - dt * 0.35);
+      }
+      // Summoner variant pulses out small wisp swarms on a fixed cooldown.
+      if (enemy.variant == SurvivalEnemyVariant.summoner) {
+        enemy.summonCooldown = max(0, enemy.summonCooldown - dt);
+        if (enemy.summonCooldown <= 0 && enemies.length < 220) {
+          enemy.summonCooldown = 6.5;
+          final adds = spawner.spawnSummonerWisps(enemy);
+          enemies.addAll(adds);
+          // Flash + sparkle so the player sees what happened.
+          _spawnHitSpark(enemy.position, elementColor(enemy.element));
+        }
       }
       // Mane+Plant root tag fades after pierce.
       if (enemy.maneRootTimer > 0) {
@@ -3175,6 +3289,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _damageOrb(
         enemy.damage * damageMultiplier * _orbImpactDamageMultiplier(enemy),
       );
+      if (_enemyExplodesOnOrbImpact(enemy)) {
+        _triggerEnemyOrbExplosion(enemy, damageMultiplier);
+      }
       if (powerUps.hasMirrorShield) {
         _triggerMirrorShieldPulse(enemy.position, enemy.damage);
       }
@@ -3213,22 +3330,60 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   double _orbImpactDamageMultiplier(CosmicSurvivalEnemy enemy) {
     final tierMult = switch (enemy.tier) {
-      EnemyTier.wisp => 1.0,
-      EnemyTier.drone => 1.0,
-      EnemyTier.sentinel => 1.12,
-      EnemyTier.phantom => 1.06,
-      EnemyTier.brute => 1.45,
-      EnemyTier.colossus => 1.85,
+      EnemyTier.wisp => 1.15,
+      EnemyTier.drone => 1.20,
+      EnemyTier.sentinel => 1.40,
+      EnemyTier.phantom => 1.30,
+      EnemyTier.brute => 2.10,
+      EnemyTier.colossus => 2.85,
     };
     final variantMult = switch (enemy.variant) {
-      SurvivalEnemyVariant.orbBreaker => 1.35,
-      SurvivalEnemyVariant.siegeShooter => 1.08,
-      SurvivalEnemyVariant.crusher => 1.26,
-      SurvivalEnemyVariant.pouncer => 1.08,
+      SurvivalEnemyVariant.orbBreaker => 1.55,
+      SurvivalEnemyVariant.siegeShooter => 1.12,
+      SurvivalEnemyVariant.crusher => 1.45,
+      SurvivalEnemyVariant.pouncer => 1.15,
+      SurvivalEnemyVariant.summoner => 1.0,
+      SurvivalEnemyVariant.splitter => 1.15,
       SurvivalEnemyVariant.standard => 1.0,
     };
-    final roleMult = enemy.role == CosmicEnemyRole.orbiter ? 1.12 : 1.0;
+    final roleMult = enemy.role == CosmicEnemyRole.orbiter ? 1.15 : 1.0;
     return tierMult * variantMult * roleMult;
+  }
+
+  bool _enemyExplodesOnOrbImpact(CosmicSurvivalEnemy enemy) {
+    if (enemy.variant == SurvivalEnemyVariant.orbBreaker ||
+        enemy.variant == SurvivalEnemyVariant.crusher) {
+      return true;
+    }
+    return enemy.tier == EnemyTier.brute || enemy.tier == EnemyTier.colossus;
+  }
+
+  double _enemyOrbExplosionRadius(CosmicSurvivalEnemy enemy) {
+    final base = switch (enemy.tier) {
+      EnemyTier.brute => 95.0,
+      EnemyTier.colossus => 135.0,
+      _ => 70.0,
+    };
+    final variantBoost = switch (enemy.variant) {
+      SurvivalEnemyVariant.orbBreaker => 18.0,
+      SurvivalEnemyVariant.crusher => 12.0,
+      _ => 0.0,
+    };
+    return base + variantBoost;
+  }
+
+  double _enemyOrbExplosionDamage(CosmicSurvivalEnemy enemy) {
+    final base = switch (enemy.tier) {
+      EnemyTier.brute => enemy.damage * 1.6,
+      EnemyTier.colossus => enemy.damage * 2.4,
+      _ => enemy.damage * 1.1,
+    };
+    final variantBoost = switch (enemy.variant) {
+      SurvivalEnemyVariant.orbBreaker => 1.4,
+      SurvivalEnemyVariant.crusher => 1.25,
+      _ => 1.0,
+    };
+    return base * variantBoost;
   }
 
   void _applyDecoyContactDamage(
@@ -3444,6 +3599,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     _spawnHitSpark(enemy.position, elementColor(enemy.element));
+    if (enemy.variant == SurvivalEnemyVariant.splitter &&
+        enemies.length < 220) {
+      final shards = spawner.spawnSplitterShards(enemy);
+      enemies.addAll(shards);
+      for (final shard in shards) {
+        _spawnHitSpark(shard.position, elementColor(shard.element));
+      }
+    }
     _triggerEliteDeathAffix(enemy, sourceSlotIndex: sourceSlotIndex);
 
     if (powerUps.hasElementalFury) {
@@ -3543,6 +3706,54 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  void _triggerEnemyOrbExplosion(
+    CosmicSurvivalEnemy enemy,
+    double damageMultiplier,
+  ) {
+    final radius = _enemyOrbExplosionRadius(enemy);
+    final damage = _enemyOrbExplosionDamage(enemy) * damageMultiplier;
+    final blastColor = elementColor(enemy.element);
+
+    // Big plume + ring of sparks.
+    _spawnHitSpark(enemy.position, blastColor);
+    final sparkCount = enemy.tier == EnemyTier.colossus ? 14 : 9;
+    for (var i = 0; i < sparkCount; i++) {
+      final angle = (i / sparkCount) * pi * 2;
+      _spawnHitSpark(
+        Offset(
+          enemy.position.dx + cos(angle) * (radius * 0.45),
+          enemy.position.dy + sin(angle) * (radius * 0.45),
+        ),
+        blastColor,
+      );
+    }
+
+    // Splash damage to the orb falls off with distance from impact center.
+    final orbDist = (enemy.position - orb.position).distance;
+    if (orbDist <= radius) {
+      final falloff = (1.0 - orbDist / radius).clamp(0.4, 1.0);
+      _damageOrb(damage * falloff);
+    }
+
+    // Splash damage to the ship and companions if they got too close.
+    if (!ship.isDead && _withinRange(enemy.position, ship.position, radius)) {
+      ship.currentHp -= damage * 0.55;
+      ship.hitFlash = 1.0;
+      if (ship.currentHp <= 0) {
+        ship.isDead = true;
+        _shipRespawnTimer = 0;
+      }
+    }
+    for (final comp in activeCompanions.values) {
+      if (comp.isDead) continue;
+      if (_withinRange(enemy.position, comp.position, radius)) {
+        _applyCompanionIncomingDamage(comp, damage * 0.65);
+        comp.hitFlash = 1.0;
+        if (comp.currentHp <= 0) comp.isDead = true;
+      }
+    }
+  }
+
   void _triggerMirrorShieldPulse(Offset impactPos, double incomingDamage) {
     final pulseRadius = 96.0;
     final pulseDamage = max(10.0, incomingDamage * 2.5);
@@ -3572,9 +3783,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // == Boss ================================================================
 
   void _updateBoss(double dt) {
-    final boss = activeBoss;
-    if (boss == null || boss.isDead) return;
+    final primary = activeBoss;
+    if (primary != null && !primary.isDead) {
+      _updateBossInstance(dt, primary);
+    }
+    for (final extra in extraBosses) {
+      if (extra.isDead) continue;
+      _updateBossInstance(dt, extra);
+    }
+  }
 
+  void _updateBossInstance(double dt, SurvivalBoss boss) {
     boss.hitFlash = (boss.hitFlash - dt * 4).clamp(0, 1);
     if (boss.isSpawning) {
       _updateBossEntrance(dt, boss);
@@ -3820,9 +4039,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
         : Offset.zero;
     final tangent = Offset(-norm.dy, norm.dx);
-    final targetDist = 320.0 + sin(boss.phaseTimer * 0.75) * 70.0;
+    // Riftcaller is a sniper-discipline boss; use its engagement ring with a
+    // gentle breathing oscillation on top.
+    final targetDist =
+        boss.engagementRange + sin(boss.phaseTimer * 0.75) * 70.0;
     final radialForce = (dist - targetDist) * 0.42;
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.9) * dt;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 1.1) *
+        dt;
     boss.angle = atan2(toAnchor.dy, toAnchor.dx);
 
     // Rift lance: direct high-speed pressure line.
@@ -3901,9 +4125,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
         : Offset.zero;
     final tangent = Offset(-norm.dy, norm.dx);
-    final targetDist = 280.0 + sin(boss.phaseTimer * 0.9) * 40.0;
+    // Conductor is an orbit-discipline boss; let its preferred ring drive
+    // distance with a small breathing oscillation.
+    final targetDist = boss.engagementRange + sin(boss.phaseTimer * 0.9) * 40.0;
     final radialForce = (dist - targetDist) * 0.48;
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.62) * dt;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.8) *
+        dt;
     boss.angle = atan2(toAnchor.dy, toAnchor.dx);
 
     boss.spreadTimer -= dt;
@@ -4159,9 +4387,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
         : Offset.zero;
     final tangent = Offset(-norm.dy, norm.dx);
-    const targetDist = 340.0;
-    final radialForce = (dist - targetDist) * 0.42;
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.35) * dt;
+    // Artillery discipline → snipers per the spawner; honor their ring.
+    final targetDist = boss.engagementRange;
+    // Pull harder if the player closes the gap so artillery actually backs up.
+    final radialPull = dist < targetDist * 0.6 ? 0.65 : 0.42;
+    final radialForce = (dist - targetDist) * radialPull;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.6) *
+        dt;
     boss.angle = atan2(toAnchor.dy, toAnchor.dx);
 
     boss.shootTimer -= dt;
@@ -4237,17 +4470,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
         : Offset.zero;
     final tangent = Offset(-norm.dy, norm.dx);
-    final targetDist = 190.0 + sin(boss.phaseTimer * 1.7) * 45.0;
+    final targetDist = boss.engagementRange + sin(boss.phaseTimer * 1.7) * 45.0;
     final radialForce = (dist - targetDist) * 0.75;
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.82) * dt;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight) * dt;
     boss.angle = atan2(toAnchor.dy, toAnchor.dx);
 
     boss.escortTimer -= dt;
     if (boss.escortTimer <= 0) {
       boss.escortTimer = max(4.5, 8.5 - boss.level * 0.12);
+      // Trickster blinks closer to its preferred engagement ring rather than
+      // always slamming into 210u, so orbit/sniper trickster variants don't
+      // immediately teleport into melee.
       final blinkAngle = _rng.nextDouble() * pi * 2;
+      final blinkDist = (boss.engagementRange * 0.92).clamp(180.0, 520.0);
       boss.position =
-          anchor + Offset(cos(blinkAngle) * 210, sin(blinkAngle) * 210);
+          anchor +
+          Offset(cos(blinkAngle) * blinkDist, sin(blinkAngle) * blinkDist);
       final fanTarget =
           _nearestCompanionPosition(boss.position) ?? ship.position;
       final fanAngle = atan2(
@@ -4344,13 +4583,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final dist = toOrb.distance;
       boss.angle = atan2(toOrb.dy, toOrb.dx);
 
-      const orbitDist = 220.0;
+      final orbitDist = boss.engagementRange;
       final norm = dist > 1
           ? Offset(toOrb.dx / dist, toOrb.dy / dist)
           : Offset.zero;
       final tangent = Offset(-norm.dy, norm.dx);
       final radialForce = (dist - orbitDist) * 0.8;
-      boss.position += (norm * radialForce + tangent * boss.speed * 0.8) * dt;
+      boss.position +=
+          (norm * radialForce + tangent * boss.speed * boss.strafeWeight) * dt;
 
       if (boss.chargeTimer <= 0) {
         // Charge toward ship if alive, else toward orb
@@ -4369,10 +4609,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final toOrb = anchor - boss.position;
     final dist = toOrb.distance;
     final tangent = Offset(-toOrb.dy / dist, toOrb.dx / dist);
-    const orbitDist = 250.0;
-    final radialForce = (dist - orbitDist) * 0.5;
+    final orbitDist = boss.engagementRange;
+    // Snipers are more eager to backpedal if pulled in close.
+    final radialPull = boss.movementStyle == SurvivalBossMovementStyle.sniper
+        ? 0.7
+        : 0.5;
+    final radialForce = (dist - orbitDist) * radialPull;
     final norm = Offset(toOrb.dx / dist, toOrb.dy / dist);
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.5) * dt;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.7) *
+        dt;
     boss.angle = atan2(toOrb.dy, toOrb.dx);
 
     boss.shootTimer -= dt;
@@ -4412,9 +4658,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? Offset(toOrb.dx / dist, toOrb.dy / dist)
         : Offset.zero;
     final tangent = Offset(-norm.dy, norm.dx);
-    final targetDist = 180.0 + sin(boss.phaseTimer * 1.5) * 60;
+    final targetDist = boss.engagementRange + sin(boss.phaseTimer * 1.5) * 60;
     final radialForce = (dist - targetDist) * 0.8;
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.7) * dt;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.85) *
+        dt;
     boss.angle = atan2(toOrb.dy, toOrb.dx);
 
     boss.shootTimer -= dt;
@@ -4441,10 +4689,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         : Offset.zero;
     boss.angle = atan2(toOrb.dy, toOrb.dx);
 
-    const targetDist = 145.0;
+    // Bulwarks usually plant themselves — orbiters keep their preferred ring,
+    // chase-style ones get the old aggressive 145.
+    final targetDist = boss.movementStyle == SurvivalBossMovementStyle.chase
+        ? 145.0
+        : boss.engagementRange;
     final tangent = Offset(-norm.dy, norm.dx);
     final radialForce = (dist - targetDist) * 0.75;
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.45) * dt;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.55) *
+        dt;
 
     boss.shieldTimer -= dt;
     if (!boss.shieldUp) {
@@ -4469,8 +4723,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final norm = dist > 1
         ? Offset(toOrb.dx / dist, toOrb.dy / dist)
         : Offset.zero;
-    final radialForce = (dist - 300) * 0.4;
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.4) * dt;
+    final radialForce = (dist - boss.engagementRange) * 0.4;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.5) *
+        dt;
     boss.angle = atan2(toOrb.dy, toOrb.dx);
 
     boss.escortTimer -= dt;
@@ -4517,10 +4773,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       boss.speed = boss.baseSpeed * 1.5;
     }
 
-    final targetDist = boss.enraged ? 140.0 : 220.0;
+    // Enraged warden always closes the gap; otherwise honor the boss's
+    // preferred engagement ring so snipers stay back firing.
+    final targetDist = boss.enraged ? 140.0 : boss.engagementRange;
     final tangent = Offset(-norm.dy, norm.dx);
     final radialForce = (dist - targetDist) * 0.65;
-    boss.position += (norm * radialForce + tangent * boss.speed * 0.55) * dt;
+    boss.position +=
+        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.65) *
+        dt;
 
     boss.spreadTimer -= dt;
     if (boss.spreadTimer <= 0) {
@@ -4558,8 +4818,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double damage, {
     String? attackElement,
     int? sourceSlotIndex,
+    SurvivalBoss? target,
   }) {
-    final boss = activeBoss;
+    final boss = target ?? activeBoss;
     if (boss == null || boss.isDead) return;
 
     damage *= _companionOutgoingDamageMultiplier(sourceSlotIndex, vsBoss: true);
@@ -4597,7 +4858,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       stats.score += (boss.template.health * 2).round();
       _spawnBossAlchemyReward(boss);
       _spawnHitSpark(boss.position, boss.color);
-      activeBoss = null;
+      if (identical(boss, activeBoss)) {
+        // Promote the next alive extra boss to be the new primary so existing
+        // single-boss-aware code paths keep targeting something.
+        SurvivalBoss? promoted;
+        for (final b in extraBosses) {
+          if (!b.isDead) {
+            promoted = b;
+            break;
+          }
+        }
+        if (promoted != null) {
+          extraBosses.remove(promoted);
+          activeBoss = promoted;
+        } else {
+          activeBoss = null;
+        }
+      } else {
+        // Killed extra — leave in list so iteration still works; cleanup
+        // happens between waves.
+      }
     }
   }
 
@@ -4761,7 +5041,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required bool killed,
   }) {
     if (projectile.abilityFamily == 'let') {
-      _resolveLetMeteorHit(projectile, enemy, killed: killed);
+      _resolveLetMeteorHit(projectile, enemy);
       return;
     }
     _applyAbilityEffectToEnemy(
@@ -4778,7 +5058,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void resolveAbilityKill(Projectile projectile, CosmicSurvivalEnemy enemy) {
     if (projectile.abilityFamily == 'let') {
-      _resolveLetMeteorKill(projectile, enemy.position);
+      _resolveLetMeteorImpactAftermath(
+        projectile,
+        enemy.position,
+        primary: enemy,
+      );
       return;
     }
     _applyAbilityEffectToEnemy(
@@ -4792,11 +5076,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
-  void _resolveLetMeteorHit(
-    Projectile projectile,
-    CosmicSurvivalEnemy enemy, {
-    required bool killed,
-  }) {
+  void _resolveLetMeteorHit(Projectile projectile, CosmicSurvivalEnemy enemy) {
     final element = projectile.element ?? '';
     // Only the meteor core leaves a persistent elemental pool. The
     // spread secondaries (haboob grains, lances, shards) are piercing /
@@ -4845,41 +5125,85 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             enemy.position,
             element: element,
             tickEffect: AbilityEffectKind.poison,
-            radius: 58,
+            radius: 116,
             duration: 3.8,
             power: projectile.damage * 0.08,
-            visualScale: 0.95,
+            visualScale: 1.9,
           );
         }
         break;
       case 'Earth':
         _healLowestAllyOrShip(
-          projectile.damage * 0.22,
+          projectile.damage * 0.26,
           sourceSlot: projectile.sourceSlotIndex,
         );
+        _damageEnemiesNear(
+          enemy.position,
+          max(150, projectile.effectRadius),
+          projectile.damage * 0.38,
+          sourceSlotIndex: projectile.sourceSlotIndex,
+          exclude: enemy,
+        );
+        if (isMeteorCore) {
+          _spawnLetZone(
+            projectile,
+            enemy.position,
+            element: element,
+            tickEffect: AbilityEffectKind.stun,
+            radius: 128,
+            duration: 3.2,
+            power: projectile.damage * 0.10,
+            visualScale: 1.55,
+          );
+        }
         break;
       case 'Spirit':
-        if (!enemy.isDead && _rng.nextDouble() <= projectile.effectChance) {
+        if (!enemy.isDead &&
+            (enemy.hpFraction <= 0.35 ||
+                _rng.nextDouble() <= projectile.effectChance)) {
           _damageEnemy(
             enemy,
             enemy.hp + 1,
             sourceSlotIndex: projectile.sourceSlotIndex,
           );
-          if (enemy.isDead) _resolveLetMeteorKill(projectile, enemy.position);
+        } else if (!enemy.isDead) {
+          _damageEnemy(
+            enemy,
+            projectile.damage * 0.35,
+            sourceSlotIndex: projectile.sourceSlotIndex,
+          );
         }
         break;
       case 'Crystal':
         enemy.slowTimer = max(enemy.slowTimer, 3.5);
         enemy.slowMultiplier = min(enemy.slowMultiplier, 0.10);
         enemy.knockbackVelocity = Offset.zero;
+        _damageEnemy(
+          enemy,
+          projectile.damage * 0.25,
+          sourceSlotIndex: projectile.sourceSlotIndex,
+        );
+        _damageEnemiesNear(
+          enemy.position,
+          max(140, projectile.effectRadius),
+          projectile.damage * 0.32,
+          sourceSlotIndex: projectile.sourceSlotIndex,
+          exclude: enemy,
+        );
         break;
       case 'Lightning':
         _triggerChainLightning(
           sourceEnemy: enemy,
           origin: enemy.position,
-          baseDamage: projectile.damage * 0.58,
+          baseDamage: projectile.damage * 0.72,
           sourceSlotIndex: projectile.sourceSlotIndex,
           remainingChains: max(2, projectile.effectCount),
+          requirePowerUp: false,
+        );
+        _damageEnemy(
+          enemy,
+          projectile.damage * 0.18,
+          sourceSlotIndex: projectile.sourceSlotIndex,
         );
         break;
       case 'Ice':
@@ -4899,13 +5223,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       default:
         break;
     }
-    if (killed) _resolveLetMeteorKill(projectile, enemy.position);
+    _resolveLetMeteorImpactAftermath(
+      projectile,
+      enemy.position,
+      primary: enemy,
+    );
   }
 
-  void _resolveLetMeteorKill(Projectile projectile, Offset center) {
-    // Only the meteor core leaves persistent kill-zones. Without this,
+  void _resolveLetMeteorImpactAftermath(
+    Projectile projectile,
+    Offset center, {
+    CosmicSurvivalEnemy? primary,
+  }) {
+    // Only the meteor core leaves persistent zones. Without this,
     // a piercing/bouncing spread secondary that kills several enemies
-    // would stack one full set of zones per kill.
+    // would stack one full set of zones per hit.
     final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
     switch (projectile.element) {
       case 'Air':
@@ -4933,8 +5265,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
         break;
       case 'Blood':
-        final drain = projectile.damage * 0.34;
+        final drain = projectile.damage * 0.22;
         _visitEnemiesNear(center, max(170, projectile.effectRadius), (enemy) {
+          if (primary != null && identical(enemy, primary)) return false;
           if (!_withinRange(
             center,
             enemy.position,
@@ -4956,7 +5289,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           );
           return false;
         });
-        _healAllCompanionsAndShip(drain * 0.35);
+        _healAllCompanionsAndShip(drain * 0.18);
         break;
       case 'Light':
         if (isMeteorCore) {
@@ -4975,22 +5308,34 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Fire':
         _damageEnemiesNear(
           center,
-          max(185, projectile.effectRadius * 1.45),
+          max(555, projectile.effectRadius * 3.0),
           projectile.damage * 0.72,
           sourceSlotIndex: projectile.sourceSlotIndex,
+          exclude: primary,
         );
         _spawnDetonationBurst(
           center,
           elementColor('Fire'),
-          max(80, projectile.effectRadius),
+          max(240, projectile.effectRadius * 3.0),
         );
         break;
       case 'Dark':
-        // Per design: kill spawns up to 5 follow-up meteors, but those
+        // Per design: impact spawns up to 5 follow-up meteors, but those
         // children must NOT chain again or the cast cascades infinitely.
         // Children are tagged effectStacks=1 to short-circuit here.
         if (projectile.effectStacks == 0) {
           _spawnDarkLetKillMeteors(projectile, center);
+        } else {
+          final radius = max(120.0, projectile.effectRadius);
+          _visitEnemiesNear(center, radius, (enemy) {
+            final dir = center - enemy.position;
+            final dist = dir.distance;
+            if (dist <= 0.01 || dist > radius) return false;
+            enemy.position += (dir / dist) * min(28.0, 720.0 / dist);
+            enemy.slowTimer = max(enemy.slowTimer, projectile.effectDuration);
+            enemy.slowMultiplier = min(enemy.slowMultiplier, 0.25);
+            return false;
+          });
         }
         break;
       case 'Steam':
@@ -5881,11 +6226,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       target = _nearestEnemyTo(beam.origin, d.range);
     }
     if (target != null) return target.position;
-    if (activeBoss != null &&
-        !activeBoss!.isDead &&
-        (activeBoss!.position - beam.origin).distance <= d.range) {
-      return activeBoss!.position;
+    SurvivalBoss? bestBoss;
+    double bestDist = d.range;
+    for (final b in allLivingBosses) {
+      final bd = (b.position - beam.origin).distance;
+      if (bd <= bestDist) {
+        bestDist = bd;
+        bestBoss = b;
+      }
     }
+    if (bestBoss != null) return bestBoss.position;
     return fallback;
   }
 
@@ -6015,8 +6365,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       });
     }
 
-    final boss = activeBoss;
-    if (boss != null && !boss.isDead) {
+    for (final boss in allLivingBosses) {
       final hitsBoss = d.targetPolicy == WingBeamTargetPolicy.ring
           ? _withinRange(beam.origin, boss.position, d.radius + boss.radius)
           : _distanceToSegment(boss.position, beam.origin, end) <=
@@ -6026,6 +6375,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           d.damagePerTick,
           attackElement: d.element,
           sourceSlotIndex: beam.sourceSlotIndex,
+          target: boss,
         );
       }
     }
@@ -6369,9 +6719,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               bestTarget = e.position;
             }
           }
-          if (activeBoss != null && !activeBoss!.isDead) {
-            final bdSq = _distanceSquared(activeBoss!.position, p.position);
-            if (bdSq < bestDistSq) bestTarget = activeBoss!.position;
+          for (final b in allLivingBosses) {
+            final bdSq = _distanceSquared(b.position, p.position);
+            if (bdSq < bestDistSq) {
+              bestDistSq = bdSq;
+              bestTarget = b.position;
+            }
           }
           p.cachedHomingTarget = bestTarget;
         }
@@ -6808,7 +7161,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           remainingChains: p.chainLightningCharges,
         );
 
-
         // Ricochet (Pip): prefer tightly-clustered nearby targets so the
         // bounce reads as a snappy chain instead of darting toward distant
         // enemies that are off-screen or behind cover. Each bounce sheds
@@ -6841,19 +7193,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         return true;
       });
 
-      // Hit detection vs boss
-      if (!consumed &&
-          activeBoss != null &&
-          !activeBoss!.isDead &&
-          !p.hitBoss) {
-        final d = (activeBoss!.position - p.position).distance;
-        if (d < activeBoss!.radius + hitRadius) {
+      // Hit detection vs every alive boss (primary + extras).
+      if (!consumed && !p.hitBoss) {
+        for (final boss in allLivingBosses) {
+          final d = (boss.position - p.position).distance;
+          if (d >= boss.radius + hitRadius) continue;
           // Mane+Crystal: instakill boss on collision via massive
           // crystal burst (per design: "explode and do huge AOE and dmg"
           // against bosses).
           var bossDamage = p.damage;
           if (p.abilityFamily == 'mane' && p.element == 'Crystal') {
-            final boss = activeBoss!;
             boss.shieldUp = false;
             boss.shieldHealth = 0;
             bossDamage =
@@ -6880,10 +7229,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 ? null
                 : p.element,
             sourceSlotIndex: p.sourceSlotIndex,
+            target: boss,
           );
           p.hitBoss = true;
           _spawnProjectileHitSpark(p);
-          if (!p.piercing) consumed = true;
+          if (!p.piercing) {
+            consumed = true;
+          }
+          break;
         }
       }
 
@@ -7082,13 +7435,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             }
             return false;
           });
-          if (activeBoss != null && !activeBoss!.isDead) {
-            if (_withinRange(
-              proj.position,
-              activeBoss!.position,
-              proj.splashRadius,
-            )) {
-              damageBoss(proj.damage * 0.55);
+          for (final b in allLivingBosses) {
+            if (_withinRange(proj.position, b.position, proj.splashRadius)) {
+              damageBoss(proj.damage * 0.55, target: b);
             }
           }
         }
@@ -7096,27 +7445,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         return true;
       });
 
-      if (proj.life > 0 && activeBoss != null && !activeBoss!.isDead) {
-        if (_withinRange(
-          proj.position,
-          activeBoss!.position,
-          activeBoss!.radius + 5,
-        )) {
-          damageBoss(proj.damage);
-          // Rocket splash AoE on boss
-          if (proj.splashRadius > 0) {
-            _visitEnemiesNear(proj.position, proj.splashRadius, (other) {
-              if (_withinRange(
-                proj.position,
-                other.position,
-                proj.splashRadius,
-              )) {
-                _damageEnemy(other, proj.damage * 0.55);
-              }
-              return false;
-            });
+      if (proj.life > 0) {
+        for (final boss in allLivingBosses) {
+          if (_withinRange(proj.position, boss.position, boss.radius + 5)) {
+            damageBoss(proj.damage, target: boss);
+            // Rocket splash AoE on boss
+            if (proj.splashRadius > 0) {
+              _visitEnemiesNear(proj.position, proj.splashRadius, (other) {
+                if (_withinRange(
+                  proj.position,
+                  other.position,
+                  proj.splashRadius,
+                )) {
+                  _damageEnemy(other, proj.damage * 0.55);
+                }
+                return false;
+              });
+            }
+            proj.life = 0;
+            break;
           }
-          proj.life = 0;
         }
       }
     }
@@ -7128,6 +7476,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     enemies.removeWhere((enemy) => enemy.isDead);
     enemyProjectiles.clear();
     bossProjectiles.clear();
+    extraBosses.removeWhere((boss) => boss.isDead);
   }
 
   double _distanceSquared(Offset a, Offset b) {
@@ -7660,6 +8009,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _maybeTriggerPowerUpSelection() {
     if (showingPowerUpSelection || alchemicalMeter < alchemicalMeterMax) return;
+    // Wait for the visual meter to catch up to the underlying value so the
+    // surge popup never appears before the bar finishes filling.
+    if (_alchemicalMeterDisplayFrac < 0.995) return;
     showingPowerUpSelection = true;
     gamePaused = true;
     onWaveIntermission?.call();
@@ -7760,9 +8112,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required double baseDamage,
     required int remainingChains,
     int? sourceSlotIndex,
+    bool requirePowerUp = true,
   }) {
     if (remainingChains <= 0 || sourceSlotIndex == null) return;
-    if (!powerUps.companionHasChainLightning(sourceSlotIndex)) return;
+    if (requirePowerUp &&
+        !powerUps.companionHasChainLightning(sourceSlotIndex)) {
+      return;
+    }
 
     var current = sourceEnemy;
     for (var i = 0; i < remainingChains; i++) {
@@ -7906,6 +8262,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     if (activeBoss != null && !activeBoss!.isDead) {
       _renderBoss(canvas, activeBoss!);
+    }
+    for (final extra in extraBosses) {
+      if (extra.isDead) continue;
+      _renderBoss(canvas, extra);
     }
 
     // Boss projectiles
@@ -8623,6 +8983,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       SurvivalEnemyVariant.siegeShooter => 0.94,
       SurvivalEnemyVariant.crusher => 1.20,
       SurvivalEnemyVariant.pouncer => 0.90,
+      SurvivalEnemyVariant.summoner => 1.08,
+      SurvivalEnemyVariant.splitter => 1.04,
       SurvivalEnemyVariant.standard => 1.0,
     };
     final variantYScale = switch (enemy.variant) {
@@ -8630,6 +8992,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       SurvivalEnemyVariant.siegeShooter => 1.10,
       SurvivalEnemyVariant.crusher => 0.88,
       SurvivalEnemyVariant.pouncer => 1.16,
+      SurvivalEnemyVariant.summoner => 1.08,
+      SurvivalEnemyVariant.splitter => 0.96,
       SurvivalEnemyVariant.standard => 1.0,
     };
 

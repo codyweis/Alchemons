@@ -4339,7 +4339,11 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    void resolveLetMeteorKill(Projectile projectile, Offset center) {
+    void resolveLetMeteorImpactAftermath(
+      Projectile projectile,
+      Offset center, {
+      CosmicEnemy? primary,
+    }) {
       final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
       switch (projectile.element) {
         case 'Air':
@@ -4370,9 +4374,9 @@ class CosmicGame extends FlameGame with PanDetector {
           }
           break;
         case 'Blood':
-          final drain = projectile.damage * 0.34;
-          damageEnemiesNear(center, 170, drain);
-          healAllCompanionsAndShip(drain * 0.35);
+          final drain = projectile.damage * 0.22;
+          damageEnemiesNear(center, 170, drain, exclude: primary);
+          healAllCompanionsAndShip(drain * 0.18);
           break;
         case 'Light':
           if (isMeteorCore) {
@@ -4389,19 +4393,34 @@ class CosmicGame extends FlameGame with PanDetector {
           }
           break;
         case 'Fire':
-          damageEnemiesNear(center, 185, projectile.damage * 0.72);
+          damageEnemiesNear(
+            center,
+            555,
+            projectile.damage * 0.72,
+            exclude: primary,
+          );
           vfxRings.add(
             VfxShockRing(
               x: center.dx,
               y: center.dy,
               color: elementColor('Fire'),
-              maxRadius: 85,
+              maxRadius: 255,
             ),
           );
           break;
         case 'Dark':
           if (projectile.effectStacks == 0) {
             spawnDarkLetKillMeteors(projectile, center);
+          } else {
+            for (final other in enemies) {
+              if (other.dead) continue;
+              final dir = center - other.position;
+              final dist = dir.distance;
+              if (dist > 0.01 && dist <= max(120.0, projectile.effectRadius)) {
+                other.position += (dir / dist) * min(18.0, 720.0 / dist);
+                other.driftTimer += 0.6;
+              }
+            }
           }
           break;
         case 'Steam':
@@ -4437,11 +4456,7 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    void resolveLetMeteorHit(
-      Projectile projectile,
-      CosmicEnemy enemy, {
-      required bool killed,
-    }) {
+    void resolveLetMeteorHit(Projectile projectile, CosmicEnemy enemy) {
       final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
       switch (projectile.element) {
         case 'Dust':
@@ -4479,34 +4494,62 @@ class CosmicGame extends FlameGame with PanDetector {
               enemy.position,
               element: 'Poison',
               effect: AbilityEffectKind.poison,
-              radius: 58,
+              radius: 116,
               duration: 3.8,
               power: projectile.damage * 0.08,
-              visualScale: 0.95,
+              visualScale: 1.9,
             );
           }
           break;
         case 'Earth':
-          healCompanionOrShip(projectile.damage * 0.22);
+          healCompanionOrShip(projectile.damage * 0.26);
+          damageEnemiesNear(
+            enemy.position,
+            max(150, projectile.effectRadius),
+            projectile.damage * 0.38,
+            exclude: enemy,
+          );
+          if (isMeteorCore) {
+            spawnLetZone(
+              projectile,
+              enemy.position,
+              element: 'Earth',
+              effect: AbilityEffectKind.stun,
+              radius: 128,
+              duration: 3.2,
+              power: projectile.damage * 0.10,
+              visualScale: 1.55,
+            );
+          }
           break;
         case 'Spirit':
           if (enemy.health > 0 &&
-              _rng.nextDouble() <= projectile.effectChance) {
+              (enemy.health / enemy.maxHealth <= 0.35 ||
+                  _rng.nextDouble() <= projectile.effectChance)) {
             enemy.health = 0;
-            killed = true;
+          } else {
+            enemy.health -= projectile.damage * 0.35;
           }
           break;
         case 'Crystal':
           enemy.speed = max(10.0, enemy.speed * 0.10);
           enemy.driftTimer += 3.5;
+          enemy.health -= projectile.damage * 0.25;
+          damageEnemiesNear(
+            enemy.position,
+            max(140, projectile.effectRadius),
+            projectile.damage * 0.32,
+            exclude: enemy,
+          );
           break;
         case 'Lightning':
           damageEnemiesNear(
             enemy.position,
-            155,
-            projectile.damage * 0.58,
+            max(180, projectile.effectRadius),
+            projectile.damage * 0.72,
             exclude: enemy,
           );
+          enemy.health -= projectile.damage * 0.18;
           break;
         case 'Ice':
           enemy.speed = max(8.0, enemy.speed * 0.05);
@@ -4523,12 +4566,20 @@ class CosmicGame extends FlameGame with PanDetector {
         default:
           break;
       }
-      if (killed) resolveLetMeteorKill(projectile, enemy.position);
+      resolveLetMeteorImpactAftermath(
+        projectile,
+        enemy.position,
+        primary: enemy,
+      );
     }
 
     void resolveAbilityKill(Projectile projectile, CosmicEnemy enemy) {
       if (projectile.abilityFamily == 'let') {
-        resolveLetMeteorKill(projectile, enemy.position);
+        resolveLetMeteorImpactAftermath(
+          projectile,
+          enemy.position,
+          primary: enemy,
+        );
         return;
       }
       resolveAbilityEffect(projectile.killEffect, projectile, enemy);
@@ -4541,7 +4592,7 @@ class CosmicGame extends FlameGame with PanDetector {
       required bool killed,
     }) {
       if (projectile.abilityFamily == 'let') {
-        resolveLetMeteorHit(projectile, enemy, killed: killed);
+        resolveLetMeteorHit(projectile, enemy);
         return;
       }
       resolveAbilityEffect(projectile.hitEffect, projectile, enemy);

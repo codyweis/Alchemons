@@ -170,7 +170,8 @@ void main() {
       final meteor = result.projectiles.firstWhere(
         (p) => p.visualStyle == ProjectileVisualStyle.meteor,
       );
-      expect(meteor.radiusMultiplier, greaterThanOrEqualTo(3.0));
+      expect(meteor.radiusMultiplier, greaterThanOrEqualTo(7.0));
+      expect(meteor.visualScale, greaterThanOrEqualTo(6.0));
       expect(meteor.trailInterval, 0);
       expect(meteor.clusterCount, 0);
       expect(meteor.abilityFamily, 'let');
@@ -208,7 +209,7 @@ void main() {
     test('every let element produces a single tagged meteor projectile', () {
       // Per-element aftermaths (DoT zones, executes, knockbacks, etc.) are
       // resolved by the survival/open-world runtime on impact — see
-      // _resolveLetMeteorHit/Kill. At cast time the special should reduce to
+      // _resolveLetMeteorHit. At cast time the special should reduce to
       // one meteor projectile so the runtime has a single anchor to react to.
       const elements = [
         'Fire',

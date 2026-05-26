@@ -120,7 +120,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
   Vector2 _teamSlotPosition(int index) {
     final spacing = size.x / (playerTeam.length + 1);
-    return Vector2(spacing * (index + 1), size.y * 0.7);
+    return Vector2(spacing * (index + 1), size.y * 0.66);
   }
 
   Future<void> _restoreRevivedSprites() async {
@@ -248,7 +248,7 @@ class BattleGame extends FlameGame with TapCallbacks {
     // Boss - perfectly centered
     bossSprite = BossSprite(
       combatant: boss,
-      position: Vector2(size.x / 2, size.y * 0.38),
+      position: Vector2(size.x / 2, size.y * 0.36),
     );
     await add(bossSprite);
 
@@ -258,8 +258,8 @@ class BattleGame extends FlameGame with TapCallbacks {
     BattleEngine.zoneRegistry = zoneRegistry;
     _zoneLayer = BattlefieldZoneLayer(
       registry: zoneRegistry,
-      playerAnchor: Vector2(size.x / 2, size.y * 0.78),
-      bossAnchor: Vector2(size.x / 2, size.y * 0.48),
+      playerAnchor: Vector2(size.x / 2, size.y * 0.72),
+      bossAnchor: Vector2(size.x / 2, size.y * 0.47),
     );
     await add(_zoneLayer!);
 
@@ -389,7 +389,10 @@ class BattleGame extends FlameGame with TapCallbacks {
             result.typeMultiplier,
             isCritical: result.isCritical,
           );
-          _showTypeEffectivenessText(bossSprite.position, result.typeMultiplier);
+          _showTypeEffectivenessText(
+            bossSprite.position,
+            result.typeMultiplier,
+          );
         },
       );
     }
@@ -2052,7 +2055,7 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
   late final Color _auraColor;
 
   BossSprite({required this.combatant, required Vector2 position})
-    : super(position: position, size: Vector2(150, 150), anchor: Anchor.center);
+    : super(position: position, size: Vector2(180, 180), anchor: Anchor.center);
 
   @override
   Future<void> onLoad() async {
@@ -2070,7 +2073,7 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
           CreatureSpriteComponentBattle(
               sheet: sheet,
               visuals: visuals,
-              desiredSize: Vector2(150, 150),
+              desiredSize: Vector2(180, 180),
             )
             ..position = center
             ..anchor = Anchor.center

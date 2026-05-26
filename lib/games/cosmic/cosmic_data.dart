@@ -7172,17 +7172,14 @@ CosmicSpecialResult _letSpecial(
   // landing hits like a hammer. Every other element uses the standard core.
   final isEarth = element == 'Earth';
   final meteor = Projectile(
-    position: Offset(
-      origin.dx + cos(angle) * 22,
-      origin.dy + sin(angle) * 22,
-    ),
+    position: Offset(origin.dx + cos(angle) * 22, origin.dy + sin(angle) * 22),
     angle: angle,
     element: element,
     damage: damage * (isEarth ? 12.0 : 6.0),
     life: isEarth ? 2.0 : 1.8,
     speedMultiplier: isEarth ? 0.38 : 0.55,
-    radiusMultiplier: isEarth ? 5.0 : 3.5,
-    visualScale: isEarth ? 4.0 : 3.0,
+    radiusMultiplier: isEarth ? 10.0 : 7.0,
+    visualScale: isEarth ? 8.0 : 6.0,
     visualStyle: ProjectileVisualStyle.meteor,
   );
 
@@ -7197,9 +7194,9 @@ CosmicSpecialResult _letSpecial(
       shipHeal = (CosmicBalance.shipMaxHealth * 0.025 * sustainScale).round();
       break;
     case 'Blood':
-      selfHeal = (damage * 5.5 * sustainScale).round();
+      selfHeal = (damage * 2.2 * sustainScale).round();
       blessingTimer = 2.2;
-      blessingHealPerTick = damage * 0.10 * sustainScale;
+      blessingHealPerTick = damage * 0.045 * sustainScale;
       break;
     case 'Light':
       shipHeal = (CosmicBalance.shipMaxHealth * 0.035 * sustainScale).round();
@@ -7218,18 +7215,18 @@ CosmicSpecialResult _letSpecial(
   // Per-element meteor-core modifiers:
   //  - Crystal trades damage for a halved cooldown (see _specialCooldown).
   //  - Spirit carries the one-shot proc chance, scaled by intelligence so
-  //    booster-stacked builds can actually reach the 0.38 cap instead of
+  //    booster-stacked builds can actually reach the 0.50 cap instead of
   //    capping out at ~0.245 from the 5.0 genetic ceiling alone.
   final crystalDamageMul = element == 'Crystal' ? 0.58 : 1.0;
   final spiritChance = element == 'Spirit'
-      ? (0.20 +
+      ? (0.27 +
                 (casterIntelligence.clamp(
                           _abilityStatFloor,
                           _abilityStatCeiling,
                         ) -
-                        4.0) *
-                    0.045)
-            .clamp(0.10, 0.38)
+                        3.0) *
+                    0.05)
+            .clamp(0.22, 0.50)
             .toDouble()
       : 1.0;
   scaledMeteor = _copyProjectile(

@@ -40,7 +40,7 @@ void main() {
     test('let core reads as a meteor', () {
       // Each let element collapses to a single meteor at cast time; the
       // per-element aftermath (Dark cascade, Poison contamination, etc.) is
-      // handled by the runtime on impact — see _resolveLetMeteorHit/Kill.
+      // handled by the runtime on impact — see _resolveLetMeteorHit.
       for (final element in const ['Dark', 'Poison']) {
         final result = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
@@ -177,7 +177,7 @@ void main() {
       expect(let.projectiles.first.abilityFamily, 'let');
       // Let meteors don't carry hitEffect — per-element aftermath (chain,
       // splash, freeze, etc.) is resolved by the runtime on impact via
-      // _resolveLetMeteorHit/Kill.
+      // _resolveLetMeteorHit.
       expect(
         pip.projectiles.any((p) => p.killEffect == AbilityEffectKind.buff),
         isTrue,

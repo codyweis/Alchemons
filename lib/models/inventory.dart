@@ -420,15 +420,16 @@ class LootBoxConfig {
     final silver = base + variance;
 
     var gold = 0;
-    final goldChance = wave >= 40
-        ? 0.08
-        : wave >= 25
-        ? 0.04
-        : 0.01;
-    if (rng.nextDouble() <= goldChance) {
-      gold = 1;
-      if (wave >= 55 && rng.nextDouble() < 0.05) {
+    if (wave > 25) {
+      // Guaranteed minimum past stage 25, scaling slowly with wave.
+      gold = 5 + ((wave - 26) ~/ 5);
+      if (wave >= 55 && rng.nextDouble() < 0.25) {
         gold += 1;
+      }
+    } else {
+      final goldChance = wave >= 25 ? 0.04 : 0.01;
+      if (rng.nextDouble() <= goldChance) {
+        gold = 1;
       }
     }
 

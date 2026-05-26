@@ -46,10 +46,9 @@ class CosmicSurvivalBalance {
 
   static double enemyWaveDamageScale(int wave) {
     if (wave <= 1) return 1.0;
-    // Climbs on a steeper curve than before so late-wave enemies stay
-    // threatening instead of becoming pure damage sponges. Tracks the
-    // HP curve closely enough that the threat/grind ratio stays stable.
-    return 1.0 + pow(wave - 1, 1.18).toDouble() * 0.019;
+    // Steeper damage curve so late-wave enemies (especially big slow ones)
+    // stay genuinely threatening rather than becoming damage sponges.
+    return 1.0 + pow(wave - 1, 1.22).toDouble() * 0.028;
   }
 
   static double enemyWaveSpeedScale(int wave) {

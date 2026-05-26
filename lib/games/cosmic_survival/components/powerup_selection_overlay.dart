@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:flutter/material.dart';
@@ -78,7 +80,59 @@ class PowerUpSelectionOverlay extends StatefulWidget {
       _PowerUpSelectionOverlayState();
 }
 
-class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay> {
+class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entryController;
+  late final Animation<double> _backdropFade;
+  late final Animation<double> _panelOpacity;
+  late final Animation<double> _panelScale;
+  late final Animation<double> _panelSlide;
+  late final Animation<double> _cardStagger;
+
+  @override
+  void initState() {
+    super.initState();
+    _entryController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
+    _backdropFade = CurvedAnimation(
+      parent: _entryController,
+      curve: const Interval(0.0, 0.45, curve: Curves.easeOut),
+    );
+    _panelOpacity = CurvedAnimation(
+      parent: _entryController,
+      curve: const Interval(0.18, 0.70, curve: Curves.easeOut),
+    );
+    _panelScale = Tween<double>(begin: 0.86, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entryController,
+        curve: const Interval(0.18, 0.85, curve: Curves.easeOutBack),
+      ),
+    );
+    _panelSlide = Tween<double>(begin: 28.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _entryController,
+        curve: const Interval(0.18, 0.85, curve: Curves.easeOutCubic),
+      ),
+    );
+    _cardStagger = CurvedAnimation(
+      parent: _entryController,
+      curve: const Interval(0.45, 1.0, curve: Curves.easeOutCubic),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      _entryController.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _entryController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final showingKeystones = widget.choices.any(
@@ -93,81 +147,122 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay> {
         widget.choices.every(
           (choice) => choice.def.choiceGroup == sharedChoiceGroup,
         );
-    return Container(
-      decoration: BoxDecoration(
-        color: _C.bg0.withValues(alpha: 0.84),
-        gradient: RadialGradient(
-          center: Alignment.topCenter,
-          radius: 1.15,
-          colors: [
-            _C.bg3.withValues(alpha: 0.36),
-            _C.bg0.withValues(alpha: 0.9),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: CustomPaint(
-              painter: _BracketFramePainter(
-                color: _C.amber.withValues(alpha: 0.62),
-              ),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-                decoration: BoxDecoration(
-                  color: _C.bg1.withValues(alpha: 0.96),
-                  border: Border.all(color: _C.borderDim),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _C.amber.withValues(alpha: 0.10),
-                      blurRadius: 18,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const _EtchedDivider(label: 'FORGE OFFERINGS'),
-                    const SizedBox(height: 10),
-                    Text(
-                      showingKeystones
-                          ? 'WAVE ${widget.currentWave} KEYSTONE'
-                          : isThisOrThatOffer
-                          ? 'THIS OR THAT'
-                          : 'ALCHEMICAL SURGE',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        color: _C.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2.2,
+    return AnimatedBuilder(
+      animation: _entryController,
+      builder: (context, _) {
+        final backdropAlpha = (0.84 * _backdropFade.value).clamp(0.0, 1.0);
+        return Container(
+          decoration: BoxDecoration(
+            color: _C.bg0.withValues(alpha: backdropAlpha),
+            gradient: RadialGradient(
+              center: Alignment.topCenter,
+              radius: 1.15,
+              colors: [
+                _C.bg3.withValues(alpha: 0.36 * _backdropFade.value),
+                _C.bg0.withValues(alpha: 0.9 * _backdropFade.value),
+              ],
+            ),
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 380),
+                child: Opacity(
+                  opacity: _panelOpacity.value.clamp(0.0, 1.0),
+                  child: Transform.translate(
+                    offset: Offset(0, _panelSlide.value),
+                    child: Transform.scale(
+                      scale: _panelScale.value,
+                      child: CustomPaint(
+                        painter: _BracketFramePainter(
+                          color: _C.amber.withValues(
+                            alpha: 0.62 * _panelOpacity.value,
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+                          decoration: BoxDecoration(
+                            color: _C.bg1.withValues(
+                              alpha: 0.96 * _panelOpacity.value,
+                            ),
+                            border: Border.all(color: _C.borderDim),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _C.amber.withValues(
+                                  alpha: 0.10 + 0.10 * _panelOpacity.value,
+                                ),
+                                blurRadius: 18 + 8 * _panelOpacity.value,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const _EtchedDivider(label: 'FORGE OFFERINGS'),
+                              const SizedBox(height: 10),
+                              Text(
+                                showingKeystones
+                                    ? 'WAVE ${widget.currentWave} KEYSTONE'
+                                    : isThisOrThatOffer
+                                    ? 'UNIQUE CHOICE'
+                                    : 'ALCHEMICAL SURGE',
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: _C.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2.2,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              for (
+                                var i = 0;
+                                i < widget.choices.length;
+                                i++
+                              ) ...[
+                                _buildCard(i),
+                                if (i < widget.choices.length - 1)
+                                  const SizedBox(height: 10),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    for (var i = 0; i < widget.choices.length; i++) ...[
-                      _PowerUpCard(
-                        choice: widget.choices[i],
-                        onTap: () {
-                          final choice = widget.choices[i];
-                          HapticFeedback.mediumImpact();
-                          widget.onSelect(
-                            choice.def,
-                            targetSlot: choice.targetSlot,
-                            targetName: choice.targetName,
-                          );
-                        },
-                      ),
-                      if (i < widget.choices.length - 1)
-                        const SizedBox(height: 10),
-                    ],
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCard(int i) {
+    final count = widget.choices.length;
+    final span = count <= 1 ? 0.0 : 0.35 / count;
+    final start = (i / max(1, count)) * 0.55;
+    final cardT = ((_cardStagger.value - start) / (span > 0 ? span : 0.55))
+        .clamp(0.0, 1.0);
+    final eased = Curves.easeOutCubic.transform(cardT);
+    return Opacity(
+      opacity: eased,
+      child: Transform.translate(
+        offset: Offset(0, (1 - eased) * 18),
+        child: _PowerUpCard(
+          choice: widget.choices[i],
+          onTap: () {
+            final choice = widget.choices[i];
+            HapticFeedback.mediumImpact();
+            widget.onSelect(
+              choice.def,
+              targetSlot: choice.targetSlot,
+              targetName: choice.targetName,
+            );
+          },
         ),
       ),
     );

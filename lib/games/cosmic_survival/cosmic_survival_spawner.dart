@@ -20,6 +20,10 @@ enum SurvivalEnemyVariant {
   siegeShooter,
   crusher,
   pouncer,
+  // Periodically summons a small swarm of wisps while alive.
+  summoner,
+  // On death, bursts into multiple fast pouncer drones.
+  splitter,
 }
 
 enum SurvivalBossDiscipline {
@@ -31,6 +35,12 @@ enum SurvivalBossDiscipline {
   siegebreaker,
   riftcaller,
 }
+
+/// How a boss prefers to move relative to the orb / player.
+/// - [chase]: closes the gap, brawler. Old default.
+/// - [orbit]: holds a medium-far ring and strafes around it.
+/// - [sniper]: hangs back near the arena edge and fires from range.
+enum SurvivalBossMovementStyle { chase, orbit, sniper }
 
 enum SurvivalWavePattern {
   mixed,
@@ -99,6 +109,8 @@ class CosmicSurvivalEnemy {
   // Wing+Ice frost buildup: a sustained ice beam ramps this from 0→1;
   // at 1 the enemy snaps into a hard freeze and it resets.
   double frostBuildup;
+  // Summoner-variant cooldown. >0 means "ready to summon in X seconds".
+  double summonCooldown;
 
   CosmicSurvivalEnemy({
     required this.position,
@@ -128,6 +140,7 @@ class CosmicSurvivalEnemy {
     this.pipMudTrailTimer = 0,
     this.disorientTimer = 0,
     this.frostBuildup = 0,
+    this.summonCooldown = 0,
   });
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
@@ -194,6 +207,16 @@ class SurvivalBoss {
   double colossalTraitTimer;
   double colossalTraitAuxTimer;
 
+  // Movement profile chosen at spawn — drives whether the boss chases,
+  // strafes a ring, or sits back firing.
+  final SurvivalBossMovementStyle movementStyle;
+  /// Preferred distance the boss tries to hold from its anchor target.
+  /// Each AI uses this as the radial setpoint instead of a hardcoded value.
+  final double engagementRange;
+  /// 0..1 — how aggressively the boss tangentially strafes its ring.
+  /// Snipers ≈ 0.15 (mostly still), orbiters ≈ 0.7, chasers ≈ 1.0.
+  final double strafeWeight;
+
   // Constants
   static const double chargeCooldown = 3.0;
   static const double chargeDashDuration = 0.6;
@@ -241,6 +264,9 @@ class SurvivalBoss {
     this.spawnTargetPosition,
     this.colossalTraitTimer = 0,
     this.colossalTraitAuxTimer = 0,
+    this.movementStyle = SurvivalBossMovementStyle.chase,
+    this.engagementRange = 220.0,
+    this.strafeWeight = 0.8,
   });
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
@@ -682,11 +708,28 @@ class CosmicSurvivalSpawner {
         (currentMutator == SurvivalWaveMutator.orbSiege ? 1.08 : 1.0) *
         (currentMutator == SurvivalWaveMutator.shatteredSpace ? 1.10 : 1.0) *
         (eliteAffix == SurvivalEliteAffix.vampiric ? 1.10 : 1.0);
+    // Past mid-game some enemies get more interesting specials. Roll them
+    // here (after the basic variant) so they don't replace siege/crusher
+    // builds that already make sense for their tier+role.
+    if (variant == SurvivalEnemyVariant.standard) {
+      if (currentWave >= 12 &&
+          (tier == EnemyTier.sentinel || tier == EnemyTier.phantom) &&
+          _rng.nextDouble() < 0.18) {
+        variant = SurvivalEnemyVariant.summoner;
+      } else if (currentWave >= 14 &&
+          (tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
+          _rng.nextDouble() < 0.22) {
+        variant = SurvivalEnemyVariant.splitter;
+      }
+    }
+
     final variantHpMult = switch (variant) {
       SurvivalEnemyVariant.orbBreaker => 1.22,
       SurvivalEnemyVariant.siegeShooter => 0.92,
       SurvivalEnemyVariant.crusher => 1.38,
       SurvivalEnemyVariant.pouncer => 0.88,
+      SurvivalEnemyVariant.summoner => 1.15,
+      SurvivalEnemyVariant.splitter => 1.05,
       SurvivalEnemyVariant.standard => 1.0,
     };
     final variantSpeedMult = switch (variant) {
@@ -694,6 +737,8 @@ class CosmicSurvivalSpawner {
       SurvivalEnemyVariant.siegeShooter => 0.95,
       SurvivalEnemyVariant.crusher => 0.76,
       SurvivalEnemyVariant.pouncer => 1.22,
+      SurvivalEnemyVariant.summoner => 0.78,
+      SurvivalEnemyVariant.splitter => 0.82,
       SurvivalEnemyVariant.standard => 1.0,
     };
     final variantDamageMult = switch (variant) {
@@ -701,6 +746,8 @@ class CosmicSurvivalSpawner {
       SurvivalEnemyVariant.siegeShooter => 1.16,
       SurvivalEnemyVariant.crusher => 1.26,
       SurvivalEnemyVariant.pouncer => 1.10,
+      SurvivalEnemyVariant.summoner => 1.00,
+      SurvivalEnemyVariant.splitter => 1.18,
       SurvivalEnemyVariant.standard => 1.0,
     };
 
@@ -719,7 +766,99 @@ class CosmicSurvivalSpawner {
       target: _initialTargetForRole(role),
       isElite: isElite,
       eliteAffix: eliteAffix,
+      summonCooldown: variant == SurvivalEnemyVariant.summoner
+          ? 5.0 + _rng.nextDouble() * 2.0
+          : 0,
     );
+  }
+
+  /// Spawn the small swarm a summoner produces. Returned enemies should be
+  /// appended to the game's main enemy list.
+  List<CosmicSurvivalEnemy> spawnSummonerWisps(
+    CosmicSurvivalEnemy parent, {
+    int? count,
+  }) {
+    final out = <CosmicSurvivalEnemy>[];
+    final addCount = count ?? (2 + _rng.nextInt(2));
+    for (var i = 0; i < addCount; i++) {
+      final angle = _rng.nextDouble() * 2 * pi;
+      final dist = parent.radius + 14.0;
+      final pos = Offset(
+        parent.position.dx + cos(angle) * dist,
+        parent.position.dy + sin(angle) * dist,
+      );
+      const tier = EnemyTier.wisp;
+      final hp =
+          tierBaseHp(tier) *
+          CosmicSurvivalBalance.enemyWaveHpScale(currentWave) *
+          0.85;
+      out.add(
+        CosmicSurvivalEnemy(
+          position: pos,
+          angle: angle,
+          hp: hp,
+          maxHp: hp,
+          speed:
+              tierBaseSpeed(tier) *
+              CosmicSurvivalBalance.enemyWaveSpeedScale(currentWave) *
+              1.1,
+          damage:
+              tierBaseDamage(tier) *
+              CosmicSurvivalBalance.enemyWaveDamageScale(currentWave),
+          radius: tierRadius(tier),
+          tier: tier,
+          element: parent.element,
+          role: CosmicEnemyRole.striker,
+          variant: SurvivalEnemyVariant.standard,
+          target: CosmicEnemyTarget.orb,
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// Spawn the fast pouncer adds a splitter releases when it dies.
+  List<CosmicSurvivalEnemy> spawnSplitterShards(CosmicSurvivalEnemy parent) {
+    final out = <CosmicSurvivalEnemy>[];
+    final shardCount = parent.tier == EnemyTier.colossus ? 4 : 3;
+    final tier = parent.tier == EnemyTier.colossus
+        ? EnemyTier.drone
+        : EnemyTier.drone;
+    for (var i = 0; i < shardCount; i++) {
+      final angle = (i / shardCount) * 2 * pi + _rng.nextDouble() * 0.2;
+      final dist = parent.radius + 6.0;
+      final pos = Offset(
+        parent.position.dx + cos(angle) * dist,
+        parent.position.dy + sin(angle) * dist,
+      );
+      final hp =
+          tierBaseHp(tier) *
+          CosmicSurvivalBalance.enemyWaveHpScale(currentWave) *
+          0.65;
+      out.add(
+        CosmicSurvivalEnemy(
+          position: pos,
+          angle: angle,
+          hp: hp,
+          maxHp: hp,
+          speed:
+              tierBaseSpeed(tier) *
+              CosmicSurvivalBalance.enemyWaveSpeedScale(currentWave) *
+              1.35,
+          damage:
+              tierBaseDamage(tier) *
+              CosmicSurvivalBalance.enemyWaveDamageScale(currentWave) *
+              1.10,
+          radius: tierRadius(tier) * 0.95,
+          tier: tier,
+          element: parent.element,
+          role: CosmicEnemyRole.striker,
+          variant: SurvivalEnemyVariant.pouncer,
+          target: CosmicEnemyTarget.orb,
+        ),
+      );
+    }
+    return out;
   }
 
   CosmicEnemyRole _roleForWave(int wave, EnemyTier tier) {
@@ -971,15 +1110,25 @@ class CosmicSurvivalSpawner {
     // because the curve is wave-based it keeps scaling past wave 100.
     final normalizedHealth = template.isTitanic ? 150.0 : 42.0;
     final bossHpMultiplier = template.isTitanic ? 3.0 : 1.55;
+    // Wave 5 is the first boss the player meets; the old tuning made it a
+    // pushover compared to wave 10+. Give it a meaningful bite without
+    // disrupting later waves.
+    final earlyBossBuff = wave == 5 ? 1.85 : 1.0;
     final hp =
         normalizedHealth *
         16 *
         CosmicSurvivalBalance.enemyWaveHpScale(wave) *
-        bossHpMultiplier;
+        bossHpMultiplier *
+        earlyBossBuff;
     final speedScale =
-        (1.0 + (bossLevel - 1) * 0.04) * (template.isTitanic ? 0.84 : 1.0);
+        (1.0 + (bossLevel - 1) * 0.04) *
+        (template.isTitanic ? 0.84 : 1.0) *
+        (wave == 5 ? 1.15 : 1.0);
     final speed = (template.speed * speedScale).clamp(45.0, double.infinity);
     final type = template.preferredType ?? bossTypeForLevel(bossLevel);
+    final movement = _pickBossMovementStyle(type, discipline);
+    final engagement = _engagementRangeFor(movement);
+    final strafe = _strafeWeightFor(movement);
 
     return SurvivalBoss(
       template: template,
@@ -993,7 +1142,78 @@ class CosmicSurvivalSpawner {
       baseSpeed: speed,
       radius: _survivalBossRadius(template),
       color: elementColor(template.element),
+      movementStyle: movement,
+      engagementRange: engagement,
+      strafeWeight: strafe,
     );
+  }
+
+  /// Pick how the boss prefers to move. Snipers/artillery sit back, brawlers
+  /// chase, and a few archetypes patrol a mid-distance ring.
+  SurvivalBossMovementStyle _pickBossMovementStyle(
+    BossType type,
+    SurvivalBossDiscipline discipline,
+  ) {
+    // Discipline overrides come first — they describe the wave-themed boss.
+    switch (discipline) {
+      case SurvivalBossDiscipline.artillery:
+      case SurvivalBossDiscipline.riftcaller:
+        return SurvivalBossMovementStyle.sniper;
+      case SurvivalBossDiscipline.conductor:
+      case SurvivalBossDiscipline.trickster:
+        return SurvivalBossMovementStyle.orbit;
+      case SurvivalBossDiscipline.duelist:
+      case SurvivalBossDiscipline.siegebreaker:
+        return SurvivalBossMovementStyle.chase;
+      case SurvivalBossDiscipline.standard:
+        // Fall through to per-type tuning.
+        break;
+    }
+    switch (type) {
+      case BossType.gunner:
+        // 70% sniper, 30% orbit — keeps gunner fights feeling like artillery
+        // bombardment from a distance rather than tight melee.
+        return _rng.nextDouble() < 0.70
+            ? SurvivalBossMovementStyle.sniper
+            : SurvivalBossMovementStyle.orbit;
+      case BossType.bulwark:
+        return SurvivalBossMovementStyle.orbit;
+      case BossType.warden:
+        // Warden summons and shoots — keep it mid-far rather than in your face.
+        return _rng.nextDouble() < 0.55
+            ? SurvivalBossMovementStyle.orbit
+            : SurvivalBossMovementStyle.sniper;
+      case BossType.carrier:
+        // Carrier escorts adds toward the orb but doesn't need to brawl.
+        return SurvivalBossMovementStyle.orbit;
+      case BossType.charger:
+      case BossType.skirmisher:
+        return SurvivalBossMovementStyle.chase;
+    }
+  }
+
+  double _engagementRangeFor(SurvivalBossMovementStyle style) {
+    // Snipers/orbiters get a randomized ring distance so two bosses on the
+    // same wave don't stack on the exact same circle.
+    switch (style) {
+      case SurvivalBossMovementStyle.sniper:
+        return 620.0 + _rng.nextDouble() * 140.0;
+      case SurvivalBossMovementStyle.orbit:
+        return 360.0 + _rng.nextDouble() * 90.0;
+      case SurvivalBossMovementStyle.chase:
+        return 180.0 + _rng.nextDouble() * 40.0;
+    }
+  }
+
+  double _strafeWeightFor(SurvivalBossMovementStyle style) {
+    switch (style) {
+      case SurvivalBossMovementStyle.sniper:
+        return 0.18;
+      case SurvivalBossMovementStyle.orbit:
+        return 0.70;
+      case SurvivalBossMovementStyle.chase:
+        return 1.0;
+    }
   }
 
   /// Spawn escort adds for carrier/warden bosses.
@@ -1077,6 +1297,8 @@ class CosmicSurvivalSpawner {
         SurvivalEnemyVariant.siegeShooter => 0.92,
         SurvivalEnemyVariant.crusher => 1.38,
         SurvivalEnemyVariant.pouncer => 0.88,
+        SurvivalEnemyVariant.summoner => 1.15,
+        SurvivalEnemyVariant.splitter => 1.05,
         SurvivalEnemyVariant.standard => 1.0,
       };
       final variantSpeedMult = switch (variant) {
@@ -1084,6 +1306,8 @@ class CosmicSurvivalSpawner {
         SurvivalEnemyVariant.siegeShooter => 0.95,
         SurvivalEnemyVariant.crusher => 0.76,
         SurvivalEnemyVariant.pouncer => 1.22,
+        SurvivalEnemyVariant.summoner => 0.78,
+        SurvivalEnemyVariant.splitter => 0.82,
         SurvivalEnemyVariant.standard => 1.0,
       };
       final variantDamageMult = switch (variant) {
@@ -1091,6 +1315,8 @@ class CosmicSurvivalSpawner {
         SurvivalEnemyVariant.siegeShooter => 1.16,
         SurvivalEnemyVariant.crusher => 1.26,
         SurvivalEnemyVariant.pouncer => 1.10,
+        SurvivalEnemyVariant.summoner => 1.00,
+        SurvivalEnemyVariant.splitter => 1.18,
         SurvivalEnemyVariant.standard => 1.0,
       };
       adds.add(
