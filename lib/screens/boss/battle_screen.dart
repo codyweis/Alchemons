@@ -1707,10 +1707,198 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                   : Colors.orange.shade400,
               height: 2,
             ),
+            ..._buildCreatureStatusChips(creature, isOnCooldown),
           ],
         ),
       ),
     );
+  }
+
+  /// Compact tappable status chips drawn underneath the HP bars when
+  /// the creature has active effects. Replaces the Flame status-icon
+  /// row that overflowed the sprite width.
+  List<Widget> _buildCreatureStatusChips(
+    BattleCombatant creature,
+    bool isOnCooldown,
+  ) {
+    final fc = _fc;
+    final chips = <Widget>[];
+    if (isOnCooldown) {
+      chips.add(
+        _buildTinyStatusChip(
+          label: 'CD ${creature.actionCooldown}',
+          color: fc.teal,
+          onTap: () => _showStatusDetail(
+            title: 'Action Cooldown',
+            body: 'This alchemon is recovering — '
+                '${creature.actionCooldown} turn(s) until it can act again.',
+          ),
+        ),
+      );
+    }
+    if ((creature.shieldHp ?? 0) > 0) {
+      chips.add(
+        _buildTinyStatusChip(
+          label: 'SHIELD ${creature.shieldHp}',
+          color: const Color(0xFF8FE0FF),
+          onTap: () => _showStatusDetail(
+            title: 'Shield',
+            body: 'Absorbs ${creature.shieldHp} damage before HP is hit.',
+          ),
+        ),
+      );
+    }
+    for (final entry in creature.statusEffects.entries) {
+      final type = entry.key;
+      final meta = _statusChipMeta(type);
+      if (meta == null) continue;
+      final effect = entry.value;
+      chips.add(
+        _buildTinyStatusChip(
+          label: meta.label,
+          color: meta.color,
+          onTap: () => _showStatusDetail(
+            title: meta.label,
+            body: '${_describeStatusEffect(type)}\nDuration: ${effect.duration}',
+          ),
+        ),
+      );
+    }
+    for (final entry in creature.statModifiers.entries) {
+      final type = entry.key;
+      final meta = _modifierChipMeta(type);
+      if (meta == null) continue;
+      final modifier = entry.value;
+      chips.add(
+        _buildTinyStatusChip(
+          label: meta.label,
+          color: meta.color,
+          onTap: () => _showStatusDetail(
+            title: meta.label,
+            body: '${_describeModifier(type)}\nDuration: ${modifier.duration}',
+          ),
+        ),
+      );
+    }
+    if (chips.isEmpty) return const [];
+    return [
+      const SizedBox(height: 4),
+      Wrap(spacing: 3, runSpacing: 3, children: chips),
+    ];
+  }
+
+  Widget _buildTinyStatusChip({
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final fc = _fc;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: color.withValues(alpha: 0.65), width: 0.7),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: fc.textPrimary.withValues(alpha: 0.95),
+            fontSize: 8.5,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'monospace',
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+    );
+  }
+
+  _BossDebuffChipData? _statusChipMeta(String type) {
+    switch (type) {
+      case 'burn':
+        return const _BossDebuffChipData('BRN', Colors.deepOrange);
+      case 'poison':
+        return const _BossDebuffChipData('PSN', Colors.purple);
+      case 'freeze':
+        return const _BossDebuffChipData('FRZ', Colors.cyan);
+      case 'curse':
+        return const _BossDebuffChipData('CRS', Colors.deepPurple);
+      case 'bleed':
+        return const _BossDebuffChipData('BLD', Colors.red);
+      case 'banished':
+        return const _BossDebuffChipData('VOID', Colors.deepPurpleAccent);
+      case 'taunt':
+        return const _BossDebuffChipData('TNT', Colors.redAccent);
+      case 'regen':
+        return _BossDebuffChipData('REG', Colors.green.shade400);
+      default:
+        return null;
+    }
+  }
+
+  _BossDebuffChipData? _modifierChipMeta(String type) {
+    switch (type) {
+      case 'attack_up':
+        return _BossDebuffChipData('ATK+', Colors.lightGreenAccent.shade400);
+      case 'attack_down':
+        return const _BossDebuffChipData('ATK-', Colors.redAccent);
+      case 'defense_up':
+        return _BossDebuffChipData('DEF+', Colors.lightGreenAccent.shade400);
+      case 'defense_down':
+        return const _BossDebuffChipData('DEF-', Colors.blueAccent);
+      case 'speed_up':
+        return _BossDebuffChipData('SPD+', Colors.lightGreenAccent.shade400);
+      case 'speed_down':
+        return const _BossDebuffChipData('SPD-', Colors.amber);
+      default:
+        return null;
+    }
+  }
+
+  String _describeStatusEffect(String type) {
+    switch (type) {
+      case 'burn':
+        return 'Takes damage at the start of each turn.';
+      case 'poison':
+        return 'Takes stacking damage each turn.';
+      case 'freeze':
+        return 'Actions may be skipped while frozen.';
+      case 'curse':
+        return 'Vulnerable to burst detonations.';
+      case 'bleed':
+        return 'Damage over time scaled by hits.';
+      case 'banished':
+        return 'Banished to the void for a limited time.';
+      case 'taunt':
+        return 'Locked onto the taunting target.';
+      case 'regen':
+        return 'Recovers HP at the start of each turn.';
+      default:
+        return 'Status effect is active.';
+    }
+  }
+
+  String _describeModifier(String type) {
+    switch (type) {
+      case 'attack_up':
+        return 'Attack stat is boosted.';
+      case 'attack_down':
+        return 'Attack stat is reduced.';
+      case 'defense_up':
+        return 'Defense stat is boosted.';
+      case 'defense_down':
+        return 'Defense stat is reduced.';
+      case 'speed_up':
+        return 'Speed stat is boosted.';
+      case 'speed_down':
+        return 'Speed stat is reduced.';
+      default:
+        return 'Stat modifier is active.';
+    }
   }
 
   /// Element accent color used for the button border + section accents.

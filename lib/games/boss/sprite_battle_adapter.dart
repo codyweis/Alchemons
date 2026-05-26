@@ -202,7 +202,21 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   final Set<String> _lastModifierKeys = {};
 
   void updateStatusIcons() {
-    // Clear the old icons
+    // Player status badges are now rendered in the Flutter HP nameplate
+    // (see _buildPartyStatusChips) where they have room to wrap. The
+    // old Flame row overflowed horizontally with 3+ effects.
+    final toRemove = statusIconContainer.children.toList();
+    for (final child in toRemove) {
+      child.removeFromParent();
+    }
+    return;
+    // ignore: dead_code
+  }
+
+  // Legacy badge builder kept for the boss sprite override; the player
+  // sprite now short-circuits in updateStatusIcons().
+  // ignore: unused_element
+  void _legacyUpdateStatusIcons() {
     final toRemove = statusIconContainer.children.toList();
     for (final child in toRemove) {
       child.removeFromParent();

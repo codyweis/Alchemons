@@ -126,7 +126,9 @@ class BattleGame extends FlameGame with TapCallbacks {
   // need ~140px per slot to read cleanly. Bottom kept above the move
   // card so the last slot's pill doesn't crash into the card title.
   static const double teamRailTopY = 0.18;
-  static const double teamRailBottomY = 0.68;
+  // Slightly wider span — gives the Flutter HP pill room to grow
+  // an extra status-chip row without crashing into the next sprite.
+  static const double teamRailBottomY = 0.72;
   static const double bossArenaX = 0.70;
   static const double bossArenaY = 0.34;
 
