@@ -520,34 +520,26 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                           controller: _bossAttackGraphxController,
                         ),
                       ),
-                      // Boss HUD — compact card pinned upper-right, anchored
-                      // directly above the boss sprite so HP info reads as
-                      // attached to the boss rather than floating.
+                      // Wide top boss header — name + level + HP bar +
+                      // status bubbles. Sits at the very top so the boss
+                      // sprite has the arena to itself.
                       Positioned(
                         top: 6,
+                        left: 8,
                         right: 8,
-                        width: constraints.maxWidth * 0.42,
                         child: _buildBossHud(),
                       ),
-                      // Left party rail — vertical stack of slot cards
-                      // sized to align with the Flame sprite Y-positions.
-                      // Top/bottom match BattleGame.teamRailTopY/BottomY so
-                      // each Expanded slot centers on its Flame sprite.
+                      // HP overlays floating above each Flame sprite — one
+                      // Positioned per slot so the pill anchors directly
+                      // to the creature rather than living in a side rail.
+                      for (int i = 0; i < widget.playerTeam.length; i++)
+                        _buildPartyPillForSlot(constraints, i),
+                      // Floating recent event feed — fades in below the
+                      // boss header on the right side.
                       Positioned(
-                        top: constraints.maxHeight * BattleGame.teamRailTopY,
-                        bottom:
-                            constraints.maxHeight *
-                            (1 - BattleGame.teamRailBottomY),
-                        left: 4,
-                        width: constraints.maxWidth * 0.55,
-                        child: _buildPartyRail(),
-                      ),
-                      // Floating recent event feed — fades in over the
-                      // arena instead of eating top-of-screen space.
-                      Positioned(
-                        left: constraints.maxWidth * 0.55,
                         right: 8,
-                        bottom: constraints.maxHeight * 0.34,
+                        top: constraints.maxHeight * 0.20,
+                        width: constraints.maxWidth * 0.5,
                         child: IgnorePointer(child: _buildFloatingFeed()),
                       ),
                       // Bottom move card — single compact panel.
@@ -568,15 +560,19 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     );
   }
 
-  /// Compact boss card pinned to the upper-right. Status icons stack
-  /// above the card so they sit just over the Flame boss sprite.
+  /// Wide top boss header with name, level, HP bar, and a row of status
+  /// effect bubbles. Anchored to the top of the screen so the boss
+  /// sprite has the arena to itself.
   Widget _buildBossHud() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildBossStatusStack(),
-        const SizedBox(height: 4),
         _buildBossHeaderCard(),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _buildBossStatusStack(),
+        ),
       ],
     );
   }
@@ -781,23 +777,58 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _buildBossElementBadge(widget.boss, accent),
-              const SizedBox(width: 7),
-              Text(
-                'Lv${widget.boss.level}',
-                style: TextStyle(
-                  color: fc.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'monospace',
-                  letterSpacing: 0.4,
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: accent.withValues(alpha: 0.6),
+                    width: 0.8,
+                  ),
+                ),
+                child: Text(
+                  'Lv${widget.boss.level}',
+                  style: TextStyle(
+                    color: fc.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'monospace',
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.bossDisplayName.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: fc.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'monospace',
+                    letterSpacing: 1.2,
+                    shadows: [
+                      Shadow(
+                        color: accent.withValues(alpha: 0.5),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text(
-                '${widget.boss.currentHp}',
+                '${widget.boss.currentHp} / ${widget.boss.maxHp}',
                 style: TextStyle(
                   color: fc.textSecondary,
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w800,
                   fontFamily: 'monospace',
                   letterSpacing: 0.3,
@@ -945,29 +976,6 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                     fc.bg0.withValues(alpha: 0.2),
                   ],
                   stops: const [0.0, 0.45, 1.0],
-                ),
-              ),
-            ),
-          ),
-          // Inline HP numbers overlaid on the bar — saves vertical space
-          // and keeps the value glued to the visual it represents.
-          IgnorePointer(
-            child: Center(
-              child: Text(
-                '${widget.boss.currentHp} / ${widget.boss.maxHp}',
-                style: TextStyle(
-                  color: fc.textPrimary,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                  fontFamily: 'monospace',
-                  shadows: const [
-                    Shadow(
-                      offset: Offset(0, 0.5),
-                      blurRadius: 1.5,
-                      color: Color(0xCC000000),
-                    ),
-                  ],
                 ),
               ),
             ),
@@ -1126,35 +1134,151 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
             height: 1.3,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: _buildActionButton(
-                onPressed: canAct ? _useBasicMove : null,
-                title: basicMove.name,
-                subtitle: _basicSubtitle(selected, basicMove, canAct),
-                activeColor: accent,
-                isActive: canAct,
-                icon: basicMove.type == MoveType.physical
-                    ? Icons.flash_on_rounded
-                    : Icons.auto_awesome_rounded,
-              ),
+            _buildMoveOrb(
+              onTap: canAct ? _useBasicMove : null,
+              label: basicMove.name,
+              subtitle: _basicSubtitle(selected, basicMove, canAct),
+              elementColor: accent,
+              isEnabled: canAct,
+              isFeatured: !showSpecial && canAct,
+              icon: basicMove.type == MoveType.physical
+                  ? Icons.flash_on_rounded
+                  : Icons.auto_awesome_rounded,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildActionButton(
-                onPressed: specialReady ? _useSpecialMove : null,
-                title: specialMove.name,
-                subtitle: _specialSubtitle(selected, hasSpecial),
-                activeColor: accent,
-                isActive: specialReady,
-                icon: Icons.bolt_rounded,
-              ),
+            const SizedBox(width: 36),
+            _buildMoveOrb(
+              onTap: specialReady ? _useSpecialMove : null,
+              label: specialMove.name,
+              subtitle: _specialSubtitle(selected, hasSpecial),
+              elementColor: accent,
+              isEnabled: specialReady,
+              isFeatured: showSpecial,
+              icon: Icons.bolt_rounded,
             ),
           ],
         ),
       ],
+    );
+  }
+
+  /// VoidPet-style move orb: round element-tinted button with a
+  /// crystalline diamond crown around the featured move. Label sits
+  /// underneath so the orb itself stays clean.
+  Widget _buildMoveOrb({
+    required VoidCallback? onTap,
+    required String label,
+    required String subtitle,
+    required Color elementColor,
+    required bool isEnabled,
+    required bool isFeatured,
+    required IconData icon,
+  }) {
+    final fc = _fc;
+    final color = isEnabled ? elementColor : fc.textMuted;
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 96,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                if (isFeatured)
+                  CustomPaint(
+                    size: const Size(86, 86),
+                    painter: _OrbCrownPainter(color: color),
+                  ),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: isEnabled
+                          ? [
+                              color.withValues(alpha: 0.85),
+                              color.withValues(alpha: 0.35),
+                              fc.bg0.withValues(alpha: 0.85),
+                            ]
+                          : [
+                              fc.bg2.withValues(alpha: 0.6),
+                              fc.bg0.withValues(alpha: 0.8),
+                              fc.bg0,
+                            ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
+                    border: Border.all(
+                      color: isEnabled
+                          ? color.withValues(alpha: 0.95)
+                          : fc.borderDim,
+                      width: isFeatured ? 2.2 : 1.4,
+                    ),
+                    boxShadow: isFeatured
+                        ? [
+                            BoxShadow(
+                              color: color.withValues(alpha: 0.55),
+                              blurRadius: 16,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : isEnabled
+                        ? [
+                            BoxShadow(
+                              color: color.withValues(alpha: 0.25),
+                              blurRadius: 10,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 28,
+                    color: isEnabled
+                        ? Colors.white.withValues(alpha: 0.95)
+                        : fc.textMuted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isEnabled ? fc.textPrimary : fc.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'monospace',
+                letterSpacing: 0.4,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isEnabled
+                    ? fc.textSecondary.withValues(alpha: 0.85)
+                    : fc.textMuted.withValues(alpha: 0.7),
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'monospace',
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1176,19 +1300,28 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     return 'Ready';
   }
 
-  /// Vertical left rail. Equal-flex slots align 1:1 with the Flame
-  /// sprite Y-bands so each HP card sits beside its creature.
-  Widget _buildPartyRail() {
-    return Column(
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        for (int i = 0; i < widget.playerTeam.length; i++)
-          Expanded(child: _buildPartySlot(i)),
-      ],
+  /// HP pill positioned directly above the Flame sprite for each slot.
+  /// Coordinates derived from BattleGame.team* constants so the pill
+  /// tracks the sprite regardless of screen size.
+  Widget _buildPartyPillForSlot(BoxConstraints constraints, int index) {
+    final span = BattleGame.teamRailBottomY - BattleGame.teamRailTopY;
+    final spriteCenterY =
+        constraints.maxHeight *
+        (BattleGame.teamRailTopY +
+            span * ((index + 0.5) / widget.playerTeam.length));
+    final spriteCenterX = constraints.maxWidth * BattleGame.teamColumnX;
+    const pillWidth = 138.0;
+    final left = math.max(4.0, spriteCenterX - pillWidth / 2);
+
+    return Positioned(
+      top: spriteCenterY - 62,
+      left: left,
+      width: pillWidth,
+      child: _buildHpPill(index),
     );
   }
 
-  Widget _buildPartySlot(int index) {
+  Widget _buildHpPill(int index) {
     final fc = _fc;
     final creature = widget.playerTeam[index];
     final isSelected = selectedCreatureIndex == index;
@@ -1211,12 +1344,20 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                       ))
                   .clamp(0.0, 1.0);
 
+    final borderColor = isSelected
+        ? elementColor
+        : isOnCooldown
+        ? fc.teal.withValues(alpha: 0.6)
+        : isDead
+        ? fc.borderDim
+        : fc.borderAccent.withValues(alpha: 0.55);
+
     return TweenAnimationBuilder<double>(
-      key: ValueKey('party_slot_${index}_$shakeNonce'),
+      key: ValueKey('party_pill_${index}_$shakeNonce'),
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 280),
       builder: (context, value, child) {
-        final amplitude = (1 - value) * 9;
+        final amplitude = (1 - value) * 8;
         final dx = math.sin(value * math.pi * 6) * amplitude;
         return Transform.translate(offset: Offset(dx, 0), child: child);
       },
@@ -1232,203 +1373,106 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
           });
         },
         behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+          decoration: BoxDecoration(
+            color: fc.bg0.withValues(alpha: isDead ? 0.65 : 0.86),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor, width: isSelected ? 1.6 : 1),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: elementColor.withValues(alpha: 0.4),
+                      blurRadius: 10,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Reserved sprite area — Flame renders the creature here.
-              // Sized to roughly match the 88px sprite footprint so the
-              // card lands flush against the sprite's right edge.
-              const SizedBox(width: 66),
-              // Left-pointing nub on the card so it visually attaches to
-              // the sprite rather than floating as a separate island.
-              CustomPaint(
-                size: const Size(8, 18),
-                painter: _SlotNubPainter(
-                  fill: isSelected
-                      ? elementColor.withValues(alpha: 0.22)
-                      : fc.bg2.withValues(alpha: 0.86),
-                  stroke: isSelected
-                      ? elementColor
-                      : isOnCooldown
-                      ? fc.teal.withValues(alpha: 0.55)
-                      : isDead
-                      ? fc.borderDim
-                      : fc.borderAccent.withValues(alpha: 0.4),
-                  strokeWidth: isSelected ? 1.6 : 1,
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 14,
+                    height: 14,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: elementColor.withValues(alpha: 0.25),
+                      border: Border.all(
+                        color: elementColor.withValues(alpha: 0.8),
+                        width: 1,
+                      ),
+                    ),
+                    child: Icon(
+                      _iconForElement(element),
+                      size: 8,
+                      color: elementColor,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Lv${creature.level}',
+                    style: TextStyle(
+                      color: isDead ? fc.textMuted : fc.textPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    isDead ? 'DOWN' : '${creature.currentHp}/${creature.maxHp}',
+                    style: TextStyle(
+                      color: isDead
+                          ? fc.danger.withValues(alpha: 0.9)
+                          : fc.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  if (hasShield) ...[
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.shield_rounded,
+                      size: 11,
+                      color: Color(0xFF8FE0FF),
+                    ),
+                  ],
+                ],
               ),
-              Expanded(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: isSelected
-                          ? [
-                              elementColor.withValues(alpha: 0.22),
-                              fc.bg2.withValues(alpha: 0.92),
-                            ]
-                          : [
-                              fc.bg2.withValues(alpha: isDead ? 0.58 : 0.86),
-                              fc.bg0.withValues(alpha: 0.82),
-                            ],
-                    ),
-                    borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(8),
-                      bottomRight: Radius.circular(8),
-                    ),
-                    border: Border(
-                      top: BorderSide(
-                        color: isSelected
-                            ? elementColor
-                            : isOnCooldown
-                            ? fc.teal.withValues(alpha: 0.55)
-                            : isDead
-                            ? fc.borderDim
-                            : fc.borderAccent.withValues(alpha: 0.4),
-                        width: isSelected ? 1.6 : 1,
-                      ),
-                      right: BorderSide(
-                        color: isSelected
-                            ? elementColor
-                            : isOnCooldown
-                            ? fc.teal.withValues(alpha: 0.55)
-                            : isDead
-                            ? fc.borderDim
-                            : fc.borderAccent.withValues(alpha: 0.4),
-                        width: isSelected ? 1.6 : 1,
-                      ),
-                      bottom: BorderSide(
-                        color: isSelected
-                            ? elementColor
-                            : isOnCooldown
-                            ? fc.teal.withValues(alpha: 0.55)
-                            : isDead
-                            ? fc.borderDim
-                            : fc.borderAccent.withValues(alpha: 0.4),
-                        width: isSelected ? 1.6 : 1,
-                      ),
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: elementColor.withValues(alpha: 0.3),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 14,
-                            height: 14,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: elementColor.withValues(alpha: 0.25),
-                              border: Border.all(
-                                color: elementColor.withValues(alpha: 0.8),
-                                width: 1,
-                              ),
-                            ),
-                            child: Icon(
-                              _iconForElement(element),
-                              size: 8,
-                              color: elementColor,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Lv${creature.level}',
-                            style: TextStyle(
-                              color: isDead
-                                  ? fc.textMuted
-                                  : fc.textPrimary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              isDead
-                                  ? 'DOWN'
-                                  : '${creature.currentHp}/${creature.maxHp}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                color: isDead
-                                    ? fc.danger.withValues(alpha: 0.9)
-                                    : fc.textSecondary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                          ),
-                          if (hasShield) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.shield_rounded,
-                              size: 11,
-                              color: const Color(0xFF8FE0FF),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      _buildAnimatedHPBar(
-                        current: creature.currentHp,
-                        max: creature.maxHp,
-                        color: _getHealthColor(creature.hpPercent),
-                        height: 5,
-                      ),
-                      const SizedBox(height: 2),
-                      // Special-recharge bar — mirrors VoidPet's secondary
-                      // sub-bar; orange when charging, accent when ready.
-                      _buildAnimatedHPBar(
-                        current: (specialPct * 100).round(),
-                        max: 100,
-                        color: creature.specialCooldown == 0
-                            ? elementColor
-                            : Colors.orange.shade400,
-                        height: 3,
-                      ),
-                      if (chips.isNotEmpty || isOnCooldown) ...[
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 3,
-                          runSpacing: 3,
-                          children: [
-                            if (isOnCooldown)
-                              _buildSlotChip(
-                                'CD ${creature.actionCooldown}',
-                                fc.teal,
-                              ),
-                            for (final c in chips)
-                              _buildSlotChip(c.label, c.color),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              const SizedBox(height: 4),
+              _buildAnimatedHPBar(
+                current: creature.currentHp,
+                max: creature.maxHp,
+                color: _getHealthColor(creature.hpPercent),
+                height: 4,
               ),
+              const SizedBox(height: 2),
+              _buildAnimatedHPBar(
+                current: (specialPct * 100).round(),
+                max: 100,
+                color: creature.specialCooldown == 0
+                    ? elementColor
+                    : Colors.orange.shade400,
+                height: 2,
+              ),
+              if (chips.isNotEmpty || isOnCooldown) ...[
+                const SizedBox(height: 3),
+                Wrap(
+                  spacing: 3,
+                  runSpacing: 3,
+                  children: [
+                    if (isOnCooldown)
+                      _buildSlotChip('CD ${creature.actionCooldown}', fc.teal),
+                    for (final c in chips) _buildSlotChip(c.label, c.color),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -1527,133 +1571,6 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     }
   }
 
-  Widget _buildActionButton({
-    required VoidCallback? onPressed,
-    required String title,
-    required String subtitle,
-    required Color activeColor,
-    required bool isActive,
-    required IconData icon,
-  }) {
-    final fc = _fc;
-    final borderColor = isActive
-        ? activeColor.withValues(alpha: 0.85)
-        : fc.borderAccent.withValues(alpha: 0.45);
-    final titleColor = isActive ? fc.textPrimary : fc.textMuted;
-    final subtitleColor = isActive
-        ? fc.textSecondary
-        : fc.textMuted.withValues(alpha: 0.85);
-
-    return GestureDetector(
-      onTap: onPressed,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        height: 66,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isActive
-                  ? [
-                      activeColor.withValues(alpha: 0.2),
-                      fc.bg2.withValues(alpha: 0.94),
-                    ]
-                  : [
-                      fc.bg2.withValues(alpha: 0.72),
-                      fc.bg0.withValues(alpha: 0.9),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor, width: 1.1),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: activeColor.withValues(alpha: 0.16),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                right: -18,
-                top: -20,
-                child: Icon(
-                  icon,
-                  size: 82,
-                  color: activeColor.withValues(alpha: isActive ? 0.08 : 0.03),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: activeColor.withValues(
-                          alpha: isActive ? 0.18 : 0.08,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: activeColor.withValues(
-                            alpha: isActive ? 0.62 : 0.22,
-                          ),
-                        ),
-                      ),
-                      child: Icon(icon, color: activeColor, size: 19),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.6,
-                              fontFamily: 'monospace',
-                              color: titleColor,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.4,
-                              color: subtitleColor,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildAnimatedHPBar({
     required int current,
     required int max,
@@ -1706,93 +1623,34 @@ class _BossBattleStagePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
 
-    // Arena ring sits under the boss in the upper-right; dashed circle
-    // mirrors the VoidPet reference. Centered on the boss sprite at
-    // BattleGame.bossArenaX/Y so the boss reads as standing in the ring.
-    final bossCenter = Offset(
-      size.width * BattleGame.bossArenaX,
-      size.height * (BattleGame.bossArenaY + 0.05),
-    );
-    final radius = math.min(size.width * 0.24, size.height * 0.17);
-    final ringRect = Rect.fromCircle(center: bossCenter, radius: radius);
-
+    // Just a subtle radial vignette — no arena ring. The HUD chrome
+    // (boss header, HP pills, move card) carries the visual weight now.
     final vignette = Paint()
       ..shader = RadialGradient(
-        colors: [Colors.transparent, Colors.black.withValues(alpha: 0.32)],
-        stops: const [0.55, 1.0],
+        colors: [Colors.transparent, Colors.black.withValues(alpha: 0.28)],
+        stops: const [0.6, 1.0],
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, vignette);
 
-    // Soft floor wash under the boss arena.
+    // Faint floor glow under the boss for depth.
+    final bossCenter = Offset(
+      size.width * BattleGame.bossArenaX,
+      size.height * (BattleGame.bossArenaY + 0.06),
+    );
+    final glowRect = Rect.fromCircle(
+      center: bossCenter,
+      radius: math.min(size.width * 0.26, size.height * 0.18),
+    );
     final floorPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          accent.withValues(alpha: 0.18),
-          danger.withValues(alpha: 0.05),
+          accent.withValues(alpha: 0.12),
+          danger.withValues(alpha: 0.04),
           Colors.transparent,
         ],
-      ).createShader(ringRect)
+      ).createShader(glowRect)
       ..style = PaintingStyle.fill;
-    canvas.drawOval(ringRect, floorPaint);
-
-    // Dashed outer ring around the boss.
-    _drawDashedCircle(
-      canvas,
-      bossCenter,
-      radius,
-      Paint()
-        ..color = accent.withValues(alpha: 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6,
-      dashLength: 8,
-      gapLength: 6,
-    );
-    canvas.drawCircle(
-      bossCenter,
-      radius - 6,
-      Paint()
-        ..color = accent.withValues(alpha: 0.12)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
-
-    // Subtle vertical lane lines anchored beneath the left rail.
-    final lanePaint = Paint()
-      ..color = accent.withValues(alpha: 0.06)
-      ..strokeWidth = 1.0;
-    for (var i = 0; i < 4; i++) {
-      final x = size.width * 0.13 + (i - 1.5) * 6;
-      canvas.drawLine(
-        Offset(x, size.height * 0.08),
-        Offset(x, size.height * 0.64),
-        lanePaint,
-      );
-    }
-  }
-
-  void _drawDashedCircle(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    Paint paint, {
-    required double dashLength,
-    required double gapLength,
-  }) {
-    final circumference = 2 * math.pi * radius;
-    final dashCount = (circumference / (dashLength + gapLength)).floor();
-    final dashAngle = (dashLength / circumference) * 2 * math.pi;
-    final gapAngle = (gapLength / circumference) * 2 * math.pi;
-    double start = -math.pi / 2;
-    for (var i = 0; i < dashCount; i++) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        start,
-        dashAngle,
-        false,
-        paint,
-      );
-      start += dashAngle + gapAngle;
-    }
+    canvas.drawOval(glowRect, floorPaint);
   }
 
   @override
@@ -1801,48 +1659,42 @@ class _BossBattleStagePainter extends CustomPainter {
   }
 }
 
-/// Triangular left-pointing connector painted between the sprite gutter
-/// and the rail card body. Tip kisses the sprite, base aligns with the
-/// card's left edge so they read as one unit.
-class _SlotNubPainter extends CustomPainter {
-  final Color fill;
-  final Color stroke;
-  final double strokeWidth;
-
-  const _SlotNubPainter({
-    required this.fill,
-    required this.stroke,
-    required this.strokeWidth,
-  });
+/// Crystalline diamond crown drawn around the featured move orb —
+/// 8 small rotated squares evenly spaced around the circumference,
+/// echoing the VoidPet "selected move" decoration.
+class _OrbCrownPainter extends CustomPainter {
+  final Color color;
+  const _OrbCrownPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(0, size.height / 2)
-      ..lineTo(size.width, 0)
-      ..lineTo(size.width, size.height)
-      ..close();
-    canvas.drawPath(path, Paint()..color = fill);
-    final strokePath = Path()
-      ..moveTo(size.width, 0)
-      ..lineTo(0, size.height / 2)
-      ..lineTo(size.width, size.height);
-    canvas.drawPath(
-      strokePath,
-      Paint()
-        ..color = stroke
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeJoin = StrokeJoin.round,
-    );
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
+    final fill = Paint()
+      ..color = color.withValues(alpha: 0.85)
+      ..style = PaintingStyle.fill;
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    const count = 8;
+    for (var i = 0; i < count; i++) {
+      final angle = (i / count) * 2 * math.pi - math.pi / 2;
+      final cx = center.dx + math.cos(angle) * radius;
+      final cy = center.dy + math.sin(angle) * radius;
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.rotate(math.pi / 4);
+      final r = Rect.fromCenter(center: Offset.zero, width: 6, height: 6);
+      canvas.drawRect(r, fill);
+      canvas.drawRect(r, stroke);
+      canvas.restore();
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _SlotNubPainter old) {
-    return old.fill != fill ||
-        old.stroke != stroke ||
-        old.strokeWidth != strokeWidth;
-  }
+  bool shouldRepaint(covariant _OrbCrownPainter old) => old.color != color;
 }
 
 class _BossDebuffChipData {
