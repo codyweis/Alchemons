@@ -38,6 +38,10 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
   late BattleGame game;
   late final BossAttackGraphxOverlayController _bossAttackGraphxController;
   int? selectedCreatureIndex;
+  // Which orb is currently armed (0 = basic, 1 = special). First tap on
+  // an orb selects it and shows its details; a second tap on the armed
+  // orb executes the move. VoidPet-style two-tap confirmation.
+  int _armedMoveSlot = 0;
   final Map<int, int> _slotShakeNonce = <int, int>{};
   final List<_BattleFeedEntry> battleFeed = [];
 
@@ -67,6 +71,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
       if (event is CreatureSelectedEvent) {
         setState(() {
           selectedCreatureIndex = event.index;
+          _autoArmDefaultMove();
         });
       } else if (event is TurnStateChangedEvent) {
         setState(() {});
@@ -329,6 +334,35 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     );
   }
 
+  /// Pick a sensible default armed slot for the currently selected
+  /// creature: special when it's ready (slot 1), otherwise basic (slot 0).
+  void _autoArmDefaultMove() {
+    final idx = selectedCreatureIndex;
+    if (idx == null || idx >= widget.playerTeam.length) {
+      _armedMoveSlot = 0;
+      return;
+    }
+    final c = widget.playerTeam[idx];
+    final specialReady =
+        c.canAct && c.level >= 5 && !c.needsRecharge;
+    _armedMoveSlot = specialReady ? 1 : 0;
+  }
+
+  /// VoidPet-style two-tap: first tap arms the orb (shows its details
+  /// in the move card); a second tap on the armed orb executes it.
+  /// Tapping a different orb just switches the preview.
+  void _onOrbTap(int slotIndex) {
+    if (_armedMoveSlot != slotIndex) {
+      setState(() => _armedMoveSlot = slotIndex);
+      return;
+    }
+    if (slotIndex == 0) {
+      _useBasicMove();
+    } else {
+      _useSpecialMove();
+    }
+  }
+
   void _useBasicMove() {
     if (selectedCreatureIndex == null) return;
     if (game.state != BattleState.playerTurn) return;
@@ -422,6 +456,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
       game.post(() => game.selectCreature(nextReady));
       setState(() {
         selectedCreatureIndex = nextReady;
+        _autoArmDefaultMove();
       });
       if (showHint) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -452,6 +487,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
       game.post(() => game.selectCreature(alive));
       setState(() {
         selectedCreatureIndex = alive;
+        _autoArmDefaultMove();
       });
     }
   }
@@ -1156,9 +1192,6 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
         : 'Normal';
     final accent = _elementColor(element, fc);
 
-    // Featured = the move that's primed; drives the diamond-crown
-    // decoration on the orb.
-    final showSpecial = specialReady;
     final turnLabel = !isPlayerTurn
         ? (game.state == BattleState.animating
               ? 'IMPACT IN PROGRESS'
@@ -1175,8 +1208,23 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
         ? 'Family special — unlocks at level 5.'
         : BattleMove.specialSummaryForCombatant(selected);
 
+    // What's armed for preview — drives the title, subtitle, description,
+    // and which orb gets the crystalline crown.
+    final armedIsSpecial = _armedMoveSlot == 1;
+    final armedMove = armedIsSpecial ? specialMove : basicMove;
+    final armedSubtitle = armedIsSpecial
+        ? (selected != null
+              ? 'Special · CD ${BattleMove.specialCooldownForFamily(selected.family)}'
+              : 'Special · Unlocks at Lv 5')
+        : 'Basic · ${basicMove.type == MoveType.physical ? 'Physical' : 'Elemental'}';
+    final armedDescription = armedIsSpecial
+        ? specialDescription
+        : basicDescription;
+    final armedCanExecute = armedIsSpecial ? specialReady : canAct;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
@@ -1184,7 +1232,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                selected == null ? 'NO SELECTION' : selected.name.toUpperCase(),
+                selected == null
+                    ? 'NO SELECTION'
+                    : '${selected.name.toUpperCase()} · ${armedMove.name.toUpperCase()}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -1197,9 +1247,11 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
               ),
             ),
             Text(
-              turnLabel,
+              armedCanExecute && isPlayerTurn ? 'TAP TO USE' : turnLabel,
               style: TextStyle(
-                color: turnColor,
+                color: armedCanExecute && isPlayerTurn
+                    ? fc.amberBright
+                    : turnColor,
                 fontSize: 9,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.7,
@@ -1208,12 +1260,34 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
+        Text(
+          armedSubtitle,
+          style: TextStyle(
+            color: accent,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.4,
+            fontFamily: 'monospace',
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          armedDescription,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: fc.textSecondary,
+            fontSize: 11,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _buildMoveOrb(
-              onTap: canAct ? _useBasicMove : null,
+              onTap: () => _onOrbTap(0),
               onLongPress: () => _showMoveDetail(
                 title: basicMove.name,
                 subtitle:
@@ -1224,7 +1298,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
               subtitle: _basicSubtitle(selected, basicMove, canAct),
               elementColor: accent,
               isEnabled: canAct,
-              isFeatured: !showSpecial && canAct,
+              isFeatured: _armedMoveSlot == 0,
               icon: basicMove.type == MoveType.physical
                   ? Icons.flash_on_rounded
                   : Icons.auto_awesome_rounded,
@@ -1233,7 +1307,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
             ),
             const SizedBox(width: 36),
             _buildMoveOrb(
-              onTap: specialReady ? _useSpecialMove : null,
+              onTap: () => _onOrbTap(1),
               onLongPress: () => _showMoveDetail(
                 title: specialMove.name,
                 subtitle: hasSpecial
@@ -1245,7 +1319,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
               subtitle: _specialSubtitle(selected, hasSpecial),
               elementColor: accent,
               isEnabled: specialReady,
-              isFeatured: showSpecial,
+              isFeatured: _armedMoveSlot == 1,
               icon: Icons.bolt_rounded,
               family: selected?.family,
               isSpecialMove: true,
@@ -1533,6 +1607,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
           game.post(() => game.selectCreature(index));
           setState(() {
             selectedCreatureIndex = index;
+            _autoArmDefaultMove();
           });
         },
         behavior: HitTestBehavior.opaque,
