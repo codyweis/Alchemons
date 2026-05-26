@@ -122,8 +122,8 @@ class BattleGame extends FlameGame with TapCallbacks {
   /// boss sits in the upper-right. Matches the VoidPet-style battle HUD
   /// where the bottom band is reserved for the move card.
   static const double teamColumnX = 0.13;
-  static const double teamRailTopY = 0.18;
-  static const double teamRailBottomY = 0.66;
+  static const double teamRailTopY = 0.19;
+  static const double teamRailBottomY = 0.62;
   static const double bossArenaX = 0.70;
   static const double bossArenaY = 0.34;
 
@@ -2111,10 +2111,12 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
       add(bossVisual!);
     }
 
-    // Status icon container - anchored near the boss sprite (right/top)
+    // Status icon container — anchored to the LEFT of the boss sprite
+    // so it doesn't clip off the right edge of the screen. Boss is
+    // already pinned to the right side of the arena.
     statusIconContainer = PositionComponent(
       anchor: Anchor.center,
-      position: center + Vector2(size.x * 0.62, -size.y * 0.22),
+      position: center + Vector2(-size.x * 0.6, -size.y * 0.32),
     );
     add(statusIconContainer);
   }

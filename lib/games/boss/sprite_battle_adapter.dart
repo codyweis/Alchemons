@@ -74,7 +74,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     creatureVisual = CreatureSpriteComponentBattle(
       sheet: sheet,
       visuals: visuals,
-      desiredSize: Vector2(88, 88), // Size for battle display
+      desiredSize: Vector2(72, 72), // Battle display — compact to fit nameplates
       variantFaction: combatant.instanceRef?.variantFaction,
     );
     creatureVisual.position = size / 2;

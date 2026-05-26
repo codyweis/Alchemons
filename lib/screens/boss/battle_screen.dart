@@ -522,12 +522,13 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                       // to the creature rather than living in a side rail.
                       for (int i = 0; i < widget.playerTeam.length; i++)
                         _buildPartyPillForSlot(constraints, i),
-                      // Last action line — single condensed row. Tapping
-                      // opens the full battle log dialog.
+                      // Last action line — single condensed row beneath
+                      // the boss header on the left. Tapping opens the
+                      // full battle log dialog.
                       Positioned(
-                        right: 8,
-                        top: constraints.maxHeight * 0.16,
-                        width: constraints.maxWidth * 0.55,
+                        left: 8,
+                        top: constraints.maxHeight * 0.105,
+                        width: constraints.maxWidth * 0.62,
                         child: _buildLastActionLine(),
                       ),
                       // Bottom move card — single compact panel.
@@ -557,10 +558,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
       children: [
         _buildBossHeaderCard(),
         const SizedBox(height: 4),
-        Align(
-          alignment: Alignment.centerRight,
-          child: _buildBossStatusStack(),
-        ),
+        Align(alignment: Alignment.centerRight, child: _buildBossStatusStack()),
       ],
     );
   }
@@ -780,10 +778,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
         decoration: BoxDecoration(
           color: fc.bg0.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: accent.withValues(alpha: 0.45),
-            width: 0.8,
-          ),
+          border: Border.all(color: accent.withValues(alpha: 0.45), width: 0.8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -797,7 +792,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
             Flexible(
               child: Text(
                 last.message,
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.left,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -808,11 +803,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
               ),
             ),
             const SizedBox(width: 6),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 13,
-              color: fc.textMuted,
-            ),
+            Icon(Icons.chevron_right_rounded, size: 13, color: fc.textMuted),
           ],
         ),
       ),
@@ -976,7 +967,6 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
       ),
     );
   }
-
 
   List<_BossDebuffChipData> _collectBossDebuffs() {
     final chips = <_BossDebuffChipData>[];
@@ -1185,7 +1175,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
               onTap: canAct ? _useBasicMove : null,
               onLongPress: () => _showMoveDetail(
                 title: basicMove.name,
-                subtitle: 'Basic · ${basicMove.type == MoveType.physical ? 'Physical' : 'Elemental'}',
+                subtitle:
+                    'Basic · ${basicMove.type == MoveType.physical ? 'Physical' : 'Elemental'}',
                 body: basicDescription,
               ),
               label: basicMove.name,
@@ -1196,6 +1187,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
               icon: basicMove.type == MoveType.physical
                   ? Icons.flash_on_rounded
                   : Icons.auto_awesome_rounded,
+              family: selected?.family,
+              isSpecialMove: false,
             ),
             const SizedBox(width: 36),
             _buildMoveOrb(
@@ -1213,6 +1206,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
               isEnabled: specialReady,
               isFeatured: showSpecial,
               icon: Icons.bolt_rounded,
+              family: selected?.family,
+              isSpecialMove: true,
             ),
           ],
         ),
@@ -1304,9 +1299,12 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     required bool isEnabled,
     required bool isFeatured,
     required IconData icon,
+    required String? family,
+    required bool isSpecialMove,
   }) {
     final fc = _fc;
     final color = isEnabled ? elementColor : fc.textMuted;
+    final useFamilyIcon = family == 'Wing';
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -1349,13 +1347,22 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                       width: isFeatured ? 2.0 : 1.2,
                     ),
                   ),
-                  child: Icon(
-                    icon,
-                    size: 28,
-                    color: isEnabled
-                        ? Colors.white.withValues(alpha: 0.95)
-                        : fc.textMuted,
-                  ),
+                  child: useFamilyIcon
+                      ? CustomPaint(
+                          painter: _MoveAttackIconPainter(
+                            family: family!,
+                            elementColor: color,
+                            isEnabled: isEnabled,
+                            isSpecial: isSpecialMove,
+                          ),
+                        )
+                      : Icon(
+                          icon,
+                          size: 28,
+                          color: isEnabled
+                              ? Colors.white.withValues(alpha: 0.95)
+                              : fc.textMuted,
+                        ),
                 ),
               ],
             ),
@@ -1395,7 +1402,11 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     );
   }
 
-  String _basicSubtitle(BattleCombatant? selected, BattleMove basic, bool canAct) {
+  String _basicSubtitle(
+    BattleCombatant? selected,
+    BattleMove basic,
+    bool canAct,
+  ) {
     if (selected == null) return 'Select a creature';
     if (!canAct) return 'Waiting on turn';
     final recovery = BattleMove.specialRecoveryPerBasicForCombatant(selected);
@@ -1423,15 +1434,15 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
         (BattleGame.teamRailTopY +
             span * ((index + 0.5) / widget.playerTeam.length));
     final spriteCenterX = constraints.maxWidth * BattleGame.teamColumnX;
-    // Pill sits to the right of the sprite, vertically centered on it.
-    // ~52px gap from sprite center clears the 88px sprite width with
-    // a touch of breathing room.
-    const pillWidth = 132.0;
-    const pillHeight = 36.0;
-    final left = spriteCenterX + 52;
+    // Compact Pokemon-style nameplate placed directly under each sprite.
+    // Centered horizontally on the sprite, no border, minimal chrome.
+    const pillWidth = 124.0;
+    final left = math.max(2.0, spriteCenterX - pillWidth / 2);
 
     return Positioned(
-      top: spriteCenterY - pillHeight / 2,
+      // Sprite visible bottom ≈ centerY + 36 (72px sprite, anchored
+      // center). Pill top placed 6px below that.
+      top: spriteCenterY + 42,
       left: left,
       width: pillWidth,
       child: _buildHpPill(index),
@@ -1445,9 +1456,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     final isDead = creature.isDead;
     final isOnCooldown = !isDead && !creature.canAct;
     final shakeNonce = _slotShakeNonce[index] ?? 0;
-    final element = creature.types.isNotEmpty
-        ? creature.types.first
-        : 'Normal';
+    final element = creature.types.isNotEmpty ? creature.types.first : 'Normal';
     final elementColor = _elementColor(element, fc);
     final specialPct = (creature.specialCooldown == 0)
         ? 1.0
@@ -1459,13 +1468,11 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                       ))
                   .clamp(0.0, 1.0);
 
-    final borderColor = isSelected
+    final highlightColor = isSelected
         ? elementColor
         : isOnCooldown
-        ? fc.teal.withValues(alpha: 0.55)
-        : isDead
-        ? fc.borderDim
-        : fc.borderAccent.withValues(alpha: 0.4);
+        ? fc.teal
+        : null;
 
     return TweenAnimationBuilder<double>(
       key: ValueKey('party_pill_${index}_$shakeNonce'),
@@ -1488,66 +1495,58 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
           });
         },
         behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: fc.bg0.withValues(alpha: isDead ? 0.6 : 0.8),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: borderColor, width: isSelected ? 1.4 : 1),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'Lv${creature.level}',
-                    style: TextStyle(
-                      color: isDead ? fc.textMuted : fc.textPrimary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'monospace',
-                    ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Lv${creature.level}',
+                  style: TextStyle(
+                    color: isDead
+                        ? fc.textMuted
+                        : (highlightColor ?? fc.textPrimary),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'monospace',
                   ),
-                  const Spacer(),
-                  Text(
-                    isDead ? 'DOWN' : '${creature.currentHp}/${creature.maxHp}',
-                    style: TextStyle(
-                      color: isDead
-                          ? fc.danger.withValues(alpha: 0.9)
-                          : fc.textSecondary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'monospace',
-                    ),
+                ),
+                const Spacer(),
+                Text(
+                  isDead ? 'DOWN' : '${creature.currentHp}/${creature.maxHp}',
+                  style: TextStyle(
+                    color: isDead
+                        ? fc.danger.withValues(alpha: 0.9)
+                        : fc.textSecondary,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'monospace',
                   ),
-                ],
-              ),
-              const SizedBox(height: 3),
-              _buildAnimatedHPBar(
-                current: creature.currentHp,
-                max: creature.maxHp,
-                color: _getHealthColor(creature.hpPercent),
-                height: 4,
-              ),
-              const SizedBox(height: 2),
-              _buildAnimatedHPBar(
-                current: (specialPct * 100).round(),
-                max: 100,
-                color: creature.specialCooldown == 0
-                    ? elementColor
-                    : Colors.orange.shade400,
-                height: 2,
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            _buildAnimatedHPBar(
+              current: creature.currentHp,
+              max: creature.maxHp,
+              color: _getHealthColor(creature.hpPercent),
+              height: 4,
+            ),
+            const SizedBox(height: 1),
+            _buildAnimatedHPBar(
+              current: (specialPct * 100).round(),
+              max: 100,
+              color: creature.specialCooldown == 0
+                  ? elementColor
+                  : Colors.orange.shade400,
+              height: 2,
+            ),
+          ],
         ),
       ),
     );
   }
-
 
   /// Element accent color used for the button border + section accents.
   Color _elementColor(String element, FC fc) {
@@ -1674,6 +1673,286 @@ class _BossBattleStagePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _BossBattleStagePainter oldDelegate) {
     return oldDelegate.accent != accent || oldDelegate.danger != danger;
+  }
+}
+
+class _MoveAttackIconPainter extends CustomPainter {
+  final String family;
+  final Color elementColor;
+  final bool isEnabled;
+  final bool isSpecial;
+
+  const _MoveAttackIconPainter({
+    required this.family,
+    required this.elementColor,
+    required this.isEnabled,
+    required this.isSpecial,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+
+    final bounds = Offset.zero & size;
+    final circle = Path()
+      ..addOval(
+        Rect.fromCircle(
+          center: bounds.center,
+          radius: math.min(size.width, size.height) / 2,
+        ),
+      );
+
+    canvas.save();
+    canvas.clipPath(circle);
+    _drawEnergyBackdrop(canvas, size);
+
+    switch (family) {
+      case 'Wing':
+        if (isSpecial) {
+          _drawWingBeam(canvas, size);
+        } else {
+          _drawWingFeatherBurst(canvas, size);
+        }
+        break;
+    }
+
+    canvas.restore();
+  }
+
+  void _drawEnergyBackdrop(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2;
+    final hot = Color.lerp(
+      elementColor,
+      Colors.white,
+      isEnabled ? 0.34 : 0.12,
+    )!;
+    final cool = Color.lerp(elementColor, const Color(0xFF102033), 0.5)!;
+    final dark = isEnabled
+        ? Color.lerp(elementColor, Colors.black, 0.72)!
+        : const Color(0xFF1B1D24);
+
+    final fill = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.35, -0.45),
+        radius: 1.08,
+        colors: [
+          hot.withValues(alpha: isEnabled ? 0.95 : 0.32),
+          elementColor.withValues(alpha: isEnabled ? 0.82 : 0.22),
+          cool.withValues(alpha: isEnabled ? 0.78 : 0.28),
+          dark.withValues(alpha: 0.98),
+        ],
+        stops: const [0.0, 0.36, 0.68, 1.0],
+      ).createShader(Offset.zero & size);
+    canvas.drawCircle(center, radius, fill);
+
+    final haze = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = radius * 0.18
+      ..color = hot.withValues(alpha: isEnabled ? 0.22 : 0.08)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawArc(
+      Rect.fromCircle(
+        center: center.translate(-radius * 0.12, 0),
+        radius: radius * 0.72,
+      ),
+      -math.pi * 0.88,
+      math.pi * 1.18,
+      false,
+      haze,
+    );
+
+    final current = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = radius * 0.07
+      ..color = hot.withValues(alpha: isEnabled ? 0.38 : 0.12);
+    final sweep = Path()
+      ..moveTo(size.width * 0.03, size.height * 0.64)
+      ..cubicTo(
+        size.width * 0.28,
+        size.height * 0.28,
+        size.width * 0.58,
+        size.height * 0.84,
+        size.width * 0.97,
+        size.height * 0.35,
+      );
+    canvas.drawPath(sweep, current);
+
+    final shadowCurrent = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = radius * 0.08
+      ..color = Colors.black.withValues(alpha: isEnabled ? 0.2 : 0.28);
+    final counter = Path()
+      ..moveTo(size.width * 0.14, size.height * 0.24)
+      ..cubicTo(
+        size.width * 0.46,
+        size.height * 0.12,
+        size.width * 0.42,
+        size.height * 0.64,
+        size.width * 0.84,
+        size.height * 0.54,
+      );
+    canvas.drawPath(counter, shadowCurrent);
+  }
+
+  void _drawWingFeatherBurst(Canvas canvas, Size size) {
+    final glow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = size.width * 0.11
+      ..color = elementColor.withValues(alpha: isEnabled ? 0.45 : 0.15)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = size.width * 0.075
+      ..color = Color.lerp(
+        elementColor,
+        Colors.white,
+        isEnabled ? 0.52 : 0.18,
+      )!.withValues(alpha: isEnabled ? 0.96 : 0.46);
+    final inner = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.026
+      ..color = Colors.white.withValues(alpha: isEnabled ? 0.78 : 0.28);
+
+    final feathers = <Path>[
+      Path()
+        ..moveTo(size.width * 0.20, size.height * 0.61)
+        ..cubicTo(
+          size.width * 0.40,
+          size.height * 0.28,
+          size.width * 0.67,
+          size.height * 0.28,
+          size.width * 0.84,
+          size.height * 0.17,
+        ),
+      Path()
+        ..moveTo(size.width * 0.24, size.height * 0.73)
+        ..cubicTo(
+          size.width * 0.45,
+          size.height * 0.45,
+          size.width * 0.64,
+          size.height * 0.56,
+          size.width * 0.80,
+          size.height * 0.39,
+        ),
+      Path()
+        ..moveTo(size.width * 0.27, size.height * 0.84)
+        ..cubicTo(
+          size.width * 0.46,
+          size.height * 0.62,
+          size.width * 0.57,
+          size.height * 0.73,
+          size.width * 0.73,
+          size.height * 0.60,
+        ),
+    ];
+
+    for (final feather in feathers) {
+      canvas.drawPath(feather, glow);
+      canvas.drawPath(feather, stroke);
+      canvas.drawPath(feather, inner);
+    }
+
+    final slash = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.055
+      ..color = Colors.white.withValues(alpha: isEnabled ? 0.9 : 0.3);
+    canvas.drawLine(
+      Offset(size.width * 0.39, size.height * 0.36),
+      Offset(size.width * 0.59, size.height * 0.23),
+      slash,
+    );
+  }
+
+  void _drawWingBeam(Canvas canvas, Size size) {
+    final hot = Color.lerp(elementColor, Colors.white, isEnabled ? 0.56 : 0.2)!;
+    final beamGlow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.20
+      ..color = elementColor.withValues(alpha: isEnabled ? 0.55 : 0.16)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    final beam = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.125
+      ..color = hot.withValues(alpha: isEnabled ? 0.96 : 0.38);
+    final core = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.04
+      ..color = Colors.white.withValues(alpha: isEnabled ? 0.94 : 0.34);
+
+    final beamPath = Path()
+      ..moveTo(size.width * 0.08, size.height * 0.77)
+      ..lineTo(size.width * 0.87, size.height * 0.20);
+    canvas.drawPath(beamPath, beamGlow);
+    canvas.drawPath(beamPath, beam);
+    canvas.drawPath(beamPath, core);
+
+    final arcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.045
+      ..color = hot.withValues(alpha: isEnabled ? 0.78 : 0.24);
+    canvas.drawArc(
+      Rect.fromLTWH(
+        size.width * 0.02,
+        size.height * 0.16,
+        size.width * 0.64,
+        size.height * 0.62,
+      ),
+      -math.pi * 0.08,
+      math.pi * 0.72,
+      false,
+      arcPaint,
+    );
+    canvas.drawArc(
+      Rect.fromLTWH(
+        size.width * 0.34,
+        size.height * 0.22,
+        size.width * 0.58,
+        size.height * 0.56,
+      ),
+      math.pi * 0.95,
+      math.pi * 0.58,
+      false,
+      arcPaint,
+    );
+
+    final shardFill = Paint()
+      ..style = PaintingStyle.fill
+      ..color = hot.withValues(alpha: isEnabled ? 0.86 : 0.22);
+    for (final spec in const [
+      (0.24, 0.28, 0.10),
+      (0.70, 0.72, 0.085),
+      (0.78, 0.36, 0.07),
+    ]) {
+      final path = Path()
+        ..moveTo(size.width * spec.$1, size.height * (spec.$2 - spec.$3))
+        ..lineTo(size.width * (spec.$1 + spec.$3), size.height * spec.$2)
+        ..lineTo(size.width * spec.$1, size.height * (spec.$2 + spec.$3))
+        ..lineTo(size.width * (spec.$1 - spec.$3), size.height * spec.$2)
+        ..close();
+      canvas.drawPath(path, shardFill);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MoveAttackIconPainter old) {
+    return old.family != family ||
+        old.elementColor != elementColor ||
+        old.isEnabled != isEnabled ||
+        old.isSpecial != isSpecial;
   }
 }
 
