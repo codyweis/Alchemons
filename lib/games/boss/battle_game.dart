@@ -121,8 +121,8 @@ class BattleGame extends FlameGame with TapCallbacks {
   /// Left vertical rail layout: party members stack along the left edge,
   /// boss sits in the upper-right. Matches the VoidPet-style battle HUD
   /// where the bottom band is reserved for the move card.
-  static const double teamColumnX = 0.20;
-  static const double teamRailTopY = 0.20;
+  static const double teamColumnX = 0.13;
+  static const double teamRailTopY = 0.18;
   static const double teamRailBottomY = 0.66;
   static const double bossArenaX = 0.70;
   static const double bossArenaY = 0.34;
