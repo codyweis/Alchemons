@@ -2307,7 +2307,22 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
   final Set<String> _lastModifierKeys = {};
 
   void updateStatusIcons() {
-    // Safe way to clear - schedule removal
+    // Boss status badges are now rendered as Flutter bubbles in the
+    // upper-right of the screen (see _buildBossStatusStack). The old
+    // Flame row sat next to the sprite and either clipped off-screen
+    // or duplicated the bubbles. Short-circuit here; the legacy
+    // builder below is preserved if we ever want to revert.
+    final toRemove = statusIconContainer.children.toList();
+    for (final child in toRemove) {
+      child.removeFromParent();
+    }
+    return;
+    // ignore: dead_code
+  }
+
+  // Legacy badge row, kept verbatim for reference / quick revert.
+  // ignore: unused_element
+  void _legacyUpdateStatusIcons() {
     final toRemove = statusIconContainer.children.toList();
     for (final child in toRemove) {
       child.removeFromParent();
