@@ -122,14 +122,11 @@ class BattleGame extends FlameGame with TapCallbacks {
   /// boss sits in the upper-right. Matches the VoidPet-style battle HUD
   /// where the bottom band is reserved for the move card.
   static const double teamColumnX = 0.14;
-  // Wider Y span — larger sprites (~86px) + nameplate + breathing room
-  // need ~140px per slot to read cleanly. Bottom kept above the move
-  // card so the last slot's pill doesn't crash into the card title.
-  static const double teamRailTopY = 0.18;
-  // Wider span — gives the Flutter HP pill room to grow an extra
-  // status-chip row without crashing into the next sprite, while the
-  // move card below was shrunk to claim back the bottom space.
-  static const double teamRailBottomY = 0.76;
+  // Pulled up so the alchemons sit close to the boss header instead
+  // of leaving a wide empty band below it. The move card grows back
+  // to a two-line description using the recovered bottom space.
+  static const double teamRailTopY = 0.13;
+  static const double teamRailBottomY = 0.66;
   static const double bossArenaX = 0.70;
   static const double bossArenaY = 0.34;
 

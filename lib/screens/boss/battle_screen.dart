@@ -571,7 +571,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                       // full battle log dialog.
                       Positioned(
                         left: 8,
-                        top: constraints.maxHeight * 0.12,
+                        top: constraints.maxHeight * 0.085,
                         width: constraints.maxWidth * 0.62,
                         child: _buildLastActionLine(),
                       ),
@@ -1314,15 +1314,15 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
             ),
           ],
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 4),
         Text(
           armedDescription,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: fc.textSecondary,
-            fontSize: 10,
-            height: 1.2,
+            fontSize: 11,
+            height: 1.25,
           ),
         ),
         const SizedBox(height: 4),
