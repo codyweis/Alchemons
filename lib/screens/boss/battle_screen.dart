@@ -297,7 +297,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               ),
               SizedBox(height: 12),
               Text(
-                'Regroup and try again with a stronger strategy.',
+                'Regroup and try again.',
                 style: TextStyle(color: fc.textSecondary, fontSize: 12),
                 textAlign: TextAlign.center,
               ),

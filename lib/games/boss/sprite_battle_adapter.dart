@@ -76,6 +76,9 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       visuals: visuals,
       desiredSize: Vector2(86, 86), // Battle display — 20% bigger than baseline
       variantFaction: combatant.instanceRef?.variantFaction,
+      // Player team lives on the left, boss on the right — face the
+      // boss instead of looking off-screen.
+      flipHorizontal: true,
     );
     creatureVisual.position = size / 2;
     creatureVisual.anchor = Anchor.center;
@@ -687,6 +690,10 @@ class CreatureSpriteComponentBattle extends PositionComponent
   final SpriteVisuals visuals;
   final Vector2 desiredSize;
   final String? variantFaction;
+  // Mirror the sprite on the X axis. Player alchemons live on the left
+  // side of the arena and the boss is on the right, so we flip the
+  // player team to face the boss.
+  final bool flipHorizontal;
 
   late final SpriteAnimationComponent _anim;
   double _prismaticHue = 0;
@@ -696,6 +703,7 @@ class CreatureSpriteComponentBattle extends PositionComponent
     required this.visuals,
     required this.desiredSize,
     this.variantFaction,
+    this.flipHorizontal = false,
   });
   @override
   Future<void> onLoad() async {
@@ -731,7 +739,10 @@ class CreatureSpriteComponentBattle extends PositionComponent
               priority: priority,
             )
             ..paint.filterQuality = FilterQuality.high
-            ..scale = Vector2.all(finalScale);
+            ..scale = Vector2(
+              flipHorizontal ? -finalScale : finalScale,
+              finalScale,
+            );
 
       _applyColorFilters();
       add(_anim);
