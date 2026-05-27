@@ -1164,7 +1164,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   Widget _buildBottomDock() {
     final fc = _fc;
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
@@ -1263,8 +1263,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(width: 3, height: 28, color: accent),
-            const SizedBox(width: 10),
+            Container(width: 3, height: 22, color: accent),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1278,22 +1278,21 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: fc.textPrimary,
-                      fontSize: 15,
+                      fontSize: 13,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.9,
+                      letterSpacing: 0.8,
                       fontFamily: 'monospace',
                     ),
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     armedSubtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: accent.withValues(alpha: 0.95),
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.4,
                       fontFamily: 'monospace',
                     ),
                   ),
@@ -1307,26 +1306,26 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 color: armedCanExecute && isPlayerTurn
                     ? fc.amberBright
                     : turnColor,
-                fontSize: 9,
+                fontSize: 8,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 0.7,
+                letterSpacing: 0.6,
                 fontFamily: 'monospace',
               ),
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           armedDescription,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: fc.textSecondary,
-            fontSize: 11,
-            height: 1.25,
+            fontSize: 10,
+            height: 1.2,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1530,7 +1529,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               label,
               maxLines: 1,
@@ -1538,26 +1537,10 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: isEnabled ? fc.textPrimary : fc.textMuted,
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: FontWeight.w900,
                 fontFamily: 'monospace',
                 letterSpacing: 0.4,
-              ),
-            ),
-            const SizedBox(height: 0),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isEnabled
-                    ? fc.textSecondary.withValues(alpha: 0.85)
-                    : fc.textMuted.withValues(alpha: 0.7),
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'monospace',
-                letterSpacing: 0.3,
               ),
             ),
           ],
