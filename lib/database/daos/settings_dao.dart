@@ -212,6 +212,26 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await setSetting('feeding_tutorial_seen', '1');
   }
 
+  Future<bool> isElementalCreatorAutoUnlocked() async {
+    return await getSetting('enhance_creator_auto_unlocked') == '1';
+  }
+
+  Future<void> setElementalCreatorAutoUnlocked() async {
+    await setSetting('enhance_creator_auto_unlocked', '1');
+  }
+
+  Future<bool> hasPendingEnhanceCelebration() async {
+    return await getSetting('enhance_creator_celebration_pending') == '1';
+  }
+
+  Future<void> setEnhanceCelebrationPending() async {
+    await setSetting('enhance_creator_celebration_pending', '1');
+  }
+
+  Future<void> clearEnhanceCelebrationPending() async {
+    await deleteSetting('enhance_creator_celebration_pending');
+  }
+
   Future<bool> hasSeenPowerupFeedingTutorial() async {
     final v = await getSetting('powerup_feeding_tutorial_seen');
     return v == '1';

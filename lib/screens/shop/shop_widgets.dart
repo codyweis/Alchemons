@@ -340,13 +340,17 @@ Future<bool> showItemDetailDialog({
                                   decoration: BoxDecoration(
                                     color: canAfford
                                         ? (theme.isDark
-                                            ? t.amberDim.withValues(alpha: 0.35)
-                                            : Colors.white)
+                                              ? t.amberDim.withValues(
+                                                  alpha: 0.35,
+                                                )
+                                              : Colors.white)
                                         : t.bg3,
                                     borderRadius: BorderRadius.circular(2),
                                     border: Border.all(
                                       color: canAfford
-                                          ? (theme.isDark ? t.amber : Colors.black)
+                                          ? (theme.isDark
+                                                ? t.amber
+                                                : Colors.black)
                                           : t.danger.withValues(alpha: 0.5),
                                       width: 1,
                                     ),
@@ -370,7 +374,9 @@ Future<bool> showItemDetailDialog({
                                             ? Icons.shopping_bag_outlined
                                             : Icons.block_rounded,
                                         color: canAfford
-                                            ? (theme.isDark ? primaryAccent : Colors.black)
+                                            ? (theme.isDark
+                                                  ? primaryAccent
+                                                  : Colors.black)
                                             : t.danger.withValues(alpha: 0.7),
                                         size: 15,
                                       ),
@@ -382,7 +388,9 @@ Future<bool> showItemDetailDialog({
                                         style: TextStyle(
                                           fontFamily: 'monospace',
                                           color: canAfford
-                                              ? (theme.isDark ? primaryAccent : Colors.black)
+                                              ? (theme.isDark
+                                                    ? primaryAccent
+                                                    : Colors.black)
                                               : t.danger.withValues(alpha: 0.7),
                                           fontSize: 12,
                                           fontWeight: FontWeight.w800,
@@ -779,7 +787,7 @@ class GameShopCard extends StatelessWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: theme.surface.withValues(alpha: theme.isDark ? 0.1 : 0.72),
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: !enabled
@@ -798,9 +806,7 @@ class GameShopCard extends StatelessWidget {
               // Image / Preview area - SIMPLIFIED
               Expanded(
                 child: Container(
-                  color: theme.isDark
-                      ? Colors.black.withValues(alpha: 0.05)
-                      : t.bg2.withValues(alpha: 0.8),
+                  color: Colors.transparent,
                   child: Stack(
                     children: [
                       Positioned.fill(
@@ -1660,12 +1666,17 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         style: TextButton.styleFrom(
-                          backgroundColor: theme.isDark ? theme.accent.withValues(alpha: 0.2) : Colors.white,
+                          backgroundColor: theme.isDark
+                              ? theme.accent.withValues(alpha: 0.2)
+                              : Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          side: BorderSide(color: theme.isDark ? theme.accent : Colors.black, width: 1.2),
+                          side: BorderSide(
+                            color: theme.isDark ? theme.accent : Colors.black,
+                            width: 1.2,
+                          ),
                         ),
                         child: Text(
                           'CONFIRM',
@@ -1965,7 +1976,9 @@ Future<int?> showPurchaseConfirmationDialog({
                                 width: 1.2,
                               ),
                               borderRadius: BorderRadius.circular(3),
-                              color: t.isDark ? t.amberDim.withValues(alpha: 0.18) : Colors.white,
+                              color: t.isDark
+                                  ? t.amberDim.withValues(alpha: 0.18)
+                                  : Colors.white,
                               boxShadow: t.isDark
                                   ? [
                                       BoxShadow(

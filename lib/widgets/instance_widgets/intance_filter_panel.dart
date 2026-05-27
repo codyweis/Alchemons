@@ -25,6 +25,7 @@ class _BracketChip extends StatelessWidget {
     this.activeColor,
     this.leading,
     this.trailing,
+    this.showInactiveFrame = true,
   });
 
   final String label;
@@ -33,6 +34,7 @@ class _BracketChip extends StatelessWidget {
   final Color? activeColor;
   final Widget? leading;
   final Widget? trailing;
+  final bool showInactiveFrame;
 
   @override
   Widget build(BuildContext context) {
@@ -45,38 +47,41 @@ class _BracketChip extends StatelessWidget {
         ? palette.accentWash(accent, darkAlpha: 0.16, lightAlpha: 0.09)
         : (palette.isDark ? Colors.transparent : palette.surfaceMutedFill());
     final textColor = active ? accent : palette.muted;
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      color: fillColor,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 5)],
+          Text(
+            label,
+            style: bracketText(
+              context,
+              12,
+              textColor,
+              weight: active ? FontWeight.w800 : FontWeight.w600,
+              letterSpacing: 0.4,
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+        ],
+      ),
+    );
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: frameColor,
-          bracketSize: 7,
-          strokeWidth: active ? 1.2 : 1.0,
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          color: fillColor,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (leading != null) ...[leading!, const SizedBox(width: 5)],
-              Text(
-                label,
-                style: bracketText(
-                  context,
-                  12,
-                  textColor,
-                  weight: active ? FontWeight.w800 : FontWeight.w600,
-                  letterSpacing: 0.4,
-                ),
+      child: active || showInactiveFrame
+          ? CustomPaint(
+              painter: BracketFramePainter(
+                color: frameColor,
+                bracketSize: 7,
+                strokeWidth: active ? 1.2 : 1.0,
               ),
-              if (trailing != null) ...[const SizedBox(width: 4), trailing!],
-            ],
-          ),
-        ),
-      ),
+              child: content,
+            )
+          : content,
     );
   }
 }
@@ -112,6 +117,7 @@ class InstanceFiltersPanel extends StatelessWidget {
   final bool showSortRow;
   final bool showFilterRow;
   final bool showClearChip;
+  final bool showInactiveBrackets;
 
   final VoidCallback onClearAll;
 
@@ -139,6 +145,7 @@ class InstanceFiltersPanel extends StatelessWidget {
     this.showSortRow = true,
     this.showFilterRow = true,
     this.showClearChip = true,
+    this.showInactiveBrackets = true,
     required this.onClearAll,
   });
 
@@ -165,24 +172,28 @@ class InstanceFiltersPanel extends StatelessWidget {
           labelWhenAny: 'VARIANT',
           valueText: variantValueText?.toUpperCase(),
           onTap: onCycleVariant,
+          showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
           icon: Icons.straighten_rounded,
           labelWhenAny: 'SIZE',
           valueText: sizeValueText?.toUpperCase(),
           onTap: onCycleSize,
+          showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
           icon: Icons.palette_outlined,
           labelWhenAny: 'TINT',
           valueText: tintValueText?.toUpperCase(),
           onTap: onCycleTint,
+          showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
           icon: Icons.verified_rounded,
           labelWhenAny: 'PURITY',
           valueText: purityFilter.chipValueText,
           onTap: onCyclePurity,
+          showInactiveFrame: showInactiveBrackets,
         ),
       ] else ...[
         _CycleChip(
@@ -190,12 +201,14 @@ class InstanceFiltersPanel extends StatelessWidget {
           labelWhenAny: 'SIZE',
           valueText: sizeValueText?.toUpperCase(),
           onTap: onCycleSize,
+          showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
           icon: Icons.verified_rounded,
           labelWhenAny: 'PURITY',
           valueText: purityFilter.chipValueText,
           onTap: onCyclePurity,
+          showInactiveFrame: showInactiveBrackets,
         ),
       ],
 
@@ -219,6 +232,7 @@ class InstanceFiltersPanel extends StatelessWidget {
             onPickNature(newVal);
           }
         },
+        showInactiveFrame: showInactiveBrackets,
       ),
 
       _ToggleChip(
@@ -227,6 +241,7 @@ class InstanceFiltersPanel extends StatelessWidget {
         active: filterPrismatic,
         activeColor: const Color(0xFFE879F9), // purple for prismatic
         onTap: onTogglePrismatic,
+        showInactiveFrame: showInactiveBrackets,
       ),
 
       if (onToggleFavorites != null)
@@ -236,6 +251,7 @@ class InstanceFiltersPanel extends StatelessWidget {
           active: filterFavorites,
           activeColor: const Color(0xFFE91E8C),
           onTap: onToggleFavorites!,
+          showInactiveFrame: showInactiveBrackets,
         ),
     ];
 
@@ -253,29 +269,34 @@ class InstanceFiltersPanel extends StatelessWidget {
                   label: 'NEWEST',
                   selected: sortBy == SortBy.newest,
                   onTap: () => onSortChanged(SortBy.newest),
+                  showInactiveFrame: showInactiveBrackets,
                 ),
                 const SizedBox(width: 6),
                 _SortChip(
                   label: 'OLDEST',
                   selected: sortBy == SortBy.oldest,
                   onTap: () => onSortChanged(SortBy.oldest),
+                  showInactiveFrame: showInactiveBrackets,
                 ),
                 const SizedBox(width: 6),
                 _SortChip(
                   label: 'LV ↑',
                   selected: sortBy == SortBy.levelHigh,
                   onTap: () => onSortChanged(SortBy.levelHigh),
+                  showInactiveFrame: showInactiveBrackets,
                 ),
                 const SizedBox(width: 6),
                 _SortChip(
                   label: 'LV ↓',
                   selected: sortBy == SortBy.levelLow,
                   onTap: () => onSortChanged(SortBy.levelLow),
+                  showInactiveFrame: showInactiveBrackets,
                 ),
                 const SizedBox(width: 6),
                 _StatCycleChip(
                   currentStat: sortBy,
                   hasPotentialAnalyzer: hasPotentialAnalyzer,
+                  showInactiveFrame: showInactiveBrackets,
                   onTap: () {
                     onSortChanged(
                       sortBy.nextStatSort(
@@ -313,15 +334,22 @@ class _SortChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool showInactiveFrame;
   const _SortChip({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.showInactiveFrame = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return _BracketChip(label: label, active: selected, onTap: onTap);
+    return _BracketChip(
+      label: label,
+      active: selected,
+      onTap: onTap,
+      showInactiveFrame: showInactiveFrame,
+    );
   }
 }
 
@@ -329,10 +357,12 @@ class _StatCycleChip extends StatelessWidget {
   final SortBy currentStat;
   final bool hasPotentialAnalyzer;
   final VoidCallback onTap;
+  final bool showInactiveFrame;
   const _StatCycleChip({
     required this.currentStat,
     required this.hasPotentialAnalyzer,
     required this.onTap,
+    this.showInactiveFrame = true,
   });
 
   (IconData, String, Color?) _info() {
@@ -365,6 +395,7 @@ class _StatCycleChip extends StatelessWidget {
       activeColor: color,
       onTap: onTap,
       leading: Icon(icon, size: 12, color: iconColor),
+      showInactiveFrame: showInactiveFrame,
       trailing: (hasPotentialAnalyzer && isStat && currentStat.isPotentialSort)
           ? Icon(Icons.auto_graph_rounded, size: 11, color: iconColor)
           : null,
@@ -377,11 +408,13 @@ class _CycleChip extends StatelessWidget {
   final String labelWhenAny;
   final String? valueText;
   final VoidCallback onTap;
+  final bool showInactiveFrame;
   const _CycleChip({
     required this.icon,
     required this.labelWhenAny,
     required this.valueText,
     required this.onTap,
+    this.showInactiveFrame = true,
   });
 
   @override
@@ -395,6 +428,7 @@ class _CycleChip extends StatelessWidget {
       active: active,
       onTap: onTap,
       leading: Icon(icon, size: 12, color: iconColor),
+      showInactiveFrame: showInactiveFrame,
     );
   }
 }
@@ -405,12 +439,14 @@ class _ToggleChip extends StatelessWidget {
   final bool active;
   final Color? activeColor;
   final VoidCallback onTap;
+  final bool showInactiveFrame;
   const _ToggleChip({
     required this.icon,
     required this.label,
     required this.active,
     required this.onTap,
     this.activeColor,
+    this.showInactiveFrame = true,
   });
 
   @override
@@ -426,6 +462,7 @@ class _ToggleChip extends StatelessWidget {
       activeColor: activeColor,
       onTap: onTap,
       leading: Icon(icon, size: 12, color: iconColor),
+      showInactiveFrame: showInactiveFrame,
     );
   }
 }
@@ -435,11 +472,13 @@ class _PickerChip extends StatelessWidget {
   final String label;
   final String? value;
   final VoidCallback onTap;
+  final bool showInactiveFrame;
   const _PickerChip({
     required this.icon,
     required this.label,
     required this.value,
     required this.onTap,
+    this.showInactiveFrame = true,
   });
 
   @override
@@ -453,6 +492,7 @@ class _PickerChip extends StatelessWidget {
       active: active,
       onTap: onTap,
       leading: Icon(icon, size: 12, color: iconColor),
+      showInactiveFrame: showInactiveFrame,
       trailing: Icon(
         Icons.keyboard_arrow_down_rounded,
         size: 12,

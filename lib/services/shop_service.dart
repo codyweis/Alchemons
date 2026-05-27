@@ -85,10 +85,50 @@ class ShopService extends ChangeNotifier {
   final Map<String, DateTime> _lastPurchaseTime = {}; // offerId -> last time
   final Set<String> _unlockedContestEffectOfferIds = <String>{};
 
+  // Auto-unlock for Elemental Essence Creator after enough breeding.
+  static const int kAutoUnlockBredThreshold = 10;
+  bool _elementalCreatorAutoUnlocked = false;
+
   ShopService(this._db, this._constellations, this._factions) {
     _loadPurchaseHistory();
     _loadInventoryCache();
     _loadContestEffectUnlocks();
+    _loadElementalCreatorAutoUnlock();
+  }
+
+  Future<void> _loadElementalCreatorAutoUnlock() async {
+    _elementalCreatorAutoUnlocked = await _db.settingsDao
+        .isElementalCreatorAutoUnlocked();
+    if (_elementalCreatorAutoUnlocked) notifyListeners();
+  }
+
+  /// Check breeding total and, if the threshold is crossed for the first time,
+  /// grant Elemental Essence Creator and queue a celebration on the home screen.
+  /// Safe to call after every breed; no-op once already unlocked.
+  Future<bool> maybeAutoUnlockElementalCreator() async {
+    if (_elementalCreatorAutoUnlocked) return false;
+    if ((_purchaseCounts[elementalCreatorOfferId] ?? 0) > 0) {
+      _elementalCreatorAutoUnlocked = true;
+      await _db.settingsDao.setElementalCreatorAutoUnlocked();
+      return false;
+    }
+
+    final totalBred = await _db.constellationDao.getTotalBredCount();
+    if (totalBred < kAutoUnlockBredThreshold) return false;
+
+    _elementalCreatorAutoUnlocked = true;
+    await _db.settingsDao.setElementalCreatorAutoUnlocked();
+    await _db.settingsDao.setEnhanceCelebrationPending();
+    notifyListeners();
+    return true;
+  }
+
+  /// Consumes the pending celebration flag (returns true once after auto-unlock).
+  Future<bool> consumeEnhanceCelebration() async {
+    final pending = await _db.settingsDao.hasPendingEnhanceCelebration();
+    if (!pending) return false;
+    await _db.settingsDao.clearEnhanceCelebrationPending();
+    return true;
   }
 
   /// Faction-based discount for standard wild harvesters.
@@ -365,18 +405,9 @@ class ShopService extends ChangeNotifier {
         inventoryKey: powerup.inventoryKey,
         iconColor: powerup.color,
       ),
-    ShopOffer(
-      id: elementalCreatorOfferId,
-      name: 'Elemental Essence Creator',
-      description:
-          'Consume Alchemons into elemental material to enhance other Alchemons.',
-      icon: Icons.auto_fix_high_rounded,
-      cost: const {'silver': 10000},
-      reward: const {},
-      rewardType: 'boost',
-      limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/enhanceicon.png',
-    ),
+    // Elemental Essence Creator is no longer sold — it now auto-unlocks
+    // after the player breeds [kAutoUnlockBredThreshold] Alchemons.
+
     // --- NEW: Devices (standard per element) ---
     ShopOffer(
       id: 'device.harvest.std.volcanic',
@@ -1264,9 +1295,6 @@ class ShopService extends ChangeNotifier {
         await _db.settingsDao.setMustPickFaction(true);
         return true;
 
-      case elementalCreatorOfferId:
-        return true;
-
       case 'effects.alchemy_glow':
         await _db.inventoryDao.addItemQty(InvKeys.alchemyGlow, qty);
         return true;
@@ -1487,6 +1515,7 @@ class ShopService extends ChangeNotifier {
   }
 
   bool hasElementalCreatorUnlocked() =>
+      _elementalCreatorAutoUnlocked ||
       (_purchaseCounts[elementalCreatorOfferId] ?? 0) > 0;
 
   int getPurchaseCount(String offerId) => _purchaseCounts[offerId] ?? 0;

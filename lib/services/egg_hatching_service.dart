@@ -13,6 +13,7 @@ import 'package:alchemons/screens/breed/utils/breed_utils.dart';
 import 'package:alchemons/screens/breeding_milestones_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -478,6 +479,16 @@ class EggHatching {
     } catch (e) {
       // Don't break hatching if constellation tracking fails
       debugPrint('⚠️ Failed to track breeding for constellation: $e');
+    }
+
+    // Auto-unlock the Elemental Essence Creator once the player has bred
+    // enough Alchemons. Safe no-op once already unlocked.
+    try {
+      if (context.mounted) {
+        await context.read<ShopService>().maybeAutoUnlockElementalCreator();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to check Elemental Creator auto-unlock: $e');
     }
 
     // 👇 Capture a stable, root-level context up front

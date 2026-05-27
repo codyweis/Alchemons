@@ -200,9 +200,7 @@ class _StorageSectionState extends State<StorageSection> {
       onTap: () => setState(() => _selectedFaction = group),
       child: CustomPaint(
         painter: BracketFramePainter(
-          color: isSelected
-              ? accent
-              : palette.line.withValues(alpha: 0.55),
+          color: isSelected ? accent : palette.line.withValues(alpha: 0.55),
           bracketSize: 6,
           strokeWidth: isSelected ? 1.2 : 1.0,
         ),
@@ -210,7 +208,9 @@ class _StorageSectionState extends State<StorageSection> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           color: isSelected
               ? palette.accentWash(accent)
-              : (palette.isDark ? Colors.transparent : palette.surfaceMutedFill()),
+              : (palette.isDark
+                    ? Colors.transparent
+                    : palette.surfaceMutedFill()),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -251,11 +251,7 @@ class _StorageSectionState extends State<StorageSection> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            color: theme.accentSoft,
-            size: 16,
-          ),
+          Icon(Icons.inventory_2_outlined, color: theme.accentSoft, size: 16),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -918,41 +914,43 @@ class EggDetailsModal extends StatelessWidget {
   }
 
   Widget _buildInlineRow(String label, String value, BracketPalette palette) {
-    return Builder(builder: (context) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 92,
-              child: Text(
-                label.toUpperCase(),
-                style: bracketText(
-                  context,
-                  11,
-                  palette.muted,
-                  weight: FontWeight.w700,
-                  letterSpacing: 0.9,
+    return Builder(
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 92,
+                child: Text(
+                  label.toUpperCase(),
+                  style: bracketText(
+                    context,
+                    11,
+                    palette.muted,
+                    weight: FontWeight.w700,
+                    letterSpacing: 0.9,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                value,
-                style: bracketText(
-                  context,
-                  12.5,
-                  palette.ink,
-                  weight: FontWeight.w700,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  value,
+                  style: bracketText(
+                    context,
+                    12.5,
+                    palette.ink,
+                    weight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      );
-    });
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildParentRow(
@@ -960,48 +958,50 @@ class EggDetailsModal extends StatelessWidget {
     BracketPalette palette,
     Color accent,
   ) {
-    return Builder(builder: (context) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(width: 2, height: 18, color: accent),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  parent.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: bracketText(
-                    context,
-                    13,
-                    palette.ink,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-                if (parent.subtitle != null) ...[
-                  const SizedBox(height: 2),
+    return Builder(
+      builder: (context) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(width: 2, height: 18, color: accent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    parent.subtitle!,
-                    maxLines: 2,
+                    parent.name,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: bracketText(
                       context,
-                      12,
-                      palette.muted,
-                      weight: FontWeight.w500,
-                      fontStyle: FontStyle.italic,
+                      13,
+                      palette.ink,
+                      weight: FontWeight.w700,
                     ),
                   ),
+                  if (parent.subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      parent.subtitle!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(
+                        context,
+                        12,
+                        palette.muted,
+                        weight: FontWeight.w500,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
-      );
-    });
+          ],
+        );
+      },
+    );
   }
 
   List<_ParentDetail> _extractParents() {

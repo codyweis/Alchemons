@@ -118,9 +118,28 @@ class BattleGame extends FlameGame with TapCallbacks {
     return null;
   }
 
+  /// Left vertical rail layout: party members stack along the left edge,
+  /// boss sits in the upper-right. Matches the VoidPet-style battle HUD
+  /// where the bottom band is reserved for the move card.
+  static const double teamColumnX = 0.14;
+  // Pulled up so the alchemons sit close to the boss header instead
+  // of leaving a wide empty band below it. Bottom pushed down to add
+  // breathing room between sprites so big-silhouette creatures
+  // (wings, tails, auras) don't graze each other.
+  static const double teamRailTopY = 0.13;
+  static const double teamRailBottomY = 0.72;
+  static const double bossArenaX = 0.70;
+  static const double bossArenaY = 0.34;
+
   Vector2 _teamSlotPosition(int index) {
-    final spacing = size.x / (playerTeam.length + 1);
-    return Vector2(spacing * (index + 1), size.y * 0.66);
+    final count = playerTeam.length;
+    final top = size.y * teamRailTopY;
+    final bottom = size.y * teamRailBottomY;
+    final span = bottom - top;
+    // Center each slot inside an even vertical band so the Flutter rail
+    // (which uses equal-flex slot cards) aligns 1:1 with the sprites.
+    final double y = count == 0 ? top : top + span * ((index + 0.5) / count);
+    return Vector2(size.x * teamColumnX, y);
   }
 
   Future<void> _restoreRevivedSprites() async {
@@ -245,21 +264,24 @@ class BattleGame extends FlameGame with TapCallbacks {
       });
     }
 
-    // Boss - perfectly centered
+    // Boss anchored to the upper-right of the arena.
     bossSprite = BossSprite(
       combatant: boss,
-      position: Vector2(size.x / 2, size.y * 0.36),
+      position: Vector2(size.x * bossArenaX, size.y * bossArenaY),
     );
     await add(bossSprite);
 
-    // Battlefield zone layer — renders persistent ground hazards
-    // beneath combatants. Anchors picked so a poison/fire/etc. pool
-    // visibly "sits at" the boss's or player team's feet.
+    // Battlefield zones now follow the new spatial layout: player pool
+    // sits beneath the left rail's vertical midpoint, boss pool sits
+    // under the right-arena anchor.
     BattleEngine.zoneRegistry = zoneRegistry;
     _zoneLayer = BattlefieldZoneLayer(
       registry: zoneRegistry,
-      playerAnchor: Vector2(size.x / 2, size.y * 0.72),
-      bossAnchor: Vector2(size.x / 2, size.y * 0.47),
+      playerAnchor: Vector2(
+        size.x * teamColumnX,
+        size.y * (teamRailTopY + teamRailBottomY) / 2,
+      ),
+      bossAnchor: Vector2(size.x * bossArenaX, size.y * (bossArenaY + 0.08)),
     );
     await add(_zoneLayer!);
 
@@ -2093,10 +2115,12 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
       add(bossVisual!);
     }
 
-    // Status icon container - anchored near the boss sprite (right/top)
+    // Status icon container — anchored to the LEFT of the boss sprite
+    // so it doesn't clip off the right edge of the screen. Boss is
+    // already pinned to the right side of the arena.
     statusIconContainer = PositionComponent(
       anchor: Anchor.center,
-      position: center + Vector2(size.x * 0.62, -size.y * 0.22),
+      position: center + Vector2(-size.x * 0.6, -size.y * 0.32),
     );
     add(statusIconContainer);
   }
@@ -2284,7 +2308,22 @@ class BossSprite extends PositionComponent with HasGameReference<BattleGame> {
   final Set<String> _lastModifierKeys = {};
 
   void updateStatusIcons() {
-    // Safe way to clear - schedule removal
+    // Boss status badges are now rendered as Flutter bubbles in the
+    // upper-right of the screen (see _buildBossStatusStack). The old
+    // Flame row sat next to the sprite and either clipped off-screen
+    // or duplicated the bubbles. Short-circuit here; the legacy
+    // builder below is preserved if we ever want to revert.
+    final toRemove = statusIconContainer.children.toList();
+    for (final child in toRemove) {
+      child.removeFromParent();
+    }
+    return;
+    // ignore: dead_code
+  }
+
+  // Legacy badge row, kept verbatim for reference / quick revert.
+  // ignore: unused_element
+  void _legacyUpdateStatusIcons() {
     final toRemove = statusIconContainer.children.toList();
     for (final child in toRemove) {
       child.removeFromParent();

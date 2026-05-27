@@ -8,7 +8,6 @@ import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
-import 'package:alchemons/widgets/battle_section.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
@@ -38,21 +37,25 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   final FactionTheme _battleFactionTheme = FactionTheme.scorchForge();
   late final FC _fc = FC(_battleFactionTheme);
   late BattleGame game;
-  late final AnimationController _bossNameController;
   late final BossAttackGraphxOverlayController _bossAttackGraphxController;
+  // Drives the slow rotation on the armed orb's crystalline crown.
+  late final AnimationController _crownController;
   int? selectedCreatureIndex;
+  // Which orb is currently armed (0 = basic, 1 = special). First tap on
+  // an orb selects it and shows its details; a second tap on the armed
+  // orb executes the move. VoidPet-style two-tap confirmation.
+  int _armedMoveSlot = 0;
   final Map<int, int> _slotShakeNonce = <int, int>{};
   final List<_BattleFeedEntry> battleFeed = [];
-  final ScrollController _feedScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _bossAttackGraphxController = BossAttackGraphxOverlayController();
-    _bossNameController = AnimationController(
+    _crownController = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 1100),
-    )..forward();
+      duration: const Duration(seconds: 6),
+    )..repeat();
     game = BattleGame(
       boss: widget.boss,
       playerTeam: widget.playerTeam,
@@ -75,6 +78,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       if (event is CreatureSelectedEvent) {
         setState(() {
           selectedCreatureIndex = event.index;
+          _autoArmDefaultMove();
         });
       } else if (event is TurnStateChangedEvent) {
         setState(() {});
@@ -134,10 +138,14 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     final size = MediaQuery.sizeOf(context);
     final totalTargets = math.max(1, widget.playerTeam.length);
     final slot = event.targetIndex.clamp(0, totalTargets - 1);
-    final spacing = size.width / (totalTargets + 1);
-    final targetX = spacing * (slot + 1);
-    final targetY = size.height * 0.76;
-    final origin = Offset(size.width * 0.5, size.height * 0.33);
+    final top = size.height * BattleGame.teamRailTopY;
+    final bottom = size.height * BattleGame.teamRailBottomY;
+    final targetY = top + (bottom - top) * ((slot + 0.5) / totalTargets);
+    final targetX = size.width * BattleGame.teamColumnX;
+    final origin = Offset(
+      size.width * BattleGame.bossArenaX,
+      size.height * BattleGame.bossArenaY,
+    );
     final target = Offset(targetX, targetY);
 
     _bossAttackGraphxController.spawn(
@@ -163,16 +171,6 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         _BattleFeedEntry(message: msg, source: source, isStatus: isStatus),
       );
     }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_feedScrollController.hasClients) {
-        _feedScrollController.animateTo(
-          _feedScrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 280),
-          curve: Curves.easeOut,
-        );
-      }
-    });
   }
 
   void _showVictory() {
@@ -299,7 +297,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               ),
               SizedBox(height: 12),
               Text(
-                'Regroup and try again with a stronger strategy.',
+                'Regroup and try again.',
                 style: TextStyle(color: fc.textSecondary, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -341,6 +339,35 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         ),
       ),
     );
+  }
+
+  /// Pick a sensible default armed slot for the currently selected
+  /// creature: special when it's ready (slot 1), otherwise basic (slot 0).
+  void _autoArmDefaultMove() {
+    final idx = selectedCreatureIndex;
+    if (idx == null || idx >= widget.playerTeam.length) {
+      _armedMoveSlot = 0;
+      return;
+    }
+    final c = widget.playerTeam[idx];
+    final specialReady =
+        c.canAct && c.level >= 5 && !c.needsRecharge;
+    _armedMoveSlot = specialReady ? 1 : 0;
+  }
+
+  /// VoidPet-style two-tap: first tap arms the orb (shows its details
+  /// in the move card); a second tap on the armed orb executes it.
+  /// Tapping a different orb just switches the preview.
+  void _onOrbTap(int slotIndex) {
+    if (_armedMoveSlot != slotIndex) {
+      setState(() => _armedMoveSlot = slotIndex);
+      return;
+    }
+    if (slotIndex == 0) {
+      _useBasicMove();
+    } else {
+      _useSpecialMove();
+    }
   }
 
   void _useBasicMove() {
@@ -436,6 +463,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       game.post(() => game.selectCreature(nextReady));
       setState(() {
         selectedCreatureIndex = nextReady;
+        _autoArmDefaultMove();
       });
       if (showHint) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -466,6 +494,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       game.post(() => game.selectCreature(alive));
       setState(() {
         selectedCreatureIndex = alive;
+        _autoArmDefaultMove();
       });
     }
   }
@@ -473,8 +502,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   @override
   void dispose() {
     _bossAttackGraphxController.dispose();
-    _bossNameController.dispose();
-    _feedScrollController.dispose();
+    _crownController.dispose();
     super.dispose();
   }
 
@@ -504,25 +532,59 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           body: Scaffold(
             backgroundColor: Colors.transparent,
             body: SafeArea(
-              child: Stack(
-                children: [
-                  GameWidget(game: game),
-                  IgnorePointer(
-                    child: CustomPaint(
-                      painter: _BossBattleStagePainter(
-                        accent: _fc.amber,
-                        danger: _fc.danger,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Stack(
+                    children: [
+                      Positioned.fill(child: GameWidget(game: game)),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _BossBattleStagePainter(
+                              accent: _fc.amber,
+                              danger: _fc.danger,
+                            ),
+                          ),
+                        ),
                       ),
-                      size: Size.infinite,
-                    ),
-                  ),
-                  BossAttackGraphxOverlay(
-                    controller: _bossAttackGraphxController,
-                  ),
-                  Column(
-                    children: [_buildTopHud(), Spacer(), _buildBottomDock()],
-                  ),
-                ],
+                      Positioned.fill(
+                        child: BossAttackGraphxOverlay(
+                          controller: _bossAttackGraphxController,
+                        ),
+                      ),
+                      // Wide top boss header — name + level + HP bar +
+                      // status bubbles. Sits at the very top so the boss
+                      // sprite has the arena to itself.
+                      Positioned(
+                        top: 6,
+                        left: 8,
+                        right: 8,
+                        child: _buildBossHud(),
+                      ),
+                      // HP overlays floating above each Flame sprite — one
+                      // Positioned per slot so the pill anchors directly
+                      // to the creature rather than living in a side rail.
+                      for (int i = 0; i < widget.playerTeam.length; i++)
+                        _buildPartyPillForSlot(constraints, i),
+                      // Last action line — single condensed row beneath
+                      // the boss header on the left. Tapping opens the
+                      // full battle log dialog.
+                      Positioned(
+                        left: 8,
+                        top: constraints.maxHeight * 0.085,
+                        width: constraints.maxWidth * 0.62,
+                        child: _buildLastActionLine(),
+                      ),
+                      // Bottom move card — single compact panel.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: _buildBottomDock(),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -531,67 +593,403 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     );
   }
 
-  Widget _buildTopHud() {
+  /// Wide top boss header with name, level, HP bar, and a row of status
+  /// effect bubbles. Anchored to the top of the screen so the boss
+  /// sprite has the arena to itself.
+  Widget _buildBossHud() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildBossHeaderCard(),
+        const SizedBox(height: 4),
+        Align(alignment: Alignment.centerRight, child: _buildBossStatusStack()),
+      ],
+    );
+  }
+
+  Widget _buildBossStatusStack() {
+    final debuffs = _collectBossDebuffs();
     final fc = _fc;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildBossHeaderCard(),
-          const SizedBox(height: 6),
-          Container(
-            constraints: const BoxConstraints(maxHeight: 96),
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            decoration: BoxDecoration(
-              color: fc.bg0.withValues(alpha: 0.58),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: fc.borderAccent.withValues(alpha: 0.36),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.24),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: battleFeed.isEmpty
-                ? Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.bolt_rounded,
-                          color: fc.amberBright.withValues(alpha: 0.72),
-                          size: 14,
-                        ),
-                        const SizedBox(width: 7),
-                        Text(
-                          'COMMAND READY',
-                          style: TextStyle(
-                            color: fc.textMuted,
-                            fontSize: 12,
-                            letterSpacing: 1.7,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _feedScrollController,
-                    padding: EdgeInsets.zero,
-                    itemCount: battleFeed.length,
-                    itemBuilder: (context, index) {
-                      final e = battleFeed[index];
-                      return _buildFeedRow(e);
-                    },
-                  ),
+    final items = <Widget>[];
+    if (widget.boss.needsRecharge) {
+      items.add(
+        _buildBossStatusBubble(
+          icon: Icons.hourglass_bottom_rounded,
+          label: '${widget.boss.specialCooldown}',
+          color: fc.amberBright,
+          onTap: () => _showStatusDetail(
+            title: 'Special Cooldown',
+            body:
+                'Boss special recharges in ${widget.boss.specialCooldown} turn(s).',
           ),
-        ],
+        ),
+      );
+    }
+    if (widget.boss.tauntTargetId != null) {
+      items.add(
+        _buildBossStatusBubble(
+          icon: Icons.gps_fixed_rounded,
+          label: 'T',
+          color: fc.danger,
+          onTap: () => _showStatusDetail(
+            title: 'Taunt',
+            body: 'Boss is taunted — must target the taunting alchemon.',
+          ),
+        ),
+      );
+    }
+    for (final d in debuffs) {
+      items.add(
+        _buildBossStatusBubble(
+          icon: _iconForDebuffLabel(d.label),
+          label: null,
+          color: d.color,
+          onTap: () => _showStatusDetail(
+            title: d.label,
+            body: _describeBossDebuff(d.label),
+          ),
+        ),
+      );
+    }
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 5,
+      runSpacing: 4,
+      alignment: WrapAlignment.end,
+      children: items,
+    );
+  }
+
+  Widget _buildBossStatusBubble({
+    required IconData icon,
+    required String? label,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    final fc = _fc;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: fc.bg0.withValues(alpha: 0.78),
+          border: Border.all(color: color.withValues(alpha: 0.75), width: 1.2),
+        ),
+        child: label == null
+            ? Icon(icon, color: color, size: 14)
+            : Text(
+                label,
+                style: TextStyle(
+                  color: fc.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'monospace',
+                ),
+              ),
+      ),
+    );
+  }
+
+  void _showStatusDetail({required String title, required String body}) {
+    final fc = _fc;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: fc.bg1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: fc.borderAccent.withValues(alpha: 0.5)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title.toUpperCase(),
+                style: TextStyle(
+                  color: fc.amberBright,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                body,
+                style: TextStyle(
+                  color: fc.textPrimary,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(
+                    'OK',
+                    style: TextStyle(
+                      color: fc.amberBright,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _describeBossDebuff(String label) {
+    switch (label) {
+      case 'BURN':
+        return 'Boss is burning — takes damage at the start of each turn.';
+      case 'POISON':
+        return 'Boss is poisoned — takes stacking damage each turn.';
+      case 'FREEZE':
+        return 'Boss is frozen — actions may be skipped.';
+      case 'CURSE':
+        return 'Boss is cursed — vulnerable to burst detonations.';
+      case 'BLEED':
+        return 'Boss is bleeding — damage over time scaled by hits.';
+      case 'VOID':
+        return 'Boss is banished into the void for a limited duration.';
+      case 'TAUNT':
+        return 'Boss is taunted — locked onto the taunting alchemon.';
+      case 'ATK DOWN':
+        return 'Boss attack is reduced.';
+      case 'DEF DOWN':
+        return 'Boss defense is reduced.';
+      case 'SPD DOWN':
+        return 'Boss speed is reduced.';
+      default:
+        return 'Status effect active on the boss.';
+    }
+  }
+
+  IconData _iconForDebuffLabel(String label) {
+    switch (label) {
+      case 'BURN':
+        return Icons.local_fire_department_rounded;
+      case 'POISON':
+        return Icons.science_rounded;
+      case 'FREEZE':
+        return Icons.ac_unit_rounded;
+      case 'CURSE':
+        return Icons.dark_mode_rounded;
+      case 'BLEED':
+        return Icons.water_drop_rounded;
+      case 'VOID':
+        return Icons.blur_circular_rounded;
+      case 'TAUNT':
+        return Icons.gps_fixed_rounded;
+      case 'ATK DOWN':
+        return Icons.south_rounded;
+      case 'DEF DOWN':
+        return Icons.shield_outlined;
+      case 'SPD DOWN':
+        return Icons.speed_rounded;
+      default:
+        return Icons.bolt_rounded;
+    }
+  }
+
+  Widget _buildLastActionLine() {
+    final fc = _fc;
+    if (battleFeed.isEmpty) return const SizedBox.shrink();
+    final last = battleFeed.last;
+    final accent = last.isStatus
+        ? fc.amberBright
+        : last.source == _FeedSource.team
+        ? fc.teal
+        : fc.danger;
+    return GestureDetector(
+      onTap: _showBattleLogDialog,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: fc.bg0.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: accent.withValues(alpha: 0.45), width: 0.8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: accent),
+            ),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                last.message,
+                textAlign: TextAlign.left,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: fc.textPrimary.withValues(alpha: 0.92),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 13, color: fc.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBattleLogDialog() {
+    final fc = _fc;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: fc.bg1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: fc.borderAccent.withValues(alpha: 0.5)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'BATTLE LOG',
+                style: TextStyle(
+                  color: fc.amberBright,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 360),
+                width: double.maxFinite,
+                child: battleFeed.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Text(
+                          'No actions yet.',
+                          style: TextStyle(color: fc.textMuted),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: battleFeed.length,
+                        // Newest first — the most recent entry sits at
+                        // the top of the dialog with a NEW marker.
+                        itemBuilder: (_, i) {
+                          final entryIndex = battleFeed.length - 1 - i;
+                          final e = battleFeed[entryIndex];
+                          final isLatest = entryIndex == battleFeed.length - 1;
+                          final color = e.isStatus
+                              ? fc.amberBright
+                              : e.source == _FeedSource.team
+                              ? fc.teal
+                              : fc.danger;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 3,
+                                  height: 14,
+                                  margin: const EdgeInsets.only(top: 2),
+                                  color: color.withValues(alpha: 0.85),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    e.message,
+                                    style: TextStyle(
+                                      color: isLatest
+                                          ? fc.textPrimary
+                                          : fc.textPrimary.withValues(
+                                              alpha: 0.7,
+                                            ),
+                                      fontSize: 12,
+                                      fontWeight: isLatest
+                                          ? FontWeight.w700
+                                          : FontWeight.w400,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ),
+                                if (isLatest) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: fc.amberBright.withValues(
+                                        alpha: 0.18,
+                                      ),
+                                      borderRadius: BorderRadius.circular(3),
+                                      border: Border.all(
+                                        color: fc.amberBright.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'NEW',
+                                      style: TextStyle(
+                                        color: fc.amberBright,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.6,
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(
+                    'CLOSE',
+                    style: TextStyle(
+                      color: fc.amberBright,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -609,147 +1007,67 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
       decoration: BoxDecoration(
+        // Soft top-down gradient — no border. The gradient gives the
+        // header presence without boxing it in.
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            fc.bg0.withValues(alpha: 0.82),
-            fc.bg2.withValues(alpha: 0.68),
-            accent.withValues(alpha: 0.13),
+            fc.bg0.withValues(alpha: 0.65),
+            accent.withValues(alpha: 0.12),
+            fc.bg0.withValues(alpha: 0.65),
           ],
+          stops: const [0.0, 0.55, 1.0],
         ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: accent.withValues(alpha: 0.65), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.34),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-          if (isLowHp)
-            BoxShadow(
-              color: fc.danger.withValues(alpha: 0.3),
-              blurRadius: 12,
-              spreadRadius: 2,
-            ),
-        ],
+        borderRadius: BorderRadius.circular(2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 4,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(99),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.45),
-                      blurRadius: 12,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Tall accent bar gives the title weight without a box.
+                Container(width: 4, height: 26, color: accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.bossDisplayName.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fc.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'monospace',
+                      letterSpacing: 2.4,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: _buildAnimatedBossTitle()),
-              const SizedBox(width: 10),
-              _buildBossMetaPill(
-                'L${widget.boss.level}',
-                Icons.auto_awesome_rounded,
-                accent,
-              ),
-              if (widget.boss.tauntTargetId != null) ...[
-                const SizedBox(width: 5),
-                _buildBossMetaPill('TAUNT', Icons.gps_fixed_rounded, fc.danger),
-              ],
-              if (widget.boss.needsRecharge) ...[
-                const SizedBox(width: 5),
-                _buildBossMetaPill(
-                  'CD ${widget.boss.specialCooldown}',
-                  Icons.hourglass_bottom_rounded,
-                  fc.amberBright,
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 8),
-          _buildBossHealthBar(hpPercent),
-          _buildBossDebuffsUnderHp(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBossMetaPill(String label, IconData icon, Color color) {
-    final fc = _fc;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.55)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color.withValues(alpha: 0.95), size: 12),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: fc.textPrimary,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.4,
-              fontFamily: 'monospace',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBossDebuffsUnderHp() {
-    final fc = _fc;
-    final debuffs = _collectBossDebuffs();
-    if (debuffs.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 5,
-        runSpacing: 4,
-        children: debuffs
-            .map(
-              (d) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: d.color.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: d.color.withValues(alpha: 0.55)),
-                ),
-                child: Text(
-                  d.label,
-                  style: TextStyle(
-                    color: fc.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    fontFamily: 'monospace',
                   ),
                 ),
-              ),
-            )
-            .toList(),
+                const SizedBox(width: 8),
+                Text(
+                  '${widget.boss.currentHp} / ${widget.boss.maxHp}',
+                  style: TextStyle(
+                    color: fc.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'monospace',
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+            child: _buildBossHealthBar(hpPercent),
+          ),
+        ],
       ),
     );
   }
@@ -788,80 +1106,17 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     return chips;
   }
 
-  Widget _buildAnimatedBossTitle() {
-    final letters = widget.bossDisplayName.split('');
-    final total = letters.isEmpty ? 1 : letters.length;
-
-    return AnimatedBuilder(
-      animation: _bossNameController,
-      builder: (context, _) {
-        return Center(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (int i = 0; i < letters.length; i++)
-                  _buildAnimatedTitleLetter(letters[i], i, total),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAnimatedTitleLetter(String letter, int index, int total) {
-    final fc = _fc;
-    final start = (index / total) * 0.7;
-    final end = (start + 0.3).clamp(0.0, 1.0);
-    final curve = CurvedAnimation(
-      parent: _bossNameController,
-      curve: Interval(start, end, curve: Curves.easeOutCubic),
-    );
-
-    final value = curve.value;
-
-    return Opacity(
-      opacity: value,
-      child: Transform.translate(
-        offset: Offset(0, (1 - value) * -8),
-        child: Padding(
-          padding: EdgeInsets.only(right: letter == ' ' ? 8 : 0.5),
-          child: Text(
-            letter,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-              foreground: Paint()
-                ..shader = LinearGradient(
-                  colors: [fc.textPrimary, fc.amberBright, fc.amber],
-                ).createShader(Rect.fromLTWH(0, 0, 28, 26)),
-              shadows: [
-                Shadow(color: fc.amber.withValues(alpha: 0.42), blurRadius: 14),
-                Shadow(color: Colors.black, blurRadius: 5),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildBossHealthBar(double hpPercent) {
     final fc = _fc;
     final hpColor = _getHealthColor(hpPercent);
 
     return Container(
-      height: 22,
-      padding: const EdgeInsets.all(2),
+      height: 10,
+      padding: const EdgeInsets.all(1),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: fc.bg0.withValues(alpha: 0.85),
+        color: fc.bg0.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: fc.borderAccent.withValues(alpha: 0.55)),
       ),
       child: Stack(
         fit: StackFit.expand,
@@ -898,29 +1153,6 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               ),
             ),
           ),
-          // Inline HP numbers overlaid on the bar — saves vertical space
-          // and keeps the value glued to the visual it represents.
-          IgnorePointer(
-            child: Center(
-              child: Text(
-                '${widget.boss.currentHp} / ${widget.boss.maxHp}',
-                style: TextStyle(
-                  color: fc.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                  fontFamily: 'monospace',
-                  shadows: const [
-                    Shadow(
-                      offset: Offset(0, 0.5),
-                      blurRadius: 1.5,
-                      color: Color(0xCC000000),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -929,201 +1161,472 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   /// Color-coded left bar replaces the old YOU/BOSS/STS pill — same
   /// information density, faster scan. The eye picks the source color
   /// at the leading edge without parsing a 3-letter abbreviation.
-  Widget _buildFeedRow(_BattleFeedEntry e) {
-    final fc = _fc;
-    final Color color;
-    if (e.isStatus) {
-      color = fc.amberBright;
-    } else if (e.source == _FeedSource.team) {
-      color = fc.teal;
-    } else {
-      color = fc.danger;
-    }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
-      // IntrinsicHeight gives the Row a bounded height so the colored
-      // left bar can stretch — without it the bar collapses to 0px and
-      // the feed entry has no visible source indicator.
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(width: 2.5, color: color.withValues(alpha: 0.85)),
-            const SizedBox(width: 7),
-            Expanded(
-              child: Text(
-                e.message,
-                style: TextStyle(
-                  color: fc.textPrimary.withValues(alpha: 0.95),
-                  fontSize: 11,
-                  height: 1.25,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildBottomDock() {
     final fc = _fc;
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 30, 10, 10),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
           colors: [
-            fc.bg0.withValues(alpha: 0.98),
-            fc.bg1.withValues(alpha: 0.9),
-            fc.bg1.withValues(alpha: 0.4),
+            fc.bg0.withValues(alpha: 0.97),
+            fc.bg1.withValues(alpha: 0.82),
             Colors.transparent,
           ],
-          stops: const [0.0, 0.48, 0.78, 1.0],
+          stops: const [0.0, 0.7, 1.0],
         ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildTurnRail(),
-          const SizedBox(height: 8),
-          // Party strip is always visible — players need to track their
-          // team during boss turns too.
-          BattleSection(
-            title: 'Party',
-            color: fc.amber,
-            child: _buildPartyStrip(),
-          ),
-          // Moves section slides out during boss/animation windows.
-          // Visibility IS the turn signal — the old YOUR TURN banner
-          // was redundant and just jittered the dock layout each turn.
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.25),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              ),
-              child: game.state == BattleState.playerTurn
-                  ? Padding(
-                      key: const ValueKey('moves_on'),
-                      padding: const EdgeInsets.only(top: 12),
-                      child: BattleSection(
-                        title: 'Moves',
-                        color: fc.amber,
-                        child: _buildMoveButtons(),
-                      ),
-                    )
-                  : const SizedBox.shrink(key: ValueKey('moves_off')),
-            ),
-          ),
-        ],
-      ),
+      child: _buildMoveCard(),
     );
   }
 
-  Widget _buildTurnRail() {
+  /// Compact move panel: header (move name + selected creature),
+  /// damage/cooldown/effects stat row, description, basic+special toggle.
+  Widget _buildMoveCard() {
     final fc = _fc;
     final selected = selectedCreatureIndex == null
         ? null
         : widget.playerTeam[selectedCreatureIndex!];
+
+    final canAct =
+        game.state == BattleState.playerTurn &&
+        selected != null &&
+        selected.canAct;
     final isPlayerTurn = game.state == BattleState.playerTurn;
-    final label = isPlayerTurn
-        ? selected == null
-              ? 'CHOOSE A READY ALCHEMON'
-              : '${selected.name.toUpperCase()} IS READY'
-        : game.state == BattleState.animating
-        ? 'IMPACT IN PROGRESS'
-        : 'BOSS IS MOVING';
-    final color = isPlayerTurn ? fc.amberBright : fc.danger;
 
-    return Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: fc.bg0.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.42)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isPlayerTurn
-                ? Icons.radio_button_checked_rounded
-                : Icons.warning_amber_rounded,
-            color: color,
-            size: 14,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: fc.textPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.1,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-          if (selected != null)
-            Text(
-              'HP ${selected.currentHp}/${selected.maxHp}',
-              style: TextStyle(
-                color: fc.textSecondary,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-                fontFamily: 'monospace',
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+    final basicMove = selected == null
+        ? const BattleMove(
+            name: 'Basic Attack',
+            type: MoveType.physical,
+            scalingStat: 'statStrength',
+          )
+        : BattleMove.getBasicMove(selected.family);
+    final specialMove = selected == null
+        ? const BattleMove(
+            name: 'Special',
+            type: MoveType.elemental,
+            scalingStat: 'statIntelligence',
+          )
+        : BattleMove.getSpecialMoveForCombatant(selected);
 
-  Widget _buildPartyStrip() {
-    return Row(
+    final hasSpecial = selected != null && selected.level >= 5;
+    final specialReady = canAct && hasSpecial && !selected.needsRecharge;
+
+    final element = selected?.types.isNotEmpty == true
+        ? selected!.types.first
+        : 'Normal';
+    final accent = _elementColor(element, fc);
+
+    final turnLabel = !isPlayerTurn
+        ? (game.state == BattleState.animating
+              ? 'IMPACT IN PROGRESS'
+              : 'BOSS IS MOVING')
+        : selected == null
+        ? 'CHOOSE A READY ALCHEMON'
+        : 'READY';
+    final turnColor = isPlayerTurn ? fc.amberBright : fc.danger;
+
+    final basicDescription = selected == null
+        ? 'Quick attack that recovers your special charge.'
+        : 'Quick attack — recovers +${BattleMove.specialRecoveryPerBasicForCombatant(selected)} special per use.';
+    final specialDescription = selected == null
+        ? 'Family special — unlocks at level 5.'
+        : BattleMove.specialSummaryForCombatant(selected);
+
+    // What's armed for preview — drives the title, subtitle, description,
+    // and which orb gets the crystalline crown.
+    final armedIsSpecial = _armedMoveSlot == 1;
+    final armedMove = armedIsSpecial ? specialMove : basicMove;
+    final armedKindLabel = armedIsSpecial ? 'Special' : 'Basic';
+    final armedTypeLabel = armedIsSpecial
+        ? (selected != null && hasSpecial
+              ? 'Cooldown ${BattleMove.specialCooldownForFamily(selected.family)}'
+              : 'Unlocks at Lv 5')
+        : (basicMove.type == MoveType.physical ? 'Physical' : 'Elemental');
+    final armedSubtitle = [
+      selected?.name ?? 'No selection',
+      armedKindLabel,
+      armedTypeLabel,
+    ].join('  ·  ');
+    final armedDescription = armedIsSpecial
+        ? specialDescription
+        : basicDescription;
+    final armedCanExecute = armedIsSpecial ? specialReady : canAct;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (int i = 0; i < widget.playerTeam.length; i++) ...[
-          Expanded(child: _buildPartySlot(i)),
-          if (i < widget.playerTeam.length - 1) SizedBox(width: 8),
-        ],
+        // Move name large; creature/kind/cooldown sit on the subhead so
+        // the title doesn't clip when both names are long.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(width: 3, height: 22, color: accent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    selected == null
+                        ? 'NO SELECTION'
+                        : armedMove.name.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fc.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  Text(
+                    armedSubtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: accent.withValues(alpha: 0.95),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              armedCanExecute && isPlayerTurn ? 'TAP TO USE' : turnLabel,
+              style: TextStyle(
+                color: armedCanExecute && isPlayerTurn
+                    ? fc.amberBright
+                    : turnColor,
+                fontSize: 8,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.6,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          armedDescription,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: fc.textSecondary,
+            fontSize: 11,
+            height: 1.25,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildMoveOrb(
+              onTap: () => _onOrbTap(0),
+              onLongPress: () => _showMoveDetail(
+                title: basicMove.name,
+                subtitle:
+                    'Basic · ${basicMove.type == MoveType.physical ? 'Physical' : 'Elemental'}',
+                body: basicDescription,
+              ),
+              label: basicMove.name,
+              subtitle: _basicSubtitle(selected, basicMove, canAct),
+              elementColor: accent,
+              isEnabled: canAct,
+              isFeatured: _armedMoveSlot == 0,
+              icon: basicMove.type == MoveType.physical
+                  ? Icons.flash_on_rounded
+                  : Icons.auto_awesome_rounded,
+              family: selected?.family,
+              isSpecialMove: false,
+            ),
+            const SizedBox(width: 36),
+            _buildMoveOrb(
+              onTap: () => _onOrbTap(1),
+              onLongPress: () => _showMoveDetail(
+                title: specialMove.name,
+                subtitle: hasSpecial
+                    ? 'Special · CD ${BattleMove.specialCooldownForFamily(selected.family)}'
+                    : 'Special · Unlocks at Lv 5',
+                body: specialDescription,
+              ),
+              label: specialMove.name,
+              subtitle: _specialSubtitle(selected, hasSpecial),
+              elementColor: accent,
+              isEnabled: specialReady,
+              isFeatured: _armedMoveSlot == 1,
+              icon: Icons.bolt_rounded,
+              family: selected?.family,
+              isSpecialMove: true,
+            ),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _buildPartySlot(int index) {
+  void _showMoveDetail({
+    required String title,
+    required String subtitle,
+    required String body,
+  }) {
+    final fc = _fc;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: fc.bg1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: fc.borderAccent.withValues(alpha: 0.5)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title.toUpperCase(),
+                style: TextStyle(
+                  color: fc.amberBright,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: fc.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                body,
+                style: TextStyle(
+                  color: fc.textPrimary,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(
+                    'CLOSE',
+                    style: TextStyle(
+                      color: fc.amberBright,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// VoidPet-style move orb: round element-tinted button with a
+  /// crystalline diamond crown around the featured move. Label sits
+  /// underneath so the orb itself stays clean.
+  Widget _buildMoveOrb({
+    required VoidCallback? onTap,
+    required VoidCallback? onLongPress,
+    required String label,
+    required String subtitle,
+    required Color elementColor,
+    required bool isEnabled,
+    required bool isFeatured,
+    required IconData icon,
+    required String? family,
+    required bool isSpecialMove,
+  }) {
+    final fc = _fc;
+    final color = isEnabled ? elementColor : fc.textMuted;
+    final useFamilyIcon = family == 'Wing';
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: SizedBox(
+        width: 92,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                if (isFeatured)
+                  // Slow continuous rotation so the armed orb visibly
+                  // tracks instead of sitting as a static highlight.
+                  RotationTransition(
+                    turns: _crownController,
+                    child: CustomPaint(
+                      size: const Size(78, 78),
+                      painter: _OrbCrownPainter(color: color),
+                    ),
+                  ),
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: isEnabled
+                          ? [
+                              color.withValues(alpha: 0.85),
+                              color.withValues(alpha: 0.35),
+                              fc.bg0.withValues(alpha: 0.85),
+                            ]
+                          : [
+                              fc.bg2.withValues(alpha: 0.6),
+                              fc.bg0.withValues(alpha: 0.8),
+                              fc.bg0,
+                            ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
+                    border: Border.all(
+                      color: isEnabled
+                          ? color.withValues(alpha: 0.95)
+                          : fc.borderDim,
+                      width: isFeatured ? 2.0 : 1.2,
+                    ),
+                  ),
+                  child: useFamilyIcon
+                      ? CustomPaint(
+                          painter: _MoveAttackIconPainter(
+                            family: family!,
+                            elementColor: color,
+                            isEnabled: isEnabled,
+                            isSpecial: isSpecialMove,
+                          ),
+                        )
+                      : Icon(
+                          icon,
+                          size: 24,
+                          color: isEnabled
+                              ? Colors.white.withValues(alpha: 0.95)
+                              : fc.textMuted,
+                        ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isEnabled ? fc.textPrimary : fc.textMuted,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'monospace',
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _basicSubtitle(
+    BattleCombatant? selected,
+    BattleMove basic,
+    bool canAct,
+  ) {
+    if (selected == null) return 'Select a creature';
+    if (!canAct) return 'Waiting on turn';
+    final recovery = BattleMove.specialRecoveryPerBasicForCombatant(selected);
+    final type = basic.type == MoveType.physical ? 'Physical' : 'Elemental';
+    return '$type · recovers +$recovery';
+  }
+
+  String _specialSubtitle(BattleCombatant? selected, bool hasSpecial) {
+    if (selected == null) return 'Select a creature';
+    if (!selected.canAct) return 'Action CD ${selected.actionCooldown}';
+    if (!hasSpecial) return 'Unlocks at Lv 5';
+    if (selected.specialCooldown > 0) {
+      return 'Recharging · ${selected.specialCooldown} via basics';
+    }
+    return 'Ready';
+  }
+
+  /// HP pill positioned directly above the Flame sprite for each slot.
+  /// Coordinates derived from BattleGame.team* constants so the pill
+  /// tracks the sprite regardless of screen size.
+  Widget _buildPartyPillForSlot(BoxConstraints constraints, int index) {
+    final span = BattleGame.teamRailBottomY - BattleGame.teamRailTopY;
+    final spriteCenterY =
+        constraints.maxHeight *
+        (BattleGame.teamRailTopY +
+            span * ((index + 0.5) / widget.playerTeam.length));
+    final spriteCenterX = constraints.maxWidth * BattleGame.teamColumnX;
+    // Compact Pokemon-style nameplate placed directly under each sprite.
+    // Centered horizontally on the sprite, no border, minimal chrome.
+    const pillWidth = 124.0;
+    final left = math.max(2.0, spriteCenterX - pillWidth / 2);
+
+    return Positioned(
+      // Sprite visible bottom ≈ centerY + 43 (86px sprite, anchored
+      // center). Pill top placed 7px below that.
+      top: spriteCenterY + 50,
+      left: left,
+      width: pillWidth,
+      child: _buildHpPill(index),
+    );
+  }
+
+  Widget _buildHpPill(int index) {
     final fc = _fc;
     final creature = widget.playerTeam[index];
     final isSelected = selectedCreatureIndex == index;
     final isDead = creature.isDead;
     final isOnCooldown = !isDead && !creature.canAct;
     final shakeNonce = _slotShakeNonce[index] ?? 0;
-    final chips = _collectCreatureChips(creature);
-    final hasShield = (creature.shieldHp ?? 0) > 0;
+    final element = creature.types.isNotEmpty ? creature.types.first : 'Normal';
+    final elementColor = _elementColor(element, fc);
+    final specialPct = (creature.specialCooldown == 0)
+        ? 1.0
+        : 1.0 -
+              (creature.specialCooldown /
+                      math.max(
+                        1,
+                        BattleMove.specialCooldownForFamily(creature.family),
+                      ))
+                  .clamp(0.0, 1.0);
+
+    final highlightColor = isSelected
+        ? elementColor
+        : isOnCooldown
+        ? fc.teal
+        : null;
 
     return TweenAnimationBuilder<double>(
-      key: ValueKey('party_slot_${index}_$shakeNonce'),
+      key: ValueKey('party_pill_${index}_$shakeNonce'),
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 280),
       builder: (context, value, child) {
-        final amplitude = (1 - value) * 9;
+        final amplitude = (1 - value) * 8;
         final dx = math.sin(value * math.pi * 6) * amplitude;
         return Transform.translate(offset: Offset(dx, 0), child: child);
       },
@@ -1136,297 +1639,249 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           game.post(() => game.selectCreature(index));
           setState(() {
             selectedCreatureIndex = index;
+            _autoArmDefaultMove();
           });
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isSelected
-                  ? [
-                      fc.amber.withValues(alpha: 0.26),
-                      fc.bg2.withValues(alpha: 0.92),
-                    ]
-                  : [
-                      fc.bg2.withValues(alpha: isDead ? 0.58 : 0.9),
-                      fc.bg0.withValues(alpha: 0.84),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? fc.amberBright
-                  : isOnCooldown
-                  ? fc.teal.withValues(alpha: 0.55)
-                  : isDead
-                  ? fc.borderDim
-                  : fc.borderAccent.withValues(alpha: 0.4),
-              width: isSelected ? 1.6 : 1,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: fc.amber.withValues(alpha: 0.24),
-                      blurRadius: 14,
-                      offset: const Offset(0, 5),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Name gets its own line so it has full slot width and
-              // no longer truncates to "Dust..." / "Water...".
-              Row(
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _elementColor(
-                        creature.types.isNotEmpty
-                            ? creature.types.first
-                            : 'Normal',
-                        fc,
-                      ),
-                    ),
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Lv${creature.level}',
+                  style: TextStyle(
+                    color: isDead
+                        ? fc.textMuted
+                        : (highlightColor ?? fc.textPrimary),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'monospace',
                   ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      creature.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isDead
-                            ? fc.textMuted
-                            : isOnCooldown
-                            ? fc.teal.withValues(alpha: 0.8)
-                            : fc.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
+                ),
+                const Spacer(),
+                Text(
+                  isDead ? 'DOWN' : '${creature.currentHp}/${creature.maxHp}',
+                  style: TextStyle(
+                    color: isDead
+                        ? fc.danger.withValues(alpha: 0.9)
+                        : fc.textSecondary,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'monospace',
                   ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              _buildAnimatedHPBar(
-                current: creature.currentHp,
-                max: creature.maxHp,
-                color: _getHealthColor(creature.hpPercent),
-                height: 5,
-              ),
-              const SizedBox(height: 3),
-              // Level + HP fraction together on a single sub-row.
-              Row(
-                children: [
-                  Text(
-                    'L${creature.level}',
-                    style: TextStyle(
-                      color: isDead
-                          ? fc.textMuted
-                          : fc.textSecondary.withValues(alpha: 0.9),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'monospace',
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    isDead ? 'DOWN' : '${creature.currentHp}/${creature.maxHp}',
-                    style: TextStyle(
-                      color: isDead
-                          ? fc.danger.withValues(alpha: 0.9)
-                          : fc.textSecondary.withValues(alpha: 0.85),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'monospace',
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ],
-              ),
-              if (chips.isNotEmpty || hasShield || isOnCooldown) ...[
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 3,
-                  runSpacing: 3,
-                  children: [
-                    if (isOnCooldown)
-                      _buildSlotChip('CD ${creature.actionCooldown}', fc.teal),
-                    if (hasShield)
-                      _buildSlotChip(
-                        'SH ${creature.shieldHp}',
-                        const Color(0xFF8FE0FF),
-                      ),
-                    for (final c in chips) _buildSlotChip(c.label, c.color),
-                  ],
                 ),
               ],
-            ],
-          ),
+            ),
+            const SizedBox(height: 2),
+            _buildAnimatedHPBar(
+              current: creature.currentHp,
+              max: creature.maxHp,
+              color: _getHealthColor(creature.hpPercent),
+              height: 4,
+            ),
+            const SizedBox(height: 1),
+            _buildAnimatedHPBar(
+              current: (specialPct * 100).round(),
+              max: 100,
+              color: creature.specialCooldown == 0
+                  ? elementColor
+                  : Colors.orange.shade400,
+              height: 2,
+            ),
+            ..._buildCreatureStatusChips(creature, isOnCooldown),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSlotChip(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withValues(alpha: 0.55), width: 0.8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color.withValues(alpha: 0.95),
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          fontFamily: 'monospace',
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-
-  List<_BossDebuffChipData> _collectCreatureChips(BattleCombatant creature) {
-    final chips = <_BossDebuffChipData>[];
-    const statusMap = <String, _BossDebuffChipData>{
-      'burn': _BossDebuffChipData('BRN', Colors.deepOrange),
-      'poison': _BossDebuffChipData('PSN', Colors.purple),
-      'freeze': _BossDebuffChipData('FRZ', Colors.cyan),
-      'curse': _BossDebuffChipData('CRS', Colors.deepPurple),
-      'bleed': _BossDebuffChipData('BLD', Colors.red),
-      'banished': _BossDebuffChipData('VOID', Colors.deepPurpleAccent),
-      'taunt': _BossDebuffChipData('TNT', Colors.redAccent),
-    };
-    const modifierMap = <String, _BossDebuffChipData>{
-      'attack_up': _BossDebuffChipData('ATK+', Colors.lightGreenAccent),
-      'attack_down': _BossDebuffChipData('ATK-', Colors.redAccent),
-      'defense_up': _BossDebuffChipData('DEF+', Colors.lightGreenAccent),
-      'defense_down': _BossDebuffChipData('DEF-', Colors.blueAccent),
-      'speed_up': _BossDebuffChipData('SPD+', Colors.lightGreenAccent),
-      'speed_down': _BossDebuffChipData('SPD-', Colors.amber),
-    };
-    for (final t in creature.statusEffects.keys) {
-      final chip = statusMap[t];
-      if (chip != null) chips.add(chip);
-    }
-    for (final t in creature.statModifiers.keys) {
-      final chip = modifierMap[t];
-      if (chip != null) chips.add(chip);
-    }
-    return chips;
-  }
-
-  Widget _buildMoveButtons() {
+  /// Compact tappable status chips drawn underneath the HP bars when
+  /// the creature has active effects. Replaces the Flame status-icon
+  /// row that overflowed the sprite width.
+  List<Widget> _buildCreatureStatusChips(
+    BattleCombatant creature,
+    bool isOnCooldown,
+  ) {
     final fc = _fc;
-    final selected = selectedCreatureIndex == null
-        ? null
-        : widget.playerTeam[selectedCreatureIndex!];
-
-    final canAct =
-        game.state == BattleState.playerTurn &&
-        selected != null &&
-        selected.canAct;
-
-    final basicMove = selected == null
-        ? const BattleMove(
-            name: 'Basic Attack',
-            type: MoveType.physical,
-            scalingStat: 'statStrength',
-          )
-        : BattleMove.getBasicMove(selected.family);
-
-    final specialMove = selected == null
-        ? const BattleMove(
-            name: 'Special',
-            type: MoveType.elemental,
-            scalingStat: 'statIntelligence',
-          )
-        : BattleMove.getSpecialMoveForCombatant(selected);
-
-    final hasSpecial = selected != null && selected.level >= 5;
-    final specialReady = canAct && hasSpecial && !selected.needsRecharge;
-
-    // Element identity drives accent color so each creature's moves
-    // still read as theirs without leaning on icons.
-    final element = selected?.types.isNotEmpty == true
-        ? selected!.types.first
-        : 'Normal';
-    final accent = _elementColor(element, fc);
-
-    final basicType = basicMove.type == MoveType.physical
-        ? 'Physical'
-        : 'Elemental';
-    final recoveryPerBasic = selected == null
-        ? 1
-        : BattleMove.specialRecoveryPerBasicForCombatant(selected);
-
-    final String basicSubtitle;
-    if (selected == null) {
-      basicSubtitle = 'Select a creature';
-    } else if (!canAct) {
-      basicSubtitle = '$basicType · waiting on turn';
-    } else {
-      basicSubtitle = '$basicType · recovers +$recoveryPerBasic';
-    }
-
-    final int? specialCd = selected == null
-        ? null
-        : BattleMove.specialCooldownForFamily(selected.family);
-
-    final String specialSubtitle;
-    if (selected == null) {
-      specialSubtitle = 'Select a creature';
-    } else if (!selected.canAct) {
-      specialSubtitle = 'Action CD ${selected.actionCooldown}';
-    } else if (!hasSpecial) {
-      specialSubtitle = 'Unlocks at Lv 5';
-    } else if (selected.specialCooldown > 0) {
-      specialSubtitle = 'Recharging · ${selected.specialCooldown} via basics';
-    } else {
-      specialSubtitle = 'Ready · CD $specialCd';
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: _buildActionButton(
-            onPressed: canAct ? _useBasicMove : null,
-            title: basicMove.name,
-            subtitle: basicSubtitle,
-            activeColor: accent,
-            isActive: canAct,
-            icon: basicMove.type == MoveType.physical
-                ? Icons.flash_on_rounded
-                : Icons.auto_awesome_rounded,
+    final chips = <Widget>[];
+    if (isOnCooldown) {
+      chips.add(
+        _buildTinyStatusChip(
+          label: 'CD ${creature.actionCooldown}',
+          color: fc.teal,
+          onTap: () => _showStatusDetail(
+            title: 'Action Cooldown',
+            body: 'This alchemon is recovering — '
+                '${creature.actionCooldown} turn(s) until it can act again.',
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildActionButton(
-            onPressed: specialReady ? _useSpecialMove : null,
-            title: specialMove.name,
-            subtitle: specialSubtitle,
-            activeColor: accent,
-            isActive: specialReady,
-            icon: Icons.bolt_rounded,
+      );
+    }
+    if ((creature.shieldHp ?? 0) > 0) {
+      chips.add(
+        _buildTinyStatusChip(
+          label: 'SHIELD ${creature.shieldHp}',
+          color: const Color(0xFF8FE0FF),
+          onTap: () => _showStatusDetail(
+            title: 'Shield',
+            body: 'Absorbs ${creature.shieldHp} damage before HP is hit.',
           ),
         ),
-      ],
+      );
+    }
+    for (final entry in creature.statusEffects.entries) {
+      final type = entry.key;
+      final meta = _statusChipMeta(type);
+      if (meta == null) continue;
+      final effect = entry.value;
+      chips.add(
+        _buildTinyStatusChip(
+          label: meta.label,
+          color: meta.color,
+          onTap: () => _showStatusDetail(
+            title: meta.label,
+            body: '${_describeStatusEffect(type)}\nDuration: ${effect.duration}',
+          ),
+        ),
+      );
+    }
+    for (final entry in creature.statModifiers.entries) {
+      final type = entry.key;
+      final meta = _modifierChipMeta(type);
+      if (meta == null) continue;
+      final modifier = entry.value;
+      chips.add(
+        _buildTinyStatusChip(
+          label: meta.label,
+          color: meta.color,
+          onTap: () => _showStatusDetail(
+            title: meta.label,
+            body: '${_describeModifier(type)}\nDuration: ${modifier.duration}',
+          ),
+        ),
+      );
+    }
+    if (chips.isEmpty) return const [];
+    return [
+      const SizedBox(height: 4),
+      Wrap(spacing: 3, runSpacing: 3, children: chips),
+    ];
+  }
+
+  Widget _buildTinyStatusChip({
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final fc = _fc;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: color.withValues(alpha: 0.65), width: 0.7),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: fc.textPrimary.withValues(alpha: 0.95),
+            fontSize: 8.5,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'monospace',
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
     );
+  }
+
+  _BossDebuffChipData? _statusChipMeta(String type) {
+    switch (type) {
+      case 'burn':
+        return const _BossDebuffChipData('BRN', Colors.deepOrange);
+      case 'poison':
+        return const _BossDebuffChipData('PSN', Colors.purple);
+      case 'freeze':
+        return const _BossDebuffChipData('FRZ', Colors.cyan);
+      case 'curse':
+        return const _BossDebuffChipData('CRS', Colors.deepPurple);
+      case 'bleed':
+        return const _BossDebuffChipData('BLD', Colors.red);
+      case 'banished':
+        return const _BossDebuffChipData('VOID', Colors.deepPurpleAccent);
+      case 'taunt':
+        return const _BossDebuffChipData('TNT', Colors.redAccent);
+      case 'regen':
+        return _BossDebuffChipData('REG', Colors.green.shade400);
+      default:
+        return null;
+    }
+  }
+
+  _BossDebuffChipData? _modifierChipMeta(String type) {
+    switch (type) {
+      case 'attack_up':
+        return _BossDebuffChipData('ATK+', Colors.lightGreenAccent.shade400);
+      case 'attack_down':
+        return const _BossDebuffChipData('ATK-', Colors.redAccent);
+      case 'defense_up':
+        return _BossDebuffChipData('DEF+', Colors.lightGreenAccent.shade400);
+      case 'defense_down':
+        return const _BossDebuffChipData('DEF-', Colors.blueAccent);
+      case 'speed_up':
+        return _BossDebuffChipData('SPD+', Colors.lightGreenAccent.shade400);
+      case 'speed_down':
+        return const _BossDebuffChipData('SPD-', Colors.amber);
+      default:
+        return null;
+    }
+  }
+
+  String _describeStatusEffect(String type) {
+    switch (type) {
+      case 'burn':
+        return 'Takes damage at the start of each turn.';
+      case 'poison':
+        return 'Takes stacking damage each turn.';
+      case 'freeze':
+        return 'Actions may be skipped while frozen.';
+      case 'curse':
+        return 'Vulnerable to burst detonations.';
+      case 'bleed':
+        return 'Damage over time scaled by hits.';
+      case 'banished':
+        return 'Banished to the void for a limited time.';
+      case 'taunt':
+        return 'Locked onto the taunting target.';
+      case 'regen':
+        return 'Recovers HP at the start of each turn.';
+      default:
+        return 'Status effect is active.';
+    }
+  }
+
+  String _describeModifier(String type) {
+    switch (type) {
+      case 'attack_up':
+        return 'Attack stat is boosted.';
+      case 'attack_down':
+        return 'Attack stat is reduced.';
+      case 'defense_up':
+        return 'Defense stat is boosted.';
+      case 'defense_down':
+        return 'Defense stat is reduced.';
+      case 'speed_up':
+        return 'Speed stat is boosted.';
+      case 'speed_down':
+        return 'Speed stat is reduced.';
+      default:
+        return 'Stat modifier is active.';
+    }
   }
 
   /// Element accent color used for the button border + section accents.
@@ -1467,133 +1922,6 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       default:
         return fc.amber;
     }
-  }
-
-  Widget _buildActionButton({
-    required VoidCallback? onPressed,
-    required String title,
-    required String subtitle,
-    required Color activeColor,
-    required bool isActive,
-    required IconData icon,
-  }) {
-    final fc = _fc;
-    final borderColor = isActive
-        ? activeColor.withValues(alpha: 0.85)
-        : fc.borderAccent.withValues(alpha: 0.45);
-    final titleColor = isActive ? fc.textPrimary : fc.textMuted;
-    final subtitleColor = isActive
-        ? fc.textSecondary
-        : fc.textMuted.withValues(alpha: 0.85);
-
-    return GestureDetector(
-      onTap: onPressed,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        height: 66,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isActive
-                  ? [
-                      activeColor.withValues(alpha: 0.2),
-                      fc.bg2.withValues(alpha: 0.94),
-                    ]
-                  : [
-                      fc.bg2.withValues(alpha: 0.72),
-                      fc.bg0.withValues(alpha: 0.9),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor, width: 1.1),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: activeColor.withValues(alpha: 0.16),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                right: -18,
-                top: -20,
-                child: Icon(
-                  icon,
-                  size: 82,
-                  color: activeColor.withValues(alpha: isActive ? 0.08 : 0.03),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: activeColor.withValues(
-                          alpha: isActive ? 0.18 : 0.08,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: activeColor.withValues(
-                            alpha: isActive ? 0.62 : 0.22,
-                          ),
-                        ),
-                      ),
-                      child: Icon(icon, color: activeColor, size: 19),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.6,
-                              fontFamily: 'monospace',
-                              color: titleColor,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.4,
-                              color: subtitleColor,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildAnimatedHPBar({
@@ -1648,60 +1976,358 @@ class _BossBattleStagePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
 
-    final center = Offset(size.width * 0.5, size.height * 0.47);
-    final arenaWidth = size.width * 0.72;
-    final arenaHeight = math.min(size.height * 0.25, arenaWidth * 0.42);
-    final baseRect = Rect.fromCenter(
-      center: center,
-      width: arenaWidth,
-      height: arenaHeight,
-    );
-
+    // Just a subtle radial vignette — no arena ring. The HUD chrome
+    // (boss header, HP pills, move card) carries the visual weight now.
     final vignette = Paint()
       ..shader = RadialGradient(
-        colors: [Colors.transparent, Colors.black.withValues(alpha: 0.26)],
-        stops: const [0.55, 1.0],
+        colors: [Colors.transparent, Colors.black.withValues(alpha: 0.28)],
+        stops: const [0.6, 1.0],
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, vignette);
 
+    // Faint floor glow under the boss for depth.
+    final bossCenter = Offset(
+      size.width * BattleGame.bossArenaX,
+      size.height * (BattleGame.bossArenaY + 0.06),
+    );
+    final glowRect = Rect.fromCircle(
+      center: bossCenter,
+      radius: math.min(size.width * 0.26, size.height * 0.18),
+    );
     final floorPaint = Paint()
-      ..shader = LinearGradient(
+      ..shader = RadialGradient(
         colors: [
-          danger.withValues(alpha: 0.03),
           accent.withValues(alpha: 0.12),
+          danger.withValues(alpha: 0.04),
           Colors.transparent,
         ],
-      ).createShader(baseRect)
+      ).createShader(glowRect)
       ..style = PaintingStyle.fill;
-    canvas.drawOval(baseRect, floorPaint);
-
-    final ringPaint = Paint()
-      ..color = accent.withValues(alpha: 0.18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    canvas.drawOval(baseRect, ringPaint);
-    canvas.drawOval(
-      baseRect.deflate(18),
-      ringPaint..color = accent.withValues(alpha: 0.08),
-    );
-
-    final linePaint = Paint()
-      ..color = accent.withValues(alpha: 0.09)
-      ..strokeWidth = 1.0;
-    for (var i = -2; i <= 2; i++) {
-      final startX = size.width * (0.5 + i * 0.12);
-      canvas.drawLine(
-        Offset(startX, size.height * 0.28),
-        Offset(size.width * 0.5 + i * 28, size.height * 0.68),
-        linePaint,
-      );
-    }
+    canvas.drawOval(glowRect, floorPaint);
   }
 
   @override
   bool shouldRepaint(covariant _BossBattleStagePainter oldDelegate) {
     return oldDelegate.accent != accent || oldDelegate.danger != danger;
   }
+}
+
+class _MoveAttackIconPainter extends CustomPainter {
+  final String family;
+  final Color elementColor;
+  final bool isEnabled;
+  final bool isSpecial;
+
+  const _MoveAttackIconPainter({
+    required this.family,
+    required this.elementColor,
+    required this.isEnabled,
+    required this.isSpecial,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+
+    final bounds = Offset.zero & size;
+    final circle = Path()
+      ..addOval(
+        Rect.fromCircle(
+          center: bounds.center,
+          radius: math.min(size.width, size.height) / 2,
+        ),
+      );
+
+    canvas.save();
+    canvas.clipPath(circle);
+    _drawEnergyBackdrop(canvas, size);
+
+    switch (family) {
+      case 'Wing':
+        if (isSpecial) {
+          _drawWingBeam(canvas, size);
+        } else {
+          _drawWingFeatherBurst(canvas, size);
+        }
+        break;
+    }
+
+    canvas.restore();
+  }
+
+  void _drawEnergyBackdrop(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2;
+    final hot = Color.lerp(
+      elementColor,
+      Colors.white,
+      isEnabled ? 0.34 : 0.12,
+    )!;
+    final cool = Color.lerp(elementColor, const Color(0xFF102033), 0.5)!;
+    final dark = isEnabled
+        ? Color.lerp(elementColor, Colors.black, 0.72)!
+        : const Color(0xFF1B1D24);
+
+    final fill = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.35, -0.45),
+        radius: 1.08,
+        colors: [
+          hot.withValues(alpha: isEnabled ? 0.95 : 0.32),
+          elementColor.withValues(alpha: isEnabled ? 0.82 : 0.22),
+          cool.withValues(alpha: isEnabled ? 0.78 : 0.28),
+          dark.withValues(alpha: 0.98),
+        ],
+        stops: const [0.0, 0.36, 0.68, 1.0],
+      ).createShader(Offset.zero & size);
+    canvas.drawCircle(center, radius, fill);
+
+    final haze = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = radius * 0.18
+      ..color = hot.withValues(alpha: isEnabled ? 0.22 : 0.08)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawArc(
+      Rect.fromCircle(
+        center: center.translate(-radius * 0.12, 0),
+        radius: radius * 0.72,
+      ),
+      -math.pi * 0.88,
+      math.pi * 1.18,
+      false,
+      haze,
+    );
+
+    final current = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = radius * 0.07
+      ..color = hot.withValues(alpha: isEnabled ? 0.38 : 0.12);
+    final sweep = Path()
+      ..moveTo(size.width * 0.03, size.height * 0.64)
+      ..cubicTo(
+        size.width * 0.28,
+        size.height * 0.28,
+        size.width * 0.58,
+        size.height * 0.84,
+        size.width * 0.97,
+        size.height * 0.35,
+      );
+    canvas.drawPath(sweep, current);
+
+    final shadowCurrent = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = radius * 0.08
+      ..color = Colors.black.withValues(alpha: isEnabled ? 0.2 : 0.28);
+    final counter = Path()
+      ..moveTo(size.width * 0.14, size.height * 0.24)
+      ..cubicTo(
+        size.width * 0.46,
+        size.height * 0.12,
+        size.width * 0.42,
+        size.height * 0.64,
+        size.width * 0.84,
+        size.height * 0.54,
+      );
+    canvas.drawPath(counter, shadowCurrent);
+  }
+
+  void _drawWingFeatherBurst(Canvas canvas, Size size) {
+    final glow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = size.width * 0.11
+      ..color = elementColor.withValues(alpha: isEnabled ? 0.45 : 0.15)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = size.width * 0.075
+      ..color = Color.lerp(
+        elementColor,
+        Colors.white,
+        isEnabled ? 0.52 : 0.18,
+      )!.withValues(alpha: isEnabled ? 0.96 : 0.46);
+    final inner = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.026
+      ..color = Colors.white.withValues(alpha: isEnabled ? 0.78 : 0.28);
+
+    final feathers = <Path>[
+      Path()
+        ..moveTo(size.width * 0.20, size.height * 0.61)
+        ..cubicTo(
+          size.width * 0.40,
+          size.height * 0.28,
+          size.width * 0.67,
+          size.height * 0.28,
+          size.width * 0.84,
+          size.height * 0.17,
+        ),
+      Path()
+        ..moveTo(size.width * 0.24, size.height * 0.73)
+        ..cubicTo(
+          size.width * 0.45,
+          size.height * 0.45,
+          size.width * 0.64,
+          size.height * 0.56,
+          size.width * 0.80,
+          size.height * 0.39,
+        ),
+      Path()
+        ..moveTo(size.width * 0.27, size.height * 0.84)
+        ..cubicTo(
+          size.width * 0.46,
+          size.height * 0.62,
+          size.width * 0.57,
+          size.height * 0.73,
+          size.width * 0.73,
+          size.height * 0.60,
+        ),
+    ];
+
+    for (final feather in feathers) {
+      canvas.drawPath(feather, glow);
+      canvas.drawPath(feather, stroke);
+      canvas.drawPath(feather, inner);
+    }
+
+    final slash = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.055
+      ..color = Colors.white.withValues(alpha: isEnabled ? 0.9 : 0.3);
+    canvas.drawLine(
+      Offset(size.width * 0.39, size.height * 0.36),
+      Offset(size.width * 0.59, size.height * 0.23),
+      slash,
+    );
+  }
+
+  void _drawWingBeam(Canvas canvas, Size size) {
+    final hot = Color.lerp(elementColor, Colors.white, isEnabled ? 0.56 : 0.2)!;
+    final beamGlow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.20
+      ..color = elementColor.withValues(alpha: isEnabled ? 0.55 : 0.16)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    final beam = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.125
+      ..color = hot.withValues(alpha: isEnabled ? 0.96 : 0.38);
+    final core = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.04
+      ..color = Colors.white.withValues(alpha: isEnabled ? 0.94 : 0.34);
+
+    final beamPath = Path()
+      ..moveTo(size.width * 0.08, size.height * 0.77)
+      ..lineTo(size.width * 0.87, size.height * 0.20);
+    canvas.drawPath(beamPath, beamGlow);
+    canvas.drawPath(beamPath, beam);
+    canvas.drawPath(beamPath, core);
+
+    final arcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * 0.045
+      ..color = hot.withValues(alpha: isEnabled ? 0.78 : 0.24);
+    canvas.drawArc(
+      Rect.fromLTWH(
+        size.width * 0.02,
+        size.height * 0.16,
+        size.width * 0.64,
+        size.height * 0.62,
+      ),
+      -math.pi * 0.08,
+      math.pi * 0.72,
+      false,
+      arcPaint,
+    );
+    canvas.drawArc(
+      Rect.fromLTWH(
+        size.width * 0.34,
+        size.height * 0.22,
+        size.width * 0.58,
+        size.height * 0.56,
+      ),
+      math.pi * 0.95,
+      math.pi * 0.58,
+      false,
+      arcPaint,
+    );
+
+    final shardFill = Paint()
+      ..style = PaintingStyle.fill
+      ..color = hot.withValues(alpha: isEnabled ? 0.86 : 0.22);
+    for (final spec in const [
+      (0.24, 0.28, 0.10),
+      (0.70, 0.72, 0.085),
+      (0.78, 0.36, 0.07),
+    ]) {
+      final path = Path()
+        ..moveTo(size.width * spec.$1, size.height * (spec.$2 - spec.$3))
+        ..lineTo(size.width * (spec.$1 + spec.$3), size.height * spec.$2)
+        ..lineTo(size.width * spec.$1, size.height * (spec.$2 + spec.$3))
+        ..lineTo(size.width * (spec.$1 - spec.$3), size.height * spec.$2)
+        ..close();
+      canvas.drawPath(path, shardFill);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MoveAttackIconPainter old) {
+    return old.family != family ||
+        old.elementColor != elementColor ||
+        old.isEnabled != isEnabled ||
+        old.isSpecial != isSpecial;
+  }
+}
+
+/// Crystalline diamond crown drawn around the featured move orb —
+/// 8 small rotated squares evenly spaced around the circumference,
+/// echoing the VoidPet "selected move" decoration.
+class _OrbCrownPainter extends CustomPainter {
+  final Color color;
+  const _OrbCrownPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
+    final fill = Paint()
+      ..color = color.withValues(alpha: 0.85)
+      ..style = PaintingStyle.fill;
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    const count = 8;
+    for (var i = 0; i < count; i++) {
+      final angle = (i / count) * 2 * math.pi - math.pi / 2;
+      final cx = center.dx + math.cos(angle) * radius;
+      final cy = center.dy + math.sin(angle) * radius;
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.rotate(math.pi / 4);
+      final r = Rect.fromCenter(center: Offset.zero, width: 6, height: 6);
+      canvas.drawRect(r, fill);
+      canvas.drawRect(r, stroke);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OrbCrownPainter old) => old.color != color;
 }
 
 class _BossDebuffChipData {

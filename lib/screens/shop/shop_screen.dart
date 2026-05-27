@@ -364,8 +364,7 @@ class _ShopScreenState extends State<ShopScreen> {
             child: Container(
               height: 140,
               decoration: BoxDecoration(
-                // TRANSPARENT card style preserved
-                color: theme.surface.withValues(alpha: 0.3),
+                color: Colors.transparent,
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: borderColor, width: 1.5),
               ),
@@ -1430,30 +1429,14 @@ class _ShopScreenState extends State<ShopScreen> {
           specialOffers.removeWhere((o) => !shopService.canPurchase(o.id));
         }
 
-        final elementalCreatorIndex = specialOffers.indexWhere(
-          (o) => o.id == ShopService.elementalCreatorOfferId,
-        );
-        ShopOffer? elementalCreator;
-        if (elementalCreatorIndex != -1) {
-          elementalCreator = specialOffers.removeAt(elementalCreatorIndex);
-        }
-
         if (specialOffers.isEmpty) {
-          if (elementalCreator != null) {
-            specialOffers.insert(0, elementalCreator);
-          } else {
-            return const Padding(
-              padding: EdgeInsets.all(12),
-              child: EmptySection(
-                message: 'All special items unlocked',
-                icon: Icons.check_circle_outline_rounded,
-              ),
-            );
-          }
-        }
-
-        if (elementalCreator != null) {
-          specialOffers.insert(0, elementalCreator);
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: EmptySection(
+              message: 'All special items unlocked',
+              icon: Icons.check_circle_outline_rounded,
+            ),
+          );
         }
 
         final cards = specialOffers.map((offer) {
@@ -1462,19 +1445,14 @@ class _ShopScreenState extends State<ShopScreen> {
           final canAffordUnit = effectiveCost.entries.every(
             (e) => (mergedBalances[e.key] ?? 0) >= e.value,
           );
-          final costWidgets = offer.id == ShopService.elementalCreatorOfferId
-              ? _buildElementalCreatorTileCostIcons(
-                  effectiveCost,
-                  mergedBalances,
-                )
-              : <Widget>[
-                  for (final entry in effectiveCost.entries)
-                    CostChip(
-                      currencyType: entry.key,
-                      amount: entry.value,
-                      available: mergedBalances[entry.key] ?? 0,
-                    ),
-                ];
+          final costWidgets = <Widget>[
+            for (final entry in effectiveCost.entries)
+              CostChip(
+                currencyType: entry.key,
+                amount: entry.value,
+                available: mergedBalances[entry.key] ?? 0,
+              ),
+          ];
           return GestureDetector(
             onTap: () => canPurchase
                 ? _handlePurchase(context, offer, mergedBalances, canAffordUnit)
@@ -1513,62 +1491,6 @@ class _ShopScreenState extends State<ShopScreen> {
     if (offer.id.startsWith('unlock.fusion_slot.')) return 'CHAMBERS';
     if (offer.id == 'boost.faction_change') return 'FACTION';
     return null;
-  }
-
-  List<Widget> _buildElementalCreatorTileCostIcons(
-    Map<String, int> effectiveCost,
-    Map<String, int> allCurrencies,
-  ) {
-    final widgets = <Widget>[];
-
-    final silverCost = effectiveCost['silver'];
-    if (silverCost != null) {
-      widgets.add(
-        CostChip(
-          currencyType: 'silver',
-          amount: silverCost,
-          available: allCurrencies['silver'] ?? 0,
-        ),
-      );
-    }
-
-    widgets.addAll(
-      effectiveCost.entries
-          .where((entry) => ElementResources.byKey.containsKey(entry.key))
-          .map((entry) {
-            final resource = ElementResources.byKey[entry.key]!;
-            final available = allCurrencies[entry.key] ?? 0;
-            final hasEnough = available >= entry.value;
-            final accent = t.readableAccent(resource.color);
-
-            return Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                color: hasEnough
-                    ? accent.withValues(alpha: 0.16)
-                    : Colors.red.withValues(alpha: 0.14),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: hasEnough
-                      ? accent.withValues(alpha: 0.42)
-                      : Colors.red.withValues(alpha: 0.35),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Image.asset(
-                  'assets/images/ui/${resource.biomeId}.png',
-                  fit: BoxFit.contain,
-                  color: hasEnough ? null : Colors.red.shade300,
-                  colorBlendMode: hasEnough ? null : BlendMode.modulate,
-                ),
-              ),
-            );
-          }),
-    );
-
-    return widgets;
   }
 
   // ── DIALOGS & PURCHASE FLOWS (logic unchanged) ─────────────────────────────

@@ -761,6 +761,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                               label: familyOptions[index],
                               color: widget.theme.primary,
                               selected: _filterFamily == familyOptions[index],
+                              showUnselectedBracket: false,
                               onTap: () => _mutate(() {
                                 _filterFamily =
                                     _filterFamily == familyOptions[index]
@@ -787,6 +788,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                               label: entry.value,
                               color: BreedConstants.getTypeColor(entry.key),
                               selected: _filterType == entry.key,
+                              showUnselectedBracket: false,
                               onTap: () => _mutate(() {
                                 _filterType = _filterType == entry.key
                                     ? null
@@ -839,6 +841,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     _mutate(() => _filterFavorites = !_filterFavorites),
                 showSortRow: false,
                 showClearChip: false,
+                showInactiveBrackets: false,
                 onClearAll: () =>
                     _mutate(() => _resetAllControls(clearSearch: true)),
               ),
@@ -857,13 +860,15 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(10, 8, 10, 24),
                       itemCount: instances.length,
-                      gridDelegate:
-                          SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: responsiveCrossAxisCount(context, phoneCols: 2),
-                            childAspectRatio: 1,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: responsiveCrossAxisCount(
+                          context,
+                          phoneCols: 2,
+                        ),
+                        childAspectRatio: 1,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
                       itemBuilder: (_, i) {
                         final inst = instances[i];
                         final creature = repo.getCreatureById(inst.baseId);
@@ -977,6 +982,7 @@ class _TopControlChip extends StatelessWidget {
       unselectedBorderColor: theme.border,
       selectedFillOpacity: 0.12,
       labelFontSize: labelFontSize,
+      showUnselectedBracket: false,
     );
   }
 }

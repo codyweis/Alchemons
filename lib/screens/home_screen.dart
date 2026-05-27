@@ -536,6 +536,10 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _particleController;
   late AnimationController _waveController;
   late AnimationController _shakeController;
+  late AnimationController _enhanceRevealController;
+  bool? _lastEnhanceUnlocked;
+  bool _enhanceCelebrationChecking = false;
+  bool _enhanceHighlightActive = false;
 
   final PushNotificationService _pushNotifications = PushNotificationService();
   static const String _eggNotificationStateType = 'egg_ready';
@@ -624,12 +628,19 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 900),
     );
 
+    _enhanceRevealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+      value: 1.0, // assume already revealed; will reset if a celebration fires
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initializeApp();
       if (mounted) {
         await _checkFieldTutorial();
         await _refreshNotificationsNow();
         await _maybeRunCosmicMemoryHomeEvent();
+        await _maybePlayEnhanceCelebration();
       }
     });
   }
@@ -658,6 +669,7 @@ class _HomeScreenState extends State<HomeScreen>
         // 🔄 Always sync from DB when Home becomes active
         async.unawaited(_checkFieldTutorial());
         async.unawaited(_maybeRunCosmicMemoryHomeEvent());
+        async.unawaited(_maybePlayEnhanceCelebration());
       }
     }
   }
@@ -670,6 +682,7 @@ class _HomeScreenState extends State<HomeScreen>
       // 🔄 When returning to Home, sync from DB
       async.unawaited(_checkFieldTutorial());
       async.unawaited(_maybeRunCosmicMemoryHomeEvent());
+      async.unawaited(_maybePlayEnhanceCelebration());
     }
   }
 
@@ -682,6 +695,7 @@ class _HomeScreenState extends State<HomeScreen>
     _particleController.dispose();
     _waveController.dispose();
     _shakeController.dispose();
+    _enhanceRevealController.dispose();
     _slotsSubscription?.cancel();
     _biomesSubscription?.cancel();
 
@@ -1722,6 +1736,16 @@ class _HomeScreenState extends State<HomeScreen>
               (shop) => shop.hasElementalCreatorUnlocked(),
             );
 
+            // Detect the moment of unlock and trigger shake + reveal.
+            if (_lastEnhanceUnlocked != null &&
+                _lastEnhanceUnlocked == false &&
+                enhanceUnlocked == true) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _maybePlayEnhanceCelebration();
+              });
+            }
+            _lastEnhanceUnlocked = enhanceUnlocked;
+
             return AnimatedBuilder(
               animation: _shakeController,
               builder: (ctx, child) {
@@ -1835,6 +1859,8 @@ class _HomeScreenState extends State<HomeScreen>
                         theme: theme,
                         lockNonField: _isFieldTutorialActive,
                         lockEnhance: !enhanceUnlocked,
+                        enhanceRevealAnimation: _enhanceRevealController,
+                        highlightEnhance: _enhanceHighlightActive,
                         showHarvestDot:
                             !_isFieldTutorialActive &&
                             context.select<HarvestService, bool>(
@@ -1860,6 +1886,9 @@ class _HomeScreenState extends State<HomeScreen>
                             ? () {}
                             : () {
                                 HapticFeedback.mediumImpact();
+                                if (_enhanceHighlightActive) {
+                                  setState(() => _enhanceHighlightActive = false);
+                                }
                                 Navigator.push(
                                   context,
                                   CupertinoPageRoute(
@@ -2059,6 +2088,26 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       _shakeController.forward(from: 0.0);
     } catch (_) {}
+  }
+
+  Future<void> _maybePlayEnhanceCelebration() async {
+    if (_enhanceCelebrationChecking) return;
+    _enhanceCelebrationChecking = true;
+    try {
+      final shop = context.read<ShopService>();
+      final shouldCelebrate = await shop.consumeEnhanceCelebration();
+      if (!shouldCelebrate || !mounted) return;
+
+      HapticFeedback.heavyImpact();
+      setState(() => _enhanceHighlightActive = true);
+
+      _enhanceRevealController
+        ..value = 0.0
+        ..forward();
+      _playHomeShake();
+    } finally {
+      _enhanceCelebrationChecking = false;
+    }
   }
 
   Future<void> _playHomeShakeFor(Duration duration) async {

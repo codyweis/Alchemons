@@ -74,8 +74,11 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     creatureVisual = CreatureSpriteComponentBattle(
       sheet: sheet,
       visuals: visuals,
-      desiredSize: Vector2(88, 88), // Size for battle display
+      desiredSize: Vector2(86, 86), // Battle display — 20% bigger than baseline
       variantFaction: combatant.instanceRef?.variantFaction,
+      // Player team lives on the left, boss on the right — face the
+      // boss instead of looking off-screen.
+      flipHorizontal: true,
     );
     creatureVisual.position = size / 2;
     creatureVisual.anchor = Anchor.center;
@@ -100,22 +103,25 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       _addEffectComponent(alchemyEffect!);
     }
 
-    // Status/debuff badges live beneath the creature sprite.
+    // Status/debuff badges live ABOVE the creature's head so they don't
+    // collide with the Flutter HP nameplate sitting under the sprite.
     statusIconContainer = PositionComponent(
-      anchor: Anchor.center,
-      position: Vector2(size.x / 2, size.y - 6),
+      anchor: Anchor.bottomCenter,
+      position: Vector2(size.x / 2, 16),
     );
     add(statusIconContainer);
 
-    // Selection indicator (behind creature)
+    // Platform ring at the creature's feet — flattens into an ellipse
+    // so it reads as "standing on a disc" rather than a halo. Driven by
+    // setSelectionIndicator; element color is set by the host screen.
     selectionIndicator = CircleComponent(
-      radius: 52,
+      radius: 30,
       paint: Paint()
-        ..color = Colors.yellow.withValues(alpha: 0)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = .5,
+        ..color = Colors.amber.withValues(alpha: 0)
+        ..style = PaintingStyle.fill,
       anchor: Anchor.center,
-      position: size / 2,
+      position: Vector2(size.x / 2, size.y * 0.82),
+      scale: Vector2(1.2, 0.32),
     );
     add(selectionIndicator..priority = -1);
   }
@@ -199,7 +205,21 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   final Set<String> _lastModifierKeys = {};
 
   void updateStatusIcons() {
-    // Clear the old icons
+    // Player status badges are now rendered in the Flutter HP nameplate
+    // (see _buildPartyStatusChips) where they have room to wrap. The
+    // old Flame row overflowed horizontally with 3+ effects.
+    final toRemove = statusIconContainer.children.toList();
+    for (final child in toRemove) {
+      child.removeFromParent();
+    }
+    return;
+    // ignore: dead_code
+  }
+
+  // Legacy badge builder kept for the boss sprite override; the player
+  // sprite now short-circuits in updateStatusIcons().
+  // ignore: unused_element
+  void _legacyUpdateStatusIcons() {
     final toRemove = statusIconContainer.children.toList();
     for (final child in toRemove) {
       child.removeFromParent();
@@ -591,8 +611,8 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
 
   void setSelectionIndicator(bool selected) {
     selectionIndicator.paint.color = selected
-        ? Colors.yellow.withValues(alpha: 0.2)
-        : Colors.yellow.withValues(alpha: 0);
+        ? Colors.amber.withValues(alpha: 0.55)
+        : Colors.amber.withValues(alpha: 0);
   }
 
   void setSelected(bool selected) {
@@ -670,6 +690,10 @@ class CreatureSpriteComponentBattle extends PositionComponent
   final SpriteVisuals visuals;
   final Vector2 desiredSize;
   final String? variantFaction;
+  // Mirror the sprite on the X axis. Player alchemons live on the left
+  // side of the arena and the boss is on the right, so we flip the
+  // player team to face the boss.
+  final bool flipHorizontal;
 
   late final SpriteAnimationComponent _anim;
   double _prismaticHue = 0;
@@ -679,6 +703,7 @@ class CreatureSpriteComponentBattle extends PositionComponent
     required this.visuals,
     required this.desiredSize,
     this.variantFaction,
+    this.flipHorizontal = false,
   });
   @override
   Future<void> onLoad() async {
@@ -714,7 +739,10 @@ class CreatureSpriteComponentBattle extends PositionComponent
               priority: priority,
             )
             ..paint.filterQuality = FilterQuality.high
-            ..scale = Vector2.all(finalScale);
+            ..scale = Vector2(
+              flipHorizontal ? -finalScale : finalScale,
+              finalScale,
+            );
 
       _applyColorFilters();
       add(_anim);
