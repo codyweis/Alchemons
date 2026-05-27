@@ -12,10 +12,12 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class AlchemonExchangeScreen extends StatefulWidget {
   const AlchemonExchangeScreen({super.key});
@@ -91,7 +93,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: t.borderDim),
                   ),
-                  child: Icon(Icons.arrow_back_rounded, color: t.textPrimary, size: 20),
+                  child: Icon(AppIcons.arrow_back_rounded, color: t.textPrimary, size: 20),
                 ),
               ),
               const SizedBox(width: 14),
@@ -101,7 +103,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.sell_rounded, color: accent, size: 16),
+                        Icon(AppIcons.sell_rounded, color: accent, size: 16),
                         const SizedBox(width: 7),
                         Text(
                           'SPECIMEN EXCHANGE',
@@ -158,7 +160,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                 width: 1.5,
               ),
             ),
-            child: Icon(Icons.sell_rounded, color: _primaryAccent, size: 30),
+            child: Icon(AppIcons.sell_rounded, color: _primaryAccent, size: 30),
           ),
           const SizedBox(height: 16),
           Text(
@@ -205,7 +207,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                             shape: BoxShape.circle,
                             color: _primaryAccent.withValues(alpha: 0.14),
                           ),
-                          child: Icon(Icons.pets_rounded, color: _primaryAccent, size: 24),
+                          child: Icon(AppIcons.pets_rounded, color: _primaryAccent, size: 24),
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -255,7 +257,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                             shape: BoxShape.circle,
                             color: t.textPrimary.withValues(alpha: 0.12),
                           ),
-                          child: Icon(Icons.science_rounded, color: t.textSecondary, size: 24),
+                          child: Icon(AppIcons.science_rounded, color: t.textSecondary, size: 24),
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -289,7 +291,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
           // Tip row
           Row(
             children: [
-              Icon(Icons.info_outline_rounded, size: 13, color: t.textMuted.withValues(alpha: 0.5)),
+              Icon(AppIcons.info_outline_rounded, size: 13, color: t.textMuted.withValues(alpha: 0.5)),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -331,7 +333,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   color: _primaryAccent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(7),
                 ),
-                child: Icon(Icons.inventory_2_rounded, color: _primaryAccent, size: 16),
+                child: Icon(AppIcons.inventory_2_rounded, color: _primaryAccent, size: 16),
               ),
               const SizedBox(width: 10),
               Text(
@@ -385,7 +387,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
         ),
         const SizedBox(height: 8),
         if (_selectedForSale.isNotEmpty) ...[
-          _buildSectionLabel('SPECIMENS', Icons.pets_rounded, _primaryAccent),
+          _buildSectionLabel('SPECIMENS', AppIcons.pets_rounded, _primaryAccent),
           const SizedBox(height: 6),
           ..._selectedForSale.map((inst) {
             final species = repo.getCreatureById(inst.baseId);
@@ -412,7 +414,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
           const SizedBox(height: 8),
         ],
         if (_selectedVialsForSale.isNotEmpty) ...[
-          _buildSectionLabel('VIALS', Icons.science_rounded, t.textSecondary),
+          _buildSectionLabel('VIALS', AppIcons.science_rounded, t.textSecondary),
           const SizedBox(height: 6),
           ..._selectedVialsForSale.values.map(
             (vial) => Padding(
@@ -446,7 +448,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   color: t.success.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.savings_rounded, color: t.success, size: 20),
+                child: Icon(AppIcons.savings_rounded, color: t.success, size: 20),
               ),
               const SizedBox(width: 12),
               Text(
@@ -467,11 +469,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.monetization_on_rounded,
-                          size: 16,
-                          color: t.textSecondary,
-                        ),
+                        const CoinIcon(kind: CoinKind.silver, size: 16),
                         const SizedBox(width: 5),
                         Text(
                           '$_totalSilverValue',
@@ -497,11 +495,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.hexagon_rounded,
-                          size: 16,
-                          color: _goldAccent,
-                        ),
+                        const CoinIcon(kind: CoinKind.gold, size: 16),
                         const SizedBox(width: 5),
                         Text(
                           '$_totalGoldValue',
@@ -580,7 +574,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.add_rounded, color: _primaryAccent, size: 15),
+                          Icon(AppIcons.add_rounded, color: _primaryAccent, size: 15),
                           const SizedBox(width: 5),
                           Text(
                             'SPECIMENS',
@@ -613,7 +607,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.add_rounded, color: t.textSecondary, size: 15),
+                          Icon(AppIcons.add_rounded, color: t.textSecondary, size: 15),
                           const SizedBox(width: 5),
                           Text(
                             'VIALS',
@@ -646,7 +640,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.sell_rounded, color: t.onColor(t.success), size: 20),
+                      Icon(AppIcons.sell_rounded, color: t.onColor(t.success), size: 20),
                       const SizedBox(width: 10),
                       Text(
                         'COMPLETE SALE',
@@ -934,7 +928,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   _QuantityButton(
-                                    icon: Icons.remove_rounded,
+                                    icon: AppIcons.remove_rounded,
                                     enabled: canRemove,
                                     onTap: () {
                                       if (!canRemove) return;
@@ -957,7 +951,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                                     ),
                                   ),
                                   _QuantityButton(
-                                    icon: Icons.add_rounded,
+                                    icon: AppIcons.add_rounded,
                                     enabled: canAdd,
                                     onTap: () {
                                       if (!canAdd) return;
@@ -1313,10 +1307,9 @@ class _ExchangeCreatureRow extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            usesGold ? Icons.hexagon_rounded : Icons.monetization_on_rounded,
+                          CoinIcon(
+                            kind: usesGold ? CoinKind.gold : CoinKind.silver,
                             size: 15,
-                            color: priceColor,
                           ),
                           const SizedBox(width: 5),
                           Text(
@@ -1339,7 +1332,7 @@ class _ExchangeCreatureRow extends StatelessWidget {
                           color: t.danger.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Icon(Icons.close_rounded, color: t.danger, size: 16),
+                        child: Icon(AppIcons.close_rounded, color: t.danger, size: 16),
                       ),
                     ),
                   ],
@@ -1454,7 +1447,7 @@ class _ExchangeVialRow extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.monetization_on_rounded, size: 14, color: t.textSecondary),
+                        const CoinIcon(kind: CoinKind.silver, size: 14),
                         const SizedBox(width: 4),
                         Text(
                           '${vial.totalSilverValue}',
@@ -1476,7 +1469,7 @@ class _ExchangeVialRow extends StatelessWidget {
                         color: t.danger.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Icon(Icons.close_rounded, color: t.danger, size: 16),
+                      child: Icon(AppIcons.close_rounded, color: t.danger, size: 16),
                     ),
                   ),
                 ],
@@ -1515,7 +1508,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.warning_rounded, color: Colors.orange, size: 48),
+            const Icon(AppIcons.warning_rounded, color: Colors.orange, size: 48),
             const SizedBox(height: 16),
             const Text(
               'CONFIRM SALE',

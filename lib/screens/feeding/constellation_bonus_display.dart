@@ -2,6 +2,7 @@
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Displays active constellation bonuses in the feeding screen
 class ConstellationBonusDisplay extends StatelessWidget {
@@ -65,7 +66,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
                   color: theme.primary.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.auto_awesome, color: theme.primary, size: 16),
+                child: Icon(AppIcons.auto_awesome, color: theme.primary, size: 16),
               ),
               const SizedBox(width: 8),
               Text(
@@ -116,24 +117,24 @@ class ConstellationBonusDisplay extends StatelessWidget {
                     'STR',
                     strengthBoost,
                     fodderCount,
-                    Icons.fitness_center,
+                    AppIcons.fitness_center,
                   ),
                 if (intBoost > 0)
                   _buildBonusPill(
                     'INT',
                     intBoost,
                     fodderCount,
-                    Icons.psychology,
+                    AppIcons.psychology,
                   ),
                 if (beautyBoost > 0)
                   _buildBonusPill(
                     'BEA',
                     beautyBoost,
                     fodderCount,
-                    Icons.auto_awesome,
+                    AppIcons.auto_awesome,
                   ),
                 if (speedBoost > 0)
-                  _buildBonusPill('SPD', speedBoost, fodderCount, Icons.speed),
+                  _buildBonusPill('SPD', speedBoost, fodderCount, AppIcons.speed),
               ],
             ),
           ],
@@ -219,7 +220,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.trending_up, size: 12, color: theme.primary),
+          Icon(AppIcons.trending_up, size: 12, color: theme.primary),
           const SizedBox(width: 4),
           Text(
             'XP Gain',
@@ -272,7 +273,7 @@ class ConstellationBonusBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, size: 8, color: theme.primary),
+            Icon(AppIcons.auto_awesome, size: 8, color: theme.primary),
             const SizedBox(width: 2),
             Text(
               '+${(boost * 100).toStringAsFixed(1)}%',

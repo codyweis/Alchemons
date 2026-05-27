@@ -1,6 +1,7 @@
 // lib/widgets/wilderness/landscape_dialog.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 enum LandscapeDialogKind { info, success, warning, danger }
 
@@ -48,13 +49,13 @@ class LandscapeDialog extends StatelessWidget {
     if (icon != null) return icon!;
     switch (kind) {
       case LandscapeDialogKind.success:
-        return Icons.check_circle_outline;
+        return AppIcons.check_circle_outline;
       case LandscapeDialogKind.warning:
-        return Icons.warning_amber_outlined;
+        return AppIcons.warning_amber_outlined;
       case LandscapeDialogKind.danger:
-        return Icons.gpp_bad_outlined;
+        return AppIcons.gpp_bad_outlined;
       case LandscapeDialogKind.info:
-        return Icons.info_outline;
+        return AppIcons.info_outline;
     }
   }
 

@@ -12,9 +12,11 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ============= SUPPORTING WIDGETS =============
 // ShowPurchasedToggle and CurrencyPill are unchanged...
@@ -32,16 +34,21 @@ String _formatShopValue(int value) {
 }
 
 class CurrencyPill extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final CoinKind? coin;
   final Color color;
   final int amount;
 
   const CurrencyPill({
     super.key,
-    required this.icon,
+    this.icon,
+    this.coin,
     required this.color,
     required this.amount,
-  });
+  }) : assert(
+         (icon != null) != (coin != null),
+         'CurrencyPill needs exactly one of icon or coin',
+       );
 
   String _format(int n) {
     return _formatShopValue(n);
@@ -65,7 +72,10 @@ class CurrencyPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 14, color: displayColor),
+              if (coin != null)
+                CoinIcon(kind: coin!, size: 16)
+              else
+                Icon(icon, size: 14, color: displayColor),
               const SizedBox(width: 6),
               Text(
                 _format(amount),
@@ -101,23 +111,25 @@ Future<bool> showItemDetailDialog({
 }) async {
   final displayCost = effectiveCost ?? offer.cost;
   final t = ForgeTokens(theme);
-  final primaryAccent = t.readableAccent(t.amberBright);
-  final secondaryAccent = t.readableAccent(t.amber);
+  final accent = t.readableAccent(t.amber);
   return await showDialog<bool>(
         context: context,
         builder: (ctx) => Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 380),
             decoration: BoxDecoration(
               color: t.bg1,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: t.borderAccent, width: 1),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: t.amber.withValues(alpha: 0.08),
-                  blurRadius: 32,
-                  spreadRadius: 2,
+                  color: Colors.black.withValues(alpha: theme.isDark ? 0.5 : 0.18),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
                 ),
               ],
             ),
@@ -125,19 +137,9 @@ Future<bool> showItemDetailDialog({
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── Header ──────────────────────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                  decoration: BoxDecoration(
-                    color: t.bg0,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(2),
-                      topRight: Radius.circular(2),
-                    ),
-                    border: Border(
-                      bottom: BorderSide(color: t.borderAccent, width: 1),
-                    ),
-                  ),
+                // ── Header (flat, just title + close) ───────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 10, 0),
                   child: Row(
                     children: [
                       Expanded(
@@ -145,38 +147,34 @@ Future<bool> showItemDetailDialog({
                           'ITEM DETAILS',
                           style: TextStyle(
                             fontFamily: 'monospace',
-                            color: t.textSecondary,
-                            fontSize: 12,
+                            color: t.textMuted,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: 2.4,
+                            letterSpacing: 2.2,
                           ),
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(ctx, false),
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: t.bg2,
-                            borderRadius: BorderRadius.circular(2),
-                            border: Border.all(color: t.borderDim, width: 1),
-                          ),
-                          child: Icon(
-                            Icons.close_rounded,
-                            color: t.textSecondary,
-                            size: 16,
-                          ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        icon: Icon(
+                          AppIcons.close_rounded,
+                          color: t.textMuted,
+                          size: 18,
+                        ),
+                        splashRadius: 18,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                // ── Preview area ─────────────────────────────────────────────
-                Container(
-                  height: 140,
-                  color: t.bg0,
+                // ── Preview area (blends with body, no separate fill) ───────
+                SizedBox(
+                  height: 130,
                   child: _buildOfferPreviewForDialog(
                     offer,
                     size: 100.0,
@@ -184,9 +182,9 @@ Future<bool> showItemDetailDialog({
                   ),
                 ),
 
-                // ── Name + description ────────────────────────────────────────
+                // ── Name + description ───────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
                   child: Text(
                     offer.name.toUpperCase(),
                     style: TextStyle(
@@ -199,9 +197,24 @@ Future<bool> showItemDetailDialog({
                     textAlign: TextAlign.center,
                   ),
                 ),
-                const SizedBox(height: 6),
+                if (inventoryQty > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '× $inventoryQty in inventory',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
                   child: Text(
                     offer.description,
                     style: TextStyle(
@@ -215,72 +228,15 @@ Future<bool> showItemDetailDialog({
                   ),
                 ),
 
-                // ── Owned badge ──────────────────────────────────────────────
-                if (inventoryQty > 0) ...[
-                  const SizedBox(height: 14),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: t.amberDim.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(2),
-                        border: Border.all(color: t.borderAccent, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.inventory_2_rounded,
-                            color: secondaryAccent,
-                            size: 13,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'IN INVENTORY: $inventoryQty',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: secondaryAccent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-
                 // ── Cost section ─────────────────────────────────────────────
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Expanded(child: Container(height: 1, color: t.borderMid)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          'COST',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.textMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 2.0,
-                          ),
-                        ),
-                      ),
-                      Expanded(child: Container(height: 1, color: t.borderMid)),
-                    ],
-                  ),
+                  child: _MonoSectionHeader(label: 'COST', color: t.textMuted),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     children: [
                       for (final entry in displayCost.entries)
@@ -295,146 +251,38 @@ Future<bool> showItemDetailDialog({
                 ),
 
                 // ── Buttons ──────────────────────────────────────────────────
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
                   child: Row(
                     children: [
-                      // CANCEL
-                      GestureDetector(
-                        onTap: () => Navigator.pop(ctx, false),
-                        child: Container(
-                          height: 44,
-                          width: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(2),
-                            border: Border.all(
-                              color: t.borderAccent.withValues(alpha: 0.6),
-                              width: 1,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'BACK',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.4,
-                            ),
-                          ),
+                      Expanded(
+                        flex: 2,
+                        child: _DialogSecondaryButton(
+                          label: 'BACK',
+                          onTap: () => Navigator.pop(ctx, false),
                         ),
                       ),
                       const SizedBox(width: 10),
-                      // PURCHASE / state button
                       Expanded(
+                        flex: 3,
                         child: canPurchase
-                            ? GestureDetector(
+                            ? _DialogPrimaryButton(
+                                label: canAfford ? 'PURCHASE' : "CAN'T AFFORD",
+                                icon: canAfford
+                                    ? AppIcons.shopping_bag_outlined
+                                    : AppIcons.block_rounded,
                                 onTap: canAfford
                                     ? () => Navigator.pop(ctx, true)
                                     : null,
-                                child: Container(
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: canAfford
-                                        ? (theme.isDark
-                                              ? t.amberDim.withValues(
-                                                  alpha: 0.35,
-                                                )
-                                              : Colors.white)
-                                        : t.bg3,
-                                    borderRadius: BorderRadius.circular(2),
-                                    border: Border.all(
-                                      color: canAfford
-                                          ? (theme.isDark
-                                                ? t.amber
-                                                : Colors.black)
-                                          : t.danger.withValues(alpha: 0.5),
-                                      width: 1,
-                                    ),
-                                    boxShadow: canAfford && theme.isDark
-                                        ? [
-                                            BoxShadow(
-                                              color: t.amber.withValues(
-                                                alpha: 0.15,
-                                              ),
-                                              blurRadius: 12,
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        canAfford
-                                            ? Icons.shopping_bag_outlined
-                                            : Icons.block_rounded,
-                                        color: canAfford
-                                            ? (theme.isDark
-                                                  ? primaryAccent
-                                                  : Colors.black)
-                                            : t.danger.withValues(alpha: 0.7),
-                                        size: 15,
-                                      ),
-                                      const SizedBox(width: 7),
-                                      Text(
-                                        canAfford
-                                            ? 'PURCHASE'
-                                            : 'CAN\'T AFFORD',
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: canAfford
-                                              ? (theme.isDark
-                                                    ? primaryAccent
-                                                    : Colors.black)
-                                              : t.danger.withValues(alpha: 0.7),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 1.4,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                                isDestructive: !canAfford,
                               )
-                            : Container(
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: t.successDim.withValues(alpha: 0.3),
-                                  borderRadius: BorderRadius.circular(2),
-                                  border: Border.all(
-                                    color: t.success.withValues(alpha: 0.5),
-                                    width: 1,
-                                  ),
-                                ),
-                                alignment: Alignment.center,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle_outline_rounded,
-                                      color: t.success,
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 7),
-                                    Text(
-                                      offer.limit == PurchaseLimit.daily
-                                          ? 'BOUGHT TODAY'
-                                          : 'PURCHASED',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: t.success,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 1.4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                            : _DialogStatusPill(
+                                label: offer.limit == PurchaseLimit.daily
+                                    ? 'BOUGHT TODAY'
+                                    : 'PURCHASED',
+                                icon: AppIcons.check_circle_outline_rounded,
+                                color: t.success,
                               ),
                       ),
                     ],
@@ -446,6 +294,155 @@ Future<bool> showItemDetailDialog({
         ),
       ) ??
       false;
+}
+
+/// Flat filled primary button used across all shop dialogs.
+class _DialogPrimaryButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final bool isDestructive;
+
+  const _DialogPrimaryButton({
+    required this.label,
+    this.icon,
+    this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final enabled = onTap != null;
+    final accent = t.readableAccent(t.amber);
+
+    final Color bg;
+    final Color fg;
+    if (!enabled) {
+      bg = t.bg3.withValues(alpha: theme.isDark ? 0.6 : 0.6);
+      fg = isDestructive
+          ? t.danger.withValues(alpha: 0.7)
+          : t.textMuted;
+    } else if (theme.isDark) {
+      bg = t.amber;
+      fg = t.bg0;
+    } else {
+      bg = accent;
+      fg = Colors.white;
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: fg, size: 15),
+              const SizedBox(width: 7),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: fg,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Flat, low-emphasis text button (no border).
+class _DialogSecondaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _DialogSecondaryButton({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: theme.text.withValues(alpha: theme.isDark ? 0.05 : 0.04),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: t.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.4,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Status indicator for completed/owned states — flat, no border.
+class _DialogStatusPill extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _DialogStatusPill({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Single cost row — icon, label, amount, "Have: N" suffix.
@@ -482,31 +479,31 @@ class _ForgeCostRow extends StatelessWidget {
   (IconData, String, Color) _info(String t) {
     switch (t) {
       case 'gold':
-        return (Icons.hexagon_rounded, 'Gold', const Color(0xFFF59E0B));
+        return (AppIcons.hexagon_rounded, 'Gold', const Color(0xFFF59E0B));
       case 'silver':
         return (
-          Icons.monetization_on_rounded,
+          AppIcons.monetization_on_rounded,
           'Silver',
           const Color(0xFFB0BEC5),
         );
       case 'soft':
-        return (Icons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
+        return (AppIcons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
       case 'res_volcanic':
         return (
-          Icons.local_fire_department_rounded,
+          AppIcons.local_fire_department_rounded,
           'Volcanic',
           const Color(0xFFF97316),
         );
       case 'res_oceanic':
-        return (Icons.water_drop_rounded, 'Oceanic', const Color(0xFF38BDF8));
+        return (AppIcons.water_drop_rounded, 'Oceanic', const Color(0xFF38BDF8));
       case 'res_verdant':
-        return (Icons.eco_rounded, 'Verdant', const Color(0xFF4ADE80));
+        return (AppIcons.eco_rounded, 'Verdant', const Color(0xFF4ADE80));
       case 'res_earthen':
-        return (Icons.terrain_rounded, 'Earthen', const Color(0xFFA8996E));
+        return (AppIcons.terrain_rounded, 'Earthen', const Color(0xFFA8996E));
       case 'res_arcane':
-        return (Icons.auto_awesome_rounded, 'Arcane', const Color(0xFFA78BFA));
+        return (AppIcons.auto_awesome_rounded, 'Arcane', const Color(0xFFA78BFA));
       default:
-        return (Icons.circle, t, Colors.white);
+        return (AppIcons.circle, t, Colors.white);
     }
   }
 
@@ -516,33 +513,28 @@ class _ForgeCostRow extends StatelessWidget {
     final (icon, label, color) = _info(type);
     final assetPath = _assetForType();
     final hasEnough = current >= amount;
+    final coin = CoinKind.tryFromToken(type);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: t.bg2,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(
-          color: hasEnough ? t.borderDim : t.danger.withValues(alpha: 0.4),
-          width: 1,
-        ),
-      ),
+    Widget leading;
+    if (assetPath != null) {
+      leading = Image.asset(
+        assetPath,
+        fit: BoxFit.contain,
+        color: hasEnough ? null : const Color(0xFFEF4444),
+        colorBlendMode: hasEnough ? null : BlendMode.modulate,
+      );
+    } else if (coin != null && hasEnough) {
+      leading = CoinIcon(kind: coin, size: 15);
+    } else {
+      leading = Icon(icon, size: 15, color: color);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
-          SizedBox(
-            width: 15,
-            height: 15,
-            child: assetPath != null
-                ? Image.asset(
-                    assetPath,
-                    fit: BoxFit.contain,
-                    color: hasEnough ? null : const Color(0xFFEF4444),
-                    colorBlendMode: hasEnough ? null : BlendMode.modulate,
-                  )
-                : Icon(icon, size: 15, color: color),
-          ),
-          const SizedBox(width: 8),
+          SizedBox(width: 16, height: 16, child: leading),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               label.toUpperCase(),
@@ -556,19 +548,20 @@ class _ForgeCostRow extends StatelessWidget {
             ),
           ),
           Text(
-            '-${_formatShopValue(amount)}',
+            '−${_formatShopValue(amount)}',
             style: TextStyle(
               fontFamily: 'monospace',
               color: hasEnough
-                  ? color.withValues(alpha: 0.9)
+                  ? color.withValues(alpha: 0.95)
                   : const Color(0xFFEF4444),
               fontSize: 13,
               fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Text(
-            'have ${_formatShopValue(current)}',
+            '· ${_formatShopValue(current)}',
             style: TextStyle(
               fontFamily: 'monospace',
               color: hasEnough
@@ -576,7 +569,7 @@ class _ForgeCostRow extends StatelessWidget {
                   : const Color(0xFFEF4444).withValues(alpha: 0.7),
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              letterSpacing: 0.8,
+              letterSpacing: 0.4,
             ),
           ),
         ],
@@ -764,101 +757,65 @@ class GameShopCard extends StatelessWidget {
 
   String get _cardLabel => (displayLabel ?? title).toUpperCase();
 
-  double get _cardLabelFontSize => 8.0;
-
-  EdgeInsets get _cardLabelPadding =>
-      const EdgeInsets.symmetric(horizontal: 6, vertical: 3);
-
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
-    Color? overlayColor;
-    if (!enabled) {
-      overlayColor = Colors.transparent;
-    } else if (!canAfford) {
-      overlayColor = const Color.fromARGB(
-        86,
-        244,
-        67,
-        54,
-      ).withValues(alpha: 0.3);
-    }
+    final isLocked = !enabled;
+
+    // Soft surface tint — no border. Locked cards drop to a neutral muted
+    // tint; affordable + unaffordable share the same accent tint and rely on
+    // the cost text color (red) to signal can't-afford.
+    final cardColor = isLocked
+        ? theme.text.withValues(alpha: theme.isDark ? 0.04 : 0.035)
+        : theme.accent.withValues(alpha: theme.isDark ? 0.07 : 0.055);
 
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: !enabled
-              ? theme.text.withValues(alpha: 0.3)
-              : !canAfford
-              ? Colors.red.withValues(alpha: 0.5)
-              : theme.accent.withValues(alpha: 0.3),
-          width: 1,
-        ),
+        color: cardColor,
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Stack(
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Image / Preview area - SIMPLIFIED
               Expanded(
-                child: Container(
-                  color: Colors.transparent,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: _buildOfferPreview(
-                          offer,
-                          size: 64.0,
-                          theme: theme,
-                        ),
-                      ),
-                      if (_cardLabel.isNotEmpty)
-                        Positioned(
-                          left: 8,
-                          right: 8,
-                          bottom: 8,
-                          child: Container(
-                            padding: _cardLabelPadding,
-                            decoration: BoxDecoration(
-                              color: theme.isDark
-                                  ? t.bg0.withValues(alpha: 0.88)
-                                  : Colors.white.withValues(alpha: 0.88),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: theme.accent.withValues(alpha: 0.28),
-                              ),
-                            ),
-                            child: Text(
-                              _cardLabel,
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.textPrimary,
-                                fontSize: _cardLabelFontSize,
-                                fontWeight: FontWeight.w800,
-                                height: 1.1,
-                                letterSpacing: 0.7,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 14, 8, 4),
+                  child: Opacity(
+                    opacity: isLocked ? 0.45 : 1.0,
+                    child: _buildOfferPreview(
+                      offer,
+                      size: 64.0,
+                      theme: theme,
+                    ),
                   ),
                 ),
               ),
-
-              // Cost area
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              if (_cardLabel.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
+                  child: Text(
+                    _cardLabel,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: isLocked ? t.textMuted : t.textPrimary,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      height: 1.15,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
                 child: Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
+                  spacing: 10,
+                  runSpacing: 2,
                   alignment: WrapAlignment.center,
                   children: costWidgets,
                 ),
@@ -866,48 +823,31 @@ class GameShopCard extends StatelessWidget {
             ],
           ),
 
-          // Overlay (locked / unaffordable)
-          if (overlayColor != null)
-            Positioned.fill(
-              child: Container(
-                color: overlayColor,
-                alignment: Alignment.center,
-                child: Icon(
-                  !enabled ? Icons.check_circle : Icons.lock,
-                  color: theme.isDark
-                      ? Colors.white.withValues(alpha: 0.8)
-                      : t.textPrimary.withValues(alpha: 0.8),
-                  size: 32,
-                ),
+          // Owned / maxed marker — small, top-left, no border.
+          if (isLocked)
+            Positioned(
+              top: 6,
+              left: 8,
+              child: Icon(
+                AppIcons.check_circle_rounded,
+                color: theme.accent.withValues(alpha: 0.7),
+                size: 16,
               ),
             ),
 
-          // Status / inventory badge
+          // Inventory count — flat text top-right, no pill.
           if (statusText != null && statusText!.isNotEmpty && enabled)
             Positioned(
               top: 6,
-              right: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: theme.isDark
-                      ? theme.accent.withValues(alpha: 0.9)
-                      : theme.accent.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: theme.isDark
-                        ? Colors.white.withValues(alpha: 0.2)
-                        : theme.accent.withValues(alpha: 0.35),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  statusText!,
-                  style: TextStyle(
-                    color: theme.isDark ? Colors.white : theme.accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                  ),
+              right: 9,
+              child: Text(
+                statusText!,
+                style: TextStyle(
+                  color: theme.accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'monospace',
+                  letterSpacing: 0.4,
                 ),
               ),
             ),
@@ -979,39 +919,24 @@ class MiniCostChip extends StatelessWidget {
     final t = ForgeTokens(context.read<FactionTheme>());
     final displayColor = t.readableAccent(resource.color);
     final hasEnough = current >= required;
+    final textColor = hasEnough ? displayColor : Colors.red.shade300;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: hasEnough
-            ? displayColor.withValues(alpha: 0.12)
-            : Colors.red.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: hasEnough
-              ? displayColor.withValues(alpha: 0.4)
-              : Colors.red.withValues(alpha: 0.4),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(resource.icon, size: 12, color: textColor),
+        const SizedBox(width: 4),
+        Text(
+          '$required',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: textColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            resource.icon,
-            size: 10,
-            color: hasEnough ? displayColor : Colors.red.shade300,
-          ),
-          const SizedBox(width: 3),
-          Text(
-            '$required',
-            style: TextStyle(
-              color: hasEnough ? displayColor : Colors.red.shade300,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -1091,59 +1016,53 @@ class CostChip extends StatelessWidget {
     final hasEnough = available >= amount;
     final (icon, rawColor) = _getCurrencyDisplay(currencyType, theme);
     final color = t.readableAccent(rawColor);
+    final coin = CoinKind.tryFromToken(currencyType);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: hasEnough
-            ? color.withValues(alpha: theme.isDark ? 0.0 : 0.12)
-            : Colors.red.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: hasEnough
-              ? color.withValues(alpha: 0.4)
-              : Colors.red.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 10, color: hasEnough ? color : Colors.red.shade300),
-          const SizedBox(width: 3),
-          Text(
-            _formatShopValue(amount),
-            style: TextStyle(
-              color: hasEnough ? color : Colors.red.shade300,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+    final textColor = hasEnough ? color : Colors.red.shade300;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (coin != null && hasEnough)
+          CoinIcon(kind: coin, size: 13)
+        else
+          Icon(icon, size: 12, color: textColor),
+        const SizedBox(width: 4),
+        Text(
+          _formatShopValue(amount),
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: textColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   (IconData, Color) _getCurrencyDisplay(String type, FactionTheme theme) {
     switch (type) {
       case 'gold':
-        return (Icons.hexagon_rounded, const Color.fromARGB(255, 184, 138, 1));
+        return (AppIcons.hexagon_rounded, const Color.fromARGB(255, 184, 138, 1));
       case 'silver':
-        return (Icons.monetization_on_rounded, theme.text);
+        return (AppIcons.monetization_on_rounded, theme.text);
       case 'soft':
-        return (Icons.diamond_rounded, const Color(0xFFB388FF));
+        return (AppIcons.diamond_rounded, const Color(0xFFB388FF));
       // resources (fall through to correct icons/colors)
       case 'res_volcanic':
-        return (Icons.local_fire_department_rounded, Colors.orange.shade400);
+        return (AppIcons.local_fire_department_rounded, Colors.orange.shade400);
       case 'res_oceanic':
-        return (Icons.water_drop_rounded, Colors.blue.shade400);
+        return (AppIcons.water_drop_rounded, Colors.blue.shade400);
       case 'res_verdant':
-        return (Icons.eco_rounded, Colors.green.shade400);
+        return (AppIcons.eco_rounded, Colors.green.shade400);
       case 'res_earthen':
-        return (Icons.terrain_rounded, Colors.brown.shade400);
+        return (AppIcons.terrain_rounded, Colors.brown.shade400);
       case 'res_arcane':
-        return (Icons.auto_awesome_rounded, Colors.purple.shade400);
+        return (AppIcons.auto_awesome_rounded, Colors.purple.shade400);
       default:
-        return (Icons.circle, theme.textMuted);
+        return (AppIcons.circle, theme.textMuted);
     }
   }
 }
@@ -1271,8 +1190,8 @@ class MarketplaceGrid extends StatelessWidget {
                       children: [
                         Icon(
                           success
-                              ? Icons.check_circle_rounded
-                              : Icons.error_rounded,
+                              ? AppIcons.check_circle_rounded
+                              : AppIcons.error_rounded,
                           color: Colors.white,
                           size: 18,
                         ),
@@ -1373,7 +1292,7 @@ class FarmUnlockSection extends StatelessWidget {
             padding: EdgeInsets.all(12.0),
             child: EmptySection(
               message: 'All farms unlocked',
-              icon: Icons.check_circle_outline_rounded,
+              icon: AppIcons.check_circle_outline_rounded,
             ),
           );
         }
@@ -1427,19 +1346,19 @@ class FarmUnlockSection extends StatelessWidget {
     IconData icon;
     switch (biome) {
       case Biome.volcanic:
-        icon = Icons.local_fire_department_outlined;
+        icon = AppIcons.local_fire_department_outlined;
         break;
       case Biome.oceanic:
-        icon = Icons.water_outlined;
+        icon = AppIcons.water_outlined;
         break;
       case Biome.verdant:
-        icon = Icons.eco_outlined;
+        icon = AppIcons.eco_outlined;
         break;
       case Biome.earthen:
-        icon = Icons.terrain_outlined;
+        icon = AppIcons.terrain_outlined;
         break;
       case Biome.arcane:
-        icon = Icons.auto_awesome_outlined;
+        icon = AppIcons.auto_awesome_outlined;
         break;
     }
 
@@ -1508,7 +1427,7 @@ class FarmUnlockSection extends StatelessWidget {
               content: Row(
                 children: [
                   Icon(
-                    ok ? Icons.check_circle_rounded : Icons.error_rounded,
+                    ok ? AppIcons.check_circle_rounded : AppIcons.error_rounded,
                     color: Colors.white,
                     size: 18,
                   ),
@@ -1544,154 +1463,113 @@ Future<bool> showBiomeUnlockConfirmationDialog({
   required Map<String, int> resourceBalances,
   required FactionTheme theme,
 }) async {
+  final t = ForgeTokens(theme);
   return await showDialog<bool>(
         context: context,
         builder: (ctx) => Dialog(
-          backgroundColor: const Color(0xFF1A1D23),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: theme.accent.withValues(alpha: 0.5),
-              width: 2,
-            ),
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(biomeIcon, color: theme.accent, size: 36),
-                const SizedBox(height: 12),
-                Text(
-                  '$biomeName Farm',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Unlock this biome to harvest its resources.',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                DialogSectionHeader(title: 'COST', color: Colors.red.shade300),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Column(
-                    children: [
-                      for (final entry in cost.entries)
-                        DialogResourceDisplay(
-                          type: entry.key,
-                          amount: entry.value,
-                          current: resourceBalances[entry.key] ?? 0,
-                          isSpending: true,
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DialogSectionHeader(
-                  title: 'REWARD',
-                  color: Colors.green.shade300,
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Column(
-                    children: [
-                      DialogResourceDisplay(
-                        type: biomeName.toLowerCase() == 'volcanic'
-                            ? 'res_volcanic'
-                            : biomeName.toLowerCase() == 'oceanic'
-                            ? 'res_oceanic'
-                            : biomeName.toLowerCase() == 'verdant'
-                            ? 'res_verdant'
-                            : biomeName.toLowerCase() == 'earthen'
-                            ? 'res_earthen'
-                            : 'res_arcane',
-                        amount: 1,
-                        isSpending: false,
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: Text(
-                          '$biomeName Farm Unlocked',
-                          style: TextStyle(
-                            color: Colors.green.shade300,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        style: TextButton.styleFrom(
-                          backgroundColor: Colors.grey.shade800.withValues(
-                            alpha: 0.5,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: Text(
-                          'CANCEL',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 13,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        style: TextButton.styleFrom(
-                          backgroundColor: theme.isDark
-                              ? theme.accent.withValues(alpha: 0.2)
-                              : Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          side: BorderSide(
-                            color: theme.isDark ? theme.accent : Colors.black,
-                            width: 1.2,
-                          ),
-                        ),
-                        child: Text(
-                          'CONFIRM',
-                          style: TextStyle(
-                            color: theme.isDark ? theme.accent : Colors.black,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 13,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+          child: Container(
+            decoration: BoxDecoration(
+              color: t.bg1,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: theme.isDark ? 0.5 : 0.18),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
                 ),
               ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(biomeIcon, color: theme.accent, size: 40),
+                  const SizedBox(height: 14),
+                  Text(
+                    '$biomeName Farm',
+                    style: TextStyle(
+                      color: t.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Unlock this biome to harvest its resources.',
+                    style: TextStyle(
+                      color: t.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 18),
+                  _MonoSectionHeader(label: 'COST', color: t.textMuted),
+                  const SizedBox(height: 4),
+                  for (final entry in cost.entries)
+                    DialogResourceDisplay(
+                      type: entry.key,
+                      amount: entry.value,
+                      current: resourceBalances[entry.key] ?? 0,
+                      isSpending: true,
+                    ),
+                  const SizedBox(height: 12),
+                  _MonoSectionHeader(label: 'REWARD', color: t.textMuted),
+                  const SizedBox(height: 4),
+                  DialogResourceDisplay(
+                    type: biomeName.toLowerCase() == 'volcanic'
+                        ? 'res_volcanic'
+                        : biomeName.toLowerCase() == 'oceanic'
+                        ? 'res_oceanic'
+                        : biomeName.toLowerCase() == 'verdant'
+                        ? 'res_verdant'
+                        : biomeName.toLowerCase() == 'earthen'
+                        ? 'res_earthen'
+                        : 'res_arcane',
+                    amount: 1,
+                    isSpending: false,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2.0),
+                    child: Text(
+                      '$biomeName Farm Unlocked',
+                      style: TextStyle(
+                        color: Colors.green.shade400,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DialogSecondaryButton(
+                          label: 'CANCEL',
+                          onTap: () => Navigator.pop(ctx, false),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _DialogPrimaryButton(
+                          label: 'CONFIRM',
+                          onTap: () => Navigator.pop(ctx, true),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1792,219 +1670,120 @@ Future<int?> showPurchaseConfirmationDialog({
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setState) => Dialog(
-          backgroundColor: t.bg1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-            side: BorderSide(color: t.borderAccent, width: 1),
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Header ──────────────────────────────────────────────
-                  Text(
-                    'CONFIRM PURCHASE',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: primaryAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // ── Item icon + name ─────────────────────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        offer.icon,
-                        color: offer.iconColor ?? theme.accent,
-                        size: 22,
+          child: Container(
+            decoration: BoxDecoration(
+              color: t.bg1,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: theme.isDark ? 0.5 : 0.18),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'CONFIRM PURCHASE',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: primaryAccent,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2.6,
                       ),
-                      const SizedBox(width: 10),
-                      Flexible(
-                        child: Text(
-                          offer.name + (canQty && qty > 1 ? '  ×$qty' : ''),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
-                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    // ── Item icon + name ─────────────────────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          offer.icon,
+                          color: offer.iconColor ?? theme.accent,
+                          size: 22,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    offer.description,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textSecondary,
-                      fontSize: 12,
-                      height: 1.6,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                  // ── Quantity picker ──────────────────────────────────────
-                  if (canQty) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: t.borderDim),
-                        borderRadius: BorderRadius.circular(3),
-                        color: t.bg2,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              if (qty > 1) setState(() => qty--);
-                            },
-                            child: Icon(
-                              Icons.remove_rounded,
-                              size: 18,
-                              color: qty > 1 ? t.textPrimary : t.textMuted,
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Text(
-                            'x$qty',
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Text(
+                            offer.name + (canQty && qty > 1 ? '  ×$qty' : ''),
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t.textPrimary,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
                               letterSpacing: 1,
                             ),
                           ),
-                          const SizedBox(width: 20),
-                          GestureDetector(
-                            onTap: () {
-                              if (qty < 999) setState(() => qty++);
-                            },
-                            child: Icon(
-                              Icons.add_rounded,
-                              size: 18,
-                              color: t.textPrimary,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      offer.description,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.textSecondary,
+                        fontSize: 12,
+                        height: 1.6,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                  ],
-                  const SizedBox(height: 16),
-                  // ── Cost ────────────────────────────────────────────────
-                  _MonoSectionHeader(
-                    label: 'COST',
-                    color: const Color(0xFFE06060),
-                  ),
-                  const SizedBox(height: 8),
-                  for (final entry in previewCost().entries)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: DialogResourceDisplay(
+                    if (canQty) ...[
+                      const SizedBox(height: 14),
+                      _DialogQuantityPicker(
+                        qty: qty,
+                        onChanged: (next) => setState(() => qty = next),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _MonoSectionHeader(label: 'COST', color: t.textMuted),
+                    const SizedBox(height: 4),
+                    for (final entry in previewCost().entries)
+                      DialogResourceDisplay(
                         type: entry.key,
                         amount: entry.value,
                         current: currencies[entry.key] ?? 0,
                         isSpending: true,
                       ),
-                    ),
-                  const SizedBox(height: 14),
-                  // ── Reward ───────────────────────────────────────────────
-                  _MonoSectionHeader(
-                    label: 'REWARD',
-                    color: const Color(0xFF88EE88),
-                  ),
-                  const SizedBox(height: 8),
-                  ...buildRewardWidgets().map(
-                    (w) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: w,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // ── Buttons ──────────────────────────────────────────────
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => Navigator.pop(ctx, null),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: t.borderDim),
-                              borderRadius: BorderRadius.circular(3),
-                              color: t.bg2,
-                            ),
-                            child: Text(
-                              'CANCEL',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.textSecondary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                                letterSpacing: 2,
-                              ),
-                            ),
+                    const SizedBox(height: 12),
+                    _MonoSectionHeader(label: 'REWARD', color: t.textMuted),
+                    const SizedBox(height: 4),
+                    ...buildRewardWidgets(),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _DialogSecondaryButton(
+                            label: 'CANCEL',
+                            onTap: () => Navigator.pop(ctx, null),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => Navigator.pop(ctx, qty),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: t.isDark ? t.borderAccent : Colors.black,
-                                width: 1.2,
-                              ),
-                              borderRadius: BorderRadius.circular(3),
-                              color: t.isDark
-                                  ? t.amberDim.withValues(alpha: 0.18)
-                                  : Colors.white,
-                              boxShadow: t.isDark
-                                  ? [
-                                      BoxShadow(
-                                        color: t.amber.withValues(alpha: 0.2),
-                                        blurRadius: 10,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Text(
-                              'CONFIRM',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.isDark ? primaryAccent : Colors.black,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                                letterSpacing: 2,
-                              ),
-                            ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _DialogPrimaryButton(
+                            label: 'CONFIRM',
+                            onTap: () => Navigator.pop(ctx, qty),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -2012,6 +1791,91 @@ Future<int?> showPurchaseConfirmationDialog({
       );
     },
   );
+}
+
+/// Flat quantity stepper: [−]  ×N  [+]   with comfortable tap targets but
+/// no bordered container around it.
+class _DialogQuantityPicker extends StatelessWidget {
+  final int qty;
+  final ValueChanged<int> onChanged;
+
+  const _DialogQuantityPicker({required this.qty, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _StepperButton(
+          icon: AppIcons.remove_rounded,
+          enabled: qty > 1,
+          onTap: () {
+            if (qty > 1) onChanged(qty - 1);
+          },
+        ),
+        SizedBox(
+          width: 64,
+          child: Text(
+            '×$qty',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+              letterSpacing: 0.8,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+        _StepperButton(
+          icon: AppIcons.add_rounded,
+          enabled: qty < 999,
+          onTap: () {
+            if (qty < 999) onChanged(qty + 1);
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _StepperButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: theme.text.withValues(alpha: theme.isDark ? 0.06 : 0.04),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? t.textPrimary : t.textMuted,
+        ),
+      ),
+    );
+  }
 }
 
 // ── Monospace section divider used in the purchase dialog ───────────────────
@@ -2105,28 +1969,28 @@ class DialogResourceDisplay extends StatelessWidget {
     switch (type) {
       // Currencies
       case 'gold':
-        return (Icons.hexagon_rounded, 'Gold', const Color(0xFFB45309));
+        return (AppIcons.hexagon_rounded, 'Gold', const Color(0xFFB45309));
       case 'silver':
-        return (Icons.monetization_on_rounded, 'Silver', Colors.grey.shade300);
+        return (AppIcons.monetization_on_rounded, 'Silver', Colors.grey.shade300);
       case 'soft':
-        return (Icons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
+        return (AppIcons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
       // Resources
       case 'res_volcanic':
         return (
-          Icons.local_fire_department_rounded,
+          AppIcons.local_fire_department_rounded,
           'Volcanic',
           Colors.orange.shade400,
         );
       case 'res_oceanic':
-        return (Icons.water_drop_rounded, 'Oceanic', Colors.blue.shade400);
+        return (AppIcons.water_drop_rounded, 'Oceanic', Colors.blue.shade400);
       case 'res_verdant':
-        return (Icons.eco_rounded, 'Verdant', Colors.green.shade400);
+        return (AppIcons.eco_rounded, 'Verdant', Colors.green.shade400);
       case 'res_earthen':
-        return (Icons.terrain_rounded, 'Earthen', Colors.brown.shade400);
+        return (AppIcons.terrain_rounded, 'Earthen', Colors.brown.shade400);
       case 'res_arcane':
-        return (Icons.auto_awesome_rounded, 'Arcane', Colors.purple.shade400);
+        return (AppIcons.auto_awesome_rounded, 'Arcane', Colors.purple.shade400);
       default:
-        return (Icons.circle, type, const Color(0xFF475569));
+        return (AppIcons.circle, type, const Color(0xFF475569));
     }
   }
 
@@ -2135,12 +1999,16 @@ class DialogResourceDisplay extends StatelessWidget {
     final (icon, label, color) = _getDisplayInfo(type);
     final hasEnough = current != null ? current! >= amount : true;
     final theme = context.read<FactionTheme>();
+    final coin = CoinKind.tryFromToken(type);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: color),
+          if (coin != null)
+            CoinIcon(kind: coin, size: 18)
+          else
+            Icon(icon, size: 18, color: color),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

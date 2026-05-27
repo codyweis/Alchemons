@@ -1,5 +1,6 @@
 // lib/models/biome.dart
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Biome system for resource gathering and creature habitats
 ///
@@ -42,11 +43,11 @@ enum Biome {
   };
 
   IconData get icon => switch (this) {
-    volcanic => Icons.local_fire_department_rounded,
-    oceanic => Icons.water_drop_rounded,
-    earthen => Icons.landscape_rounded,
-    verdant => Icons.nature_rounded,
-    arcane => Icons.auto_awesome_rounded,
+    volcanic => AppIcons.local_fire_department_rounded,
+    oceanic => AppIcons.water_drop_rounded,
+    earthen => AppIcons.landscape_rounded,
+    verdant => AppIcons.nature_rounded,
+    arcane => AppIcons.auto_awesome_rounded,
   };
 
   Color get primaryColor => switch (this) {

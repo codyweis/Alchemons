@@ -7,6 +7,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class StatPotentialBar extends StatelessWidget {
   // ignore: unused_field
@@ -334,7 +335,7 @@ class StatPotentialBlock extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.info_outline, size: 12, color: fc.amber),
+                      Icon(AppIcons.info_outline, size: 12, color: fc.amber),
                       const SizedBox(width: 6),
                       Text('UNDERSTANDING POTENTIAL', style: ft.sectionTitle),
                     ],

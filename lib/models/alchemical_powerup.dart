@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:alchemons/models/inventory.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 enum AlchemicalPowerupType { speed, intelligence, strength, beauty }
 
@@ -48,10 +49,10 @@ extension AlchemicalPowerupTypeX on AlchemicalPowerupType {
   };
 
   IconData get icon => switch (this) {
-    AlchemicalPowerupType.speed => Icons.bolt_rounded,
-    AlchemicalPowerupType.intelligence => Icons.psychology_rounded,
-    AlchemicalPowerupType.strength => Icons.fitness_center_rounded,
-    AlchemicalPowerupType.beauty => Icons.auto_awesome_rounded,
+    AlchemicalPowerupType.speed => AppIcons.bolt_rounded,
+    AlchemicalPowerupType.intelligence => AppIcons.psychology_rounded,
+    AlchemicalPowerupType.strength => AppIcons.fitness_center_rounded,
+    AlchemicalPowerupType.beauty => AppIcons.auto_awesome_rounded,
   };
 
   Color get color => switch (this) {

@@ -1,6 +1,7 @@
 import 'dart:ui'; // for BackdropFilter
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class GlowingIcon extends StatelessWidget {
   final IconData icon;
@@ -171,7 +172,7 @@ class GlowingIcon extends StatelessWidget {
                           IconButton(
                             onPressed: () => Navigator.of(ctx).pop(),
                             icon: Icon(
-                              Icons.close_rounded,
+                              AppIcons.close_rounded,
                               size: 18,
                               color: t.textSecondary,
                             ),

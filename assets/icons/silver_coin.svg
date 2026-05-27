@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="silverFace" cx="0.35" cy="0.28" r="0.95">
+      <stop offset="0%" stop-color="#FBFCFE"/>
+      <stop offset="40%" stop-color="#D6DCE5"/>
+      <stop offset="80%" stop-color="#8A95A3"/>
+      <stop offset="100%" stop-color="#3D454F"/>
+    </radialGradient>
+    <linearGradient id="silverRim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EEF1F5"/>
+      <stop offset="55%" stop-color="#6F7986"/>
+      <stop offset="100%" stop-color="#2F353D"/>
+    </linearGradient>
+    <radialGradient id="silverShine" cx="0.32" cy="0.22" r="0.35">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#silverRim)"/>
+  <circle cx="32" cy="32" r="27.5" fill="#1F242B" opacity="0.55"/>
+  <circle cx="32" cy="32" r="26" fill="url(#silverFace)"/>
+  <circle cx="32" cy="32" r="22" fill="none" stroke="#3A424D" stroke-width="0.6" opacity="0.5"/>
+  <!-- alchemical crescent moon -->
+  <path d="M 36 22 A 10.5 10.5 0 1 0 36 42 A 8 8 0 1 1 36 22 Z" fill="#1F242B"/>
+  <circle cx="32" cy="32" r="26" fill="url(#silverShine)"/>
+</svg>

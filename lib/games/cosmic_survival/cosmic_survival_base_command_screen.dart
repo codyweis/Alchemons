@@ -9,8 +9,10 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -166,7 +168,7 @@ class _CosmicSurvivalBaseCommandScreenState
                 border: Border.all(color: _C.borderDim),
               ),
               child: const Icon(
-                Icons.arrow_back_rounded,
+                AppIcons.arrow_back_rounded,
                 color: _C.textSecondary,
                 size: 18,
               ),
@@ -203,11 +205,7 @@ class _CosmicSurvivalBaseCommandScreenState
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.paid_rounded,
-                  color: Color(0xFFC0C0C0),
-                  size: 16,
-                ),
+                const CoinIcon(kind: CoinKind.silver, size: 16),
                 const SizedBox(width: 6),
                 Text(
                   _fmtNum(_silverBalance),
@@ -254,16 +252,16 @@ class _CosmicSurvivalBaseCommandScreenState
         ),
         tabs: [
           const Tab(
-            icon: Icon(Icons.blur_circular_rounded, size: 16),
+            icon: Icon(AppIcons.blur_circular_rounded, size: 16),
             text: 'ORB',
           ),
           const Tab(
-            icon: Icon(Icons.person_rounded, size: 16),
+            icon: Icon(AppIcons.person_rounded, size: 16),
             text: 'GUARDIANS',
           ),
           if (!widget.hideAbilities)
             const Tab(
-              icon: Icon(Icons.auto_awesome_rounded, size: 16),
+              icon: Icon(AppIcons.auto_awesome_rounded, size: 16),
               text: 'ABILITIES',
             ),
         ],
@@ -831,6 +829,7 @@ class _PlateBox extends StatelessWidget {
 class _ForgeButton extends StatelessWidget {
   final String label;
   final IconData icon;
+  final CoinKind? coin;
   final VoidCallback? onTap;
   final bool loading;
   final Color? color;
@@ -838,6 +837,7 @@ class _ForgeButton extends StatelessWidget {
   const _ForgeButton({
     required this.label,
     required this.icon,
+    this.coin,
     this.onTap,
     this.loading = false,
     this.color,
@@ -879,6 +879,8 @@ class _ForgeButton extends StatelessWidget {
                 height: 14,
                 child: CircularProgressIndicator(strokeWidth: 2, color: _C.bg0),
               )
+            else if (coin != null)
+              CoinIcon(kind: coin!, size: 16)
             else
               Icon(icon, size: 16, color: _C.bg0),
             const SizedBox(width: 2),
@@ -1066,7 +1068,8 @@ class _OrbSkinCard extends StatelessWidget {
             if (!isOwned)
               _ForgeButton(
                 label: costLabel,
-                icon: Icons.paid_rounded,
+                icon: AppIcons.paid_rounded,
+                coin: CoinKind.silver,
                 onTap: (purchasing || !canPurchase) ? null : onPurchase,
                 loading: purchasing,
                 color: def.primaryColor,
@@ -1198,7 +1201,8 @@ class _UpgradeCard extends StatelessWidget {
               else
                 _ForgeButton(
                   label: _fmtNum(nextCost!),
-                  icon: Icons.paid_rounded,
+                  icon: AppIcons.paid_rounded,
+                  coin: CoinKind.silver,
                   onTap: (purchasing || silverBalance < (nextCost ?? 999999))
                       ? null
                       : onUpgrade,
@@ -1372,8 +1376,9 @@ class _AbilityCard extends StatelessWidget {
                       ? _fmtNum(nextCost!)
                       : 'UNLOCK ${_fmtNum(nextCost!)}',
                   icon: isUnlocked
-                      ? Icons.paid_rounded
-                      : Icons.lock_open_rounded,
+                      ? AppIcons.paid_rounded
+                      : AppIcons.lock_open_rounded,
+                  coin: isUnlocked ? CoinKind.silver : null,
                   onTap: (purchasing || silverBalance < (nextCost ?? 999999))
                       ? null
                       : onUpgrade,

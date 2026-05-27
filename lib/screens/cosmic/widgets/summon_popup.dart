@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import '../models/cosmic_summon_result.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class SummonPopup extends StatelessWidget {
   const SummonPopup({
@@ -52,7 +53,7 @@ class SummonPopup extends StatelessWidget {
                   ),
                   border: Border.all(color: color, width: 2),
                 ),
-                child: Icon(Icons.auto_awesome, color: color, size: 36),
+                child: Icon(AppIcons.auto_awesome, color: color, size: 36),
               ),
               const SizedBox(height: 16),
 

@@ -28,12 +28,14 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -243,8 +245,15 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
   String _currencyLabelFor(_SellableCreature item) =>
       _usesGoldPayout(item) ? 'Gold' : _currencyLabel;
 
-  IconData _currencyIconFor(_SellableCreature item) =>
-      _usesGoldPayout(item) ? Icons.hexagon : _currencyIcon;
+  /// Returns the right leading visual for the price chip — coin SVG for
+  /// gold/silver, Material icon for shards.
+  Widget _priceLeading(_SellableCreature item, double size, Color color) {
+    if (_usesGoldPayout(item)) return CoinIcon(kind: CoinKind.gold, size: size);
+    if (_currency == _SaleCurrency.silver) {
+      return CoinIcon(kind: CoinKind.silver, size: size);
+    }
+    return Icon(_currencyIcon, size: size, color: color);
+  }
 
   Color _currencyColorFor(_SellableCreature item) =>
       _usesGoldPayout(item) ? const Color(0xFFFFD700) : _currencyColor;
@@ -261,7 +270,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
   IconData get _currencyIcon {
     switch (_currency) {
       case _SaleCurrency.silver:
-        return Icons.monetization_on;
+        return AppIcons.monetization_on;
       case _SaleCurrency.shards:
         return CosmicScreenStyles.astralShardIcon;
     }
@@ -442,7 +451,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.storefront,
+                            AppIcons.storefront,
                             color: Colors.white.withValues(alpha: 0.2),
                             size: 48,
                           ),
@@ -506,7 +515,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       child: Row(
         children: [
           const Icon(
-            Icons.local_fire_department,
+            AppIcons.local_fire_department,
             color: Color(0xFF76FF03),
             size: 18,
           ),
@@ -567,7 +576,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                 padding: const EdgeInsets.only(right: 6),
                 child: _filterChip(
                   label: 'PRISMATIC',
-                  icon: Icons.auto_awesome,
+                  icon: AppIcons.auto_awesome,
                   isActive: _filterPrismatic,
                   color: const Color(0xFFE040FB),
                   onTap: () => setState(() {
@@ -580,7 +589,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
             for (final pName in activePlanets) ...[
               _filterChip(
                 label: pName.toUpperCase(),
-                icon: Icons.public,
+                icon: AppIcons.public,
                 isActive: _filterPlanet == pName,
                 color: _planetColor(pName),
                 onTap: () => setState(() {
@@ -744,7 +753,6 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
     final c = item.creature;
     final inst = item.instance;
     final price = _displayPriceFor(item);
-    final priceIcon = _currencyIconFor(item);
     final priceColor = _currencyColorFor(item);
 
     // Element color
@@ -806,7 +814,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                         'assets/images/${c.image}',
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Icon(
-                          Icons.catching_pokemon,
+                          AppIcons.catching_pokemon,
                           color: eColor,
                           size: 24,
                         ),
@@ -882,7 +890,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                       if (inst.source == 'planet_summon') ...[
                         const SizedBox(width: 6),
                         Icon(
-                          Icons.public,
+                          AppIcons.public,
                           size: 10,
                           color: Colors.white.withValues(alpha: 0.3),
                         ),
@@ -911,7 +919,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(priceIcon, size: 12, color: priceColor),
+                        _priceLeading(item, 14, priceColor),
                         const SizedBox(width: 3),
                         Text(
                           '$price',

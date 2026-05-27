@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Alchemy orb button — navigates to the Cosmic exploration game.
 /// Requires cosmic ship to enter; shows a warning otherwise.
@@ -144,7 +145,7 @@ class ConstellationPointsDetailWidget extends StatelessWidget {
                       colors: [theme.primary, theme.secondary],
                     ).createShader(bounds),
                     child: const Icon(
-                      Icons.auto_awesome,
+                      AppIcons.auto_awesome,
                       size: 24,
                       color: Colors.white,
                     ),

@@ -12,9 +12,11 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 int goldConversionDailyElementIndex(DateTime dateUtc) {
   final daySeed = dateUtc.toUtc().millisecondsSinceEpoch ~/ 86400000;
@@ -136,8 +138,8 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             children: [
               Icon(
                 success
-                    ? Icons.check_circle_rounded
-                    : Icons.warning_amber_rounded,
+                    ? AppIcons.check_circle_rounded
+                    : AppIcons.warning_amber_rounded,
                 size: 16,
                 color: tone,
               ),
@@ -235,18 +237,14 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
           children: [
             Row(
               children: [
-                const Icon(
-                  Icons.hexagon_rounded,
-                  size: 18,
-                  color: Color(0xFFFFD700),
-                ),
+                const CoinIcon(kind: CoinKind.gold, size: 18),
                 const SizedBox(width: 6),
                 Text('$_goldCost Gold', style: TextStyle(color: t.textPrimary)),
               ],
             ),
             const SizedBox(height: 8),
             const Icon(
-              Icons.arrow_downward_rounded,
+              AppIcons.arrow_downward_rounded,
               size: 20,
               color: Colors.white38,
             ),
@@ -257,7 +255,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                   _isShardsMode
                       ? CosmicScreenStyles.astralShardIcon
                       : ElementResources.byBiomeId[_selectedResource]?.icon ??
-                            Icons.circle,
+                            AppIcons.circle,
                   size: 18,
                   color: _isShardsMode
                       ? CosmicScreenStyles.astralShardColor
@@ -386,18 +384,14 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             ),
             const SizedBox(height: 8),
             const Icon(
-              Icons.arrow_downward_rounded,
+              AppIcons.arrow_downward_rounded,
               size: 20,
               color: Colors.white38,
             ),
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(
-                  Icons.monetization_on_rounded,
-                  size: 18,
-                  color: Color(0xFFC0C0C0),
-                ),
+                const CoinIcon(kind: CoinKind.silver, size: 18),
                 const SizedBox(width: 6),
                 Text(
                   '$silverPayout Silver',
@@ -507,11 +501,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.hexagon_rounded,
-              size: 20,
-              color: Color(0xFFFFD700),
-            ),
+            const CoinIcon(kind: CoinKind.gold, size: 20),
             const SizedBox(width: 6),
             Text(
               '$gold Gold',
@@ -639,7 +629,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
               ),
             ),
             if (selected)
-              Icon(Icons.check_circle_rounded, size: 20, color: _accent),
+              Icon(AppIcons.check_circle_rounded, size: 20, color: _accent),
           ],
         ),
       ),
@@ -663,7 +653,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildStepButton(Icons.remove, () {
+            _buildStepButton(AppIcons.remove, () {
               if (_multiplier > 1) setState(() => _multiplier--);
             }, t),
             const SizedBox(width: 16),
@@ -697,7 +687,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
               ),
             ),
             const SizedBox(width: 16),
-            _buildStepButton(Icons.add, () {
+            _buildStepButton(AppIcons.add, () {
               setState(() => _multiplier++);
             }, t),
           ],
@@ -728,7 +718,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
   Widget _buildSummary(ForgeTokens t) {
     final outputIcon = _isShardsMode
         ? CosmicScreenStyles.astralShardIcon
-        : ElementResources.byBiomeId[_selectedResource]?.icon ?? Icons.circle;
+        : ElementResources.byBiomeId[_selectedResource]?.icon ?? AppIcons.circle;
     final outputColor = _isShardsMode
         ? CosmicScreenStyles.astralShardColor
         : ElementResources.byBiomeId[_selectedResource]?.color ?? Colors.white;
@@ -747,11 +737,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             children: [
               Row(
                 children: [
-                  const Icon(
-                    Icons.hexagon_rounded,
-                    size: 18,
-                    color: Color(0xFFFFD700),
-                  ),
+                  const CoinIcon(kind: CoinKind.gold, size: 18),
                   const SizedBox(width: 6),
                   Text(
                     '$_goldCost Gold',
@@ -763,7 +749,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                 ],
               ),
               const Icon(
-                Icons.arrow_forward_rounded,
+                AppIcons.arrow_forward_rounded,
                 size: 18,
                 color: Colors.white38,
               ),
@@ -849,7 +835,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                   Row(
                     children: [
                       Icon(
-                        Icons.science_rounded,
+                        AppIcons.science_rounded,
                         color: _dailySaleResource.color,
                         size: 20,
                       ),
@@ -879,11 +865,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(
-                        Icons.monetization_on_rounded,
-                        size: 16,
-                        color: Color(0xFFC0C0C0),
-                      ),
+                      const CoinIcon(kind: CoinKind.silver, size: 16),
                       const SizedBox(width: 6),
                       Text(
                         '$silver Silver',
@@ -947,7 +929,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildStepButton(Icons.remove, () {
+                      _buildStepButton(AppIcons.remove, () {
                         if (selectedAvailable <= 0) return;
                         setState(() {
                           _sellQuantity = (_sellQuantity - 1).clamp(
@@ -994,7 +976,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      _buildStepButton(Icons.add, () {
+                      _buildStepButton(AppIcons.add, () {
                         if (selectedAvailable <= 0) return;
                         setState(() {
                           _sellQuantity = (_sellQuantity + 1).clamp(
@@ -1082,11 +1064,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                             ),
                             Row(
                               children: [
-                                const Icon(
-                                  Icons.monetization_on_rounded,
-                                  size: 18,
-                                  color: Color(0xFFC0C0C0),
-                                ),
+                                const CoinIcon(kind: CoinKind.silver, size: 18),
                                 const SizedBox(width: 6),
                                 Text(
                                   '$effectiveSellPayout Silver',

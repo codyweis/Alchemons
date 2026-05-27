@@ -3,6 +3,7 @@ import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class ShipInventoryOverlay extends StatefulWidget {
   const ShipInventoryOverlay({
@@ -78,10 +79,10 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
   }
 
   static IconData _invIcon(String key) {
-    if (key.contains('portal_key')) return Icons.vpn_key_rounded;
-    if (key.contains('harvest')) return Icons.catching_pokemon_rounded;
-    if (key == InvKeys.staminaPotion) return Icons.local_drink_rounded;
-    return Icons.category_rounded;
+    if (key.contains('portal_key')) return AppIcons.vpn_key_rounded;
+    if (key.contains('harvest')) return AppIcons.catching_pokemon_rounded;
+    if (key == InvKeys.staminaPotion) return AppIcons.local_drink_rounded;
+    return AppIcons.category_rounded;
   }
 
   @override
@@ -116,7 +117,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                           ),
                         ),
                         child: const Icon(
-                          Icons.arrow_back_rounded,
+                          AppIcons.arrow_back_rounded,
                           color: CosmicScreenStyles.textSecondary,
                           size: 18,
                         ),
@@ -174,7 +175,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.inventory_2_outlined,
+                              AppIcons.inventory_2_outlined,
                               color: CosmicScreenStyles.textMuted,
                               size: 40,
                             ),

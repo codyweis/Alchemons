@@ -13,6 +13,7 @@ import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 
 import 'feeding_widgets.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 enum FeedingSpeciesSort { name, amount }
 
@@ -152,14 +153,14 @@ class FeedingStageBuilders {
                         fontWeight: FontWeight.w600,
                       ),
                       prefixIcon: Icon(
-                        Icons.search_rounded,
+                        AppIcons.search_rounded,
                         color: t.textSecondary,
                         size: 20,
                       ),
                       suffixIcon: searchQuery.isNotEmpty
                           ? IconButton(
                               icon: Icon(
-                                Icons.clear_rounded,
+                                AppIcons.clear_rounded,
                                 color: t.textSecondary,
                                 size: 20,
                               ),
@@ -204,7 +205,7 @@ class FeedingStageBuilders {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.sort_rounded,
+                          AppIcons.sort_rounded,
                           color: t.textSecondary,
                           size: 16,
                         ),
@@ -343,12 +344,12 @@ class FeedingStageBuilders {
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 180),
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 180),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-        childAspectRatio: 0.72,
+        crossAxisSpacing: 6,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.66,
       ),
       itemCount: candidates.length,
       itemBuilder: (context, i) {
@@ -387,23 +388,14 @@ class FeedingStageBuilders {
                 width: double.infinity,
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? fc.amberDim.withValues(alpha: 0.2)
-                      : t.bg1,
-                  borderRadius: BorderRadius.circular(4),
+                  color: t.bg1,
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: isSelected ? fc.amberGlow : t.borderDim,
-                    width: isSelected ? 2.0 : 1.0,
+                    color: isSelected
+                        ? fc.amber.withValues(alpha: 0.85)
+                        : t.borderDim,
+                    width: isSelected ? 1.5 : 1.0,
                   ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: fc.amber.withValues(alpha: 0.35),
-                            blurRadius: 10,
-                            spreadRadius: 1,
-                          ),
-                        ]
-                      : [],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -431,7 +423,7 @@ class FeedingStageBuilders {
                       Text(
                         inst.nickname ?? baseCreature!.name,
                         style: TextStyle(
-                          color: isSelected ? fc.amberBright : t.textPrimary,
+                          color: t.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -443,81 +435,36 @@ class FeedingStageBuilders {
                     Text(
                       'Lv ${inst.level}',
                       style: TextStyle(
-                        color: isSelected ? fc.amber : t.textSecondary,
+                        color: t.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? fc.amberDim.withValues(alpha: 0.25)
-                            : t.bg2,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: t.success.withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(3),
-                                border: Border.all(
-                                  color: t.success.withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Text(
-                                highestLabel,
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: t.success,
-                                  fontSize: 7.5,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          highestLabel,
+                          style: TextStyle(
+                            color: t.success,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
                           ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: t.danger.withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(3),
-                                border: Border.all(
-                                  color: t.danger.withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Text(
-                                lowestLabel,
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: t.danger,
-                                  fontSize: 7.5,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          lowestLabel,
+                          style: TextStyle(
+                            color: t.danger,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -533,7 +480,7 @@ class FeedingStageBuilders {
                       color: fc.amberGlow,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.check, size: 10, color: fc.bg0),
+                    child: Icon(AppIcons.check, size: 10, color: fc.bg0),
                   ),
                 ),
             ],

@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class StorageSection extends StatefulWidget {
   final Color primaryColor;
@@ -78,7 +79,7 @@ class _StorageSectionState extends State<StorageSection> {
           children: [
             widget.buildSectionHeader(
               'COLD STORAGE',
-              Icons.inventory_2_rounded,
+              AppIcons.inventory_2_rounded,
               widget.primaryColor,
             ),
             const SizedBox(height: 12),
@@ -142,7 +143,7 @@ class _StorageSectionState extends State<StorageSection> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.ac_unit_rounded, color: accent, size: 11),
+            Icon(AppIcons.ac_unit_rounded, color: accent, size: 11),
             const SizedBox(width: 5),
             Text(
               '$storedCount stored',
@@ -251,7 +252,7 @@ class _StorageSectionState extends State<StorageSection> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.inventory_2_outlined, color: theme.accentSoft, size: 16),
+          Icon(AppIcons.inventory_2_outlined, color: theme.accentSoft, size: 16),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -748,8 +749,8 @@ class EggDetailsModal extends StatelessWidget {
                     tokens: t,
                     label: isReady ? 'Extract specimen' : 'Add to chamber',
                     icon: isReady
-                        ? Icons.biotech_rounded
-                        : Icons.inventory_2_rounded,
+                        ? AppIcons.biotech_rounded
+                        : AppIcons.inventory_2_rounded,
                     accentColor: isReady ? accent : t.amberBright,
                     emphasis: CultivationDialogButtonEmphasis.primary,
                     useSolidBackground: true,
@@ -763,7 +764,7 @@ class EggDetailsModal extends StatelessWidget {
                   Center(
                     child: _DetailsTextLink(
                       label: 'Delete specimen',
-                      icon: Icons.delete_outline_rounded,
+                      icon: AppIcons.delete_outline_rounded,
                       color: t.danger,
                       onTap: () => _confirmDelete(context, t),
                     ),
@@ -802,7 +803,7 @@ class EggDetailsModal extends StatelessWidget {
         duration: const Duration(seconds: 2),
         content: Row(
           children: [
-            Icon(result.icon ?? Icons.error_rounded, color: Colors.white),
+            Icon(result.icon ?? AppIcons.error_rounded, color: Colors.white),
             const SizedBox(width: 8),
             Expanded(child: Text(result.message!)),
           ],
@@ -1093,7 +1094,7 @@ class EggDetailsModal extends StatelessWidget {
                   color: t.bg1,
                   borderRadius: BorderRadius.circular(2),
                 ),
-                child: Icon(Icons.lock_rounded, color: t.danger, size: 13),
+                child: Icon(AppIcons.lock_rounded, color: t.danger, size: 13),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1154,7 +1155,7 @@ class EggDetailsModal extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
               child: Icon(
-                Icons.bubble_chart_rounded,
+                AppIcons.bubble_chart_rounded,
                 color: t.amberBright,
                 size: 13,
               ),
@@ -1206,7 +1207,7 @@ class EggDetailsModal extends StatelessWidget {
                   border: Border.all(color: t.danger.withValues(alpha: 0.4)),
                 ),
                 child: Icon(
-                  Icons.delete_outline_rounded,
+                  AppIcons.delete_outline_rounded,
                   color: t.danger,
                   size: 24,
                 ),
@@ -1321,7 +1322,7 @@ class EggDetailsModal extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
               child: Icon(
-                Icons.delete_outline_rounded,
+                AppIcons.delete_outline_rounded,
                 color: Colors.white,
                 size: 13,
               ),
@@ -1381,7 +1382,7 @@ class _DetailsCloseButton extends StatelessWidget {
             height: 32,
             alignment: Alignment.center,
             color: palette.surfaceMutedFill(),
-            child: Icon(Icons.close_rounded, size: 16, color: palette.muted),
+            child: Icon(AppIcons.close_rounded, size: 16, color: palette.muted),
           ),
         ),
       ),

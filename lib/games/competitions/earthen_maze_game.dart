@@ -15,6 +15,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// ===== CONFIG =====
 const _tickMs = 90; // fixed sim step
@@ -451,7 +452,7 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
                 child: _awaitingSelection
                     ? _ModernOverlayPill(
                         text: 'Select your competitor',
-                        icon: Icons.pets_rounded,
+                        icon: AppIcons.pets_rounded,
                         color: color,
                       )
                     : _ModernCountdown(count: _count, color: color),
@@ -485,7 +486,7 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
                 ),
                 border: Border.all(color: color.withValues(alpha: .6), width: 2),
               ),
-              child: Icon(Icons.psychology_rounded, color: color, size: 24),
+              child: Icon(AppIcons.psychology_rounded, color: color, size: 24),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -525,7 +526,7 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.emoji_events_rounded, color: color, size: 16),
+                  Icon(AppIcons.emoji_events_rounded, color: color, size: 16),
                   const SizedBox(width: 6),
                   Text(
                     '${compLevel?.rewardAmount ?? 0}',
@@ -613,8 +614,8 @@ class _ResultsDialog extends StatelessWidget {
                 children: [
                   Icon(
                     isVictory
-                        ? Icons.emoji_events_rounded
-                        : Icons.psychology_rounded,
+                        ? AppIcons.emoji_events_rounded
+                        : AppIcons.psychology_rounded,
                     color: isVictory ? Colors.amber : color,
                     size: 56,
                   ),
@@ -671,7 +672,7 @@ class _ResultsDialog extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.stars_rounded, color: Colors.amber, size: 24),
+                    Icon(AppIcons.stars_rounded, color: Colors.amber, size: 24),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -758,10 +759,10 @@ class _ModernPodium extends StatelessWidget {
       final h = heights[position - 1];
 
       final medals = [
-        Icons.workspace_premium_rounded,
-        Icons.military_tech_rounded,
-        Icons.emoji_events_outlined,
-        Icons.star_outline_rounded,
+        AppIcons.workspace_premium_rounded,
+        AppIcons.military_tech_rounded,
+        AppIcons.emoji_events_outlined,
+        AppIcons.star_outline_rounded,
       ];
 
       final colors = [
@@ -839,7 +840,7 @@ class _ModernPodium extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.psychology_rounded,
+                        AppIcons.psychology_rounded,
                         size: 12,
                         color: Colors.blue.shade300,
                       ),
@@ -854,7 +855,7 @@ class _ModernPodium extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Icon(
-                        Icons.speed_rounded,
+                        AppIcons.speed_rounded,
                         size: 12,
                         color: Colors.green.shade300,
                       ),
@@ -1122,7 +1123,7 @@ class _ModernHudBar extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.psychology_rounded,
+                  AppIcons.psychology_rounded,
                   size: 14,
                   color: Colors.blue.shade300,
                 ),
@@ -1137,7 +1138,7 @@ class _ModernHudBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Icon(
-                  Icons.speed_rounded,
+                  AppIcons.speed_rounded,
                   size: 14,
                   color: Colors.green.shade300,
                 ),
@@ -1173,7 +1174,7 @@ class _ModernHudBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.leaderboard_rounded, color: color, size: 18),
+              Icon(AppIcons.leaderboard_rounded, color: color, size: 18),
               const SizedBox(width: 8),
               Text(
                 'Race Progress',
@@ -1226,7 +1227,7 @@ class _SpeedButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.fast_forward_rounded, color: Colors.white, size: 20),
+            Icon(AppIcons.fast_forward_rounded, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Text(
               '${speed}x',

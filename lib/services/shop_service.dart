@@ -24,6 +24,7 @@ import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 enum PurchaseLimit { once, daily, unlimited }
 
@@ -339,7 +340,7 @@ class ShopService extends ChangeNotifier {
       name: 'Daily Vial - ${group.displayName}',
       description:
           'A ${rarity.grade} extraction vial. Today\'s element: ${group.displayName}.',
-      icon: Icons.science_rounded,
+      icon: AppIcons.science_rounded,
       assetName: null, // You can add specific vial images later
       cost: cost,
       reward: const {},
@@ -357,7 +358,7 @@ class ShopService extends ChangeNotifier {
       name: 'Cosmic Ship',
       description:
           'Unlocks the Cosmic Alchemy Explorer. Pilot through space and summon creatures!',
-      icon: Icons.rocket_launch_rounded,
+      icon: AppIcons.rocket_launch_rounded,
       cost: const {'silver': 50},
       reward: const {},
       rewardType: 'boost',
@@ -370,7 +371,7 @@ class ShopService extends ChangeNotifier {
       name: 'Stamina Elixir',
       description:
           'Fully restores an Alchemon\'s stamina so it can battle, harvest, or breed again immediately.',
-      icon: Icons.local_drink_rounded,
+      icon: AppIcons.local_drink_rounded,
       cost: const {'silver': 2500}, // tweak cost as desired
       reward: const {},
       rewardType: 'boost',
@@ -384,7 +385,7 @@ class ShopService extends ChangeNotifier {
       name: 'Boss Summon',
       description:
           'Resets your daily boss rematch limit for one boss, allowing you to challenge the Mystic Altar again.',
-      icon: Icons.local_drink_rounded,
+      icon: AppIcons.local_drink_rounded,
       cost: const {'gold': 1},
       reward: const {},
       rewardType: 'boost',
@@ -414,7 +415,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Volcanic',
       description:
           'Capture wild Volcanic-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
-      icon: Icons.local_fire_department_rounded,
+      icon: AppIcons.local_fire_department_rounded,
       cost: const {'silver': 999, 'res_volcanic': 100},
       reward: const {},
       rewardType: 'boost',
@@ -427,7 +428,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Oceanic',
       description:
           'Capture wild Oceanic-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
-      icon: Icons.water_rounded,
+      icon: AppIcons.water_rounded,
       cost: const {'silver': 999, 'res_oceanic': 100},
       reward: const {},
       rewardType: 'boost',
@@ -440,7 +441,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Verdant',
       description:
           'Capture wild Verdant-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
-      icon: Icons.eco_rounded,
+      icon: AppIcons.eco_rounded,
       cost: const {'silver': 999, 'res_verdant': 100},
       reward: const {},
       rewardType: 'boost',
@@ -453,7 +454,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Earthen',
       description:
           'Capture wild Earthen-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
-      icon: Icons.terrain_rounded,
+      icon: AppIcons.terrain_rounded,
       cost: const {'silver': 999, 'res_earthen': 100},
       reward: const {},
       rewardType: 'boost',
@@ -466,7 +467,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Arcane',
       description:
           'Capture wild Arcane-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       cost: const {'silver': 999, 'res_arcane': 500},
       reward: const {},
       rewardType: 'boost',
@@ -481,7 +482,7 @@ class ShopService extends ChangeNotifier {
       name: 'Stabilized Harvester',
       description:
           'A premium harvester that guarantees capture of any wild Alchemon regardless of element. Works in the wilderness and cosmic rifts.',
-      icon: Icons.shield_rounded,
+      icon: AppIcons.shield_rounded,
       cost: const {'gold': 1},
       reward: const {},
       rewardType: 'boost',
@@ -497,7 +498,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Instantly completes one active cultivation in your Alchemy Chamber. Skip the wait and extract your Alchemon now.',
       assetName: 'assets/images/ui/instantbreedicon.png',
-      icon: Icons.access_alarms,
+      icon: AppIcons.access_alarms,
       cost: const {'gold': 15},
       reward: const {},
       rewardType: 'boost',
@@ -511,7 +512,7 @@ class ShopService extends ChangeNotifier {
       name: 'Silver → Gold (5g)',
       description:
           'Exchange 100,000 silver for 5 gold. Use gold for premium items, portal keys, and rare cosmetics.',
-      icon: Icons.currency_exchange_rounded,
+      icon: AppIcons.currency_exchange_rounded,
       iconColor: const Color(0xFFF59E0B),
       cost: const {'silver': 100000},
       reward: const {'gold': 5},
@@ -523,7 +524,7 @@ class ShopService extends ChangeNotifier {
       name: 'Gold → Silver (1,000s)',
       description:
           'Exchange 1 gold for 1,000 silver. Stock up on silver for harvesters, elixirs, and daily essentials.',
-      icon: Icons.currency_exchange_rounded,
+      icon: AppIcons.currency_exchange_rounded,
       cost: const {'gold': 1},
       reward: const {'silver': 1000},
       rewardType: 'currency',
@@ -536,7 +537,7 @@ class ShopService extends ChangeNotifier {
       name: 'Fusion Slot',
       description:
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
-      icon: Icons.biotech_rounded,
+      icon: AppIcons.biotech_rounded,
       cost: const {'silver': 500}, // 1st purchase: 500 silver
       reward: const {},
       rewardType: 'boost',
@@ -548,7 +549,7 @@ class ShopService extends ChangeNotifier {
       name: 'Fusion Slot (Step 2)',
       description:
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
-      icon: Icons.biotech_rounded,
+      icon: AppIcons.biotech_rounded,
       cost: const {'gold': 10}, // 2nd purchase: 10 gold
       reward: const {},
       rewardType: 'boost',
@@ -560,7 +561,7 @@ class ShopService extends ChangeNotifier {
       name: 'Fusion Slot (Step 3)',
       description:
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
-      icon: Icons.biotech_rounded,
+      icon: AppIcons.biotech_rounded,
       cost: const {'gold': 50}, // 3rd purchase: 50 gold
       reward: const {},
       rewardType: 'boost',
@@ -572,7 +573,7 @@ class ShopService extends ChangeNotifier {
       name: 'Fusion Slot (Step 4)',
       description:
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
-      icon: Icons.biotech_rounded,
+      icon: AppIcons.biotech_rounded,
       cost: const {'gold': 250}, // 4th purchase: 250 gold
       reward: const {},
       rewardType: 'boost',
@@ -584,7 +585,7 @@ class ShopService extends ChangeNotifier {
       name: 'Fusion Slot (Step 5)',
       description:
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
-      icon: Icons.biotech_rounded,
+      icon: AppIcons.biotech_rounded,
       cost: const {'gold': 500}, // 5th purchase: 500 gold
       reward: const {},
       rewardType: 'boost',
@@ -595,7 +596,7 @@ class ShopService extends ChangeNotifier {
       id: 'unlock.storage_cap.1',
       name: 'Cold Storage Upgrade',
       description: 'Increase cold storage capacity from 5 to 10 specimens.',
-      icon: Icons.inventory_2_rounded,
+      icon: AppIcons.inventory_2_rounded,
       cost: const {'gold': 1},
       reward: const {},
       rewardType: 'boost',
@@ -606,7 +607,7 @@ class ShopService extends ChangeNotifier {
       id: 'unlock.storage_cap.2',
       name: 'Cold Storage Upgrade II',
       description: 'Increase cold storage capacity from 10 to 15 specimens.',
-      icon: Icons.inventory_2_rounded,
+      icon: AppIcons.inventory_2_rounded,
       cost: const {'gold': 10},
       reward: const {},
       rewardType: 'boost',
@@ -617,7 +618,7 @@ class ShopService extends ChangeNotifier {
       id: 'unlock.storage_cap.3',
       name: 'Cold Storage Upgrade III',
       description: 'Increase cold storage capacity from 15 to 20 specimens.',
-      icon: Icons.inventory_2_rounded,
+      icon: AppIcons.inventory_2_rounded,
       cost: const {'gold': 50},
       reward: const {},
       rewardType: 'boost',
@@ -629,7 +630,7 @@ class ShopService extends ChangeNotifier {
       name: 'Change Faction',
       description:
           'Switch your allegiance to a different elemental faction. Affects harvester discounts and resource bonuses.',
-      icon: Icons.flag_rounded,
+      icon: AppIcons.flag_rounded,
       cost: const {'gold': 500},
       reward: const {},
       rewardType: 'boost',
@@ -643,7 +644,7 @@ class ShopService extends ChangeNotifier {
       name: 'Alchemical Resonance',
       description:
           'Wraps your Alchemon in an ethereal glow. A subtle shimmer that pulses with alchemical energy.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       cost: const {'gold': 10},
       reward: const {},
       rewardType: 'boost',
@@ -656,7 +657,7 @@ class ShopService extends ChangeNotifier {
       name: 'Elemental Aura',
       description:
           'Surrounds your Alchemon with orbiting elemental particles that match its type. Apply from the creature detail screen.',
-      icon: Icons.bubble_chart_rounded,
+      icon: AppIcons.bubble_chart_rounded,
       cost: const {'gold': 10},
       reward: const {},
       rewardType: 'boost',
@@ -669,7 +670,7 @@ class ShopService extends ChangeNotifier {
       name: 'Volcanic Aura',
       description:
           'Engulfs your Alchemon in a blazing volcanic aura with rising embers and heat distortion.',
-      icon: Icons.local_fire_department_rounded,
+      icon: AppIcons.local_fire_department_rounded,
       cost: const {'gold': 10},
       reward: const {},
       rewardType: 'boost',
@@ -682,7 +683,7 @@ class ShopService extends ChangeNotifier {
       name: 'Void Rift',
       description:
           'Tear open a swirling void of dark energy around your Alchemon.',
-      icon: Icons.blur_circular_rounded,
+      icon: AppIcons.blur_circular_rounded,
       iconColor: const Color(0xFFBB00FF),
       cost: const {'gold': 15},
       reward: const {},
@@ -695,7 +696,7 @@ class ShopService extends ChangeNotifier {
       name: 'Prismatic Cascade',
       description:
           'Full-spectrum prismatic light cascade — the rarest cosmetic in existence.',
-      icon: Icons.lens_blur_rounded,
+      icon: AppIcons.lens_blur_rounded,
       iconColor: const Color(0xFFFF80FF),
       cost: const {'gold': 100},
       reward: const {},
@@ -708,7 +709,7 @@ class ShopService extends ChangeNotifier {
       name: 'Golden Rite',
       description:
           'Pureblood Rite completion effect. Projects a gold ritual chamber behind your Alchemon.',
-      icon: Icons.auto_fix_high_rounded,
+      icon: AppIcons.auto_fix_high_rounded,
       iconColor: const Color(0xFFE5B74E),
       cost: const {'gold': 5},
       reward: const {},
@@ -721,7 +722,7 @@ class ShopService extends ChangeNotifier {
       name: 'Blood Aura',
       description:
           'A blood-red alchemical shroud with crimson motes and a ritual pulse.',
-      icon: Icons.opacity_rounded,
+      icon: AppIcons.opacity_rounded,
       iconColor: const Color(0xFFFF5252),
       cost: const {'gold': 50},
       reward: const {},
@@ -734,7 +735,7 @@ class ShopService extends ChangeNotifier {
       name: 'Beauty Radiance',
       description:
           'Contest mastery effect. Unlocked by clearing Beauty Lv5. Bathes your Alchemon in a stage-lit radiance.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       cost: const {'gold': 40},
       reward: const {},
       rewardType: 'boost',
@@ -746,7 +747,7 @@ class ShopService extends ChangeNotifier {
       name: 'Speed Flux',
       description:
           'Contest mastery effect. Unlocked by clearing Speed Lv5. Surrounds your Alchemon with kinetic velocity trails.',
-      icon: Icons.bolt_rounded,
+      icon: AppIcons.bolt_rounded,
       cost: const {'gold': 40},
       reward: const {},
       rewardType: 'boost',
@@ -758,7 +759,7 @@ class ShopService extends ChangeNotifier {
       name: 'Strength Forge',
       description:
           'Contest mastery effect. Unlocked by clearing Strength Lv5. Projects a forged pressure aura of raw power.',
-      icon: Icons.fitness_center_rounded,
+      icon: AppIcons.fitness_center_rounded,
       cost: const {'gold': 40},
       reward: const {},
       rewardType: 'boost',
@@ -770,7 +771,7 @@ class ShopService extends ChangeNotifier {
       name: 'Intelligence Halo',
       description:
           'Contest mastery effect. Unlocked by clearing Intelligence Lv5. Wraps your Alchemon in a cerebral halo.',
-      icon: Icons.psychology_rounded,
+      icon: AppIcons.psychology_rounded,
       cost: const {'gold': 40},
       reward: const {},
       rewardType: 'boost',
@@ -784,7 +785,7 @@ class ShopService extends ChangeNotifier {
       name: 'Volcanic Portal Key',
       description:
           'Opens a Volcanic Rift portal in cosmic space. Battle and capture rare Volcanic Alchemons inside. Consumed on entry.',
-      icon: Icons.vpn_key_rounded,
+      icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFFFF5722),
       assetName: 'assets/images/ui/volcanickey.png',
       cost: const {'gold': 5},
@@ -798,7 +799,7 @@ class ShopService extends ChangeNotifier {
       name: 'Oceanic Portal Key',
       description:
           'Opens an Oceanic Rift portal in cosmic space. Battle and capture rare Oceanic Alchemons inside. Consumed on entry.',
-      icon: Icons.vpn_key_rounded,
+      icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF64B5F6),
       assetName: 'assets/images/ui/oceanickey.png',
       cost: const {'gold': 5},
@@ -812,7 +813,7 @@ class ShopService extends ChangeNotifier {
       name: 'Verdant Portal Key',
       description:
           'Opens a Verdant Rift portal in cosmic space. Battle and capture rare Verdant Alchemons inside. Consumed on entry.',
-      icon: Icons.vpn_key_rounded,
+      icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF66BB6A),
       assetName: 'assets/images/ui/verdantkey.png',
       cost: const {'gold': 5},
@@ -826,7 +827,7 @@ class ShopService extends ChangeNotifier {
       name: 'Earthen Portal Key',
       description:
           'Opens an Earthen Rift portal in cosmic space. Battle and capture rare Earthen Alchemons inside. Consumed on entry.',
-      icon: Icons.vpn_key_rounded,
+      icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF8D6E63),
       assetName: 'assets/images/ui/earthenkey.png',
       cost: const {'gold': 5},
@@ -840,7 +841,7 @@ class ShopService extends ChangeNotifier {
       name: 'Arcane Portal Key',
       description:
           'Opens an Arcane Rift portal in cosmic space. Battle and capture rare Arcane Alchemons inside. Consumed on entry.',
-      icon: Icons.vpn_key_rounded,
+      icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFFCE93D8),
       assetName: 'assets/images/ui/arcanekey.png',
       cost: const {'gold': 5},
@@ -856,7 +857,7 @@ class ShopService extends ChangeNotifier {
       name: 'Voidforge Core',
       description:
           'Forged in the Void — an orb crackling with dark energy runes. +12% guardian damage, but −10% orb HP.',
-      icon: Icons.nightlight_round,
+      icon: AppIcons.nightlight_round,
       iconColor: const Color(0xFFBB00FF),
       cost: const {'gold': 50},
       reward: const {},
@@ -868,7 +869,7 @@ class ShopService extends ChangeNotifier {
       name: 'Celestial Beacon',
       description:
           'A radiant sphere of starlight — pulsing with cosmic power. Heals guardians and ship 3% every 8s.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       iconColor: const Color(0xFFFFD700),
       cost: const {'gold': 1},
       reward: const {},
@@ -880,7 +881,7 @@ class ShopService extends ChangeNotifier {
       name: 'Infernal Engine',
       description:
           'Molten iron and dragonfire — enemies take burn damage near the orb. Burn aura damages nearby enemies every 0.5s.',
-      icon: Icons.local_fire_department_rounded,
+      icon: AppIcons.local_fire_department_rounded,
       iconColor: const Color(0xFFFF4500),
       cost: const {'gold': 1},
       reward: const {},
@@ -892,7 +893,7 @@ class ShopService extends ChangeNotifier {
       name: 'Frozen Nexus',
       description:
           'An ancient ice crystal — jagged frost shards orbit its frozen core. Slows nearby enemies and grants +5% orb HP.',
-      icon: Icons.ac_unit_rounded,
+      icon: AppIcons.ac_unit_rounded,
       iconColor: const Color(0xFF88DDFF),
       cost: const {'gold': 50},
       reward: const {},
@@ -904,7 +905,7 @@ class ShopService extends ChangeNotifier {
       name: 'Phantom Wisp',
       description:
           'A ghostly sphere that phases between realms — flickering and ethereal. 10% chance to dodge enemy projectiles, but −5% orb HP.',
-      icon: Icons.blur_on_rounded,
+      icon: AppIcons.blur_on_rounded,
       iconColor: const Color(0xFF7BFFCE),
       cost: const {'gold': 50},
       reward: const {},
@@ -916,7 +917,7 @@ class ShopService extends ChangeNotifier {
       name: 'Prism Heart',
       description:
           'A crystalline prism refracting all light — shifts through every color. Grants +10% orb HP and passive regen of +0.3 HP/s.',
-      icon: Icons.diamond_rounded,
+      icon: AppIcons.diamond_rounded,
       iconColor: const Color(0xFFFF69B4),
       cost: const {'gold': 50},
       reward: const {},
@@ -928,7 +929,7 @@ class ShopService extends ChangeNotifier {
       name: 'Verdant Bloom',
       description:
           'A living orb of tangled vines and blossoms — pulses with nature\'s rhythm. Grants +15% orb HP and passive regen of +1 HP/s.',
-      icon: Icons.eco_rounded,
+      icon: AppIcons.eco_rounded,
       iconColor: const Color(0xFF32CD32),
       cost: const {'gold': 50},
       reward: const {},
@@ -944,7 +945,7 @@ class ShopService extends ChangeNotifier {
   //   id: 'unlock.breeding_device',
   //   name: 'Genetic Fusion Device',
   //   description: 'Breed/fuse in the wild without a lab.',
-  //   icon: Icons.biotech_rounded,
+  //   icon: AppIcons.biotech_rounded,
   //   cost: const {'gold': 200},
   //   reward: const {},
   //   rewardType: 'boost',
@@ -954,7 +955,7 @@ class ShopService extends ChangeNotifier {
   //   id: 'unlock.prismatic_chamber',
   //   name: 'Prismatic Chamber',
   //   description: 'Attempt prismatic alchemy on a selected creature.',
-  //   icon: Icons.auto_awesome_rounded,
+  //   icon: AppIcons.auto_awesome_rounded,
   //   cost: const {'gold': 250},
   //   reward: const {},
   //   rewardType: 'boost',
@@ -1018,7 +1019,7 @@ class ShopService extends ChangeNotifier {
         description: isWeekend
             ? 'Exchange 5,000 $label for 1 gold. (Weekend: any element)'
             : 'Exchange 5,000 $label for 1 gold. (Today only)',
-        icon: Icons.currency_exchange_rounded, // Keep a fallback icon
+        icon: AppIcons.currency_exchange_rounded, // Keep a fallback icon
         assetName: assetName, // Add the asset path
         cost: {rk: kResPerGold},
         reward: const {'gold': 1},

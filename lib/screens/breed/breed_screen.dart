@@ -14,6 +14,7 @@ import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/starter_granted_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 enum _BreedMode { cultivations, fusion }
 
@@ -355,7 +356,7 @@ class _FuseModeToggleState extends State<_FuseModeToggle>
             size: 20,
           )
         : Icon(
-            Icons.science_rounded,
+            AppIcons.science_rounded,
             key: const ValueKey('icon-science'),
             color: onColor,
             size: 18,
@@ -458,7 +459,7 @@ class _FuseModeToggleState extends State<_FuseModeToggle>
                           Opacity(
                             opacity: 0.85,
                             child: Icon(
-                              Icons.arrow_forward_rounded,
+                              AppIcons.arrow_forward_rounded,
                               color: onColor,
                               size: 20,
                             ),

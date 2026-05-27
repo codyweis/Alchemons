@@ -7,6 +7,7 @@ import 'package:alchemons/widgets/background/starfield_background.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class BreedingMilestoneScreen extends StatefulWidget {
   final String speciesId;
@@ -114,7 +115,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: t.textPrimary),
+          icon: Icon(AppIcons.arrow_back, color: t.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
@@ -213,7 +214,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.science_outlined, color: t.amberBright, size: 32),
+              Icon(AppIcons.science_outlined, color: t.amberBright, size: 32),
               const SizedBox(width: 14),
               Text(
                 '${progress.totalBred}',
@@ -287,7 +288,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.star, color: rarityColor, size: 12),
+                      Icon(AppIcons.star, color: rarityColor, size: 12),
                       const SizedBox(width: 4),
                       Text(
                         '+$pointsForRarity pts',
@@ -337,7 +338,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.emoji_events, color: t.success, size: 20),
+                  Icon(AppIcons.emoji_events, color: t.success, size: 20),
                   const SizedBox(width: 10),
                   Text(
                     'ALL MILESTONES COMPLETE',
@@ -507,10 +508,10 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                     child: Center(
                       child: Icon(
                         isComplete
-                            ? Icons.check
+                            ? AppIcons.check
                             : isCurrent
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
+                            ? AppIcons.radio_button_checked
+                            : AppIcons.radio_button_unchecked,
                         color: isComplete
                             ? t.amberBright
                             : isCurrent
@@ -549,7 +550,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                             if (hasBonus && !isComplete) ...[
                               const SizedBox(width: 5),
                               Icon(
-                                Icons.workspace_premium,
+                                AppIcons.workspace_premium,
                                 color: rarityColor,
                                 size: 10,
                               ),
@@ -590,7 +591,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.star,
+                          AppIcons.star,
                           color: isComplete ? rarityColor : t.textSecondary,
                           size: 11,
                         ),

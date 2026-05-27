@@ -11,6 +11,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Quick-look dialog — modern rounded card with clean layout.
 Future<void> showQuickInstanceDialog({
@@ -125,7 +126,7 @@ Future<void> showQuickInstanceDialog({
                               }
                             },
                             child: const Icon(
-                              Icons.star_rounded,
+                              AppIcons.star_rounded,
                               size: 32,
                               color: Color(0xFFE91E63),
                             ),
@@ -147,7 +148,7 @@ Future<void> showQuickInstanceDialog({
                               }
                             },
                             child: Icon(
-                              Icons.star_outline_rounded,
+                              AppIcons.star_outline_rounded,
                               size: 32,
                               color: t.textMuted,
                             ),
@@ -182,7 +183,7 @@ Future<void> showQuickInstanceDialog({
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  Icons.open_in_full_rounded,
+                                  AppIcons.open_in_full_rounded,
                                   size: 10,
                                   color: t.amber,
                                 ),
@@ -212,7 +213,7 @@ Future<void> showQuickInstanceDialog({
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
-                              Icons.close_rounded,
+                              AppIcons.close_rounded,
                               color: t.textSecondary,
                               size: 16,
                             ),
@@ -373,7 +374,7 @@ Future<void> showQuickInstanceDialog({
                             child: Row(
                               children: [
                                 Icon(
-                                  Icons.local_drink_rounded,
+                                  AppIcons.local_drink_rounded,
                                   color: t.amberBright,
                                   size: 16,
                                 ),
@@ -398,7 +399,7 @@ Future<void> showQuickInstanceDialog({
                                 ),
                                 const SizedBox(width: 4),
                                 Icon(
-                                  Icons.chevron_right_rounded,
+                                  AppIcons.chevron_right_rounded,
                                   size: 16,
                                   color: t.textMuted,
                                 ),
@@ -419,7 +420,7 @@ Future<void> showQuickInstanceDialog({
                           ? currentInstance.statSpeedPotential
                           : null,
                       color: const Color(0xFF60A5FA),
-                      icon: Icons.speed_rounded,
+                      icon: AppIcons.speed_rounded,
                     ),
                     const SizedBox(height: 6),
                     _QuickStatBar(
@@ -429,7 +430,7 @@ Future<void> showQuickInstanceDialog({
                           ? currentInstance.statIntelligencePotential
                           : null,
                       color: const Color(0xFFC084FC),
-                      icon: Icons.psychology_rounded,
+                      icon: AppIcons.psychology_rounded,
                     ),
                     const SizedBox(height: 6),
                     _QuickStatBar(
@@ -439,7 +440,7 @@ Future<void> showQuickInstanceDialog({
                           ? currentInstance.statStrengthPotential
                           : null,
                       color: const Color(0xFFF87171),
-                      icon: Icons.fitness_center_rounded,
+                      icon: AppIcons.fitness_center_rounded,
                     ),
                     const SizedBox(height: 6),
                     _QuickStatBar(
@@ -449,7 +450,7 @@ Future<void> showQuickInstanceDialog({
                           ? currentInstance.statBeautyPotential
                           : null,
                       color: const Color(0xFFF9A8D4),
-                      icon: Icons.favorite_rounded,
+                      icon: AppIcons.favorite_rounded,
                     ),
 
                     // ── Traits ─────────────────────────────────────────

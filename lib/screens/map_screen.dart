@@ -27,6 +27,7 @@ import 'package:alchemons/services/wilderness_access_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 // for FactionTheme
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 TextStyle _display(
   BuildContext context,
@@ -149,7 +150,7 @@ class _MapScreenState extends State<MapScreen>
       _showToast(
         context,
         'Unlock Alchemic Wild Peek to preview wild spawns.',
-        Icons.visibility_off_rounded,
+        AppIcons.visibility_off_rounded,
         Colors.orange.shade400,
       );
       return;
@@ -160,7 +161,7 @@ class _MapScreenState extends State<MapScreen>
       _showToast(
         context,
         'No wild creatures detected in this area.',
-        Icons.search_off_rounded,
+        AppIcons.search_off_rounded,
         Colors.orange.shade400,
       );
       return;
@@ -201,7 +202,7 @@ class _MapScreenState extends State<MapScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.remove_red_eye_rounded,
+                  AppIcons.remove_red_eye_rounded,
                   color: theme.accent,
                   size: 26,
                 ),
@@ -335,7 +336,7 @@ class _MapScreenState extends State<MapScreen>
                           _showToast(
                             context,
                             'Spawns reset for this biome.',
-                            Icons.refresh_rounded,
+                            AppIcons.refresh_rounded,
                             theme.accent,
                           );
                         },
@@ -441,7 +442,7 @@ class _MapScreenState extends State<MapScreen>
                     child: Row(
                       children: [
                         Icon(
-                          Icons.explore_rounded,
+                          AppIcons.explore_rounded,
                           color: theme.accent,
                           size: 20,
                         ),
@@ -557,7 +558,7 @@ class _MapScreenState extends State<MapScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_outline, color: theme.accent, size: 28),
+              Icon(AppIcons.lock_outline, color: theme.accent, size: 28),
               const SizedBox(height: 12),
               Text(
                 'Tutorial In Progress',
@@ -624,7 +625,7 @@ class _MapScreenState extends State<MapScreen>
       _showToast(
         context,
         'No creatures detected in this area',
-        Icons.search_off_rounded,
+        AppIcons.search_off_rounded,
         Colors.orange.shade400,
       );
       return;
@@ -645,7 +646,7 @@ class _MapScreenState extends State<MapScreen>
         _showToast(
           context,
           'Breeding ground refreshes in ${hh}h ${mm}m ${ss}s',
-          Icons.schedule_rounded,
+          AppIcons.schedule_rounded,
           Colors.orange.shade400,
         );
         return;
@@ -793,7 +794,7 @@ class _HeaderBar extends StatelessWidget {
                       strokeWidth: 1,
                     ),
                     child: Icon(
-                      Icons.info_outline_rounded,
+                      AppIcons.info_outline_rounded,
                       color: theme.text,
                       size: 20,
                     ),
@@ -847,7 +848,7 @@ class SpawnDebugPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.bug_report, size: 14, color: theme.accent),
+              Icon(AppIcons.bug_report, size: 14, color: theme.accent),
               const SizedBox(width: 6),
               Text(
                 'Next Spawn Times',
@@ -1411,7 +1412,7 @@ class _InfoDialog extends StatelessWidget {
                     ),
                   ),
                 ),
-                Icon(Icons.explore_rounded, color: fc.amberBright, size: 20),
+                Icon(AppIcons.explore_rounded, color: fc.amberBright, size: 20),
               ],
             ),
             const SizedBox(height: 8),

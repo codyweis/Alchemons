@@ -13,6 +13,7 @@ import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class AlchemicalPowerupFeedingScreen extends StatefulWidget {
   const AlchemicalPowerupFeedingScreen({super.key});
@@ -105,7 +106,7 @@ class _AlchemicalPowerupFeedingScreenState
               const SizedBox(height: 12),
               TutorialStep(
                 theme: theme,
-                icon: Icons.workspace_premium_rounded,
+                icon: AppIcons.workspace_premium_rounded,
                 title: 'Step 0 - Reach Level 10',
                 body:
                     'A specimen must be level 10 before it can use powerup orbs.',
@@ -113,7 +114,7 @@ class _AlchemicalPowerupFeedingScreenState
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.casino_rounded,
+                icon: AppIcons.casino_rounded,
                 title: 'Step 1 - Roll Strength',
                 body:
                     'Each orb rolls one of five strengths: +0.05, +0.10, +0.15, +0.20, or +0.25.',
@@ -121,7 +122,7 @@ class _AlchemicalPowerupFeedingScreenState
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.shield_rounded,
+                icon: AppIcons.shield_rounded,
                 title: 'Step 2 - Respect Potential',
                 body:
                     'The final gain is capped by the specimen\'s remaining potential, so a great roll can still be partially capped.',
@@ -195,6 +196,15 @@ class _AlchemicalPowerupFeedingScreenState
                       });
                     }
                   },
+                  onChooseDifferent: _selectedInstanceId == null
+                      ? null
+                      : () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _selectedInstanceId = null;
+                            _frozenStatValues = null;
+                          });
+                        },
                 ),
                 Expanded(
                   child: _selectedInstanceId == null
@@ -327,32 +337,29 @@ class _AlchemicalPowerupFeedingScreenState
                 item.key: item.qty,
             };
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Column(
-                children: [
-                  _SpecimenBanner(
-                    theme: theme,
-                    creatureName: creature.name,
-                    rarity: creature.rarity,
-                    onChooseDifferent: () {
-                      HapticFeedback.selectionClick();
-                      setState(() {
-                        _selectedInstanceId = null;
-                        _frozenStatValues = null;
-                      });
-                    },
+            return Column(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                    child: _buildStageCard(creature, instance, theme),
                   ),
-                  const SizedBox(height: 12),
-                  _buildStageCard(creature, instance, theme),
-                  const SizedBox(height: 12),
-                  _buildPowerupGrid(instance, inventory, theme),
-                  if (_message != null) ...[
-                    const SizedBox(height: 12),
-                    _buildMessageBox(theme),
-                  ],
-                ],
-              ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: Visibility(
+                    visible: _message != null,
+                    maintainSize: true,
+                    maintainAnimation: true,
+                    maintainState: true,
+                    child: _buildMessageBox(theme),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                  child: _buildPowerupGrid(instance, inventory, theme),
+                ),
+              ],
             );
           },
         );
@@ -380,7 +387,7 @@ class _AlchemicalPowerupFeedingScreenState
           ),
           Expanded(
             child: Text(
-              _message!,
+              _message ?? '',
               style: TextStyle(
                 color: t.textPrimary,
                 fontSize: 12,
@@ -416,140 +423,155 @@ class _AlchemicalPowerupFeedingScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header strip
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
-            decoration: BoxDecoration(
-              color: t.bg3,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(3),
-              ),
-              border: Border(bottom: BorderSide(color: t.borderDim)),
-            ),
-            child: Row(
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              child: Column(
               children: [
-                Container(
-                  width: 3,
-                  height: 12,
-                  color: t.amber,
-                  margin: const EdgeInsets.only(right: 8),
-                ),
-                Text(
-                  'INFUSION STAGE',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.amberBright,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2.0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Creature display
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-            child: Column(
-              children: [
-                SizedBox(
-                  height: 210,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Creature sprite
-                      Positioned(
-                        bottom: 12,
-                        child: InstanceSprite(
-                          creature: creature,
-                          instance: instance,
-                          size: 168,
-                        ),
-                      ),
-                      // Orb animation overlay
-                      if (_animatingType != null)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: AnimatedBuilder(
-                              animation: Listenable.merge([
-                                _orbController,
-                                _flashController,
-                              ]),
-                              builder: (context, _) => CustomPaint(
-                                painter: _PowerOrbPainter(
-                                  progress: _orbController.value,
-                                  flash: _flashController.value,
-                                  color: _animatingType!.color,
-                                  glowColor: _animatingType!.glowColor,
-                                  rollLabel: _lastRollLabel,
-                                  glowBoost: _glowBoost,
-                                  isJackpot: _jackpotAnimation,
-                                  orbitTurns: _orbitTurns,
-                                  orbitEndProgress: _orbitEndProgress,
-                                  deltaLabel: _lastDelta == null
-                                      ? null
-                                      : '+${_lastDelta!.toStringAsFixed(2)}',
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                // Divider before stats
-                Container(height: 1, color: t.borderDim),
-                const SizedBox(height: 8),
-                // Stat plates
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
                   children: [
-                    _StatPlate(
-                      theme: theme,
-                      label: 'Speed',
-                      value: _displayStatValue(
-                        instance,
-                        AlchemicalPowerupType.speed,
+                    Flexible(
+                      child: Text(
+                        creature.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: t.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.2,
+                        ),
                       ),
-                      potential: instance.statSpeedPotential,
-                      color: AlchemicalPowerupType.speed.color,
                     ),
-                    _StatPlate(
-                      theme: theme,
-                      label: 'Intelligence',
-                      value: _displayStatValue(
-                        instance,
-                        AlchemicalPowerupType.intelligence,
+                    const SizedBox(width: 10),
+                    Text(
+                      creature.rarity.toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.0,
                       ),
-                      potential: instance.statIntelligencePotential,
-                      color: AlchemicalPowerupType.intelligence.color,
-                    ),
-                    _StatPlate(
-                      theme: theme,
-                      label: 'Strength',
-                      value: _displayStatValue(
-                        instance,
-                        AlchemicalPowerupType.strength,
-                      ),
-                      potential: instance.statStrengthPotential,
-                      color: AlchemicalPowerupType.strength.color,
-                    ),
-                    _StatPlate(
-                      theme: theme,
-                      label: 'Beauty',
-                      value: _displayStatValue(
-                        instance,
-                        AlchemicalPowerupType.beauty,
-                      ),
-                      potential: instance.statBeautyPotential,
-                      color: AlchemicalPowerupType.beauty.color,
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 4),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final spriteSize = constraints.maxHeight.clamp(
+                        100.0,
+                        240.0,
+                      );
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Positioned(
+                            bottom: 0,
+                            child: InstanceSprite(
+                              creature: creature,
+                              instance: instance,
+                              size: spriteSize,
+                            ),
+                          ),
+                          if (_animatingType != null)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: AnimatedBuilder(
+                                  animation: Listenable.merge([
+                                    _orbController,
+                                    _flashController,
+                                  ]),
+                                  builder: (context, _) => CustomPaint(
+                                    painter: _PowerOrbPainter(
+                                      progress: _orbController.value,
+                                      flash: _flashController.value,
+                                      color: _animatingType!.color,
+                                      glowColor: _animatingType!.glowColor,
+                                      rollLabel: _lastRollLabel,
+                                      glowBoost: _glowBoost,
+                                      isJackpot: _jackpotAnimation,
+                                      orbitTurns: _orbitTurns,
+                                      orbitEndProgress: _orbitEndProgress,
+                                      deltaLabel: _lastDelta == null
+                                          ? null
+                                          : '+${_lastDelta!.toStringAsFixed(2)}',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                Container(height: 1, color: t.borderDim),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatPlate(
+                        theme: theme,
+                        label: 'Speed',
+                        value: _displayStatValue(
+                          instance,
+                          AlchemicalPowerupType.speed,
+                        ),
+                        potential: instance.statSpeedPotential,
+                        color: AlchemicalPowerupType.speed.color,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _StatPlate(
+                        theme: theme,
+                        label: 'Intelligence',
+                        value: _displayStatValue(
+                          instance,
+                          AlchemicalPowerupType.intelligence,
+                        ),
+                        potential: instance.statIntelligencePotential,
+                        color: AlchemicalPowerupType.intelligence.color,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatPlate(
+                        theme: theme,
+                        label: 'Strength',
+                        value: _displayStatValue(
+                          instance,
+                          AlchemicalPowerupType.strength,
+                        ),
+                        potential: instance.statStrengthPotential,
+                        color: AlchemicalPowerupType.strength.color,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _StatPlate(
+                        theme: theme,
+                        label: 'Beauty',
+                        value: _displayStatValue(
+                          instance,
+                          AlchemicalPowerupType.beauty,
+                        ),
+                        potential: instance.statBeautyPotential,
+                        color: AlchemicalPowerupType.beauty.color,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
               ],
+              ),
             ),
           ),
         ],
@@ -572,9 +594,8 @@ class _AlchemicalPowerupFeedingScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Section header
           Container(
-            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
             decoration: BoxDecoration(
               color: t.bg3,
               borderRadius: const BorderRadius.vertical(
@@ -604,7 +625,7 @@ class _AlchemicalPowerupFeedingScreenState
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 20, 8, 24),
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -788,12 +809,14 @@ class _AlchemicalPowerupFeedingScreenState
 class _PowerupHeader extends StatelessWidget {
   final bool canGoBack;
   final VoidCallback onBack;
+  final VoidCallback? onChooseDifferent;
   final FactionTheme theme;
 
   const _PowerupHeader({
     required this.canGoBack,
     required this.onBack,
     required this.theme,
+    this.onChooseDifferent,
   });
 
   @override
@@ -805,21 +828,21 @@ class _PowerupHeader extends StatelessWidget {
         border: Border(bottom: BorderSide(color: t.borderDim)),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        padding: const EdgeInsets.fromLTRB(14, 6, 12, 6),
         child: Row(
           children: [
             GestureDetector(
               onTap: onBack,
               child: Container(
-                padding: const EdgeInsets.all(8),
-                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.all(7),
+                margin: const EdgeInsets.only(right: 10),
                 decoration: BoxDecoration(
                   color: t.bg2,
                   borderRadius: BorderRadius.circular(3),
                   border: Border.all(color: t.borderDim),
                 ),
                 child: Icon(
-                  canGoBack ? Icons.arrow_back : Icons.close_rounded,
+                  canGoBack ? AppIcons.arrow_back : AppIcons.close_rounded,
                   color: t.textPrimary,
                   size: 18,
                 ),
@@ -852,119 +875,42 @@ class _PowerupHeader extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SpecimenBanner extends StatelessWidget {
-  final String creatureName;
-  final String rarity;
-  final VoidCallback onChooseDifferent;
-  final FactionTheme theme;
-
-  const _SpecimenBanner({
-    required this.creatureName,
-    required this.rarity,
-    required this.onChooseDifferent,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: t.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: t.borderDim),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 3,
-              decoration: BoxDecoration(
-                color: t.amber,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(3),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            creatureName,
-                            style: TextStyle(
-                              color: t.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${rarity.toUpperCase()} SPECIMEN ON STAGE',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ],
+            if (onChooseDifferent != null)
+              GestureDetector(
+                onTap: onChooseDifferent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: t.bg2,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: t.borderDim),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        AppIcons.swap_horiz_rounded,
+                        size: 13,
+                        color: t.textSecondary,
                       ),
-                    ),
-                    GestureDetector(
-                      onTap: onChooseDifferent,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: t.bg3,
-                          borderRadius: BorderRadius.circular(3),
-                          border: Border.all(color: t.borderDim),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.swap_horiz_rounded,
-                              size: 14,
-                              color: t.textSecondary,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'CHANGE',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ],
+                      const SizedBox(width: 4),
+                      Text(
+                        'CHANGE',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -1182,8 +1128,7 @@ class _StatPlate extends StatelessWidget {
     final t = ForgeTokens(theme);
     final progress = potential <= 0 ? 0.0 : (value / potential).clamp(0.0, 1.0);
     return Container(
-      width: 148,
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
       decoration: BoxDecoration(
         color: t.bg1,
         borderRadius: BorderRadius.circular(4),
@@ -1197,25 +1142,25 @@ class _StatPlate extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: t.textSecondary,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
+              letterSpacing: 1.0,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             '${value.toStringAsFixed(2)} / ${potential.toStringAsFixed(2)}',
             style: TextStyle(
               color: t.textPrimary,
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
-              minHeight: 5,
+              minHeight: 4,
               value: progress,
               backgroundColor: t.bg3,
               valueColor: AlwaysStoppedAnimation<Color>(color),

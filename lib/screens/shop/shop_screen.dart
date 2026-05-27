@@ -22,13 +22,10 @@ import 'package:alchemons/screens/black_market_screen.dart';
 import 'package:alchemons/screens/shop/alchemon_exchange_screen.dart';
 import 'package:alchemons/screens/shop/shop_widgets.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
+import 'package:alchemons/utils/specimen_picker_route.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -36,11 +33,13 @@ import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // SCREEN
@@ -110,7 +109,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
     final ok = await db.currencyDao.spendResources(cost);
     if (!ok) {
-      _toast('Not enough resources', icon: Icons.lock_rounded, color: t.amber);
+      _toast('Not enough resources', icon: AppIcons.lock_rounded, color: t.amber);
       return;
     }
 
@@ -118,13 +117,13 @@ class _ShopScreenState extends State<ShopScreen> {
     await _refreshAll();
     _toast(
       'Bubble slot $target unlocked!',
-      icon: Icons.bubble_chart_rounded,
+      icon: AppIcons.bubble_chart_rounded,
       color: t.teal,
     );
     HapticFeedback.lightImpact();
   }
 
-  void _toast(String msg, {IconData icon = Icons.check_rounded, Color? color}) {
+  void _toast(String msg, {IconData icon = AppIcons.check_rounded, Color? color}) {
     if (!mounted) return;
     final backgroundColor = color ?? t.amber;
     final foregroundColor = t.onColor(backgroundColor);
@@ -267,7 +266,12 @@ class _ShopScreenState extends State<ShopScreen> {
 
   // ── SECTION HEADER ─────────────────────────────────────────────────────────
 
-  Widget _buildSectionHeader(String title, Color accent, IconData icon) {
+  Widget _buildSectionHeader(
+    String title,
+    Color accent,
+    IconData icon, {
+    CoinKind? coin,
+  }) {
     final displayAccent = t.readableAccent(accent);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 0),
@@ -280,7 +284,10 @@ class _ShopScreenState extends State<ShopScreen> {
             color: displayAccent,
             margin: const EdgeInsets.only(right: 10),
           ),
-          Icon(icon, color: displayAccent, size: 14),
+          if (coin != null)
+            CoinIcon(kind: coin, size: 15)
+          else
+            Icon(icon, color: displayAccent, size: 14),
           const SizedBox(width: 8),
           Text(
             title,
@@ -447,7 +454,7 @@ class _ShopScreenState extends State<ShopScreen> {
                                 ),
                               ),
                               child: const Icon(
-                                Icons.check_rounded,
+                                AppIcons.check_rounded,
                                 color: Color(0xFF4ADE80),
                                 size: 22,
                               ),
@@ -508,7 +515,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'DAILY VIAL',
                         t.amberBright,
-                        Icons.science_rounded,
+                        AppIcons.science_rounded,
                       ),
                       const SizedBox(height: 10),
                       _buildDailyVialSection(theme, allCurrencies),
@@ -516,7 +523,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'SPECIAL UNLOCKS',
                         t.amberBright,
-                        Icons.auto_awesome_rounded,
+                        AppIcons.auto_awesome_rounded,
                       ),
                       _buildSpecialUnlocksGrid(
                         theme,
@@ -527,14 +534,15 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'GOLD VAULT',
                         const Color(0xFFFFD700),
-                        Icons.hexagon_rounded,
+                        AppIcons.hexagon_rounded,
+                        coin: CoinKind.gold,
                       ),
                       _buildGoldVaultSection(theme),
 
                       _buildSectionHeader(
                         'HARVEST DEVICES',
                         t.textPrimary,
-                        Icons.science_rounded,
+                        AppIcons.science_rounded,
                       ),
                       _buildHarvestDevicesGrid(
                         theme,
@@ -546,7 +554,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'ALCHEMICAL POWERUPS',
                         const Color(0xFFB58CFF),
-                        Icons.blur_circular_rounded,
+                        AppIcons.blur_circular_rounded,
                       ),
                       _buildAlchemicalPowerupsRow(
                         theme,
@@ -557,7 +565,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'INSTANT ITEMS',
                         t.textPrimary,
-                        Icons.flash_on_rounded,
+                        AppIcons.flash_on_rounded,
                       ),
                       _buildInstantItemsGrid(
                         theme,
@@ -568,7 +576,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'ALCHEMY EFFECTS',
                         t.amberBright,
-                        Icons.auto_awesome_rounded,
+                        AppIcons.auto_awesome_rounded,
                       ),
                       _buildAlchemyEffectsGrid(
                         theme,
@@ -579,7 +587,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'SELL',
                         t.textPrimary,
-                        Icons.currency_exchange_rounded,
+                        AppIcons.currency_exchange_rounded,
                       ),
                       _buildCurrencyExchangeGrid(
                         theme,
@@ -590,7 +598,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'PORTAL KEYS',
                         t.amberBright,
-                        Icons.vpn_key_rounded,
+                        AppIcons.vpn_key_rounded,
                       ),
                       _buildPortalKeysGrid(
                         theme,
@@ -601,7 +609,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildSectionHeader(
                         'SURVIVAL ORB SKINS',
                         t.amberBright,
-                        Icons.blur_circular_rounded,
+                        AppIcons.blur_circular_rounded,
                       ),
                       _buildSurvivalOrbGrid(theme, allCurrencies),
 
@@ -633,7 +641,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No effects available',
-              icon: Icons.auto_awesome_outlined,
+              icon: AppIcons.auto_awesome_outlined,
             ),
           );
         }
@@ -702,7 +710,7 @@ class _ShopScreenState extends State<ShopScreen> {
             started
                 ? 'Purchase started'
                 : (store.lastError ?? 'Store unavailable'),
-            icon: started ? Icons.shopping_bag_rounded : Icons.error_rounded,
+            icon: started ? AppIcons.shopping_bag_rounded : AppIcons.error_rounded,
             color: started ? goldAccent : t.danger,
           );
         }
@@ -889,7 +897,7 @@ class _ShopScreenState extends State<ShopScreen> {
             id: 'unlock.bubble_slot_$slotNumber',
             name: 'Alchemy Chamber $slotNumber',
             description: 'Unlock an additional floating alchemy chamber.',
-            icon: Icons.bubble_chart_rounded,
+            icon: AppIcons.bubble_chart_rounded,
             cost: cost,
             inventoryKey: null,
             assetName: null,
@@ -949,7 +957,7 @@ class _ShopScreenState extends State<ShopScreen> {
             name: 'Patrol Slot $slotNumber',
             description:
                 'Unlock patrol slot $slotNumber. Assign an Alchemon to patrol space with your ship.',
-            icon: Icons.groups_rounded,
+            icon: AppIcons.groups_rounded,
             cost: cost,
             inventoryKey: null,
             assetName: null,
@@ -992,7 +1000,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No exploration items available',
-              icon: Icons.rocket_launch_outlined,
+              icon: AppIcons.rocket_launch_outlined,
             ),
           );
         }
@@ -1047,7 +1055,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
     final ok = await _spendWalletCost(db, cost);
     if (!ok) {
-      _toast('Not enough currency', icon: Icons.lock_rounded, color: t.amber);
+      _toast('Not enough currency', icon: AppIcons.lock_rounded, color: t.amber);
       return;
     }
 
@@ -1055,7 +1063,7 @@ class _ShopScreenState extends State<ShopScreen> {
     await _refreshAll();
     _toast(
       'Patrol slot $target unlocked!',
-      icon: Icons.groups_rounded,
+      icon: AppIcons.groups_rounded,
       color: t.teal,
     );
     HapticFeedback.lightImpact();
@@ -1102,7 +1110,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No portal keys available',
-              icon: Icons.vpn_key_outlined,
+              icon: AppIcons.vpn_key_outlined,
             ),
           );
         }
@@ -1173,7 +1181,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No orb skins available',
-              icon: Icons.blur_circular_outlined,
+              icon: AppIcons.blur_circular_outlined,
             ),
           );
         }
@@ -1243,7 +1251,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No consumables available',
-              icon: Icons.flash_off_rounded,
+              icon: AppIcons.flash_off_rounded,
             ),
           );
         }
@@ -1434,7 +1442,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'All special items unlocked',
-              icon: Icons.check_circle_outline_rounded,
+              icon: AppIcons.check_circle_outline_rounded,
             ),
           );
         }
@@ -1601,64 +1609,36 @@ class _ShopScreenState extends State<ShopScreen> {
     // Result snackbar
     _toast(
       success ? '${offer.name} × $qty' : 'Purchase failed',
-      icon: success ? Icons.check_rounded : Icons.error_rounded,
+      icon: success ? AppIcons.check_rounded : AppIcons.error_rounded,
       color: success ? t.success : t.danger,
     );
 
-    // If this was an alchemy effect offer, prompt user to choose a creature
-    // and instance to apply the purchased effect immediately. If user
-    // cancels, the item remains in inventory for later application.
+    // If this was an alchemy effect offer, prompt user to choose a specimen.
+    // If user cancels, the item remains in inventory for later application.
     if (success && offer.id.startsWith('effects.')) {
-      // First, let user pick a species (CreatureSelectionSheet will return
-      // a creature id via onSelectCreature).
-      final gameData = context.read<GameDataService>();
-      final discovered = await gameData.watchDiscoveredEntries().first;
       if (!context.mounted) return;
-      final creatureId = await CreatureSelectionSheet.show<String?>(
+      final pickedInstance = await showSpecimenPickerRoute(
         context: context,
-        discoveredCreatures: discovered,
-        stateScopeKey: 'shop_effect_species',
-        onSelectCreature: (id) => Navigator.of(context).pop(id),
-        isScrollControlled: true,
-        title: 'Choose Species',
-      );
-      if (creatureId == null) return;
-
-      final creature = gameData.getCreatureById(creatureId);
-      if (creature == null) return;
-
-      if (!context.mounted) return;
-      final instanceId = await showModalBottomSheet<String?>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => BottomSheetShell(
-          title: 'Choose Instance',
-          theme: theme,
-          child: InstancesSheet(
-            species: creature,
-            theme: theme,
-            prefsScopeKey: 'shop_effect_instances',
-            onTap: (inst) => Navigator.pop(context, inst.instanceId),
-          ),
-        ),
+        theme: theme,
+        searchHint: 'SELECT SPECIMEN',
+        prefsScopeKey: 'shop_effect_specimens',
       );
 
-      if (instanceId != null) {
+      if (pickedInstance != null) {
         final applied = await shopService.applyEffectToInstance(
           offer.id,
-          instanceId,
+          pickedInstance.instanceId,
         );
         if (applied) {
           _toast(
             '${offer.name} applied',
-            icon: Icons.check_rounded,
+            icon: AppIcons.check_rounded,
             color: t.teal,
           );
         } else {
           _toast(
             'Failed to apply ${offer.name}',
-            icon: Icons.error_rounded,
+            icon: AppIcons.error_rounded,
             color: t.danger,
           );
         }
@@ -1669,7 +1649,7 @@ class _ShopScreenState extends State<ShopScreen> {
       HapticFeedback.mediumImpact();
       _toast(
         'Opening faction selector...',
-        icon: Icons.flag_rounded,
+        icon: AppIcons.flag_rounded,
         color: const Color(0xFF7C3AED),
       );
       // The app shell watches `require_faction_picker` and opens the picker.
@@ -1763,7 +1743,7 @@ class _ShopScreenState extends State<ShopScreen> {
             if (!unlocked) {
               _toast(
                 'Explore the constellations to unlock.',
-                icon: Icons.lock_rounded,
+                icon: AppIcons.lock_rounded,
                 color: t.amber,
               );
               return;
@@ -1808,7 +1788,7 @@ class _ShopScreenState extends State<ShopScreen> {
                         : null,
                   ),
                   child: Icon(
-                    unlocked ? Icons.sell_rounded : Icons.lock_rounded,
+                    unlocked ? AppIcons.sell_rounded : AppIcons.lock_rounded,
                     color: unlocked ? t.onColor(actionAccent) : t.textMuted,
                     size: 28,
                   ),
@@ -1881,7 +1861,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   border: Border.all(color: t.borderDim),
                 ),
                 child: Icon(
-                  Icons.storefront_rounded,
+                  AppIcons.storefront_rounded,
                   color: t.textMuted,
                   size: 28,
                 ),
@@ -2114,13 +2094,7 @@ class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.hexagon_rounded,
-                  color: widget.canAfford
-                      ? const Color(0xFFFFD700)
-                      : t.textMuted,
-                  size: 11,
-                ),
+                const CoinIcon(kind: CoinKind.gold, size: 12),
                 const SizedBox(width: 3),
                 Text(
                   '$goldCost',
@@ -2210,7 +2184,7 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
     if (widget.packs.isEmpty) {
       return const EmptySection(
         message: 'No gold packs available',
-        icon: Icons.account_balance_wallet_outlined,
+        icon: AppIcons.account_balance_wallet_outlined,
       );
     }
 

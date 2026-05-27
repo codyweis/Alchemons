@@ -6,6 +6,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_image.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class SpeciesPickerSheet extends StatefulWidget {
   final Map<String, List<CreatureInstance>> grouped;
@@ -106,14 +107,14 @@ class _SpeciesPickerSheetState extends State<SpeciesPickerSheet> {
                 letterSpacing: 1.1,
               ),
               prefixIcon: Icon(
-                Icons.search_rounded,
+                AppIcons.search_rounded,
                 color: t.amberDim,
                 size: 18,
               ),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
                       icon: Icon(
-                        Icons.clear_rounded,
+                        AppIcons.clear_rounded,
                         color: t.textSecondary,
                         size: 18,
                       ),
@@ -149,7 +150,7 @@ class _SpeciesPickerSheetState extends State<SpeciesPickerSheet> {
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
             child: Row(
               children: [
-                Icon(Icons.filter_list_rounded, size: 12, color: t.textMuted),
+                Icon(AppIcons.filter_list_rounded, size: 12, color: t.textMuted),
                 const SizedBox(width: 6),
                 Text(
                   '${filteredSpeciesData.length} result${filteredSpeciesData.length == 1 ? '' : 's'}',
@@ -209,7 +210,7 @@ class _NoResultsFound extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.search_off_rounded,
+            AppIcons.search_off_rounded,
             color: t.textMuted.withValues(alpha: 0.7),
             size: 44,
           ),
@@ -358,7 +359,7 @@ class _SpeciesRow extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Icon(
-                          Icons.chevron_right_rounded,
+                          AppIcons.chevron_right_rounded,
                           color: t.textMuted,
                           size: 16,
                         ),

@@ -3,6 +3,7 @@ import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 String _fmt(num n) {
   final s = n.toStringAsFixed(0);
@@ -244,7 +245,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                           children: [
                             _homeAction(
                               context: context,
-                              icon: Icons.auto_awesome,
+                              icon: AppIcons.auto_awesome,
                               label: 'CUSTOMIZE',
                               onTap: onCustomize,
                               primary: true,
@@ -252,7 +253,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                             const SizedBox(height: 8),
                             _homeAction(
                               context: context,
-                              icon: Icons.shield,
+                              icon: AppIcons.shield,
                               label: 'GARRISON',
                               onTap: onGarrison,
                             ),

@@ -10,6 +10,7 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class BloodRitualFlashPage extends StatefulWidget {
   const BloodRitualFlashPage({
@@ -1147,7 +1148,7 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
                                     ),
                                   ),
                                   Icon(
-                                    Icons.auto_awesome_rounded,
+                                    AppIcons.auto_awesome_rounded,
                                     color: _abilityCooldownRemaining > 0
                                         ? Colors.white54
                                         : const Color(0xFFFFCDD2),
@@ -1185,10 +1186,10 @@ class _PlayerAvatar extends StatelessWidget {
         fit: BoxFit.contain,
         filterQuality: FilterQuality.low,
         errorBuilder: (_, __, ___) =>
-            const Icon(Icons.auto_awesome, color: Colors.white, size: 34),
+            const Icon(AppIcons.auto_awesome, color: Colors.white, size: 34),
       );
     } else {
-      child = const Icon(Icons.auto_awesome, color: Colors.white, size: 34);
+      child = const Icon(AppIcons.auto_awesome, color: Colors.white, size: 34);
     }
 
     return child;

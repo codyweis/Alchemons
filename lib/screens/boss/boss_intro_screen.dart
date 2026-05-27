@@ -37,12 +37,14 @@ import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'dart:math';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -419,7 +421,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     await LandscapeDialog.show(
       context,
       title: 'Alchemy is Power?',
-      icon: Icons.science_rounded,
+      icon: AppIcons.science_rounded,
       typewriter: true,
       message:
           'Power does not wait for morality to agree.\n\n'
@@ -558,7 +560,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                   strokeWidth: 1,
                 ),
                 child: const Icon(
-                  Icons.chevron_left_rounded,
+                  AppIcons.chevron_left_rounded,
                   color: _C.textSecondary,
                   size: 22,
                 ),
@@ -624,7 +626,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
-                      Icons.emoji_events_outlined,
+                      AppIcons.emoji_events_outlined,
                       color: _C.amberBright,
                       size: 15,
                     ),
@@ -678,7 +680,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 });
                 _showToast(
                   'Defeat the previous boss to unlock.',
-                  icon: Icons.lock_rounded,
+                  icon: AppIcons.lock_rounded,
                   color: _C.danger,
                 );
                 return;
@@ -809,25 +811,25 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               label: 'HP',
               value: '$dispHp',
               color: _C.danger,
-              icon: Icons.favorite_rounded,
+              icon: AppIcons.favorite_rounded,
             ),
             _FlatStat(
               label: 'ATK',
               value: '$dispAtk',
               color: _C.amberBright,
-              icon: Icons.flash_on_rounded,
+              icon: AppIcons.flash_on_rounded,
             ),
             _FlatStat(
               label: 'DEF',
               value: '$dispDef',
               color: _C.teal,
-              icon: Icons.shield_rounded,
+              icon: AppIcons.shield_rounded,
             ),
             _FlatStat(
               label: 'SPD',
               value: '$dispSpd',
               color: const Color(0xFF34D399),
-              icon: Icons.speed_rounded,
+              icon: AppIcons.speed_rounded,
             ),
           ],
         ),
@@ -901,7 +903,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         Row(
           children: [
             Icon(
-              Icons.auto_awesome_rounded,
+              AppIcons.auto_awesome_rounded,
               color: boss.elementColor.withValues(alpha: 0.8),
               size: 12,
             ),
@@ -953,17 +955,17 @@ class _BossBattleScreenState extends State<BossBattleScreen>
   IconData _moveIcon(BossMoveType type) {
     switch (type) {
       case BossMoveType.singleTarget:
-        return Icons.person_rounded;
+        return AppIcons.person_rounded;
       case BossMoveType.aoe:
-        return Icons.groups_rounded;
+        return AppIcons.groups_rounded;
       case BossMoveType.buff:
-        return Icons.arrow_upward_rounded;
+        return AppIcons.arrow_upward_rounded;
       case BossMoveType.debuff:
-        return Icons.arrow_downward_rounded;
+        return AppIcons.arrow_downward_rounded;
       case BossMoveType.heal:
-        return Icons.favorite_rounded;
+        return AppIcons.favorite_rounded;
       case BossMoveType.special:
-        return Icons.auto_awesome_rounded;
+        return AppIcons.auto_awesome_rounded;
     }
   }
 
@@ -1015,7 +1017,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.groups_rounded, color: _C.amber, size: 13),
+                    const Icon(AppIcons.groups_rounded, color: _C.amber, size: 13),
                     const SizedBox(width: 6),
                     const Text('FIELD TEAM', style: _T.label),
                     const Spacer(),
@@ -1038,7 +1040,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                     child: Row(
                       children: const [
                         Icon(
-                          Icons.group_add_rounded,
+                          AppIcons.group_add_rounded,
                           color: _C.textMuted,
                           size: 22,
                         ),
@@ -1083,7 +1085,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         border: Border.all(color: _C.borderDim),
       ),
       child: const Center(
-        child: Icon(Icons.add_rounded, color: _C.textMuted, size: 22),
+        child: Icon(AppIcons.add_rounded, color: _C.textMuted, size: 22),
       ),
     );
   }
@@ -1261,7 +1263,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                   ? 'Rematch for Loot'
                   : 'Engage Boss',
               icon: !isUnlocked
-                  ? Icons.lock_rounded
+                  ? AppIcons.lock_rounded
                   : isDefeated
                   ? null
                   : null,
@@ -1274,8 +1276,8 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             _ForgeButton(
               label: hasTeam ? 'Change Squad' : 'Assign Squad',
               icon: hasTeam
-                  ? Icons.swap_horiz_rounded
-                  : Icons.group_add_rounded,
+                  ? AppIcons.swap_horiz_rounded
+                  : AppIcons.group_add_rounded,
               loading: false,
               secondary: true,
               onTap: () async {
@@ -1293,7 +1295,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             const SizedBox(height: 10),
             _ForgeButton(
               label: 'Boss Command',
-              icon: Icons.settings_rounded,
+              icon: AppIcons.settings_rounded,
               secondary: true,
               onTap: () {
                 Navigator.of(context).push(
@@ -1309,7 +1311,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               const SizedBox(height: 10),
               _ForgeButton(
                 label: 'Use Boss Summon (×$summonQty)',
-                icon: Icons.whatshot_rounded,
+                icon: AppIcons.whatshot_rounded,
                 color: const Color(0xFF7C3AED),
                 onTap: () async {
                   final db = context.read<AlchemonsDatabase>();
@@ -1331,7 +1333,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               const SizedBox(height: 10),
               _ForgeButton(
                 label: 'Use Boss Summon Token (×$refreshQty)',
-                icon: Icons.local_drink_rounded,
+                icon: AppIcons.local_drink_rounded,
                 color: const Color(0xFF1A237E),
                 onTap: () async {
                   final db = context.read<AlchemonsDatabase>();
@@ -1470,7 +1472,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     if (selectedInstances.isEmpty) {
       _showToast(
         'No squad assigned.',
-        icon: Icons.warning_rounded,
+        icon: AppIcons.warning_rounded,
         color: _C.amberBright,
       );
       return;
@@ -1482,7 +1484,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       if (refreshed == null) {
         _showToast(
           'Error checking stamina.',
-          icon: Icons.error_rounded,
+          icon: AppIcons.error_rounded,
           color: _C.danger,
         );
         return;
@@ -1505,7 +1507,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         lowStamina.length == 1
             ? '$names needs rest.'
             : '${lowStamina.length} creatures need rest.',
-        icon: Icons.battery_0_bar_rounded,
+        icon: AppIcons.battery_0_bar_rounded,
         color: _C.danger,
       );
       return;
@@ -1568,7 +1570,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       if (lastRematch == todayUtc) {
         _showToast(
           'Daily rematch used. Try again tomorrow.',
-          icon: Icons.schedule_rounded,
+          icon: AppIcons.schedule_rounded,
           color: _C.amberBright,
         );
         return;
@@ -1649,7 +1651,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 context: context,
                 itemName: traitDef.name,
                 itemDescription: traitDef.description,
-                itemIcon: meta?.traitIcon ?? Icons.vpn_key_rounded,
+                itemIcon: meta?.traitIcon ?? AppIcons.vpn_key_rounded,
                 elementColor: boss.elementColor,
                 itemImagePath: boss.relicImagePath,
                 theme: _bossFactionTheme,
@@ -1695,7 +1697,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             final def = registry[e.key];
             final imagePath = InventoryImageHelper.getImage(e.key);
             return LootOpeningEntry(
-              icon: def?.icon ?? Icons.inventory_2_rounded,
+              icon: def?.icon ?? AppIcons.inventory_2_rounded,
               name: def?.name ?? e.key,
               label: 'x${e.value}',
               color: _C.amber,
@@ -1713,7 +1715,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             final def = registry[e.key];
             final imagePath = InventoryImageHelper.getImage(e.key);
             return LootOpeningEntry(
-              icon: type?.icon ?? def?.icon ?? Icons.blur_on_rounded,
+              icon: type?.icon ?? def?.icon ?? AppIcons.blur_on_rounded,
               name: type?.name ?? def?.name ?? e.key,
               label: 'x${e.value}',
               color: type?.color ?? _C.amberBright,
@@ -1728,14 +1730,16 @@ class _BossBattleScreenState extends State<BossBattleScreen>
           }),
           if (silver > 0)
             LootOpeningEntry(
-              icon: Icons.monetization_on_rounded,
+              icon: AppIcons.monetization_on_rounded,
+              coin: CoinKind.silver,
               name: 'Silver',
               label: '+$silver',
               color: const Color(0xFFB0BEC5),
             ),
           if (gold > 0)
             LootOpeningEntry(
-              icon: Icons.stars_rounded,
+              icon: AppIcons.stars_rounded,
+              coin: CoinKind.gold,
               name: 'Gold',
               label: '+$gold',
               color: _C.amberBright,
@@ -1759,7 +1763,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
 
       _showToast(
         'VICTORY — ${boss.name.toUpperCase()} DEFEATED',
-        icon: Icons.emoji_events_rounded,
+        icon: AppIcons.emoji_events_rounded,
         color: _C.success,
       );
       if (mounted) setState(() {});
@@ -1843,7 +1847,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
 
   void _showToast(
     String message, {
-    IconData icon = Icons.info_rounded,
+    IconData icon = AppIcons.info_rounded,
     Color? color,
   }) {
     if (!mounted) return;
@@ -2122,19 +2126,19 @@ class _BossCarouselCard extends StatelessWidget {
                               return Row(
                                 children: [
                                   _MiniStatBadge(
-                                    icon: Icons.favorite,
+                                    icon: AppIcons.favorite,
                                     value: '$dispHp',
                                     color: _C.danger,
                                   ),
                                   const SizedBox(width: 6),
                                   _MiniStatBadge(
-                                    icon: Icons.flash_on,
+                                    icon: AppIcons.flash_on,
                                     value: '$dispAtk',
                                     color: _C.amberBright,
                                   ),
                                   const SizedBox(width: 6),
                                   _MiniStatBadge(
-                                    icon: Icons.shield,
+                                    icon: AppIcons.shield,
                                     value: '$dispDef',
                                     color: _C.teal,
                                   ),
@@ -2201,7 +2205,7 @@ class _BossCarouselCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.lock_rounded,
+                            AppIcons.lock_rounded,
                             color: _C.textSecondary,
                             size: 22,
                           ),
@@ -2333,7 +2337,7 @@ class _BossHistorySheet extends StatelessWidget {
                     border: Border.all(color: _C.borderAccent),
                   ),
                   child: const Icon(
-                    Icons.emoji_events_rounded,
+                    AppIcons.emoji_events_rounded,
                     color: _C.amberBright,
                     size: 16,
                   ),
@@ -2362,7 +2366,7 @@ class _BossHistorySheet extends StatelessWidget {
                       border: Border.all(color: _C.borderDim),
                     ),
                     child: const Icon(
-                      Icons.close_rounded,
+                      AppIcons.close_rounded,
                       color: _C.textSecondary,
                       size: 16,
                     ),
@@ -2527,7 +2531,7 @@ class _BossHistoryRow extends StatelessWidget {
                         boss.relicImagePath,
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => Icon(
-                          Icons.check_rounded,
+                          AppIcons.check_rounded,
                           color: _C.success,
                           size: 15,
                         ),
@@ -2571,7 +2575,7 @@ class _BossHistoryRow extends StatelessWidget {
             ),
             // Right badge
             if (!isUnlocked)
-              const Icon(Icons.lock_rounded, color: _C.textMuted, size: 14)
+              const Icon(AppIcons.lock_rounded, color: _C.textMuted, size: 14)
             else if (isCurrent)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),

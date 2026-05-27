@@ -23,6 +23,7 @@ import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 String _displayVariantFaction(String faction) {
   final trimmed = faction.trim();
@@ -205,7 +206,7 @@ class InstanceCard extends StatelessWidget {
                           children: [
                             if (instance.isFavorite)
                               _CardCornerIcon(
-                                icon: Icons.star_rounded,
+                                icon: AppIcons.star_rounded,
                                 color: const Color(0xFFE91E63),
                                 palette: palette,
                               ),
@@ -326,7 +327,7 @@ class _CardSelectionBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.merge_type_rounded, color: palette.bg0, size: 10),
+          Icon(AppIcons.merge_type_rounded, color: palette.bg0, size: 10),
           const SizedBox(width: 3),
           Text(
             '$number',
@@ -611,7 +612,7 @@ class _HarvestBlock extends StatelessWidget {
             const SizedBox.shrink(),
             Row(
               children: [
-                Icon(Icons.inventory_2_rounded, size: 10, color: t.amberBright),
+                Icon(AppIcons.inventory_2_rounded, size: 10, color: t.amberBright),
                 const SizedBox(width: 3),
                 Text(
                   '$total',
@@ -703,7 +704,7 @@ class _ParentChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.merge_type_rounded, color: c, size: 10),
+          Icon(AppIcons.merge_type_rounded, color: c, size: 10),
           const SizedBox(width: 4),
           Text(
             'Parent $selectionNumber',
@@ -846,7 +847,7 @@ class _InlineStaminaSummary extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.local_fire_department, size: 12, color: t.success),
+        Icon(AppIcons.local_fire_department, size: 12, color: t.success),
         const SizedBox(width: 5),
         StaminaBar(
           current: bars,
@@ -898,8 +899,8 @@ class InstancesEmptyState extends StatelessWidget {
                 color: palette.surfaceFill(),
                 child: Icon(
                   hasFilters
-                      ? Icons.search_off_rounded
-                      : Icons.science_outlined,
+                      ? AppIcons.search_off_rounded
+                      : AppIcons.science_outlined,
                   size: 36,
                   color: palette.muted,
                 ),

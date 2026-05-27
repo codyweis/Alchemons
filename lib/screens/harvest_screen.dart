@@ -15,6 +15,7 @@ import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/screens/harvest_detail_screen.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/widgets/game_card.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class BiomeHarvestScreen extends StatefulWidget {
   const BiomeHarvestScreen({super.key, this.service});
@@ -66,7 +67,7 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
           ),
           title: Row(
             children: [
-              Icon(Icons.science_rounded, color: theme.primary, size: 22),
+              Icon(AppIcons.science_rounded, color: theme.primary, size: 22),
               const SizedBox(width: 8),
               Text(
                 'Biome Extractors',
@@ -93,7 +94,7 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
               const SizedBox(height: 12),
               TutorialStep(
                 theme: theme,
-                icon: Icons.terrain_rounded,
+                icon: AppIcons.terrain_rounded,
                 title: 'Step 1 – Pick a biome',
                 body:
                     'Each biome specializes in certain elements. Some biomes '
@@ -102,7 +103,7 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.science_outlined,
+                icon: AppIcons.science_outlined,
                 title: 'Step 2 – Start extraction',
                 body:
                     'Open a biome and start an extraction run. It will work '
@@ -111,7 +112,7 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.inventory_2_rounded,
+                icon: AppIcons.inventory_2_rounded,
                 title: 'Step 3 – Harvest your rewards',
                 body:
                     'When a run finishes, the biome card shows it as ready. '
@@ -562,7 +563,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                             // Single status badge
                             if (!unlocked)
                               _TinyInfoPillRow(
-                                icon: Icons.lock_outline_rounded,
+                                icon: AppIcons.lock_outline_rounded,
                                 label: 'Requires unlock',
                                 theme: widget.theme,
                               )
@@ -570,7 +571,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                                 !completed &&
                                 remaining != null)
                               _TinyInfoPillRow(
-                                icon: Icons.schedule_rounded,
+                                icon: AppIcons.schedule_rounded,
                                 labelWidget: _EtaText(remaining: remaining),
                                 theme: widget.theme,
                               )
@@ -578,7 +579,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                               const _TinyReadyPillRow()
                             else
                               _TinyInfoPillRow(
-                                icon: Icons.hourglass_empty_rounded,
+                                icon: AppIcons.hourglass_empty_rounded,
                                 label: 'Idle',
                                 theme: widget.theme,
                               ),
@@ -597,8 +598,8 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                     accent: accent,
                     label: unlocked ? 'OPEN' : 'UNLOCK',
                     icon: unlocked
-                        ? Icons.chevron_right_rounded
-                        : Icons.lock_open_rounded,
+                        ? AppIcons.chevron_right_rounded
+                        : AppIcons.lock_open_rounded,
                     filled: !unlocked, // locked = filled (accent pop)
                     onTap: handleTap,
                   ),
@@ -801,7 +802,7 @@ class _TinyReadyPillRow extends StatelessWidget {
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check_circle, size: 13, color: Colors.white),
+          Icon(AppIcons.check_circle, size: 13, color: Colors.white),
           SizedBox(width: 5),
           Text(
             'Ready to extract',
@@ -875,7 +876,7 @@ class _UnlockDialog extends StatelessWidget {
 
   String displayForKey(String k) => ElementResources.byKey[k]?.biomeLabel ?? k;
   IconData iconForKey(String k) =>
-      ElementResources.byKey[k]?.icon ?? Icons.blur_on_rounded;
+      ElementResources.byKey[k]?.icon ?? AppIcons.blur_on_rounded;
 
   @override
   Widget build(BuildContext context) {

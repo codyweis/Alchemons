@@ -1,3 +1,4 @@
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
@@ -12,6 +13,7 @@ import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ---------- Header ----------
 
@@ -77,7 +79,7 @@ class StageHeader extends StatelessWidget {
                         border: Border.all(color: t.borderDim),
                       ),
                       child: Icon(
-                        Icons.arrow_back,
+                        AppIcons.arrow_back,
                         color: t.textPrimary,
                         size: 18,
                       ),
@@ -120,7 +122,7 @@ class StageHeader extends StatelessWidget {
                         border: Border.all(color: t.borderDim),
                       ),
                       child: Icon(
-                        Icons.grid_view_rounded,
+                        AppIcons.grid_view_rounded,
                         color: t.textSecondary,
                         size: 18,
                       ),
@@ -172,7 +174,7 @@ class StageHeader extends StatelessWidget {
                         child: Center(
                           child: isDone
                               ? Icon(
-                                  Icons.check,
+                                  AppIcons.check,
                                   size: 10,
                                   color: fc.amberBright,
                                 )
@@ -343,8 +345,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
           liveMaxXp: xpNeeded,
         );
 
-        final flash = _levelFlashController.value; // 0..1
-        // Eased burst: 0 → 1 → 0 over the run.
+        final flash = _levelFlashController.value;
         final burstT = flash == 0.0
             ? 0.0
             : (flash < 0.35
@@ -352,236 +353,137 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                   : 1.0 - ((flash - 0.35) / 0.65).clamp(0.0, 1.0));
         final isMaxLevel = currentLevel >= 10;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        if (isMaxLevel) {
+          return Container(
+            height: 20,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: fc.amberBright.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: fc.amber.withValues(alpha: 0.5),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              'MAX LEVEL',
+              style: TextStyle(
+                color: fc.amberBright,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
+            ),
+          );
+        }
+
+        return Stack(
+          clipBehavior: Clip.none,
           children: [
-            Row(
-              children: [
-                // Prominent level chip
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        fc.amber.withValues(alpha: 0.85),
-                        fc.amberDim.withValues(alpha: 0.85),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: fc.amberBright.withValues(alpha: 0.6),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: fc.amberGlow.withValues(
-                          alpha: 0.4 + burstT * 0.6,
+            Container(
+              height: 20,
+              decoration: BoxDecoration(
+                color: fc.bg0,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: fc.borderDim, width: 1),
+                boxShadow: burstT > 0
+                    ? [
+                        BoxShadow(
+                          color: fc.amberDim.withValues(alpha: burstT * 0.5),
+                          blurRadius: burstT * 12,
+                          spreadRadius: burstT * 1.5,
                         ),
-                        blurRadius: 8 + burstT * 18,
-                        spreadRadius: burstT * 2,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.shield_moon_outlined,
-                        size: 14,
-                        color: Colors.black.withValues(alpha: 0.8),
-                      ),
-                      const SizedBox(width: 4),
-                      Transform.scale(
-                        scale: 1.0 + burstT * 0.35,
-                        child: Text(
-                          'LV ${frame.displayLevel}',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isMaxLevel) ...[
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: fc.bg0,
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(
-                              color: fc.borderDim,
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: fc.amberDim.withValues(
-                                  alpha: 0.25 + burstT * 0.5,
-                                ),
-                                blurRadius: 6 + burstT * 12,
-                                spreadRadius: burstT * 1.5,
+                      ]
+                    : const [],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: Stack(
+                  children: [
+                    FractionallySizedBox(
+                      widthFactor: frame.displayProgress.clamp(0.0, 1.0),
+                      child: Container(color: fc.amber),
+                    ),
+                    if (burstT > 0)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.0),
+                                  Colors.white.withValues(
+                                    alpha: 0.55 * burstT,
+                                  ),
+                                  Colors.white.withValues(alpha: 0.0),
+                                ],
+                                stops: [
+                                  (flash - 0.15).clamp(0.0, 1.0),
+                                  flash.clamp(0.0, 1.0),
+                                  (flash + 0.15).clamp(0.0, 1.0),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Stack(
-                              children: [
-                                FractionallySizedBox(
-                                  widthFactor: frame.displayProgress.clamp(
-                                    0.0,
-                                    1.0,
-                                  ),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          fc.amberDim,
-                                          fc.amber,
-                                          fc.amberGlow,
-                                        ],
-                                      ),
-                                    ),
-                                  ),
+                        ),
+                      ),
+                    Center(
+                      child: Text(
+                        '${frame.displayXp} / ${frame.displayMaxXp}',
+                        style: TextStyle(
+                          color: t.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              blurRadius: 3,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (burstT > 0)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(
+                    child: Opacity(
+                      opacity: burstT.clamp(0.0, 1.0),
+                      child: Transform.translate(
+                        offset: Offset(0, -16 * burstT),
+                        child: Transform.scale(
+                          scale: 0.8 + burstT * 0.4,
+                          child: Text(
+                            'LEVEL UP!',
+                            style: TextStyle(
+                              color: fc.amberBright,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.8),
+                                  blurRadius: 4,
                                 ),
-                                // Bright sweep overlay on level-up
-                                if (burstT > 0)
-                                  Positioned.fill(
-                                    child: IgnorePointer(
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.centerLeft,
-                                            end: Alignment.centerRight,
-                                            colors: [
-                                              Colors.white.withValues(
-                                                alpha: 0.0,
-                                              ),
-                                              Colors.white.withValues(
-                                                alpha: 0.55 * burstT,
-                                              ),
-                                              Colors.white.withValues(
-                                                alpha: 0.0,
-                                              ),
-                                            ],
-                                            stops: [
-                                              (flash - 0.15).clamp(0.0, 1.0),
-                                              flash.clamp(0.0, 1.0),
-                                              (flash + 0.15).clamp(0.0, 1.0),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                Center(
-                                  child: Text(
-                                    '${frame.displayXp} / ${frame.displayMaxXp}',
-                                    style: TextStyle(
-                                      color: t.textPrimary,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      shadows: [
-                                        Shadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.6,
-                                          ),
-                                          blurRadius: 3,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                Shadow(
+                                  color: fc.amberGlow.withValues(alpha: 0.8),
+                                  blurRadius: 10,
                                 ),
                               ],
                             ),
                           ),
                         ),
-                        // "LEVEL UP!" floating text burst
-                        if (burstT > 0)
-                          Positioned.fill(
-                            child: IgnorePointer(
-                              child: Center(
-                                child: Opacity(
-                                  opacity: burstT.clamp(0.0, 1.0),
-                                  child: Transform.translate(
-                                    offset: Offset(0, -16 * burstT),
-                                    child: Transform.scale(
-                                      scale: 0.8 + burstT * 0.4,
-                                      child: Text(
-                                        'LEVEL UP!',
-                                        style: TextStyle(
-                                          color: fc.amberBright,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 1.2,
-                                          shadows: [
-                                            Shadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.8,
-                                              ),
-                                              blurRadius: 4,
-                                            ),
-                                            Shadow(
-                                              color: fc.amberGlow.withValues(
-                                                alpha: 0.8,
-                                              ),
-                                              blurRadius: 10,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (isMaxLevel)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: fc.amberBright.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: fc.amber.withValues(alpha: 0.5),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Text(
-                        'MAX',
-                        style: TextStyle(
-                          color: fc.amberBright,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        ),
                       ),
                     ),
                   ),
-              ],
-            ),
+                ),
+              ),
           ],
         );
       },
@@ -678,257 +580,345 @@ class _XpBarFrame {
   });
 }
 
-// ---------- Current Stats Display ----------
+// ---------- Level Chip ----------
 
-class CurrentStatsDisplay extends StatelessWidget {
+class _LevelChip extends StatelessWidget {
   final FactionTheme theme;
-  final CreatureInstance instance;
-  final Creature creature;
+  final int level;
+  final int? previewLevel;
   final bool isAnimating;
-  final int? preFeedLevel;
-  final int? preFeedXp;
 
-  const CurrentStatsDisplay({
-    super.key,
+  const _LevelChip({
     required this.theme,
-    required this.instance,
-    required this.creature,
-    this.isAnimating = false,
-    this.preFeedLevel,
-    this.preFeedXp,
+    required this.level,
+    required this.previewLevel,
+    required this.isAnimating,
   });
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final fc = FC.of(context);
+    final showPreview =
+        !isAnimating && previewLevel != null && previewLevel! > level;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [t.bg2, t.bg1],
-        ),
+        color: fc.amber.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(6),
-        boxShadow: [
-          BoxShadow(
-            color: t.amber.withValues(alpha: 0.08),
-            blurRadius: 18,
-            spreadRadius: -12,
-          ),
-        ],
+        border: Border.all(
+          color: fc.amberBright.withValues(alpha: 0.5),
+          width: 1,
+        ),
       ),
-      child: Column(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 5,
-                child: Column(
-                  children: [
-                    SizedBox(
-                      height: 122,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Positioned(
-                            bottom: 12,
-                            child: Container(
-                              width: 120,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(999),
-                                gradient: RadialGradient(
-                                  colors: [
-                                    t.amber.withValues(alpha: 0.28),
-                                    Colors.transparent,
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            top: 0,
-                            child: Container(
-                              width: 88,
-                              height: 88,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(
-                                  colors: [
-                                    t.amber.withValues(alpha: 0.12),
-                                    Colors.transparent,
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 10,
-                            child: FastLongPressDetector(
-                              onLongPress: () {
-                                showQuickInstanceDialog(
-                                  context: context,
-                                  theme: theme,
-                                  creature: creature,
-                                  instance: instance,
-                                );
-                              },
-                              child: InstanceSprite(
-                                creature: creature,
-                                instance: instance,
-                                size: 100,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      creature.name,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: t.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 6,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    XPBarDisplay(
-                      theme: theme,
-                      instance: instance,
-                      isAnimating: isAnimating,
-                      preFeedLevel: preFeedLevel,
-                      preFeedXp: preFeedXp,
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: t.bg1.withValues(alpha: 0.72),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: t.borderDim),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          StatMiniBar(
-                            label: 'SPD',
-                            value: instance.statSpeed,
-                            potential: instance.statSpeedPotential,
-                            theme: theme,
-                          ),
-                          StatMiniBar(
-                            label: 'INT',
-                            value: instance.statIntelligence,
-                            potential: instance.statIntelligencePotential,
-                            theme: theme,
-                          ),
-                          StatMiniBar(
-                            label: 'STR',
-                            value: instance.statStrength,
-                            potential: instance.statStrengthPotential,
-                            theme: theme,
-                          ),
-                          StatMiniBar(
-                            label: 'BEA',
-                            value: instance.statBeauty,
-                            potential: instance.statBeautyPotential,
-                            theme: theme,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Icon(
+            AppIcons.shield_moon_outlined,
+            size: 13,
+            color: Colors.black.withValues(alpha: 0.8),
           ),
+          const SizedBox(width: 4),
+          Text(
+            'LV $level',
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+            ),
+          ),
+          if (showPreview) ...[
+            const SizedBox(width: 5),
+            Icon(
+              AppIcons.arrow_forward_rounded,
+              size: 12,
+              color: Colors.black.withValues(alpha: 0.8),
+            ),
+            const SizedBox(width: 2),
+            Text(
+              '$previewLevel',
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-// ---------- Stat Mini Bar ----------
+// ---------- Current Stats Display ----------
 
-class StatMiniBar extends StatelessWidget {
-  final String label;
-  final double value;
-  final double potential;
+class CurrentStatsDisplay extends StatelessWidget {
   final FactionTheme theme;
+  final CreatureInstance instance;
+  final Creature creature;
+  final FeedResult? preview;
+  final bool isAnimating;
+  final int? preFeedLevel;
+  final int? preFeedXp;
+  final Widget? constellationTrailing;
 
-  const StatMiniBar({
+  const CurrentStatsDisplay({
     super.key,
-    required this.label,
-    required this.value,
-    required this.potential,
     required this.theme,
+    required this.instance,
+    required this.creature,
+    this.preview,
+    this.isAnimating = false,
+    this.preFeedLevel,
+    this.preFeedXp,
+    this.constellationTrailing,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
-    final percentage = (value / 5.0).clamp(0.0, 1.0);
-    final potentialPercentage = (potential / 5.0).clamp(0.0, 1.0);
+    final gains = preview?.statGains ?? const <String, double>{};
+    final hasPreview = preview != null && preview!.ok;
+    final previewLevel = hasPreview ? preview!.newLevel : null;
+
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          height: 110,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Positioned(
+                                bottom: 4,
+                                child: FastLongPressDetector(
+                                  onLongPress: () {
+                                    showQuickInstanceDialog(
+                                      context: context,
+                                      theme: theme,
+                                      creature: creature,
+                                      instance: instance,
+                                    );
+                                  },
+                                  child: InstanceSprite(
+                                    creature: creature,
+                                    instance: instance,
+                                    size: 96,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          creature.name,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: t.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 8,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _LevelChip(
+                            theme: theme,
+                            level: instance.level,
+                            previewLevel: previewLevel,
+                            isAnimating: isAnimating,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              UnifiedStatRow(
+                                label: 'SPD',
+                                current: instance.statSpeed,
+                                potential: instance.statSpeedPotential,
+                                gain: gains['speed'] ?? 0,
+                                hasPreview: hasPreview,
+                                theme: theme,
+                                color: AlchemicalPowerupType.speed.color,
+                              ),
+                              UnifiedStatRow(
+                                label: 'INT',
+                                current: instance.statIntelligence,
+                                potential: instance.statIntelligencePotential,
+                                gain: gains['intelligence'] ?? 0,
+                                hasPreview: hasPreview,
+                                theme: theme,
+                                color:
+                                    AlchemicalPowerupType.intelligence.color,
+                              ),
+                              UnifiedStatRow(
+                                label: 'STR',
+                                current: instance.statStrength,
+                                potential: instance.statStrengthPotential,
+                                gain: gains['strength'] ?? 0,
+                                hasPreview: hasPreview,
+                                theme: theme,
+                                color: AlchemicalPowerupType.strength.color,
+                              ),
+                              UnifiedStatRow(
+                                label: 'BEA',
+                                current: instance.statBeauty,
+                                potential: instance.statBeautyPotential,
+                                gain: gains['beauty'] ?? 0,
+                                hasPreview: hasPreview,
+                                theme: theme,
+                                color: AlchemicalPowerupType.beauty.color,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            XPBarDisplay(
+              theme: theme,
+              instance: instance,
+              isAnimating: isAnimating,
+              preFeedLevel: preFeedLevel,
+              preFeedXp: preFeedXp,
+            ),
+          ],
+        ),
+        if (constellationTrailing != null)
+          Positioned(top: 0, left: 0, child: constellationTrailing!),
+      ],
+    );
+  }
+}
+
+// ---------- Unified Stat Row ----------
+//
+// One row per stat. Shows the label, a bar with current + projected-gain
+// segment, and `current → projected` inline. Reserves space for the
+// projected column even when no preview is active so the panel height is
+// stable across selection changes.
+
+class UnifiedStatRow extends StatelessWidget {
+  final String label;
+  final double current;
+  final double potential;
+  final double gain;
+  final bool hasPreview;
+  final FactionTheme theme;
+  final Color color;
+
+  const UnifiedStatRow({
+    super.key,
+    required this.label,
+    required this.current,
+    required this.potential,
+    required this.gain,
+    required this.hasPreview,
+    required this.theme,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final t = ForgeTokens(theme);
+
+    const denom = 5.0;
+    final currentPct = (current / denom).clamp(0.0, 1.0);
+    final potentialPct = (potential / denom).clamp(0.0, 1.0);
+    final projected = (current + gain).clamp(0.0, potential);
+    final projectedPct = (projected / denom).clamp(0.0, 1.0);
+
+    final showGain = hasPreview && gain != 0;
+    final gainColor = gain > 0
+        ? color
+        : (gain < 0 ? fc.danger : t.textSecondary);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        mainAxisSize: MainAxisSize.max,
         children: [
           SizedBox(
-            width: 24,
+            width: 28,
             child: Text(
               label,
-              textAlign: TextAlign.right,
               style: TextStyle(
                 color: t.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
                 fontFamily: 'monospace',
               ),
             ),
           ),
-          const SizedBox(width: 6),
           Expanded(
             child: Container(
-              height: 8,
+              height: 9,
               decoration: BoxDecoration(
                 color: t.bg1,
-                borderRadius: const BorderRadius.all(Radius.circular(4)),
+                borderRadius: const BorderRadius.all(Radius.circular(5)),
               ),
               child: Stack(
                 children: [
                   FractionallySizedBox(
-                    widthFactor: potentialPercentage,
+                    widthFactor: potentialPct,
                     child: Container(
                       decoration: BoxDecoration(
                         color: t.borderMid,
                         borderRadius: const BorderRadius.all(
-                          Radius.circular(4),
+                          Radius.circular(5),
                         ),
                       ),
                     ),
                   ),
+                  if (showGain && gain > 0)
+                    FractionallySizedBox(
+                      widthFactor: projectedPct,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.55),
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(5),
+                          ),
+                        ),
+                      ),
+                    ),
                   FractionallySizedBox(
-                    widthFactor: percentage,
+                    widthFactor: currentPct,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: t.amber,
+                        color: color,
                         borderRadius: const BorderRadius.all(
-                          Radius.circular(4),
+                          Radius.circular(5),
                         ),
                       ),
                     ),
@@ -939,179 +929,52 @@ class StatMiniBar extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           SizedBox(
-            width: 28,
-            child: Text(
-              value.toStringAsFixed(1),
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: t.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------- Stat Gains Preview ----------
-
-class StatGainsPreview extends StatelessWidget {
-  final FactionTheme theme;
-  final FeedResult preview;
-  final CreatureInstance instance;
-
-  const StatGainsPreview({
-    super.key,
-    required this.theme,
-    required this.preview,
-    required this.instance,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final gains = preview.statGains ?? {};
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: fc.amberDim.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: fc.amber.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.analytics_rounded, color: fc.amber, size: 12),
-              SizedBox(width: 5),
-              Text(
-                'POWER ANALYSIS',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.amberBright,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              StatGainIndicator(
-                label: 'SPD',
-                gain: gains['speed'] ?? 0,
-                current: instance.statSpeed,
-                potential: instance.statSpeedPotential,
-                theme: theme,
-              ),
-              StatGainIndicator(
-                label: 'INT',
-                gain: gains['intelligence'] ?? 0,
-                current: instance.statIntelligence,
-                potential: instance.statIntelligencePotential,
-                theme: theme,
-              ),
-              StatGainIndicator(
-                label: 'STR',
-                gain: gains['strength'] ?? 0,
-                current: instance.statStrength,
-                potential: instance.statStrengthPotential,
-                theme: theme,
-              ),
-              StatGainIndicator(
-                label: 'BEA',
-                gain: gains['beauty'] ?? 0,
-                current: instance.statBeauty,
-                potential: instance.statBeautyPotential,
-                theme: theme,
-              ),
-            ],
-          ),
-          if (preview.newLevel > instance.level) ...[
-            const SizedBox(height: 6),
-            Row(
+            width: 64,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Icon(Icons.star, color: fc.amberBright, size: 12),
-                const SizedBox(width: 4),
                 Text(
-                  'Level ${instance.level} → ${preview.newLevel}',
+                  current.toStringAsFixed(1),
                   style: TextStyle(
-                    color: fc.amberBright,
+                    color: t.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
+                    fontFamily: 'monospace',
                   ),
+                ),
+                SizedBox(
+                  width: 40,
+                  child: showGain
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(width: 2),
+                            Icon(
+                              gain > 0
+                                  ? AppIcons.arrow_forward_rounded
+                                  : AppIcons.arrow_back_rounded,
+                              size: 10,
+                              color: gainColor,
+                            ),
+                            const SizedBox(width: 1),
+                            Text(
+                              projected.toStringAsFixed(1),
+                              style: TextStyle(
+                                color: gainColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
-          ],
+          ),
         ],
       ),
-    );
-  }
-}
-
-class StatGainIndicator extends StatelessWidget {
-  final String label;
-  final double gain;
-  final double current;
-  final double potential;
-  final FactionTheme theme;
-
-  const StatGainIndicator({
-    super.key,
-    required this.label,
-    required this.gain,
-    required this.current,
-    required this.potential,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final t = ForgeTokens(theme);
-    final newValue = (current + gain).clamp(0.0, potential);
-    final color = gain > 0
-        ? fc.amberBright
-        : (gain < 0 ? fc.danger : t.textSecondary);
-    final arrow = gain > 0 ? '↑' : (gain < 0 ? '↓' : '•');
-
-    return Column(
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: t.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        Text(
-          '$arrow${gain.abs().toStringAsFixed(2)}',
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        Text(
-          '→ ${newValue.toStringAsFixed(1)}',
-          style: TextStyle(
-            color: t.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1149,68 +1012,235 @@ class FeedTargetPanel extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final hasConstellationBoosts =
+        constellationEffects.getStatBoostMultiplier('strength') > 0 ||
+        constellationEffects.getStatBoostMultiplier('intelligence') > 0 ||
+        constellationEffects.getStatBoostMultiplier('beauty') > 0 ||
+        constellationEffects.getStatBoostMultiplier('speed') > 0 ||
+        constellationEffects.getXpBoostMultiplier() > 1.0;
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      margin: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [t.bg1, t.bg0],
-        ),
-        borderRadius: BorderRadius.circular(6),
+        color: t.bg2,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: t.borderDim),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isMaxLevel)
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                color: fc.amberBright.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: fc.amber.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.stars, color: fc.amberBright, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Max Level Reached!\nThis creature can no longer be enhanced.',
-                      style: TextStyle(
-                        color: fc.amberBright,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+      child: isMaxLevel
+          ? Row(
+              children: [
+                Icon(AppIcons.stars, color: fc.amberBright, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Max Level Reached!\nThis creature can no longer be enhanced.',
+                    style: TextStyle(
+                      color: fc.amberBright,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             )
-          else ...[
-            CurrentStatsDisplay(
+          : CurrentStatsDisplay(
               theme: theme,
               instance: targetInstance!,
               creature: targetCreature!,
+              preview: preview,
               isAnimating: shouldAnimate,
               preFeedLevel: preFeedLevel,
               preFeedXp: preFeedXp,
+              constellationTrailing: hasConstellationBoosts
+                  ? _ConstellationInfoButton(
+                      theme: theme,
+                      effects: constellationEffects,
+                    )
+                  : null,
             ),
-            if (preview != null && preview!.ok) ...[
-              const SizedBox(height: 8),
-              StatGainsPreview(
-                theme: theme,
-                preview: preview!,
-                instance: targetInstance!,
-              ),
-            ],
-          ],
-          const SizedBox(height: 10),
-          _buildConstellationBonuses(theme, constellationEffects),
-        ],
+    );
+  }
+}
+
+class _ConstellationInfoButton extends StatelessWidget {
+  final FactionTheme theme;
+  final ConstellationEffectsService effects;
+
+  const _ConstellationInfoButton({required this.theme, required this.effects});
+
+  void _showDialog(BuildContext context) {
+    HapticFeedback.lightImpact();
+    final t = ForgeTokens(theme);
+    final strBoost = effects.getStatBoostMultiplier('strength');
+    final intBoost = effects.getStatBoostMultiplier('intelligence');
+    final beaBoost = effects.getStatBoostMultiplier('beauty');
+    final spdBoost = effects.getStatBoostMultiplier('speed');
+    final xpBoost = effects.getXpBoostMultiplier();
+    final hasXp = xpBoost > 1.0;
+
+    final statRows = <_BoostEntry>[
+      if (strBoost > 0)
+        _BoostEntry('STR', strBoost, AppIcons.fitness_center_rounded),
+      if (intBoost > 0)
+        _BoostEntry('INT', intBoost, AppIcons.psychology_rounded),
+      if (beaBoost > 0)
+        _BoostEntry('BEA', beaBoost, AppIcons.auto_awesome_rounded),
+      if (spdBoost > 0) _BoostEntry('SPD', spdBoost, AppIcons.bolt_rounded),
+    ];
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: t.bg2,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: t.borderDim),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      AppIcons.auto_awesome,
+                      size: 16,
+                      color: theme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Constellation Bonuses',
+                        style: TextStyle(
+                          color: t.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => Navigator.of(ctx).pop(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          AppIcons.close_rounded,
+                          size: 18,
+                          color: t.textMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                for (final entry in statRows) ...[
+                  _BoostRow(theme: theme, entry: entry),
+                  const SizedBox(height: 6),
+                ],
+                if (hasXp) ...[
+                  if (statRows.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Container(height: 1, color: t.borderDim),
+                    ),
+                  _BoostRow(
+                    theme: theme,
+                    entry: _BoostEntry(
+                      'XP',
+                      xpBoost - 1.0,
+                      AppIcons.trending_up_rounded,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () => _showDialog(context),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: theme.primary.withValues(alpha: 0.18),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: theme.primary.withValues(alpha: 0.45),
+              width: 1,
+            ),
+          ),
+          child: Icon(AppIcons.auto_awesome, size: 14, color: theme.primary),
+        ),
       ),
+    );
+  }
+}
+
+class _BoostEntry {
+  final String label;
+  final double value;
+  final IconData icon;
+  const _BoostEntry(this.label, this.value, this.icon);
+}
+
+class _BoostRow extends StatelessWidget {
+  final FactionTheme theme;
+  final _BoostEntry entry;
+
+  const _BoostRow({required this.theme, required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: theme.primary.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(entry.icon, size: 14, color: theme.primary),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            entry.label,
+            style: TextStyle(
+              color: t.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'monospace',
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        Text(
+          '+${(entry.value * 100).toStringAsFixed(1)}%',
+          style: TextStyle(
+            color: theme.primary,
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'monospace',
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1247,14 +1277,11 @@ class FeedFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
 
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      padding: EdgeInsets.fromLTRB(12, 10, 12, 12 + bottomInset),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [t.bg1, t.bg0],
-        ),
+        color: t.bg1,
         border: Border(top: BorderSide(color: t.borderDim)),
       ),
       child: Column(
@@ -1272,70 +1299,6 @@ class FeedFooter extends StatelessWidget {
       ),
     );
   }
-}
-
-Widget _buildConstellationBonuses(
-  FactionTheme theme,
-  ConstellationEffectsService effects,
-) {
-  final strengthBoost = effects.getStatBoostMultiplier('strength');
-  final intBoost = effects.getStatBoostMultiplier('intelligence');
-  final beautyBoost = effects.getStatBoostMultiplier('beauty');
-  final speedBoost = effects.getStatBoostMultiplier('speed');
-
-  final hasAnyBoost =
-      strengthBoost > 0 || intBoost > 0 || beautyBoost > 0 || speedBoost > 0;
-
-  if (!hasAnyBoost) return const SizedBox.shrink();
-
-  return Container(
-    width: double.infinity,
-    margin: const EdgeInsets.only(top: 8, bottom: 4),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    decoration: BoxDecoration(
-      color: theme.primary.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: theme.primary.withValues(alpha: 0.3)),
-    ),
-    child: Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text(
-          'Constellation Bonuses',
-          style: TextStyle(
-            color: theme.primary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        if (strengthBoost > 0) _buildBonusPill('STR', strengthBoost, theme),
-        if (intBoost > 0) _buildBonusPill('INT', intBoost, theme),
-        if (beautyBoost > 0) _buildBonusPill('BEA', beautyBoost, theme),
-        if (speedBoost > 0) _buildBonusPill('SPD', speedBoost, theme),
-      ],
-    ),
-  );
-}
-
-Widget _buildBonusPill(String label, double bonus, FactionTheme theme) {
-  final fc = FC(theme);
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(
-      color: fc.amber.withValues(alpha: 0.2),
-      borderRadius: BorderRadius.circular(4),
-    ),
-    child: Text(
-      '$label +${(bonus * 100).toStringAsFixed(1)}%',
-      style: TextStyle(
-        color: fc.amber,
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-      ),
-    ),
-  );
 }
 
 // ---------- Enhance Button ----------
@@ -1411,16 +1374,7 @@ class _EnhanceButtonState extends State<EnhanceButton>
                   color: canTap ? fc.amberGlow : fc.borderDim,
                   width: canTap ? 1.5 : 1.0,
                 ),
-                boxShadow: canTap
-                    ? [
-                        BoxShadow(
-                          color: fc.amber.withValues(alpha: 0.45),
-                          blurRadius: 18,
-                          spreadRadius: 1,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : [],
+                boxShadow: const [],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1438,7 +1392,7 @@ class _EnhanceButtonState extends State<EnhanceButton>
                     )
                   else ...[
                     Icon(
-                      Icons.bolt_rounded,
+                      AppIcons.bolt_rounded,
                       size: 18,
                       color: canTap ? fc.bg0 : fc.textMuted,
                     ),
@@ -1503,7 +1457,7 @@ class NoResultsFound extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.search_off_rounded,
+            AppIcons.search_off_rounded,
             color: t.textSecondary.withValues(alpha: .3),
             size: 48,
           ),
@@ -1647,7 +1601,7 @@ class SpeciesRow extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: fc.textMuted, size: 16),
+            Icon(AppIcons.chevron_right_rounded, color: fc.textMuted, size: 16),
             const SizedBox(width: 8),
           ],
         ),

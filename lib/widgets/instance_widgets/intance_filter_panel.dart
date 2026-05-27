@@ -12,6 +12,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // BRACKET CHIP HELPER
@@ -168,28 +169,28 @@ class InstanceFiltersPanel extends StatelessWidget {
 
       if (!harvestMode) ...[
         _CycleChip(
-          icon: Icons.science_rounded,
+          icon: AppIcons.science_rounded,
           labelWhenAny: 'VARIANT',
           valueText: variantValueText?.toUpperCase(),
           onTap: onCycleVariant,
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
-          icon: Icons.straighten_rounded,
+          icon: AppIcons.straighten_rounded,
           labelWhenAny: 'SIZE',
           valueText: sizeValueText?.toUpperCase(),
           onTap: onCycleSize,
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
-          icon: Icons.palette_outlined,
+          icon: AppIcons.palette_outlined,
           labelWhenAny: 'TINT',
           valueText: tintValueText?.toUpperCase(),
           onTap: onCycleTint,
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
-          icon: Icons.verified_rounded,
+          icon: AppIcons.verified_rounded,
           labelWhenAny: 'PURITY',
           valueText: purityFilter.chipValueText,
           onTap: onCyclePurity,
@@ -197,14 +198,14 @@ class InstanceFiltersPanel extends StatelessWidget {
         ),
       ] else ...[
         _CycleChip(
-          icon: Icons.straighten_rounded,
+          icon: AppIcons.straighten_rounded,
           labelWhenAny: 'SIZE',
           valueText: sizeValueText?.toUpperCase(),
           onTap: onCycleSize,
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
-          icon: Icons.verified_rounded,
+          icon: AppIcons.verified_rounded,
           labelWhenAny: 'PURITY',
           valueText: purityFilter.chipValueText,
           onTap: onCyclePurity,
@@ -213,7 +214,7 @@ class InstanceFiltersPanel extends StatelessWidget {
       ],
 
       _PickerChip(
-        icon: Icons.psychology_rounded,
+        icon: AppIcons.psychology_rounded,
         label: 'NATURE',
         value: filterNature != null
             ? (natureOptions[filterNature] ?? filterNature!)
@@ -236,7 +237,7 @@ class InstanceFiltersPanel extends StatelessWidget {
       ),
 
       _ToggleChip(
-        icon: Icons.auto_awesome_rounded,
+        icon: AppIcons.auto_awesome_rounded,
         label: 'PRISMATIC',
         active: filterPrismatic,
         activeColor: const Color(0xFFE879F9), // purple for prismatic
@@ -246,7 +247,7 @@ class InstanceFiltersPanel extends StatelessWidget {
 
       if (onToggleFavorites != null)
         _ToggleChip(
-          icon: Icons.star_rounded,
+          icon: AppIcons.star_rounded,
           label: 'FAVORITES',
           active: filterFavorites,
           activeColor: const Color(0xFFE91E8C),
@@ -367,14 +368,14 @@ class _StatCycleChip extends StatelessWidget {
 
   (IconData, String, Color?) _info() {
     final isStat = currentStat.isStatSort;
-    if (!isStat) return (Icons.bar_chart_rounded, 'STAT', null);
+    if (!isStat) return (AppIcons.bar_chart_rounded, 'STAT', null);
     final label = '${currentStat.shortLabel} ↓';
     return switch (currentStat.statFamily) {
-      'speed' => (Icons.speed, label, const Color(0xFFFDE047)),
-      'intelligence' => (Icons.psychology, label, const Color(0xFFC084FC)),
-      'strength' => (Icons.fitness_center, label, const Color(0xFFF87171)),
-      'beauty' => (Icons.favorite, label, const Color(0xFFF9A8D4)),
-      _ => (Icons.bar_chart_rounded, 'STAT', null),
+      'speed' => (AppIcons.speed, label, const Color(0xFFFDE047)),
+      'intelligence' => (AppIcons.psychology, label, const Color(0xFFC084FC)),
+      'strength' => (AppIcons.fitness_center, label, const Color(0xFFF87171)),
+      'beauty' => (AppIcons.favorite, label, const Color(0xFFF9A8D4)),
+      _ => (AppIcons.bar_chart_rounded, 'STAT', null),
     };
   }
 
@@ -397,7 +398,7 @@ class _StatCycleChip extends StatelessWidget {
       leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
       trailing: (hasPotentialAnalyzer && isStat && currentStat.isPotentialSort)
-          ? Icon(Icons.auto_graph_rounded, size: 11, color: iconColor)
+          ? Icon(AppIcons.auto_graph_rounded, size: 11, color: iconColor)
           : null,
     );
   }
@@ -494,7 +495,7 @@ class _PickerChip extends StatelessWidget {
       leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
       trailing: Icon(
-        Icons.keyboard_arrow_down_rounded,
+        AppIcons.keyboard_arrow_down_rounded,
         size: 12,
         color: iconColor,
       ),
@@ -514,7 +515,7 @@ class _ClearChip extends StatelessWidget {
       active: true,
       activeColor: t.danger,
       onTap: onTap,
-      leading: Icon(Icons.close_rounded, size: 11, color: t.danger),
+      leading: Icon(AppIcons.close_rounded, size: 11, color: t.danger),
     );
   }
 }
@@ -614,7 +615,7 @@ Future<String?> pickFromList(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                Icons.close_rounded,
+                                AppIcons.close_rounded,
                                 color: t.danger.withValues(alpha: 0.8),
                                 size: 14,
                               ),
@@ -676,7 +677,7 @@ Future<String?> pickFromList(
                           ),
                           if (isSelected)
                             Icon(
-                              Icons.check_rounded,
+                              AppIcons.check_rounded,
                               color: t.amberBright,
                               size: 16,
                             ),

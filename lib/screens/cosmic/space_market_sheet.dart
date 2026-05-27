@@ -16,10 +16,12 @@ import 'package:alchemons/screens/shop/shop_widgets.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ITEM DEFINITIONS
@@ -54,7 +56,7 @@ const _harvesterItems = <_MarketItem>[
     id: 'market.harvest.volcanic',
     name: 'Wild Harvester – Volcanic',
     description: 'Standard capture device for volcanic creatures.',
-    icon: Icons.local_fire_department_rounded,
+    icon: AppIcons.local_fire_department_rounded,
     iconColor: Color(0xFFFF5722),
     assetName: 'assets/images/ui/volcanicharvester.png',
     inventoryKey: 'item.harvest_std_volcanic',
@@ -65,7 +67,7 @@ const _harvesterItems = <_MarketItem>[
     id: 'market.harvest.oceanic',
     name: 'Wild Harvester – Oceanic',
     description: 'Standard capture device for oceanic creatures.',
-    icon: Icons.water_rounded,
+    icon: AppIcons.water_rounded,
     iconColor: Color(0xFF64B5F6),
     assetName: 'assets/images/ui/oceanicharvester.png',
     inventoryKey: 'item.harvest_std_oceanic',
@@ -76,7 +78,7 @@ const _harvesterItems = <_MarketItem>[
     id: 'market.harvest.verdant',
     name: 'Wild Harvester – Verdant',
     description: 'Standard capture device for verdant creatures.',
-    icon: Icons.eco_rounded,
+    icon: AppIcons.eco_rounded,
     iconColor: Color(0xFF66BB6A),
     assetName: 'assets/images/ui/verdantharvester.png',
     inventoryKey: 'item.harvest_std_verdant',
@@ -87,7 +89,7 @@ const _harvesterItems = <_MarketItem>[
     id: 'market.harvest.earthen',
     name: 'Wild Harvester – Earthen',
     description: 'Standard capture device for earthen creatures.',
-    icon: Icons.terrain_rounded,
+    icon: AppIcons.terrain_rounded,
     iconColor: Color(0xFF8D6E63),
     assetName: 'assets/images/ui/earthenharvester.png',
     inventoryKey: 'item.harvest_std_earthen',
@@ -98,7 +100,7 @@ const _harvesterItems = <_MarketItem>[
     id: 'market.harvest.arcane',
     name: 'Wild Harvester – Arcane',
     description: 'Standard capture device for arcane creatures.',
-    icon: Icons.auto_awesome_rounded,
+    icon: AppIcons.auto_awesome_rounded,
     iconColor: Color(0xFFCE93D8),
     assetName: 'assets/images/ui/arcaneharvester.png',
     inventoryKey: 'item.harvest_std_arcane',
@@ -109,7 +111,7 @@ const _harvesterItems = <_MarketItem>[
     id: 'market.harvest.stabilized',
     name: 'Stabilized Harvester',
     description: 'Guaranteed capture — never fails.',
-    icon: Icons.shield_rounded,
+    icon: AppIcons.shield_rounded,
     iconColor: Color(0xFFFFD700),
     assetName: 'assets/images/ui/universalharvest.png',
     inventoryKey: 'item.harvest_guaranteed',
@@ -123,7 +125,7 @@ const _riftKeyItems = <_MarketItem>[
     id: 'market.key.volcanic',
     name: 'Volcanic Portal Key',
     description: 'Grants entry into a Volcanic Rift. Consumed on entry.',
-    icon: Icons.vpn_key_rounded,
+    icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFFFF5722),
     assetName: 'assets/images/ui/volcanickey.png',
     inventoryKey: 'item.portal_key.volcanic',
@@ -134,7 +136,7 @@ const _riftKeyItems = <_MarketItem>[
     id: 'market.key.oceanic',
     name: 'Oceanic Portal Key',
     description: 'Grants entry into an Oceanic Rift. Consumed on entry.',
-    icon: Icons.vpn_key_rounded,
+    icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF64B5F6),
     assetName: 'assets/images/ui/oceanickey.png',
     inventoryKey: 'item.portal_key.oceanic',
@@ -145,7 +147,7 @@ const _riftKeyItems = <_MarketItem>[
     id: 'market.key.verdant',
     name: 'Verdant Portal Key',
     description: 'Grants entry into a Verdant Rift. Consumed on entry.',
-    icon: Icons.vpn_key_rounded,
+    icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF66BB6A),
     assetName: 'assets/images/ui/verdantkey.png',
     inventoryKey: 'item.portal_key.verdant',
@@ -156,7 +158,7 @@ const _riftKeyItems = <_MarketItem>[
     id: 'market.key.earthen',
     name: 'Earthen Portal Key',
     description: 'Grants entry into an Earthen Rift. Consumed on entry.',
-    icon: Icons.vpn_key_rounded,
+    icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF8D6E63),
     assetName: 'assets/images/ui/earthenkey.png',
     inventoryKey: 'item.portal_key.earthen',
@@ -167,7 +169,7 @@ const _riftKeyItems = <_MarketItem>[
     id: 'market.key.arcane',
     name: 'Arcane Portal Key',
     description: 'Grants entry into an Arcane Rift. Consumed on entry.',
-    icon: Icons.vpn_key_rounded,
+    icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFFCE93D8),
     assetName: 'assets/images/ui/arcanekey.png',
     inventoryKey: 'item.portal_key.arcane',
@@ -286,11 +288,17 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
 
   IconData _iconForCost(String type) {
     return switch (type) {
-      'gold' => Icons.hexagon_rounded,
-      'silver' => Icons.monetization_on_rounded,
+      'gold' => AppIcons.hexagon_rounded,
+      'silver' => AppIcons.monetization_on_rounded,
       'shards' => CosmicScreenStyles.astralShardIcon,
-      _ => Icons.hexagon_rounded,
+      _ => AppIcons.hexagon_rounded,
     };
+  }
+
+  Widget _leadingForCost(String type, double size, Color color) {
+    final coin = CoinKind.tryFromToken(type);
+    if (coin != null) return CoinIcon(kind: coin, size: size);
+    return Icon(_iconForCost(type), size: size, color: color);
   }
 
   Color _colorForCost(String type, ForgeTokens t) {
@@ -332,10 +340,10 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
                     children: [
-                      Icon(
-                        _iconForCost(entry.key),
-                        size: 16,
-                        color: _colorForCost(entry.key, t),
+                      _leadingForCost(
+                        entry.key,
+                        16,
+                        _colorForCost(entry.key, t),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -386,8 +394,8 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
             children: [
               Icon(
                 success
-                    ? Icons.check_circle_rounded
-                    : Icons.warning_amber_rounded,
+                    ? AppIcons.check_circle_rounded
+                    : AppIcons.warning_amber_rounded,
                 size: 16,
                 color: tone,
               ),
@@ -559,13 +567,13 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     CurrencyPill(
-                      icon: Icons.hexagon_rounded,
+                      coin: CoinKind.gold,
                       color: const Color(0xFFFFD700),
                       amount: c['gold'] ?? 0,
                     ),
                     Container(width: 1, height: 16, color: t.borderDim),
                     CurrencyPill(
-                      icon: Icons.monetization_on_rounded,
+                      coin: CoinKind.silver,
                       color: t.textSecondary,
                       amount: c['silver'] ?? 0,
                     ),
@@ -715,7 +723,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                               Row(
                                 children: [
                                   Icon(
-                                    Icons.check_circle_rounded,
+                                    AppIcons.check_circle_rounded,
                                     size: 12,
                                     color: const Color(0xFF4CAF50),
                                   ),
@@ -738,8 +746,8 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                 children: [
                                   Icon(
                                     _hasElementDiscount(item)
-                                        ? Icons.check_circle_rounded
-                                        : Icons.info_outline_rounded,
+                                        ? AppIcons.check_circle_rounded
+                                        : AppIcons.info_outline_rounded,
                                     size: 12,
                                     color: _hasElementDiscount(item)
                                         ? const Color(0xFF4CAF50)
@@ -793,10 +801,10 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                     ),
                                   ),
                                 if (discounted) const SizedBox(width: 4),
-                                Icon(
-                                  _iconForCost(cType),
-                                  size: 14,
-                                  color: _colorForCost(cType, t),
+                                _leadingForCost(
+                                  cType,
+                                  14,
+                                  _colorForCost(cType, t),
                                 ),
                                 const SizedBox(width: 2),
                                 Text(

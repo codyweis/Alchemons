@@ -8,6 +8,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 
 import 'package:alchemons/models/wilderness.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // Encounter sheets sit on dark scene/space backdrops — always dark.
 const _palette = BracketPalette.dark;
@@ -136,7 +137,7 @@ class EncounterScaffold extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(4),
                 child: Icon(
-                  Icons.keyboard_arrow_down_rounded,
+                  AppIcons.keyboard_arrow_down_rounded,
                   color: _palette.muted,
                   size: 22,
                 ),
@@ -160,7 +161,7 @@ class EncounterScaffold extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.favorite_rounded, size: 14, color: _breedAccent),
+          const Icon(AppIcons.favorite_rounded, size: 14, color: _breedAccent),
           const SizedBox(width: 7),
           Text(
             chanceText,
@@ -234,7 +235,7 @@ class EncounterScaffold extends StatelessWidget {
       children: [
         _EncounterButton(
           label: 'Try to breed',
-          icon: Icons.favorite_rounded,
+          icon: AppIcons.favorite_rounded,
           color: _breedAccent,
           filled: true,
           large: true,
@@ -243,7 +244,7 @@ class EncounterScaffold extends StatelessWidget {
         const SizedBox(height: 10),
         _EncounterButton(
           label: 'Run',
-          icon: Icons.run_circle_rounded,
+          icon: AppIcons.run_circle_rounded,
           color: _runColor,
           filled: false,
           large: false,

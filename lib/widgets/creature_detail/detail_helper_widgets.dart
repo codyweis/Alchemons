@@ -3,6 +3,7 @@ import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class StaminaInlineRow extends StatelessWidget {
   // ignore: unused_field
@@ -147,17 +148,17 @@ class StatBarRow extends StatelessWidget {
 IconData categoryIcon(String category) {
   switch (category) {
     case 'familyLineage':
-      return Icons.family_restroom;
+      return AppIcons.family_restroom;
     case 'elementalType':
-      return Icons.whatshot;
+      return AppIcons.whatshot;
     case 'genetics':
-      return Icons.biotech;
+      return AppIcons.biotech;
     case 'nature':
-      return Icons.psychology;
+      return AppIcons.psychology;
     case 'special':
-      return Icons.star;
+      return AppIcons.star;
     default:
-      return Icons.info;
+      return AppIcons.info;
   }
 }
 

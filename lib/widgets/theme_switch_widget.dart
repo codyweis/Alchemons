@@ -1,6 +1,7 @@
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class ThemeModeSelector extends StatelessWidget {
   const ThemeModeSelector({super.key});
@@ -20,13 +21,13 @@ class ThemeModeSelector extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _AlchemyThemeButton(
-            icon: Icons.wb_sunny_outlined,
+            icon: AppIcons.wb_sunny_outlined,
             isSelected: current == ThemeMode.light,
             onTap: () => themeNotifier.setThemeMode(ThemeMode.light),
           ),
           const SizedBox(width: 4),
           _AlchemyThemeButton(
-            icon: Icons.nightlight_outlined,
+            icon: AppIcons.nightlight_outlined,
             isSelected: current == ThemeMode.dark,
             onTap: () => themeNotifier.setThemeMode(ThemeMode.dark),
           ),

@@ -1,5 +1,6 @@
 import 'package:alchemons/models/creature.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 double scaleFromGenes(Genetics? g) {
   switch (g?.get('size')) {
@@ -79,20 +80,20 @@ const Map<String, String> tintLabels = {
 };
 
 const Map<String, IconData> sizeIcons = {
-  'tiny': Icons.radio_button_unchecked,
-  'small': Icons.circle_outlined,
-  'normal': Icons.circle,
-  'large': Icons.adjust,
-  'giant': Icons.circle_rounded,
+  'tiny': AppIcons.radio_button_unchecked,
+  'small': AppIcons.circle_outlined,
+  'normal': AppIcons.circle,
+  'large': AppIcons.adjust,
+  'giant': AppIcons.circle_rounded,
 };
 
 const Map<String, IconData> tintIcons = {
-  'normal': Icons.palette_outlined,
-  'warm': Icons.thermostat_rounded,
-  'cool': Icons.ac_unit_outlined,
-  'vibrant': Icons.auto_awesome,
-  'pale': Icons.blur_on,
-  'albino': Icons.brightness_high_outlined,
+  'normal': AppIcons.palette_outlined,
+  'warm': AppIcons.thermostat_rounded,
+  'cool': AppIcons.ac_unit_outlined,
+  'vibrant': AppIcons.auto_awesome,
+  'pale': AppIcons.blur_on,
+  'albino': AppIcons.brightness_high_outlined,
 };
 
 String getStatDescriptor(double value, String statType) {

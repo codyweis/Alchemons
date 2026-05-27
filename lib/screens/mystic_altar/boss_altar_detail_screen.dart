@@ -16,10 +16,13 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/app_font_family.dart';
+import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKENS
@@ -29,7 +32,6 @@ class _C {
   static const bg = Color(0xFF060912);
   static const surface = Color(0xFF111320);
   static const border = Color(0xFF252840);
-  static const text = Color(0xFFE8E0FF);
   static const muted = Color(0xFF4A3F6B);
   static const sub = Color(0xFF8C7BB5);
   static const gold = Color(0xFFF59E0B);
@@ -124,6 +126,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     with TickerProviderStateMixin {
   // ── ambient pulse ─────────────────────────────────────────────────────────
   late final AnimationController _pulse;
+  late final AnimationController _ritualCtrl;
 
   // ── carousel spin ─────────────────────────────────────────────────────────
   double _wheelOffset = 0.0;
@@ -138,8 +141,10 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
   Creature? _mystic;
   List<_WitnessRequirement> _bloodWitnesses = const [];
   bool _hasKey = false;
+  bool _relicPlaced = false;
   bool _loading = true;
   bool _summoning = false;
+  bool _showRitualAnimation = false;
   bool _storyCheckStarted = false;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -151,6 +156,10 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       vsync: this,
       duration: const Duration(milliseconds: 2200),
     )..repeat(reverse: true);
+    _ritualCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    );
 
     _snapCtrl = AnimationController(
       vsync: this,
@@ -167,6 +176,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
   @override
   void dispose() {
     _pulse.dispose();
+    _ritualCtrl.dispose();
     _snapCtrl.dispose();
     super.dispose();
   }
@@ -180,6 +190,9 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
     final traitKey = BossLootKeys.traitKeyForElement(widget.boss.element);
     final qty = await db.inventoryDao.getItemQty(traitKey);
+    final relicPlaced = (await db.altarDao.getRelicPlacedIds([
+      widget.boss.id,
+    ])).contains(widget.boss.id);
     final placements = await db.altarDao.getPlacementsForBoss(widget.boss.id);
     final mystic = catalog.mysticByElement(widget.boss.element);
     final species = catalog
@@ -216,7 +229,8 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
     if (mounted) {
       setState(() {
-        _hasKey = qty > 0;
+        _hasKey = relicPlaced || qty > 0;
+        _relicPlaced = relicPlaced;
         _mystic = mystic;
         _species = species;
         _bloodWitnesses = bloodWitnesses;
@@ -238,7 +252,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       await LandscapeDialog.show(
         context,
         title: 'A Relic Is Not A Trophy',
-        icon: Icons.album_outlined,
+        icon: AppIcons.album_outlined,
         typewriter: true,
         message:
             'It is what remains when form fails. Not the creature, not its beauty, but the instruction that endured beneath both.\n\n'
@@ -260,7 +274,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     await LandscapeDialog.show(
       context,
       title: 'Not A Return',
-      icon: Icons.auto_awesome_outlined,
+      icon: AppIcons.auto_awesome_outlined,
       typewriter: true,
       message:
           'A relic does not bring something back. It gives the surviving instruction a body again.\n\n'
@@ -297,14 +311,43 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
   void _snack(String msg) {
     if (!mounted) return;
+    final elColor = widget.boss.elementColor;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          msg,
-          style: TextStyle(fontFamily: appFontFamily(context), fontSize: 12),
+        content: Row(
+          children: [
+            Icon(
+              AppIcons.error_outline_rounded,
+              color: elColor.withValues(alpha: 0.95),
+              size: 17,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                msg,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: appFontFamily(context),
+                  color: _C.ivory,
+                  fontSize: 13,
+                  height: 1.35,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: _C.surface,
+        backgroundColor: const Color(0xFF0B0D14),
         behavior: SnackBarBehavior.floating,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        shape: Border(
+          left: BorderSide(color: elColor.withValues(alpha: 0.72), width: 2),
+          top: BorderSide(color: elColor.withValues(alpha: 0.28), width: 1),
+          bottom: BorderSide(color: elColor.withValues(alpha: 0.20), width: 1),
+        ),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -433,7 +476,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         context: context,
         builder: (ctx) => _GameDialog(
           elColor: widget.boss.elementColor,
-          icon: Icons.warning_amber_rounded,
+          icon: AppIcons.warning_amber_rounded,
           iconColor: _C.gold,
           title: 'COMMIT ALCHEMON?',
           body:
@@ -461,15 +504,14 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     final boss = widget.boss;
 
     try {
-      final traitKey = BossLootKeys.traitKeyForElement(boss.element);
-
       // Read placements FIRST (we need their snapshots), then clear them.
       final placements = await db.altarDao.getPlacementsForBoss(boss.id);
       final sacrificePayload = _deriveFromSacrifices(placements);
 
-      await db.inventoryDao.consumeItem(traitKey, qty: 1);
       await db.altarDao.clearPlacementsForBoss(boss.id);
-      await db.altarDao.clearRelicPlaced(boss.id);
+      if (!_relicPlaced) {
+        await db.altarDao.setRelicPlaced(boss.id);
+      }
 
       final mystic = catalog.mysticByElement(boss.element);
       final fallback = catalog.byType(boss.element).firstOrNull;
@@ -511,6 +553,9 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       );
 
       if (!mounted) return;
+      await _playRitualAnimation();
+      if (!mounted) return;
+      setState(() => _summoning = false);
       await _showSuccess(target, boss);
     } catch (e) {
       debugPrint('Summon error: $e');
@@ -518,6 +563,20 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     } finally {
       if (mounted) setState(() => _summoning = false);
     }
+  }
+
+  Future<void> _playRitualAnimation() async {
+    if (!mounted) return;
+    setState(() => _showRitualAnimation = true);
+    _ritualCtrl
+      ..stop()
+      ..value = 0;
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
+    HapticFeedback.heavyImpact();
+    await _ritualCtrl.forward();
+    if (!mounted) return;
+    setState(() => _showRitualAnimation = false);
   }
 
   /// Parses placement snapshots and returns the dominant nature + averaged
@@ -615,7 +674,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
           iconColor: widget.boss.elementColor,
           title: 'PERFORM RITUAL?',
           body:
-              'Summoning ${widget.boss.name} will consume your ${_traitName()} and all committed Alchemons. A Mystic Vial will be placed in your Chamber.',
+              'Summoning ${widget.boss.name} will consume the committed Alchemons. The ${_traitName()} remains bound to the altar. A Mystic Vial will be placed in your Chamber.',
           cancelLabel: 'CANCEL',
           confirmLabel: 'SUMMON',
           onCancel: () => Navigator.pop(ctx, false),
@@ -634,7 +693,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         await LandscapeDialog.show(
           context,
           title: 'Carry It Outward',
-          icon: Icons.public_rounded,
+          icon: AppIcons.public_rounded,
           typewriter: true,
           message:
               'Do not keep it here.\n\nThe stars are not above this world. They are part of the seal. Bring the blood mystic outward, where the last offering can be witnessed.',
@@ -751,6 +810,16 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
                     ],
                   ),
           ),
+          if (_showRitualAnimation)
+            Positioned.fill(
+              child: _RitualSacrificeOverlay(
+                animation: _ritualCtrl,
+                boss: boss,
+                mystic: _mystic,
+                species: _species,
+                placed: _placed,
+              ),
+            ),
         ],
       ),
     );
@@ -1095,7 +1164,7 @@ class _SlotNodeState extends State<_SlotNode>
                     'assets/images/${widget.species.image}',
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => Icon(
-                      Icons.auto_awesome,
+                      AppIcons.auto_awesome,
                       color: widget.elColor,
                       size: widget.size * 0.42,
                     ),
@@ -1116,7 +1185,7 @@ class _SlotNodeState extends State<_SlotNode>
                         'assets/images/${widget.species.image}',
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => Icon(
-                          Icons.auto_awesome,
+                          AppIcons.auto_awesome,
                           color: widget.elColor.withValues(alpha: 0.35),
                           size: widget.size * 0.42,
                         ),
@@ -1140,7 +1209,7 @@ class _SlotNodeState extends State<_SlotNode>
                 border: Border.all(color: _C.bg, width: 1.5),
               ),
               child: Icon(
-                Icons.check_rounded,
+                AppIcons.check_rounded,
                 color: Colors.white,
                 size: widget.size * 0.14,
               ),
@@ -1161,7 +1230,7 @@ class _SlotNodeState extends State<_SlotNode>
                 border: Border.all(color: _C.bg, width: 1.5),
               ),
               child: Icon(
-                Icons.add_rounded,
+                AppIcons.add_rounded,
                 color: Colors.white,
                 size: widget.size * 0.15,
               ),
@@ -1214,6 +1283,10 @@ class _CenterMystic extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final elColor = boss.elementColor;
+    final sheet = mystic?.spriteData != null
+        ? sheetFromCreature(mystic!)
+        : null;
+
     return SizedBox(
       width: size,
       height: size,
@@ -1246,14 +1319,23 @@ class _CenterMystic extends StatelessWidget {
               ),
             ),
             clipBehavior: Clip.antiAlias,
-            child: mystic != null
-                ? Image.asset(
-                    'assets/images/${mystic!.image}',
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Icon(
-                      boss.elementIcon,
-                      color: elColor,
-                      size: size * 0.48,
+            child: sheet != null
+                ? Center(
+                    child: SizedBox.square(
+                      dimension: size * 0.90,
+                      child: FittedBox(
+                        fit: BoxFit.contain,
+                        child: SizedBox.square(
+                          dimension: 69,
+                          child: CreatureSprite(
+                            spritePath: sheet.path,
+                            totalFrames: sheet.totalFrames,
+                            rows: sheet.rows,
+                            frameSize: sheet.frameSize,
+                            stepTime: sheet.stepTime,
+                          ),
+                        ),
+                      ),
                     ),
                   )
                 : Icon(boss.elementIcon, color: elColor, size: size * 0.48),
@@ -1275,6 +1357,413 @@ class _CenterMystic extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RITUAL SACRIFICE OVERLAY
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RitualSacrificeOverlay extends StatelessWidget {
+  const _RitualSacrificeOverlay({
+    required this.animation,
+    required this.boss,
+    required this.mystic,
+    required this.species,
+    required this.placed,
+  });
+
+  final Animation<double> animation;
+  final Boss boss;
+  final Creature? mystic;
+  final List<Creature> species;
+  final Map<String, String?> placed;
+
+  @override
+  Widget build(BuildContext context) {
+    final offerings = species.where((s) => placed[s.id] != null).toList();
+    final elColor = boss.elementColor;
+
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (_, __) {
+          final t = Curves.easeInOutCubic.transform(animation.value);
+          final collapse = _ritualInterval(animation.value, 0.24, 0.74);
+          final vanish = _ritualInterval(animation.value, 0.50, 0.86);
+          final flash = _ritualInterval(animation.value, 0.70, 0.92);
+
+          return LayoutBuilder(
+            builder: (_, box) {
+              final w = box.maxWidth;
+              final h = box.maxHeight;
+              final cx = w / 2;
+              final cy = h * 0.48;
+              final rx = w * (0.38 - collapse * 0.30);
+              final ry = h * (0.20 - collapse * 0.17);
+              final spin = animation.value * math.pi * 7.5;
+              final n = math.max(offerings.length, 1);
+
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.54 + t * 0.42),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _RitualSacrificePainter(
+                        progress: animation.value,
+                        color: elColor,
+                      ),
+                    ),
+                  ),
+                  for (var i = 0; i < offerings.length; i++)
+                    _OfferingRitualSprite(
+                      species: offerings[i],
+                      left:
+                          cx + rx * math.sin((i / n) * math.pi * 2 + spin) - 34,
+                      top:
+                          cy + ry * math.cos((i / n) * math.pi * 2 + spin) - 34,
+                      size: 68,
+                      opacity: (1 - vanish).clamp(0.0, 1.0),
+                      scale:
+                          1.0 +
+                          math.sin(animation.value * math.pi * 18) * 0.07 -
+                          collapse * 0.34,
+                      color: elColor,
+                    ),
+                  Positioned(
+                    left: cx - 48 - flash * 16,
+                    top: cy - 48 - flash * 16,
+                    child: Transform.scale(
+                      scale: 1.0 + flash * 0.55,
+                      child: Opacity(
+                        opacity: (0.35 + flash * 0.65).clamp(0.0, 1.0),
+                        child: _RitualMysticCore(
+                          mystic: mystic,
+                          boss: boss,
+                          size: 96,
+                          progress: animation.value,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OfferingRitualSprite extends StatelessWidget {
+  const _OfferingRitualSprite({
+    required this.species,
+    required this.left,
+    required this.top,
+    required this.size,
+    required this.opacity,
+    required this.scale,
+    required this.color,
+  });
+
+  final Creature species;
+  final double left;
+  final double top;
+  final double size;
+  final double opacity;
+  final double scale;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: left,
+      top: top,
+      child: Opacity(
+        opacity: opacity,
+        child: Transform.scale(
+          scale: scale.clamp(0.2, 1.35),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF1A0507).withValues(alpha: 0.74),
+              border: Border.all(
+                color: color.withValues(alpha: 0.78),
+                width: 1.4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF8A0F16).withValues(alpha: 0.28),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                const Color(0xFFB91C1C).withValues(alpha: 0.30),
+                BlendMode.srcATop,
+              ),
+              child: Image.asset(
+                'assets/images/${species.image}',
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) =>
+                    Icon(AppIcons.auto_awesome, color: color, size: size * 0.42),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RitualMysticCore extends StatelessWidget {
+  const _RitualMysticCore({
+    required this.mystic,
+    required this.boss,
+    required this.size,
+    required this.progress,
+  });
+
+  final Creature? mystic;
+  final Boss boss;
+  final double size;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final sheet = mystic?.spriteData != null
+        ? sheetFromCreature(mystic!)
+        : null;
+    final color = boss.elementColor;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF05020A).withValues(alpha: 0.84),
+        border: Border.all(
+          color: color.withValues(alpha: 0.62 + progress * 0.30),
+          width: 1.4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.36 + progress * 0.24),
+            blurRadius: 34,
+            spreadRadius: 5,
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: sheet != null
+          ? FittedBox(
+              fit: BoxFit.contain,
+              child: SizedBox.square(
+                dimension: 69,
+                child: CreatureSprite(
+                  spritePath: sheet.path,
+                  totalFrames: sheet.totalFrames,
+                  rows: sheet.rows,
+                  frameSize: sheet.frameSize,
+                  stepTime: sheet.stepTime,
+                ),
+              ),
+            )
+          : Icon(boss.elementIcon, color: color, size: size * 0.46),
+    );
+  }
+}
+
+class _RitualSacrificePainter extends CustomPainter {
+  const _RitualSacrificePainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * 0.48);
+    final spin = progress * math.pi * 7.5;
+    final crack = _ritualInterval(progress, 0.02, 0.24);
+    final collapse = _ritualInterval(progress, 0.24, 0.74);
+    final burst = _ritualInterval(progress, 0.48, 0.80);
+    final fade = 1 - _ritualInterval(progress, 0.82, 1.0);
+    final stream = _ritualInterval(progress, 0.32, 0.98);
+    final radius = size.shortestSide * (0.33 - collapse * 0.24);
+
+    _paintAltarCracks(canvas, center, size, crack, spin);
+    _paintRisingWisps(canvas, size, stream, fade);
+
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    for (var i = 0; i < 4; i++) {
+      final r = radius + i * 18 + math.sin(progress * math.pi * 6 + i) * 4;
+      ringPaint
+        ..color = Color.lerp(
+          color,
+          const Color(0xFF8A0F16),
+          0.55,
+        )!.withValues(alpha: (0.22 + i * 0.06) * fade)
+        ..strokeWidth = 1.2 + i * 0.4;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: r.clamp(22.0, 260.0)),
+        spin + i * math.pi / 2,
+        math.pi * (0.95 + collapse * 0.8),
+        false,
+        ringPaint,
+      );
+    }
+
+    final beamPaint = Paint()
+      ..color = const Color(0xFFB91C1C).withValues(alpha: 0.16 * burst * fade)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    for (var i = 0; i < 10; i++) {
+      final a = spin + i * math.pi * 2 / 10;
+      canvas.drawLine(
+        center,
+        center + Offset(math.cos(a), math.sin(a)) * (radius + burst * 120),
+        beamPaint,
+      );
+    }
+
+    final splatterPaint = Paint()..style = PaintingStyle.fill;
+    for (var i = 0; i < 42; i++) {
+      final seed = i * 12.9898;
+      final a = seed % (math.pi * 2) + spin * 0.18;
+      final d =
+          (24 + (i * 37 % 150).toDouble()) *
+          Curves.easeOutCubic.transform(burst);
+      final wobble = Offset(
+        math.sin(seed * 1.7) * 18,
+        math.cos(seed * 2.1) * 14,
+      );
+      final p = center + Offset(math.cos(a), math.sin(a)) * d + wobble;
+      final dot = 2.0 + (i % 5) * 1.3;
+      splatterPaint.color = Color.lerp(
+        const Color(0xFF5D0710),
+        const Color(0xFFE11D48),
+        (i % 7) / 7,
+      )!.withValues(alpha: (0.18 + (i % 4) * 0.06) * burst * fade);
+      canvas.drawCircle(p, dot * (0.6 + burst * 0.7), splatterPaint);
+
+      if (i % 6 == 0) {
+        final end = p + Offset(math.cos(a + 0.5), math.sin(a + 0.5)) * 16;
+        canvas.drawLine(
+          p,
+          end,
+          Paint()
+            ..color = splatterPaint.color.withValues(alpha: 0.35)
+            ..strokeWidth = 1.2
+            ..strokeCap = StrokeCap.round,
+        );
+      }
+    }
+
+    final flash = _ritualInterval(progress, 0.68, 0.90);
+    canvas.drawCircle(
+      center,
+      34 + flash * 140,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.34 * flash * fade),
+            const Color(0xFFB91C1C).withValues(alpha: 0.18 * flash * fade),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: center, radius: 180)),
+    );
+  }
+
+  void _paintAltarCracks(
+    Canvas canvas,
+    Offset center,
+    Size size,
+    double crack,
+    double spin,
+  ) {
+    if (crack <= 0) return;
+    final paint = Paint()
+      ..color = const Color(0xFF8A0F16).withValues(alpha: 0.34 * crack)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+
+    for (var i = 0; i < 14; i++) {
+      final angle = spin * 0.08 + i * math.pi * 2 / 14;
+      final start = center + Offset(math.cos(angle), math.sin(angle)) * 34;
+      final length = (54 + (i % 5) * 24) * crack;
+      final path = Path()..moveTo(start.dx, start.dy);
+      var current = start;
+      for (var j = 0; j < 4; j++) {
+        final kink =
+            angle +
+            math.sin(i * 1.7 + j * 2.1) * 0.34 +
+            (j.isEven ? 0.18 : -0.12);
+        current +=
+            Offset(math.cos(kink), math.sin(kink)) *
+            (length / 4) *
+            (0.70 + j * 0.16);
+        path.lineTo(current.dx, current.dy);
+      }
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  void _paintRisingWisps(Canvas canvas, Size size, double stream, double fade) {
+    if (stream <= 0) return;
+    final paint = Paint()..style = PaintingStyle.stroke;
+    final blood = const Color(0xFF8A0F16);
+    final ember = Color.lerp(color, const Color(0xFFE8DFC8), 0.22) ?? color;
+
+    for (var i = 0; i < 24; i++) {
+      final lane = (i + 0.5) / 24;
+      final xBase = size.width * lane;
+      final rise = size.height * (0.12 + stream * (0.58 + (i % 5) * 0.045));
+      final yBase = size.height * (0.78 - stream * 0.34) + (i % 4) * 18;
+      final path = Path()..moveTo(xBase, yBase);
+
+      for (var j = 1; j <= 5; j++) {
+        final p = j / 5;
+        final wave =
+            math.sin(progress * math.pi * 5 + i * 0.81 + j * 0.9) *
+            (18 + (i % 4) * 4);
+        path.lineTo(xBase + wave * p, yBase - rise * p);
+      }
+
+      paint
+        ..color = Color.lerp(
+          blood,
+          ember,
+          (i % 6) / 6,
+        )!.withValues(alpha: (0.06 + (i % 4) * 0.025) * stream * fade)
+        ..strokeWidth = 0.8 + (i % 3) * 0.45;
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RitualSacrificePainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color;
+}
+
+double _ritualInterval(double value, double begin, double end) {
+  if (value <= begin) return 0;
+  if (value >= end) return 1;
+  return Curves.easeInOutCubic.transform((value - begin) / (end - begin));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1430,7 +1919,7 @@ class _BottomBar extends StatelessWidget {
               Row(
                 children: [
                   // Prev
-                  _NavBtn(icon: Icons.chevron_left_rounded, onTap: onPrev),
+                  _NavBtn(icon: AppIcons.chevron_left_rounded, onTap: onPrev),
                   const SizedBox(width: 8),
                   // Place / filled button
                   Expanded(
@@ -1441,8 +1930,8 @@ class _BottomBar extends StatelessWidget {
                             ? '$selectedName placed'
                             : 'Place $selectedName',
                         icon: selectedFilled
-                            ? Icons.check_circle_outline_rounded
-                            : Icons.add_circle_outline_rounded,
+                            ? AppIcons.check_circle_outline_rounded
+                            : AppIcons.add_circle_outline_rounded,
                         color: selectedFilled ? _C.success : elColor,
                         enabled: !selectedFilled,
                       ),
@@ -1450,7 +1939,7 @@ class _BottomBar extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   // Next
-                  _NavBtn(icon: Icons.chevron_right_rounded, onTap: onNext),
+                  _NavBtn(icon: AppIcons.chevron_right_rounded, onTap: onNext),
                 ],
               ),
               const SizedBox(height: 10),
@@ -1485,49 +1974,56 @@ class _BottomBar extends StatelessWidget {
                         onSummon();
                       }
                     : null,
-                child: CustomPaint(
-                  painter: _CornerBracketPainter(
-                    color: (canSummon ? _C.ivory : _C.ivoryMuted).withValues(
-                      alpha: canSummon ? 0.7 : 0.35,
+                child: Transform.scale(
+                  scale: canSummon ? 1.0 + pulse.value * 0.018 : 1.0,
+                  child: CustomPaint(
+                    painter: _CornerBracketPainter(
+                      color: (canSummon ? elColor : _C.ivoryMuted).withValues(
+                        alpha: canSummon ? 0.62 + pulse.value * 0.28 : 0.35,
+                      ),
+                      bracketSize: 12,
+                      strokeWidth: canSummon ? 1.2 : 1.1,
                     ),
-                    bracketSize: 12,
-                    strokeWidth: 1.1,
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    color: Colors.white.withValues(alpha: 0.03),
-                    child: Center(
-                      child: summoning
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: _C.ivory,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  canSummon
-                                      ? Icons.auto_awesome
-                                      : Icons.lock_outline_rounded,
-                                  color: canSummon ? elColor : _C.ivoryMuted,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Perform ritual',
-                                  style: _display(
-                                    context,
-                                    14,
-                                    canSummon ? _C.ivory : _C.ivoryMuted,
-                                    letterSpacing: 0.9,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: canSummon
+                            ? elColor.withValues(
+                                alpha: 0.055 + pulse.value * 0.045,
+                              )
+                            : Colors.white.withValues(alpha: 0.03),
+                        boxShadow: canSummon
+                            ? [
+                                BoxShadow(
+                                  color: elColor.withValues(
+                                    alpha: 0.12 + pulse.value * 0.12,
                                   ),
+                                  blurRadius: 18 + pulse.value * 12,
+                                  spreadRadius: 1 + pulse.value * 2,
                                 ),
-                              ],
-                            ),
+                              ]
+                            : null,
+                      ),
+                      child: Center(
+                        child: summoning
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: _C.ivory,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                'Perform ritual',
+                                style: _display(
+                                  context,
+                                  14,
+                                  canSummon ? _C.ivory : _C.ivoryMuted,
+                                  letterSpacing: 0.9,
+                                ),
+                              ),
+                      ),
                     ),
                   ),
                 ),
@@ -1607,8 +2103,8 @@ class _WitnessChip extends StatelessWidget {
         children: [
           Icon(
             witness.completed
-                ? Icons.check_circle_rounded
-                : Icons.radio_button_unchecked_rounded,
+                ? AppIcons.check_circle_rounded
+                : AppIcons.radio_button_unchecked_rounded,
             color: witness.completed ? witness.color : _C.muted,
             size: 12,
           ),
@@ -1675,7 +2171,7 @@ class _BackBracketButton extends StatelessWidget {
             strokeWidth: 1.0,
           ),
           child: const Icon(
-            Icons.chevron_left_rounded,
+            AppIcons.chevron_left_rounded,
             color: _C.ivoryDim,
             size: 22,
           ),
@@ -1718,14 +2214,14 @@ class _RelicStatusChip extends StatelessWidget {
                       boss.relicImagePath,
                       fit: BoxFit.contain,
                       errorBuilder: (_, __, ___) => const Icon(
-                        Icons.key_rounded,
+                        AppIcons.key_rounded,
                         color: _C.success,
                         size: 12,
                       ),
                     ),
                   )
                 : const Icon(
-                    Icons.lock_outline_rounded,
+                    AppIcons.lock_outline_rounded,
                     color: _C.danger,
                     size: 12,
                   ),
@@ -1851,181 +2347,241 @@ class _InstancePickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      minChildSize: 0.4,
-      maxChildSize: 0.85,
-      expand: false,
-      builder: (_, sc) => Container(
-        decoration: BoxDecoration(
-          color: _C.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border.all(color: elColor.withValues(alpha: 0.3), width: 0.5),
+    final media = MediaQuery.of(context);
+    final maxHeight = media.size.height * 0.68;
+    final sheetHeight = math.min(maxHeight, 154 + instances.length * 86.0);
+
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: sheetHeight,
+        child: _RitualDialogSurface(
+          accent: elColor,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              18,
+              16,
+              18,
+              math.max(14, media.padding.bottom + 10),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 38,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: _C.ivoryMuted.withValues(alpha: 0.56),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _SheetSpeciesMark(species: species, color: elColor),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select ${species.name}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _display(
+                              context,
+                              16,
+                              _C.ivory,
+                              weight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Choose the specimen to commit.',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _body(
+                              context,
+                              12,
+                              _C.ivoryMuted,
+                              height: 1.2,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: instances.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 9),
+                    itemBuilder: (ctx, i) {
+                      final inst = instances[i];
+                      return _SpecimenPickTile(
+                        species: species,
+                        instance: inst,
+                        color: elColor,
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.pop(context, inst);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetSpeciesMark extends StatelessWidget {
+  const _SheetSpeciesMark({required this.species, required this.color});
+
+  final Creature species;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 42,
+      height: 42,
+      child: CustomPaint(
+        painter: _CornerBracketPainter(
+          color: color.withValues(alpha: 0.50),
+          bracketSize: 8,
+          strokeWidth: 1.0,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Image.asset(
+            'assets/images/${species.image}',
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) =>
+                Icon(AppIcons.catching_pokemon_rounded, color: color, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SpecimenPickTile extends StatelessWidget {
+  const _SpecimenPickTile({
+    required this.species,
+    required this.instance,
+    required this.color,
+    required this.onTap,
+  });
+
+  final Creature species;
+  final CreatureInstance instance;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: _CornerBracketPainter(
+          color: color.withValues(alpha: 0.26),
+          bracketSize: 10,
+          strokeWidth: 0.9,
         ),
         child: Column(
           children: [
             Container(
-              margin: const EdgeInsets.only(top: 10),
-              width: 36,
-              height: 3,
-              decoration: BoxDecoration(
-                color: _C.muted,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(11),
+              color: Colors.black.withValues(alpha: 0.18),
               child: Row(
                 children: [
                   Container(
-                    width: 30,
-                    height: 30,
+                    width: 52,
+                    height: 52,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: elColor.withValues(alpha: 0.1),
-                      border: Border.all(color: elColor.withValues(alpha: 0.3)),
+                      color: color.withValues(alpha: 0.07),
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.16),
+                        width: 0.8,
+                      ),
                     ),
-                    child: ClipOval(
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
                       child: Image.asset(
                         'assets/images/${species.image}',
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => Icon(
-                          Icons.catching_pokemon_rounded,
-                          color: elColor,
-                          size: 14,
+                          AppIcons.catching_pokemon_rounded,
+                          color: color.withValues(alpha: 0.64),
+                          size: 24,
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          instance.nickname ?? species.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _display(
+                            context,
+                            14,
+                            _C.ivory,
+                            weight: FontWeight.w600,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Lv ${instance.level} · ${species.rarity}',
+                          style: _body(
+                            context,
+                            12,
+                            _C.ivoryMuted,
+                            height: 1.2,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    'SELECT ${species.name.toUpperCase()}',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: _C.text,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2,
+                  CustomPaint(
+                    painter: _CornerBracketPainter(
+                      color: color.withValues(alpha: 0.54),
+                      bracketSize: 7,
+                      strokeWidth: 0.9,
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'Choose which specimen to commit to the ritual.',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: _C.muted,
-                  fontSize: 12,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Expanded(
-              child: ListView.builder(
-                controller: sc,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                itemCount: instances.length,
-                itemBuilder: (ctx, i) {
-                  final inst = instances[i];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.pop(context, inst);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: _C.bg,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: elColor.withValues(alpha: 0.2),
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                color: elColor.withValues(alpha: 0.07),
-                                child: Image.asset(
-                                  'assets/images/${species.image}',
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                    Icons.catching_pokemon_rounded,
-                                    color: elColor.withValues(alpha: 0.5),
-                                    size: 22,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    (inst.nickname ?? species.name)
-                                        .toUpperCase(),
-                                    style: TextStyle(
-                                      fontFamily: appFontFamily(context),
-                                      color: _C.text,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'LVL ${inst.level}  ·  ${species.rarity.toUpperCase()}',
-                                    style: TextStyle(
-                                      fontFamily: appFontFamily(context),
-                                      color: _C.muted,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: elColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: elColor.withValues(alpha: 0.3),
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Text(
-                                'SELECT',
-                                style: TextStyle(
-                                  fontFamily: appFontFamily(context),
-                                  color: elColor,
-                                  fontSize: 7,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                          ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      child: Text(
+                        'Select',
+                        style: TextStyle(
+                          fontFamily: appFontFamily(context),
+                          color: color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
                         ),
                       ),
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
           ],
@@ -2060,78 +2616,134 @@ class _GameDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: _C.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: elColor.withValues(alpha: 0.45), width: 1),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            height: 3,
-            decoration: BoxDecoration(
-              color: elColor.withValues(alpha: 0.7),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(15),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, color: iconColor, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: _C.text,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      backgroundColor: Colors.transparent,
+      child: _RitualDialogSurface(
+        accent: elColor,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _DialogSigil(icon: icon, color: iconColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _sentenceCase(title),
+                      style: _display(
+                        context,
+                        15,
+                        _C.ivory,
+                        weight: FontWeight.w600,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  body,
-                  style: const TextStyle(
-                    color: _C.sub,
-                    fontSize: 12,
-                    height: 1.5,
                   ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                body,
+                style: _body(
+                  context,
+                  13,
+                  _C.ivoryDim,
+                  height: 1.55,
+                  letterSpacing: 0.1,
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _Btn(
-                        label: cancelLabel,
-                        color: _C.muted,
-                        onTap: onCancel,
-                      ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: _Btn(
+                      label: cancelLabel,
+                      color: _C.ivoryMuted,
+                      onTap: onCancel,
+                      primary: false,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _Btn(
-                        label: confirmLabel,
-                        color: elColor,
-                        onTap: onConfirm,
-                      ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _Btn(
+                      label: confirmLabel,
+                      color: elColor,
+                      onTap: onConfirm,
+                      primary: true,
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RitualDialogSurface extends StatelessWidget {
+  const _RitualDialogSurface({required this.accent, required this.child});
+
+  final Color accent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _CornerBracketPainter(
+        color: accent.withValues(alpha: 0.66),
+        bracketSize: 18,
+        strokeWidth: 1.2,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B0D14).withValues(alpha: 0.98),
+          border: Border(
+            top: BorderSide(color: accent.withValues(alpha: 0.42), width: 1),
+            bottom: BorderSide(color: accent.withValues(alpha: 0.24), width: 1),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 30,
+              offset: const Offset(0, 18),
+            ),
+            BoxShadow(
+              color: accent.withValues(alpha: 0.10),
+              blurRadius: 40,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _DialogSigil extends StatelessWidget {
+  const _DialogSigil({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 34,
+      child: CustomPaint(
+        painter: _CornerBracketPainter(
+          color: color.withValues(alpha: 0.54),
+          bracketSize: 7,
+          strokeWidth: 1.0,
+        ),
+        child: Icon(icon, color: color.withValues(alpha: 0.90), size: 18),
       ),
     );
   }
@@ -2141,7 +2753,13 @@ class _Btn extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _Btn({required this.label, required this.color, required this.onTap});
+  final bool primary;
+  const _Btn({
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.primary = true,
+  });
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -2149,22 +2767,27 @@ class _Btn extends StatelessWidget {
       HapticFeedback.lightImpact();
       onTap();
     },
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+    child: CustomPaint(
+      painter: _CornerBracketPainter(
+        color: color.withValues(alpha: primary ? 0.72 : 0.34),
+        bracketSize: 9,
+        strokeWidth: 1.0,
       ),
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: appFontFamily(context),
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 2,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        color: primary
+            ? color.withValues(alpha: 0.10)
+            : Colors.white.withValues(alpha: 0.025),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: appFontFamily(context),
+              color: primary ? color : _C.ivoryDim,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.4,
+            ),
           ),
         ),
       ),
@@ -2214,98 +2837,92 @@ class _SuccessDialogState extends State<_SuccessDialog>
   @override
   Widget build(BuildContext context) {
     final el = widget.boss.elementColor;
-    return ScaleTransition(
-      scale: _anim,
+    final sheet = widget.species.spriteData != null
+        ? sheetFromCreature(widget.species)
+        : null;
+
+    return FadeTransition(
+      opacity: _anim,
       child: Dialog(
-        backgroundColor: _C.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: el.withValues(alpha: 0.5), width: 1),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 3,
-              decoration: BoxDecoration(
-                color: el.withValues(alpha: 0.7),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(15),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        backgroundColor: Colors.transparent,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1).animate(_anim),
+          child: _RitualDialogSurface(
+            accent: el,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: el.withValues(alpha: 0.12),
-                      border: Border.all(
-                        color: el.withValues(alpha: 0.5),
-                        width: 1.5,
+                  Row(
+                    children: [
+                      _DialogMysticPreview(
+                        sheet: sheet,
+                        fallbackIcon: widget.boss.elementIcon,
+                        color: el,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: el.withValues(alpha: 0.3),
-                          blurRadius: 18,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Ritual complete',
+                              style: _display(
+                                context,
+                                18,
+                                _C.ivory,
+                                weight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${widget.species.name} waits in the chamber',
+                              style: _body(
+                                context,
+                                12,
+                                _C.ivoryMuted,
+                                height: 1.25,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Icon(widget.boss.elementIcon, color: el, size: 32),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    'RITUAL COMPLETE',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: el,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${widget.boss.name.toUpperCase()} HAS BEEN SUMMONED',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: _C.muted,
-                      fontSize: 12,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
                     decoration: BoxDecoration(
-                      color: el.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: el.withValues(alpha: 0.2),
-                        width: 0.5,
+                      color: Colors.white.withValues(alpha: 0.025),
+                      border: Border(
+                        left: BorderSide(
+                          color: el.withValues(alpha: 0.66),
+                          width: 2,
+                        ),
                       ),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                          Icons.science_outlined,
+                          AppIcons.science_outlined,
                           color: el.withValues(alpha: 0.7),
-                          size: 20,
+                          size: 18,
                         ),
                         const SizedBox(width: 10),
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'A Mystic Vial awaits in your Alchemy Chamber. Cultivation: 1 hour.',
-                            style: TextStyle(
-                              color: _C.sub,
-                              fontSize: 12,
-                              height: 1.4,
+                            style: _body(
+                              context,
+                              12,
+                              _C.ivoryDim,
+                              height: 1.45,
                             ),
                           ),
                         ),
@@ -2317,11 +2934,79 @@ class _SuccessDialogState extends State<_SuccessDialog>
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _DialogMysticPreview extends StatelessWidget {
+  const _DialogMysticPreview({
+    required this.sheet,
+    required this.fallbackIcon,
+    required this.color,
+  });
+
+  final SpriteSheetDef? sheet;
+  final IconData fallbackIcon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 66,
+      height: 66,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 66,
+            height: 66,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  color.withValues(alpha: 0.18),
+                  const Color(0xFF05060A).withValues(alpha: 0.92),
+                ],
+              ),
+              border: Border.all(color: color.withValues(alpha: 0.56)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.24),
+                  blurRadius: 22,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
+          if (sheet != null)
+            FittedBox(
+              fit: BoxFit.contain,
+              child: SizedBox.square(
+                dimension: 69,
+                child: CreatureSprite(
+                  spritePath: sheet!.path,
+                  totalFrames: sheet!.totalFrames,
+                  rows: sheet!.rows,
+                  frameSize: sheet!.frameSize,
+                  stepTime: sheet!.stepTime,
+                ),
+              ),
+            )
+          else
+            Icon(fallbackIcon, color: color, size: 30),
+        ],
+      ),
+    );
+  }
+}
+
+String _sentenceCase(String value) {
+  final text = value.replaceAll('?', '').trim().toLowerCase();
+  if (text.isEmpty) return value;
+  return text[0].toUpperCase() + text.substring(1);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

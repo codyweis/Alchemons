@@ -20,22 +20,22 @@ import 'package:alchemons/data/boss_data.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/providers/boss_provider.dart';
-import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/encounter_service.dart';
+import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
-import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
+import 'package:alchemons/utils/specimen_picker_route.dart';
 import 'package:alchemons/widgets/avatar_widget.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_showcase_widget.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
@@ -65,10 +65,9 @@ import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/widgets/background/interactive_background_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'breed/breed_screen.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 const bool kEnableCosmicShip = true;
 
@@ -87,6 +86,23 @@ class _MainShellState extends State<MainShell> {
 
   // NEW: guard so we only request once per launch
   bool _creaturesTutorialRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    NewDiscoveryReveal.instance.onSwitchSection = (section) {
+      if (!mounted) return;
+      _goToSection(section, withHaptic: false);
+    };
+  }
+
+  @override
+  void dispose() {
+    if (NewDiscoveryReveal.instance.onSwitchSection != null) {
+      NewDiscoveryReveal.instance.onSwitchSection = null;
+    }
+    super.dispose();
+  }
 
   void _goToSection(
     NavSection section, {
@@ -1591,89 +1607,20 @@ class _HomeScreenState extends State<HomeScreen>
     final repo = context.read<CreatureCatalog>();
     final theme = context.read<FactionTheme>();
 
-    final available = await db.creatureDao.getSpeciesWithInstances();
+    final hasInstances = (await db.creatureDao.listAllInstances()).isNotEmpty;
+    if (!hasInstances) return;
 
-    // Build typed discovered list from DB + catalog
-    final playerRows = await db.creatureDao.getAllCreatures();
-    final discoveredIds = playerRows
-        .where((p) => p.discovered)
-        .map((p) => p.id)
-        .toSet();
-
-    final discoveredTyped = repo.creatures
-        .where((c) => discoveredIds.contains(c.id))
-        .map(
-          (c) => CreatureEntry(
-            creature: c,
-            player: playerRows.firstWhere((p) => p.id == c.id),
-          ),
-        )
-        .toList(growable: false);
-
-    // Filter to species that actually have instances
-    final filteredDiscovered = filterByAvailableInstances(
-      discoveredTyped,
-      available,
-    );
-
-    // Step 1: pick species
     if (!mounted) return;
-    final pickedSpeciesId = await showModalBottomSheet<String>(
+    final pickedInstance = await showSpecimenPickerRoute(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return CreatureSelectionSheet(
-              scrollController: scrollController,
-              discoveredCreatures: filteredDiscovered,
-              stateScopeKey: 'home_featured_species',
-              onSelectCreature: (creatureId) {
-                Navigator.pop(context, creatureId);
-              },
-            );
-          },
-        );
-      },
-    );
-
-    if (pickedSpeciesId == null) return;
-
-    final species = repo.getCreatureById(pickedSpeciesId);
-    if (species == null) return;
-
-    // Step 2: pick instance of that species
-    if (!mounted) return;
-    final pickedInstance = await showModalBottomSheet<CreatureInstance>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        return BottomSheetShell(
-          theme: theme,
-          title: '${species.name} Specimens',
-          child: InstancesSheet(
-            theme: theme,
-            species: species,
-            prefsScopeKey: 'home_featured_instances',
-            onTap: (CreatureInstance ci) {
-              Navigator.pop(context, ci);
-            },
-          ),
-        );
-      },
+      theme: theme,
+      searchHint: 'SELECT SPECIMEN',
+      prefsScopeKey: 'home_featured_specimens',
     );
     if (pickedInstance == null) return;
 
-    // Step 3: persist choice
     await db.settingsDao.setFeaturedInstanceId(pickedInstance.instanceId);
 
-    // Step 4: update local state
     await _prewarmFeaturedSprite(pickedInstance, repo);
     final newPresentation = _presentationFromInstance(pickedInstance, repo);
     if (!mounted) return;
@@ -1887,7 +1834,9 @@ class _HomeScreenState extends State<HomeScreen>
                             : () {
                                 HapticFeedback.mediumImpact();
                                 if (_enhanceHighlightActive) {
-                                  setState(() => _enhanceHighlightActive = false);
+                                  setState(
+                                    () => _enhanceHighlightActive = false,
+                                  );
                                 }
                                 Navigator.push(
                                   context,
@@ -2152,7 +2101,7 @@ class _HomeScreenState extends State<HomeScreen>
               'Am I beginning to remember? But what is remembrance without truth, if not illusion.',
           typewriter: true,
           kind: LandscapeDialogKind.info,
-          icon: Icons.auto_awesome,
+          icon: AppIcons.auto_awesome,
           primaryLabel: 'Continue',
           barrierDismissible: false,
         );
@@ -2440,21 +2389,23 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
     // Build loot rewards
     final rewards = [
       _TreasureReward(
-        icon: Icons.monetization_on_rounded,
+        icon: AppIcons.monetization_on_rounded,
+        coin: CoinKind.silver,
         amount: '+$silver',
         name: 'SILVER',
         color: const Color(0xFFB0BEC5),
       ),
       if (gold > 0)
         _TreasureReward(
-          icon: Icons.stars_rounded,
+          icon: AppIcons.stars_rounded,
+          coin: CoinKind.gold,
           amount: '+$gold',
           name: 'GOLD',
           color: const Color(0xFFFFD700),
         ),
       if (givesVial)
         _TreasureReward(
-          icon: Icons.science_rounded,
+          icon: AppIcons.science_rounded,
           amount: '×1',
           name: 'COMMON VIAL',
           color: const Color(0xFF4CAF50),
@@ -2520,12 +2471,14 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
 
 class _TreasureReward {
   final IconData icon;
+  final CoinKind? coin;
   final String amount;
   final String name;
   final Color color;
 
   const _TreasureReward({
     required this.icon,
+    this.coin,
     required this.amount,
     required this.name,
     required this.color,
@@ -2671,7 +2624,9 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
                                 width: 1,
                               ),
                             ),
-                            child: Icon(r.icon, color: r.color, size: 22),
+                            child: r.coin != null
+                                ? CoinIcon(kind: r.coin!, size: 24)
+                                : Icon(r.icon, color: r.color, size: 22),
                           ),
                           const SizedBox(width: 18),
                           Column(

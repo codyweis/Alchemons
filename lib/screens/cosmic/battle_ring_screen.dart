@@ -28,6 +28,7 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────
 // RESULT passed back to cosmic_screen
@@ -271,8 +272,8 @@ class _BattleRingScreenState extends State<BattleRingScreen>
                         children: [
                           Icon(
                             widget.isPractice
-                                ? Icons.sports_martial_arts
-                                : Icons.sports_mma,
+                                ? AppIcons.sports_martial_arts
+                                : AppIcons.sports_mma,
                             color:
                                 (isLegendary
                                         ? Colors.amber

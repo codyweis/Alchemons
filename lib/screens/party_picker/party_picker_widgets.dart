@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'party_picker_dialogs.dart';
 import 'team_builder_dialog.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ---------- Header ----------
 
@@ -52,7 +53,7 @@ class StageHeader extends StatelessWidget {
                 borderRadius: BorderRadius.circular(3),
                 border: Border.all(color: theme.border),
               ),
-              child: Icon(Icons.arrow_back, color: theme.text, size: 18),
+              child: Icon(AppIcons.arrow_back, color: theme.text, size: 18),
             ),
           ),
           const SizedBox(width: 14),
@@ -101,7 +102,7 @@ class StageHeader extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.folder_open, color: theme.text, size: 16),
+                  Icon(AppIcons.folder_open, color: theme.text, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     'Teams',
@@ -139,7 +140,7 @@ class StageHeader extends StatelessWidget {
                   ),
                 ),
                 child: Icon(
-                  Icons.close_rounded,
+                  AppIcons.close_rounded,
                   color: hasActiveFilters ? theme.accent : theme.textMuted,
                   size: 18,
                 ),
@@ -306,7 +307,7 @@ class TeamDisplay extends StatelessWidget {
           Row(
             children: [
               Icon(
-                Icons.groups_rounded,
+                AppIcons.groups_rounded,
                 color: Colors.greenAccent.shade400,
                 size: 16,
               ),
@@ -419,7 +420,7 @@ class TeamSlotFilled extends StatelessWidget {
               height: 28,
               child: base != null
                   ? InstanceSprite(creature: base, instance: instance, size: 28)
-                  : Icon(Icons.help_outline, size: 14, color: theme.textMuted),
+                  : Icon(AppIcons.help_outline, size: 14, color: theme.textMuted),
             ),
             const SizedBox(height: 3),
             Text(
@@ -507,7 +508,7 @@ class TeamSlotEmpty extends StatelessWidget {
             height: 28,
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(6)),
             alignment: Alignment.center,
-            child: Icon(Icons.add_outlined, size: 14, color: fg),
+            child: Icon(AppIcons.add_outlined, size: 14, color: fg),
           ),
           const SizedBox(height: 3),
           Text(
@@ -611,7 +612,7 @@ class _DeployButtonState extends State<DeployButton>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.play_arrow_rounded,
+                    AppIcons.play_arrow_rounded,
                     color: canTap ? Colors.white : widget.theme.textMuted,
                     size: 18,
                   ),

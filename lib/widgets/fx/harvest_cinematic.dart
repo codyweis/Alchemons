@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Show the full-screen harvest cinematic and run [task] while it plays.
 /// The route closes only after BOTH the animation AND the task complete.
@@ -573,7 +574,7 @@ class _FailureIndicator extends StatelessWidget {
                 border: Border.all(color: Colors.red, width: 3),
               ),
               child: const Icon(
-                Icons.close_rounded,
+                AppIcons.close_rounded,
                 color: Colors.red,
                 size: 80,
               ),

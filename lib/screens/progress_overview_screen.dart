@@ -20,6 +20,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/starfield_background.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/image_composition.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -190,7 +191,7 @@ class _ConstellationProgressOverviewScreenState
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             prefixIcon: Icon(
-              Icons.search_rounded,
+              AppIcons.search_rounded,
               color: t.textSecondary,
               size: 20,
             ),
@@ -203,7 +204,7 @@ class _ConstellationProgressOverviewScreenState
                 ? null
                 : IconButton(
                     icon: Icon(
-                      Icons.close_rounded,
+                      AppIcons.close_rounded,
                       color: t.textSecondary,
                       size: 18,
                     ),
@@ -232,7 +233,7 @@ class _ConstellationProgressOverviewScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.search_off_rounded,
+              AppIcons.search_off_rounded,
               size: 48,
               color: t.textMuted,
             ),
@@ -258,7 +259,7 @@ class _ConstellationProgressOverviewScreenState
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
         icon: Icon(
-          Icons.arrow_back_rounded,
+          AppIcons.arrow_back_rounded,
           color: t.textSecondary,
           size: 22,
         ),
@@ -306,7 +307,7 @@ class _ConstellationProgressOverviewScreenState
       actions: [
         IconButton(
           icon: Icon(
-            _isCardView ? Icons.list_rounded : Icons.view_carousel_rounded,
+            _isCardView ? AppIcons.list_rounded : AppIcons.view_carousel_rounded,
             color: t.textSecondary,
             size: 22,
           ),
@@ -527,7 +528,7 @@ class _ConstellationProgressOverviewScreenState
                 ),
               ),
               child: Icon(
-                Icons.auto_awesome_outlined,
+                AppIcons.auto_awesome_outlined,
                 size: 36,
                 color: t.amber,
               ),
@@ -666,7 +667,7 @@ class _SpeciesCard extends StatelessWidget {
                               color: rColor,
                             ),
                             Icon(
-                              Icons.arrow_forward_ios_rounded,
+                              AppIcons.arrow_forward_ios_rounded,
                               color: t.textMuted,
                               size: 14,
                             ),
@@ -972,7 +973,7 @@ class _ListItem extends StatelessWidget {
                         Row(
                           children: [
                             Icon(
-                              Icons.emoji_events_rounded,
+                              AppIcons.emoji_events_rounded,
                               color: t.amberBright,
                               size: 12,
                             ),
@@ -993,7 +994,7 @@ class _ListItem extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 18),
+                Icon(AppIcons.chevron_right_rounded, color: t.textMuted, size: 18),
               ],
             ),
           ),
@@ -1098,7 +1099,7 @@ class _RewardBadge extends StatelessWidget {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.auto_awesome, color: color, size: small ? 9 : 11),
+        Icon(AppIcons.auto_awesome, color: color, size: small ? 9 : 11),
         const SizedBox(width: 3),
         Text(
           '+$points',
@@ -1128,7 +1129,7 @@ class _CompleteBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.emoji_events_rounded, color: t.amberBright, size: 16),
+          Icon(AppIcons.emoji_events_rounded, color: t.amberBright, size: 16),
           const SizedBox(width: 8),
           Text(
             'ALL COMPLETE',

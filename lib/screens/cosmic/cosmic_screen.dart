@@ -59,6 +59,7 @@ import 'widgets/widgets.dart';
 import 'widgets/mini_map_circle.dart';
 import 'widgets/contest_arena_overlays.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 const _cosmicMeterPalette = BracketPalette.dark;
 
@@ -3548,14 +3549,14 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   width: 34,
                                   height: 34,
                                   errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.auto_awesome,
+                                    AppIcons.auto_awesome,
                                     color: Colors.white70,
                                     size: 16,
                                   ),
                                 ),
                               )
                             : const Icon(
-                                Icons.auto_awesome,
+                                AppIcons.auto_awesome,
                                 color: Colors.white70,
                                 size: 16,
                               ),
@@ -3572,7 +3573,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                         style: TextStyle(color: Colors.white60),
                       ),
                       trailing: const Icon(
-                        Icons.chevron_right_rounded,
+                        AppIcons.chevron_right_rounded,
                         color: Colors.white54,
                       ),
                     ),
@@ -3860,7 +3861,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           ),
           child: Row(
             children: [
-              Icon(Icons.check_circle_rounded, size: 16, color: fc.success),
+              Icon(AppIcons.check_circle_rounded, size: 16, color: fc.success),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -4700,7 +4701,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           accent: const Color(0xFF00E5FF),
           active: _awaitingShipMenuTap,
           child: Icon(
-            Icons.rocket_launch_rounded,
+            AppIcons.rocket_launch_rounded,
             color: _awaitingShipMenuTap
                 ? const Color(0xFF00E5FF)
                 : _cosmicMeterPalette.muted,
@@ -4723,7 +4724,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               active: canDeposit,
               disabled: !canDeposit,
               child: Icon(
-                Icons.file_upload_rounded,
+                AppIcons.file_upload_rounded,
                 color: canDeposit
                     ? CosmicScreenStyles.amber
                     : _cosmicMeterPalette.muted,
@@ -4831,7 +4832,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   Widget _buildSlowModeButton() {
     return _buildRightHudButton(
-      icon: Icons.slow_motion_video,
+      icon: AppIcons.slow_motion_video,
       accent: const Color(0xFFFFB300),
       active: _slowMode,
       onTap: () {
@@ -4844,7 +4845,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   Widget _buildCompanionTetherButton() {
     return _buildRightHudButton(
-      icon: _companionTethered ? Icons.link : Icons.link_off,
+      icon: _companionTethered ? AppIcons.link : AppIcons.link_off,
       accent: const Color(0xFF42A5F5),
       active: _companionTethered,
       onTap: () {
@@ -4938,7 +4939,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                           height: 32,
                           fit: BoxFit.contain,
                           errorBuilder: (_, __, ___) => Icon(
-                            Icons.catching_pokemon,
+                            AppIcons.catching_pokemon,
                             color: isActive
                                 ? const Color(0xFFE53935)
                                 : const Color(0xFF00E676),
@@ -4948,7 +4949,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       )
                     else
                       Icon(
-                        Icons.catching_pokemon,
+                        AppIcons.catching_pokemon,
                         color: isActive
                             ? const Color(0xFFE53935)
                             : const Color(0xFF00E676),
@@ -5016,7 +5017,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     // Dead "X" overlay
                     if (isDead)
                       const Icon(
-                        Icons.close_rounded,
+                        AppIcons.close_rounded,
                         color: Color(0xFFE53935),
                         size: 28,
                       ),
@@ -5047,7 +5048,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     // No stamina overlay
                     if (noStamina && !isDead)
                       Icon(
-                        Icons.battery_0_bar_rounded,
+                        AppIcons.battery_0_bar_rounded,
                         color: const Color(0xFFFF9800).withValues(alpha: 0.8),
                         size: 18,
                       ),
@@ -5055,7 +5056,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
               )
             : Icon(
-                Icons.add_circle_outline,
+                AppIcons.add_circle_outline,
                 color: Colors.white.withValues(alpha: 0.15),
                 size: 18,
               ),
@@ -5969,7 +5970,7 @@ class _CosmicScreenState extends State<CosmicScreen>
             'A new route has opened. Recipes now reveal how to enter the planet.',
         typewriter: true,
         kind: LandscapeDialogKind.success,
-        icon: Icons.auto_awesome,
+        icon: AppIcons.auto_awesome,
         primaryLabel: 'Enter',
       );
     }
@@ -6518,7 +6519,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                             ),
                           ),
                           child: Icon(
-                            Icons.map_rounded,
+                            AppIcons.map_rounded,
                             color: _awaitingSurvivalMapTap
                                 ? const Color(0xFFB39DDB)
                                 : _showPinnedMiniMap
@@ -7204,7 +7205,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.blur_on, color: col, size: 22),
+                                Icon(AppIcons.blur_on, color: col, size: 22),
                                 const SizedBox(width: 10),
                                 Text(
                                   'ENTER ${rift.displayName.toUpperCase()}',
@@ -7273,7 +7274,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
-                                  Icons.brightness_2,
+                                  AppIcons.brightness_2,
                                   color: Color(0xFFFF8A80),
                                   size: 22,
                                 ),
@@ -7362,7 +7363,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      Icons.emoji_events_rounded,
+                                      AppIcons.emoji_events_rounded,
                                       color: accent,
                                       size: 22,
                                     ),
@@ -7449,7 +7450,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
-                                  Icons.sports_mma,
+                                  AppIcons.sports_mma,
                                   color: Color(0xFFFFD740),
                                   size: 22,
                                 ),
@@ -7604,7 +7605,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.blur_on, color: col, size: 22),
+                                Icon(AppIcons.blur_on, color: col, size: 22),
                                 const SizedBox(width: 10),
                                 Text(
                                   'ENTER ${element.toUpperCase()} PORTAL',
@@ -7659,7 +7660,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(
-                                Icons.arrow_back,
+                                AppIcons.arrow_back,
                                 color: Colors.white54,
                                 size: 16,
                               ),
@@ -7745,7 +7746,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 accent: const Color(0xFFFF6F00),
                                 active: _isBoosting,
                                 child: Icon(
-                                  Icons.local_fire_department_rounded,
+                                  AppIcons.local_fire_department_rounded,
                                   color: _isBoosting
                                       ? const Color(0xFFFF6F00)
                                       : Colors.white54,
@@ -7775,7 +7776,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                           MainAxisAlignment.center,
                                       children: [
                                         Icon(
-                                          Icons.gps_fixed_rounded,
+                                          AppIcons.gps_fixed_rounded,
                                           color: _isShootingMissiles
                                               ? const Color(0xFFE53935)
                                               : Colors.white54,
@@ -7803,7 +7804,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                     accent: const Color(0xFF00E5FF),
                                     active: _isShooting,
                                     child: Icon(
-                                      Icons.flash_on_rounded,
+                                      AppIcons.flash_on_rounded,
                                       color: _isShooting
                                           ? const Color(0xFF00E5FF)
                                           : Colors.white54,
@@ -8325,7 +8326,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                       Row(
                         children: [
                           const Icon(
-                            Icons.science_rounded,
+                            AppIcons.science_rounded,
                             color: Color(0xFF7CFFB2),
                           ),
                           const SizedBox(width: 10),
@@ -8356,7 +8357,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                           IconButton(
                             onPressed: widget.onClose,
                             icon: const Icon(
-                              Icons.close,
+                              AppIcons.close,
                               color: Colors.white70,
                             ),
                           ),
@@ -8428,7 +8429,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                     ),
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: 0.06),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                    prefixIcon: const Icon(AppIcons.search, color: Colors.white54),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -8473,7 +8474,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                           filled: true,
                           fillColor: Colors.white.withValues(alpha: 0.06),
                           prefixIcon: const Icon(
-                            Icons.search,
+                            AppIcons.search,
                             color: Colors.white54,
                           ),
                           border: OutlineInputBorder(
@@ -8812,12 +8813,12 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                 children: [
                   FilledButton.icon(
                     onPressed: widget.onSpawnEnemy,
-                    icon: const Icon(Icons.flash_on),
+                    icon: const Icon(AppIcons.flash_on),
                     label: const Text('Spawn Enemies'),
                   ),
                   FilledButton.icon(
                     onPressed: widget.onSpawnDummy,
-                    icon: const Icon(Icons.sports_martial_arts),
+                    icon: const Icon(AppIcons.sports_martial_arts),
                     label: const Text('Spawn Dummies'),
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.blueGrey,
@@ -8911,7 +8912,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
               const Spacer(),
               FilledButton.icon(
                 onPressed: widget.onSpawnBoss,
-                icon: const Icon(Icons.whatshot),
+                icon: const Icon(AppIcons.whatshot),
                 label: const Text('Spawn Boss'),
               ),
             ],
@@ -9350,7 +9351,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                           ),
                         ),
                         child: const Icon(
-                          Icons.settings_rounded,
+                          AppIcons.settings_rounded,
                           color: CosmicScreenStyles.amberBright,
                           size: 17,
                         ),
@@ -9389,7 +9390,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                       ),
                       IconButton(
                         onPressed: onClose,
-                        icon: const Icon(Icons.close_rounded),
+                        icon: const Icon(AppIcons.close_rounded),
                         color: CosmicScreenStyles.textSecondary,
                         splashRadius: 18,
                       ),
@@ -9402,7 +9403,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   _SettingsToggleRow(
-                    icon: Icons.gamepad_rounded,
+                    icon: AppIcons.gamepad_rounded,
                     label: 'Joystick',
                     subtitle: 'Show the movement stick on screen',
                     value: joystickEnabled,
@@ -9410,7 +9411,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   _SettingsToggleRow(
-                    icon: Icons.open_in_full_rounded,
+                    icon: AppIcons.open_in_full_rounded,
                     label: 'Large Joystick',
                     subtitle: 'Use the expanded movement pad',
                     value: largeJoystickEnabled,
@@ -9418,7 +9419,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   _SettingsToggleRow(
-                    icon: Icons.touch_app_rounded,
+                    icon: AppIcons.touch_app_rounded,
                     label: 'Tap To Shoot',
                     subtitle: 'Tap space to fire toward a point',
                     value: tapToShootEnabled,
@@ -9426,7 +9427,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   _SettingsToggleRow(
-                    icon: Icons.local_fire_department_rounded,
+                    icon: AppIcons.local_fire_department_rounded,
                     label: 'Boost Toggle',
                     subtitle: 'Tap once to lock boost on/off',
                     value: boostToggleEnabled,
@@ -9454,7 +9455,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(
-                              Icons.logout_rounded,
+                              AppIcons.logout_rounded,
                               color: CosmicScreenStyles.danger,
                               size: 17,
                             ),
@@ -9952,7 +9953,7 @@ class _StarDustCollectorBadge extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.auto_awesome, color: gold, size: 13),
+                const Icon(AppIcons.auto_awesome, color: gold, size: 13),
                 const SizedBox(width: 4),
                 Text(
                   '$count/$safeTotal',

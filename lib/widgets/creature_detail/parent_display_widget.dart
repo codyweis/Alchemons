@@ -12,6 +12,7 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class ParentCard extends StatelessWidget {
   // ignore: unused_field
@@ -163,7 +164,7 @@ class ParentCard extends StatelessWidget {
                         turns: isExpanded ? 0.5 : 0,
                         duration: const Duration(milliseconds: 200),
                         child: Icon(
-                          Icons.expand_more,
+                          AppIcons.expand_more,
                           color: fc.amber,
                           size: 16,
                         ),

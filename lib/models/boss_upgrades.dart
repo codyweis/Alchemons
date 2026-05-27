@@ -19,6 +19,7 @@
 // the board — helpful but nowhere near bridging 4.0 → 5.0.
 
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BOSS SQUAD UPGRADE DEFINITIONS
@@ -67,7 +68,7 @@ const List<BossSquadUpgradeDef> kBossSquadUpgrades = [
     upgrade: BossSquadUpgrade.vitality,
     name: 'Ironblood Rite',
     description: 'Increases all squad members\' maximum HP for boss fights.',
-    icon: Icons.favorite_rounded,
+    icon: AppIcons.favorite_rounded,
     color: Color(0xFFEF4444),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.04, 0.07, 0.10, 0.14, 0.18],
@@ -79,7 +80,7 @@ const List<BossSquadUpgradeDef> kBossSquadUpgrades = [
     upgrade: BossSquadUpgrade.physPower,
     name: 'Warhammer Rune',
     description: 'Boosts all squad members\' physical attack power.',
-    icon: Icons.keyboard_double_arrow_up_rounded,
+    icon: AppIcons.keyboard_double_arrow_up_rounded,
     color: Color(0xFFF97316),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.03, 0.06, 0.09, 0.12, 0.15],
@@ -91,7 +92,7 @@ const List<BossSquadUpgradeDef> kBossSquadUpgrades = [
     upgrade: BossSquadUpgrade.elemPower,
     name: 'Arcane Infusion',
     description: 'Boosts all squad members\' elemental attack power.',
-    icon: Icons.auto_awesome_rounded,
+    icon: AppIcons.auto_awesome_rounded,
     color: Color(0xFF8B5CF6),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.03, 0.06, 0.09, 0.12, 0.15],
@@ -104,7 +105,7 @@ const List<BossSquadUpgradeDef> kBossSquadUpgrades = [
     name: 'Aegis Plating',
     description:
         'Increases all squad members\' physical and elemental defense.',
-    icon: Icons.shield_rounded,
+    icon: AppIcons.shield_rounded,
     color: Color(0xFF22C55E),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.04, 0.08, 0.12, 0.16, 0.20],
@@ -117,7 +118,7 @@ const List<BossSquadUpgradeDef> kBossSquadUpgrades = [
     upgrade: BossSquadUpgrade.swiftness,
     name: 'Quicksilver Shard',
     description: 'Increases all squad members\' speed, gaining earlier turns.',
-    icon: Icons.speed_rounded,
+    icon: AppIcons.speed_rounded,
     color: Color(0xFF0EA5E9),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.03, 0.05, 0.07, 0.10, 0.12],

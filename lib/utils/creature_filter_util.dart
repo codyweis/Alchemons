@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../database/alchemons_db.dart';
 import '../services/creature_repository.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CreatureFilterUtils {
   static const List<String> filterOptions = [
@@ -191,41 +192,41 @@ class CreatureFilterUtils {
   static IconData getTypeIcon(String type) {
     switch (type) {
       case 'Fire':
-        return Icons.local_fire_department_rounded;
+        return AppIcons.local_fire_department_rounded;
       case 'Water':
-        return Icons.water_drop_rounded;
+        return AppIcons.water_drop_rounded;
       case 'Earth':
-        return Icons.terrain_rounded;
+        return AppIcons.terrain_rounded;
       case 'Air':
-        return Icons.air_rounded;
+        return AppIcons.air_rounded;
       case 'Steam':
-        return Icons.cloud_rounded;
+        return AppIcons.cloud_rounded;
       case 'Lava':
-        return Icons.volcano_rounded;
+        return AppIcons.volcano_rounded;
       case 'Lightning':
-        return Icons.flash_on_rounded;
+        return AppIcons.flash_on_rounded;
       case 'Mud':
-        return Icons.layers_rounded;
+        return AppIcons.layers_rounded;
       case 'Ice':
-        return Icons.ac_unit_rounded;
+        return AppIcons.ac_unit_rounded;
       case 'Dust':
-        return Icons.grain_rounded;
+        return AppIcons.grain_rounded;
       case 'Crystal':
-        return Icons.diamond_rounded;
+        return AppIcons.diamond_rounded;
       case 'Plant':
-        return Icons.eco_rounded;
+        return AppIcons.eco_rounded;
       case 'Poison':
-        return Icons.dangerous_rounded;
+        return AppIcons.dangerous_rounded;
       case 'Spirit':
-        return Icons.auto_awesome_rounded;
+        return AppIcons.auto_awesome_rounded;
       case 'Dark':
-        return Icons.nights_stay_rounded;
+        return AppIcons.nights_stay_rounded;
       case 'Light':
-        return Icons.wb_sunny_rounded;
+        return AppIcons.wb_sunny_rounded;
       case 'Blood':
-        return Icons.bloodtype_rounded;
+        return AppIcons.bloodtype_rounded;
       default:
-        return Icons.pets_rounded;
+        return AppIcons.pets_rounded;
     }
   }
 }

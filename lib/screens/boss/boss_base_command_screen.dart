@@ -8,8 +8,10 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/boss_upgrades.dart';
 import 'package:alchemons/services/boss_upgrade_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -125,7 +127,7 @@ class _BossBaseCommandScreenState extends State<BossBaseCommandScreen> {
                 border: Border.all(color: _C.borderDim),
               ),
               child: const Icon(
-                Icons.arrow_back_rounded,
+                AppIcons.arrow_back_rounded,
                 color: _C.textSecondary,
                 size: 18,
               ),
@@ -162,11 +164,7 @@ class _BossBaseCommandScreenState extends State<BossBaseCommandScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.paid_rounded,
-                  color: Color(0xFFC0C0C0),
-                  size: 16,
-                ),
+                const CoinIcon(kind: CoinKind.silver, size: 16),
                 const SizedBox(width: 6),
                 Text(
                   '$_silverBalance',
@@ -499,7 +497,8 @@ class _UpgradeCard extends StatelessWidget {
               else
                 _ForgeButton(
                   label: '${nextCost ?? 0}',
-                  icon: Icons.paid_rounded,
+                  icon: AppIcons.paid_rounded,
+                  coin: CoinKind.silver,
                   loading: purchasing,
                   onTap: (canAfford && !purchasing) ? onUpgrade : null,
                 ),
@@ -514,12 +513,14 @@ class _UpgradeCard extends StatelessWidget {
 class _ForgeButton extends StatelessWidget {
   final String label;
   final IconData icon;
+  final CoinKind? coin;
   final VoidCallback? onTap;
   final bool loading;
 
   const _ForgeButton({
     required this.label,
     required this.icon,
+    this.coin,
     this.onTap,
     this.loading = false,
   });
@@ -560,6 +561,8 @@ class _ForgeButton extends StatelessWidget {
                 height: 14,
                 child: CircularProgressIndicator(strokeWidth: 2, color: _C.bg0),
               )
+            else if (coin != null)
+              CoinIcon(kind: coin!, size: 16)
             else
               Icon(icon, size: 16, color: _C.bg0),
             const SizedBox(width: 2),

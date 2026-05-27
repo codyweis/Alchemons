@@ -5,6 +5,7 @@
 // Persisted via Settings DAO key-value store.
 
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ORB BASE SKINS
@@ -75,7 +76,7 @@ const List<OrbBaseDef> kOrbBases = [
     name: 'Standard Orb',
     description: 'The default alchemy orb. Reliable and balanced.',
     ability: 'No special ability.',
-    icon: Icons.blur_circular_rounded,
+    icon: AppIcons.blur_circular_rounded,
     primaryColor: Color(0xFF00BCD4),
     secondaryColor: Color(0xFF3F51B5),
     glowColor: Color(0xFF00E5FF),
@@ -88,7 +89,7 @@ const List<OrbBaseDef> kOrbBases = [
     description:
         'Forged in the Void — an orb crackling with dark energy runes.',
     ability: '+12% guardian damage · −10% orb HP',
-    icon: Icons.nightlight_round,
+    icon: AppIcons.nightlight_round,
     primaryColor: Color(0xFF6A0DAD),
     secondaryColor: Color(0xFF1A0033),
     glowColor: Color(0xFFBB00FF),
@@ -100,7 +101,7 @@ const List<OrbBaseDef> kOrbBases = [
     name: 'Celestial Beacon',
     description: 'A radiant sphere of starlight — pulsing with cosmic power.',
     ability: 'Heals guardians & ship 3% every 8s',
-    icon: Icons.auto_awesome_rounded,
+    icon: AppIcons.auto_awesome_rounded,
     primaryColor: Color(0xFFFFD700),
     secondaryColor: Color(0xFFFF8C00),
     glowColor: Color(0xFFFFF176),
@@ -113,7 +114,7 @@ const List<OrbBaseDef> kOrbBases = [
     description:
         'Molten iron and dragonfire — enemies take burn damage near the orb.',
     ability: 'Burn aura deals damage to nearby enemies every 0.5s',
-    icon: Icons.local_fire_department_rounded,
+    icon: AppIcons.local_fire_department_rounded,
     primaryColor: Color(0xFFFF4500),
     secondaryColor: Color(0xFF8B0000),
     glowColor: Color(0xFFFF6347),
@@ -126,7 +127,7 @@ const List<OrbBaseDef> kOrbBases = [
     description:
         'An ancient ice crystal — jagged frost shards orbit its frozen core.',
     ability: 'Slows enemies near the orb · +5% orb HP',
-    icon: Icons.ac_unit_rounded,
+    icon: AppIcons.ac_unit_rounded,
     primaryColor: Color(0xFF88DDFF),
     secondaryColor: Color(0xFF1A3A5C),
     glowColor: Color(0xFFB0EAFF),
@@ -139,7 +140,7 @@ const List<OrbBaseDef> kOrbBases = [
     description:
         'A ghostly sphere that phases between realms — flickering and ethereal.',
     ability: '10% chance to dodge enemy projectiles · −5% orb HP',
-    icon: Icons.blur_on_rounded,
+    icon: AppIcons.blur_on_rounded,
     primaryColor: Color(0xFF7BFFCE),
     secondaryColor: Color(0xFF0A2A2A),
     glowColor: Color(0xFF50FFB0),
@@ -152,7 +153,7 @@ const List<OrbBaseDef> kOrbBases = [
     description:
         'A crystalline prism refracting all light — shifts through every color.',
     ability: '+10% orb HP · passive regen +0.3 HP/s',
-    icon: Icons.diamond_rounded,
+    icon: AppIcons.diamond_rounded,
     primaryColor: Color(0xFFFF69B4),
     secondaryColor: Color(0xFF4400AA),
     glowColor: Color(0xFFFFFFFF),
@@ -165,7 +166,7 @@ const List<OrbBaseDef> kOrbBases = [
     description:
         'A living orb of tangled vines and blossoms — pulses with nature\'s rhythm.',
     ability: '+15% orb HP · passive regen +1 HP/s',
-    icon: Icons.eco_rounded,
+    icon: AppIcons.eco_rounded,
     primaryColor: Color(0xFF32CD32),
     secondaryColor: Color(0xFF0B3D0B),
     glowColor: Color(0xFF7FFF00),
@@ -228,7 +229,7 @@ const List<GuardianUpgradeDef> kGuardianUpgrades = [
     upgrade: GuardianUpgrade.cooldown,
     name: 'Swift Alchemy',
     description: 'Reduces all guardian attack cooldowns.',
-    icon: Icons.speed_rounded,
+    icon: AppIcons.speed_rounded,
     color: Color(0xFF0EA5E9),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.03, 0.06, 0.10, 0.15, 0.20],
@@ -237,7 +238,7 @@ const List<GuardianUpgradeDef> kGuardianUpgrades = [
     upgrade: GuardianUpgrade.defense,
     name: 'Fortified Shell',
     description: 'Increases all guardian physical and elemental defense.',
-    icon: Icons.shield_rounded,
+    icon: AppIcons.shield_rounded,
     color: Color(0xFF22C55E),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.05, 0.10, 0.16, 0.22, 0.30],
@@ -246,7 +247,7 @@ const List<GuardianUpgradeDef> kGuardianUpgrades = [
     upgrade: GuardianUpgrade.attack,
     name: 'Empowered Strikes',
     description: 'Boosts all guardian attack damage.',
-    icon: Icons.keyboard_double_arrow_up_rounded,
+    icon: AppIcons.keyboard_double_arrow_up_rounded,
     color: Color(0xFFEF4444),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.04, 0.08, 0.14, 0.20, 0.28],
@@ -255,7 +256,7 @@ const List<GuardianUpgradeDef> kGuardianUpgrades = [
     upgrade: GuardianUpgrade.critChance,
     name: 'Precision Runes',
     description: 'Increases guardian critical hit chance.',
-    icon: Icons.gps_fixed_rounded,
+    icon: AppIcons.gps_fixed_rounded,
     color: Color(0xFFF59E0B),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.02, 0.04, 0.07, 0.10, 0.15],
@@ -264,7 +265,7 @@ const List<GuardianUpgradeDef> kGuardianUpgrades = [
     upgrade: GuardianUpgrade.range,
     name: 'Extended Reach',
     description: 'Extends guardian attack and ability range.',
-    icon: Icons.radar_rounded,
+    icon: AppIcons.radar_rounded,
     color: Color(0xFFA855F7),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.03, 0.06, 0.10, 0.16, 0.22],
@@ -308,7 +309,7 @@ const List<BaseAbilityDef> kBaseAbilities = [
     ability: BaseAbility.health,
     name: 'Reinforced Core',
     description: 'Increases the orb\'s maximum HP.',
-    icon: Icons.favorite_rounded,
+    icon: AppIcons.favorite_rounded,
     color: Color(0xFFEF4444),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     levelDescriptions: [
@@ -324,7 +325,7 @@ const List<BaseAbilityDef> kBaseAbilities = [
     name: 'Nova Detonation',
     description:
         'A detonation button appears — tap to blast all enemies on screen.',
-    icon: Icons.offline_bolt_rounded,
+    icon: AppIcons.offline_bolt_rounded,
     color: Color(0xFFFF6B35),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     levelDescriptions: [
@@ -340,7 +341,7 @@ const List<BaseAbilityDef> kBaseAbilities = [
     name: 'Auto-Turret',
     description:
         'Mounts a rapid-fire turret on the orb that shoots the nearest enemy.',
-    icon: Icons.gps_fixed_rounded,
+    icon: AppIcons.gps_fixed_rounded,
     color: Color(0xFF3B82F6),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     levelDescriptions: [
@@ -356,7 +357,7 @@ const List<BaseAbilityDef> kBaseAbilities = [
     name: 'Shield Pulse',
     description:
         'Periodically emits a shockwave that pushes enemies back and stuns briefly.',
-    icon: Icons.security_rounded,
+    icon: AppIcons.security_rounded,
     color: Color(0xFF06B6D4),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     levelDescriptions: [
@@ -371,7 +372,7 @@ const List<BaseAbilityDef> kBaseAbilities = [
     ability: BaseAbility.healingAura,
     name: 'Regeneration Field',
     description: 'The orb slowly regenerates its own HP over time.',
-    icon: Icons.spa_rounded,
+    icon: AppIcons.spa_rounded,
     color: Color(0xFF10B981),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     levelDescriptions: ['+1 HP/s', '+3 HP/s', '+5 HP/s', '+8 HP/s', '+12 HP/s'],

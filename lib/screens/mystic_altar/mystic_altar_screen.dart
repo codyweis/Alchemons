@@ -19,6 +19,7 @@ import 'package:alchemons/widgets/background/alchemical_particle_background.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKENS
@@ -27,9 +28,7 @@ import 'package:provider/provider.dart';
 class _C {
   static const bg = Color(0xFF060912);
   static const surface = Color(0xFF111320);
-  static const text = Color(0xFFE8E0FF);
   static const muted = Color(0xFF4A3F6B);
-  static const sub = Color(0xFF8C7BB5);
   static const gold = Color(0xFFF59E0B);
   static const success = Color(0xFF16A34A);
   static const locked = Color(0xFF374151);
@@ -117,6 +116,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
   // per-boss "relic placed" visual flag (persists during session)
   final Set<String> _relicPlaced = {};
+  final Set<String> _ritualCompleted = {};
 
   // relic placement flash animation
   late final AnimationController _relicFlashCtrl;
@@ -180,6 +180,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     final req = <String, int>{};
 
     final mysticNames = <String, String>{};
+    final completed = <String>{};
 
     for (final boss in bosses) {
       final tk = BossLootKeys.traitKeyForElement(boss.element);
@@ -192,11 +193,18 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
           .byType(boss.element)
           .where((s) => s.id != mc?.id)
           .length;
+      final summonedValue = await db.settingsDao.getSetting(
+        'altar_summoned_${boss.id}',
+      );
+      if (summonedValue != null && summonedValue.trim().isNotEmpty) {
+        completed.add(boss.id);
+      }
     }
 
     final relicIds = await db.altarDao.getRelicPlacedIds(
       bosses.map((b) => b.id).toList(),
     );
+    relicIds.addAll(completed);
 
     if (mounted) {
       setState(() {
@@ -207,6 +215,9 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
         _relicPlaced
           ..clear()
           ..addAll(relicIds);
+        _ritualCompleted
+          ..clear()
+          ..addAll(completed);
         _loading = false;
       });
     }
@@ -271,7 +282,9 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     final progress = context.read<BossProgressNotifier>();
     final defeated = progress.isBossDefeated(boss.id);
     final hasKey = (_keyItemQtys[boss.id] ?? 0) > 0;
-    final unlocked = defeated && hasKey;
+    final relicSet = _relicPlaced.contains(boss.id);
+    final ritualComplete = _ritualCompleted.contains(boss.id);
+    final unlocked = defeated && (hasKey || relicSet || ritualComplete);
 
     if (!unlocked) {
       HapticFeedback.lightImpact();
@@ -306,9 +319,16 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
         false;
     if (!ok || !mounted) return;
     final db = context.read<AlchemonsDatabase>();
+    final traitKey = BossLootKeys.traitKeyForElement(boss.element);
+    final consumed = await db.inventoryDao.consumeItem(traitKey, qty: 1);
+    if (!consumed) {
+      _snack('Obtain the ${_traitName(boss)} to unlock.');
+      return;
+    }
     await db.altarDao.setRelicPlaced(boss.id);
     setState(() {
       _relicPlaced.add(boss.id);
+      _keyItemQtys[boss.id] = math.max(0, (_keyItemQtys[boss.id] ?? 0) - 1);
       _relicFlashBossId = boss.id;
     });
     HapticFeedback.heavyImpact();
@@ -377,14 +397,44 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
   void _snack(String msg) {
     if (!mounted) return;
+    final boss = BossRepository.allBosses[_selectedIdx];
+    final elColor = boss.elementColor;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          msg,
-          style: TextStyle(fontFamily: appFontFamily(context), fontSize: 12),
+        content: Row(
+          children: [
+            Icon(
+              AppIcons.error_outline_rounded,
+              color: elColor.withValues(alpha: 0.95),
+              size: 17,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                msg,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: appFontFamily(context),
+                  color: _C.ivory,
+                  fontSize: 13,
+                  height: 1.35,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: _C.surface,
+        backgroundColor: const Color(0xFF0B0D14),
         behavior: SnackBarBehavior.floating,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        shape: Border(
+          left: BorderSide(color: elColor.withValues(alpha: 0.72), width: 2),
+          top: BorderSide(color: elColor.withValues(alpha: 0.28), width: 1),
+          bottom: BorderSide(color: elColor.withValues(alpha: 0.20), width: 1),
+        ),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -437,6 +487,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
                             placed: _placedCounts,
                             required: _requiredCounts,
                             relicPlaced: _relicPlaced,
+                            ritualCompleted: _ritualCompleted,
                             depthOf: _depth,
                             angleOf: _bossAngle,
                             selected: _selectedIdx,
@@ -462,6 +513,9 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
                           requiredCount:
                               _requiredCounts[bosses[_selectedIdx].id] ?? 0,
                           relicPlaced: _relicPlaced.contains(
+                            bosses[_selectedIdx].id,
+                          ),
+                          ritualComplete: _ritualCompleted.contains(
                             bosses[_selectedIdx].id,
                           ),
                           bgCtrl: _bgCtrl,
@@ -532,10 +586,14 @@ class _Header extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SpinningWheel extends StatelessWidget {
+  static const int _baseSpiralLevel = 1;
+  static const double _spiralSpeedStep = 0.08;
+
   final List<Boss> bosses;
   final BossProgressNotifier progress;
   final Map<String, int> keyQtys, placed, required;
   final Set<String> relicPlaced;
+  final Set<String> ritualCompleted;
   final double Function(int) depthOf, angleOf;
   final int selected;
   final AnimationController bgCtrl;
@@ -552,6 +610,7 @@ class _SpinningWheel extends StatelessWidget {
     required this.placed,
     required this.required,
     required this.relicPlaced,
+    required this.ritualCompleted,
     required this.depthOf,
     required this.angleOf,
     required this.selected,
@@ -570,6 +629,8 @@ class _SpinningWheel extends StatelessWidget {
         final w = box.maxWidth, h = box.maxHeight;
         final cx = w / 2, cy = h * 0.46;
         final rx = w * 0.35, ry = h * 0.20;
+        final spiralLevel = _baseSpiralLevel + ritualCompleted.length;
+        final baseSpiralSpeed = 1.0 + spiralLevel * _spiralSpeedStep;
 
         final sorted = List.generate(bosses.length, (i) => i)
           ..sort((a, b) => depthOf(a).compareTo(depthOf(b)));
@@ -599,11 +660,11 @@ class _SpinningWheel extends StatelessWidget {
               child: AnimatedBuilder(
                 animation: Listenable.merge([bgCtrl, portalCtrl]),
                 builder: (_, __) {
-                  // During portal discovery, the swirl grows from 68→200px
-                  // and its rotation speed multiplier goes from 1× → 8×
+                  // Baseline is level 1; every completed ritual wakes the
+                  // altar a little more. Portal discovery still surges on top.
                   final p = portalCtrl.value;
                   final growScale = 1.0 + p * 2.5; // 1× → 3.5×
-                  final speedMul = 1.0 + p * 7.0; // 1× → 8×
+                  final speedMul = baseSpiralSpeed * (1.0 + p * 7.0);
                   final effectiveT = bgCtrl.value * speedMul;
                   // Fade-out near the end of the portal anim (explosion)
                   final opacity = p > 0.85
@@ -660,11 +721,12 @@ class _SpinningWheel extends StatelessWidget {
 
     final defeated = progress.isBossDefeated(boss.id);
     final hasKey = (keyQtys[boss.id] ?? 0) > 0;
-    final unlocked = defeated && hasKey;
+    final ritualComplete = ritualCompleted.contains(boss.id);
+    final rp = relicPlaced.contains(boss.id) || ritualComplete;
+    final unlocked = defeated && (hasKey || rp || ritualComplete);
     final pc = placed[boss.id] ?? 0;
     final rc = required[boss.id] ?? 0;
-    final complete = unlocked && rc > 0 && pc >= rc;
-    final rp = relicPlaced.contains(boss.id);
+    final complete = !ritualComplete && unlocked && rc > 0 && pc >= rc;
 
     final isFlashing = boss.id == relicFlashBossId;
 
@@ -735,6 +797,7 @@ class _SpinningWheel extends StatelessWidget {
                       unlocked: unlocked,
                       complete: complete,
                       relicPlaced: rp,
+                      ritualComplete: ritualComplete,
                       defeated: defeated,
                       hasKey: hasKey,
                       placed: pc,
@@ -759,7 +822,8 @@ class _SpinningWheel extends StatelessWidget {
 class _BossNode extends StatelessWidget {
   final Boss boss;
   final double size, pulse;
-  final bool isSelected, unlocked, complete, relicPlaced, defeated, hasKey;
+  final bool isSelected, unlocked, complete, relicPlaced, ritualComplete;
+  final bool defeated, hasKey;
   final int placed, required;
 
   const _BossNode({
@@ -770,6 +834,7 @@ class _BossNode extends StatelessWidget {
     required this.unlocked,
     required this.complete,
     required this.relicPlaced,
+    required this.ritualComplete,
     required this.defeated,
     required this.hasKey,
     required this.placed,
@@ -782,32 +847,118 @@ class _BossNode extends StatelessWidget {
 
     // ── relic-placed: image shows through with a subtle inner tint ────
     if (relicPlaced && unlocked) {
+      final awakenedPulse = ritualComplete ? pulse : 0.0;
+      final echoPulse = 1.0 - awakenedPulse;
       return Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [elColor.withValues(alpha: 0.18), Colors.transparent],
-              ),
-              border: Border.all(
-                color: _C.ivoryDim.withValues(alpha: isSelected ? 0.85 : 0.45),
-                width: isSelected ? 1.6 : 1.0,
+          if (ritualComplete)
+            Transform.scale(
+              scale: 1.16 + awakenedPulse * 0.34,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: elColor.withValues(
+                      alpha: (0.42 - awakenedPulse * 0.26).clamp(0.08, 0.42),
+                    ),
+                    width: 1.4,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: elColor.withValues(alpha: 0.20 + echoPulse * 0.16),
+                      blurRadius: 22 + awakenedPulse * 18,
+                      spreadRadius: 2 + awakenedPulse * 4,
+                    ),
+                  ],
+                ),
               ),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Image.asset(
-              boss.relicImagePath,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) =>
-                  Icon(boss.elementIcon, color: elColor, size: size * 0.44),
+          if (ritualComplete)
+            Transform.scale(
+              scale: 1.03 + echoPulse * 0.18,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: elColor.withValues(alpha: 0.10 + echoPulse * 0.22),
+                    width: 1.0,
+                  ),
+                ),
+              ),
+            ),
+          Transform.scale(
+            scale: ritualComplete ? 1.0 + awakenedPulse * 0.045 : 1.0,
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    elColor.withValues(
+                      alpha: ritualComplete
+                          ? 0.24 + awakenedPulse * 0.22
+                          : 0.18,
+                    ),
+                    Colors.transparent,
+                  ],
+                ),
+                border: Border.all(
+                  color: (ritualComplete ? elColor : _C.ivoryDim).withValues(
+                    alpha: ritualComplete
+                        ? 0.66 + awakenedPulse * 0.28
+                        : isSelected
+                        ? 0.85
+                        : 0.45,
+                  ),
+                  width: ritualComplete || isSelected ? 1.6 : 1.0,
+                ),
+                boxShadow: ritualComplete
+                    ? [
+                        BoxShadow(
+                          color: elColor.withValues(
+                            alpha: 0.14 + awakenedPulse * 0.20,
+                          ),
+                          blurRadius: 14 + awakenedPulse * 12,
+                        ),
+                      ]
+                    : null,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Image.asset(
+                boss.relicImagePath,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) =>
+                    Icon(boss.elementIcon, color: elColor, size: size * 0.44),
+              ),
             ),
           ),
-          if (required > 0)
+          if (ritualComplete)
+            Positioned(
+              right: -1,
+              top: -1,
+              child: Container(
+                width: size * 0.28,
+                height: size * 0.28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _C.success,
+                  border: Border.all(color: _C.bg, width: 1.4),
+                ),
+                child: Icon(
+                  AppIcons.check_rounded,
+                  color: Colors.white,
+                  size: size * 0.15,
+                ),
+              ),
+            )
+          else if (required > 0)
             SizedBox(
               width: size,
               height: size,
@@ -858,7 +1009,7 @@ class _BossNode extends StatelessWidget {
                 boss.relicImagePath,
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => Icon(
-                  unlocked ? boss.elementIcon : Icons.lock_outline_rounded,
+                  unlocked ? boss.elementIcon : AppIcons.lock_outline_rounded,
                   color: unlocked ? elColor : _C.locked.withValues(alpha: 0.45),
                   size: size * (unlocked ? 0.38 : 0.33),
                 ),
@@ -897,7 +1048,7 @@ class _BossNode extends StatelessWidget {
                 ),
               ),
               child: Icon(
-                hasKey ? Icons.key_rounded : Icons.add_rounded,
+                hasKey ? AppIcons.key_rounded : AppIcons.add_rounded,
                 color: hasKey ? Colors.black87 : _C.muted,
                 size: size * 0.13,
               ),
@@ -917,7 +1068,7 @@ class _InfoPanel extends StatelessWidget {
   final String mysticName;
   final BossProgressNotifier progress;
   final int keyQty, placedCount, requiredCount;
-  final bool relicPlaced;
+  final bool relicPlaced, ritualComplete;
   final AnimationController bgCtrl;
   final VoidCallback onEnter;
 
@@ -929,6 +1080,7 @@ class _InfoPanel extends StatelessWidget {
     required this.placedCount,
     required this.requiredCount,
     required this.relicPlaced,
+    required this.ritualComplete,
     required this.bgCtrl,
     required this.onEnter,
   });
@@ -938,14 +1090,19 @@ class _InfoPanel extends StatelessWidget {
     final elColor = boss.elementColor;
     final defeated = progress.isBossDefeated(boss.id);
     final hasKey = keyQty > 0;
-    final unlocked = defeated && hasKey;
+    final unlocked = defeated && (hasKey || relicPlaced || ritualComplete);
     final complete =
-        unlocked && placedCount >= requiredCount && requiredCount > 0;
+        !ritualComplete &&
+        unlocked &&
+        placedCount >= requiredCount &&
+        requiredCount > 0;
     final tn =
         BossLootKeys.elementRewards[boss.element.toLowerCase()]?.traitName ??
         'Key Item';
 
-    final ctaLabel = unlocked
+    final ctaLabel = ritualComplete
+        ? 'Ritual complete'
+        : unlocked
         ? (complete
               ? 'Perform ritual'
               : (relicPlaced ? 'Enter altar' : 'Place relic'))
@@ -1023,6 +1180,7 @@ class _InfoPanel extends StatelessWidget {
                 onTap: onEnter,
                 label: ctaLabel,
                 enabled: unlocked,
+                color: ritualComplete ? elColor : null,
               ),
             ],
           ),
@@ -1082,6 +1240,7 @@ class _InfoPanel extends StatelessWidget {
   String _statusText(bool unlocked, bool complete, String tn) {
     final def = progress.isBossDefeated(boss.id);
     if (!def) return 'Defeat ${boss.name} first';
+    if (ritualComplete) return '$tn remains awake in the altar';
     if (!unlocked) return 'Needs $tn';
     if (complete) return 'The ritual can begin';
     if (placedCount > 0) {
@@ -1092,6 +1251,7 @@ class _InfoPanel extends StatelessWidget {
   }
 
   Color _statusColor(Color el, bool unlocked, bool complete) {
+    if (ritualComplete) return el;
     if (!unlocked) return _C.muted;
     if (complete) return _C.success;
     if (placedCount > 0) return _C.gold;
@@ -1143,95 +1303,80 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
   @override
   Widget build(BuildContext context) {
     final elColor = widget.boss.elementColor;
-    return ScaleTransition(
-      scale: _s,
+    return FadeTransition(
+      opacity: _s,
       child: Dialog(
-        backgroundColor: _C.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: elColor.withValues(alpha: 0.55), width: 1),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 3,
-              decoration: BoxDecoration(
-                color: elColor.withValues(alpha: 0.8),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        backgroundColor: Colors.transparent,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.96, end: 1).animate(_s),
+          child: _RitualDialogSurface(
+            accent: elColor,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 62,
-                    height: 62,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _C.gold.withValues(alpha: 0.12),
-                      border: Border.all(
-                        color: _C.gold.withValues(alpha: 0.6),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _C.gold.withValues(alpha: 0.30),
-                          blurRadius: 18,
+                  Row(
+                    children: [
+                      _RelicPreviewMark(boss: widget.boss, color: elColor),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Place relic',
+                              style: _display(
+                                context,
+                                18,
+                                _C.ivory,
+                                weight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              widget.traitName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _body(
+                                context,
+                                12,
+                                _C.ivoryMuted,
+                                height: 1.25,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Image.asset(
-                      widget.boss.relicImagePath,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.key_rounded,
-                        color: _C.gold,
-                        size: 28,
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'PLACE RELIC',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: _C.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 18),
                   Text(
                     'Commit the ${widget.traitName} to the ${widget.boss.name} altar and open the ritual chamber.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: _C.sub,
-                      fontSize: 12,
-                      height: 1.5,
-                    ),
+                    style: _body(context, 13, _C.ivoryDim, height: 1.55),
                   ),
                   const SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(
                         child: _Btn(
-                          label: 'CANCEL',
-                          color: _C.muted,
+                          label: 'Return',
+                          color: _C.ivoryMuted,
                           onTap: widget.onCancel,
+                          primary: false,
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: _Btn(
-                          label: 'COMMIT',
+                          label: 'Place relic',
                           color: elColor,
                           onTap: widget.onConfirm,
+                          primary: true,
                         ),
                       ),
                     ],
@@ -1239,8 +1384,98 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RelicPreviewMark extends StatelessWidget {
+  const _RelicPreviewMark({required this.boss, required this.color});
+
+  final Boss boss;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 66,
+      height: 66,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 66,
+            height: 66,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  color.withValues(alpha: 0.16),
+                  const Color(0xFF05060A).withValues(alpha: 0.92),
+                ],
+              ),
+              border: Border.all(color: color.withValues(alpha: 0.56)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.24),
+                  blurRadius: 22,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Image.asset(
+              boss.relicImagePath,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) =>
+                  Icon(boss.elementIcon, color: color, size: 30),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RitualDialogSurface extends StatelessWidget {
+  const _RitualDialogSurface({required this.accent, required this.child});
+
+  final Color accent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _CornerBracketPainter(
+        color: accent.withValues(alpha: 0.66),
+        bracketSize: 18,
+        strokeWidth: 1.2,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B0D14).withValues(alpha: 0.98),
+          border: Border(
+            top: BorderSide(color: accent.withValues(alpha: 0.42), width: 1),
+            bottom: BorderSide(color: accent.withValues(alpha: 0.24), width: 1),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 30,
+              offset: const Offset(0, 18),
+            ),
+            BoxShadow(
+              color: accent.withValues(alpha: 0.10),
+              blurRadius: 40,
+              spreadRadius: 2,
+            ),
           ],
         ),
+        child: child,
       ),
     );
   }
@@ -1254,7 +1489,13 @@ class _Btn extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _Btn({required this.label, required this.color, required this.onTap});
+  final bool primary;
+  const _Btn({
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.primary = true,
+  });
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -1264,17 +1505,25 @@ class _Btn extends StatelessWidget {
     },
     child: CustomPaint(
       painter: _CornerBracketPainter(
-        color: color.withValues(alpha: 0.55),
+        color: color.withValues(alpha: primary ? 0.72 : 0.34),
         bracketSize: 10,
         strokeWidth: 1.1,
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        color: color.withValues(alpha: 0.08),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 10),
+        color: primary
+            ? color.withValues(alpha: 0.10)
+            : Colors.white.withValues(alpha: 0.025),
         child: Center(
           child: Text(
-            label == 'COMMIT' ? 'Place relic' : 'Return',
-            style: _display(context, 13, color, letterSpacing: 0.8),
+            label,
+            style: _display(
+              context,
+              13,
+              primary ? color : _C.ivoryDim,
+              weight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
           ),
         ),
       ),
@@ -1301,7 +1550,7 @@ class _BackBracketButton extends StatelessWidget {
             strokeWidth: 1.0,
           ),
           child: const Icon(
-            Icons.chevron_left_rounded,
+            AppIcons.chevron_left_rounded,
             color: _C.ivoryDim,
             size: 22,
           ),
@@ -1316,21 +1565,24 @@ class _PanelActionButton extends StatelessWidget {
     required this.onTap,
     required this.label,
     required this.enabled,
+    this.color,
   });
 
   final VoidCallback onTap;
   final String label;
   final bool enabled;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final accent = color ?? _C.ivoryDim;
     return GestureDetector(
       onTap: onTap,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 42, minWidth: 112),
         child: CustomPaint(
           painter: _CornerBracketPainter(
-            color: (enabled ? _C.ivoryDim : _C.ivoryMuted).withValues(
+            color: (enabled ? accent : _C.ivoryMuted).withValues(
               alpha: enabled ? 0.55 : 0.28,
             ),
             bracketSize: 10,
@@ -1345,7 +1597,7 @@ class _PanelActionButton extends StatelessWidget {
               style: _display(
                 context,
                 13,
-                enabled ? _C.ivory : _C.ivoryMuted,
+                enabled ? (color ?? _C.ivory) : _C.ivoryMuted,
                 letterSpacing: 0.8,
               ),
             ),
@@ -1530,10 +1782,7 @@ class _SwirlPainter extends CustomPainter {
         final frac = s / _steps;
         final r = innerR + frac * outerSpan;
         final angle = baseAngle + armOffset + frac * _sweepRad;
-        final next = Offset(
-          cx + r * math.cos(angle),
-          cy + r * math.sin(angle),
-        );
+        final next = Offset(cx + r * math.cos(angle), cy + r * math.sin(angle));
 
         // Eased taper (frac²): faint, fine at the core; broader, brighter outward
         final taper = frac * frac;
@@ -1647,114 +1896,104 @@ class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
       animation: _ctrl,
       builder: (_, __) => Opacity(
         opacity: _opacity.value,
-        child: Transform.scale(
-          scale: _scale.value,
-          child: Center(
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: 300,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 28,
-                  vertical: 32,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0A0420),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _C.voidBright, width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _C.voidBright.withValues(alpha: 0.5),
-                      blurRadius: 40,
-                      spreadRadius: 4,
-                    ),
-                    BoxShadow(
-                      color: _C.voidGlow.withValues(alpha: 0.3),
-                      blurRadius: 80,
-                      spreadRadius: 8,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Swirl icon
-                    SizedBox(
-                      width: 80,
-                      height: 80,
-                      child: CustomPaint(
-                        painter: _SwirlPainter(t: _ctrl.value * 2, pulse: 0.8),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'ARCANE PORTAL',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: _C.voidGlow,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 3,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'DISCOVERED',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: _C.text,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'A rift to the arcane realm has opened\n'
-                      'on the expedition map.\n\n'
-                      'Base stats and potentials have increased\n'
-                      'across all wilderness biomes.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: _C.sub,
-                        fontSize: 12,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        widget.onDismiss();
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 10,
+        child: Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Transform.scale(
+              scale: _scale.value,
+              child: SizedBox(
+                width: 320,
+                child: _RitualDialogSurface(
+                  accent: _C.voidGlow,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 66,
+                              height: 66,
+                              child: CustomPaint(
+                                painter: _SwirlPainter(
+                                  t: _ctrl.value * 2,
+                                  pulse: 0.8,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Arcane portal',
+                                    style: _display(
+                                      context,
+                                      18,
+                                      _C.ivory,
+                                      weight: FontWeight.w600,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Discovered',
+                                    style: _body(
+                                      context,
+                                      12,
+                                      _C.voidGlow,
+                                      height: 1.2,
+                                      weight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        decoration: BoxDecoration(
-                          color: _C.voidBright.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _C.voidBright.withValues(alpha: 0.5),
+                        const SizedBox(height: 18),
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.025),
+                            border: Border(
+                              left: BorderSide(
+                                color: _C.voidGlow.withValues(alpha: 0.66),
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            'A rift to the arcane realm has opened on the expedition map.\n\nBase stats and potentials have increased across all wilderness biomes.',
+                            style: _body(
+                              context,
+                              12,
+                              _C.ivoryDim,
+                              height: 1.48,
+                            ),
                           ),
                         ),
-                        child: Text(
-                          'CONTINUE',
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: _C.voidGlow,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 2,
+                        const SizedBox(height: 22),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: SizedBox(
+                            width: 150,
+                            child: _Btn(
+                              label: 'Continue',
+                              color: _C.voidGlow,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                widget.onDismiss();
+                              },
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

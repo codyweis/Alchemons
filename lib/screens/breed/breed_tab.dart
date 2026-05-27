@@ -16,6 +16,7 @@ import 'package:provider/provider.dart';
 import '../../database/alchemons_db.dart';
 import '../../models/creature.dart';
 import '../../services/creature_repository.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class BreedingTab extends StatefulWidget {
   final List<CreatureEntry> discoveredCreatures;
@@ -570,7 +571,7 @@ class _BreedingTabState extends State<BreedingTab>
                                 ],
                               ),
                               child: const Icon(
-                                Icons.close,
+                                AppIcons.close,
                                 color: Colors.red,
                                 size: 14,
                               ),
@@ -608,7 +609,7 @@ class _BreedingTabState extends State<BreedingTab>
             ),
             child: Center(
               child: Icon(
-                Icons.help_center_rounded,
+                AppIcons.help_center_rounded,
                 color: theme.textMuted.withValues(alpha: .25),
                 size: 28,
               ),
@@ -651,7 +652,7 @@ class _BreedingTabState extends State<BreedingTab>
                     ),
                   )
                 : Icon(
-                    Icons.image_not_supported_rounded,
+                    AppIcons.image_not_supported_rounded,
                     color: Colors.white.withValues(alpha: .4),
                     size: 32,
                   ),
@@ -907,7 +908,7 @@ class _BreedingTabState extends State<BreedingTab>
                 children: [
                   if (canBreed) ...[
                     Icon(
-                      Icons.merge_type_rounded,
+                      AppIcons.merge_type_rounded,
                       color: Colors.black,
                       size: 18,
                     ),
@@ -951,7 +952,7 @@ class _BreedingTabState extends State<BreedingTab>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.replay_rounded, color: theme.accent, size: 18),
+            Icon(AppIcons.replay_rounded, color: theme.accent, size: 18),
             const SizedBox(width: 8),
             Text(
               'BREED AGAIN',
@@ -979,7 +980,7 @@ class _BreedingTabState extends State<BreedingTab>
     if (inst1 == null || inst2 == null) {
       _showToast(
         'Previous specimens no longer available',
-        icon: Icons.warning_rounded,
+        icon: AppIcons.warning_rounded,
         color: Colors.orange,
       );
       setState(() {
@@ -1081,7 +1082,7 @@ class _BreedingTabState extends State<BreedingTab>
       if (placementFailure != null) {
         _showToast(
           placementFailure,
-          icon: Icons.inventory_2_rounded,
+          icon: AppIcons.inventory_2_rounded,
           color: Colors.orange,
         );
         return;
@@ -1120,7 +1121,7 @@ class _BreedingTabState extends State<BreedingTab>
         !ok1 && !ok2
             ? 'Both specimens are resting'
             : (!ok1 ? 'Specimen A is resting' : 'Specimen B is resting'),
-        icon: Icons.hourglass_bottom_rounded,
+        icon: AppIcons.hourglass_bottom_rounded,
         color: Colors.orange,
       );
       return;
@@ -1145,7 +1146,7 @@ class _BreedingTabState extends State<BreedingTab>
       Widget spriteFor(CreatureInstance inst, Creature? base) {
         if (base?.spriteData == null) {
           return Icon(
-            Icons.pets,
+            AppIcons.pets,
             color: Colors.white.withValues(alpha: .8),
             size: 64,
           );
@@ -1177,7 +1178,7 @@ class _BreedingTabState extends State<BreedingTab>
           if (!result.success) {
             _showToast(
               result.message ?? 'Breeding failed',
-              icon: Icons.warning_rounded,
+              icon: AppIcons.warning_rounded,
               color: Colors.orange,
             );
             return false;
@@ -1186,13 +1187,13 @@ class _BreedingTabState extends State<BreedingTab>
           if (result.placement == EggPlacement.storage) {
             _showToast(
               'Incubator full — specimen transferred to cold storage',
-              icon: Icons.inventory_2_rounded,
+              icon: AppIcons.inventory_2_rounded,
               color: Colors.orange,
             );
           } else if (result.placement == EggPlacement.incubator) {
             _showToast(
               'Specimen placed in incubation chamber ${(result.slotId ?? 0) + 1}',
-              icon: Icons.science_rounded,
+              icon: AppIcons.science_rounded,
             );
           }
 
@@ -1225,7 +1226,7 @@ class _BreedingTabState extends State<BreedingTab>
       _showToast(
         'Fusion protocol error: $e',
         color: Colors.red,
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
       );
     }
   }
@@ -1375,7 +1376,7 @@ class _BreedingTabState extends State<BreedingTab>
     if (blockedIds.contains(instance.instanceId)) {
       _showToast(
         'That specimen is already selected',
-        icon: Icons.block_rounded,
+        icon: AppIcons.block_rounded,
         color: Colors.orange,
         fromTop: true,
       );
@@ -1396,7 +1397,7 @@ class _BreedingTabState extends State<BreedingTab>
     final mins = (remMs / 60000).ceil();
     _showToast(
       'Specimen is resting — next stamina in ~${mins}m',
-      icon: Icons.hourglass_bottom_rounded,
+      icon: AppIcons.hourglass_bottom_rounded,
       color: Colors.orange,
       fromTop: true,
     );
@@ -1405,7 +1406,7 @@ class _BreedingTabState extends State<BreedingTab>
 
   void _showToast(
     String message, {
-    IconData icon = Icons.info_rounded,
+    IconData icon = AppIcons.info_rounded,
     Color? color,
     bool fromTop = false,
   }) {

@@ -11,6 +11,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_image.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ------------------------------------
 // VIEW MODES
@@ -306,8 +307,8 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                               ),
                               child: Icon(
                                 _showFavoritesOnly
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
+                                    ? AppIcons.star_rounded
+                                    : AppIcons.star_outline_rounded,
                                 size: 20,
                                 color: _showFavoritesOnly
                                     ? const Color(0xFFE91E63)
@@ -335,7 +336,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                               child: Row(
                                 children: [
                                   Icon(
-                                    Icons.search_rounded,
+                                    AppIcons.search_rounded,
                                     size: 18,
                                     color: theme.textMuted,
                                   ),
@@ -376,7 +377,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                                         });
                                       },
                                       child: Icon(
-                                        Icons.clear_rounded,
+                                        AppIcons.clear_rounded,
                                         size: 18,
                                         color: theme.textMuted,
                                       ),
@@ -655,7 +656,7 @@ class _DefaultHeader extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.sort_rounded, size: 14, color: theme.accent),
+                      Icon(AppIcons.sort_rounded, size: 14, color: theme.accent),
                       const SizedBox(width: 4),
                       Text(
                         selectedSort!,
@@ -712,8 +713,8 @@ class _DefaultHeader extends StatelessWidget {
                   ),
                   child: Icon(
                     showingAllInstances
-                        ? Icons.category_rounded
-                        : Icons.grid_view_rounded,
+                        ? AppIcons.category_rounded
+                        : AppIcons.grid_view_rounded,
                     color: theme.accent,
                     size: 22,
                   ),
@@ -940,7 +941,7 @@ class _EmptyState extends StatelessWidget {
                 ],
               ),
               child: Icon(
-                Icons.search_off_rounded,
+                AppIcons.search_off_rounded,
                 size: 40,
                 color: theme.accent,
               ),

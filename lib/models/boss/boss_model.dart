@@ -1,5 +1,6 @@
 // lib/models/boss.dart
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class BossMove {
   final String name;
@@ -149,41 +150,41 @@ class Boss {
   IconData get elementIcon {
     switch (element.toLowerCase()) {
       case 'fire':
-        return Icons.local_fire_department;
+        return AppIcons.local_fire_department;
       case 'water':
-        return Icons.water_drop;
+        return AppIcons.water_drop;
       case 'earth':
-        return Icons.terrain;
+        return AppIcons.terrain;
       case 'air':
-        return Icons.air;
+        return AppIcons.air;
       case 'plant':
-        return Icons.eco;
+        return AppIcons.eco;
       case 'ice':
-        return Icons.ac_unit;
+        return AppIcons.ac_unit;
       case 'lightning':
-        return Icons.bolt;
+        return AppIcons.bolt;
       case 'poison':
-        return Icons.dangerous;
+        return AppIcons.dangerous;
       case 'steam':
-        return Icons.cloud;
+        return AppIcons.cloud;
       case 'lava':
-        return Icons.volcano;
+        return AppIcons.volcano;
       case 'mud':
-        return Icons.water_damage;
+        return AppIcons.water_damage;
       case 'dust':
-        return Icons.grain;
+        return AppIcons.grain;
       case 'crystal':
-        return Icons.diamond;
+        return AppIcons.diamond;
       case 'spirit':
-        return Icons.auto_awesome;
+        return AppIcons.auto_awesome;
       case 'dark':
-        return Icons.dark_mode;
+        return AppIcons.dark_mode;
       case 'light':
-        return Icons.light_mode;
+        return AppIcons.light_mode;
       case 'blood':
-        return Icons.bloodtype;
+        return AppIcons.bloodtype;
       default:
-        return Icons.help_outline;
+        return AppIcons.help_outline;
     }
   }
 

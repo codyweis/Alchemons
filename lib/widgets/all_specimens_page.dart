@@ -7,6 +7,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class AllSpecimensPage extends StatefulWidget {
   final FactionTheme theme;
@@ -132,7 +133,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
                           child: Row(
                             children: [
                               Icon(
-                                Icons.search_rounded,
+                                AppIcons.search_rounded,
                                 size: 16,
                                 color: palette.muted,
                               ),

@@ -7,6 +7,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Resolves the shop artwork for a harvester device via its inventory key.
 String? _harvesterAsset(CatchDeviceType device) {
@@ -252,7 +253,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.inventory_2_outlined,
+            AppIcons.inventory_2_outlined,
             color: _palette.muted,
             size: 36,
           ),
@@ -344,7 +345,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                     ),
                   ),
                   Icon(
-                    Icons.chevron_right_rounded,
+                    AppIcons.chevron_right_rounded,
                     color: accent,
                     size: 18,
                   ),
@@ -385,7 +386,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                       Row(
                         children: [
                           const Icon(
-                            Icons.check_circle_rounded,
+                            AppIcons.check_circle_rounded,
                             color: _amber,
                             size: 13,
                           ),
@@ -483,16 +484,16 @@ class _DeviceThumb extends StatelessWidget {
               filterQuality: FilterQuality.medium,
               errorBuilder: (_, __, ___) => Icon(
                 isGuaranteed
-                    ? Icons.shield_rounded
-                    : Icons.catching_pokemon_rounded,
+                    ? AppIcons.shield_rounded
+                    : AppIcons.catching_pokemon_rounded,
                 color: accent,
                 size: 20,
               ),
             )
           : Icon(
               isGuaranteed
-                  ? Icons.shield_rounded
-                  : Icons.catching_pokemon_rounded,
+                  ? AppIcons.shield_rounded
+                  : AppIcons.catching_pokemon_rounded,
               color: accent,
               size: 20,
             ),
@@ -522,7 +523,7 @@ class _PickerCloseButton extends StatelessWidget {
           alignment: Alignment.center,
           color: _palette.surfaceMutedFill(),
           child: Icon(
-            Icons.close_rounded,
+            AppIcons.close_rounded,
             color: _palette.muted,
             size: AppIcon.sm,
           ),

@@ -23,6 +23,7 @@ import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
 import 'package:flame/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class _ErrorIndicator extends StatelessWidget {
   final String error;
@@ -32,7 +33,7 @@ class _ErrorIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+      child: Icon(AppIcons.broken_image, size: 48, color: Colors.grey),
     );
   }
 }
@@ -155,7 +156,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
 
     // Loading state
     if (_spriteAnimation == null) {
-      return Icon(Icons.science, size: 50);
+      return Icon(AppIcons.science, size: 50);
     }
 
     // Prismatic trumps everything - even albino

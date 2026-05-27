@@ -3,6 +3,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class DraggableSheet extends StatefulWidget {
   final Animation<double> animation;
@@ -143,7 +144,7 @@ class _DraggableSheetState extends State<DraggableSheet> {
                                       ),
                                     ),
                                     child: Icon(
-                                      Icons.close_rounded,
+                                      AppIcons.close_rounded,
                                       color: widget.theme.text,
                                       size: 18,
                                     ),

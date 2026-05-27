@@ -144,9 +144,24 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
               ? kBloodbornSecondary.withValues(alpha: 0.85)
               : palette.line.withValues(alpha: 0.75));
     final fillColor = isLight ? palette.bg1 : Colors.black;
-    final borderColor = widget.isReady
-        ? readyInnerBorderColor
-        : palette.lineSoft.withValues(alpha: 0.55);
+    // In light-mode ready we draw a dark outer outline plus a thinner gold
+    // inset line; other states keep a single border.
+    final Color borderColor;
+    final double borderWidth;
+    final Color? insetAccentColor;
+    if (lightModeReady) {
+      borderColor = palette.ink.withValues(alpha: 0.92);
+      borderWidth = 1.4;
+      insetAccentColor = ForgeTokens(theme)
+          .readableAccent(const Color(0xFFFFD700))
+          .withValues(alpha: 0.95);
+    } else {
+      borderColor = widget.isReady
+          ? readyInnerBorderColor
+          : palette.lineSoft.withValues(alpha: 0.55);
+      borderWidth = 1;
+      insetAccentColor = null;
+    }
 
     return RepaintBoundary(
       child: GestureDetector(
@@ -160,8 +175,13 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
           child: Container(
             decoration: BoxDecoration(
               color: fillColor,
-              border: Border.all(color: borderColor, width: 1),
+              border: Border.all(color: borderColor, width: borderWidth),
             ),
+            foregroundDecoration: insetAccentColor != null
+                ? BoxDecoration(
+                    border: Border.all(color: insetAccentColor, width: 1),
+                  )
+                : null,
             child: ClipRect(
               child: Stack(
                 children: [

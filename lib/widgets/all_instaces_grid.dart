@@ -24,6 +24,7 @@ import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 String _normalizeAllInstancesPrefsScope(String value) {
   return value.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');
@@ -724,8 +725,8 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       selected: _filtersOpen,
                       trailing: Icon(
                         _filtersOpen
-                            ? Icons.keyboard_arrow_up_rounded
-                            : Icons.keyboard_arrow_down_rounded,
+                            ? AppIcons.keyboard_arrow_up_rounded
+                            : AppIcons.keyboard_arrow_down_rounded,
                         size: 12,
                         color: _filtersOpen
                             ? widget.theme.primary

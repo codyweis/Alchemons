@@ -13,6 +13,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class FeedingScreen extends StatefulWidget {
   const FeedingScreen({super.key});
@@ -109,14 +110,14 @@ class _FeedingScreenState extends State<FeedingScreen>
               const SizedBox(height: 12),
               TutorialStep(
                 theme: theme,
-                icon: Icons.pets_rounded,
+                icon: AppIcons.pets_rounded,
                 title: 'Step 1 – Choose Species',
                 body: 'Pick which species you want to enhance.',
               ),
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.person_search_rounded,
+                icon: AppIcons.person_search_rounded,
                 title: 'Step 2 – Choose Specimen',
                 body:
                     'Select the specific creature that will gain levels and stats.',
@@ -124,7 +125,7 @@ class _FeedingScreenState extends State<FeedingScreen>
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.local_fire_department_rounded,
+                icon: AppIcons.local_fire_department_rounded,
                 title: 'Step 3 – Select Elemental Enhancements',
                 body:
                     'Choose other specimens of the same species to convert into elemental material. '
@@ -727,7 +728,7 @@ class _EntryCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      Icons.arrow_forward_rounded,
+                      AppIcons.arrow_forward_rounded,
                       color: accent,
                       size: 20,
                     ),

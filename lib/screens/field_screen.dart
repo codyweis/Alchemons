@@ -9,6 +9,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class FieldScreen extends StatefulWidget {
   const FieldScreen({super.key, this.onOpenExpeditions, this.onOpenHarvest});
@@ -106,7 +107,7 @@ class _FieldScreenState extends State<FieldScreen>
                       _FieldActionCard(
                         title: 'Expeditions',
                         subtitle: 'Send a team on a mission',
-                        icon: Icons.explore_rounded,
+                        icon: AppIcons.explore_rounded,
                         color: theme.accent, // use accent for icon chip
                         pillA: 'Open',
                         pillB: 'Field Map',
@@ -116,7 +117,7 @@ class _FieldScreenState extends State<FieldScreen>
                       _FieldActionCard(
                         title: 'Resource Harvesting',
                         subtitle: 'Gather field materials & samples',
-                        icon: Icons.agriculture_rounded,
+                        icon: AppIcons.agriculture_rounded,
                         color: Colors.greenAccent.shade400.withValues(
                           alpha: 0.8,
                         ),
@@ -128,7 +129,7 @@ class _FieldScreenState extends State<FieldScreen>
                       _FieldActionCard(
                         title: 'Competitions',
                         subtitle: 'Battle in elemental arenas',
-                        icon: Icons.emoji_events_rounded,
+                        icon: AppIcons.emoji_events_rounded,
                         color: Colors.amberAccent.shade200.withValues(
                           alpha: 0.9,
                         ),
@@ -336,7 +337,7 @@ class _FieldActionCardState extends State<_FieldActionCard> {
                 ),
                 const SizedBox(width: 10),
                 Icon(
-                  Icons.chevron_right_rounded,
+                  AppIcons.chevron_right_rounded,
                   color: theme.textMuted,
                   size: 22,
                 ),

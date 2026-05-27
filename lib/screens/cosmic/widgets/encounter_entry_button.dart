@@ -2,6 +2,7 @@ import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CosmicEncounterEntryButton extends StatelessWidget {
   final String label;
@@ -70,7 +71,7 @@ class CosmicEncounterEntryButton extends StatelessWidget {
                   border: Border.all(color: accentColor.withValues(alpha: 0.3)),
                 ),
                 child: Icon(
-                  Icons.arrow_back_rounded,
+                  AppIcons.arrow_back_rounded,
                   color: accentColor,
                   size: AppIcon.md,
                 ),

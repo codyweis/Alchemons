@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class BiomeDetailScreen extends StatefulWidget {
   const BiomeDetailScreen({
@@ -280,7 +281,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
             if (busyIds.contains(inst.instanceId)) {
               _showToast(
                 'That specimen is already extracting.',
-                icon: Icons.block_rounded,
+                icon: AppIcons.block_rounded,
                 color: Colors.orange.shade400,
               );
               return false;
@@ -292,7 +293,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                 !widget.biome.elementTypes.contains(base.types.first)) {
               _showToast(
                 'Only ${widget.biome.label.toLowerCase()} specimens can work here.',
-                icon: Icons.filter_alt_off_rounded,
+                icon: AppIcons.filter_alt_off_rounded,
                 color: Colors.orange.shade400,
               );
               return false;
@@ -312,7 +313,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
             final mins = (remMs / 60000).ceil();
             _showToast(
               'Specimen is resting — next stamina in ~${mins}m',
-              icon: Icons.hourglass_bottom_rounded,
+              icon: AppIcons.hourglass_bottom_rounded,
               color: Colors.orange.shade400,
             );
             return false;
@@ -339,7 +340,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (inst.staminaBars == 0) {
       _showToast(
         'This creature is too exhausted to work right now.',
-        icon: Icons.error_outline,
+        icon: AppIcons.error_outline,
         color: Colors.red.shade400,
       );
       return;
@@ -446,7 +447,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Icon(Icons.refresh_rounded, color: t.amberBright, size: 18),
+                    Icon(AppIcons.refresh_rounded, color: t.amberBright, size: 18),
                     const SizedBox(width: 8),
                     Text(
                       'EXTRACTION COMPLETE',
@@ -552,7 +553,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (inst == null) {
       _showToast(
         'That creature is no longer available.',
-        icon: Icons.error_outline,
+        icon: AppIcons.error_outline,
         color: Colors.red.shade400,
       );
       return;
@@ -576,14 +577,14 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (!ok) {
       _showToast(
         'Could not reload extraction.',
-        icon: Icons.error_outline,
+        icon: AppIcons.error_outline,
         color: Colors.red.shade400,
       );
     } else {
       HapticFeedback.mediumImpact();
       _showToast(
         'Chamber reloaded!',
-        icon: Icons.refresh_rounded,
+        icon: AppIcons.refresh_rounded,
         color: theme.primary,
       );
       await _refreshCreatureCache();
@@ -653,7 +654,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
   void _showToast(
     String message, {
-    IconData icon = Icons.info_rounded,
+    IconData icon = AppIcons.info_rounded,
     Color? color,
   }) {
     if (!mounted) return;
@@ -1115,7 +1116,7 @@ class _HeaderShell extends StatelessWidget {
           child: Row(
             children: [
               _HeaderIconButton(
-                icon: Icons.arrow_back_rounded,
+                icon: AppIcons.arrow_back_rounded,
                 accentColor: accentColor,
                 onTap: onBack,
                 theme: theme,
@@ -1149,7 +1150,7 @@ class _HeaderShell extends StatelessWidget {
               ),
               // You can keep your GlowingIcon for help, but let's flatten visuals.
               GlowingIcon(
-                icon: Icons.info_outline_rounded,
+                icon: AppIcons.info_outline_rounded,
                 color: accentColor,
                 controller: glowController,
                 dialogTitle: "Biome Extraction",

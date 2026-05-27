@@ -9,6 +9,7 @@ import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
 import 'ship_inventory_overlay.dart';
 import 'forge_bar.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class ShipMenuOverlay extends StatefulWidget {
   const ShipMenuOverlay({
@@ -750,7 +751,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     ),
                                   ],
                                   _forgeAction(
-                                    icon: Icons.add_location_alt_rounded,
+                                    icon: AppIcons.add_location_alt_rounded,
                                     label: 'BUILD HOME',
                                     onTap: widget.onBuildHome,
                                     primary: true,
@@ -765,7 +766,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     child: Opacity(
                                       opacity: widget.isNearHome ? 1.0 : 0.35,
                                       child: _forgeAction(
-                                        icon: Icons.groups_rounded,
+                                        icon: AppIcons.groups_rounded,
                                         label: widget.isNearHome
                                             ? 'PARTY'
                                             : 'PARTY (AT HOME)',
@@ -778,7 +779,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
 
                                 // ── Inventory button ──
                                 _forgeAction(
-                                  icon: Icons.inventory_rounded,
+                                  icon: AppIcons.inventory_rounded,
                                   label: 'INVENTORY',
                                   onTap: widget.tutorialBuildHomeMode
                                       ? () {}
@@ -793,7 +794,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                   children: [
                                     if (widget.hasHomePlanet) ...[
                                       _forgeAction(
-                                        icon: Icons.my_location_rounded,
+                                        icon: AppIcons.my_location_rounded,
                                         label:
                                             'MOVE HOME PLANET HERE (50 Shards)',
                                         onTap: widget.onRelocateHome,
@@ -872,7 +873,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                   border: Border.all(color: CosmicScreenStyles.borderDim),
                 ),
                 child: const Icon(
-                  Icons.add_location_alt_rounded,
+                  AppIcons.add_location_alt_rounded,
                   color: CosmicScreenStyles.textSecondary,
                   size: 18,
                 ),
@@ -906,7 +907,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                 border: Border.all(color: CosmicScreenStyles.borderDim),
               ),
               child: const Icon(
-                Icons.close_rounded,
+                AppIcons.close_rounded,
                 color: CosmicScreenStyles.textSecondary,
                 size: 18,
               ),

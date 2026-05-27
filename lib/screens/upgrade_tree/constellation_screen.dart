@@ -11,6 +11,7 @@ import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class _ConstellationPalette {
   static const bg0 = Color(0xFF080A0E);
@@ -203,7 +204,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
           ),
           title: Row(
             children: [
-              Icon(Icons.auto_awesome, color: theme.primary),
+              Icon(AppIcons.auto_awesome, color: theme.primary),
               const SizedBox(width: 8),
               Text(
                 'Constellations',
@@ -229,14 +230,14 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
               const SizedBox(height: 10),
               TutorialStep(
                 theme: theme,
-                icon: Icons.bolt,
+                icon: AppIcons.bolt,
                 title: 'Earn Points',
                 body: 'Fuse creatures and complete milestones to gain points.',
               ),
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.lock_open,
+                icon: AppIcons.lock_open,
                 title: 'Unlock Skills',
                 body:
                     'Spend points to unlock nodes that boost breeding, combat, or extraction.',
@@ -244,7 +245,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.explore_rounded,
+                icon: AppIcons.explore_rounded,
                 title: 'Explore Trees',
                 body:
                     'Switch tabs to view each tree and plan your progression.',
@@ -312,11 +313,11 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   IconData _getTreeIcon(ConstellationTree tree) {
     switch (tree) {
       case ConstellationTree.breeder:
-        return Icons.biotech_outlined;
+        return AppIcons.biotech_outlined;
       case ConstellationTree.combat:
-        return Icons.shield_outlined;
+        return AppIcons.shield_outlined;
       case ConstellationTree.extraction:
-        return Icons.diamond_outlined;
+        return AppIcons.diamond_outlined;
     }
   }
 
@@ -605,7 +606,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.touch_app_rounded, color: theme.primary, size: 18),
+          Icon(AppIcons.touch_app_rounded, color: theme.primary, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -665,7 +666,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
             children: [
               _ConstellationIconButton(
                 theme: theme,
-                icon: Icons.arrow_back_ios_new_rounded,
+                icon: AppIcons.arrow_back_ios_new_rounded,
                 onTap: _isFirstUnlockLocked
                     ? _showFirstUnlockLockedMessage
                     : () => VoidPortal.pop(context),
@@ -699,7 +700,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
               const SizedBox(width: 8),
               _ConstellationIconButton(
                 theme: theme,
-                icon: Icons.grid_view_rounded,
+                icon: AppIcons.grid_view_rounded,
                 onTap: () =>
                     _showUnlockedSkillsSheet(context, theme, unlockedSkills),
               ),
@@ -807,7 +808,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.lightbulb_outline_rounded,
+                    AppIcons.lightbulb_outline_rounded,
                     size: 14,
                     color: accent,
                   ),
@@ -874,7 +875,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
               const SizedBox(height: 12),
               _ConstellationInlineHint(
                 theme: theme,
-                icon: Icons.egg_alt_outlined,
+                icon: AppIcons.egg_alt_outlined,
                 label:
                     'Fusion milestones award the points, not extraction taps.',
               ),
@@ -985,7 +986,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                     const SizedBox(width: 8),
                     _ConstellationIconButton(
                       theme: theme,
-                      icon: Icons.close_rounded,
+                      icon: AppIcons.close_rounded,
                       onTap: () => Navigator.pop(context),
                     ),
                   ],
@@ -1035,7 +1036,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                         child: Column(
                           children: [
                             Icon(
-                              Icons.lock_outline_rounded,
+                              AppIcons.lock_outline_rounded,
                               size: 42,
                               color: _ConstellationPalette.textMuted,
                             ),
@@ -1248,7 +1249,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
-                      isUnlocked ? Icons.check_circle : Icons.lock_outline,
+                      isUnlocked ? AppIcons.check_circle : AppIcons.lock_outline,
                       color: isUnlocked
                           ? theme.primary
                           : _ConstellationPalette.textSoft,
@@ -1314,7 +1315,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          Icons.chevron_right,
+                          AppIcons.chevron_right,
                           color: accent.withValues(alpha: 0.7),
                           size: 14,
                         ),
@@ -1478,7 +1479,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                                 content: Row(
                                   children: [
                                     const Icon(
-                                      Icons.check_circle,
+                                      AppIcons.check_circle,
                                       color: Colors.white,
                                     ),
                                     const SizedBox(width: 12),

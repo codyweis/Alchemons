@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Shows breeding progress and milestone info for a species
 /// Add this to your creatures screen / dex entry
@@ -57,7 +58,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.auto_awesome, color: theme.primary, size: 12),
+          Icon(AppIcons.auto_awesome, color: theme.primary, size: 12),
           const SizedBox(width: 4),
           Text(
             '${progress.totalBred}',
@@ -83,7 +84,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.auto_awesome_outlined, color: theme.textMuted, size: 16),
+            Icon(AppIcons.auto_awesome_outlined, color: theme.textMuted, size: 16),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -132,7 +133,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.auto_awesome, color: theme.primary, size: 14),
+                  Icon(AppIcons.auto_awesome, color: theme.primary, size: 14),
                   const SizedBox(width: 6),
                   Text(
                     'BREEDING PROGRESS',
@@ -229,7 +230,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.auto_awesome, color: Colors.white, size: 10),
+                      Icon(AppIcons.auto_awesome, color: Colors.white, size: 10),
                       const SizedBox(width: 3),
                       Text(
                         '+$pointsForRarity',
@@ -253,7 +254,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
               Row(
                 children: [
                   Icon(
-                    Icons.workspace_premium,
+                    AppIcons.workspace_premium,
                     color: rarityColor ?? theme.primary,
                     size: 11,
                   ),
@@ -281,7 +282,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.emoji_events, color: theme.primary, size: 16),
+                  Icon(AppIcons.emoji_events, color: theme.primary, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -459,7 +460,7 @@ Widget buildMilestoneAlert(BreedingProgress progress, String rarity) {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Icon(Icons.notification_important, color: Colors.amber.shade900),
+            Icon(AppIcons.notification_important, color: Colors.amber.shade900),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/competition.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Push this screen and it will return the chosen instanceId (String)
 /// via `Navigator.pop<String>(instanceId)`.
@@ -137,7 +138,7 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: const Icon(AppIcons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text('${widget.biome.name} • Select Creature'),
@@ -302,7 +303,7 @@ class _SearchField extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.white.withValues(alpha: .22)),
         ),
-        prefixIcon: const Icon(Icons.search, color: Colors.white70, size: 18),
+        prefixIcon: const Icon(AppIcons.search, color: Colors.white70, size: 18),
       ),
     );
   }
@@ -386,7 +387,7 @@ class _StatsCard extends StatelessWidget {
               child: FittedBox(
                 child:
                     candidate.sprite ??
-                    const Icon(Icons.pets, color: Colors.white70),
+                    const Icon(AppIcons.pets, color: Colors.white70),
               ),
             ),
             const SizedBox(width: 12),
@@ -414,7 +415,7 @@ class _StatsCard extends StatelessWidget {
                         const Padding(
                           padding: EdgeInsets.only(left: 8),
                           child: Icon(
-                            Icons.battery_alert,
+                            AppIcons.battery_alert,
                             color: Colors.redAccent,
                             size: 16,
                           ),

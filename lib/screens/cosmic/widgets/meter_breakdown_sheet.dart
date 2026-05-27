@@ -5,6 +5,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
 import 'cosmic_screen_styles.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class MeterBreakdownSheet extends StatefulWidget {
   const MeterBreakdownSheet({
@@ -365,7 +366,7 @@ class _ElementRow extends StatelessWidget {
                     alignment: Alignment.center,
                     color: const Color(0xFFC0392B).withValues(alpha: 0.14),
                     child: const Icon(
-                      Icons.close_rounded,
+                      AppIcons.close_rounded,
                       color: Color(0xFFE08C8C),
                       size: 14,
                     ),

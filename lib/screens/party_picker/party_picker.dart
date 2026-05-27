@@ -14,6 +14,7 @@ import 'party_picker_dialogs.dart';
 import 'team_builder_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -199,7 +200,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                 border: Border.all(color: _C.borderDim),
               ),
               child: Icon(
-                Icons.arrow_back_rounded,
+                AppIcons.arrow_back_rounded,
                 color: _C.textSecondary,
                 size: 18,
               ),
@@ -255,7 +256,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.folder_open, color: _C.textSecondary, size: 14),
+                  Icon(AppIcons.folder_open, color: _C.textSecondary, size: 14),
                   const SizedBox(width: 8),
                   Text(
                     'TEAMS',
@@ -287,7 +288,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                 ),
               ),
               child: Icon(
-                Icons.close_rounded,
+                AppIcons.close_rounded,
                 color: _hasActiveFilters ? _C.amber : _C.textMuted,
                 size: 18,
               ),
@@ -345,7 +346,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                   Row(
                     children: [
                       Icon(
-                        Icons.groups_rounded,
+                        AppIcons.groups_rounded,
                         color: isReady ? _C.success : _C.textSecondary,
                         size: 13,
                       ),
@@ -391,7 +392,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                                 key: const ValueKey('ready'),
                                 children: [
                                   Icon(
-                                    Icons.check_rounded,
+                                    AppIcons.check_rounded,
                                     color: _C.success,
                                     size: 12,
                                   ),
@@ -495,7 +496,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                       ),
                     )
                   else
-                    Icon(Icons.help_outline, size: 20, color: _C.textMuted),
+                    Icon(AppIcons.help_outline, size: 20, color: _C.textMuted),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 4,
@@ -516,7 +517,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_rounded, size: 16, color: _C.textMuted),
+                  Icon(AppIcons.add_rounded, size: 16, color: _C.textMuted),
                   const SizedBox(height: 2),
                   Text(
                     '${slotIndex + 1}',
@@ -626,8 +627,8 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
             children: [
               Icon(
                 canDeploy
-                    ? Icons.arrow_forward_rounded
-                    : Icons.hourglass_empty_rounded,
+                    ? AppIcons.arrow_forward_rounded
+                    : AppIcons.hourglass_empty_rounded,
                 size: 14,
                 color: canDeploy ? _C.bg0 : _C.textMuted,
               ),

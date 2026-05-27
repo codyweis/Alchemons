@@ -11,6 +11,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
 import '../models/map_marker.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MINI MAP OVERLAY
@@ -191,7 +192,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'TRAVEL TO ${planetName(p.element).toUpperCase()}',
             subtitle: 'Planet route',
             accent: p.color,
-            icon: Icons.public_rounded,
+            icon: AppIcons.public_rounded,
             actionLabel: 'TRAVEL',
             onConfirm: () => _runAfterBuild(() => widget.onNavigatePlanet(p)),
           ),
@@ -209,7 +210,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'TRAVEL TO HOME BASE',
             subtitle: 'Return home',
             accent: hp.blendedColor,
-            icon: Icons.home_rounded,
+            icon: AppIcons.home_rounded,
             actionLabel: 'TRAVEL',
             onConfirm: () => _runAfterBuild(widget.onGoHome),
           ),
@@ -268,7 +269,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'TRAVEL TO ${_poiLabel(poi.type)}',
             subtitle: 'Space destination',
             accent: _poiColor(poi.type),
-            icon: Icons.storefront_rounded,
+            icon: AppIcons.storefront_rounded,
             actionLabel: 'TRAVEL',
             onConfirm: () =>
                 _runAfterBuild(() => widget.onTeleport(poi.position)),
@@ -291,7 +292,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                 : arena.trait.arenaLabel.toUpperCase(),
             subtitle: 'Contest arena',
             accent: arena.trait.color,
-            icon: Icons.emoji_events_rounded,
+            icon: AppIcons.emoji_events_rounded,
             actionLabel: widget.debugEnableContestArenaTeleport
                 ? 'TRAVEL'
                 : null,
@@ -313,7 +314,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'LV ${whirl.level} ${whirl.hordeTypeName.toUpperCase()}',
             subtitle: 'Galaxy whirl',
             accent: elementColor(whirl.element),
-            icon: Icons.cyclone_rounded,
+            icon: AppIcons.cyclone_rounded,
           ),
           d,
         );
@@ -329,7 +330,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: lair.template.name.toUpperCase(),
             subtitle: 'Boss lair',
             accent: elementColor(lair.template.element),
-            icon: Icons.warning_amber_rounded,
+            icon: AppIcons.warning_amber_rounded,
           ),
           d,
         );
@@ -345,7 +346,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'PRISMATIC AURORA',
             subtitle: 'Ancient anomaly',
             accent: Color(0xFFFF00CC),
-            icon: Icons.auto_awesome_rounded,
+            icon: AppIcons.auto_awesome_rounded,
           ),
           d,
         );
@@ -361,7 +362,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'ELEMENTAL NEXUS',
             subtitle: 'Ancient structure',
             accent: Color(0xFFB388FF),
-            icon: Icons.blur_circular_rounded,
+            icon: AppIcons.blur_circular_rounded,
           ),
           d,
         );
@@ -377,7 +378,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: br.isCompleted ? 'BATTLE ARENA' : 'BATTLE RING',
             subtitle: 'Combat landmark',
             accent: const Color(0xFFFFD740),
-            icon: Icons.shield_rounded,
+            icon: AppIcons.shield_rounded,
           ),
           d,
         );
@@ -393,7 +394,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING',
             subtitle: 'Forbidden landmark',
             accent: const Color(0xFFFF8A80),
-            icon: Icons.radio_button_checked_rounded,
+            icon: AppIcons.radio_button_checked_rounded,
           ),
           d,
         );
@@ -463,17 +464,17 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
   };
 
   static IconData _poiIcon(POIType type) => switch (type) {
-    POIType.nebula => Icons.blur_on_rounded,
-    POIType.derelict => Icons.grid_3x3_rounded,
-    POIType.warpAnomaly => Icons.change_history_rounded,
-    POIType.stardustScanner => Icons.radar_rounded,
-    POIType.planetScanner => Icons.travel_explore_rounded,
-    POIType.harvesterMarket => Icons.storefront_rounded,
-    POIType.riftKeyMarket => Icons.storefront_rounded,
-    POIType.cosmicMarket => Icons.storefront_rounded,
-    POIType.goldConversion => Icons.storefront_rounded,
-    POIType.survivalPortal => Icons.cyclone_rounded,
-    _ => Icons.place_rounded,
+    POIType.nebula => AppIcons.blur_on_rounded,
+    POIType.derelict => AppIcons.grid_3x3_rounded,
+    POIType.warpAnomaly => AppIcons.change_history_rounded,
+    POIType.stardustScanner => AppIcons.radar_rounded,
+    POIType.planetScanner => AppIcons.travel_explore_rounded,
+    POIType.harvesterMarket => AppIcons.storefront_rounded,
+    POIType.riftKeyMarket => AppIcons.storefront_rounded,
+    POIType.cosmicMarket => AppIcons.storefront_rounded,
+    POIType.goldConversion => AppIcons.storefront_rounded,
+    POIType.survivalPortal => AppIcons.cyclone_rounded,
+    _ => AppIcons.place_rounded,
   };
 
   @override
@@ -640,7 +641,7 @@ class _Header extends StatelessWidget {
                 // Home button
                 if (hasHomePlanet)
                   _IconBtn(
-                    icon: Icons.home_rounded,
+                    icon: AppIcons.home_rounded,
                     onTap: onGoHome,
                     accent: const Color(0xFFF6D55C),
                     tooltip: 'Home',
@@ -702,7 +703,7 @@ class _Header extends StatelessWidget {
 
                 // Close button
                 _IconBtn(
-                  icon: Icons.close_rounded,
+                  icon: AppIcons.close_rounded,
                   onTap: onClose,
                   accent: Colors.white,
                   tooltip: 'Close',
@@ -716,13 +717,13 @@ class _Header extends StatelessWidget {
             Row(
               children: [
                 _StatChip(
-                  icon: Icons.public_rounded,
+                  icon: AppIcons.public_rounded,
                   label: '$discoveredCount PLANETS',
                   color: CosmicScreenStyles.amber,
                 ),
                 const SizedBox(width: 8),
                 _StatChip(
-                  icon: Icons.push_pin_rounded,
+                  icon: AppIcons.push_pin_rounded,
                   label: '$markerCount MARKERS',
                   color: CosmicScreenStyles.teal,
                 ),
@@ -876,7 +877,7 @@ class _MarkerToolbar extends StatelessWidget {
                 ),
               ),
               child: Icon(
-                Icons.push_pin,
+                AppIcons.push_pin,
                 color: markerMode
                     ? MapMarker.colors[selectedColor]
                     : CosmicScreenStyles.textMuted,
@@ -1133,8 +1134,8 @@ class _PlanetCard extends StatelessWidget {
                   padding: EdgeInsets.only(right: i == 2 ? 0 : 2),
                   child: Icon(
                     filled
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
+                        ? AppIcons.star_rounded
+                        : AppIcons.star_outline_rounded,
                     size: 11,
                     color: filled
                         ? planet.color.withValues(
@@ -1184,7 +1185,7 @@ class _NavigateButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.navigation_rounded, color: col, size: 12),
+              Icon(AppIcons.navigation_rounded, color: col, size: 12),
               const SizedBox(width: 6),
               Text(
                 'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
@@ -1294,7 +1295,7 @@ class _TravelPromptCard extends StatelessWidget {
               height: 34,
               alignment: Alignment.center,
               child: Icon(
-                Icons.close_rounded,
+                AppIcons.close_rounded,
                 color: CosmicScreenStyles.textMuted,
                 size: 18,
               ),
@@ -1319,7 +1320,7 @@ class _TravelPromptCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.navigation_rounded, color: accent, size: 13),
+                    Icon(AppIcons.navigation_rounded, color: accent, size: 13),
                     const SizedBox(width: 6),
                     Text(
                       prompt.actionLabel ?? 'TRAVEL',

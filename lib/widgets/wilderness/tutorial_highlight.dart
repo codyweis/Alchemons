@@ -2,6 +2,7 @@
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Wraps a widget with a pulsing highlight effect for tutorials
 class TutorialHighlight extends StatefulWidget {
@@ -102,7 +103,7 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
-                      Icons.touch_app_rounded,
+                      AppIcons.touch_app_rounded,
                       color: Colors.white,
                       size: 18,
                     ),

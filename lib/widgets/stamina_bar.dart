@@ -6,6 +6,7 @@ import 'package:alchemons/services/stamina_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class StaminaBar extends StatelessWidget {
   final int current; // e.g. 2
@@ -164,7 +165,7 @@ class _StaminaBadgeState extends State<StaminaBadge> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const Icon(
-          Icons.local_fire_department,
+          AppIcons.local_fire_department,
           size: AppIcon.sm,
           color: Colors.green,
         ),

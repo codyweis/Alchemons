@@ -15,6 +15,7 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class RiftPortalScreen extends StatefulWidget {
   final RiftFaction faction;
@@ -367,7 +368,7 @@ class _VoidSprite extends StatelessWidget {
       sprite = SizedBox(
         width: size,
         height: size,
-        child: Icon(Icons.pets, color: Colors.white24, size: size * 0.5),
+        child: Icon(AppIcons.pets, color: Colors.white24, size: size * 0.5),
       );
     }
 

@@ -3,6 +3,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CreatureImage extends StatelessWidget {
   final Creature c;
@@ -21,7 +22,7 @@ class CreatureImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     if (!discovered) {
-      return Icon(Icons.help_outline_rounded, color: theme.textMuted, size: 24);
+      return Icon(AppIcons.help_outline_rounded, color: theme.textMuted, size: 24);
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(rounded),

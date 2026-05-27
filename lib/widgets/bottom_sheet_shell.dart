@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart'; // FactionTheme
+import 'package:alchemons/widgets/app_icons.dart';
 
 class BottomSheetShell extends StatelessWidget {
   final FactionTheme theme;
@@ -85,7 +86,7 @@ class BottomSheetShell extends StatelessWidget {
                           padding: const EdgeInsets.all(8),
 
                           child: Icon(
-                            Icons.close_rounded,
+                            AppIcons.close_rounded,
                             size: 16,
                             color: theme.textMuted,
                           ),

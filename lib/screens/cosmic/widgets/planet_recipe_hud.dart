@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // Cosmic HUD always renders on the dark space backdrop.
 const _palette = BracketPalette.dark;
@@ -136,8 +137,8 @@ class _PlanetRecipeHudState extends State<PlanetRecipeHud> {
                   radius: 16,
                   child: Icon(
                     widget.isPinned
-                        ? Icons.push_pin
-                        : Icons.push_pin_outlined,
+                        ? AppIcons.push_pin
+                        : AppIcons.push_pin_outlined,
                     size: 15,
                     color: widget.isPinned ? color : _palette.muted,
                   ),
@@ -303,7 +304,7 @@ class _RecipeStars extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.only(right: i == 2 ? 0 : 3),
           child: Icon(
-            filled ? Icons.star_rounded : Icons.star_outline_rounded,
+            filled ? AppIcons.star_rounded : AppIcons.star_outline_rounded,
             size: 14,
             color: filled
                 ? color

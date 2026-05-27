@@ -12,6 +12,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class FactionPickerDialog extends StatefulWidget {
   const FactionPickerDialog({super.key});
@@ -677,7 +678,7 @@ class _OrbNavigation extends StatelessWidget {
                   return Container(
                     color: faction.primaryColor.withValues(alpha: 0.2),
                     child: Icon(
-                      Icons.circle,
+                      AppIcons.circle,
                       color: faction.primaryColor,
                       size: isActive ? 30 : 22,
                     ),
@@ -751,7 +752,7 @@ class _ConfirmButton extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Icon(
-              Icons.arrow_forward_rounded,
+              AppIcons.arrow_forward_rounded,
               color: iconColor,
               size: 18,
             ),

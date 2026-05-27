@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CosmicScreenStyles {
   static const bg0 = Color(0xFF080808);
@@ -9,7 +10,7 @@ class CosmicScreenStyles {
   static const amberBright = Color(0xFFE4C16A);
   static const amberGlow = Color(0xFFF1D78A);
   static const teal = Color(0xFF5BC8E8);
-  static const astralShardIcon = Icons.diamond_rounded;
+  static const astralShardIcon = AppIcons.diamond_rounded;
   static const astralShardColor = Color(0xFFAB47BC);
   static const textPrimary = Color(0xFFE8DFC8);
   static const textSecondary = Color(0xFFB5A98A);

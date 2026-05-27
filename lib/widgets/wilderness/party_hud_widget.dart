@@ -6,6 +6,7 @@ import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class PartyHUD extends StatelessWidget {
   final List<PartyMember> party;
@@ -76,7 +77,7 @@ class PartyHUD extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: ElevatedButton.icon(
                 onPressed: onBreed,
-                icon: const Icon(Icons.favorite, size: 24),
+                icon: const Icon(AppIcons.favorite, size: 24),
                 label: const Text(
                   'BREED',
                   style: TextStyle(
@@ -214,7 +215,7 @@ class _PartySlot extends StatelessWidget {
                           name: displayName,
                         )
                       : Icon(
-                          Icons.pets,
+                          AppIcons.pets,
                           color: Colors.white.withValues(alpha: 0.7),
                           size: 32,
                         ),

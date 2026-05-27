@@ -13,6 +13,7 @@ import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class GameModeScreen extends StatefulWidget {
   const GameModeScreen({super.key});
@@ -235,7 +236,7 @@ class _ModeCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    Icons.arrow_forward_rounded,
+                    AppIcons.arrow_forward_rounded,
                     color: accentColor,
                     size: 20,
                   ),
@@ -348,7 +349,7 @@ class _LockedModeCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    Icons.lock_rounded,
+                    AppIcons.lock_rounded,
                     color: theme.textMuted,
                     size: 20,
                   ),

@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ---------------------------------------------------------------------------
 // ExtractionHubScreen
@@ -159,7 +160,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Icon(Icons.science_rounded, color: t.amberBright, size: 18),
+                  Icon(AppIcons.science_rounded, color: t.amberBright, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     'BIOME EXTRACTORS',
@@ -188,7 +189,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
               const SizedBox(height: 12),
               TutorialStep(
                 theme: theme,
-                icon: Icons.terrain_rounded,
+                icon: AppIcons.terrain_rounded,
                 title: 'Step 1 – Pick a biome',
                 body:
                     'Each biome specialises in certain elements. Some start '
@@ -197,7 +198,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.science_outlined,
+                icon: AppIcons.science_outlined,
                 title: 'Step 2 – Insert an Alchemon',
                 body:
                     'Tap a chamber and insert an Alchemon to start '
@@ -206,7 +207,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.inventory_2_rounded,
+                icon: AppIcons.inventory_2_rounded,
                 title: 'Step 3 – Collect your rewards',
                 body:
                     'When complete, collect from each chamber individually '
@@ -688,9 +689,9 @@ class _BiomeSelectorChip extends StatelessWidget {
                 ),
                 const Spacer(),
                 if (farm.completed)
-                  Icon(Icons.check_rounded, color: t.success, size: 16)
+                  Icon(AppIcons.check_rounded, color: t.success, size: 16)
                 else if (!farm.unlocked)
-                  Icon(Icons.lock_outline_rounded, color: t.textMuted, size: 15)
+                  Icon(AppIcons.lock_outline_rounded, color: t.textMuted, size: 15)
                 else if (farm.hasActive)
                   SizedBox(
                     width: 18,
@@ -767,7 +768,7 @@ class _CollectAllBanner extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                Icons.check_circle_outline_rounded,
+                AppIcons.check_circle_outline_rounded,
                 color: readyColor,
                 size: 16,
               ),
@@ -1014,7 +1015,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
             if (busyIds.contains(inst.instanceId)) {
               _showToast(
                 'That specimen is already extracting.',
-                icon: Icons.block_rounded,
+                icon: AppIcons.block_rounded,
                 color: Colors.orange.shade400,
               );
               return false;
@@ -1026,7 +1027,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                 !widget.farm.biome.elementTypes.contains(base.types.first)) {
               _showToast(
                 'Only ${widget.farm.biome.label.toLowerCase()} specimens can work here.',
-                icon: Icons.filter_alt_off_rounded,
+                icon: AppIcons.filter_alt_off_rounded,
                 color: Colors.orange.shade400,
               );
               return false;
@@ -1046,7 +1047,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
             final mins = (remMs / 60000).ceil();
             _showToast(
               'Specimen is resting — next stamina in ~${mins}m',
-              icon: Icons.hourglass_bottom_rounded,
+              icon: AppIcons.hourglass_bottom_rounded,
               color: Colors.orange.shade400,
             );
             return false;
@@ -1071,7 +1072,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     if (inst.staminaBars == 0) {
       _showToast(
         'This creature is too exhausted.',
-        icon: Icons.error_outline,
+        icon: AppIcons.error_outline,
         color: Colors.red.shade400,
       );
       return;
@@ -1098,7 +1099,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     } else {
       _showToast(
         'Could not start extraction.',
-        icon: Icons.error_outline,
+        icon: AppIcons.error_outline,
         color: Colors.red.shade400,
       );
     }
@@ -1155,7 +1156,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Icon(Icons.refresh_rounded, color: t.amberBright, size: 18),
+                    Icon(AppIcons.refresh_rounded, color: t.amberBright, size: 18),
                     const SizedBox(width: 8),
                     Text(
                       'EXTRACTION COMPLETE',
@@ -1257,7 +1258,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     if (inst == null) {
       _showToast(
         'That creature is no longer available.',
-        icon: Icons.error_outline,
+        icon: AppIcons.error_outline,
         color: Colors.red.shade400,
       );
       return;
@@ -1277,14 +1278,14 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       HapticFeedback.mediumImpact();
       _showToast(
         'Chamber reloaded!',
-        icon: Icons.refresh_rounded,
+        icon: AppIcons.refresh_rounded,
         color: theme.primary,
       );
       await _refreshCreatureCache();
     } else {
       _showToast(
         'Could not reload.',
-        icon: Icons.error_outline,
+        icon: AppIcons.error_outline,
         color: Colors.red.shade400,
       );
     }
@@ -1423,7 +1424,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   void _showToast(
     String msg, {
-    IconData icon = Icons.info_rounded,
+    IconData icon = AppIcons.info_rounded,
     Color? color,
   }) {
     if (!mounted) return;
@@ -2188,7 +2189,7 @@ class _ChamberView extends StatelessWidget {
                         child:
                             creatureWidget ??
                             Icon(
-                              Icons.science_outlined,
+                              AppIcons.science_outlined,
                               size: 28,
                               color: accent.withValues(alpha: 0.55),
                             ),

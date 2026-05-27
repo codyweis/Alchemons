@@ -4,16 +4,13 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
-import 'package:alchemons/utils/game_data_gate.dart';
-import 'package:alchemons/widgets/loading_widget.dart';
+import 'package:alchemons/utils/specimen_picker_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Condensed inventory overlay for in-game use - items only, no vials
 class GameInventoryOverlay extends StatefulWidget {
@@ -117,7 +114,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.inventory_2_outlined,
+                  AppIcons.inventory_2_outlined,
                   size: 36,
                   color: t.borderAccent,
                 ),
@@ -283,7 +280,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
     _showToast(
       'Item usage not yet implemented',
-      icon: Icons.info_rounded,
+      icon: AppIcons.info_rounded,
       color: Colors.blue,
     );
   }
@@ -302,106 +299,29 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
     if (allInstances.isEmpty) {
       _showToast(
         'No Alchemons available',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.orange,
       );
       return;
     }
 
-    final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
-
     if (!mounted) return;
-    final selectedSpeciesId = await showModalBottomSheet<String>(
+    final selectedInstance = await showSpecimenPickerRoute(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (modalContext) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (sheetContext, scrollController) {
-            return withGameData(
-              context,
-              loadingBuilder: buildLoadingScreen,
-              builder:
-                  (
-                    context, {
-                    required theme,
-                    required catalog,
-                    required entries,
-                    required discovered,
-                  }) {
-                    final eligibleDiscovered = discovered
-                        .where(
-                          (entry) =>
-                              eligibleSpeciesIds.contains(entry.creature.id),
-                        )
-                        .toList();
-
-                    if (eligibleDiscovered.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Text(
-                            'No Alchemons available',
-                            style: TextStyle(
-                              color: theme.textMuted,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    return CreatureSelectionSheet(
-                      scrollController: scrollController,
-                      discoveredCreatures: eligibleDiscovered,
-                      stateScopeKey: 'wilderness_inventory_restore_species',
-                      onSelectCreature: (creatureId) {
-                        Navigator.pop(modalContext, creatureId);
-                      },
-                      showOnlyAvailableTypes: true,
-                    );
-                  },
-            );
-          },
-        );
-      },
+      theme: theme,
+      searchHint: 'SELECT SPECIMEN',
+      prefsScopeKey: 'wilderness_inventory_restore_specimens',
     );
 
-    if (selectedSpeciesId == null || !mounted) return;
+    if (selectedInstance == null || !mounted) return;
 
-    final selectedSpecies = repo.getCreatureById(selectedSpeciesId);
-    if (selectedSpecies == null) return;
-
-    final instanceId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => BottomSheetShell(
-        title: 'Choose ${selectedSpecies.name}',
-        theme: theme,
-        child: InstancesSheet(
-          species: selectedSpecies,
-          theme: theme,
-          prefsScopeKey: 'wilderness_inventory_restore_instances',
-          onTap: (inst) {
-            Navigator.pop(context, inst.instanceId);
-          },
-        ),
-      ),
+    final updated = await staminaService.restoreToFull(
+      selectedInstance.instanceId,
     );
-
-    if (instanceId == null || !mounted) return;
-
-    final updated = await staminaService.restoreToFull(instanceId);
     if (updated == null) {
       _showToast(
         'Failed to restore stamina',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
       return;
@@ -409,9 +329,10 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
     await db.inventoryDao.decrementItem(item.key, by: 1);
 
+    final selectedSpecies = repo.getCreatureById(selectedInstance.baseId);
     _showToast(
-      'Restored stamina for ${selectedSpecies.name}!',
-      icon: Icons.favorite_rounded,
+      'Restored stamina for ${selectedSpecies?.name ?? 'specimen'}!',
+      icon: AppIcons.favorite_rounded,
       color: Colors.green,
     );
   }
@@ -422,107 +343,27 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
   ) async {
     final db = context.read<AlchemonsDatabase>();
     final theme = context.read<FactionTheme>();
-    final repo = context.read<CreatureCatalog>();
 
     final allInstances = await db.creatureDao.listAllInstances();
 
     if (allInstances.isEmpty) {
       _showToast(
         'No Alchemons to apply effect to',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.orange,
       );
       return;
     }
 
-    final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
-
     if (!mounted) return;
-    final selectedSpeciesId = await showModalBottomSheet<String>(
+    final selectedInstance = await showSpecimenPickerRoute(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (modalContext) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (sheetContext, scrollController) {
-            return withGameData(
-              context,
-              loadingBuilder: buildLoadingScreen,
-              builder:
-                  (
-                    context, {
-                    required theme,
-                    required catalog,
-                    required entries,
-                    required discovered,
-                  }) {
-                    final eligibleDiscovered = discovered
-                        .where(
-                          (entry) =>
-                              eligibleSpeciesIds.contains(entry.creature.id),
-                        )
-                        .toList();
-
-                    if (eligibleDiscovered.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Text(
-                            'No Alchemons available',
-                            style: TextStyle(
-                              color: theme.textMuted,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    return CreatureSelectionSheet(
-                      scrollController: scrollController,
-                      discoveredCreatures: eligibleDiscovered,
-                      stateScopeKey: 'wilderness_inventory_effect_species',
-                      onSelectCreature: (creatureId) {
-                        Navigator.pop(modalContext, creatureId);
-                      },
-                      showOnlyAvailableTypes: true,
-                    );
-                  },
-            );
-          },
-        );
-      },
+      theme: theme,
+      searchHint: 'SELECT SPECIMEN',
+      prefsScopeKey: 'wilderness_inventory_effect_specimens',
     );
 
-    if (selectedSpeciesId == null || !mounted) return;
-
-    final selectedSpecies = repo.getCreatureById(selectedSpeciesId);
-    if (selectedSpecies == null) return;
-
-    final instanceId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => BottomSheetShell(
-        title: 'Choose ${selectedSpecies.name}',
-        theme: theme,
-        child: InstancesSheet(
-          species: selectedSpecies,
-          theme: theme,
-          prefsScopeKey: 'wilderness_inventory_effect_instances',
-          onTap: (inst) {
-            Navigator.pop(context, inst.instanceId);
-          },
-        ),
-      ),
-    );
-
-    if (instanceId == null || !mounted) return;
+    if (selectedInstance == null || !mounted) return;
 
     final effectType = switch (item.key) {
       InvKeys.alchemyGlow => 'alchemy_glow',
@@ -542,7 +383,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
     if (effectType == null) return;
 
     await db.creatureDao.updateAlchemyEffect(
-      instanceId: instanceId,
+      instanceId: selectedInstance.instanceId,
       effect: effectType,
     );
 
@@ -550,7 +391,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
     _showToast(
       'Applied ${def.name}!',
-      icon: Icons.check_circle_rounded,
+      icon: AppIcons.check_circle_rounded,
       color: Colors.green,
     );
   }
@@ -605,21 +446,21 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
         await db.inventoryDao.removeItem(item.key);
         _showToast(
           'Removed all ${def.name}',
-          icon: Icons.delete_rounded,
+          icon: AppIcons.delete_rounded,
           color: Colors.red,
         );
       } else if (confirmed == 'one') {
         await db.inventoryDao.decrementItem(item.key, by: 1);
         _showToast(
           'Removed 1 ${def.name}',
-          icon: Icons.remove_circle_rounded,
+          icon: AppIcons.remove_circle_rounded,
           color: Colors.orange,
         );
       }
     } catch (e) {
       _showToast(
         'Failed to remove item',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
     }
@@ -691,7 +532,7 @@ class _InventoryPanelHeader extends StatelessWidget {
               border: Border.all(color: t.amber.withValues(alpha: 0.28)),
             ),
             child: Icon(
-              Icons.inventory_2_rounded,
+              AppIcons.inventory_2_rounded,
               color: t.amberBright,
               size: AppIcon.md,
             ),
@@ -780,7 +621,7 @@ class _OverlayCloseButton extends StatelessWidget {
             border: Border.all(color: t.borderDim),
           ),
           child: Icon(
-            Icons.close_rounded,
+            AppIcons.close_rounded,
             color: t.textSecondary,
             size: AppIcon.sm,
           ),

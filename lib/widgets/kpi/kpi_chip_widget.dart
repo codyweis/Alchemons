@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Collapsed shows ONLY a status string (READY / ALL AVAILABLE / INCUBATING / OPEN / EXTRACTING / COLLECT).
 /// Blinks more obviously when [readyCount] > 0 (aura + small ping dot). Tap opens popup; long-press deep-links.
@@ -201,7 +202,7 @@ class _KpiPopup extends StatelessWidget {
                           onPressed: () =>
                               Navigator.of(context, rootNavigator: true).pop(),
                           icon: const Icon(
-                            Icons.close_rounded,
+                            AppIcons.close_rounded,
                             size: 22,
                             color: Color(0xFFB6C0CC),
                           ),

@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 // canonical models/helpers (no duplicates)
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// ─────────────────────────────────────────────────────────
 /// UI-only extensions & types (safe to live here)
@@ -419,7 +420,7 @@ class _AddButtonState extends State<_AddButton>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.add, size: 16),
+            const Icon(AppIcons.add, size: 16),
             const SizedBox(width: 6),
             Text(
               'Buy',

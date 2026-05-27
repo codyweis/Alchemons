@@ -4,6 +4,7 @@
 
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class OperationSection extends StatelessWidget {
   final IconData icon;
@@ -110,7 +111,7 @@ class OperationSection extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Icon(
-                        Icons.arrow_forward_rounded,
+                        AppIcons.arrow_forward_rounded,
                         color: theme.text,
                         size: 12,
                       ),

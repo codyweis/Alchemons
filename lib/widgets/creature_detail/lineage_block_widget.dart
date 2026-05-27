@@ -8,6 +8,7 @@ import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/widgets/creature_detail/detail_helper_widgets.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // If you created CreatureFamily/ElementalGroup helpers, import them too:
 // import 'package:alchemons/models/elemental_group.dart'; // for colors / names
@@ -40,10 +41,10 @@ class LineageBlock extends StatelessWidget {
     );
 
     final (purityIcon, purityColor) = switch (purity.label) {
-      'Pure' => (Icons.verified_rounded, Colors.green),
-      'Elementally Pure' => (Icons.water_drop, Colors.cyan),
-      'Species Pure' => (Icons.pets_rounded, Colors.amber),
-      _ => (Icons.hub_rounded, Colors.orange),
+      'Pure' => (AppIcons.verified_rounded, Colors.green),
+      'Elementally Pure' => (AppIcons.water_drop, Colors.cyan),
+      'Species Pure' => (AppIcons.pets_rounded, Colors.amber),
+      _ => (AppIcons.hub_rounded, Colors.orange),
     };
 
     return Column(

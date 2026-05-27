@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'dart:math';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class InventoryItemDef {
   final String key; // storage key
@@ -80,120 +81,120 @@ class BossLootKeys {
       traitName: 'Flame Feather',
       traitDescription:
           'A blazing relic from the Fire Mystic. Unlocks future fire-aligned secrets.',
-      traitIcon: Icons.local_fire_department_rounded,
-      lootboxIcon: Icons.whatshot_rounded,
+      traitIcon: AppIcons.local_fire_department_rounded,
+      lootboxIcon: AppIcons.whatshot_rounded,
     ),
     'water': const BossRewardMeta(
       traitName: 'Leviathan Scale',
       traitDescription:
           'A tide-forged scale from the Water Mystic. Unlocks future oceanic paths.',
-      traitIcon: Icons.water_drop_rounded,
-      lootboxIcon: Icons.waves_rounded,
+      traitIcon: AppIcons.water_drop_rounded,
+      lootboxIcon: AppIcons.waves_rounded,
     ),
     'earth': const BossRewardMeta(
       traitName: 'Terra Core',
       traitDescription:
           'A dense earth core from the Earth Mystic. Unlocks future terrestrial paths.',
-      traitIcon: Icons.terrain_rounded,
-      lootboxIcon: Icons.landscape_rounded,
+      traitIcon: AppIcons.terrain_rounded,
+      lootboxIcon: AppIcons.landscape_rounded,
     ),
     'air': const BossRewardMeta(
       traitName: 'Gale Plume',
       traitDescription:
           'A wind-touched plume from the Air Mystic. Unlocks future aerial paths.',
-      traitIcon: Icons.air_rounded,
-      lootboxIcon: Icons.cloud_rounded,
+      traitIcon: AppIcons.air_rounded,
+      lootboxIcon: AppIcons.cloud_rounded,
     ),
     'plant': const BossRewardMeta(
       traitName: 'Verdant Seed',
       traitDescription:
           'A primal seed from the Plant Mystic. Unlocks future growth-aligned paths.',
-      traitIcon: Icons.eco_rounded,
-      lootboxIcon: Icons.grass_rounded,
+      traitIcon: AppIcons.eco_rounded,
+      lootboxIcon: AppIcons.grass_rounded,
     ),
     'ice': const BossRewardMeta(
       traitName: 'Frost Shard',
       traitDescription:
           'A frozen crystal from the Ice Mystic. Unlocks future glacial paths.',
-      traitIcon: Icons.ac_unit_rounded,
-      lootboxIcon: Icons.severe_cold_rounded,
+      traitIcon: AppIcons.ac_unit_rounded,
+      lootboxIcon: AppIcons.severe_cold_rounded,
     ),
     'lightning': const BossRewardMeta(
       traitName: 'Storm Sigil',
       traitDescription:
           'A charged sigil from the Lightning Mystic. Unlocks future storm paths.',
-      traitIcon: Icons.flash_on_rounded,
-      lootboxIcon: Icons.bolt_rounded,
+      traitIcon: AppIcons.flash_on_rounded,
+      lootboxIcon: AppIcons.bolt_rounded,
     ),
     'poison': const BossRewardMeta(
       traitName: 'Venom Fang',
       traitDescription:
           'A toxin-laced fang from the Poison Mystic. Unlocks future venom paths.',
-      traitIcon: Icons.science_rounded,
-      lootboxIcon: Icons.bug_report_rounded,
+      traitIcon: AppIcons.science_rounded,
+      lootboxIcon: AppIcons.bug_report_rounded,
     ),
     'steam': const BossRewardMeta(
       traitName: 'Steam Stone',
       traitDescription:
           'A pressurized valve from the Steam Mystic. Unlocks future pressure paths.',
-      traitIcon: Icons.device_thermostat_rounded,
-      lootboxIcon: Icons.blur_on_rounded,
+      traitIcon: AppIcons.device_thermostat_rounded,
+      lootboxIcon: AppIcons.blur_on_rounded,
     ),
     'lava': const BossRewardMeta(
       traitName: 'Magma Heart',
       traitDescription:
           'A molten core from the Lava Mystic. Unlocks future volcanic paths.',
-      traitIcon: Icons.public_rounded,
-      lootboxIcon: Icons.local_fire_department_rounded,
+      traitIcon: AppIcons.public_rounded,
+      lootboxIcon: AppIcons.local_fire_department_rounded,
     ),
     'mud': const BossRewardMeta(
       traitName: 'Mire Totem',
       traitDescription:
           'A swamp-carved totem from the Mud Mystic. Unlocks future mire paths.',
-      traitIcon: Icons.forest_rounded,
-      lootboxIcon: Icons.terrain_rounded,
+      traitIcon: AppIcons.forest_rounded,
+      lootboxIcon: AppIcons.terrain_rounded,
     ),
     'dust': const BossRewardMeta(
       traitName: 'Dune Relic',
       traitDescription:
           'A weathered relic from the Dust Mystic. Unlocks future desert paths.',
-      traitIcon: Icons.grain_rounded,
-      lootboxIcon: Icons.air_rounded,
+      traitIcon: AppIcons.grain_rounded,
+      lootboxIcon: AppIcons.air_rounded,
     ),
     'crystal': const BossRewardMeta(
       traitName: 'Prism Fragment',
       traitDescription:
           'A radiant shard from the Crystal Mystic. Unlocks future prism paths.',
-      traitIcon: Icons.diamond_rounded,
-      lootboxIcon: Icons.auto_awesome_rounded,
+      traitIcon: AppIcons.diamond_rounded,
+      lootboxIcon: AppIcons.auto_awesome_rounded,
     ),
     'spirit': const BossRewardMeta(
       traitName: 'Wisp Lantern',
       traitDescription:
           'An echo-lit lantern from the Spirit Mystic. Unlocks future spectral paths.',
-      traitIcon: Icons.nightlight_round_rounded,
-      lootboxIcon: Icons.dark_mode_rounded,
+      traitIcon: AppIcons.nightlight_round_rounded,
+      lootboxIcon: AppIcons.dark_mode_rounded,
     ),
     'dark': const BossRewardMeta(
       traitName: 'Umbral Crown',
       traitDescription:
           'A shadow crown from the Dark Mystic. Unlocks future umbral paths.',
-      traitIcon: Icons.brightness_2_rounded,
-      lootboxIcon: Icons.nights_stay_rounded,
+      traitIcon: AppIcons.brightness_2_rounded,
+      lootboxIcon: AppIcons.nights_stay_rounded,
     ),
     'light': const BossRewardMeta(
       traitName: 'Radiant Halo',
       traitDescription:
           'A holy halo from the Light Mystic. Unlocks future radiant paths.',
-      traitIcon: Icons.wb_sunny_rounded,
-      lootboxIcon: Icons.light_mode_rounded,
+      traitIcon: AppIcons.wb_sunny_rounded,
+      lootboxIcon: AppIcons.light_mode_rounded,
     ),
     'blood': const BossRewardMeta(
       traitName: 'Crimson Seal',
       traitDescription:
           'A sealed crest from the Blood Mystic. Unlocks future crimson paths.',
-      traitIcon: Icons.opacity_rounded,
-      lootboxIcon: Icons.inventory_2_rounded,
+      traitIcon: AppIcons.opacity_rounded,
+      lootboxIcon: AppIcons.inventory_2_rounded,
     ),
   };
 }
@@ -522,7 +523,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.instantHatch,
       name: 'Instant Fusion Extractor',
       description: 'Complete one active fusion vial instantly.',
-      icon: Icons.access_alarms,
+      icon: AppIcons.access_alarms,
       canUse: false,
     ),
     InvKeys.powerupSpeed: InventoryItemDef(
@@ -530,7 +531,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Velocity Orb',
       description:
           'An alchemical powerup that raises Speed up to the specimen\'s potential.',
-      icon: Icons.bolt_rounded,
+      icon: AppIcons.bolt_rounded,
       canUse: false,
     ),
     InvKeys.powerupIntelligence: InventoryItemDef(
@@ -538,7 +539,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Insight Orb',
       description:
           'An alchemical powerup that raises Intelligence up to the specimen\'s potential.',
-      icon: Icons.psychology_rounded,
+      icon: AppIcons.psychology_rounded,
       canUse: false,
     ),
     InvKeys.powerupStrength: InventoryItemDef(
@@ -546,7 +547,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Forge Orb',
       description:
           'An alchemical powerup that raises Strength up to the specimen\'s potential.',
-      icon: Icons.fitness_center_rounded,
+      icon: AppIcons.fitness_center_rounded,
       canUse: false,
     ),
     InvKeys.powerupBeauty: InventoryItemDef(
@@ -554,49 +555,49 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Radiance Orb',
       description:
           'An alchemical powerup that raises Beauty up to the specimen\'s potential.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       canUse: false,
     ),
     InvKeys.harvesterStdVolcanic: InventoryItemDef(
       key: InvKeys.harvesterStdVolcanic,
       name: 'Wild Harvester – Volcanic',
       description: 'Chance-based capture device.',
-      icon: Icons.local_fire_department_rounded,
+      icon: AppIcons.local_fire_department_rounded,
       canUse: false,
     ),
     InvKeys.harvesterStdOceanic: InventoryItemDef(
       key: InvKeys.harvesterStdOceanic,
       name: 'Wild Harvester – Oceanic',
       description: 'Chance-based capture device.',
-      icon: Icons.water_rounded,
+      icon: AppIcons.water_rounded,
       canUse: false,
     ),
     InvKeys.harvesterStdVerdant: InventoryItemDef(
       key: InvKeys.harvesterStdVerdant,
       name: 'Wild Harvester – Verdant',
       description: 'Chance-based capture device.',
-      icon: Icons.eco_rounded,
+      icon: AppIcons.eco_rounded,
       canUse: false,
     ),
     InvKeys.harvesterStdEarthen: InventoryItemDef(
       key: InvKeys.harvesterStdEarthen,
       name: 'Wild Harvester – Earthen',
       description: 'Chance-based capture device.',
-      icon: Icons.terrain_rounded,
+      icon: AppIcons.terrain_rounded,
       canUse: false,
     ),
     InvKeys.harvesterStdArcane: InventoryItemDef(
       key: InvKeys.harvesterStdArcane,
       name: 'Wild Harvester – Arcane',
       description: 'Chance-based capture device.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       canUse: false,
     ),
     InvKeys.harvesterGuaranteed: InventoryItemDef(
       key: InvKeys.harvesterGuaranteed,
       name: 'Stabilized Harvester',
       description: 'Guaranteed capture device.',
-      icon: Icons.shield_rounded,
+      icon: AppIcons.shield_rounded,
       canUse: false,
     ),
     // Alchemy Effects
@@ -604,90 +605,90 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.alchemyGlow,
       name: 'Alchemical Resonance',
       description: 'Apply an ethereal glow effect to one of your Alchemons.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyElementalAura: InventoryItemDef(
       key: InvKeys.alchemyElementalAura,
       name: 'Elemental Aura',
       description:
           'Apply orbiting elemental particles to one of your Alchemons.',
-      icon: Icons.bubble_chart_rounded,
+      icon: AppIcons.bubble_chart_rounded,
     ),
     InvKeys.alchemyVolcanicAura: InventoryItemDef(
       key: InvKeys.alchemyVolcanicAura,
       name: 'Volcanic Aura',
       description:
           'Apply a fiery volcanic aura to one of your Volcanic Alchemons.',
-      icon: Icons.local_fire_department_rounded,
+      icon: AppIcons.local_fire_department_rounded,
     ),
     InvKeys.alchemyVoidRift: InventoryItemDef(
       key: InvKeys.alchemyVoidRift,
       name: 'Void Rift',
       description:
           'Tear open a swirling rift of dark void energy around your Alchemon.',
-      icon: Icons.blur_circular_rounded,
+      icon: AppIcons.blur_circular_rounded,
     ),
     InvKeys.alchemyPrismaticCascade: InventoryItemDef(
       key: InvKeys.alchemyPrismaticCascade,
       name: 'Prismatic Cascade',
       description:
           'Bathe your Alchemon in a full-spectrum prismatic light cascade — the rarest cosmetic in existence.',
-      icon: Icons.lens_blur_rounded,
+      icon: AppIcons.lens_blur_rounded,
     ),
     InvKeys.alchemyRitualGold: InventoryItemDef(
       key: InvKeys.alchemyRitualGold,
       name: 'Golden Rite',
       description:
           'A luminous ritual circle of gold and ash, unlocked by completing the Pureblood Rite.',
-      icon: Icons.auto_fix_high_rounded,
+      icon: AppIcons.auto_fix_high_rounded,
     ),
     InvKeys.alchemyBeautyRadiance: InventoryItemDef(
       key: InvKeys.alchemyBeautyRadiance,
       name: 'Beauty Radiance',
       description:
           'Contest reward effect: a stage-lit radiance that amplifies charm and presence.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemySpeedFlux: InventoryItemDef(
       key: InvKeys.alchemySpeedFlux,
       name: 'Speed Flux',
       description:
           'Contest reward effect: a kinetic flux aura that conveys relentless acceleration.',
-      icon: Icons.bolt_rounded,
+      icon: AppIcons.bolt_rounded,
     ),
     InvKeys.alchemyStrengthForge: InventoryItemDef(
       key: InvKeys.alchemyStrengthForge,
       name: 'Strength Forge',
       description:
           'Contest reward effect: a forged pressure aura projecting raw force and impact.',
-      icon: Icons.fitness_center_rounded,
+      icon: AppIcons.fitness_center_rounded,
     ),
     InvKeys.alchemyIntelligenceHalo: InventoryItemDef(
       key: InvKeys.alchemyIntelligenceHalo,
       name: 'Intelligence Halo',
       description:
           'Contest reward effect: a cerebral halo of void-lit focus and adaptive thought.',
-      icon: Icons.psychology_rounded,
+      icon: AppIcons.psychology_rounded,
     ),
     InvKeys.alchemyBloodAura: InventoryItemDef(
       key: InvKeys.alchemyBloodAura,
       name: 'Blood Aura',
       description:
           'Wrap an Alchemon in a blood-red alchemical field with pulsing crimson motes.',
-      icon: Icons.opacity_rounded,
+      icon: AppIcons.opacity_rounded,
     ),
     InvKeys.staminaPotion: InventoryItemDef(
       key: InvKeys.staminaPotion,
       name: 'Stamina Elixir',
       description: 'Fully restores an Alchemon\'s stamina.',
-      icon: Icons.local_drink_rounded,
+      icon: AppIcons.local_drink_rounded,
     ),
     InvKeys.bossRefresh: InventoryItemDef(
       key: InvKeys.bossRefresh,
       name: 'Boss Summon Token',
       description:
           'Resets your daily boss rematch, allowing an additional attempt.',
-      icon: Icons.local_drink_rounded,
+      icon: AppIcons.local_drink_rounded,
       canUse: false,
     ),
     InvKeys.bossSummon: InventoryItemDef(
@@ -695,7 +696,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Boss Summon',
       description:
           'Instantly challenges a defeated boss to a rematch, bypassing the daily cooldown.',
-      icon: Icons.whatshot_rounded,
+      icon: AppIcons.whatshot_rounded,
       canUse: false,
     ),
 
@@ -704,7 +705,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.portalKeyVolcanic,
       name: 'Volcanic Portal Key',
       description: 'Grants entry to a Volcanic Rift. Consumed on entry.',
-      icon: Icons.local_fire_department_rounded,
+      icon: AppIcons.local_fire_department_rounded,
       stackable: true,
       canUse: false,
     ),
@@ -712,7 +713,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.portalKeyOceanic,
       name: 'Oceanic Portal Key',
       description: 'Grants entry to an Oceanic Rift. Consumed on entry.',
-      icon: Icons.water_rounded,
+      icon: AppIcons.water_rounded,
       stackable: true,
       canUse: false,
     ),
@@ -720,7 +721,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.portalKeyVerdant,
       name: 'Verdant Portal Key',
       description: 'Grants entry to a Verdant Rift. Consumed on entry.',
-      icon: Icons.eco_rounded,
+      icon: AppIcons.eco_rounded,
       stackable: true,
       canUse: false,
     ),
@@ -728,7 +729,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.portalKeyEarthen,
       name: 'Earthen Portal Key',
       description: 'Grants entry to an Earthen Rift. Consumed on entry.',
-      icon: Icons.terrain_rounded,
+      icon: AppIcons.terrain_rounded,
       stackable: true,
       canUse: false,
     ),
@@ -736,7 +737,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.portalKeyArcane,
       name: 'Arcane Portal Key',
       description: 'Grants entry to an Arcane Rift. Consumed on entry.',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       stackable: true,
       canUse: false,
     ),
@@ -775,7 +776,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
     key: InvKeys.homePlanetSlots,
     name: 'Home Planet Slots',
     description: 'Additional Alchemon placement slots for your Home Planet.',
-    icon: Icons.add_circle_outline_rounded,
+    icon: AppIcons.add_circle_outline_rounded,
     stackable: true,
     canUse: false,
   );

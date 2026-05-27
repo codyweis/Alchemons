@@ -5,6 +5,7 @@ import 'package:alchemons/widgets/wilderness/inventory_hud.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/models/wilderness.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // Wilderness HUD sits on dark scene backdrops — always dark.
 const _wPalette = BracketPalette.dark;
@@ -51,7 +52,7 @@ class WildernessControls extends StatelessWidget {
               alignment: Alignment.topLeft,
               child: _ControlButton(
                 label: 'Exit',
-                icon: Icons.exit_to_app_rounded,
+                icon: AppIcons.exit_to_app_rounded,
                 accentColor: _wDanger,
                 tooltip: leaveTooltip,
                 onPressed: () => _showLeaveConfirmation(context),
@@ -62,7 +63,7 @@ class WildernessControls extends StatelessWidget {
               alignment: Alignment.bottomLeft,
               child: _ControlButton(
                 label: 'Items',
-                icon: Icons.inventory_2_rounded,
+                icon: AppIcons.inventory_2_rounded,
                 accentColor: _wAmber,
                 tooltip: 'Inventory',
                 onPressed: () => _showInventoryOverlay(context),

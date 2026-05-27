@@ -17,6 +17,7 @@ import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─── HK Palette ───────────────────────────────────────────────────────────────
 const _kVoid = Color(0xFF080808);
@@ -499,7 +500,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
               size: 68,
               color: _kBlood,
               child: const Icon(
-                Icons.lock_outline_rounded,
+                AppIcons.lock_outline_rounded,
                 color: _kIvory,
                 size: 28,
               ),
@@ -573,7 +574,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
           ),
           const SizedBox(width: 12),
           _RiteHeaderAction(
-            icon: Icons.menu_book_rounded,
+            icon: AppIcons.menu_book_rounded,
             onTap: () {
               HapticFeedback.selectionClick();
               Navigator.of(context).push(
@@ -661,7 +662,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                 child: Row(
                   children: [
                     const Icon(
-                      Icons.workspace_premium_rounded,
+                      AppIcons.workspace_premium_rounded,
                       color: _kSoulGold,
                       size: 28,
                     ),
@@ -1396,7 +1397,7 @@ class _HkCircleNode extends StatelessWidget {
                           shape: BoxShape.circle,
                           border: Border.all(color: _kVoid, width: 1),
                         ),
-                        child: const Icon(Icons.check, size: 10, color: _kVoid),
+                        child: const Icon(AppIcons.check, size: 10, color: _kVoid),
                       ),
                     ),
                   ],
@@ -1480,7 +1481,7 @@ class _ChallengePanel extends StatelessWidget {
                   const SizedBox(height: 14),
                   if (challenge.requireElementalPurity) ...[
                     _HkReqLine(
-                      icon: Icons.opacity,
+                      icon: AppIcons.opacity,
                       label: challenge.requiredElement == null
                           ? 'Elemental lineage — PURE'
                           : '${challenge.requiredElement} element line — PURE',
@@ -1490,7 +1491,7 @@ class _ChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requireSpeciesPurity) ...[
                     _HkReqLine(
-                      icon: Icons.account_tree_outlined,
+                      icon: AppIcons.account_tree_outlined,
                       label: '${challenge.requiredFamily} species line — PURE',
                       met: true,
                     ),
@@ -1500,7 +1501,7 @@ class _ChallengePanel extends StatelessWidget {
                     _HkReqLine(
                       icon:
                           tintIcons[challenge.requiredTint] ??
-                          Icons.brightness_high_outlined,
+                          AppIcons.brightness_high_outlined,
                       label:
                           'Tinting — ${_traitLabel(challenge.requiredTint!)}',
                       met: true,
@@ -1509,7 +1510,7 @@ class _ChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredSize != null) ...[
                     _HkReqLine(
-                      icon: sizeIcons[challenge.requiredSize] ?? Icons.circle,
+                      icon: sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
                       label: 'Size — ${_traitLabel(challenge.requiredSize!)}',
                       met: true,
                     ),
@@ -1517,7 +1518,7 @@ class _ChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredNature != null) ...[
                     _HkReqLine(
-                      icon: Icons.psychology_alt_outlined,
+                      icon: AppIcons.psychology_alt_outlined,
                       label:
                           'Nature — ${_titleCaseLabel(challenge.requiredNature!)}',
                       met: true,
@@ -1526,7 +1527,7 @@ class _ChallengePanel extends StatelessWidget {
                   if (challenge.requiredVariantFaction != null) ...[
                     const SizedBox(height: 6),
                     _HkReqLine(
-                      icon: Icons.scatter_plot_outlined,
+                      icon: AppIcons.scatter_plot_outlined,
                       label:
                           'Variant — ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
                       met: true,
@@ -2148,7 +2149,7 @@ class _AltarLoaderState extends State<_AltarLoader>
                   child: Transform.rotate(
                     angle: -math.pi * 2 * t * 0.8,
                     child: Icon(
-                      Icons.auto_awesome_rounded,
+                      AppIcons.auto_awesome_rounded,
                       size: widget.size * (widget.compact ? 0.22 : 0.24),
                       color: widget.secondary,
                     ),
@@ -2268,7 +2269,7 @@ class _NextRiteCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Icon(
-                Icons.lock_outline,
+                AppIcons.lock_outline,
                 color: _kIvoryMuted.withValues(alpha: 0.40),
                 size: 20,
               ),
@@ -2690,7 +2691,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   const SizedBox(height: 14),
                   if (challenge.requireElementalPurity) ...[
                     _HkReqLine(
-                      icon: Icons.opacity,
+                      icon: AppIcons.opacity,
                       label: challenge.requiredElement == null
                           ? 'Elemental lineage — PURE'
                           : '${challenge.requiredElement} element line — PURE',
@@ -2700,7 +2701,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requireSpeciesPurity) ...[
                     _HkReqLine(
-                      icon: Icons.account_tree_outlined,
+                      icon: AppIcons.account_tree_outlined,
                       label: '${challenge.requiredFamily} species line — PURE',
                       met: true,
                     ),
@@ -2708,7 +2709,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredSize != null) ...[
                     _HkReqLine(
-                      icon: sizeIcons[challenge.requiredSize] ?? Icons.circle,
+                      icon: sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
                       label: 'Size — ${_traitLabel(challenge.requiredSize!)}',
                       met: true,
                     ),
@@ -2717,7 +2718,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   if (challenge.requiredTint != null) ...[
                     _HkReqLine(
                       icon: tintIcons[challenge.requiredTint] ??
-                          Icons.brightness_high_outlined,
+                          AppIcons.brightness_high_outlined,
                       label: 'Pigmentation — ${_traitLabel(challenge.requiredTint!)}',
                       met: true,
                     ),
@@ -2725,7 +2726,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredNature != null) ...[
                     _HkReqLine(
-                      icon: Icons.psychology_alt_outlined,
+                      icon: AppIcons.psychology_alt_outlined,
                       label:
                           'Nature — ${_titleCaseLabel(challenge.requiredNature!)}',
                       met: true,
@@ -2734,7 +2735,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   if (challenge.requiredVariantFaction != null) ...[
                     const SizedBox(height: 6),
                     _HkReqLine(
-                      icon: Icons.scatter_plot_outlined,
+                      icon: AppIcons.scatter_plot_outlined,
                       label:
                           'Variant — ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
                       met: true,
@@ -2777,7 +2778,7 @@ class _WeeklyCompleteCard extends StatelessWidget {
         child: Row(
           children: [
             const Icon(
-              Icons.workspace_premium_rounded,
+              AppIcons.workspace_premium_rounded,
               color: _kSoulGold,
               size: 28,
             ),
@@ -2821,7 +2822,7 @@ class _PathEndCard extends StatelessWidget {
         child: Row(
           children: [
             const Icon(
-              Icons.workspace_premium_rounded,
+              AppIcons.workspace_premium_rounded,
               color: _kSoulGold,
               size: 28,
             ),
@@ -3628,7 +3629,7 @@ class _HkCreatureFrame extends StatelessWidget {
           height: size,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => Icon(
-            Icons.bug_report_rounded,
+            AppIcons.bug_report_rounded,
             color: _kIvoryMuted,
             size: size * 0.5,
           ),
@@ -3748,7 +3749,7 @@ class _HkBackButton extends StatelessWidget {
             strokeWidth: 1.0,
           ),
           child: const Icon(
-            Icons.chevron_left_rounded,
+            AppIcons.chevron_left_rounded,
             color: _kIvoryDim,
             size: 22,
           ),

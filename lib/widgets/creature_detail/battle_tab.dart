@@ -7,6 +7,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class ImprovedBattleScrollArea extends StatefulWidget {
   final FactionTheme? theme;
@@ -618,7 +619,7 @@ class _SurvivalBracketCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Icon(
-                    Icons.blur_circular_rounded,
+                    AppIcons.blur_circular_rounded,
                     size: 14,
                     color: accent,
                   ),
@@ -1346,7 +1347,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
             'Fires two forward $element shots with slight spread. The basic '
             'attack is built for lane pressure and consistent frontal damage, '
             'not circular spray.',
-        icon: Icons.waves,
+        icon: AppIcons.waves,
       );
     case 'Horn':
       return _CosmicBasicInfo(
@@ -1356,7 +1357,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
             'Launches a large, slow $element projectile with an oversized '
             'hitbox. Horn basics hit hard up close and help keep pressure on '
             'targets before the shield-charge special lands.',
-        icon: Icons.shield,
+        icon: AppIcons.shield,
       );
     case 'Mask':
       return _CosmicBasicInfo(
@@ -1366,7 +1367,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
             'Fires a quick piercing $element bolt to tag targets in a line. '
             'Mask basics are light pressure tools that set up the family\'s '
             'trap, lure, and decoy control game.',
-        icon: Icons.warning_amber,
+        icon: AppIcons.warning_amber,
       );
     case 'Wing':
       return _CosmicBasicInfo(
@@ -1376,7 +1377,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
             'Unleashes two quick $element bolts in succession. Wing basics '
             'keep damage flowing while the companion stays mobile and looks '
             'for a clean beam line.',
-        icon: Icons.arrow_forward,
+        icon: AppIcons.arrow_forward,
       );
     case 'Kin':
       return _CosmicBasicInfo(
@@ -1387,7 +1388,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
             'enemy, steering mid-flight. Deals 110% damage and rarely '
             'misses. Kin basics are about consistency while the guardian '
             'orbits and healing setup come online.',
-        icon: Icons.favorite,
+        icon: AppIcons.favorite,
       );
     case 'Mystic':
       return _CosmicBasicInfo(
@@ -1397,7 +1398,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
             'Releases three small $element bolts in a spread. Mystic basics '
             'hold space between ultimates, but the family\'s real power is in '
             'its slower, element-specific guardian special.',
-        icon: Icons.auto_awesome,
+        icon: AppIcons.auto_awesome,
       );
     case 'Pip':
       return _CosmicBasicInfo(
@@ -1407,7 +1408,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
             'Fires a quick burst of small $element darts. Pip basics are '
             'built for high uptime, target pressure, and staying active '
             'between ricochet specials.',
-        icon: Icons.bolt,
+        icon: AppIcons.bolt,
       );
     case 'Let':
       return _CosmicBasicInfo(
@@ -1417,7 +1418,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
             'Lobs a compact $element bomb with more heft than a standard bolt. '
             'Let basics reinforce the siege role: slower, heavier lane pressure '
             'between the family\'s larger element-shaped meteor specials.',
-        icon: Icons.south,
+        icon: AppIcons.south,
       );
     default:
       return _CosmicBasicInfo(
@@ -1426,7 +1427,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
         description:
             'Fires a $element projectile at the nearest enemy within range. '
             'Damage is based on Strength. Attack speed scales with Speed stat.',
-        icon: Icons.gps_fixed,
+        icon: AppIcons.gps_fixed,
       );
   }
 }
@@ -1545,7 +1546,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         description:
             'Raises a shield, erupts with an elemental guard burst, then '
             'commits to a real impact charge. $followThrough',
-        icon: Icons.shield,
+        icon: AppIcons.shield,
         tags: [
           'SHIELD',
           'CHARGE',
@@ -1612,7 +1613,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
             'A long-range line special for piercing packs and pressuring bosses. '
             '${hasTrail ? 'Leaves a lingering $element damage trail behind the beam. ' : ''}'
             '$followThrough',
-        icon: Icons.arrow_forward,
+        icon: AppIcons.arrow_forward,
         tags: [
           'PIERCING',
           'BEAM',
@@ -1670,7 +1671,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         subtitle: 'Meteor Strike • Impact-triggered siege',
         description:
             'A slow heavy meteor that rewards landing the hit: its elemental follow-through triggers on impact. $followThrough',
-        icon: Icons.south,
+        icon: AppIcons.south,
         tags: [
           'METEOR',
           'IMPACT',
@@ -1739,7 +1740,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         description:
             'A quick cleanup special built for target hopping, leak control, and finishing scattered enemies. '
             '$followThrough',
-        icon: Icons.bolt,
+        icon: AppIcons.bolt,
         tags: [
           reboundElement ? 'RICOCHET' : 'CHASE',
           if (snareElement) 'SNARE',
@@ -1753,109 +1754,109 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Air' => (
           'Gale Pierce • Push-through catapult',
           'Fires a wide piercing gust that shoves every enemy it passes through along the shot path.',
-          Icons.air,
+          AppIcons.air,
           ['PIERCE', 'PUSH', 'WIDE', 'AIR'],
         ),
         'Dust' => (
           'Dustwake Fan • Projectile silence',
           'Cuts a sand trail across the lane. Enemies that enter the dust cloud lose their ability to shoot for a moment.',
-          Icons.cloud,
+          AppIcons.cloud,
           ['TRAIL', 'SUPPRESS', 'PIERCE', 'DUST'],
         ),
         'Lava' => (
           'Molten Cleave • Burning residue',
           'Pierces through enemies and drops lava blobs at each collision, turning the path into lingering burn damage.',
-          Icons.local_fire_department,
+          AppIcons.local_fire_department,
           ['BURN', 'BLOBS', 'PIERCE', 'LAVA'],
         ),
         'Poison' => (
           'Venom Edge • Stacking toxin',
           'Poisons every enemy the slash passes through. The more bodies it tags, the more the toxin pressure adds up.',
-          Icons.biotech,
+          AppIcons.biotech,
           ['POISON', 'STACKS', 'PIERCE', 'VENOM'],
         ),
         'Blood' => (
           'Bloodedge Rush • Lifesteal pierce',
           'Pierces through the lane and restores health for each enemy it cuts, making Bloodmane the sustain Mane.',
-          Icons.bloodtype,
+          AppIcons.bloodtype,
           ['HEAL', 'SUSTAIN', 'PIERCE', 'BLOOD'],
         ),
         'Earth' => (
           'Fault Slab • Grinding quake path',
           'Launches a huge slow stone slab that crushes through the lane and leaves quake bursts as it breaks apart.',
-          Icons.terrain,
+          AppIcons.terrain,
           ['SLAB', 'QUAKE', 'HEAVY', 'EARTH'],
         ),
         'Light' => (
           'Radiant Growth • Scaling pierce',
           'Launches a slow glowing orb that grows larger and hits harder each time it pierces an enemy.',
-          Icons.wb_sunny,
+          AppIcons.wb_sunny,
           ['GROWTH', 'PIERCE', 'SCALING', 'LIGHT'],
         ),
         'Spirit' => (
           'Phaseblade Rush • Ramping stream',
           'Starts as one soul shot, then adds another shot on each cast up to ten before resetting into a new ramp.',
-          Icons.auto_awesome,
+          AppIcons.auto_awesome,
           ['RAMP', 'STREAM', 'RESET', 'SPIRIT'],
         ),
         'Crystal' => (
           'Prism Edge • Boss shatter',
           'Pierces normally through packs, but detonates on bosses for a huge crystal burst and wide area damage.',
-          Icons.diamond,
+          AppIcons.diamond,
           ['BOSS', 'BURST', 'AOE', 'CRYSTAL'],
         ),
         'Fire' => (
           'Fireball Rush • Dense fire spread',
           'Throws a doubled wave of quick fireballs through the forward lane for immediate multi-hit pressure.',
-          Icons.whatshot,
+          AppIcons.whatshot,
           ['FIREBALLS', 'MULTI', 'PIERCE', 'FIRE'],
         ),
         'Lightning' => (
           'Storm Orb Field • Remote zaps',
           'Shoots small lightning balls around the map. When they land, they form compact zap traps.',
-          Icons.flash_on,
+          AppIcons.flash_on,
           ['ORBS', 'FIELD', 'ZAP', 'LIGHTNING'],
         ),
         'Steam' => (
           'Pressure Geyser • Traveling vent',
           'Launches a large geyser shot that releases damaging steam puffs as it travels.',
-          Icons.blur_on,
+          AppIcons.blur_on,
           ['GEYSER', 'PUFFS', 'PIERCE', 'STEAM'],
         ),
         'Dark' => (
           'Voidcut Drive • Pull and consume',
           'Moves slowly through the lane, pulling enemies toward it and punishing weakened targets caught in the drag.',
-          Icons.dark_mode,
+          AppIcons.dark_mode,
           ['PULL', 'EXECUTE', 'SLOW', 'DARK'],
         ),
         'Ice' => (
           'Frostguard Cleave • Contact freeze',
           'A piercing frost ball freezes enemies it touches as it pushes through the lane.',
-          Icons.ac_unit,
+          AppIcons.ac_unit,
           ['FREEZE', 'PIERCE', 'CONTROL', 'ICE'],
         ),
         'Mud' => (
           'Bogbreaker Split • Ten-way burst',
           'The first enemy hit breaks the shot apart into ten mud shards that scatter in every direction.',
-          Icons.grain,
+          AppIcons.grain,
           ['SPLIT', 'SHARDS', 'BURST', 'MUD'],
         ),
         'Plant' => (
           'Vine Lariat • Root bloom',
           'Roots every enemy it hits. If a rooted enemy dies, it bursts into plant area damage that can root nearby enemies too.',
-          Icons.local_florist,
+          AppIcons.local_florist,
           ['ROOT', 'EXPLODE', 'AOE', 'PLANT'],
         ),
         'Water' => (
           'Tidewall Crash • Carrying wave',
           'Fires a massive water wall that drags enemies with it instead of merely damaging them.',
-          Icons.water,
+          AppIcons.water,
           ['WALL', 'CARRY', 'PIERCE', 'WATER'],
         ),
         _ => (
           'Barrage Volley • Piercing technique',
           'Fires a piercing Mane technique with an element-specific combat rule.',
-          Icons.waves,
+          AppIcons.waves,
           ['PIERCE', 'BARRAGE', element.toUpperCase()],
         ),
       };
@@ -1937,7 +1938,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         description:
             'Deploys $element misdirection pieces that make enemies choose bad '
             'targets, bad paths, or bad timing. $followThrough',
-        icon: decoyElement ? Icons.sports_kabaddi : Icons.warning_amber,
+        icon: decoyElement ? AppIcons.sports_kabaddi : AppIcons.warning_amber,
         tags: [
           decoyElement ? 'DECOY' : 'SEEKERS',
           if (snareElement) 'SNARE',
@@ -2026,7 +2027,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         description:
             'A support cast that heals, blesses over time, and keeps guardian pieces active. '
             '$followThrough',
-        icon: Icons.favorite,
+        icon: AppIcons.favorite,
         tags: [
           'HEAL',
           'BLESSING',
@@ -2184,7 +2185,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
       return CosmicSpecialInfo(
         subtitle: subtitle,
         description: desc,
-        icon: Icons.auto_awesome,
+        icon: AppIcons.auto_awesome,
         tags: [...tags, 'ULTIMATE', 'LONG CD', element.toUpperCase()],
       );
     default:
@@ -2193,7 +2194,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         description:
             'Unleashes a burst of elemental energy at 2× damage. '
             'Cooldown is reduced by Speed.',
-        icon: Icons.auto_awesome,
+        icon: AppIcons.auto_awesome,
       );
   }
 }

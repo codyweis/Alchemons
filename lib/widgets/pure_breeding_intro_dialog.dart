@@ -5,6 +5,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 const String _pureExtractionIntroSeenKey = 'pure_extraction_intro_seen_v1';
 
@@ -36,7 +37,7 @@ Future<void> maybeShowFirstPureExtractionDialog(
         backgroundColor: theme.surface,
         title: Row(
           children: [
-            Icon(Icons.auto_awesome_rounded, color: theme.accent),
+            Icon(AppIcons.auto_awesome_rounded, color: theme.accent),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

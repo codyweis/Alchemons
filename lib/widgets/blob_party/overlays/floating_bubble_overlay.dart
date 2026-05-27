@@ -6,14 +6,11 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
-import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/specimen_picker_route.dart';
 import 'package:alchemons/widgets/blob_party/bubble_widget.dart';
 import 'package:alchemons/widgets/blob_party/floating_creature.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -272,73 +269,20 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
   }
 
   Future<void> _pickInstanceFor(_Bubble b, int index) async {
-    final repo = context.read<CreatureCatalog>();
     final db = context.read<AlchemonsDatabase>();
 
-    final available = await db.creatureDao
-        .getSpeciesWithInstances(); // Set<String> baseIds
+    final hasInstances = (await db.creatureDao.listAllInstances()).isNotEmpty;
+    if (!hasInstances) return;
 
-    final filteredDiscovered = filterByAvailableInstances(
-      widget.discoveredCreatures,
-      available,
-    );
-
-    // 1) pick species first
     if (!mounted) return;
-    final pickedSpeciesId = await showModalBottomSheet<String>(
+    final inst = await showSpecimenPickerRoute(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return CreatureSelectionSheet(
-              scrollController: scrollController,
-              discoveredCreatures: filteredDiscovered,
-              stateScopeKey: 'blob_party_species',
-              onSelectCreature: (creatureId) {
-                Navigator.pop(context, creatureId);
-              },
-            );
-          },
-        );
-      },
+      theme: widget.theme,
+      searchHint: 'SELECT SPECIMEN',
+      prefsScopeKey: 'blob_party_specimens',
     );
-    if (pickedSpeciesId == null) return;
-
-    final species = repo.getCreatureById(pickedSpeciesId);
-    if (species == null) return;
-
-    // 2) pick instance
-    // 2) pick instance  (in _pickInstanceFor)
-    if (!mounted) return;
-    final inst = await showModalBottomSheet<CreatureInstance>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        return BottomSheetShell(
-          theme: widget.theme,
-          title: '${species.name} Specimens',
-          child: InstancesSheet(
-            theme: widget.theme,
-            species: species,
-            prefsScopeKey: 'blob_party_instances',
-            onTap: (CreatureInstance ci) {
-              Navigator.pop(context, ci);
-            },
-          ),
-        );
-      },
-    );
-
     if (inst == null) return;
 
-    // 3) assign & persist
     setState(() {
       b.instance = inst;
       b.expanded = true;

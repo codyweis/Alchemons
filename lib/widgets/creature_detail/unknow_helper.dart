@@ -5,6 +5,7 @@
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class UnknownScrollArea extends StatelessWidget {
   // ignore: unused_field
@@ -29,7 +30,7 @@ class UnknownScrollArea extends StatelessWidget {
                 border: Border.all(color: fc.borderAccent, width: 1),
               ),
               child: Icon(
-                Icons.help_outline_rounded,
+                AppIcons.help_outline_rounded,
                 color: fc.amberDim,
                 size: 40,
               ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CountdownBadge extends StatefulWidget {
   final Duration Function() remaining; // e.g. access.timeUntilReset
@@ -50,7 +51,7 @@ class CountdownBadgeState extends State<CountdownBadge> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.schedule_rounded, size: 14, color: Colors.white),
+          const Icon(AppIcons.schedule_rounded, size: 14, color: Colors.white),
           const SizedBox(width: 4),
           Text(
             _fmt(_left),

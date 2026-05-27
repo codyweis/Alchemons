@@ -1,5 +1,6 @@
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class FloatingCloseButton extends StatelessWidget {
   final VoidCallback onTap;
@@ -37,7 +38,7 @@ class FloatingCloseButton extends StatelessWidget {
         ),
         width: size,
         height: size,
-        child: Icon(Icons.close, color: theme.surface, size: size * 0.8),
+        child: Icon(AppIcons.close, color: theme.surface, size: size * 0.8),
       ),
     );
   }

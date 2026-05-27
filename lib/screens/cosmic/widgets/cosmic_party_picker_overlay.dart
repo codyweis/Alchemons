@@ -12,6 +12,7 @@ import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CosmicPartyPickerOverlay extends StatefulWidget {
   const CosmicPartyPickerOverlay({
@@ -241,7 +242,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                         ),
                       ),
                       CosmicIconButton(
-                        icon: Icons.close,
+                        icon: AppIcons.close,
                         accent: CosmicScreenStyles.textSecondary,
                         onTap: widget.onClose,
                       ),
@@ -297,7 +298,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                     children: [
                       IconButton(
                         icon: const Icon(
-                          Icons.arrow_back,
+                          AppIcons.arrow_back,
                           color: CosmicScreenStyles.textSecondary,
                         ),
                         onPressed: () => setState(() => _assigningSlot = -1),
@@ -329,7 +330,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       children: [
                         const SizedBox(width: 8),
                         const Icon(
-                          Icons.search,
+                          AppIcons.search,
                           color: CosmicScreenStyles.textMuted,
                           size: 18,
                         ),
@@ -362,7 +363,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                             child: Padding(
                               padding: EdgeInsets.symmetric(horizontal: 6),
                               child: Icon(
-                                Icons.clear,
+                                AppIcons.clear,
                                 color: CosmicScreenStyles.textMuted,
                                 size: 16,
                               ),
@@ -388,7 +389,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       _sortChip('BEA', SortBy.statBeauty),
                       const Spacer(),
                       _filterToggle(
-                        Icons.star_rounded,
+                        AppIcons.star_rounded,
                         _filterFavorites,
                         const Color(0xFFFFD700),
                         () => setState(() {
@@ -398,7 +399,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       ),
                       const SizedBox(width: 6),
                       _filterToggle(
-                        Icons.auto_awesome,
+                        AppIcons.auto_awesome,
                         _filterPrismatic,
                         const Color(0xFFE040FB),
                         () => setState(() {
@@ -475,7 +476,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.lock_outline,
+                AppIcons.lock_outline,
                 color: CosmicScreenStyles.textMuted,
                 size: 24,
               ),
@@ -520,7 +521,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.add_circle_outline,
+                  AppIcons.add_circle_outline,
                   color: CosmicScreenStyles.teal.withValues(alpha: 0.5),
                   size: 28,
                 ),
@@ -645,13 +646,13 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                               member.imagePath!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Icon(
-                                Icons.catching_pokemon,
+                                AppIcons.catching_pokemon,
                                 color: eColor,
                                 size: 22,
                               ),
                             ),
                           )
-                        : Icon(Icons.catching_pokemon, color: eColor, size: 22),
+                        : Icon(AppIcons.catching_pokemon, color: eColor, size: 22),
                   ),
                   const SizedBox(height: 3),
                   Text(
@@ -974,7 +975,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                               effectSlotSize: 46,
                             )
                           : Icon(
-                              Icons.catching_pokemon,
+                              AppIcons.catching_pokemon,
                               color: eColor,
                               size: 22,
                             ),
@@ -1017,7 +1018,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 const CosmicEtchedDivider(),
                 const SizedBox(height: 8),
                 _slotActionRow(
-                  icon: Icons.info_outline,
+                  icon: AppIcons.info_outline,
                   label: 'View Details',
                   color: CosmicScreenStyles.textSecondary,
                   onTap: () {
@@ -1036,7 +1037,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   },
                 ),
                 _slotActionRow(
-                  icon: Icons.swap_horiz,
+                  icon: AppIcons.swap_horiz,
                   label: 'Replace',
                   color: CosmicScreenStyles.textSecondary,
                   onTap: () {
@@ -1045,7 +1046,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   },
                 ),
                 _slotActionRow(
-                  icon: Icons.remove_circle_outline,
+                  icon: AppIcons.remove_circle_outline,
                   label: 'Remove',
                   color: const Color(0xFFE53935),
                   onTap: () {
@@ -1170,7 +1171,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                             variantFaction: visuals?.variantFaction,
                             effectSlotSize: 42,
                           )
-                        : Icon(Icons.catching_pokemon, color: eColor, size: 18),
+                        : Icon(AppIcons.catching_pokemon, color: eColor, size: 18),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -1273,7 +1274,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
         title: Row(
           children: [
             const Icon(
-              Icons.battery_0_bar_rounded,
+              AppIcons.battery_0_bar_rounded,
               color: Color(0xFFFF9800),
               size: 20,
             ),
@@ -1305,7 +1306,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
               Row(
                 children: [
                   const Icon(
-                    Icons.local_drink_rounded,
+                    AppIcons.local_drink_rounded,
                     color: Color(0xFF00E676),
                     size: 16,
                   ),
@@ -1372,7 +1373,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
             content: Row(
               children: [
                 const Icon(
-                  Icons.local_drink_rounded,
+                  AppIcons.local_drink_rounded,
                   color: Color(0xFF00E676),
                   size: 16,
                 ),

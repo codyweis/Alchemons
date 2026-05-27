@@ -30,6 +30,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // TYPOGRAPHY HELPERS  (colors resolved at runtime via ForgeTokens)
@@ -893,8 +894,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           },
                           icon: Icon(
                             obscure
-                                ? Icons.visibility_rounded
-                                : Icons.visibility_off_rounded,
+                                ? AppIcons.visibility_rounded
+                                : AppIcons.visibility_off_rounded,
                             color: t.textSecondary,
                           ),
                         ),
@@ -979,8 +980,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           },
                           icon: Icon(
                             obscureCurrent
-                                ? Icons.visibility_rounded
-                                : Icons.visibility_off_rounded,
+                                ? AppIcons.visibility_rounded
+                                : AppIcons.visibility_off_rounded,
                             color: t.textSecondary,
                           ),
                         ),
@@ -1004,8 +1005,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             },
                             icon: Icon(
                               obscureNew
-                                  ? Icons.visibility_rounded
-                                  : Icons.visibility_off_rounded,
+                                  ? AppIcons.visibility_rounded
+                                  : AppIcons.visibility_off_rounded,
                               color: t.textSecondary,
                             ),
                           ),
@@ -1149,7 +1150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           child: Icon(
-                            Icons.menu_book_rounded,
+                            AppIcons.menu_book_rounded,
                             size: 28,
                             color: t.amberBright,
                           ),
@@ -1169,7 +1170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Row(
                           children: [
                             Icon(
-                              Icons.shield_rounded,
+                              AppIcons.shield_rounded,
                               size: 14,
                               color: accentColor,
                             ),
@@ -1218,7 +1219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Row(
                             children: [
                               Icon(
-                                Icons.auto_awesome_rounded,
+                                AppIcons.auto_awesome_rounded,
                                 size: 12,
                                 color: accentColor,
                               ),
@@ -1254,7 +1255,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          Icons.brightness_4_rounded,
+                          AppIcons.brightness_4_rounded,
                           size: 14,
                           color: t.amber,
                         ),
@@ -1275,7 +1276,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          Icons.text_fields_rounded,
+                          AppIcons.text_fields_rounded,
                           size: 14,
                           color: t.amber,
                         ),
@@ -1295,7 +1296,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          Icons.movie_filter_rounded,
+                          AppIcons.movie_filter_rounded,
                           size: 14,
                           color: t.amber,
                         ),
@@ -1326,7 +1327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         _NotificationToggleRow(
-                          icon: Icons.volume_up_rounded,
+                          icon: AppIcons.volume_up_rounded,
                           title: 'ALL AUDIO',
                           subtitle: 'Master toggle for all music and sound FX',
                           value: audio.masterEnabled,
@@ -1336,7 +1337,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 8),
                         _NotificationToggleRow(
-                          icon: Icons.music_note_rounded,
+                          icon: AppIcons.music_note_rounded,
                           title: 'MUSIC',
                           subtitle: 'Looped background tracks',
                           value: audio.musicEnabled,
@@ -1346,7 +1347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 8),
                         _NotificationToggleRow(
-                          icon: Icons.graphic_eq_rounded,
+                          icon: AppIcons.graphic_eq_rounded,
                           title: 'SOUND FX',
                           subtitle: 'Future UI and gameplay sounds',
                           value: audio.soundsEnabled,
@@ -1367,7 +1368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         _NotificationToggleRow(
-                          icon: Icons.science_rounded,
+                          icon: AppIcons.science_rounded,
                           title: 'CULTIVATIONS',
                           subtitle: 'Egg ready and extraction-ready alerts',
                           value: _cultivationsEnabled,
@@ -1377,7 +1378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 8),
                         _NotificationToggleRow(
-                          icon: Icons.explore_rounded,
+                          icon: AppIcons.explore_rounded,
                           title: 'WILDERNESS',
                           subtitle: 'Wild spawn alerts across biomes',
                           value: _wildernessEnabled,
@@ -1387,7 +1388,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 8),
                         _NotificationToggleRow(
-                          icon: Icons.science_outlined,
+                          icon: AppIcons.science_outlined,
                           title: 'EXTRACTIONS',
                           subtitle: 'Biome harvest completion alerts',
                           value: _extractionsEnabled,
@@ -1412,8 +1413,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             Icon(
                               account.isSignedIn
-                                  ? Icons.verified_user_rounded
-                                  : Icons.login_rounded,
+                                  ? AppIcons.verified_user_rounded
+                                  : AppIcons.login_rounded,
                               size: 14,
                               color: account.isSignedIn ? t.teal : t.amber,
                             ),
@@ -1442,12 +1443,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               _ForgeButton(
                                 label: 'SIGN IN',
-                                icon: Icons.login_rounded,
+                                icon: AppIcons.login_rounded,
                                 onTap: _signInAccount,
                               ),
                               _ForgeButton(
                                 label: 'CREATE ACCOUNT',
-                                icon: Icons.person_add_alt_1_rounded,
+                                icon: AppIcons.person_add_alt_1_rounded,
                                 onTap: _createAccount,
                               ),
                             ],
@@ -1491,28 +1492,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               if (!accountSession.state.activeOnThisDevice)
                                 _ForgeButton(
                                   label: 'USE THIS DEVICE',
-                                  icon: Icons.phonelink_lock_rounded,
+                                  icon: AppIcons.phonelink_lock_rounded,
                                   onTap: () =>
                                       _activateThisDevice(accountSession),
                                 ),
                               _ForgeButton(
                                 label: 'RENAME',
-                                icon: Icons.badge_rounded,
+                                icon: AppIcons.badge_rounded,
                                 onTap: () => _renameAccount(account),
                               ),
                               _ForgeButton(
                                 label: 'PASSWORD',
-                                icon: Icons.password_rounded,
+                                icon: AppIcons.password_rounded,
                                 onTap: () => _changePassword(account),
                               ),
                               _ForgeButton(
                                 label: 'SIGN OUT',
-                                icon: Icons.logout_rounded,
+                                icon: AppIcons.logout_rounded,
                                 onTap: () => _signOutAccount(account),
                               ),
                               _ForgeButton(
                                 label: 'DELETE ACCOUNT',
-                                icon: Icons.delete_forever_rounded,
+                                icon: AppIcons.delete_forever_rounded,
                                 onTap: () => _deleteAccount(account),
                               ),
                             ],
@@ -1534,7 +1535,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Row(
                           children: [
                             Icon(
-                              Icons.cloud_upload_rounded,
+                              AppIcons.cloud_upload_rounded,
                               size: 14,
                               color: t.amberBright,
                             ),
@@ -1560,7 +1561,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               label: _saveTransferBusy
                                   ? 'WORKING...'
                                   : 'BACK UP',
-                              icon: Icons.cloud_upload_rounded,
+                              icon: AppIcons.cloud_upload_rounded,
                               onTap:
                                   _saveTransferBusy ||
                                       !account.initialized ||
@@ -1574,7 +1575,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               label: _saveTransferBusy
                                   ? 'WORKING...'
                                   : 'RESTORE',
-                              icon: Icons.cloud_download_rounded,
+                              icon: AppIcons.cloud_download_rounded,
                               onTap:
                                   _saveTransferBusy ||
                                       !account.initialized ||
@@ -1618,7 +1619,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          Icons.movie_filter_rounded,
+                          AppIcons.movie_filter_rounded,
                           size: 14,
                           color: t.teal,
                         ),
@@ -1639,7 +1640,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(width: 12),
                         _ForgeButton(
                           label: 'WATCH',
-                          icon: Icons.play_arrow_rounded,
+                          icon: AppIcons.play_arrow_rounded,
                           onTap: _replayStory,
                         ),
                       ],
@@ -1684,7 +1685,7 @@ class _FontSelectorWidget extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: currentValue,
-          icon: Icon(Icons.arrow_drop_down, color: t.amber, size: 18),
+          icon: Icon(AppIcons.arrow_drop_down, color: t.amber, size: 18),
           dropdownColor: t.bg2,
           isDense: true,
           onChanged: (String? newValue) {
@@ -1760,7 +1761,7 @@ class _CinematicQualitySelector extends StatelessWidget {
         child: DropdownButtonHideUnderline(
           child: DropdownButton<CinematicQuality>(
             value: value,
-            icon: Icon(Icons.arrow_drop_down, color: t.amber, size: 18),
+            icon: Icon(AppIcons.arrow_drop_down, color: t.amber, size: 18),
             dropdownColor: t.bg2,
             isDense: true,
             onChanged: enabled

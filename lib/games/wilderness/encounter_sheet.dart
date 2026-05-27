@@ -47,6 +47,7 @@ import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/wilderness/device_selection_dialog.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // Wild encounters render over dark scene backdrops — always dark.
 const _kPalette = BracketPalette.dark;
@@ -506,7 +507,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     }
 
     return Icon(
-      Icons.pets,
+      AppIcons.pets,
       color: Colors.white.withValues(alpha: .8),
       size: 64,
     );
@@ -822,7 +823,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
             child: Row(
               children: [
                 const Icon(
-                  Icons.check_circle_rounded,
+                  AppIcons.check_circle_rounded,
                   color: success,
                   size: 18,
                 ),
@@ -945,7 +946,7 @@ class _EncounterStatusStyle {
         normalized.contains('lost')) {
       return const _EncounterStatusStyle(
         accent: _danger,
-        icon: Icons.warning_amber_rounded,
+        icon: AppIcons.warning_amber_rounded,
       );
     }
     if (normalized.contains('research') ||
@@ -953,7 +954,7 @@ class _EncounterStatusStyle {
         normalized.contains('capacity')) {
       return const _EncounterStatusStyle(
         accent: _amber,
-        icon: Icons.bolt_rounded,
+        icon: AppIcons.bolt_rounded,
       );
     }
     if (normalized.contains('complete') ||
@@ -961,7 +962,7 @@ class _EncounterStatusStyle {
         normalized.contains('transferred')) {
       return const _EncounterStatusStyle(
         accent: _success,
-        icon: Icons.check_circle_rounded,
+        icon: AppIcons.check_circle_rounded,
       );
     }
     if (normalized.contains('calibrating') ||
@@ -970,12 +971,12 @@ class _EncounterStatusStyle {
         normalized.contains('secure')) {
       return const _EncounterStatusStyle(
         accent: _teal,
-        icon: Icons.tune_rounded,
+        icon: AppIcons.tune_rounded,
       );
     }
     return const _EncounterStatusStyle(
       accent: _amber,
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
     );
   }
 }
@@ -1387,7 +1388,7 @@ class _ActionPanel extends StatelessWidget {
               _ActionButton(
                 disabled: !isPartySelected,
                 label: 'Fusion',
-                icon: Icons.science_rounded,
+                icon: AppIcons.science_rounded,
                 accentColor: success,
                 onPressed: canAct ? onBreed : null,
               ),
@@ -1399,7 +1400,7 @@ class _ActionPanel extends StatelessWidget {
                 label: 'Use your harvester',
                 child: _ActionButton(
                   label: 'Harvest',
-                  icon: Icons.catching_pokemon_rounded,
+                  icon: AppIcons.catching_pokemon_rounded,
                   accentColor: danger,
                   onPressed: canAct ? onCapture : null,
                 ),
@@ -1409,7 +1410,7 @@ class _ActionPanel extends StatelessWidget {
             if (!isCaptureTutorial && showMapAction)
               _ActionButton(
                 label: 'Map',
-                icon: Icons.explore_rounded,
+                icon: AppIcons.explore_rounded,
                 accentColor: teal,
                 onPressed: onRun,
               ),

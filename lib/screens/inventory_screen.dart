@@ -3,13 +3,8 @@ import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
-import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -20,9 +15,11 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/specimen_picker_route.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 typedef _InventoryPalette = BracketPalette;
 typedef _BracketFramePainter = BracketFramePainter;
@@ -357,7 +354,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         if (items.isEmpty) {
           return _buildEmptyState(
             theme,
-            icon: Icons.inventory_2_outlined,
+            icon: AppIcons.inventory_2_outlined,
             message: 'No items in inventory',
             subtitle: 'Purchase items from the shop',
           );
@@ -409,7 +406,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         if (keyItems.isEmpty) {
           return _buildEmptyState(
             theme,
-            icon: Icons.vpn_key_outlined,
+            icon: AppIcons.vpn_key_outlined,
             message: 'No special items yet',
             subtitle: '',
           );
@@ -464,7 +461,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         if (vialItems.isEmpty) {
           return _buildEmptyState(
             theme,
-            icon: Icons.science_outlined,
+            icon: AppIcons.science_outlined,
             message: 'No extraction vials',
             subtitle: 'Purchase vials from the Black Market',
           );
@@ -674,7 +671,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.inventory_2_rounded,
+                              AppIcons.inventory_2_rounded,
                               color: activeAccent,
                               size: 12,
                             ),
@@ -721,7 +718,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                             width: 102,
                             child: _DialogActionButton(
                               label: 'Remove',
-                              icon: Icons.delete_outline_rounded,
+                              icon: AppIcons.delete_outline_rounded,
                               color: const Color(0xFFC0392B),
                               secondary: true,
                               onTap: () async {
@@ -736,7 +733,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                           Expanded(
                             child: _DialogActionButton(
                               label: 'Use item',
-                              icon: Icons.play_arrow_rounded,
+                              icon: AppIcons.play_arrow_rounded,
                               color: bracketReadableAccent(theme),
                               onTap: () {
                                 Navigator.pop(ctx);
@@ -863,7 +860,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                         width: 102,
                         child: _DialogActionButton(
                           label: 'Remove',
-                          icon: Icons.delete_outline_rounded,
+                          icon: AppIcons.delete_outline_rounded,
                           color: const Color(0xFFC0392B),
                           secondary: true,
                           onTap: () async {
@@ -876,7 +873,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                       Expanded(
                         child: _DialogActionButton(
                           label: 'Extract',
-                          icon: Icons.science_rounded,
+                          icon: AppIcons.science_rounded,
                           color: bracketReadableAccent(theme),
                           onTap: () {
                             Navigator.pop(ctx);
@@ -899,7 +896,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (!def.canUse) {
       _showToast(
         'This is a key item and cannot be used right now',
-        icon: Icons.vpn_key_rounded,
+        icon: AppIcons.vpn_key_rounded,
         color: Colors.indigo,
       );
       return;
@@ -917,7 +914,7 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     _showToast(
       'Item usage not yet implemented',
-      icon: Icons.info_rounded,
+      icon: AppIcons.info_rounded,
       color: Colors.blue,
     );
   }
@@ -937,110 +934,28 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (allInstances.isEmpty) {
       _showToast(
         'No Alchemons available',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.orange,
       );
       return;
     }
 
-    // Unique species IDs for which we have instances
-    final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
-
-    // STEP 1: pick species
-    if (!mounted) return;
-    final selectedSpeciesId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (modalContext) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (sheetContext, scrollController) {
-            return withGameData(
-              context,
-              loadingBuilder: buildLoadingScreen,
-              builder:
-                  (
-                    context, {
-                    required theme,
-                    required catalog,
-                    required entries,
-                    required discovered,
-                  }) {
-                    final eligibleDiscovered = discovered
-                        .where(
-                          (entry) =>
-                              eligibleSpeciesIds.contains(entry.creature.id),
-                        )
-                        .toList();
-
-                    if (eligibleDiscovered.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Text(
-                            'No Alchemons available',
-                            style: TextStyle(
-                              color: theme.textMuted,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    return CreatureSelectionSheet(
-                      scrollController: scrollController,
-                      discoveredCreatures: eligibleDiscovered,
-                      stateScopeKey: 'inventory_restore_species',
-                      onSelectCreature: (creatureId) {
-                        Navigator.pop(modalContext, creatureId);
-                      },
-                      showOnlyAvailableTypes: true,
-                    );
-                  },
-            );
-          },
-        );
-      },
+    final selectedInstance = await _pickInventoryInstance(
+      theme: theme,
+      searchHint: 'SELECT SPECIMEN',
+      prefsScopeKey: 'inventory_restore_specimens',
     );
 
-    if (selectedSpeciesId == null || !mounted) return;
+    if (selectedInstance == null || !mounted) return;
 
-    final selectedSpecies = repo.getCreatureById(selectedSpeciesId);
-    if (selectedSpecies == null) return;
-
-    // STEP 2: pick instance of that species
-    final instanceId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => BottomSheetShell(
-        title: 'Choose ${selectedSpecies.name}',
-        theme: theme,
-        child: InstancesSheet(
-          species: selectedSpecies,
-          theme: theme,
-          prefsScopeKey: 'inventory_restore_instances',
-          onTap: (inst) {
-            Navigator.pop(context, inst.instanceId);
-          },
-        ),
-      ),
+    // Restore stamina using the service
+    final updated = await staminaService.restoreToFull(
+      selectedInstance.instanceId,
     );
-
-    if (instanceId == null || !mounted) return;
-
-    // STEP 3: restore stamina using the service
-    final updated = await staminaService.restoreToFull(instanceId);
     if (updated == null) {
       _showToast(
         'Failed to restore stamina',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
       return;
@@ -1049,9 +964,10 @@ class _InventoryScreenState extends State<InventoryScreen>
     // Consume the potion
     await db.inventoryDao.decrementItem(item.key, by: 1);
 
+    final selectedSpecies = repo.getCreatureById(selectedInstance.baseId);
     _showToast(
-      'Restored stamina for ${selectedSpecies.name}!',
-      icon: Icons.favorite_rounded,
+      'Restored stamina for ${selectedSpecies?.name ?? 'specimen'}!',
+      icon: AppIcons.favorite_rounded,
       color: Colors.green,
     );
   }
@@ -1062,7 +978,6 @@ class _InventoryScreenState extends State<InventoryScreen>
   ) async {
     final db = context.read<AlchemonsDatabase>();
     final theme = context.read<FactionTheme>();
-    final repo = context.read<CreatureCatalog>();
 
     // Get all instances to determine which species are eligible
     final allInstances = await db.creatureDao.listAllInstances();
@@ -1070,105 +985,19 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (allInstances.isEmpty) {
       _showToast(
         'No Alchemons to apply effect to',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.orange,
       );
       return;
     }
 
-    // Get unique species IDs that have instances
-    final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
-
-    // STEP 1: Show species picker
-    if (!mounted) return;
-    final selectedSpeciesId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (modalContext) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (sheetContext, scrollController) {
-            // Use withGameData to get discovered creatures
-            return withGameData(
-              context, // Use the original context that has the providers
-              loadingBuilder: buildLoadingScreen,
-              builder:
-                  (
-                    context, {
-                    required theme,
-                    required catalog,
-                    required entries,
-                    required discovered,
-                  }) {
-                    // Filter to only show species with instances
-                    final eligibleDiscovered = discovered
-                        .where(
-                          (entry) =>
-                              eligibleSpeciesIds.contains(entry.creature.id),
-                        )
-                        .toList();
-
-                    if (eligibleDiscovered.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Text(
-                            'No Alchemons available',
-                            style: TextStyle(
-                              color: theme.textMuted,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    return CreatureSelectionSheet(
-                      scrollController: scrollController,
-                      discoveredCreatures: eligibleDiscovered,
-                      stateScopeKey: 'inventory_effect_species',
-                      onSelectCreature: (creatureId) {
-                        Navigator.pop(modalContext, creatureId);
-                      },
-                      showOnlyAvailableTypes: true,
-                    );
-                  },
-            );
-          },
-        );
-      },
+    final selectedInstance = await _pickInventoryInstance(
+      theme: theme,
+      searchHint: 'SELECT SPECIMEN',
+      prefsScopeKey: 'inventory_effect_specimens',
     );
 
-    if (selectedSpeciesId == null || !mounted) return;
-
-    final selectedSpecies = repo.getCreatureById(selectedSpeciesId);
-    if (selectedSpecies == null) return;
-
-    // STEP 2: Show instance picker
-    final instanceId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => BottomSheetShell(
-        title: 'Choose ${selectedSpecies.name}',
-        theme: theme,
-        child: InstancesSheet(
-          species: selectedSpecies,
-          theme: theme,
-          prefsScopeKey: 'inventory_effect_instances',
-          onTap: (inst) {
-            Navigator.pop(context, inst.instanceId);
-          },
-        ),
-      ),
-    );
-
-    if (instanceId == null || !mounted) return;
+    if (selectedInstance == null || !mounted) return;
 
     // Determine effect type
     final effectType = switch (item.key) {
@@ -1190,7 +1019,7 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     // Apply the effect
     await db.creatureDao.updateAlchemyEffect(
-      instanceId: instanceId,
+      instanceId: selectedInstance.instanceId,
       effect: effectType,
     );
 
@@ -1199,8 +1028,21 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     _showToast(
       'Applied ${def.name}!',
-      icon: Icons.check_circle_rounded,
+      icon: AppIcons.check_circle_rounded,
       color: Colors.green,
+    );
+  }
+
+  Future<CreatureInstance?> _pickInventoryInstance({
+    required FactionTheme theme,
+    required String searchHint,
+    required String prefsScopeKey,
+  }) {
+    return showSpecimenPickerRoute(
+      context: context,
+      theme: theme,
+      searchHint: searchHint,
+      prefsScopeKey: prefsScopeKey,
     );
   }
 
@@ -1208,7 +1050,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (!def.canDispose) {
       _showToast(
         'Special items cannot be removed',
-        icon: Icons.lock_rounded,
+        icon: AppIcons.lock_rounded,
         color: Colors.indigo,
       );
       return;
@@ -1226,14 +1068,14 @@ class _InventoryScreenState extends State<InventoryScreen>
           _InventoryDialogOption(
             value: 'one',
             label: 'Remove 1',
-            icon: Icons.remove_circle_outline_rounded,
+            icon: AppIcons.remove_circle_outline_rounded,
             color: const Color(0xFFD97706),
             secondary: true,
           ),
           _InventoryDialogOption(
             value: 'all',
             label: 'Remove all',
-            icon: Icons.delete_sweep_rounded,
+            icon: AppIcons.delete_sweep_rounded,
             color: const Color(0xFFC0392B),
           ),
         ],
@@ -1249,21 +1091,21 @@ class _InventoryScreenState extends State<InventoryScreen>
         await db.inventoryDao.removeItem(item.key);
         _showToast(
           'Removed all ${def.name}',
-          icon: Icons.delete_rounded,
+          icon: AppIcons.delete_rounded,
           color: Colors.red,
         );
       } else if (confirmed == 'one') {
         await db.inventoryDao.decrementItem(item.key, by: 1);
         _showToast(
           'Removed 1 ${def.name}',
-          icon: Icons.remove_circle_rounded,
+          icon: AppIcons.remove_circle_rounded,
           color: Colors.orange,
         );
       }
     } catch (e) {
       _showToast(
         'Failed to remove item',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
     }
@@ -1281,7 +1123,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (qty <= 0) {
       _showToast(
         'No vials of this type available',
-        icon: Icons.warning_rounded,
+        icon: AppIcons.warning_rounded,
         color: Colors.orange,
       );
       return;
@@ -1295,8 +1137,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: bracketReadableAccent(theme, color: theme.accent)
-                .withValues(alpha: 0.65),
+            color: bracketReadableAccent(
+              theme,
+              color: theme.accent,
+            ).withValues(alpha: 0.65),
             width: 2,
           ),
         ),
@@ -1342,13 +1186,13 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (!res.success) {
       _showToast(
         res.message ?? 'Extraction failed',
-        icon: res.icon ?? Icons.error,
+        icon: res.icon ?? AppIcons.error,
         color: res.color ?? Colors.red,
       );
     } else {
       _showToast(
         'Extraction complete!',
-        icon: Icons.check_circle_rounded,
+        icon: AppIcons.check_circle_rounded,
         color: Colors.green,
       );
     }
@@ -1367,14 +1211,14 @@ class _InventoryScreenState extends State<InventoryScreen>
           _InventoryDialogOption(
             value: 'one',
             label: 'Remove 1',
-            icon: Icons.remove_circle_outline_rounded,
+            icon: AppIcons.remove_circle_outline_rounded,
             color: const Color(0xFFD97706),
             secondary: true,
           ),
           _InventoryDialogOption(
             value: 'all',
             label: 'Remove all',
-            icon: Icons.delete_sweep_rounded,
+            icon: AppIcons.delete_sweep_rounded,
             color: const Color(0xFFC0392B),
           ),
         ],
@@ -1390,21 +1234,21 @@ class _InventoryScreenState extends State<InventoryScreen>
         await db.inventoryDao.removeItem(vial.id);
         _showToast(
           'Removed all ${vial.name} vials',
-          icon: Icons.delete_rounded,
+          icon: AppIcons.delete_rounded,
           color: Colors.red,
         );
       } else if (confirmed == 'one') {
         await db.inventoryDao.decrementItem(vial.id, by: 1);
         _showToast(
           'Removed 1 ${vial.name} vial',
-          icon: Icons.remove_circle_rounded,
+          icon: AppIcons.remove_circle_rounded,
           color: Colors.orange,
         );
       }
     } catch (e) {
       _showToast(
         'Failed to remove vial',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
     }
@@ -1559,7 +1403,7 @@ class _DialogCloseButton extends StatelessWidget {
           height: 34,
           color: palette.surfaceFill(lightAlpha: 0.94),
           alignment: Alignment.center,
-          child: Icon(Icons.close_rounded, color: palette.muted, size: 18),
+          child: Icon(AppIcons.close_rounded, color: palette.muted, size: 18),
         ),
       ),
     );
@@ -1594,7 +1438,9 @@ class _DialogActionButton extends StatelessWidget {
         ),
         child: Container(
           height: 44,
-          color: secondary ? palette.surfaceMutedFill() : palette.accentWash(color),
+          color: secondary
+              ? palette.surfaceMutedFill()
+              : palette.accentWash(color),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1739,7 +1585,7 @@ class _InventoryChoiceDialog extends StatelessWidget {
               const SizedBox(height: 2),
               _DialogActionButton(
                 label: 'Cancel',
-                icon: Icons.close_rounded,
+                icon: AppIcons.close_rounded,
                 color: palette.line,
                 secondary: true,
                 onTap: () => Navigator.pop(context),

@@ -11,6 +11,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class DailyOffer {
   final String id;
@@ -315,7 +316,7 @@ class BlackMarketService extends ChangeNotifier {
         id: 'gold_exchange_$seed',
         name: 'Gold Exchange',
         description: 'Daily exchange: convert 5,000 silver into 1 gold',
-        icon: Icons.swap_horiz_rounded,
+        icon: AppIcons.swap_horiz_rounded,
         cost: {'silver': 5000},
         rewardType: 'currency',
         reward: {'gold': goldAmount},
@@ -329,7 +330,7 @@ class BlackMarketService extends ChangeNotifier {
         id: 'resource_pack_$seed',
         name: 'Elemental Cache',
         description: 'Rare elemental resources bundle',
-        icon: Icons.inventory_rounded,
+        icon: AppIcons.inventory_rounded,
         cost: {'silver': 800 + ((seed % 5) * 100)},
         rewardType: 'resources',
         reward: {

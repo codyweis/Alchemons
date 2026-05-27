@@ -9,6 +9,7 @@ import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class SlotInfoDialog extends StatefulWidget {
   final IncubatorSlot slot;
@@ -517,7 +518,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                   CultivationDialogButton(
                                     tokens: t,
                                     label: 'ACCELERATE CULTIVATION',
-                                    icon: Icons.speed_rounded,
+                                    icon: AppIcons.speed_rounded,
                                     accentColor: t.amberBright,
                                     emphasis:
                                         CultivationDialogButtonEmphasis.primary,
@@ -528,7 +529,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                     CultivationDialogButton(
                                       tokens: t,
                                       label: 'USE INSTANT FUSE ×$qty',
-                                      icon: Icons.flash_on_rounded,
+                                      icon: AppIcons.flash_on_rounded,
                                       accentColor: t.success,
                                       emphasis: CultivationDialogButtonEmphasis
                                           .primary,
@@ -542,7 +543,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                         child: CultivationDialogButton(
                                           tokens: t,
                                           label: 'STORE',
-                                          icon: Icons.inventory_2_rounded,
+                                          icon: AppIcons.inventory_2_rounded,
                                           accentColor: t.teal,
                                           onTap: widget.onReturn,
                                         ),
@@ -552,7 +553,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                         child: CultivationDialogButton(
                                           tokens: t,
                                           label: 'CLOSE',
-                                          icon: Icons.close_rounded,
+                                          icon: AppIcons.close_rounded,
                                           accentColor: t.textSecondary,
                                           onTap: widget.onClose,
                                         ),

@@ -8,6 +8,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +18,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class BlackMarketScreen extends StatefulWidget {
   final Color accent;
@@ -95,7 +97,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.lock_rounded,
+              AppIcons.lock_rounded,
               size: 80,
               color: Colors.white.withValues(alpha: 0.15),
             ),
@@ -146,7 +148,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               Expanded(
                 child: _SubTabButton(
                   label: 'ALCHEMONS',
-                  icon: Icons.pets_rounded,
+                  icon: AppIcons.pets_rounded,
                   isActive: _sellSubTab == 0,
                   onTap: () {
                     setState(() => _sellSubTab = 0);
@@ -158,14 +160,14 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               Expanded(
                 child: _SubTabButton(
                   label: canSellResources ? 'RESOURCES' : 'RESOURCES (LOCKED)',
-                  icon: Icons.inventory_2_rounded,
+                  icon: AppIcons.inventory_2_rounded,
                   isActive: _sellSubTab == 1,
                   onTap: () {
                     if (!canSellResources) {
                       HapticFeedback.mediumImpact();
                       _showToast(
                         'Not accepting resources for some reason.',
-                        icon: Icons.lock_rounded,
+                        icon: AppIcons.lock_rounded,
                         color: Colors.deepPurple,
                       );
                       return;
@@ -202,7 +204,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               Expanded(
                 child: _TabButton(
                   label: 'BUY',
-                  icon: Icons.shopping_bag_rounded,
+                  icon: AppIcons.shopping_bag_rounded,
                   isActive: _activeTab == 1,
                   onTap: () {
                     setState(() => _activeTab = 1);
@@ -215,7 +217,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               Expanded(
                 child: _TabButton(
                   label: 'SELL',
-                  icon: Icons.sell_rounded,
+                  icon: AppIcons.sell_rounded,
                   isActive: _activeTab == 0,
                   onTap: () {
                     setState(() => _activeTab = 0);
@@ -240,7 +242,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.schedule_rounded,
+                AppIcons.schedule_rounded,
                 size: 80,
                 color: Colors.white.withValues(alpha: 0.15),
               ),
@@ -295,7 +297,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.timer_rounded,
+                        AppIcons.timer_rounded,
                         size: 12,
                         color: Colors.orange.shade300,
                       ),
@@ -371,7 +373,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                     mainAxisSize: MainAxisSize.min,
                                     children: const [
                                       Icon(
-                                        Icons.check_circle_rounded,
+                                        AppIcons.check_circle_rounded,
                                         size: 16,
                                         color: Colors.greenAccent,
                                       ),
@@ -406,7 +408,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           child: Row(
             children: [
               const Icon(
-                Icons.local_offer_rounded,
+                AppIcons.local_offer_rounded,
                 size: 18,
                 color: Color(0xFFD8BFD8),
               ),
@@ -459,7 +461,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     if (available < vial.price!) {
       _showToast(
         'Not enough $costType',
-        icon: Icons.warning_rounded,
+        icon: AppIcons.warning_rounded,
         color: Colors.orange,
       );
       return false;
@@ -474,7 +476,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           id: vial.id,
           name: vial.name,
           description: '${vial.group.displayName} • ${vial.rarity.label}',
-          icon: Icons.science_rounded,
+          icon: AppIcons.science_rounded,
           cost: {costType: vial.price!},
           rewardType: 'item',
           reward: {
@@ -505,7 +507,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
 
     _showToast(
       '${vial.name} added to your inventory!',
-      icon: Icons.check_circle_rounded,
+      icon: AppIcons.check_circle_rounded,
       color: theme.text,
     );
 
@@ -654,7 +656,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
       if (available < entry.value) {
         _showToast(
           'Not enough ${entry.key}',
-          icon: Icons.warning_rounded,
+          icon: AppIcons.warning_rounded,
           color: Colors.orange,
         );
         return;
@@ -703,7 +705,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
 
     _showToast(
       '${offer.name} purchased!',
-      icon: Icons.check_circle_rounded,
+      icon: AppIcons.check_circle_rounded,
       color: Colors.green,
     );
   }
@@ -754,7 +756,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 ),
               ),
               child: const Icon(
-                Icons.arrow_back_rounded,
+                AppIcons.arrow_back_rounded,
                 color: Colors.white,
                 size: 20,
               ),
@@ -788,7 +790,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _CurrencyPill(
-                          icon: Icons.hexagon_rounded,
+                          coin: CoinKind.gold,
                           color: const Color(0xFFFFD700),
                           amount: curr['gold'] ?? 0,
                         ),
@@ -798,7 +800,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                           color: Colors.white.withValues(alpha: 0.2),
                         ),
                         _CurrencyPill(
-                          icon: Icons.monetization_on_rounded,
+                          coin: CoinKind.silver,
                           color: const Color(0xFFC0C0C0),
                           amount: curr['silver'] ?? 0,
                         ),
@@ -823,7 +825,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.inventory_2_outlined,
+              AppIcons.inventory_2_outlined,
               size: 80,
               color: Colors.white.withValues(alpha: 0.15),
             ),
@@ -859,7 +861,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.science_outlined,
+              AppIcons.science_outlined,
               size: 80,
               color: Colors.white.withValues(alpha: 0.15),
             ),
@@ -916,7 +918,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 child: Row(
                   children: [
                     Icon(
-                      Icons.shopping_cart_rounded,
+                      AppIcons.shopping_cart_rounded,
                       size: 18,
                       color: Colors.orange.shade300,
                     ),
@@ -1025,11 +1027,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     ),
                     Row(
                       children: [
-                        Icon(
-                          Icons.monetization_on_rounded,
-                          size: 18,
-                          color: Colors.grey.shade300,
-                        ),
+                        const CoinIcon(kind: CoinKind.silver, size: 18),
                         const SizedBox(width: 6),
                         Text(
                           '$_totalResourceValue',
@@ -1075,7 +1073,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             child: Row(
               children: [
                 Icon(
-                  Icons.shopping_cart_rounded,
+                  AppIcons.shopping_cart_rounded,
                   size: 18,
                   color: Colors.orange.shade300,
                 ),
@@ -1174,11 +1172,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.monetization_on_rounded,
-                            size: 18,
-                            color: Colors.grey.shade300,
-                          ),
+                          const CoinIcon(kind: CoinKind.silver, size: 18),
                           const SizedBox(width: 6),
                           Text(
                             '$_totalValue',
@@ -1195,11 +1189,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.hexagon_rounded,
-                            size: 18,
-                            color: Color(0xFFFFD700),
-                          ),
+                          const CoinIcon(kind: CoinKind.gold, size: 18),
                           const SizedBox(width: 6),
                           Text(
                             '$_totalGoldValue',
@@ -1245,7 +1235,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   ? () {
                       _showToast(
                         'Unlock "Valuable Resources" in the Extraction tree to sell resources.',
-                        icon: Icons.lock_rounded,
+                        icon: AppIcons.lock_rounded,
                         color: Colors.deepPurple,
                       );
                       HapticFeedback.mediumImpact();
@@ -1268,7 +1258,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.science_rounded,
+                        AppIcons.science_rounded,
                         color: const Color(0xFFD8BFD8),
                         size: 22,
                       ),
@@ -1296,7 +1286,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     ? () {
                         _showToast(
                           'Unlock "Valuable Resources" in the Extraction tree to sell resources.',
-                          icon: Icons.lock_rounded,
+                          icon: AppIcons.lock_rounded,
                           color: Colors.deepPurple,
                         );
                         HapticFeedback.mediumImpact();
@@ -1322,7 +1312,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: const [
-                      Icon(Icons.sell_rounded, color: Colors.white, size: 22),
+                      Icon(AppIcons.sell_rounded, color: Colors.white, size: 22),
                       SizedBox(width: 10),
                       Text(
                         'COMPLETE SALE',
@@ -1354,7 +1344,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     if (!constellations.canSellResources()) {
       _showToast(
         'Unlock "Valuable Resources" in the Extraction tree to sell resources.',
-        icon: Icons.lock_rounded,
+        icon: AppIcons.lock_rounded,
         color: Colors.deepPurple,
       );
       return;
@@ -1443,7 +1433,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: theme.border),
                           ),
-                          child: Icon(Icons.close, color: theme.text, size: 18),
+                          child: Icon(AppIcons.close, color: theme.text, size: 18),
                         ),
                       ),
                     ],
@@ -1553,7 +1543,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                 ),
                                 if (alreadySelected)
                                   Icon(
-                                    Icons.check_circle_rounded,
+                                    AppIcons.check_circle_rounded,
                                     color: theme.accent,
                                     size: 20,
                                   ),
@@ -1624,7 +1614,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
       _showToast(
         //fancy term for locked
         'Currently obstructed.',
-        icon: Icons.lock_rounded,
+        icon: AppIcons.lock_rounded,
         color: Colors.deepPurple,
       );
       return;
@@ -1670,7 +1660,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         content: Row(
           children: [
             const Icon(
-              Icons.check_circle_rounded,
+              AppIcons.check_circle_rounded,
               color: Colors.white,
               size: 18,
             ),
@@ -1721,7 +1711,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 if (inst.locked) {
                   _showToast(
                     'Locked specimens cannot be sold.',
-                    icon: Icons.lock_rounded,
+                    icon: AppIcons.lock_rounded,
                     color: Colors.orange,
                   );
                   return false;
@@ -1843,7 +1833,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         content: Row(
           children: [
             const Icon(
-              Icons.check_circle_rounded,
+              AppIcons.check_circle_rounded,
               color: Colors.white,
               size: 18,
             ),
@@ -1872,12 +1862,12 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
 // Supporting Widgets
 
 class _CurrencyPill extends StatelessWidget {
-  final IconData icon;
+  final CoinKind coin;
   final Color color;
   final int amount;
 
   const _CurrencyPill({
-    required this.icon,
+    required this.coin,
     required this.color,
     required this.amount,
   });
@@ -1893,7 +1883,7 @@ class _CurrencyPill extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color),
+        CoinIcon(kind: coin, size: 18),
         const SizedBox(width: 6),
         Text(
           _format(amount),
@@ -1991,14 +1981,9 @@ class _CompactCreatureRow extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  usesGold
-                      ? Icons.hexagon_rounded
-                      : Icons.monetization_on_rounded,
-                  size: 14,
-                  color: usesGold
-                      ? const Color(0xFFFFD700)
-                      : Colors.grey.shade300,
+                CoinIcon(
+                  kind: usesGold ? CoinKind.gold : CoinKind.silver,
+                  size: 16,
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -2026,7 +2011,7 @@ class _CompactCreatureRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
                 ),
-                child: const Icon(Icons.close, size: 14, color: Colors.red),
+                child: const Icon(AppIcons.close, size: 14, color: Colors.red),
               ),
             ),
           ],
@@ -2117,11 +2102,7 @@ class _CompactResourceRow extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.monetization_on_rounded,
-                      size: 14,
-                      color: Colors.grey.shade300,
-                    ),
+                    const CoinIcon(kind: CoinKind.silver, size: 16),
                     const SizedBox(width: 4),
                     Text(
                       '$price',
@@ -2148,7 +2129,7 @@ class _CompactResourceRow extends StatelessWidget {
                         color: Colors.red.withValues(alpha: 0.4),
                       ),
                     ),
-                    child: const Icon(Icons.close, size: 14, color: Colors.red),
+                    child: const Icon(AppIcons.close, size: 14, color: Colors.red),
                   ),
                 ),
               ],
@@ -2213,7 +2194,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.warning_rounded, color: Colors.orange, size: 48),
+            Icon(AppIcons.warning_rounded, color: Colors.orange, size: 48),
             const SizedBox(height: 16),
             const Text(
               'CONFIRM SALE',
@@ -2325,7 +2306,7 @@ class _ResourceSaleConfirmationDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.warning_rounded, color: Colors.orange, size: 48),
+            Icon(AppIcons.warning_rounded, color: Colors.orange, size: 48),
             const SizedBox(height: 16),
             const Text(
               'CONFIRM SALE',
@@ -2619,7 +2600,7 @@ class _OfferCard extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: const [
                                   Icon(
-                                    Icons.check_rounded,
+                                    AppIcons.check_rounded,
                                     size: 12,
                                     color: Colors.greenAccent,
                                   ),
@@ -2728,7 +2709,6 @@ class _CostBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final isGold = currencyType == 'gold';
     final color = isGold ? const Color(0xFFFFD700) : const Color(0xFFC0C0C0);
-    final icon = isGold ? Icons.hexagon_rounded : Icons.monetization_on_rounded;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -2740,7 +2720,7 @@ class _CostBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
+          CoinIcon(kind: isGold ? CoinKind.gold : CoinKind.silver, size: 14),
           const SizedBox(width: 4),
           Text(
             '$amount',

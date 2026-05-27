@@ -5,6 +5,7 @@ import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 enum EncounterAction { breed, capture }
 
@@ -316,7 +317,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.lock_rounded, color: theme.textMuted, size: 32),
+            Icon(AppIcons.lock_rounded, color: theme.textMuted, size: 32),
             const SizedBox(height: 12),
             Text(
               'No compatible harvesters',
@@ -450,7 +451,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.exit_to_app_rounded, color: theme.textMuted, size: 16),
+            Icon(AppIcons.exit_to_app_rounded, color: theme.textMuted, size: 16),
             const SizedBox(width: 8),
             Text(
               'Back',

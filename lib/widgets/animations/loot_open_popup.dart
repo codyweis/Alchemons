@@ -1,12 +1,15 @@
 import 'dart:math';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class LootOpeningEntry {
   final IconData icon;
+  final CoinKind? coin;
   final String label;
   final String? name;
   final Color color;
@@ -15,6 +18,7 @@ class LootOpeningEntry {
 
   const LootOpeningEntry({
     required this.icon,
+    this.coin,
     required this.label,
     this.name,
     required this.color,
@@ -243,7 +247,13 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                                             fit: BoxFit.contain,
                                           ),
                                         )
-                                      : Icon(e.icon, color: e.color, size: 22),
+                                      : (e.coin != null
+                                            ? CoinIcon(kind: e.coin!, size: 22)
+                                            : Icon(
+                                                e.icon,
+                                                color: e.color,
+                                                size: 22,
+                                              )),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -281,7 +291,7 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                                 ),
                                 const SizedBox(width: 6),
                                 Icon(
-                                  Icons.chevron_right_rounded,
+                                  AppIcons.chevron_right_rounded,
                                   color: e.color.withValues(alpha: 0.5),
                                   size: 18,
                                 ),
@@ -389,7 +399,9 @@ void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
                         fit: BoxFit.contain,
                       ),
                     )
-                  : Icon(entry.icon, color: entry.color, size: 34),
+                  : (entry.coin != null
+                        ? CoinIcon(kind: entry.coin!, size: 34)
+                        : Icon(entry.icon, color: entry.color, size: 34)),
             ),
             const SizedBox(height: 18),
             if (entry.name != null)
@@ -512,7 +524,7 @@ class _LootFallbackAnimationState extends State<_LootFallbackAnimation>
                 ),
               ),
               child: Icon(
-                Icons.auto_awesome_rounded,
+                AppIcons.auto_awesome_rounded,
                 size: 52,
                 color: fc.amberBright,
               ),

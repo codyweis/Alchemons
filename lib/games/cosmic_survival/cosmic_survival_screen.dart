@@ -30,11 +30,13 @@ import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS (matching survival aesthetic)
@@ -421,49 +423,49 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     _SurvivalTestTeamPreset(
       key: 'lets',
       label: 'Test Squad Lets',
-      icon: Icons.public_rounded,
+      icon: AppIcons.public_rounded,
       family: 'Let',
     ),
     _SurvivalTestTeamPreset(
       key: 'pips',
       label: 'Test Squad Pips',
-      icon: Icons.bolt_rounded,
+      icon: AppIcons.bolt_rounded,
       family: 'Pip',
     ),
     _SurvivalTestTeamPreset(
       key: 'manes',
       label: 'Test Squad Manes',
-      icon: Icons.waves_rounded,
+      icon: AppIcons.waves_rounded,
       family: 'Mane',
     ),
     _SurvivalTestTeamPreset(
       key: 'horns',
       label: 'Test Squad Horns',
-      icon: Icons.shield_rounded,
+      icon: AppIcons.shield_rounded,
       family: 'Horn',
     ),
     _SurvivalTestTeamPreset(
       key: 'masks',
       label: 'Test Squad Masks',
-      icon: Icons.theater_comedy_rounded,
+      icon: AppIcons.theater_comedy_rounded,
       family: 'Mask',
     ),
     _SurvivalTestTeamPreset(
       key: 'wings',
       label: 'Test Squad Wings',
-      icon: Icons.flight_takeoff_rounded,
+      icon: AppIcons.flight_takeoff_rounded,
       family: 'Wing',
     ),
     _SurvivalTestTeamPreset(
       key: 'kins',
       label: 'Test Squad Kins',
-      icon: Icons.favorite_rounded,
+      icon: AppIcons.favorite_rounded,
       family: 'Kin',
     ),
     _SurvivalTestTeamPreset(
       key: 'mystics',
       label: 'Test Squad Mystics',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       family: 'Mystic',
     ),
   ];
@@ -548,7 +550,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       await LandscapeDialog.show(
         context,
         title: 'A Test?',
-        icon: Icons.help_outline_rounded,
+        icon: AppIcons.help_outline_rounded,
         typewriter: true,
         message:
             'Something here refuses to finish. The field closes, the wave breaks, the silence returns, and then the same war leans forward again as if no ending was ever allowed to remain.\n\n'
@@ -659,7 +661,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       alignment: Alignment.centerRight,
                       child: _PauseActionButton(
                         label: 'CLOSE',
-                        icon: Icons.close_rounded,
+                        icon: AppIcons.close_rounded,
                         onTap: () => Navigator.of(context).pop(),
                       ),
                     ),
@@ -821,7 +823,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             ),
             child: const Row(
               children: [
-                Icon(Icons.warning_amber_rounded, size: 16, color: _C.danger),
+                Icon(AppIcons.warning_amber_rounded, size: 16, color: _C.danger),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1049,7 +1051,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           final def = registry[entry.key];
           final imagePath = InventoryImageHelper.getImage(entry.key);
           return LootOpeningEntry(
-            icon: def?.icon ?? Icons.inventory_2_rounded,
+            icon: def?.icon ?? AppIcons.inventory_2_rounded,
             name: def?.name ?? entry.key,
             label: 'x${entry.value}',
             color: _C.accent,
@@ -1073,7 +1075,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             final type = alchemicalPowerupTypeFromInventoryKey(entry.key);
             final imagePath = InventoryImageHelper.getImage(entry.key);
             return LootOpeningEntry(
-              icon: type?.icon ?? Icons.blur_on_rounded,
+              icon: type?.icon ?? AppIcons.blur_on_rounded,
               name: type?.name ?? entry.key,
               label: 'x${entry.value}',
               color: type?.color ?? _C.accent,
@@ -1098,7 +1100,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       await db.currencyDao.addSilver(silver);
       popupEntries.add(
         LootOpeningEntry(
-          icon: Icons.monetization_on_rounded,
+          icon: AppIcons.monetization_on_rounded,
+          coin: CoinKind.silver,
           name: 'Silver',
           label: '+$silver',
           color: const Color(0xFFB0BEC5),
@@ -1109,7 +1112,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       await db.currencyDao.addGold(gold);
       popupEntries.add(
         LootOpeningEntry(
-          icon: Icons.stars_rounded,
+          icon: AppIcons.stars_rounded,
+          coin: CoinKind.gold,
           name: 'Gold',
           label: '+$gold',
           color: _C.accent,
@@ -1256,13 +1260,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 children: [
                   _PauseActionButton(
                     label: 'STAY',
-                    icon: Icons.play_arrow_rounded,
+                    icon: AppIcons.play_arrow_rounded,
                     onTap: () => Navigator.of(context).pop(false),
                   ),
                   const SizedBox(width: 8),
                   _PauseActionButton(
                     label: 'QUIT',
-                    icon: Icons.exit_to_app_rounded,
+                    icon: AppIcons.exit_to_app_rounded,
                     onTap: () => Navigator.of(context).pop(true),
                     fillColor: _C.danger,
                   ),
@@ -1401,7 +1405,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 alignment: Alignment.centerRight,
                 child: _PauseActionButton(
                   label: 'CLOSE',
-                  icon: Icons.close_rounded,
+                  icon: AppIcons.close_rounded,
                   onTap: () => Navigator.of(context).pop(),
                 ),
               ),
@@ -1447,7 +1451,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.insights_rounded, color: _C.teal, size: 20),
+                  const Icon(AppIcons.insights_rounded, color: _C.teal, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1556,7 +1560,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 alignment: Alignment.centerRight,
                 child: _PauseActionButton(
                   label: 'CLOSE',
-                  icon: Icons.close_rounded,
+                  icon: AppIcons.close_rounded,
                   onTap: () => Navigator.of(context).pop(),
                 ),
               ),
@@ -1618,14 +1622,14 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     const SizedBox(height: 28),
                     _ForgeButton(
                       label: 'Assign Team',
-                      icon: Icons.groups_rounded,
+                      icon: AppIcons.groups_rounded,
                       loading: false,
                       onTap: _pickTeam,
                     ),
                     const SizedBox(height: 10),
                     _ForgeButton(
                       label: 'Base Command',
-                      icon: Icons.settings_rounded,
+                      icon: AppIcons.settings_rounded,
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -1684,7 +1688,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   strokeWidth: 1,
                 ),
                 child: const Icon(
-                  Icons.chevron_left_rounded,
+                  AppIcons.chevron_left_rounded,
                   color: _C.textSecondary,
                   size: 22,
                 ),
@@ -1746,7 +1750,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(
-                            Icons.emoji_events_outlined,
+                            AppIcons.emoji_events_outlined,
                             color: _C.amberBright,
                             size: 13,
                           ),
@@ -1968,8 +1972,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               ),
                               Icon(
                                 expanded
-                                    ? Icons.expand_less_rounded
-                                    : Icons.expand_more_rounded,
+                                    ? AppIcons.expand_less_rounded
+                                    : AppIcons.expand_more_rounded,
                                 color: _C.textSecondary,
                                 size: 16,
                               ),
@@ -2012,7 +2016,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           children: [
             Expanded(
               child: _buildTacticTile(
-                Icons.groups_rounded,
+                AppIcons.groups_rounded,
                 'FUSING',
                 'High-stat alchemons will spike earlier and convert upgrades harder.',
               ),
@@ -2020,7 +2024,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: _buildTacticTile(
-                Icons.auto_awesome_rounded,
+                AppIcons.auto_awesome_rounded,
                 'DRAFTING',
                 'Weighted offers amplify each family role instead of replacing it.',
               ),
@@ -2032,7 +2036,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           children: [
             Expanded(
               child: _buildTacticTile(
-                Icons.waves_rounded,
+                AppIcons.waves_rounded,
                 'MUTATORS',
                 'Wave rules evolve through elites, mutators, and faster late-run tempo spikes.',
               ),
@@ -2040,7 +2044,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: _buildTacticTile(
-                Icons.shield_outlined,
+                AppIcons.shield_outlined,
                 'ORB DEFENSE',
                 'Protect the orb, absorb pressure, and stretch your build as far as it can go.',
               ),
@@ -2095,8 +2099,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   ),
                   Icon(
                     expanded
-                        ? Icons.expand_less_rounded
-                        : Icons.expand_more_rounded,
+                        ? AppIcons.expand_less_rounded
+                        : AppIcons.expand_more_rounded,
                     color: _C.textSecondary,
                     size: 16,
                   ),
@@ -2201,7 +2205,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
-                              Icons.warning_amber_rounded,
+                              AppIcons.warning_amber_rounded,
                               color: _C.danger,
                               size: 13,
                             ),
@@ -2499,9 +2503,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   Widget _buildHud(CosmicSurvivalGame game) {
     final zoomIcon = switch (game.currentZoomLevel) {
-      0 => Icons.zoom_out_map_rounded,
-      2 => Icons.zoom_in_map_rounded,
-      _ => Icons.center_focus_strong_rounded,
+      0 => AppIcons.zoom_out_map_rounded,
+      2 => AppIcons.zoom_in_map_rounded,
+      _ => AppIcons.center_focus_strong_rounded,
     };
     return Positioned(
       top: 0,
@@ -2514,15 +2518,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             children: [
               // Timer
               _HudPill(
-                icon: Icons.timer_outlined,
+                icon: AppIcons.timer_outlined,
                 label: game.stats.formattedTime,
                 color: _C.textSecondary,
               ),
               const SizedBox(width: 8),
               _HudIconButton(
                 icon: _showPauseMenu
-                    ? Icons.play_arrow_rounded
-                    : Icons.pause_rounded,
+                    ? AppIcons.play_arrow_rounded
+                    : AppIcons.pause_rounded,
                 color: _C.accent,
                 onTap: _togglePauseMenu,
               ),
@@ -2628,7 +2632,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       child: Row(
                         children: [
                           const Icon(
-                            Icons.pause_circle_outline_rounded,
+                            AppIcons.pause_circle_outline_rounded,
                             color: _C.amberBright,
                             size: 20,
                           ),
@@ -2910,7 +2914,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             children: [
                               _PauseActionButton(
                                 label: 'QUIT',
-                                icon: Icons.exit_to_app_rounded,
+                                icon: AppIcons.exit_to_app_rounded,
                                 onTap: _quitRunFromPause,
                                 fillColor: _C.danger,
                                 filled: false,
@@ -2920,7 +2924,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               Expanded(
                                 child: _PauseActionButton(
                                   label: 'RESUME',
-                                  icon: Icons.play_arrow_rounded,
+                                  icon: AppIcons.play_arrow_rounded,
                                   onTap: _closePauseMenu,
                                 ),
                               ),
@@ -3080,8 +3084,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       children: [
                         Icon(
                           tethered
-                              ? Icons.link_rounded
-                              : Icons.link_off_rounded,
+                              ? AppIcons.link_rounded
+                              : AppIcons.link_off_rounded,
                           color: tethered ? _C.teal : _C.textSecondary,
                           size: 18,
                         ),
@@ -3318,7 +3322,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       ),
                     ),
                     child: const Icon(
-                      Icons.link_rounded,
+                      AppIcons.link_rounded,
                       size: 8,
                       color: Colors.white,
                     ),
@@ -3332,7 +3336,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     borderRadius: BorderRadius.circular(7),
                   ),
                   child: const Center(
-                    child: Icon(Icons.close, color: _C.danger, size: 20),
+                    child: Icon(AppIcons.close, color: _C.danger, size: 20),
                   ),
                 ),
             ],
@@ -3614,7 +3618,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Icon(
-                                  Icons.chevron_right,
+                                  AppIcons.chevron_right,
                                   color: entry.color.withValues(alpha: 0.45),
                                   size: 16,
                                 ),
@@ -4230,7 +4234,7 @@ class _PauseCompanionCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Icon(Icons.insights_rounded, size: 14, color: _C.teal),
+                const Icon(AppIcons.insights_rounded, size: 14, color: _C.teal),
               ],
             ),
             const SizedBox(height: 8),

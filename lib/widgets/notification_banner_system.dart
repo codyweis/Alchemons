@@ -6,6 +6,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ============================================================================
 // NOTIFICATION BANNER SYSTEM
@@ -125,17 +126,17 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
   IconData _getBannerIcon() {
     switch (widget.notification.type) {
       case NotificationBannerType.eggReady:
-        return Icons.science_rounded;
+        return AppIcons.science_rounded;
       case NotificationBannerType.harvestReady:
-        return Icons.science_rounded;
+        return AppIcons.science_rounded;
       case NotificationBannerType.dailyReward:
-        return Icons.auto_awesome_rounded;
+        return AppIcons.auto_awesome_rounded;
       case NotificationBannerType.bossAvailable:
-        return Icons.local_fire_department_rounded;
+        return AppIcons.local_fire_department_rounded;
       case NotificationBannerType.eventActive:
-        return Icons.stars_rounded;
+        return AppIcons.stars_rounded;
       case NotificationBannerType.wildernessSpawn:
-        return Icons.explore_rounded;
+        return AppIcons.explore_rounded;
     }
   }
 
@@ -435,7 +436,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                           ),
                         ),
                         child: Icon(
-                          Icons.close_rounded,
+                          AppIcons.close_rounded,
                           color: t.textSecondary,
                           size: 22,
                         ),

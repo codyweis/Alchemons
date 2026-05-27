@@ -13,6 +13,7 @@ import 'package:alchemons/screens/breed/utils/breed_utils.dart';
 import 'package:alchemons/screens/breeding_milestones_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
+import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
@@ -30,6 +31,7 @@ import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/animations/breed_result_animation.dart';
 import 'package:alchemons/widgets/animations/database_typing_animation.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
@@ -39,6 +41,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/models/egg/egg_payload.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Result of a hatching operation
 class HatchingResult {
@@ -137,7 +140,7 @@ class EggHatching {
       if (createdId == null) {
         return HatchingResult.failure(
           'Specimen containment full. Clear space to complete extraction.',
-          icon: Icons.warning_amber_rounded,
+          icon: AppIcons.warning_amber_rounded,
           color: Colors.orange.shade600,
         );
       }
@@ -201,7 +204,7 @@ class EggHatching {
     if (result.status == InstanceFinalizeStatus.speciesFull) {
       return HatchingResult.failure(
         'Specimen containment full. Clear space to complete extraction.',
-        icon: Icons.warning_amber_rounded,
+        icon: AppIcons.warning_amber_rounded,
         color: FC.orange,
       );
     }
@@ -281,7 +284,7 @@ class EggHatching {
       return HatchingResult(
         success: false,
         message: 'No creatures available for this vial type',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
     }
@@ -305,7 +308,7 @@ class EggHatching {
       return HatchingResult(
         success: false,
         message: 'Vial not found in inventory',
-        icon: Icons.error_rounded,
+        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
     }
@@ -331,7 +334,7 @@ class EggHatching {
         return HatchingResult(
           success: false,
           message: await ColdStorageService.buildFullMessage(db),
-          icon: Icons.inventory_2_rounded,
+          icon: AppIcons.inventory_2_rounded,
           color: Colors.orange,
         );
       }
@@ -348,7 +351,7 @@ class EggHatching {
       return HatchingResult(
         success: true,
         message: 'Incubator full — specimen transferred to cold storage',
-        icon: Icons.inventory_2_rounded,
+        icon: AppIcons.inventory_2_rounded,
         color: FC.orange,
       );
     } else {
@@ -366,7 +369,7 @@ class EggHatching {
       return HatchingResult(
         success: true,
         message: 'Specimen placed in incubation chamber ${free.id + 1}',
-        icon: Icons.science_rounded,
+        icon: AppIcons.science_rounded,
         color: const Color.fromARGB(255, 239, 255, 92),
       );
     }
@@ -757,6 +760,9 @@ class EggHatching {
 
     // GlobalKey to control the animation
     final scanAnimationKey = GlobalKey<CreatureScanAnimationState>();
+    // GlobalKey on the card's RepaintBoundary so we can snapshot it for the
+    // "filing-away" animation on new discoveries.
+    final cardBoundaryKey = GlobalKey(debugLabel: 'extraction-card-boundary');
 
     // Safe setState wrapper that only calls if dialog is still mounted
     void safeSetDialogState(StateSetter setDialogState, void Function() fn) {
@@ -807,27 +813,29 @@ class EggHatching {
           return Dialog(
             backgroundColor: Colors.transparent,
             insetPadding: const EdgeInsets.all(12),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: dialogShell(
-                Container(
-                  width: MediaQuery.of(context).size.width * 0.95,
-                  height: MediaQuery.of(context).size.height * 0.82,
-                  decoration: BoxDecoration(
-                    color: fc.bg0.withValues(alpha: .7),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: primaryColor.withValues(alpha: .45),
-                      width: 2,
+            child: RepaintBoundary(
+              key: cardBoundaryKey,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: dialogShell(
+                  Container(
+                    width: MediaQuery.of(context).size.width * 0.95,
+                    height: MediaQuery.of(context).size.height * 0.82,
+                    decoration: BoxDecoration(
+                      color: fc.bg1,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: fc.borderAccent,
+                        width: 1.2,
+                      ),
                     ),
-                  ),
-                  child: Column(
+                    child: Column(
                     children: [
                       _buildExtractionHeader(offspring, primaryColor, fc),
 
                       // Sprite dock
                       Container(
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: fc.bg2,
                           border: Border(
@@ -838,17 +846,17 @@ class EggHatching {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Stack(
+                              clipBehavior: Clip.none,
                               children: [
-                                Container(
+                                SizedBox(
                                   height: 200,
                                   width: 200,
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: fc.bg1,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: fc.borderDim),
-                                  ),
-                                  child: CreatureScanAnimation(
+                                  child: BracketCard(
+                                    padding: const EdgeInsets.all(12),
+                                    bracketSize: 14,
+                                    strokeWidth: 1.4,
+                                    alpha: 0.85,
+                                    child: CreatureScanAnimation(
                                     key: scanAnimationKey,
                                     isNewDiscovery: isNewDiscovery,
                                     scanDuration: switch (cinematicQuality) {
@@ -871,6 +879,7 @@ class EggHatching {
                                       instance: instance!,
                                       size: 150,
                                     ),
+                                  ),
                                   ),
                                 ),
                                 if (isNewDiscovery)
@@ -966,7 +975,7 @@ class EggHatching {
                                           fc: fc,
                                         ),
                                         _buildTypingAnalysisRow(
-                                          'TYPE CATEGORIES',
+                                          'TYPE',
                                           offspring.types.join(', '),
                                           scanComplete,
                                           primaryColor,
@@ -1075,7 +1084,7 @@ class EggHatching {
                               children: [
                                 Expanded(
                                   child: GestureDetector(
-                                    onTap: () {
+                                    onTap: () async {
                                       if (closing) return;
 
                                       // Signal animation to stop any pending callbacks
@@ -1097,6 +1106,15 @@ class EggHatching {
                                         ctaTouchable = false;
                                       });
 
+                                      if (isNewDiscovery) {
+                                        await NewDiscoveryReveal.instance
+                                            .playFilingAway(
+                                              context: context,
+                                              cardBoundaryKey: cardBoundaryKey,
+                                              creatureId: offspring.id,
+                                            );
+                                      }
+
                                       WidgetsBinding.instance
                                           .addPostFrameCallback((_) {
                                             if (Navigator.of(
@@ -1110,35 +1128,33 @@ class EggHatching {
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 22,
-                                        vertical: 12,
+                                        vertical: 13,
                                       ),
                                       decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            primaryColor.withValues(alpha: .95),
-                                            primaryColor.withValues(alpha: .8),
-                                          ],
+                                        borderRadius: BorderRadius.circular(3),
+                                        border: Border.all(
+                                          color: fc.amber,
+                                          width: 1.2,
                                         ),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: fc.borderDim),
                                       ),
-                                      child: const Row(
+                                      child: Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
                                         children: [
-                                          Icon(
-                                            Icons.check_rounded,
-                                            color: Colors.white,
-                                            size: 16,
+                                          Container(
+                                            width: 3,
+                                            height: 14,
+                                            color: fc.amberBright,
                                           ),
-                                          SizedBox(width: 6),
+                                          const SizedBox(width: 10),
                                           Text(
                                             'EXTRACTION CONFIRMED',
                                             style: TextStyle(
-                                              color: Colors.white,
+                                              fontFamily: 'monospace',
+                                              color: fc.amberBright,
                                               fontWeight: FontWeight.w900,
-                                              fontSize: 13,
-                                              letterSpacing: .6,
+                                              fontSize: 12,
+                                              letterSpacing: 2.0,
                                             ),
                                           ),
                                         ],
@@ -1162,17 +1178,17 @@ class EggHatching {
                                     width: 50,
                                     height: 50,
                                     decoration: BoxDecoration(
-                                      color: fc.bg2,
-                                      borderRadius: BorderRadius.circular(6),
+                                      color: fc.bg3,
+                                      borderRadius: BorderRadius.circular(3),
                                       border: Border.all(
                                         color: fc.borderDim,
-                                        width: 1.5,
+                                        width: 1.2,
                                       ),
                                     ),
                                     child: Icon(
-                                      Icons.info_outline_rounded,
+                                      AppIcons.info_outline_rounded,
                                       color: fc.textSecondary,
-                                      size: 22,
+                                      size: 20,
                                     ),
                                   ),
                                 ),
@@ -1185,6 +1201,7 @@ class EggHatching {
                   ),
                 ),
               ),
+            ),
             ),
           );
         },
@@ -1274,7 +1291,7 @@ class EggHatching {
                         ),
                       ),
                       child: const Icon(
-                        Icons.menu_book_rounded,
+                        AppIcons.menu_book_rounded,
                         color: Color(0xFFFFB188),
                         size: 18,
                       ),
@@ -1311,19 +1328,20 @@ class EggHatching {
 
   static Widget _buildBadge(String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .18),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: .45)),
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: color.withValues(alpha: 0.55), width: 0.9),
       ),
       child: Text(
-        text,
+        text.toUpperCase(),
         style: TextStyle(
+          fontFamily: 'monospace',
           color: color,
-          fontSize: 7,
+          fontSize: 8.5,
           fontWeight: FontWeight.w900,
-          letterSpacing: .5,
+          letterSpacing: 1.4,
         ),
       ),
     );
@@ -1340,13 +1358,13 @@ class EggHatching {
       Colors.purple,
     ];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: prismaticColors.map((c) => c.withValues(alpha: .15)).toList(),
+          colors: prismaticColors.map((c) => c.withValues(alpha: 0.14)).toList(),
         ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: .4)),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 0.9),
       ),
       child: ShaderMask(
         shaderCallback: (bounds) =>
@@ -1354,10 +1372,11 @@ class EggHatching {
         child: const Text(
           'PRISMATIC',
           style: TextStyle(
+            fontFamily: 'monospace',
             color: Colors.white,
-            fontSize: 7,
+            fontSize: 8.5,
             fontWeight: FontWeight.w900,
-            letterSpacing: .5,
+            letterSpacing: 1.4,
           ),
         ),
       ),
@@ -1444,7 +1463,7 @@ class EggHatching {
                         ),
                       ),
                       child: const Icon(
-                        Icons.auto_awesome_rounded,
+                        AppIcons.auto_awesome_rounded,
                         color: Color(0xFFDDE8FF),
                         size: 18,
                       ),
@@ -1485,44 +1504,44 @@ class EggHatching {
     FC fc,
   ) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: fc.bg2,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(16),
-        ),
+        color: fc.bg3,
         border: Border(bottom: BorderSide(color: fc.borderDim)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.science_rounded, color: primaryColor, size: 18),
+              Container(width: 3, height: 14, color: fc.amber),
+              const SizedBox(width: 10),
+              Icon(AppIcons.science_outlined, color: fc.amberBright, size: 15),
               const SizedBox(width: 8),
               Text(
                 'EXTRACTION COMPLETE',
                 style: TextStyle(
-                  color: primaryColor,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                  letterSpacing: .6,
+                  fontFamily: 'monospace',
+                  color: fc.amberBright,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2.0,
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
+          Container(height: 1, color: fc.borderMid),
+          const SizedBox(height: 10),
           Text(
             offspring.name,
             style: TextStyle(
+              fontFamily: 'monospace',
               color: fc.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              letterSpacing: .3,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -1535,36 +1554,50 @@ class EggHatching {
     List<Widget> children,
     FC fc,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.dataset_outlined, color: primaryColor, size: 16),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: TextStyle(
-                color: fc.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: .6,
+    return Container(
+      decoration: BoxDecoration(
+        color: fc.bg2,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: fc.borderDim),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: fc.bg3,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(2),
               ),
+              border: Border(bottom: BorderSide(color: fc.borderDim)),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: fc.bg1,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: fc.borderDim),
+            child: Row(
+              children: [
+                Container(width: 3, height: 10, color: fc.amber),
+                const SizedBox(width: 8),
+                Text(
+                  title.toUpperCase(),
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: fc.amberBright,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2.0,
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Column(children: children),
-        ),
-      ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1577,19 +1610,20 @@ class EggHatching {
     required FC fc,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 110,
+            width: 120,
             child: Text(
-              label,
+              label.toUpperCase(),
               style: TextStyle(
+                fontFamily: 'monospace',
                 color: fc.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .4,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.4,
               ),
             ),
           ),
@@ -1599,9 +1633,11 @@ class EggHatching {
                     text: value,
                     delay: delay,
                     style: TextStyle(
+                      fontFamily: 'monospace',
                       color: fc.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
                     ),
                   )
                 : const SizedBox.shrink(),

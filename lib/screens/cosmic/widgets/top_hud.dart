@@ -3,6 +3,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'cosmic_screen_styles.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // Cosmic HUD always renders on the dark space backdrop.
 const _palette = BracketPalette.dark;
@@ -95,7 +96,7 @@ class TopHudState extends State<TopHud> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.public_rounded, color: _palette.muted, size: 14),
+                    Icon(AppIcons.public_rounded, color: _palette.muted, size: 14),
                     const SizedBox(width: 7),
                     Text(
                       'Cosmos',
@@ -109,7 +110,7 @@ class TopHudState extends State<TopHud> {
                     ),
                     const SizedBox(width: 7),
                     Icon(
-                      Icons.keyboard_arrow_down_rounded,
+                      AppIcons.keyboard_arrow_down_rounded,
                       color: _palette.muted,
                       size: 16,
                     ),
@@ -142,7 +143,7 @@ class TopHudState extends State<TopHud> {
                 children: [
                   // Settings button
                   _HudIconButton(
-                    icon: Icons.settings_rounded,
+                    icon: AppIcons.settings_rounded,
                     onTap: widget.onSettings,
                   ),
                   const SizedBox(width: 10),
@@ -198,9 +199,9 @@ class TopHudState extends State<TopHud> {
                   if (widget.onZoomCycle != null) ...[
                     _HudIconButton(
                       icon: switch (widget.zoomLevel) {
-                        0 => Icons.center_focus_strong_rounded,
-                        1 => Icons.zoom_out_map_rounded,
-                        _ => Icons.zoom_in_map_rounded,
+                        0 => AppIcons.center_focus_strong_rounded,
+                        1 => AppIcons.zoom_out_map_rounded,
+                        _ => AppIcons.zoom_in_map_rounded,
                       },
                       iconColor: const Color(0xFF5BC8E8),
                       onTap: widget.onZoomCycle!,
@@ -209,7 +210,7 @@ class TopHudState extends State<TopHud> {
                   ],
                   // Collapse button
                   _HudIconButton(
-                    icon: Icons.keyboard_arrow_up_rounded,
+                    icon: AppIcons.keyboard_arrow_up_rounded,
                     onTap: () => _setCollapsed(true),
                   ),
                 ],

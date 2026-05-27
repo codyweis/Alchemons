@@ -11,6 +11,8 @@ import 'dart:async';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/constants/creature_details_tutorials.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
+import 'package:alchemons/widgets/creature_detail/creature_background_pref.dart';
+import 'package:alchemons/widgets/creature_detail/creature_display_view.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -40,6 +42,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 
 import '../../models/creature.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -358,6 +361,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   int? _instanceLevel;
   bool _favoriteBusy = false;
   bool _nicknameBusy = false;
+  CreatureBgOption? _bgOption;
 
   int _initialTabIndex() {
     if (!widget.isDiscovered) return 0;
@@ -383,6 +387,31 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     if (widget.instanceId != null) {
       _hydrateFromInstance(widget.instanceId!);
     }
+    unawaited(_reloadBgOption());
+  }
+
+  Future<void> _openDisplayView() async {
+    final saved = await CreatureDisplayView.show(
+      context,
+      creature: _effectiveCreature,
+      instance: _instance,
+      initialBg: _bgOption ?? defaultCreatureBg,
+    );
+    if (!mounted) return;
+    if (saved != null) {
+      await _reloadBgOption();
+    }
+  }
+
+  Future<void> _reloadBgOption() async {
+    final db = context.read<AlchemonsDatabase>();
+    final option = await loadCreatureBg(
+      db,
+      baseId: widget.creature.id,
+      instanceId: widget.instanceId,
+    );
+    if (!mounted) return;
+    setState(() => _bgOption = option);
   }
 
   Future<void> _hydrateFromInstance(String instanceId) async {
@@ -680,7 +709,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
           title: Row(
             children: [
-              Icon(Icons.auto_awesome_rounded, color: c.amberBright),
+              Icon(AppIcons.auto_awesome_rounded, color: c.amberBright),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -714,7 +743,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                   padding: const EdgeInsets.only(bottom: 8),
                   child: TutorialStep(
                     theme: theme,
-                    icon: Icons.visibility_rounded,
+                    icon: AppIcons.visibility_rounded,
                     title: target.title,
                     body: target.tutorialBody,
                   ),
@@ -831,6 +860,8 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                             currentImageIndex: _currentImageIndex,
                             onPageChanged: (i) =>
                                 setState(() => _currentImageIndex = i),
+                            bgOption: _bgOption,
+                            onSpriteTap: _openDisplayView,
                           ),
                         ),
                         // ANALYSIS
@@ -992,7 +1023,7 @@ class _HeaderBar extends StatelessWidget {
                                 )
                               else
                                 Icon(
-                                  Icons.edit_outlined,
+                                  AppIcons.edit_outlined,
                                   size: 14,
                                   color: palette.muted,
                                 ),
@@ -1017,8 +1048,8 @@ class _HeaderBar extends StatelessWidget {
               if (instance != null) ...[
                 _HeaderIconButton(
                   icon: isFavorite
-                      ? Icons.star_rounded
-                      : Icons.star_border_rounded,
+                      ? AppIcons.star_rounded
+                      : AppIcons.star_border_rounded,
                   iconColor: isFavorite ? favoriteAccent : palette.muted,
                   frameColor: isFavorite ? favoriteAccent : palette.line,
                   busy: favoriteBusy,
@@ -1027,7 +1058,7 @@ class _HeaderBar extends StatelessWidget {
                 const SizedBox(width: 8),
               ],
               _HeaderIconButton(
-                icon: Icons.close_rounded,
+                icon: AppIcons.close_rounded,
                 iconColor: palette.muted,
                 frameColor: palette.line,
                 onTap: onClose,
@@ -1227,7 +1258,7 @@ class _LockedTabPlaceholder extends StatelessWidget {
               padding: const EdgeInsets.all(18),
               color: palette.surfaceFill(),
               child: Icon(
-                Icons.lock_outline_rounded,
+                AppIcons.lock_outline_rounded,
                 color: palette.muted,
                 size: 28,
               ),
@@ -1262,6 +1293,8 @@ class _OverviewTab extends StatelessWidget {
   final PageController pageController;
   final int currentImageIndex;
   final ValueChanged<int> onPageChanged;
+  final CreatureBgOption? bgOption;
+  final VoidCallback? onSpriteTap;
 
   const _OverviewTab({
     super.key,
@@ -1271,6 +1304,8 @@ class _OverviewTab extends StatelessWidget {
     required this.pageController,
     required this.currentImageIndex,
     required this.onPageChanged,
+    required this.bgOption,
+    required this.onSpriteTap,
   });
 
   @override
@@ -1428,6 +1463,8 @@ class _OverviewTab extends StatelessWidget {
               color: palette.bg0,
               child: Stack(
                 children: [
+                if (bgOption != null)
+                  Positioned.fill(child: CreatureBgLayer(option: bgOption!)),
                 Positioned.fill(
                   child: CustomPaint(painter: _ScanlinePainter()),
                 ),
@@ -1452,29 +1489,33 @@ class _OverviewTab extends StatelessWidget {
                 child: SizedBox(
                   width: 175,
                   height: 175,
-                  child: Center(
-                    child: instance == null
-                        ? CreatureSprite(
-                            spritePath: creature.spriteData!.spriteSheetPath,
-                            totalFrames: creature.spriteData!.totalFrames,
-                            rows: creature.spriteData!.rows,
-                            frameSize: Vector2(
-                              creature.spriteData!.frameWidth.toDouble(),
-                              creature.spriteData!.frameHeight.toDouble(),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onSpriteTap,
+                    child: Center(
+                      child: instance == null
+                          ? CreatureSprite(
+                              spritePath: creature.spriteData!.spriteSheetPath,
+                              totalFrames: creature.spriteData!.totalFrames,
+                              rows: creature.spriteData!.rows,
+                              frameSize: Vector2(
+                                creature.spriteData!.frameWidth.toDouble(),
+                                creature.spriteData!.frameHeight.toDouble(),
+                              ),
+                              stepTime:
+                                  creature.spriteData!.frameDurationMs / 1000.0,
+                              scale: scaleFromGenes(creature.genetics),
+                              saturation: satFromGenes(creature.genetics),
+                              brightness: briFromGenes(creature.genetics),
+                              hueShift: hueFromGenes(creature.genetics),
+                              isPrismatic: creature.isPrismaticSkin,
+                            )
+                          : InstanceSprite(
+                              creature: creature,
+                              instance: instance!,
+                              size: 162,
                             ),
-                            stepTime:
-                                creature.spriteData!.frameDurationMs / 1000.0,
-                            scale: scaleFromGenes(creature.genetics),
-                            saturation: satFromGenes(creature.genetics),
-                            brightness: briFromGenes(creature.genetics),
-                            hueShift: hueFromGenes(creature.genetics),
-                            isPrismatic: creature.isPrismaticSkin,
-                          )
-                        : InstanceSprite(
-                            creature: creature,
-                            instance: instance!,
-                            size: 162,
-                          ),
+                    ),
                   ),
                 ),
               ),
@@ -1526,7 +1567,7 @@ class _OverviewTab extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.auto_awesome_rounded,
+                          AppIcons.auto_awesome_rounded,
                           color: fColor,
                           size: 10,
                         ),
@@ -1695,7 +1736,7 @@ class _StaminaRestoreButton extends StatelessWidget {
                     child: Row(
                       children: [
                         Icon(
-                          Icons.local_drink_rounded,
+                          AppIcons.local_drink_rounded,
                           color: activeAccent,
                           size: 14,
                         ),
@@ -1723,7 +1764,7 @@ class _StaminaRestoreButton extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Icon(
-                          Icons.chevron_right_rounded,
+                          AppIcons.chevron_right_rounded,
                           size: 16,
                           color: palette.muted,
                         ),
@@ -2120,7 +2161,7 @@ class _GatedContent extends StatelessWidget {
     final palette = _bp(context);
     return Row(
       children: [
-        Icon(Icons.visibility_off_rounded, color: palette.muted, size: 14),
+        Icon(AppIcons.visibility_off_rounded, color: palette.muted, size: 14),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -2506,7 +2547,7 @@ class _PurityAnalysisCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.verified_rounded, size: 13, color: color),
+                Icon(AppIcons.verified_rounded, size: 13, color: color),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(
@@ -2659,21 +2700,21 @@ class _MechanicCard extends StatelessWidget {
   static IconData _categoryIcon(String category) {
     switch (category) {
       case 'Species':
-        return Icons.pets;
+        return AppIcons.pets;
       case 'Family Lineage':
-        return Icons.family_restroom;
+        return AppIcons.family_restroom;
       case 'Elemental Type':
-        return Icons.whatshot;
+        return AppIcons.whatshot;
       case 'Color Tinting':
-        return Icons.palette;
+        return AppIcons.palette;
       case 'Size':
-        return Icons.straighten;
+        return AppIcons.straighten;
       case 'Patterning':
-        return Icons.gradient;
+        return AppIcons.gradient;
       case 'Nature':
-        return Icons.psychology;
+        return AppIcons.psychology;
       default:
-        return Icons.info_outline;
+        return AppIcons.info_outline;
     }
   }
 }

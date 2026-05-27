@@ -39,6 +39,7 @@ import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 SceneEncounterTables Function(SceneDefinition) _tableBuilderForScene(
   String sceneId, {
@@ -404,7 +405,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           'Tap the creature to begin your first fusion. Select one of your Alchemons to attempt the fuse. Alchemons are stronger here. Fusing with them should provide formidable results.',
       typewriter: true,
       kind: LandscapeDialogKind.info,
-      icon: Icons.explore_rounded,
+      icon: AppIcons.explore_rounded,
       primaryLabel: 'Begin',
       barrierDismissible: false,
     );
@@ -418,7 +419,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           'This portal was created eons ago. Is this false perception? Beauty obstructs reality.',
       typewriter: true,
       kind: LandscapeDialogKind.info,
-      icon: Icons.auto_awesome,
+      icon: AppIcons.auto_awesome,
       primaryLabel: 'Continue',
       barrierDismissible: false,
     );
@@ -431,7 +432,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       message: 'Your new Alchemon is cultivating in the chamber.',
       typewriter: false,
       kind: LandscapeDialogKind.success,
-      icon: Icons.check_circle_rounded,
+      icon: AppIcons.check_circle_rounded,
       primaryLabel: 'Return to Lab',
       barrierDismissible: false,
     );
@@ -445,7 +446,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           'This wild Alchemon must be harvested, not fused. Open the harvester panel and use the issued device to capture the specimen.',
       typewriter: true,
       kind: LandscapeDialogKind.info,
-      icon: Icons.catching_pokemon_rounded,
+      icon: AppIcons.catching_pokemon_rounded,
       primaryLabel: 'Begin Capture',
       barrierDismissible: false,
     );
@@ -459,7 +460,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           'Wild Alchemons are pure by default. Harvest them for pure replicas, or fuse with them for different results.',
       typewriter: false,
       kind: LandscapeDialogKind.success,
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       primaryLabel: 'Return to Cultivations',
       barrierDismissible: false,
     );
@@ -818,7 +819,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           '"Recognizing that the world is but an illusion, does not act as if it were real, so he escapes suffering."',
       typewriter: true,
       kind: LandscapeDialogKind.success,
-      icon: Icons.rocket_launch_rounded,
+      icon: AppIcons.rocket_launch_rounded,
       primaryLabel: 'Claim',
       barrierDismissible: true,
     );
@@ -927,7 +928,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       title: 'The Cosmic Ship',
       message: 'The ship is beckoning.',
       kind: LandscapeDialogKind.warning,
-      icon: Icons.rocket_launch_rounded,
+      icon: AppIcons.rocket_launch_rounded,
       primaryLabel: 'Stay',
       barrierDismissible: true,
     );
@@ -2125,7 +2126,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.vpn_key_rounded,
+                    AppIcons.vpn_key_rounded,
                     color: keyQty > 0 ? color : Colors.white30,
                     size: 11,
                   ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CreatureScanAnimation extends StatefulWidget {
   final Widget child;
@@ -311,7 +312,7 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.auto_awesome_rounded,
+                              AppIcons.auto_awesome_rounded,
                               color: Colors.white,
                               size: 16,
                             ),

@@ -8,6 +8,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
@@ -15,6 +16,7 @@ import 'package:alchemons/widgets/nursery/non_ready_hatch_widget.dart';
 import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class NurseryTab extends StatefulWidget {
   final DateTime? maxSeenNowUtc;
@@ -124,7 +126,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (slot.eggId == null || slot.hatchAtUtcMs == null) {
       _showToast(
         'No active specimen in this chamber',
-        icon: Icons.info_outline_rounded,
+        icon: AppIcons.info_outline_rounded,
         color: Colors.blue.shade600,
       );
       return;
@@ -143,7 +145,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (qty <= 0) {
       _showToast(
         'No Instant Fuse items',
-        icon: Icons.flash_off_rounded,
+        icon: AppIcons.flash_off_rounded,
         color: Colors.red.shade600,
       );
       return;
@@ -164,7 +166,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (!consumed) {
       _showToast(
         'Instant Fuse unavailable',
-        icon: Icons.error_outline_rounded,
+        icon: AppIcons.error_outline_rounded,
         color: Colors.red.shade600,
       );
       return;
@@ -186,7 +188,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (latest == null || latest.hatchAtUtcMs == null) {
       _showToast(
         'Specimen updated, please retry',
-        icon: Icons.info_outline_rounded,
+        icon: AppIcons.info_outline_rounded,
         color: Colors.orange.shade600,
       );
       return;
@@ -198,7 +200,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (!mounted) return;
     _showToast(
       'Instant fuse complete!',
-      icon: Icons.flash_on_rounded,
+      icon: AppIcons.flash_on_rounded,
       color: Colors.green.shade600,
     );
   }
@@ -266,7 +268,7 @@ class _NurseryTabState extends State<NurseryTab> {
                 children: [
                   _buildSectionHeader(
                     'ACTIVE CULTIVATION',
-                    Icons.science_rounded,
+                    AppIcons.science_rounded,
                     theme.text,
                     trailing: totalUnlocked == 0
                         ? null
@@ -648,7 +650,7 @@ class _NurseryTabState extends State<NurseryTab> {
                                 .clearEgg(slot.id);
                             _showToast(
                               'Specimen discarded',
-                              icon: Icons.delete_forever_rounded,
+                              icon: AppIcons.delete_forever_rounded,
                               color: Colors.red.shade600,
                             );
                           },
@@ -695,7 +697,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (remaining.isNegative || remaining.inSeconds <= 0) {
       _showToast(
         'Specimen is already ready',
-        icon: Icons.info_rounded,
+        icon: AppIcons.info_rounded,
         color: Colors.blue.shade600,
       );
       return;
@@ -855,7 +857,7 @@ class _NurseryTabState extends State<NurseryTab> {
                     CultivationDialogButton(
                       tokens: t,
                       label: 'CANCEL',
-                      icon: Icons.close_rounded,
+                      icon: AppIcons.close_rounded,
                       accentColor: t.textSecondary,
                       onTap: () => Navigator.of(context).pop(),
                     ),
@@ -925,7 +927,7 @@ class _NurseryTabState extends State<NurseryTab> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.access_time_rounded,
+                            AppIcons.access_time_rounded,
                             size: 10,
                             color: accentColor.withValues(alpha: .7),
                           ),
@@ -961,11 +963,7 @@ class _NurseryTabState extends State<NurseryTab> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.monetization_on_rounded,
-                        color: Color(0xFFF59E0B),
-                        size: 13,
-                      ),
+                      const CoinIcon(kind: CoinKind.gold, size: 14),
                       const SizedBox(width: 5),
                       Text(
                         cost.toString(),
@@ -1005,7 +1003,7 @@ class _NurseryTabState extends State<NurseryTab> {
       if (mounted) {
         _showToast(
           'Insufficient gold (need $deficit)',
-          icon: Icons.warning_rounded,
+          icon: AppIcons.warning_rounded,
           color: Colors.red.shade600,
         );
       }
@@ -1017,7 +1015,7 @@ class _NurseryTabState extends State<NurseryTab> {
       if (mounted) {
         _showToast(
           'Transaction failed',
-          icon: Icons.error_rounded,
+          icon: AppIcons.error_rounded,
           color: Colors.red.shade600,
         );
       }
@@ -1034,7 +1032,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (mounted) {
       _showToast(
         '$type acceleration complete! ($goldCost gold)',
-        icon: Icons.speed_rounded,
+        icon: AppIcons.speed_rounded,
         color: Colors.green.shade600,
       );
     }
@@ -1068,7 +1066,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (mounted) {
       _showToast(
         'Specimen moved to cold storage',
-        icon: Icons.inventory_2_rounded,
+        icon: AppIcons.inventory_2_rounded,
         color: Colors.orange.shade600,
       );
     }
@@ -1097,7 +1095,7 @@ class _NurseryTabState extends State<NurseryTab> {
     } else if (result.message != null) {
       _showToast(
         result.message!,
-        icon: result.icon ?? Icons.error_rounded,
+        icon: result.icon ?? AppIcons.error_rounded,
         color: result.color ?? Colors.red.shade600,
       );
     }
@@ -1105,7 +1103,7 @@ class _NurseryTabState extends State<NurseryTab> {
 
   void _showToast(
     String message, {
-    IconData icon = Icons.info_rounded,
+    IconData icon = AppIcons.info_rounded,
     Color? color,
   }) {
     if (!mounted) return;
@@ -1376,7 +1374,7 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
                         ),
                       ),
                       child: Icon(
-                        Icons.add_rounded,
+                        AppIcons.add_rounded,
                         color: widget.primaryColor.withValues(
                           alpha: (a + .3).clamp(0, 1),
                         ),
@@ -1434,15 +1432,15 @@ class _ChamberStatusBadge extends StatelessWidget {
     if (anyReady) {
       accent = t.success;
       statusLabel = 'READY';
-      statusIcon = Icons.check_circle_rounded;
+      statusIcon = AppIcons.check_circle_rounded;
     } else if (nextReady != null) {
       accent = theme.text;
       statusLabel = BreedConstants.formatRemaining(nextReady!);
-      statusIcon = Icons.schedule_rounded;
+      statusIcon = AppIcons.schedule_rounded;
     } else {
       accent = theme.textMuted;
       statusLabel = 'IDLE';
-      statusIcon = Icons.pause_circle_outline_rounded;
+      statusIcon = AppIcons.pause_circle_outline_rounded;
     }
 
     return Container(

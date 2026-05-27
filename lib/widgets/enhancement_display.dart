@@ -6,6 +6,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Animated display showing the target creature being enhanced
 /// REDESIGNED: More compact layout with reduced padding and cleaner spacing
@@ -521,7 +522,7 @@ class _LevelDisplayState extends State<_LevelDisplay>
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4), // REDUCED
               child: Icon(
-                Icons.arrow_forward,
+                AppIcons.arrow_forward,
                 size: 12, // REDUCED
                 color: Colors.green.shade400,
               ),
@@ -603,7 +604,7 @@ class _AnimatedXpBar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.bolt,
+                      AppIcons.bolt,
                       size: 9,
                       color: Colors.amber.shade400,
                     ), // REDUCED
@@ -794,15 +795,15 @@ class _StatGainChip extends StatelessWidget {
   (IconData, Color) _getStatStyle(String stat) {
     switch (stat.toLowerCase()) {
       case 'speed':
-        return (Icons.speed, Colors.cyan);
+        return (AppIcons.speed, Colors.cyan);
       case 'intelligence':
-        return (Icons.psychology, Colors.purple);
+        return (AppIcons.psychology, Colors.purple);
       case 'strength':
-        return (Icons.fitness_center, Colors.red);
+        return (AppIcons.fitness_center, Colors.red);
       case 'beauty':
-        return (Icons.auto_awesome, Colors.pink);
+        return (AppIcons.auto_awesome, Colors.pink);
       default:
-        return (Icons.star, Colors.amber);
+        return (AppIcons.star, Colors.amber);
     }
   }
 
@@ -876,7 +877,7 @@ class _StatValueChip extends StatelessWidget {
           ),
           const SizedBox(width: 3),
           Icon(
-            Icons.arrow_forward,
+            AppIcons.arrow_forward,
             size: 10,
             color: color.withValues(alpha: 0.7),
           ),
@@ -914,15 +915,15 @@ class _StatValueChip extends StatelessWidget {
   (IconData, Color) _getStatStyle(String stat) {
     switch (stat.toLowerCase()) {
       case 'speed':
-        return (Icons.speed, Colors.cyan);
+        return (AppIcons.speed, Colors.cyan);
       case 'intelligence':
-        return (Icons.psychology, Colors.purple);
+        return (AppIcons.psychology, Colors.purple);
       case 'strength':
-        return (Icons.fitness_center, Colors.red);
+        return (AppIcons.fitness_center, Colors.red);
       case 'beauty':
-        return (Icons.auto_awesome, Colors.pink);
+        return (AppIcons.auto_awesome, Colors.pink);
       default:
-        return (Icons.star, Colors.amber);
+        return (AppIcons.star, Colors.amber);
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ---------- DEPLOY CONFIRM DIALOG ----------
 
@@ -42,7 +43,7 @@ class DeployConfirmDialog extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    Icons.warning_amber_rounded,
+                    AppIcons.warning_amber_rounded,
                     color: t.amberBright,
                     size: 16,
                   ),
@@ -192,7 +193,7 @@ class ZeroStaminaWarningDialog extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    Icons.warning_amber_rounded,
+                    AppIcons.warning_amber_rounded,
                     color: t.amberBright,
                     size: 16,
                   ),

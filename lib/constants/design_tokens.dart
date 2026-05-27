@@ -84,7 +84,7 @@ class AppRadius {
 /// ```dart
 /// TapTarget(
 ///   onTap: _close,
-///   child: const Icon(Icons.close, size: AppIcon.md),
+///   child: const Icon(AppIcons.close, size: AppIcon.md),
 /// )
 /// ```
 class TapTarget extends StatelessWidget {

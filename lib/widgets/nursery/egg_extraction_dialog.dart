@@ -11,6 +11,7 @@ import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class ExtractionDialog extends StatefulWidget {
   final IncubatorSlot slot;
@@ -188,7 +189,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                       CultivationDialogButton(
                         tokens: t,
                         label: 'Extract specimen',
-                        icon: Icons.biotech_rounded,
+                        icon: AppIcons.biotech_rounded,
                         accentColor: rarityColor,
                         emphasis: CultivationDialogButtonEmphasis.primary,
                         useSolidBackground: true,
@@ -204,7 +205,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                         Center(
                           child: _DialogTextLink(
                             label: 'Discard specimen',
-                            icon: Icons.delete_outline_rounded,
+                            icon: AppIcons.delete_outline_rounded,
                             color: t.danger,
                             onTap: widget.onDiscard,
                           ),
@@ -220,7 +221,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                 top: 10,
                 right: 10,
                 child: _DialogIconButton(
-                  icon: Icons.close_rounded,
+                  icon: AppIcons.close_rounded,
                   tooltip: 'Close',
                   palette: palette,
                   onTap: widget.onCancel,
@@ -523,7 +524,7 @@ class _ReadyMedallionState extends State<_ReadyMedallion>
                 ),
                 child: Center(
                   child: Icon(
-                    Icons.check_rounded,
+                    AppIcons.check_rounded,
                     color: widget.rarityColor,
                     size: 36,
                   ),

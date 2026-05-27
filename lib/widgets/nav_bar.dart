@@ -1,8 +1,10 @@
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 enum NavSection { home, creatures, shop, breed, inventory }
 
@@ -43,6 +45,8 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   bool _isSlidingAcrossNav = false;
   NavSection? _lastDraggedSection;
 
+  final GlobalKey _creaturesIconKey = GlobalKey(debugLabel: 'nav-creatures');
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -64,6 +68,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
       parent: _expandController,
       curve: Curves.easeOutCubic,
     );
+    NewDiscoveryReveal.instance.databaseNavKey = _creaturesIconKey;
   }
 
   @override
@@ -77,6 +82,12 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   @override
   void dispose() {
     _expandController.dispose();
+    if (identical(
+      NewDiscoveryReveal.instance.databaseNavKey,
+      _creaturesIconKey,
+    )) {
+      NewDiscoveryReveal.instance.databaseNavKey = null;
+    }
     super.dispose();
   }
 
@@ -125,15 +136,15 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
             (!extractionTutorialComplete && !fieldTutorialComplete)) {
           // State 1: Extraction pending (starter granted, waiting for extraction)
           message = 'Please extract your vial from the Extraction Chamber!';
-          iconData = Icons.science_rounded;
+          iconData = AppIcons.science_rounded;
         } else if (!fieldTutorialComplete) {
           // State 2: Extraction done, field tutorial not started
           message = 'Please tap the Field icon to begin your first expedition';
-          iconData = Icons.explore_rounded;
+          iconData = AppIcons.explore_rounded;
         } else {
           // State 3: Both tutorials done, generic nav lock (shouldn't happen normally)
           message = 'Navigation locked';
-          iconData = Icons.lock_outline;
+          iconData = AppIcons.lock_outline;
         }
 
         if (!mounted) return;
@@ -282,6 +293,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                           label: 'CREATURES',
                           theme: theme,
                           isDisabled: isDisabled,
+                          iconKey: _creaturesIconKey,
                         ),
                         _buildNavButton(
                           section: NavSection.home,
@@ -322,6 +334,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     required String label,
     required FactionTheme? theme,
     required bool isDisabled,
+    Key? iconKey,
   }) {
     final isActive = widget.current == section;
     final double opacity = isDisabled ? 0.5 : 1.0;
@@ -360,9 +373,10 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (icon is IconData)
-                        Icon(icon, color: iconColor, size: iconSize)
+                        Icon(icon, key: iconKey, color: iconColor, size: iconSize)
                       else if (icon is String)
                         SizedBox(
+                          key: iconKey,
                           width: iconSize,
                           height: iconSize,
                           child: FittedBox(

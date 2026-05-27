@@ -1,6 +1,7 @@
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ---------- Empty States / Helpers ----------
 
@@ -38,7 +39,7 @@ class NoResultsFound extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.search_off_rounded,
+            AppIcons.search_off_rounded,
             color: theme.textMuted.withValues(alpha: .3),
             size: 48,
           ),

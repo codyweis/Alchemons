@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────
 // RESULT passed back to cosmic_screen
@@ -276,7 +277,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.shield_rounded,
+                            AppIcons.shield_rounded,
                             color: Colors.amber.withValues(alpha: textOpacity),
                             size: 28,
                           ),
@@ -481,21 +482,21 @@ class _ElementalPortalGrid extends StatelessWidget {
       'Fire',
       Color(0xFFFF5722),
       Color(0xFF1A0500),
-      Icons.local_fire_department_rounded,
+      AppIcons.local_fire_department_rounded,
     ),
     _PortalDef(
       'Water',
       Color(0xFF448AFF),
       Color(0xFF000D1A),
-      Icons.water_drop_rounded,
+      AppIcons.water_drop_rounded,
     ),
     _PortalDef(
       'Earth',
       Color(0xFF795548),
       Color(0xFF1A0A00),
-      Icons.terrain_rounded,
+      AppIcons.terrain_rounded,
     ),
-    _PortalDef('Air', Color(0xFF81D4FA), Color(0xFF001020), Icons.air_rounded),
+    _PortalDef('Air', Color(0xFF81D4FA), Color(0xFF001020), AppIcons.air_rounded),
   ];
 
   @override
@@ -806,7 +807,7 @@ class _VoidSprite extends StatelessWidget {
       sprite = SizedBox(
         width: size,
         height: size,
-        child: Icon(Icons.pets, color: Colors.white24, size: size * 0.5),
+        child: Icon(AppIcons.pets, color: Colors.white24, size: size * 0.5),
       );
     }
 

@@ -9,6 +9,7 @@ import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class TeamBuilderDialog extends StatefulWidget {
   const TeamBuilderDialog({
@@ -106,7 +107,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                       : t.borderDim,
                 ),
               ),
-              child: Icon(Icons.help_outline, color: t.textSecondary, size: 20),
+              child: Icon(AppIcons.help_outline, color: t.textSecondary, size: 20),
             );
           }
           final creature = _creaturesById[inst.baseId];
@@ -124,7 +125,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                       : t.borderDim,
                 ),
               ),
-              child: Icon(Icons.help_outline, color: t.textSecondary, size: 20),
+              child: Icon(AppIcons.help_outline, color: t.textSecondary, size: 20),
             );
           }
 
@@ -182,7 +183,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.check_circle, color: accent, size: 14),
+                          Icon(AppIcons.check_circle, color: accent, size: 14),
                           const SizedBox(width: 6),
                           Text(
                             label,
@@ -478,7 +479,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.folder_open, color: t.amber, size: 16),
+                  Icon(AppIcons.folder_open, color: t.amber, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     'TEAM BUILDER',
@@ -528,7 +529,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                             labelColor: t.success,
                             trailing: IconButton(
                               onPressed: _saveCurrentAs,
-                              icon: Icon(Icons.save_rounded, color: t.amber),
+                              icon: Icon(AppIcons.save_rounded, color: t.amber),
                               tooltip: 'Save team',
                             ),
                           ),
@@ -560,7 +561,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                               trailing: IconButton(
                                 onPressed: () => _deleteTeam(i),
                                 icon: Icon(
-                                  Icons.delete_outline,
+                                  AppIcons.delete_outline,
                                   color: t.danger,
                                 ),
                                 tooltip: 'Delete team',

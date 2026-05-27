@@ -4,6 +4,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS (matching the survival screen aesthetic)
@@ -433,7 +434,7 @@ class _PowerUpCard extends StatelessWidget {
                                 ? Row(
                                     children: [
                                       const Icon(
-                                        Icons.arrow_forward_rounded,
+                                        AppIcons.arrow_forward_rounded,
                                         color: _C.teal,
                                         size: 15,
                                       ),
@@ -557,18 +558,18 @@ class _MiniTag extends StatelessWidget {
 }
 
 IconData _powerUpSystemIcon(PowerUpDef def) {
-  if (def.isKeystone) return Icons.account_tree_rounded;
+  if (def.isKeystone) return AppIcons.account_tree_rounded;
   return switch (def.category) {
-    PowerUpCategory.shipWeapon => Icons.rocket_launch_rounded,
-    PowerUpCategory.orbDefense => Icons.blur_circular_rounded,
+    PowerUpCategory.shipWeapon => AppIcons.rocket_launch_rounded,
+    PowerUpCategory.orbDefense => AppIcons.blur_circular_rounded,
     PowerUpCategory.statBoost =>
       def.scope == PowerUpScope.companion
-          ? Icons.pets_rounded
-          : Icons.groups_rounded,
+          ? AppIcons.pets_rounded
+          : AppIcons.groups_rounded,
     PowerUpCategory.rarePerk =>
       def.scope == PowerUpScope.companion
-          ? Icons.person_rounded
-          : Icons.auto_awesome_rounded,
+          ? AppIcons.person_rounded
+          : AppIcons.auto_awesome_rounded,
   };
 }
 

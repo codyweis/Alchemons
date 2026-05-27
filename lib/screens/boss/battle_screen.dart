@@ -12,6 +12,7 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 /// Main battle screen that integrates Flame game with Flutter UI
 class BattleScreenFlame extends StatefulWidget {
@@ -191,7 +192,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.emoji_events_rounded, color: fc.amberBright, size: 48),
+              Icon(AppIcons.emoji_events_rounded, color: fc.amberBright, size: 48),
               SizedBox(height: 16),
               Text(
                 'VICTORY',
@@ -272,7 +273,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.close_rounded, color: Colors.red, size: 48),
+              Icon(AppIcons.close_rounded, color: Colors.red, size: 48),
               SizedBox(height: 16),
               Text(
                 'DEFEATED',
@@ -407,7 +408,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         SnackBar(
           content: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              Icon(AppIcons.warning_amber_rounded, color: Colors.orange),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -432,7 +433,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         SnackBar(
           content: Row(
             children: [
-              Icon(Icons.hourglass_bottom_rounded, color: Colors.orange),
+              Icon(AppIcons.hourglass_bottom_rounded, color: Colors.orange),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -614,7 +615,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     if (widget.boss.needsRecharge) {
       items.add(
         _buildBossStatusBubble(
-          icon: Icons.hourglass_bottom_rounded,
+          icon: AppIcons.hourglass_bottom_rounded,
           label: '${widget.boss.specialCooldown}',
           color: fc.amberBright,
           onTap: () => _showStatusDetail(
@@ -628,7 +629,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     if (widget.boss.tauntTargetId != null) {
       items.add(
         _buildBossStatusBubble(
-          icon: Icons.gps_fixed_rounded,
+          icon: AppIcons.gps_fixed_rounded,
           label: 'T',
           color: fc.danger,
           onTap: () => _showStatusDetail(
@@ -781,27 +782,27 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   IconData _iconForDebuffLabel(String label) {
     switch (label) {
       case 'BURN':
-        return Icons.local_fire_department_rounded;
+        return AppIcons.local_fire_department_rounded;
       case 'POISON':
-        return Icons.science_rounded;
+        return AppIcons.science_rounded;
       case 'FREEZE':
-        return Icons.ac_unit_rounded;
+        return AppIcons.ac_unit_rounded;
       case 'CURSE':
-        return Icons.dark_mode_rounded;
+        return AppIcons.dark_mode_rounded;
       case 'BLEED':
-        return Icons.water_drop_rounded;
+        return AppIcons.water_drop_rounded;
       case 'VOID':
-        return Icons.blur_circular_rounded;
+        return AppIcons.blur_circular_rounded;
       case 'TAUNT':
-        return Icons.gps_fixed_rounded;
+        return AppIcons.gps_fixed_rounded;
       case 'ATK DOWN':
-        return Icons.south_rounded;
+        return AppIcons.south_rounded;
       case 'DEF DOWN':
-        return Icons.shield_outlined;
+        return AppIcons.shield_outlined;
       case 'SPD DOWN':
-        return Icons.speed_rounded;
+        return AppIcons.speed_rounded;
       default:
-        return Icons.bolt_rounded;
+        return AppIcons.bolt_rounded;
     }
   }
 
@@ -847,7 +848,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               ),
             ),
             const SizedBox(width: 6),
-            Icon(Icons.chevron_right_rounded, size: 13, color: fc.textMuted),
+            Icon(AppIcons.chevron_right_rounded, size: 13, color: fc.textMuted),
           ],
         ),
       ),
@@ -1343,8 +1344,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               isEnabled: canAct,
               isFeatured: _armedMoveSlot == 0,
               icon: basicMove.type == MoveType.physical
-                  ? Icons.flash_on_rounded
-                  : Icons.auto_awesome_rounded,
+                  ? AppIcons.flash_on_rounded
+                  : AppIcons.auto_awesome_rounded,
               family: selected?.family,
               isSpecialMove: false,
             ),
@@ -1363,7 +1364,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               elementColor: accent,
               isEnabled: specialReady,
               isFeatured: _armedMoveSlot == 1,
-              icon: Icons.bolt_rounded,
+              icon: AppIcons.bolt_rounded,
               family: selected?.family,
               isSpecialMove: true,
             ),

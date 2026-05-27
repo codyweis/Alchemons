@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'cosmic_screen_styles.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CustomizationMenuOverlay extends StatefulWidget {
   const CustomizationMenuOverlay({
@@ -185,7 +186,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       ),
                     ),
                     _OverlayHeaderButton(
-                      icon: Icons.close_rounded,
+                      icon: AppIcons.close_rounded,
                       onTap: widget.onClose,
                     ),
                   ],
@@ -225,7 +226,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.inventory_2_rounded,
+                          AppIcons.inventory_2_rounded,
                           color: CosmicScreenStyles.textSecondary,
                           size: 14,
                         ),
@@ -260,7 +261,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           const SizedBox(width: 8),
                         ],
                         const Icon(
-                          Icons.keyboard_arrow_down_rounded,
+                          AppIcons.keyboard_arrow_down_rounded,
                           color: CosmicScreenStyles.textMuted,
                           size: 16,
                         ),
@@ -374,7 +375,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         ),
                       ),
                       _OverlayHeaderButton(
-                        icon: Icons.close_rounded,
+                        icon: AppIcons.close_rounded,
                         onTap: () => Navigator.of(ctx).pop(),
                         compact: true,
                       ),
@@ -504,7 +505,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   child: Row(
                     children: [
                       const Icon(
-                        Icons.science_rounded,
+                        AppIcons.science_rounded,
                         color: CosmicScreenStyles.textSecondary,
                         size: 12,
                       ),
@@ -608,7 +609,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           1.0) *
                       100)
                   .round(),
-          icon: Icons.bolt_rounded,
+          icon: AppIcons.bolt_rounded,
           onUpgrade: () => widget.onUpgradePowerUp('ammo'),
         ),
         _buildPowerUpCard(
@@ -622,7 +623,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           1.0) *
                       100)
                   .round(),
-          icon: Icons.rocket_launch_rounded,
+          icon: AppIcons.rocket_launch_rounded,
           onUpgrade: () => widget.onUpgradePowerUp('missile'),
         ),
         _buildFuelUpgradeCard(),
@@ -919,7 +920,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.bubble_chart_rounded,
+                  AppIcons.bubble_chart_rounded,
                   size: 16,
                   color: CosmicScreenStyles.teal,
                 ),
@@ -1157,7 +1158,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                               ),
                               child: !isUnlocked
                                   ? const Icon(
-                                      Icons.lock,
+                                      AppIcons.lock,
                                       size: 12,
                                       color: Colors.white54,
                                     )
@@ -1535,7 +1536,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           Row(
             children: [
               const Icon(
-                Icons.local_gas_station_rounded,
+                AppIcons.local_gas_station_rounded,
                 color: Color(0xFFFF6F00),
                 size: 14,
               ),
@@ -1725,7 +1726,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       ),
                     ),
                     child: const Icon(
-                      Icons.settings_rounded,
+                      AppIcons.settings_rounded,
                       color: CosmicScreenStyles.amber,
                       size: 12,
                     ),
@@ -1897,7 +1898,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           ),
                         ),
                         child: const Icon(
-                          Icons.arrow_back,
+                          AppIcons.arrow_back,
                           color: CosmicScreenStyles.textSecondary,
                           size: 16,
                         ),

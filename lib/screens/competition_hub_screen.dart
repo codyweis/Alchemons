@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:alchemons/games/competitions/earthen_maze_game.dart';
 import 'package:alchemons/models/competition.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class CompetitionHubScreen extends StatefulWidget {
   const CompetitionHubScreen({super.key});
@@ -81,7 +82,7 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
           child: Row(
             children: [
               _IconButton(
-                icon: Icons.arrow_back_rounded,
+                icon: AppIcons.arrow_back_rounded,
                 accentColor: accentColor,
                 onTap: () => Navigator.of(context).pop(),
               ),
@@ -125,7 +126,7 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
                   border: Border.all(color: accentColor.withValues(alpha: .3)),
                 ),
                 child: Icon(
-                  Icons.emoji_events_rounded,
+                  AppIcons.emoji_events_rounded,
                   color: accentColor,
                   size: 20,
                 ),

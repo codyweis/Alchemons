@@ -27,6 +27,7 @@ import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS  (inline — no import needed, keeps file self-contained)
@@ -559,7 +560,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
         children: [
           Padding(
             padding: EdgeInsets.only(left: 10),
-            child: Icon(Icons.search_rounded, size: 14, color: t.textMuted),
+            child: Icon(AppIcons.search_rounded, size: 14, color: t.textMuted),
           ),
           Expanded(
             child: TextField(
@@ -591,7 +592,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
               },
               child: Padding(
                 padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.close_rounded, size: 13, color: t.textMuted),
+                child: Icon(AppIcons.close_rounded, size: 13, color: t.textMuted),
               ),
             ),
         ],
@@ -676,7 +677,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.filter_list_rounded,
+              AppIcons.filter_list_rounded,
               size: 14,
               color: hasFiltersActive ? t.amberBright : t.textSecondary,
             ),
@@ -694,8 +695,8 @@ class _InstancesSheetState extends State<InstancesSheet> {
             const SizedBox(width: 4),
             Icon(
               _filtersOpen
-                  ? Icons.keyboard_arrow_up_rounded
-                  : Icons.keyboard_arrow_down_rounded,
+                  ? AppIcons.keyboard_arrow_up_rounded
+                  : AppIcons.keyboard_arrow_down_rounded,
               size: 14,
               color: hasFiltersActive ? t.amberBright : t.textMuted,
             ),
@@ -717,7 +718,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
             borderRadius: BorderRadius.circular(2),
           ),
           child: Icon(
-            Icons.hourglass_bottom_rounded,
+            AppIcons.hourglass_bottom_rounded,
             color: t.amberBright,
             size: 14,
           ),

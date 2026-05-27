@@ -10,6 +10,7 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class ChamberPickerOverlay extends StatefulWidget {
   const ChamberPickerOverlay({
@@ -207,7 +208,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                       Padding(
                         padding: const EdgeInsets.only(left: 12),
                         child: Icon(
-                          Icons.search_rounded,
+                          AppIcons.search_rounded,
                           color: palette.muted,
                           size: 16,
                         ),
@@ -250,7 +251,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                           child: Padding(
                             padding: const EdgeInsets.only(right: 12),
                             child: Icon(
-                              Icons.close_rounded,
+                              AppIcons.close_rounded,
                               color: palette.muted,
                               size: 14,
                             ),
@@ -516,7 +517,7 @@ class _ChamberSlotTile extends StatelessWidget {
                     onTap: onClear,
                     behavior: HitTestBehavior.opaque,
                     child: Icon(
-                      Icons.close_rounded,
+                      AppIcons.close_rounded,
                       size: 14,
                       color: CosmicScreenStyles.danger.withValues(alpha: 0.9),
                     ),
@@ -550,7 +551,7 @@ class _ChamberSlotTile extends StatelessWidget {
                     )
                   : Center(
                       child: Icon(
-                        Icons.add_rounded,
+                        AppIcons.add_rounded,
                         color: palette.muted,
                         size: 20,
                       ),
@@ -614,7 +615,7 @@ class _OverlayCloseButton extends StatelessWidget {
             height: 32,
             alignment: Alignment.center,
             color: palette.surfaceMutedFill(),
-            child: Icon(Icons.close_rounded, size: 16, color: palette.muted),
+            child: Icon(AppIcons.close_rounded, size: 16, color: palette.muted),
           ),
         ),
       ),

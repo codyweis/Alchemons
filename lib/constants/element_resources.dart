@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 
 class ElementResource {
   final String biomeId; // 'volcanic'
@@ -23,35 +24,35 @@ class ElementResources {
       biomeId: 'volcanic',
       biomeLabel: 'Volcanic',
       settingsKey: 'res_volcanic',
-      icon: Icons.local_fire_department_rounded,
+      icon: AppIcons.local_fire_department_rounded,
       color: Color(0xFFFF6B35),
     ),
     ElementResource(
       biomeId: 'oceanic',
       biomeLabel: 'Oceanic',
       settingsKey: 'res_oceanic',
-      icon: Icons.water_drop_rounded,
+      icon: AppIcons.water_drop_rounded,
       color: Color(0xFF4ECDC4),
     ),
     ElementResource(
       biomeId: 'earthen',
       biomeLabel: 'Earthen',
       settingsKey: 'res_earthen',
-      icon: Icons.landscape_rounded,
+      icon: AppIcons.landscape_rounded,
       color: Color(0xFF8B6F47),
     ),
     ElementResource(
       biomeId: 'verdant',
       biomeLabel: 'Verdant',
       settingsKey: 'res_verdant',
-      icon: Icons.nature_rounded,
+      icon: AppIcons.nature_rounded,
       color: Color(0xFF6BCF7F),
     ),
     ElementResource(
       biomeId: 'arcane',
       biomeLabel: 'Arcane',
       settingsKey: 'res_arcane',
-      icon: Icons.auto_awesome_rounded,
+      icon: AppIcons.auto_awesome_rounded,
       color: Color(0xFFB388FF),
     ),
   ];
