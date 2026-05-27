@@ -123,10 +123,11 @@ class BattleGame extends FlameGame with TapCallbacks {
   /// where the bottom band is reserved for the move card.
   static const double teamColumnX = 0.14;
   // Pulled up so the alchemons sit close to the boss header instead
-  // of leaving a wide empty band below it. The move card grows back
-  // to a two-line description using the recovered bottom space.
+  // of leaving a wide empty band below it. Bottom pushed down to add
+  // breathing room between sprites so big-silhouette creatures
+  // (wings, tails, auras) don't graze each other.
   static const double teamRailTopY = 0.13;
-  static const double teamRailBottomY = 0.66;
+  static const double teamRailBottomY = 0.72;
   static const double bossArenaX = 0.70;
   static const double bossArenaY = 0.34;
 
