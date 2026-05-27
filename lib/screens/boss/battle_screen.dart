@@ -1164,7 +1164,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   Widget _buildBottomDock() {
     final fc = _fc;
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 18, 10, 10),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
@@ -1315,7 +1315,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           armedDescription,
           maxLines: 2,
@@ -1323,10 +1323,10 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           style: TextStyle(
             color: fc.textSecondary,
             fontSize: 11,
-            height: 1.3,
+            height: 1.25,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1468,7 +1468,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       onTap: onTap,
       onLongPress: onLongPress,
       child: SizedBox(
-        width: 96,
+        width: 92,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1481,13 +1481,13 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                   RotationTransition(
                     turns: _crownController,
                     child: CustomPaint(
-                      size: const Size(92, 92),
+                      size: const Size(78, 78),
                       painter: _OrbCrownPainter(color: color),
                     ),
                   ),
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 54,
+                  height: 54,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
@@ -1522,7 +1522,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                         )
                       : Icon(
                           icon,
-                          size: 28,
+                          size: 24,
                           color: isEnabled
                               ? Colors.white.withValues(alpha: 0.95)
                               : fc.textMuted,
@@ -1530,7 +1530,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               label,
               maxLines: 1,
@@ -1538,13 +1538,13 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: isEnabled ? fc.textPrimary : fc.textMuted,
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w900,
                 fontFamily: 'monospace',
                 letterSpacing: 0.4,
               ),
             ),
-            const SizedBox(height: 1),
+            const SizedBox(height: 0),
             Text(
               subtitle,
               maxLines: 1,
