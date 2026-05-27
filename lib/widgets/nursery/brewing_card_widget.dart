@@ -125,12 +125,28 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
         particleCount > 0;
 
     final palette = BracketPalette.fromTheme(theme);
+    final lightModeReady = widget.isReady && isLight && !isBloodborn;
+    final readyOuterFrameColor = isBloodborn
+        ? kBloodbornReadyBorder
+        : (lightModeReady
+              ? palette.ink.withValues(alpha: 0.92)
+              : const Color(0xFFFFD700));
+    final readyInnerBorderColor = isBloodborn
+        ? readyOuterFrameColor.withValues(alpha: 0.55)
+        : (lightModeReady
+              ? ForgeTokens(theme)
+                    .readableAccent(const Color(0xFFFFD700))
+                    .withValues(alpha: 0.92)
+              : readyOuterFrameColor.withValues(alpha: 0.55));
     final frameColor = widget.isReady
-        ? (isBloodborn ? kBloodbornReadyBorder : const Color(0xFFFFD700))
+        ? readyOuterFrameColor
         : (isBloodborn
               ? kBloodbornSecondary.withValues(alpha: 0.85)
               : palette.line.withValues(alpha: 0.75));
     final fillColor = isLight ? palette.bg1 : Colors.black;
+    final borderColor = widget.isReady
+        ? readyInnerBorderColor
+        : palette.lineSoft.withValues(alpha: 0.55);
 
     return RepaintBoundary(
       child: GestureDetector(
@@ -144,12 +160,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
           child: Container(
             decoration: BoxDecoration(
               color: fillColor,
-              border: Border.all(
-                color: widget.isReady
-                    ? frameColor.withValues(alpha: 0.55)
-                    : palette.lineSoft.withValues(alpha: 0.55),
-                width: 1,
-              ),
+              border: Border.all(color: borderColor, width: 1),
             ),
             child: ClipRect(
               child: Stack(

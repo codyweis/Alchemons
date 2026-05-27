@@ -12,6 +12,8 @@ class SideDockFloating extends StatelessWidget {
   final bool showHarvestDot; // NEW
   final bool lockNonField;
   final bool lockEnhance;
+  final Animation<double>? enhanceRevealAnimation;
+  final bool highlightEnhance;
   //battle
   final VoidCallback onBattle;
   final VoidCallback onBoss;
@@ -28,6 +30,8 @@ class SideDockFloating extends StatelessWidget {
     this.showHarvestDot = false,
     this.lockNonField = false,
     this.lockEnhance = false,
+    this.enhanceRevealAnimation,
+    this.highlightEnhance = false,
     required this.onBattle,
     required this.onBoss,
     this.onMysticAltar,
@@ -77,12 +81,16 @@ class SideDockFloating extends StatelessWidget {
           // ENHANCE: hidden until unlocked, but still lockable during tutorials
           lockWrap(
             locked: lockNonField,
-            child: _FloatingSideButton(
-              size: 70,
-              theme: theme,
-              label: 'Enhance',
-              assetPath: 'assets/images/ui/enhanceicon.png',
-              onTap: onEnhance,
+            child: _EnhanceRevealWrapper(
+              animation: enhanceRevealAnimation,
+              child: _FloatingSideButton(
+                size: 70,
+                theme: theme,
+                label: 'Enhance',
+                assetPath: 'assets/images/ui/enhanceicon.png',
+                onTap: onEnhance,
+                highlight: highlightEnhance,
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -544,6 +552,61 @@ class MysticSwirlPainter extends CustomPainter {
       old.angle != angle ||
       old.counterAngle != counterAngle ||
       old.pulseT != pulseT;
+}
+
+class _EnhanceRevealWrapper extends StatelessWidget {
+  final Animation<double>? animation;
+  final Widget child;
+
+  const _EnhanceRevealWrapper({required this.animation, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final anim = animation;
+    if (anim == null) return child;
+    return AnimatedBuilder(
+      animation: anim,
+      builder: (context, c) {
+        // Spring-in: scale 0.2 → 1.15 → 1.0, fade 0 → 1, with a brief golden flash.
+        final t = anim.value.clamp(0.0, 1.0);
+        final scale = t < 0.7
+            ? 0.2 + (1.15 - 0.2) * (t / 0.7)
+            : 1.15 - (1.15 - 1.0) * ((t - 0.7) / 0.3);
+        final opacity = (t * 2.0).clamp(0.0, 1.0);
+        final flashAlpha = t < 0.5 ? (1.0 - t * 2) * 0.55 : 0.0;
+        return Opacity(
+          opacity: opacity,
+          child: Transform.scale(
+            scale: scale,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                if (flashAlpha > 0)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.amber.withValues(alpha: flashAlpha),
+                              Colors.amber.withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                c!,
+              ],
+            ),
+          ),
+        );
+      },
+      child: child,
+    );
+  }
 }
 
 class _RedDotTiny extends StatelessWidget {

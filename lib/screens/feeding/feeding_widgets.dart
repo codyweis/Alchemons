@@ -10,6 +10,7 @@ import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 // ---------- Header ----------
@@ -253,9 +254,11 @@ class XPBarDisplay extends StatefulWidget {
 }
 
 class _XPBarDisplayState extends State<XPBarDisplay>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _animController;
+  late AnimationController _levelFlashController;
   late Animation<double> _xpAnimation;
+  bool _flashFiredThisRun = false;
 
   @override
   void initState() {
@@ -264,8 +267,13 @@ class _XPBarDisplayState extends State<XPBarDisplay>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
+    _levelFlashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
 
     _setupAnimations();
+    _animController.addListener(_maybeTriggerLevelFlash);
   }
 
   void _setupAnimations() {
@@ -275,21 +283,39 @@ class _XPBarDisplayState extends State<XPBarDisplay>
     );
   }
 
+  void _maybeTriggerLevelFlash() {
+    if (!widget.isAnimating || _flashFiredThisRun) return;
+    final startLevel = widget.preFeedLevel ?? widget.instance.level;
+    final endLevel = widget.instance.level;
+    if (endLevel <= startLevel) return;
+    // Trigger the flash right as the bar crosses the level threshold.
+    if (_animController.value >= 0.5) {
+      _flashFiredThisRun = true;
+      HapticFeedback.mediumImpact();
+      _levelFlashController.forward(from: 0.0);
+    }
+  }
+
   @override
   void didUpdateWidget(XPBarDisplay oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (widget.isAnimating && !oldWidget.isAnimating) {
       _setupAnimations();
+      _flashFiredThisRun = false;
+      _levelFlashController.reset();
       _animController.forward(from: 0.0);
     } else if (!widget.isAnimating && oldWidget.isAnimating) {
       _animController.reset();
+      _flashFiredThisRun = false;
     }
   }
 
   @override
   void dispose() {
+    _animController.removeListener(_maybeTriggerLevelFlash);
     _animController.dispose();
+    _levelFlashController.dispose();
     super.dispose();
   }
 
@@ -308,7 +334,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
     );
 
     return AnimatedBuilder(
-      animation: _animController,
+      animation: Listenable.merge([_animController, _levelFlashController]),
       builder: (context, child) {
         final frame = _buildXpFrame(
           rarity: rarity,
@@ -317,93 +343,239 @@ class _XPBarDisplayState extends State<XPBarDisplay>
           liveMaxXp: xpNeeded,
         );
 
+        final flash = _levelFlashController.value; // 0..1
+        // Eased burst: 0 → 1 → 0 over the run.
+        final burstT = flash == 0.0
+            ? 0.0
+            : (flash < 0.35
+                  ? flash / 0.35
+                  : 1.0 - ((flash - 0.35) / 0.65).clamp(0.0, 1.0));
+        final isMaxLevel = currentLevel >= 10;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Text(
-                  'Level ${frame.displayLevel}',
-                  style: TextStyle(
-                    color: t.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                // Prominent level chip
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        fc.amber.withValues(alpha: 0.85),
+                        fc.amberDim.withValues(alpha: 0.85),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: fc.amberBright.withValues(alpha: 0.6),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: fc.amberGlow.withValues(
+                          alpha: 0.4 + burstT * 0.6,
+                        ),
+                        blurRadius: 8 + burstT * 18,
+                        spreadRadius: burstT * 2,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.shield_moon_outlined,
+                        size: 14,
+                        color: Colors.black.withValues(alpha: 0.8),
+                      ),
+                      const SizedBox(width: 4),
+                      Transform.scale(
+                        scale: 1.0 + burstT * 0.35,
+                        child: Text(
+                          'LV ${frame.displayLevel}',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (currentLevel < 10) ...[
-                  SizedBox(width: 8),
+                if (!isMaxLevel) ...[
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Container(
-                      height: 11,
-                      decoration: BoxDecoration(
-                        color: fc.bg0,
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: fc.borderDim, width: 1),
-                        boxShadow: [
-                          BoxShadow(
-                            color: fc.amberDim.withValues(alpha: 0.3),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Stack(
-                          children: [
-                            FractionallySizedBox(
-                              widthFactor: frame.displayProgress.clamp(
-                                0.0,
-                                1.0,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: fc.bg0,
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(
+                              color: fc.borderDim,
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: fc.amberDim.withValues(
+                                  alpha: 0.25 + burstT * 0.5,
+                                ),
+                                blurRadius: 6 + burstT * 12,
+                                spreadRadius: burstT * 1.5,
                               ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      fc.amberDim,
-                                      fc.amber,
-                                      fc.amberGlow,
-                                    ],
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Stack(
+                              children: [
+                                FractionallySizedBox(
+                                  widthFactor: frame.displayProgress.clamp(
+                                    0.0,
+                                    1.0,
+                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          fc.amberDim,
+                                          fc.amber,
+                                          fc.amberGlow,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // Bright sweep overlay on level-up
+                                if (burstT > 0)
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.centerLeft,
+                                            end: Alignment.centerRight,
+                                            colors: [
+                                              Colors.white.withValues(
+                                                alpha: 0.0,
+                                              ),
+                                              Colors.white.withValues(
+                                                alpha: 0.55 * burstT,
+                                              ),
+                                              Colors.white.withValues(
+                                                alpha: 0.0,
+                                              ),
+                                            ],
+                                            stops: [
+                                              (flash - 0.15).clamp(0.0, 1.0),
+                                              flash.clamp(0.0, 1.0),
+                                              (flash + 0.15).clamp(0.0, 1.0),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                Center(
+                                  child: Text(
+                                    '${frame.displayXp} / ${frame.displayMaxXp}',
+                                    style: TextStyle(
+                                      color: t.textPrimary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.6,
+                                          ),
+                                          blurRadius: 3,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // "LEVEL UP!" floating text burst
+                        if (burstT > 0)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: Center(
+                                child: Opacity(
+                                  opacity: burstT.clamp(0.0, 1.0),
+                                  child: Transform.translate(
+                                    offset: Offset(0, -16 * burstT),
+                                    child: Transform.scale(
+                                      scale: 0.8 + burstT * 0.4,
+                                      child: Text(
+                                        'LEVEL UP!',
+                                        style: TextStyle(
+                                          color: fc.amberBright,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.2,
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.8,
+                                              ),
+                                              blurRadius: 4,
+                                            ),
+                                            Shadow(
+                                              color: fc.amberGlow.withValues(
+                                                alpha: 0.8,
+                                              ),
+                                              blurRadius: 10,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 6),
-                  Text(
-                    '${frame.displayXp}/${frame.displayMaxXp}',
-                    style: TextStyle(
-                      color: t.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                          ),
+                      ],
                     ),
                   ),
                 ],
-                if (currentLevel >= 10)
+                if (isMaxLevel)
                   Padding(
-                    padding: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.only(left: 8),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
+                        horizontal: 8,
+                        vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: fc.amberBright.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
+                        color: fc.amberBright.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: fc.amber.withValues(alpha: 0.4),
-                          width: 1,
+                          color: fc.amber.withValues(alpha: 0.5),
+                          width: 1.5,
                         ),
                       ),
                       child: Text(
                         'MAX',
                         style: TextStyle(
                           color: fc.amberBright,
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
                         ),
                       ),
                     ),
@@ -1117,6 +1289,7 @@ Widget _buildConstellationBonuses(
   if (!hasAnyBoost) return const SizedBox.shrink();
 
   return Container(
+    width: double.infinity,
     margin: const EdgeInsets.only(top: 8, bottom: 4),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
@@ -1124,8 +1297,10 @@ Widget _buildConstellationBonuses(
       borderRadius: BorderRadius.circular(8),
       border: Border.all(color: theme.primary.withValues(alpha: 0.3)),
     ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
+    child: Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Text(
           'Constellation Bonuses',
@@ -1135,7 +1310,6 @@ Widget _buildConstellationBonuses(
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(width: 8),
         if (strengthBoost > 0) _buildBonusPill('STR', strengthBoost, theme),
         if (intBoost > 0) _buildBonusPill('INT', intBoost, theme),
         if (beautyBoost > 0) _buildBonusPill('BEA', beautyBoost, theme),
@@ -1148,7 +1322,6 @@ Widget _buildConstellationBonuses(
 Widget _buildBonusPill(String label, double bonus, FactionTheme theme) {
   final fc = FC(theme);
   return Container(
-    margin: const EdgeInsets.only(left: 4),
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     decoration: BoxDecoration(
       color: fc.amber.withValues(alpha: 0.2),

@@ -447,6 +447,26 @@ class _FeedingScreenState extends State<FeedingScreen>
   }
 
   Future<void> _toggleFodder(String instanceId) async {
+    final isAdding = !_selectedFodder.contains(instanceId);
+
+    // Block additional material once the current selection already maxes
+    // out the target at level 10 — extra fodder would just be wasted.
+    if (isAdding && _preview != null && _preview!.newLevel >= 10) {
+      HapticFeedback.heavyImpact();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Already at Level 10 with selected material — '
+              'additional Alchemons would be wasted.',
+            ),
+            duration: Duration(milliseconds: 1800),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       if (_selectedFodder.contains(instanceId)) {
         _selectedFodder.remove(instanceId);

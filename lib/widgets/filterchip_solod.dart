@@ -17,6 +17,7 @@ class FilterChipSolid extends StatelessWidget {
   final Color? unselectedFillColor;
   final double selectedFillOpacity;
   final double labelFontSize;
+  final bool showUnselectedBracket;
   const FilterChipSolid({
     super.key,
     required this.label,
@@ -32,6 +33,7 @@ class FilterChipSolid extends StatelessWidget {
     this.unselectedFillColor,
     this.selectedFillOpacity = 0.18,
     this.labelFontSize = 12,
+    this.showUnselectedBracket = true,
   });
   @override
   Widget build(BuildContext context) {
@@ -51,41 +53,46 @@ class FilterChipSolid extends StatelessWidget {
             lightAlpha: selectedFillOpacity * 0.6,
           )
         : (unselectedFillColor ??
-              (palette.isDark ? Colors.transparent : palette.surfaceMutedFill()));
+              (palette.isDark
+                  ? Colors.transparent
+                  : palette.surfaceMutedFill()));
+    final content = Container(
+      padding: padding,
+      color: fillColor,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 5)],
+          Text(
+            label,
+            style: bracketText(
+              context,
+              labelFontSize,
+              selected
+                  ? resolvedSelectedTextColor
+                  : resolvedUnselectedTextColor,
+              weight: selected ? FontWeight.w800 : FontWeight.w600,
+              letterSpacing: 0.4,
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+        ],
+      ),
+    );
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: frameColor,
-          bracketSize: 7,
-          strokeWidth: selected ? 1.2 : 1.0,
-        ),
-        child: Container(
-          padding: padding,
-          color: fillColor,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (leading != null) ...[leading!, const SizedBox(width: 5)],
-              Text(
-                label,
-                style: bracketText(
-                  context,
-                  labelFontSize,
-                  selected
-                      ? resolvedSelectedTextColor
-                      : resolvedUnselectedTextColor,
-                  weight: selected ? FontWeight.w800 : FontWeight.w600,
-                  letterSpacing: 0.4,
-                ),
+      child: selected || showUnselectedBracket
+          ? CustomPaint(
+              painter: BracketFramePainter(
+                color: frameColor,
+                bracketSize: 7,
+                strokeWidth: selected ? 1.2 : 1.0,
               ),
-              if (trailing != null) ...[const SizedBox(width: 4), trailing!],
-            ],
-          ),
-        ),
-      ),
+              child: content,
+            )
+          : content,
     );
   }
 }

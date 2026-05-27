@@ -71,8 +71,12 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     final db = context.read<AlchemonsDatabase>();
     final isDark = _isDark(context);
 
-    final goldColor = isDark ? const Color(0xFFFFCF4D) : const Color(0xFF8A5A00);
-    final silverColor = isDark ? const Color(0xFFD8DCE3) : const Color(0xFF5F6772);
+    final goldColor = isDark
+        ? const Color(0xFFFFCF4D)
+        : const Color(0xFF8A5A00);
+    final silverColor = isDark
+        ? const Color(0xFFD8DCE3)
+        : const Color(0xFF5F6772);
 
     return GestureDetector(
       onTap: _handleTap,
@@ -155,24 +159,31 @@ class _CurrencyChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = isDark
-        ? color.withValues(alpha: 0.10)
-        : color.withValues(alpha: 0.08);
+        ? color.withValues(alpha: 0.16)
+        : color.withValues(alpha: 0.12);
     final border = isDark
-        ? color.withValues(alpha: 0.28)
-        : color.withValues(alpha: 0.22);
+        ? color.withValues(alpha: 0.42)
+        : color.withValues(alpha: 0.32);
 
     final hPad = _lerp(12, 10, t);
     final vPad = _lerp(8, 6, t);
-    final radius = _lerp(12, 999, t);
+    final radius = _lerp(10, 7, t);
     final iconSize = _lerp(AppIcon.md, AppIcon.sm, t);
 
     return Container(
-      constraints: BoxConstraints(minHeight: _lerp(AppTap.min, 32, t)),
+      constraints: BoxConstraints(minHeight: _lerp(42, 34, t)),
       padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: border, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: isDark ? 0.12 : 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
