@@ -1,0 +1,10203 @@
+// lib/games/planet_dungeon/planet_dungeon_game.dart
+//
+// PLANET DUNGEON — Flame scene (chassis).
+//
+// Top-down room crawler. The player swap-controls the creatures they brought
+// (one active at a time); inactive creatures hold position. Manual camera /
+// rendering (matching the cosmic_survival pattern), manual AABB collision,
+// doorway room transitions, hazard→death→respawn, and instant star banking.
+// Slice 3 layers the bespoke per-planet puzzles on top.
+
+import 'dart:math';
+import 'dart:ui' as ui;
+
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
+import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
+    show CosmicSurvivalCompanion;
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/cosmic/raid_state.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
+import 'package:alchemons/games/shared/enemy_flight_steering.dart';
+import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:flame/components.dart' show Anchor;
+import 'package:flame/game.dart';
+import 'package:flame/sprite.dart';
+import 'package:flutter/material.dart';
+
+/// One controllable creature in the dungeon.
+class DungeonCreature {
+  DungeonCreature({required this.member});
+
+  final CosmicPartyMember member;
+  Offset position = Offset.zero;
+  double angle = 0.0; // facing (radians); cos>0 ⇒ moving right
+  double hp = 100.0;
+  double maxHp = 100.0;
+
+  SpriteAnimationTicker? ticker;
+  double spriteScale = 1.0;
+
+  /// Last position on solid ground (used to recover from a glide fall).
+  Offset lastSafe = Offset.zero;
+
+  /// True once this creature's knock-out has been announced (burst + hint),
+  /// so the down reaction fires exactly once per fall.
+  bool downHandled = false;
+
+  bool get alive => hp > 0;
+  double get hpFraction => (maxHp <= 0) ? 0 : (hp / maxHp).clamp(0.0, 1.0);
+
+  DungeonAbility get ability => abilityForFamily(member.family);
+}
+
+class _IslandGeometry {
+  const _IslandGeometry({
+    required this.top,
+    required this.underside,
+    required this.debris,
+    required this.runes,
+  });
+
+  final Path top;
+  final Path underside;
+  final List<Offset> debris;
+  final List<Offset> runes;
+}
+
+enum _AirRoomTheme {
+  entry,
+  hub,
+  ascent,
+  crosswind,
+  cloudPlatform,
+  summit,
+  wonderCloud,
+  loom,
+  relic,
+  storm,
+  guardian,
+  generic,
+}
+
+class _DungeonWingBeam {
+  _DungeonWingBeam({
+    required this.descriptor,
+    required this.sourceSlotIndex,
+    required this.origin,
+    required this.angle,
+  }) : life = descriptor.duration,
+       tickTimer = descriptor.tickInterval,
+       chargeTimer = descriptor.chargeTime;
+
+  final WingBeamEffect descriptor;
+  final int sourceSlotIndex;
+  Offset origin;
+  double angle;
+  double life;
+  double tickTimer;
+  double chargeTimer;
+
+  bool get dead => life <= 0;
+}
+
+/// Transient kin charged-laser beam visual.
+class _KinBeamFx {
+  _KinBeamFx({required this.origin, required this.end, required this.color})
+    : life = 0.34;
+
+  final Offset origin;
+  final Offset end;
+  final Color color;
+  double life;
+
+  bool get dead => life <= 0;
+}
+
+/// One-shot "a door just unlocked" ring, shown in the door's room (on the
+/// next visit if the player isn't there when it flips).
+class _DoorRevealFx {
+  _DoorRevealFx({required this.roomId, required this.position});
+
+  final String roomId;
+  final Offset position;
+  double ttl = 2.2;
+  bool burstFired = false;
+}
+
+class _AlchemyParticle {
+  _AlchemyParticle({
+    required this.position,
+    required this.velocity,
+    required this.color,
+    required this.maxLife,
+    required this.size,
+    this.arc = false,
+  }) : life = maxLife;
+
+  Offset position;
+  Offset velocity;
+  final Color color;
+  final double maxLife;
+  final double size;
+  final bool arc;
+  double life;
+
+  bool get dead => life <= 0;
+  double get t => maxLife <= 0 ? 1 : (1 - life / maxLife).clamp(0.0, 1.0);
+}
+
+class PlanetDungeonGame extends FlameGame {
+  PlanetDungeonGame({
+    required this.element,
+    required this.party,
+    required this.initialStarMask,
+    Set<String> initialDiscoveredCloudIds = const {},
+    required this.onStarEarned,
+    this.onCloudDiscovered,
+    required this.onPlayerDown,
+    required this.onChanged,
+    this.raid,
+    this.onRaidCleared,
+    DungeonLayout? layoutOverride,
+  }) : layout = layoutOverride ?? kPlanetDungeonLayouts[element]! {
+    discoveredClouds.addAll(initialDiscoveredCloudIds);
+    // Assigned HERE, not in onLoad: the HUD (minimap, action cluster) builds
+    // the moment the game object exists — long before Flame finishes the
+    // async asset load — and reads currentRoom immediately.
+    currentRoomId = layout.entranceRoomId;
+    // Raids skip the altar puzzle: the guardian is already rampaging.
+    if (isRaid) guardianAwake = true;
+  }
+
+  final String element;
+  final List<CosmicPartyMember> party;
+  final int initialStarMask;
+  final void Function(int starIndex) onStarEarned;
+  final void Function(String cloudId)? onCloudDiscovered;
+  final VoidCallback onPlayerDown;
+  final VoidCallback onChanged;
+
+  /// Non-null when this run is a raid: one open arena, an empowered guardian,
+  /// phase adds, and [onRaidCleared] instead of a star on victory.
+  final RaidConfig? raid;
+  final VoidCallback? onRaidCleared;
+  bool get isRaid => raid != null;
+  int _raidPhaseIndex = 0;
+
+  /// Synthetic discovery id for the entry passage reveal. Stored alongside
+  /// cloud ids so the one-time entry puzzle stays solved across runs
+  /// (knowledge persists, like cloud echoes).
+  static const String entryDoorDiscoveryId = 'rune:entry_door';
+
+  final DungeonLayout layout;
+  late String currentRoomId;
+  int starMask = 0;
+
+  final List<DungeonCreature> creatures = [];
+  final List<CosmicSurvivalCompanion> combatCompanions = [];
+  final List<CosmicSurvivalEnemy> combatEnemies = [];
+  final List<Projectile> combatProjectiles = [];
+  final List<_DungeonWingBeam> _activeWingBeams = [];
+  final List<_KinBeamFx> _kinBeams = [];
+  final List<_AlchemyParticle> _alchemyParticles = [];
+
+  /// Seconds a kin holds still charging before its laser fires (survival's
+  /// `_kinChargeTime`).
+  static const double _kinChargeTime = 1.5;
+  int activeIndex = 0;
+
+  /// Normalised movement input for the active creature (set by the screen).
+  Offset joystickDirection = Offset.zero;
+
+  double _time = 0;
+  double _doorCooldown = 0;
+  final Set<int> _earnedStars = {};
+
+  // ── Verb / puzzle run-state ──
+  bool flightActive = false;
+  double flightMeter = 0; // seconds of flight remaining
+  double flightMax = 1;
+
+  /// True while the active WALKER is being carried by an updraft column
+  /// (family = quality: wings glide the ascent, everyone else rides the
+  /// thermals — clumsier, but the dungeon never hard-requires a Wing).
+  bool updraftRiding = false;
+  double _updraftCoyote = 0; // grace to steer onto a ledge after the column
+
+  int _ringProgress = 0; // next sky-ring order to fly through
+  bool summitOpen = false;
+  bool entryDoorRevealed = false;
+
+  final Set<String> discoveredClouds = {}; // cloud ids (kept across death)
+  String? carriedCloudId;
+  String? carriedCloudType;
+  final Map<String, String> filledAnchors = {}; // anchorId -> deposited type
+
+  // ── Wonder-cloud trials (one micro-puzzle per branch room) ──
+  // Discovery is EARNED: each branch chamber seals its echo behind a small
+  // themed trial (ride the gale / time the orbit / crack the shell / catch
+  // the feathers / pin the shroud). Solving it IS the discovery.
+  /// Gale eddies for the Spiral trial, relative to the room centre,
+  /// touched in list order (outer → inner).
+  static const List<Offset> kSpiralEddyOffsets = [
+    Offset(0, -200),
+    Offset(115, 95),
+    Offset(-150, 40),
+  ];
+
+  /// Shimmer-fold spots for the Veil trial, relative to the room centre.
+  static const List<Offset> kVeilSpotOffsets = [
+    Offset(-200, -130),
+    Offset(180, -100),
+    Offset(0, 160),
+  ];
+
+  /// Per-room trial progress (spiral eddies ridden / feathers caught).
+  final Map<String, int> _wonderProgress = {};
+
+  /// Veil spots already pinned this run.
+  final Set<int> _veilPinned = {};
+
+  /// The anvil's storm-shell defenders (wave must be cleared to wake it).
+  final List<CosmicSurvivalEnemy> _anvilWave = [];
+  bool _anvilShellStruck = false;
+
+  /// Falling feathers currently drifting in the Feather chamber.
+  final List<Offset> _feathers = [];
+  final List<double> _featherPhases = [];
+  double _featherSpawnTimer = 1.2;
+
+  /// Veil trial: Fire's flare reveals all shimmer-folds for a few seconds.
+  double veilFlareTimer = 0;
+
+  int wonderProgress(String roomId) => switch (roomId) {
+    'veil_cloud' => _veilPinned.length,
+    _ => _wonderProgress[roomId] ?? 0,
+  };
+
+  List<Offset> get fallingFeatherPositions => List.unmodifiable(_feathers);
+
+  /// Spiral eddy world positions for [room].
+  List<Offset> spiralEddies(DungeonRoom room) => [
+    for (final o in kSpiralEddyOffsets) room.bounds.center + o,
+  ];
+
+  /// Veil shimmer-spot world positions for [room].
+  List<Offset> veilSpots(DungeonRoom room) => [
+    for (final o in kVeilSpotOffsets) room.bounds.center + o,
+  ];
+
+  double _ringMoteAngle(int i) => _time * (0.55 + i * 0.55) + pi / 2;
+
+  double _angularGap(double a, double b) {
+    var d = (a - b) % (pi * 2);
+    if (d < 0) d += pi * 2;
+    return min(d, pi * 2 - d);
+  }
+
+  /// True while the Ring trial's three orbit motes are gathered. A Mask in
+  /// the active slot widens the window (insight reads the rhythm).
+  bool get ringMotesAligned {
+    final tolerance = activeAbility == DungeonAbility.insight ? 0.72 : 0.45;
+    final a0 = _ringMoteAngle(0);
+    final a1 = _ringMoteAngle(1);
+    final a2 = _ringMoteAngle(2);
+    return _angularGap(a0, a1) < tolerance &&
+        _angularGap(a1, a2) < tolerance &&
+        _angularGap(a0, a2) < tolerance;
+  }
+
+  /// Which Veil shimmer-fold is breathing right now (null between breaths).
+  /// Cycle: each spot takes a 2.5s turn, visible for the first 1.6s.
+  int? get veilVisibleSpotIndex {
+    final cycle = _time % 7.5;
+    final idx = (cycle ~/ 2.5).clamp(0, 2);
+    if (_veilPinned.contains(idx)) return null;
+    return (cycle - idx * 2.5) < 1.6 ? idx : null;
+  }
+
+  /// The sealed wonder-cloud in [room], or null if none / already earned.
+  HiddenCloud? _sealedWonderCloud(DungeonRoom room) {
+    if (room.anchors.isNotEmpty || room.clouds.length != 1) return null;
+    final cl = room.clouds.first;
+    return discoveredClouds.contains(cl.id) ? null : cl;
+  }
+
+  final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
+  /// Initial hold per conduit — drives the visible drain-timer arc.
+  final Map<String, double> _conduitMaxEnergy = {};
+  final List<_DoorRevealFx> _doorRevealFx = [];
+  bool altarOpen = false;
+  bool guardianAwake = false;
+  bool guardianVulnerable = false;
+  double _guardianCycle = 0;
+  static const double maxGuardianHp = 4;
+  double guardianHp = maxGuardianHp;
+  double guardianHitFlash = 0;
+  CosmicSurvivalEnemy? _guardianEnemy;
+
+  /// Mid-fight escalation: fired once at half HP (screech, feather-wisps,
+  /// shorter lull windows).
+  bool _rocEnraged = false;
+
+  /// The planet guardian renders with its real Mystic sprite (per mysticId);
+  /// the procedural body stays as fallback when no sheet is authored/loaded.
+  static final Map<String, SpriteSheetDef> _guardianSheets = {
+    'Roc': SpriteSheetDef(
+      path: 'creatures/mystic/MYS04_airmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+  };
+  SpriteAnimationTicker? _guardianTicker;
+  double _guardianSpriteScale = 1.0;
+
+  String? hintText;
+  double _hintTtl = 0;
+  double _ambientHintCooldown = 0;
+  double _statHintCooldown = 0;
+  double _loomRejectCooldown = 0;
+  double _cloudPickupCooldown = 0; // brief grace after a drop (no re-grab)
+  double _guardianStrikeCooldown = 0; // lull strikes are paced, not spammable
+  bool _altarBlessingUsed = false; // the storm altar mends the party once
+  bool _fallRecovering = false;
+  Offset _fallStart = Offset.zero;
+  Offset _fallTarget = Offset.zero;
+  double _fallTimer = 0;
+  double _fallDuration = 0.9;
+  double revealFlash = 0; // visual pulse for the reveal verb
+  int revealTier = 0; // hint detail from the last reveal (0/1/2)
+  final Set<String> placedClouds = {}; // cloud ids deposited onto anchors
+
+  // ── Atmospheric FX ──
+  /// Smoothed sky mood (0 storm-dark … 1 dawn-bright, 0.5 baseline).
+  double _skyMood = 0.5;
+  final DungeonFxAssets _fx = DungeonFxAssets();
+  final DungeonSky _sky = DungeonSky();
+  final AmbientWind _ambient = AmbientWind();
+  final List<Offset> _glideTrail = [];
+  final List<Offset> _carryTrail = []; // wind wake behind a carried echo
+  final Map<String, _IslandGeometry> _islandCache = {};
+  final Random _combatRng = Random(0xA17);
+
+  static const double _speed = 150.0;
+  static const double _flightSpeedMul = 1.35;
+  static const double _radius = 16.0;
+  static const double _hazardDps = 60.0;
+  static const double _guardianHazardDps = 28.0;
+
+  DungeonRoom get currentRoom => layout.rooms[currentRoomId]!;
+  DungeonCreature? get active => (creatures.isEmpty)
+      ? null
+      : creatures[activeIndex.clamp(0, creatures.length - 1)];
+  CosmicSurvivalCompanion? get activeCombat => (combatCompanions.isEmpty)
+      ? null
+      : combatCompanions[activeIndex.clamp(0, combatCompanions.length - 1)];
+
+  int get totalStars => layout.totalStars;
+  int get starsEarnedCount => _earnedStars.length;
+  bool hasStar(int i) => (starMask & (1 << i)) != 0;
+
+  /// AUTHORING RULE: Star 3 is always the mystic guardian, and its rite only
+  /// opens once the first two stars (any order) are banked. Raids skip it —
+  /// their guardian is already rampaging — and a banked Star 3 keeps it open
+  /// (saves from before this rule could beat the guardian early).
+  bool get guardianRiteUnlocked =>
+      isRaid || hasStar(2) || (hasStar(0) && hasStar(1));
+  bool get hasCombatTargets => combatEnemies.any((e) => !e.isDead);
+  double get autoCooldownFraction {
+    final c = activeCombat;
+    if (c == null) return 0;
+    final total = max(0.001, c.effectiveBasicCooldown);
+    return (c.basicCooldown / total).clamp(0.0, 1.0).toDouble();
+  }
+
+  double get abilityCooldownFraction {
+    final c = activeCombat;
+    if (c == null) return 0;
+    final total = max(0.001, c.effectiveSpecialCooldown);
+    return (c.specialCooldown / total).clamp(0.0, 1.0).toDouble();
+  }
+
+  String get abilityCooldownLabel {
+    final c = activeCombat;
+    if (c == null || c.specialCooldown <= 0.05) return 'ABILITY';
+    return '${c.specialCooldown.ceil()}s';
+  }
+
+  /// The single star a room awards (spire/loom/altar), or null for the hub.
+  int? _roomStarIndex(DungeonRoom room) =>
+      room.summit?.starIndex ?? room.loomStarIndex ?? room.guardian?.starIndex;
+
+  /// True once this room's star is earned — its objectives/obstacles are then
+  /// hidden and inert (nothing here is shared between Air's stars).
+  bool _roomCleared(DungeonRoom room) {
+    final i = _roomStarIndex(room);
+    return i != null && hasStar(i);
+  }
+
+  DungeonAbility get activeAbility => active?.ability ?? DungeonAbility.none;
+
+  /// The utility button is enabled whenever there's an active creature — what it
+  /// does is context-driven (element-based interactions don't need a family).
+  bool get canAct => active != null;
+
+  /// The utility button is intentionally non-spoilery: the world response, not
+  /// the label, teaches which specimen qualities and elements matter.
+  String actionLabel() => 'UTILITY';
+
+  double get flightFraction =>
+      flightMax <= 0 ? 0 : (flightMeter / flightMax).clamp(0.0, 1.0);
+
+  /// Energize a conduit and remember its initial hold for the drain arc.
+  void _energizeConduit(String id, double seconds) {
+    if (!guardianRiteUnlocked) {
+      _setHint(
+        'The pylon swallows the offering — it answers only to a bearer of '
+        'both the Wind and Loom stars',
+      );
+      return;
+    }
+    conduitEnergy[id] = seconds;
+    _conduitMaxEnergy[id] = seconds;
+  }
+
+  void _queueDoorReveal(String roomId, String targetRoomId) {
+    final room = layout.rooms[roomId];
+    if (room == null) return;
+    for (final d in room.doors) {
+      if (d.targetRoomId == targetRoomId) {
+        _doorRevealFx.add(
+          _DoorRevealFx(roomId: roomId, position: d.rect.center),
+        );
+      }
+    }
+  }
+
+  void _setHint(String msg, [double ttl = 2.4]) {
+    hintText = msg;
+    _hintTtl = ttl;
+  }
+
+  // ── Lifecycle ───────────────────────────────────────────
+
+  @override
+  Future<void> onLoad() async {
+    await _fx.load();
+    await _sky.load(element);
+    starMask = initialStarMask & 0x7;
+    for (var i = 0; i < 3; i++) {
+      if ((starMask & (1 << i)) != 0) _earnedStars.add(i);
+    }
+    entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
+    currentRoomId = layout.entranceRoomId;
+
+    for (final m in party) {
+      final c = DungeonCreature(member: m);
+      await _loadSprite(c);
+      creatures.add(c);
+      combatCompanions.add(_createCombatCompanion(m, Offset.zero));
+    }
+    // Load the planet guardian's Mystic sprite (fallback: procedural body).
+    for (final room in layout.rooms.values) {
+      final mysticId = room.guardian?.encounter?.mysticId;
+      final sheet = mysticId == null ? null : _guardianSheets[mysticId];
+      if (sheet == null) continue;
+      try {
+        final image = await images.load(sheet.path);
+        final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
+        final anim = SpriteAnimation.fromFrameData(
+          image,
+          SpriteAnimationData.sequenced(
+            amount: sheet.totalFrames,
+            amountPerRow: cols,
+            textureSize: sheet.frameSize,
+            stepTime: sheet.stepTime,
+            loop: true,
+          ),
+        );
+        _guardianTicker = anim.createTicker();
+        const desired = 132.0; // wingspan presence worthy of a finale
+        _guardianSpriteScale =
+            desired / max(sheet.frameSize.x, sheet.frameSize.y);
+      } catch (_) {
+        _guardianTicker = null; // missing asset → procedural fallback
+      }
+      break;
+    }
+    _placeAtEntrance();
+    _setHint(
+      ' · '
+      'three Alchemons enter, three stars to collect',
+      5.5,
+    );
+  }
+
+  Future<void> _loadSprite(DungeonCreature c) async {
+    final sheet = c.member.spriteSheet;
+    if (sheet == null) return;
+    final image = await images.load(sheet.path);
+    final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
+    final anim = SpriteAnimation.fromFrameData(
+      image,
+      SpriteAnimationData.sequenced(
+        amount: sheet.totalFrames,
+        amountPerRow: cols,
+        textureSize: sheet.frameSize,
+        stepTime: sheet.stepTime,
+        loop: true,
+      ),
+    );
+    c.ticker = anim.createTicker();
+    const desired = 44.0;
+    final s = desired / max(sheet.frameSize.x, sheet.frameSize.y);
+    c.spriteScale = s * (c.member.spriteVisuals?.scale ?? 1.0);
+  }
+
+  CosmicSurvivalCompanion _createCombatCompanion(
+    CosmicPartyMember member,
+    Offset position,
+  ) {
+    final stats = deriveCosmicSurvivalCompanionStats(member: member);
+    final companion = CosmicSurvivalCompanion(
+      member: member,
+      slotIndex: member.slotIndex,
+      position: position,
+      anchor: position,
+      maxHp: stats.maxHp,
+      currentHp: stats.maxHp,
+      physAtk: stats.physAtk,
+      elemAtk: stats.elemAtk,
+      physDef: stats.physDef,
+      elemDef: stats.elemDef,
+      cooldownReduction: stats.cooldownReduction,
+      critChance: stats.critChance,
+      attackRange: stats.attackRange,
+      specialAbilityRange: stats.specialAbilityRange,
+      tethered: false,
+      invincibleTimer: 0,
+    );
+    companion.primeSpecialCooldown(cooldownMultiplier: 0.25);
+    return companion;
+  }
+
+  // ── Run / spawn management ──────────────────────────────
+
+  void _placeAtEntrance() {
+    currentRoomId = layout.entranceRoomId;
+    _spreadCreaturesAround(layout.entranceSpawn);
+    for (final c in creatures) {
+      c.hp = c.maxHp;
+      c.downHandled = false;
+    }
+    activeIndex = 0;
+    _doorCooldown = 0.4;
+  }
+
+  void _spreadCreaturesAround(Offset anchor) {
+    final safeAnchor = _clampToBounds(anchor, currentRoom);
+    for (var i = 0; i < creatures.length; i++) {
+      final a = (i / max(1, creatures.length)) * pi * 2;
+      final off = i == 0 ? Offset.zero : Offset(cos(a), sin(a)) * 34.0;
+      var p = _clampToBounds(anchor + off, currentRoom);
+      // Never strand a walker on open sky / over a gap — a non-Wing creature
+      // can neither move nor launch a glide from there.
+      if (!_onSolidGround(p, currentRoom)) p = safeAnchor;
+      creatures[i].position = p;
+      creatures[i].lastSafe = p;
+      if (i < combatCompanions.length) {
+        combatCompanions[i]
+          ..position = p
+          ..anchor = p
+          ..currentHp = max(
+            1,
+            (combatCompanions[i].maxHp * creatures[i].hpFraction).round(),
+          );
+      }
+    }
+  }
+
+  /// Reset puzzle progress (death or re-enter), but keep earned stars and
+  /// discovered clouds (knowledge persists; per the design death only restarts).
+  void _resetPuzzleState() {
+    flightActive = false;
+    flightMeter = 0;
+    _fallRecovering = false;
+    _fallTimer = 0;
+    _ringProgress = 0;
+    summitOpen = false;
+    // Knowledge persists across death: the entry passage stays revealed.
+    entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
+    carriedCloudId = null;
+    carriedCloudType = null;
+    filledAnchors.clear();
+    placedClouds.clear();
+    // Wonder trials restart (earned discoveries persist via discoveredClouds).
+    _wonderProgress.clear();
+    _veilPinned.clear();
+    _anvilWave.clear();
+    _anvilShellStruck = false;
+    _feathers.clear();
+    _featherPhases.clear();
+    _featherSpawnTimer = 1.2;
+    veilFlareTimer = 0;
+    conduitEnergy.clear();
+    _conduitMaxEnergy.clear();
+    altarOpen = false;
+    guardianAwake = isRaid;
+    guardianVulnerable = false;
+    _guardianCycle = 0;
+    _raidPhaseIndex = 0;
+    guardianHp = maxGuardianHp;
+    guardianHitFlash = 0;
+    _guardianStrikeCooldown = 0;
+    _rocEnraged = false;
+    _altarBlessingUsed = false;
+    _guardianEnemy = null;
+    combatEnemies.clear();
+    combatProjectiles.clear();
+    _activeWingBeams.clear();
+  }
+
+  void _resetRun() {
+    _resetPuzzleState();
+    _placeAtEntrance();
+    onPlayerDown();
+    onChanged();
+  }
+
+  // ── Input / UI hooks ────────────────────────────────────
+
+  void setActive(int index) {
+    if (index < 0 || index >= creatures.length) return;
+    if (!creatures[index].alive) {
+      _setHint('That creature is down until the next run');
+      onChanged();
+      return;
+    }
+    activeIndex = index;
+    onChanged();
+  }
+
+  void cycleActive() {
+    final n = creatures.length;
+    for (var step = 1; step <= n; step++) {
+      final i = (activeIndex + step) % n;
+      if (creatures[i].alive) {
+        setActive(i);
+        return;
+      }
+    }
+  }
+
+  /// Snap the inactive creatures next to the active one (QoL traversal aid).
+  void regroup() {
+    final a = active;
+    if (a == null) return;
+    var k = 0;
+    for (var i = 0; i < creatures.length; i++) {
+      if (i == activeIndex || !creatures[i].alive) continue;
+      final ang = (k / max(1, creatures.length - 1)) * pi * 2;
+      var p = _clampToBounds(
+        a.position + Offset(cos(ang), sin(ang)) * 36.0,
+        currentRoom,
+      );
+      // Same stranding guard as room spawns: walkers need solid footing.
+      if (!_onSolidGround(p, currentRoom)) p = a.position;
+      creatures[i].position = p;
+      k++;
+    }
+    onChanged();
+  }
+
+  // ── Update ──────────────────────────────────────────────
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+    if (_doorCooldown > 0) _doorCooldown -= dt;
+    if (_hintTtl > 0) {
+      _hintTtl -= dt;
+      if (_hintTtl <= 0) hintText = null;
+    }
+    if (_ambientHintCooldown > 0) _ambientHintCooldown -= dt;
+    if (_statHintCooldown > 0) _statHintCooldown -= dt;
+    if (_loomRejectCooldown > 0) _loomRejectCooldown -= dt;
+    if (_cloudPickupCooldown > 0) _cloudPickupCooldown -= dt;
+    if (_guardianStrikeCooldown > 0) _guardianStrikeCooldown -= dt;
+    if (revealFlash > 0) revealFlash -= dt;
+    if (guardianHitFlash > 0) guardianHitFlash -= dt;
+    _ambient.update(dt);
+    _skyMood += (_skyMoodTarget - _skyMood) * min(1.0, dt * 1.1);
+    _updateAlchemyParticles(dt);
+    for (final c in creatures) {
+      c.ticker?.update(dt);
+    }
+    _guardianTicker?.update(dt);
+
+    final room = currentRoom;
+    final a = active;
+    if (a == null) return;
+
+    if (_updateFallRecovery(a, dt)) {
+      _syncCombatFromCreatures();
+      _updateCombat(dt);
+      _syncCreaturesFromCombat();
+      _handleDowns();
+      return;
+    }
+
+    // Flight capacity tracks the active creature.
+    flightMax = a.ability == DungeonAbility.aerialTraversal
+        ? glideSeconds(a.member.statSpeed)
+        : 0;
+    if (a.ability != DungeonAbility.aerialTraversal) flightActive = false;
+
+    // Updraft columns: rising winds carry walkers upward.
+    final updraft = !flightActive ? _updraftAt(a, room) : null;
+    updraftRiding = updraft != null;
+    if (updraftRiding) _updraftCoyote = 0.35;
+
+    // Movement (suspended while a cast sequence owns the body — horn
+    // wind-up/dash/brew or a kin laser charge).
+    final castLocked =
+        activeCombat != null && _castLocksMovement(activeCombat!);
+    final dir = joystickDirection;
+    final moveSpeed = flightActive ? _speed * _flightSpeedMul : _speed;
+    if (dir.distanceSquared > 0.0001 && !castLocked) {
+      final airborneWalker =
+          !flightActive &&
+          (updraftRiding ||
+              (_updraftCoyote > 0 && !_onSolidGround(a.position, room)));
+      if (airborneWalker) {
+        // Steer while wind-borne: walls only, reduced authority.
+        a.position = _moveDashing(a.position, dir * moveSpeed * 0.8 * dt, room);
+      } else {
+        a.position = _moveWithCollision(a.position, dir * moveSpeed * dt, room);
+      }
+      if (dir.dx.abs() > 0.01) a.angle = dir.dx >= 0 ? 0 : pi;
+    }
+    if (updraft != null) {
+      final sway = sin(_time * 2.1) * 16 * dt;
+      a.position = _moveDashing(
+        a.position,
+        Offset(sway, -updraft.strength * 0.95 * dt),
+        room,
+      );
+    } else if (!flightActive && _updraftCoyote > 0) {
+      if (_onSolidGround(a.position, room)) {
+        _updraftCoyote = 0; // landed — grace spent
+      } else {
+        _updraftCoyote -= dt;
+        if (_updraftCoyote <= 0) {
+          _beginFallRecovery(
+            a,
+            a.lastSafe,
+            hint: 'The thermal lets go — drifting back to footing',
+          );
+        }
+      }
+    }
+
+    _applyCurrents(a, room, dt);
+    _updateEnvironmentalHints(a, room);
+    // Carried-echo wake: the echo trails wind behind its carrier.
+    if (carriedCloudId != null) {
+      _carryTrail.add(a.position + const Offset(0, -30));
+      if (_carryTrail.length > 10) _carryTrail.removeAt(0);
+    } else if (_carryTrail.isNotEmpty) {
+      _carryTrail.removeAt(0);
+    }
+    // Glide wind trail (also while riding a thermal).
+    if (flightActive || updraftRiding) {
+      _glideTrail.add(a.position);
+      if (_glideTrail.length > 16) _glideTrail.removeAt(0);
+    } else if (_glideTrail.isNotEmpty) {
+      _glideTrail.removeAt(0);
+    }
+    _updateFlight(a, room, dt);
+    _updateSpire(a, room);
+    _updateWonderTrials(a, room, dt);
+    _updateLoom(a, room);
+    _updateAltar(a, room, dt);
+    _updateMercyShrine(a, room);
+    _syncCombatFromCreatures();
+    _updateCombat(dt);
+    _syncCreaturesFromCombat();
+
+    _checkDoors(a);
+    _checkHazards(a, dt);
+    _checkStars(a);
+    // Door-reveal rings play out only while their room is on screen.
+    for (final fx in _doorRevealFx) {
+      if (fx.roomId != currentRoomId) continue;
+      if (!fx.burstFired) {
+        fx.burstFired = true;
+        _spawnAlchemyBurst(
+          fx.position,
+          producedElement: 'Light',
+          reagentElements: const ['Air'],
+          particleCount: 18,
+          intensity: 0.9,
+        );
+      }
+      fx.ttl -= dt;
+    }
+    _doorRevealFx.removeWhere((fx) => fx.ttl <= 0);
+    _handleDowns();
+  }
+
+  bool _overGap(Offset p, DungeonRoom room) {
+    for (final g in room.gaps) {
+      if (g.rect.contains(p)) return true;
+    }
+    return false;
+  }
+
+  /// Can a walking (non-gliding) creature stand here? Open-sky rooms restrict
+  /// footing to their platforms; gap rooms block gaps; plain rooms are all
+  /// solid.
+  bool _onSolidGround(Offset p, DungeonRoom room) {
+    if (room.platforms.isNotEmpty) {
+      for (final pl in room.platforms) {
+        if (pl.inflate(2).contains(p)) return true;
+      }
+      return false;
+    }
+    return !_overGap(p, room);
+  }
+
+  /// The upward current carrying [a], if any. Strong columns still respect
+  /// the Speed stat gate (same rule gliders face).
+  WindCurrent? _updraftAt(DungeonCreature a, DungeonRoom room) {
+    for (final cur in room.currents) {
+      if (cur.strength <= 0) continue;
+      final len = cur.dir.distance;
+      if (len <= 0 || cur.dir.dy / len > -0.5) continue; // not an updraft
+      if (!cur.rect.contains(a.position)) continue;
+      if (cur.requiredSpeed > 0 && a.member.statSpeed < cur.requiredSpeed) {
+        _setStatHint('This thermal is too fierce — more Speed to ride it');
+        continue;
+      }
+      return cur;
+    }
+    return null;
+  }
+
+  void _applyCurrents(DungeonCreature a, DungeonRoom room, double dt) {
+    if (!flightActive) return;
+    for (final cur in room.currents) {
+      if (cur.strength <= 0 || !cur.rect.contains(a.position)) continue;
+      final len = cur.dir.distance;
+      if (len <= 0) continue;
+      var push = (cur.dir / len) * cur.strength * dt;
+      // Too slow to ride a strong current → it overpowers and shoves back.
+      if (cur.requiredSpeed > 0 && a.member.statSpeed < cur.requiredSpeed) {
+        push = -push * 1.2;
+        _setStatHint('Needs more Speed to ride this stronger current');
+      }
+      a.position = _moveWithCollision(a.position, push, room);
+    }
+  }
+
+  void _updateEnvironmentalHints(DungeonCreature a, DungeonRoom room) {
+    if (_ambientHintCooldown > 0 || _hintTtl > 0.45) return;
+
+    for (final cur in room.currents) {
+      if (!cur.rect.inflate(8).contains(a.position)) continue;
+      if (a.member.element == 'Fire') {
+        _setAmbientHint('Fire is catching in the Air current');
+      } else {
+        _setAmbientHint('Air elements are gusting through this strip');
+      }
+      return;
+    }
+
+    for (final c in room.conduits) {
+      if ((a.position - c.position).distance > 54) continue;
+      if (!guardianRiteUnlocked) {
+        _setAmbientHint(
+          'The twin pylons sleep — the Wind and Loom stars must be claimed '
+          'first',
+        );
+      } else if (c.preferred == null) {
+        _setAmbientHint('This conductor wants an elemental arc, not a hold');
+      } else if (a.member.element == c.requireElement) {
+        _setAmbientHint(
+          '${c.requireElement} gathers here; more Strength may hold it longer',
+        );
+      } else {
+        _setAmbientHint('${c.requireElement} gathers inside this pylon');
+      }
+      return;
+    }
+
+    final guardian = room.guardian;
+    if (guardian != null &&
+        guardianAwake &&
+        (a.position - _guardianPosition(guardian)).distance <= 105) {
+      _setAmbientHint(
+        guardianVulnerable
+            ? 'The guardian\'s rage thins; a soothing presence could reach it'
+            : 'The guardian is all storm right now; wait for the lull',
+      );
+      return;
+    }
+
+    for (final cl in room.clouds) {
+      if ((a.position - cl.position).distance <= 58 &&
+          !discoveredClouds.contains(cl.id)) {
+        _setAmbientHint(
+          room.anchors.isEmpty
+              ? 'The echo sleeps, sealed — this chamber asks something of you'
+              : 'A sleeping echo — its trial waits in a branch chamber',
+        );
+        return;
+      }
+    }
+  }
+
+  void _setAmbientHint(String msg) {
+    _setHint(msg, 2.0);
+    _ambientHintCooldown = 4.0;
+  }
+
+  void _setStatHint(String msg) {
+    if (_statHintCooldown > 0) return;
+    _setHint(msg, 2.5);
+    _statHintCooldown = 3.5;
+  }
+
+  void _discoverCloud(String cloudId) {
+    if (!discoveredClouds.add(cloudId)) return;
+    onCloudDiscovered?.call(cloudId);
+    onChanged();
+  }
+
+  /// Put a carried echo down. The echo drifts back to its resting place in
+  /// the loom (a charged Thundercloud loses its charge — it reverts to the
+  /// authored Anvil). A short grace period stops an instant re-grab.
+  void dropCarriedCloud() {
+    final a = active;
+    if (a == null || carriedCloudId == null) return;
+    final wasCharged = carriedCloudType == 'Thundercloud';
+    _spawnAlchemyBurst(
+      a.position,
+      producedElement: 'Air',
+      reagentElements: wasCharged ? const ['Lightning'] : const [],
+      particleCount: 12,
+      intensity: 0.6,
+    );
+    carriedCloudId = null;
+    carriedCloudType = null;
+    _cloudPickupCooldown = 1.0;
+    _setHint(
+      wasCharged
+          ? 'The thunder disperses — the echo drifts back to rest'
+          : 'The echo drifts back to its resting place',
+    );
+    onChanged();
+  }
+
+  void _updateAlchemyParticles(double dt) {
+    for (final p in _alchemyParticles) {
+      p.life -= dt;
+      p.position += p.velocity * dt;
+      p.velocity *= 0.95;
+    }
+    _alchemyParticles.removeWhere((p) => p.dead);
+  }
+
+  void _spawnAlchemyBurst(
+    Offset center, {
+    required String producedElement,
+    List<String> reagentElements = const [],
+    bool unstable = false,
+    int? particleCount,
+    double intensity = 1.0,
+  }) {
+    final colors = <Color>[
+      for (final e in reagentElements) elementColor(e),
+      elementColor(producedElement),
+      if (unstable) const Color(0xFFFFFFFF),
+    ];
+    final count = particleCount ?? (unstable ? 42 : 28);
+    for (var i = 0; i < count; i++) {
+      final angle = i * 2.399963 + _combatRng.nextDouble() * 0.7;
+      final speed =
+          (42 + _combatRng.nextDouble() * (unstable ? 138 : 92)) * intensity;
+      final color = colors[i % colors.length];
+      _alchemyParticles.add(
+        _AlchemyParticle(
+          position: center + Offset(cos(angle), sin(angle)) * (6 + i % 5),
+          velocity: Offset(cos(angle), sin(angle)) * speed,
+          color: Color.lerp(color, Colors.white, unstable ? 0.28 : 0.12)!,
+          maxLife:
+              (0.45 + _combatRng.nextDouble() * (unstable ? 0.65 : 0.45)) *
+              intensity.clamp(0.55, 1.35),
+          size:
+              (2.0 + _combatRng.nextDouble() * (unstable ? 4.0 : 3.0)) *
+              intensity.clamp(0.55, 1.25),
+          arc: unstable || producedElement == 'Lightning',
+        ),
+      );
+    }
+    while (_alchemyParticles.length > 180) {
+      _alchemyParticles.removeAt(0);
+    }
+  }
+
+  void _spawnUtilitySignature(DungeonCreature a) {
+    final element = a.member.element;
+    final unstable = element == 'Lightning' || element == 'Lava';
+    _spawnAlchemyBurst(
+      a.position,
+      producedElement: element,
+      reagentElements: const [],
+      unstable: unstable,
+      particleCount: 12,
+      intensity: 0.62,
+    );
+  }
+
+  bool _updateFallRecovery(DungeonCreature a, double dt) {
+    if (!_fallRecovering) return false;
+    _fallTimer += dt;
+    final raw = (_fallTimer / max(0.001, _fallDuration))
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final eased = 1 - pow(1 - raw, 2).toDouble();
+    final drift = Offset(0, sin(raw * pi) * 18);
+    a.position = Offset.lerp(_fallStart, _fallTarget, eased)! + drift;
+    if (raw >= 1) {
+      a.position = _fallTarget;
+      a.lastSafe = _fallTarget;
+      flightMeter = flightMax;
+      _fallRecovering = false;
+    }
+    return true;
+  }
+
+  void _beginFallRecovery(
+    DungeonCreature a,
+    Offset target, {
+    String hint = 'Needs more Speed to glide farther',
+  }) {
+    _fallRecovering = true;
+    _fallStart = a.position;
+    _fallTarget = target;
+    _fallTimer = 0;
+    _fallDuration = ((a.position - target).distance / 240).clamp(0.55, 1.25);
+    _setHint(hint);
+    _spawnAlchemyBurst(
+      a.position,
+      producedElement: 'Air',
+      reagentElements: [a.member.element],
+      particleCount: 16,
+      intensity: 0.52,
+    );
+  }
+
+  void _updateFlight(DungeonCreature a, DungeonRoom room, double dt) {
+    if (flightActive) {
+      flightMeter -= dt;
+      if (flightMeter <= 0) {
+        flightMeter = 0;
+        flightActive = false;
+        if (!_onSolidGround(a.position, room)) {
+          _beginFallRecovery(a, a.lastSafe);
+          onChanged();
+        }
+      }
+    } else if (_onSolidGround(a.position, room)) {
+      // On solid ground: remember it and refill the glide reserve.
+      a.lastSafe = a.position;
+      flightMeter = flightMax;
+    }
+  }
+
+  /// Rings authored across the whole spire ascent (one per room) — the summit
+  /// only opens once the FULL sequence is flown, not the current room's share.
+  int get _totalSpireRings =>
+      layout.rooms.values.fold(0, (n, r) => n + r.rings.length);
+
+  void _updateSpire(DungeonCreature a, DungeonRoom room) {
+    if (_roomCleared(room)) return;
+    // The ring sequence belongs to Star 1 — inert once that star is banked.
+    if (room.rings.isNotEmpty &&
+        (flightActive || updraftRiding) &&
+        !hasStar(0)) {
+      for (final ring in room.rings) {
+        if ((a.position - ring.position).distance > 34) continue;
+        if (ring.order == _ringProgress) {
+          _ringProgress++;
+          if (_ringProgress >= _totalSpireRings) {
+            summitOpen = true;
+            _setHint('The spire crown opens above');
+          } else {
+            _setHint('Ring $_ringProgress / $_totalSpireRings');
+          }
+          onChanged();
+        } else if (ring.order > _ringProgress && _ringProgress != 0) {
+          _ringProgress = 0;
+          _setHint('Out of order — the winds reset');
+          onChanged();
+        }
+      }
+    }
+    final summit = room.summit;
+    if (summit != null &&
+        summitOpen &&
+        summit.rect.contains(a.position) &&
+        !hasStar(summit.starIndex)) {
+      earnStar(summit.starIndex);
+    }
+  }
+
+  void _updateLoom(DungeonCreature a, DungeonRoom room) {
+    if ((room.clouds.isEmpty && room.anchors.isEmpty) || _roomCleared(room)) {
+      return;
+    }
+    // Wonder-cloud branch rooms are TRIAL spaces — discovery is earned by
+    // solving each chamber's elemental micro-puzzle (_updateWonderTrials /
+    // _tryWonderTrial), never by walking over the echo. The earned echoes
+    // are then carried and slotted inside the Sky Loom chamber.
+    if (room.anchors.isEmpty) return;
+    if (carriedCloudId == null) {
+      if (_cloudPickupCooldown > 0) return; // just dropped — don't re-grab
+      for (final cl in room.clouds) {
+        if (!discoveredClouds.contains(cl.id)) continue;
+        if (placedClouds.contains(cl.id)) continue;
+        if ((a.position - cl.position).distance < 26) {
+          carriedCloudId = cl.id;
+          carriedCloudType = cl.cloudType;
+          _setHint('Carrying ${cl.cloudType} — DROP releases it');
+          onChanged();
+          break;
+        }
+      }
+    } else {
+      for (final an in room.anchors) {
+        if (filledAnchors.containsKey(an.id)) continue;
+        if ((a.position - an.position).distance > 30) continue;
+        if (an.requiredCloudType == carriedCloudType) {
+          filledAnchors[an.id] = carriedCloudType!;
+          placedClouds.add(carriedCloudId!);
+          carriedCloudId = null;
+          carriedCloudType = null;
+          _setHint('The cloud settles into place');
+          _spawnAlchemyBurst(
+            an.position,
+            producedElement: 'Light',
+            reagentElements: const ['Air', 'Spirit'],
+          );
+          onChanged();
+          final star = room.loomStarIndex;
+          if (star != null &&
+              filledAnchors.length >= room.anchors.length &&
+              !hasStar(star)) {
+            earnStar(star);
+          }
+        } else if (_loomRejectCooldown <= 0) {
+          // One rejection per approach, not per frame — without this the
+          // loom sprays wisps at 60/sec while you stand on a wrong anchor.
+          _loomRejectCooldown = 2.2;
+          _setHint(
+            an.clue.isNotEmpty
+                ? 'Incorrect placement — this anchor calls for “${an.clue}”'
+                : 'Incorrect placement — this anchor calls for a different echo',
+            3.2,
+          );
+          _spawnAlchemyBurst(
+            an.position,
+            producedElement: 'Air',
+            reagentElements: const ['Spirit'],
+            unstable: true,
+          );
+          spawnWispWave(
+            element: 'Air',
+            center: an.position,
+            count: 2,
+            announce: false, // keep the wrong-placement message on screen
+          );
+        }
+        break;
+      }
+    }
+  }
+
+  // ── Wonder-cloud trials ─────────────────────────────────
+  // Each branch chamber earns its echo through a themed micro-trial built
+  // from the planet's element kit (Air rides, Fire ignites, Lightning
+  // strikes, and Air+Fire→Lightning arcs — same language as the entry door
+  // and conduit B).
+
+  void _completeWonderTrial(HiddenCloud cl, String message) {
+    _discoverCloud(cl.id);
+    _setHint(message, 3.2);
+    _spawnAlchemyBurst(
+      cl.position,
+      producedElement: 'Air',
+      reagentElements: const ['Light'],
+      particleCount: 30,
+      intensity: 1.1,
+    );
+  }
+
+  /// Per-frame trial logic (touch-driven trials: spiral eddies, falling
+  /// feathers, anvil wave completion).
+  void _updateWonderTrials(DungeonCreature a, DungeonRoom room, double dt) {
+    if (veilFlareTimer > 0) veilFlareTimer -= dt;
+    final sealed = _sealedWonderCloud(room);
+    if (sealed == null) return;
+
+    switch (room.id) {
+      case 'spiral_cloud':
+        // Ride the gale: touch the eddies outer → inner, in order. The
+        // wind answers Air — an Air creature gets a wider catch radius.
+        final eddies = spiralEddies(room);
+        final progress = _wonderProgress['spiral_cloud'] ?? 0;
+        final reach = a.member.element == 'Air' ? 46.0 : 34.0;
+        for (var i = 0; i < eddies.length; i++) {
+          if ((a.position - eddies[i]).distance > reach) continue;
+          if (i == progress) {
+            _wonderProgress['spiral_cloud'] = progress + 1;
+            _spawnAlchemyBurst(
+              eddies[i],
+              producedElement: 'Air',
+              particleCount: 12,
+              intensity: 0.7,
+            );
+            if (progress + 1 >= eddies.length) {
+              _completeWonderTrial(
+                sealed,
+                'The gale coils into its eye — the Spiral echo awakens',
+              );
+            } else {
+              _setHint('The eddy spins up — ${progress + 1} / 3');
+            }
+            onChanged();
+          } else if (i > progress && progress > 0) {
+            _wonderProgress['spiral_cloud'] = 0;
+            _setHint('Out of order — the eddies scatter');
+            onChanged();
+          }
+        }
+        break;
+
+      case 'feather_cloud':
+        // Weightless: feathers drift down one at a time; catch three
+        // before they land. Air draws nearby feathers toward itself.
+        _featherSpawnTimer -= dt;
+        if (_feathers.isEmpty && _featherSpawnTimer <= 0) {
+          final b = room.bounds;
+          _feathers.add(
+            Offset(
+              b.left + 120 + _combatRng.nextDouble() * (b.width - 240),
+              b.top + 46,
+            ),
+          );
+          _featherPhases.add(_combatRng.nextDouble() * pi * 2);
+        }
+        for (var i = _feathers.length - 1; i >= 0; i--) {
+          var p = _feathers[i];
+          final phase = _featherPhases[i];
+          p += Offset(sin(_time * 1.6 + phase) * 36 * dt, 55 * dt);
+          // The wind answers Air: feathers drift toward the nearest living
+          // Air creature (active or idle).
+          DungeonCreature? airDraw;
+          var airDist = 110.0;
+          for (final cr in creatures) {
+            if (!cr.alive || cr.member.element != 'Air') continue;
+            final d = (cr.position - p).distance;
+            if (d < airDist) {
+              airDist = d;
+              airDraw = cr;
+            }
+          }
+          if (airDraw != null && airDist > 1) {
+            p += (airDraw.position - p) / airDist * 42 * dt;
+          }
+          _feathers[i] = p;
+          // ANY living party member can catch — position your party as
+          // catchers and swap between them.
+          DungeonCreature? catcher;
+          for (final cr in creatures) {
+            if (cr.alive && (cr.position - p).distance < 36) {
+              catcher = cr;
+              break;
+            }
+          }
+          if (catcher != null) {
+            _feathers.removeAt(i);
+            _featherPhases.removeAt(i);
+            final caught = (_wonderProgress['feather_cloud'] ?? 0) + 1;
+            _wonderProgress['feather_cloud'] = caught;
+            _featherSpawnTimer = 0.9;
+            _spawnAlchemyBurst(
+              catcher.position,
+              producedElement: 'Air',
+              particleCount: 10,
+              intensity: 0.6,
+            );
+            if (caught >= 3) {
+              _completeWonderTrial(
+                sealed,
+                'Three plumes gathered — the Feather echo awakens',
+              );
+            } else {
+              _setHint('Feather caught — $caught / 3');
+            }
+            onChanged();
+          } else if (p.dy > room.bounds.bottom - 56) {
+            _feathers.removeAt(i);
+            _featherPhases.removeAt(i);
+            _featherSpawnTimer = 1.4;
+            _setStatHint('The feather settles into the void — another rises');
+          }
+        }
+        break;
+
+      case 'anvil_cloud':
+        // Crack the shell: once struck, a trio of storm-sparks defends the
+        // anvil. Clearing the wave hammers it awake.
+        if (_anvilShellStruck &&
+            _anvilWave.isNotEmpty &&
+            _anvilWave.every(
+              (e) => e.isDead || e.hp <= 0 || !combatEnemies.contains(e),
+            )) {
+          _anvilWave.clear();
+          _completeWonderTrial(
+            sealed,
+            'The sparks disperse — their charge hammers the Anvil awake',
+          );
+        }
+        break;
+    }
+  }
+
+  /// Utility-driven trial interactions (returns true if consumed):
+  /// ring conjunction seal, anvil shell crack, veil pinning / Fire flare.
+  bool _tryWonderTrial(DungeonCreature a) {
+    final room = currentRoom;
+    final sealed = _sealedWonderCloud(room);
+    if (sealed == null) return false;
+
+    switch (room.id) {
+      case 'ring_cloud':
+        // The Conjunction: Air, Fire and Lightning reagents circle the
+        // orbit — seal the ring while the trio is gathered.
+        if ((a.position - room.bounds.center).distance > 90) return false;
+        if (ringMotesAligned) {
+          _completeWonderTrial(
+            sealed,
+            'The three reagents braid as one — the Ring echo awakens',
+          );
+        } else {
+          _setHint(
+            'The reagents are scattered — seal the orbit when they gather',
+          );
+        }
+        return true;
+
+      case 'anvil_cloud':
+        if (_anvilShellStruck) {
+          if (_anvilWave.any((e) => !e.isDead && e.hp > 0)) {
+            _setHint('The storm-sparks still guard the anvil');
+            return true;
+          }
+          return false;
+        }
+        final nearShell = (a.position - sealed.position).distance < 64;
+        final inCurrent = room.currents.any((c) => c.rect.contains(a.position));
+        if (a.member.element == 'Lightning' && nearShell) {
+          _crackAnvilShell(sealed, viaRecipe: false);
+          return true;
+        }
+        if (a.member.element == 'Fire' && inCurrent) {
+          // Air+Fire→Lightning: the braided arc leaps to the shell.
+          _crackAnvilShell(sealed, viaRecipe: true);
+          return true;
+        }
+        if (nearShell || inCurrent) {
+          _setHint(
+            'The shell answers only storm-charge — strike it with Lightning, '
+            'or braid Fire through the wind',
+          );
+          return true;
+        }
+        return false;
+
+      case 'veil_cloud':
+        final spots = veilSpots(room);
+        final visible = veilVisibleSpotIndex;
+        final flare = veilFlareTimer > 0;
+        // Which spots are currently pinnable?
+        bool pinnable(int i) =>
+            !_veilPinned.contains(i) && (flare || visible == i);
+        // Lightning pins from range (a static arc leaps to the fold).
+        final reach = a.member.element == 'Lightning' ? 160.0 : 46.0;
+        for (var i = 0; i < spots.length; i++) {
+          if (!pinnable(i)) continue;
+          if ((a.position - spots[i]).distance > reach) continue;
+          _veilPinned.add(i);
+          _spawnAlchemyBurst(
+            spots[i],
+            producedElement: a.member.element == 'Lightning'
+                ? 'Lightning'
+                : 'Air',
+            reagentElements: const ['Spirit'],
+            particleCount: 14,
+            intensity: 0.8,
+          );
+          if (_veilPinned.length >= spots.length) {
+            _completeWonderTrial(
+              sealed,
+              'All three folds pinned — the Veil echo awakens',
+            );
+          } else {
+            _setHint('The fold is pinned — ${_veilPinned.length} / 3');
+          }
+          onChanged();
+          return true;
+        }
+        // Fire flare: reveal every fold for a few breaths.
+        if (a.member.element == 'Fire') {
+          veilFlareTimer = 3.0;
+          _setHint('Firelight floods the chamber — the folds stand bare');
+          _spawnAlchemyBurst(
+            a.position,
+            producedElement: 'Fire',
+            particleCount: 16,
+            intensity: 0.9,
+          );
+          return true;
+        }
+        _setHint('A fold breathes somewhere — pin it while it shows');
+        return true;
+    }
+    return false;
+  }
+
+  void _crackAnvilShell(HiddenCloud sealed, {required bool viaRecipe}) {
+    _anvilShellStruck = true;
+    _setHint(
+      viaRecipe
+          ? 'Air and Fire braid into Lightning — the arc cracks the shell!'
+          : 'The storm-charge splits the shell!',
+      3.0,
+    );
+    _spawnAlchemyBurst(
+      sealed.position,
+      producedElement: 'Lightning',
+      reagentElements: viaRecipe ? const ['Air', 'Fire'] : const ['Lightning'],
+      unstable: true,
+      particleCount: 28,
+      intensity: 1.2,
+    );
+    // The trio guards the storm-heart: one spark of each entry element.
+    _anvilWave.clear();
+    final specs = [
+      ('Lightning', SurvivalEnemyVariant.pouncer),
+      ('Air', SurvivalEnemyVariant.standard),
+      ('Fire', SurvivalEnemyVariant.standard),
+    ];
+    for (var i = 0; i < specs.length; i++) {
+      final ang = i * pi * 2 / specs.length + _combatRng.nextDouble() * 0.4;
+      final enemy = CosmicSurvivalEnemy(
+        position: sealed.position + Offset(cos(ang), sin(ang)) * 110,
+        hp: 30,
+        maxHp: 30,
+        speed: specs[i].$2 == SurvivalEnemyVariant.pouncer ? 96 : 80,
+        damage: 11,
+        radius: 13,
+        tier: EnemyTier.wisp,
+        element: specs[i].$1,
+        role: CosmicEnemyRole.striker,
+        variant: specs[i].$2,
+        target: CosmicEnemyTarget.companion,
+      );
+      _anvilWave.add(enemy);
+      combatEnemies.add(enemy);
+    }
+    onChanged();
+  }
+
+  void _updateAltar(DungeonCreature a, DungeonRoom room, double dt) {
+    if (room.conduits.isEmpty && room.guardian == null) return;
+    if (_roomCleared(room)) return;
+    // Conduits are timed only until synchronization. Once both are live and the
+    // altar opens, they stay visibly locked until death/reset or star clear.
+    if (!altarOpen) {
+      final dead = <String>[];
+      conduitEnergy.updateAll((k, v) => v - dt);
+      conduitEnergy.forEach((k, v) {
+        if (v <= 0) dead.add(k);
+      });
+      for (final k in dead) {
+        conduitEnergy.remove(k);
+      }
+    }
+    final aLive = (conduitEnergy['A'] ?? 0) > 0;
+    final bLive = (conduitEnergy['B'] ?? 0) > 0;
+    if (aLive && bLive && !altarOpen) {
+      altarOpen = true;
+      conduitEnergy['A'] = double.infinity;
+      conduitEnergy['B'] = double.infinity;
+      guardianAwake = true;
+      guardianHp = maxGuardianHp;
+      _setHint('Both conduits sing — the altar wakes its guardian');
+      _spawnAlchemyBurst(
+        room.bounds.center,
+        producedElement: 'Lightning',
+        reagentElements: const ['Air', 'Fire'],
+        unstable: true,
+      );
+      spawnWispWave(
+        element: 'Lightning',
+        center: room.bounds.center,
+        count: 4,
+        unstable: true,
+        announce: false, // "Both conduits sing…" stays on screen
+      );
+      onChanged();
+    }
+    final g = room.guardian;
+    if (guardianAwake && g != null) {
+      _maybeSpawnGuardianCombat(room); // safe to call every frame (guarded)
+      _guardianCycle += dt;
+      guardianVulnerable = (_guardianCycle % 6.0) < (_rocEnraged ? 2.2 : 3.0);
+      final stormCenter = _guardianPosition(g);
+      // Half-HP escalation: one screech — feather-wisps rise, lulls tighten.
+      if (!_rocEnraged &&
+          _guardianEnemy != null &&
+          !_guardianEnemy!.isDead &&
+          _guardianHpFraction < 0.5) {
+        _rocEnraged = true;
+        _setHint('The Roc screeches — the storm tightens!', 3.2);
+        _spawnAlchemyBurst(
+          stormCenter,
+          producedElement: 'Air',
+          reagentElements: const ['Lightning'],
+          unstable: true,
+          particleCount: 26,
+          intensity: 1.2,
+        );
+        spawnWispWave(
+          element: 'Air',
+          center: stormCenter,
+          count: 2,
+          announce: false,
+        );
+      }
+      if (!guardianVulnerable && (a.position - stormCenter).distance < 90) {
+        a.hp = max(0, a.hp - _guardianHazardDps * dt);
+      }
+    }
+  }
+
+  /// The storm altar's mercy: approaching it once per run fully mends the
+  /// party — a breath before the finale.
+  void _updateMercyShrine(DungeonCreature a, DungeonRoom room) {
+    if (room.id != 'storm_altar' || _altarBlessingUsed) return;
+    if ((a.position - room.bounds.center).distance > 70) return;
+    if (!creatures.any((c) => c.alive && c.hp < c.maxHp - 0.5)) return;
+    _altarBlessingUsed = true;
+    for (final c in creatures) {
+      if (c.alive) c.hp = c.maxHp;
+    }
+    _setHint('The altar\'s breath mends the party — once', 3.2);
+    _spawnAlchemyBurst(
+      room.bounds.center,
+      producedElement: 'Light',
+      reagentElements: const ['Air'],
+      particleCount: 24,
+      intensity: 1.0,
+    );
+    onChanged();
+  }
+
+  /// Live guardian position: the swooping combat body once it has spawned,
+  /// otherwise the authored altar perch.
+  Offset _guardianPosition(GuardianNode g) {
+    final e = _guardianEnemy;
+    return (e != null && !e.isDead) ? e.position : g.position;
+  }
+
+  double get _guardianHpFraction {
+    final e = _guardianEnemy;
+    if (e == null) return guardianHp / maxGuardianHp;
+    return (e.hp / max(1, e.maxHp)).clamp(0.0, 1.0).toDouble();
+  }
+
+  void _syncCombatFromCreatures() {
+    for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
+      final creature = creatures[i];
+      final comp = combatCompanions[i];
+      comp
+        ..position = creature.position
+        ..anchor = creature.position
+        ..angle = creature.angle
+        ..isDead = !creature.alive
+        ..currentHp = (comp.maxHp * creature.hpFraction).round().clamp(
+          0,
+          comp.maxHp,
+        );
+    }
+  }
+
+  void _syncCreaturesFromCombat() {
+    for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
+      final creature = creatures[i];
+      final comp = combatCompanions[i];
+      creature.hp = (creature.maxHp * comp.hpPercent).clamp(
+        0.0,
+        creature.maxHp,
+      );
+    }
+  }
+
+  /// Down handling: a knocked-out creature stays down (announced once) and
+  /// control auto-swaps to a living teammate. Only a full party wipe resets
+  /// the run.
+  void _handleDowns() {
+    var anyAlive = false;
+    for (final c in creatures) {
+      if (c.alive) {
+        c.downHandled = false;
+        anyAlive = true;
+      } else if (!c.downHandled) {
+        c.downHandled = true;
+        _spawnAlchemyBurst(
+          c.position,
+          producedElement: c.member.element,
+          particleCount: 18,
+          intensity: 0.8,
+        );
+        _setHint('${c.member.element} ${c.member.family} is down');
+        onChanged();
+      }
+    }
+    if (!anyAlive) {
+      _resetRun();
+      return;
+    }
+    final a = active;
+    if (a != null && !a.alive) {
+      final next = creatures.indexWhere((c) => c.alive);
+      if (next >= 0) {
+        activeIndex = next;
+        flightActive = false;
+        onChanged();
+      }
+    }
+  }
+
+  void _updateCombat(double dt) {
+    for (var i = 0; i < combatCompanions.length; i++) {
+      final comp = combatCompanions[i];
+      comp.basicCooldown = (comp.basicCooldown - dt).clamp(0.0, 100.0);
+      // Horn rule (per the authored spec): the special's cooldown does NOT
+      // tick while the ability is mid-execution (wind-up, dash, brew) —
+      // it starts counting only after the sequence fully finishes.
+      final hornBusy =
+          comp.windUpTimer > 0 ||
+          comp.chargeTimer > 0 ||
+          comp.hornPostDashWindUpTimer > 0;
+      if (!hornBusy) {
+        comp.specialCooldown = (comp.specialCooldown - dt).clamp(0.0, 100.0);
+      }
+      if (comp.hitFlash > 0) comp.hitFlash -= dt;
+      if (comp.invincibleTimer > 0) comp.invincibleTimer -= dt;
+      if (comp.basicHasteTimer > 0) comp.basicHasteTimer -= dt;
+      if (comp.damageAmpTimer > 0) comp.damageAmpTimer -= dt;
+      if (comp.pipSpiritEmpowerTimer > 0) comp.pipSpiritEmpowerTimer -= dt;
+      if (comp.hornSpecialActiveWindow > 0) comp.hornSpecialActiveWindow -= dt;
+      if (comp.kinLightningChargeTimer > 0) {
+        comp.kinLightningChargeTimer -= dt;
+      }
+      if (comp.pipSteamWindowTimer > 0) {
+        comp.pipSteamWindowTimer -= dt;
+      }
+      // Kin blessing regen (set by _applySpecialSupportEffects).
+      if (comp.blessingTimer > 0) {
+        comp.blessingTimer -= dt;
+        if (i < creatures.length) {
+          _healCreature(creatures[i], comp, comp.blessingHealPerTick * dt);
+        }
+      }
+    }
+    _updateHornCasts(dt);
+    _updateKinAutoCharges(dt);
+    for (final beam in _kinBeams) {
+      beam.life -= dt;
+    }
+    _kinBeams.removeWhere((b) => b.dead);
+    _updateCombatEnemies(dt);
+    _updateCombatProjectiles(dt);
+    _updateWingBeams(dt);
+    _updateIdleCompanionAttacks();
+    _updateRaidPhases();
+    final guardian = currentRoom.guardian;
+    if (guardian != null &&
+        _guardianEnemy != null &&
+        (_guardianEnemy!.isDead || _guardianEnemy!.hp <= 0) &&
+        !hasStar(guardian.starIndex)) {
+      earnStar(guardian.starIndex);
+      if (!isRaid) _setHint('The guardian is vanquished');
+    }
+    for (final e in combatEnemies) {
+      if (!e.isDead && e.hp > 0) continue;
+      final big = identical(e, _guardianEnemy) || e.isElite;
+      _spawnAlchemyBurst(
+        e.position,
+        producedElement: e.element,
+        unstable: big,
+        particleCount: big ? 30 : 12,
+        intensity: big ? 1.3 : 0.65,
+      );
+    }
+    combatEnemies.removeWhere((e) => e.isDead || e.hp <= 0);
+    _activeWingBeams.removeWhere((b) => b.dead);
+  }
+
+  int? _nearestLivingCreatureIndex(Offset from) {
+    int? best;
+    var bestDist = double.infinity;
+    for (var i = 0; i < creatures.length; i++) {
+      if (!creatures[i].alive) continue;
+      final d = (creatures[i].position - from).distance;
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /// Floaty hover-and-dive steering (shared module). Enemies orbit a hover
+  /// ring around the nearest living party member, telegraph, then dive; on
+  /// impact they drift back out instead of grinding on contact. The guardian
+  /// uses the same machine with wider, slower arcs and a heavier dive.
+  void _updateCombatEnemies(double dt) {
+    if (creatures.isEmpty) return;
+    // Snare fields (ice walls, vines, trap sigils): stationary projectiles
+    // with a snareRadius slow enemies standing inside them — same rule as
+    // survival's control buckets.
+    final snares = <Projectile>[
+      for (final p in combatProjectiles)
+        if (p.stationary && p.snareRadius > 0) p,
+    ];
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      if (enemy.hitFlash > 0) enemy.hitFlash -= dt;
+      // Mask+Blood permanent drain: tagged enemies bleed every frame; the
+      // drained HP heals the party (survival splits it the same way).
+      if (enemy.maskBloodDrainSlot != null && !enemy.isDead) {
+        final drainPerSec = max(2.0, enemy.maxHp * 0.06);
+        final before = enemy.hp;
+        _damageEnemyDirect(
+          enemy,
+          drainPerSec * dt,
+          sourceSlot: enemy.maskBloodDrainSlot,
+        );
+        final drained = before - max(0.0, enemy.hp);
+        if (drained > 0) _healAllCreatures(drained * 0.35);
+        if (_combatRng.nextDouble() < dt * 2.0) {
+          _spawnHitSpark(enemy.position, elementColor('Blood'));
+        }
+      }
+      // Pip+Mud trail: tagged enemies drop a slowing puff every 0.42s.
+      if (enemy.pipMudTrail) {
+        enemy.pipMudTrailTimer -= dt;
+        if (enemy.pipMudTrailTimer <= 0) {
+          enemy.pipMudTrailTimer = 0.42;
+          combatProjectiles.add(
+            Projectile(
+              position: enemy.position,
+              angle: 0,
+              element: 'Mud',
+              damage: 0,
+              life: 5.5,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              radiusMultiplier: 1.1,
+              visualScale: 1.0,
+              visualStyle: ProjectileVisualStyle.sigil,
+              abilityFamily: 'pip',
+              tickEffect: AbilityEffectKind.slow,
+              effectPower: 1.0,
+              effectRadius: 38,
+              effectDuration: 1.2,
+            ),
+          );
+        }
+      }
+      for (final snare in snares) {
+        if ((snare.position - enemy.position).distance <= snare.snareRadius) {
+          enemy.slowTimer = max(enemy.slowTimer, 0.2);
+          enemy.slowMultiplier = min(
+            enemy.slowMultiplier,
+            snare.snareMoveMultiplier.clamp(0.1, 1.0).toDouble(),
+          );
+        }
+      }
+      if (enemy.slowTimer > 0) enemy.slowTimer -= dt;
+      if (enemy.maneRootTimer > 0) enemy.maneRootTimer -= dt;
+      if (enemy.hornPlantRootTimer > 0) enemy.hornPlantRootTimer -= dt;
+      if (enemy.knockbackVelocity.distanceSquared > 0.1) {
+        enemy.position += enemy.knockbackVelocity * dt;
+        enemy.knockbackVelocity *= 0.86;
+      }
+      enemy.attackCooldown = max(0, enemy.attackCooldown - dt);
+
+      final isGuardian = identical(enemy, _guardianEnemy);
+      // The guardian holds its arena: freeze it while the party is elsewhere.
+      if (isGuardian && currentRoom.guardian == null) continue;
+
+      // Lull: the Roc LANDS. Steering pauses and it perches — touchdown is
+      // the readable strike window, body language instead of color-reading.
+      if (isGuardian && guardianVulnerable) {
+        final perch = enemy.flightSteering;
+        if (perch != null) {
+          perch.diving = false;
+          perch.windupTimer = 0;
+          perch.velocity =
+              perch.velocity * pow(0.05, dt).toDouble() + Offset(0, 26 * dt);
+          enemy.position = _clampToBounds(
+            enemy.position + perch.velocity * dt,
+            currentRoom,
+          );
+        }
+        continue;
+      }
+
+      final m = enemy.flightSteering ??= FlightSteeringState(_combatRng);
+      m.retargetTimer -= dt;
+      final clampedTarget = m.targetIndex.clamp(0, creatures.length - 1);
+      if (m.retargetTimer <= 0 || !creatures[clampedTarget].alive) {
+        m.retargetTimer = 1.1 + _combatRng.nextDouble() * 1.2;
+        m.targetIndex =
+            _nearestLivingCreatureIndex(enemy.position) ?? activeIndex;
+      }
+      final targetIndex = m.targetIndex.clamp(0, creatures.length - 1);
+      final targetCreature = creatures[targetIndex];
+      var toTarget = targetCreature.position - enemy.position;
+
+      // Taunt beacons (pip Crystal shards, horn fire trails) hijack the
+      // steering of enemies inside their pull radius — strongest pull wins.
+      Projectile? taunt;
+      var tauntScore = 0.0;
+      for (final tp in combatProjectiles) {
+        if (!tp.stationary || tp.tauntRadius <= 0 || tp.tauntStrength <= 0) {
+          continue;
+        }
+        final d = (tp.position - enemy.position).distance;
+        if (d > tp.tauntRadius) continue;
+        final score = tp.tauntStrength * (1.0 - d / tp.tauntRadius);
+        if (score > tauntScore) {
+          tauntScore = score;
+          taunt = tp;
+        }
+      }
+      if (taunt != null) {
+        toTarget = taunt.position - enemy.position;
+        // Decoys soak contact: enemies grinding on the beacon burn its
+        // pool down instead of attacking the party.
+        if (taunt.decoy &&
+            toTarget.distance <= enemy.radius + 26 &&
+            enemy.attackCooldown <= 0) {
+          enemy.attackCooldown = 0.8;
+          taunt.decoyHp -= enemy.damage;
+          _spawnHitSpark(taunt.position, elementColor(taunt.element ?? 'Air'));
+          if (taunt.decoyHp <= 0) taunt.life = 0;
+        }
+      }
+
+      final profile = isGuardian
+          ? FlightSteeringProfile.dungeonGuardian
+          : enemy.variant == SurvivalEnemyVariant.pouncer
+          ? FlightSteeringProfile.dungeonPouncer
+          : FlightSteeringProfile.dungeonWisp;
+      final tick = tickFlightSteering(
+        state: m,
+        profile: profile,
+        toTarget: toTarget,
+        speed: enemy.effectiveSpeed,
+        contactRange: enemy.radius + _radius + 4,
+        dt: dt,
+        rng: _combatRng,
+      );
+
+      if (tick.impact &&
+          targetIndex < combatCompanions.length &&
+          enemy.attackCooldown <= 0) {
+        final comp = combatCompanions[targetIndex];
+        if (comp.invincibleTimer <= 0) {
+          // Dive damage is a FRACTION of the victim's pool (survival enemy
+          // damage numbers are sized for survival HP pools and round to
+          // nothing against dungeon companions): a wisp dive takes ~9%,
+          // the Roc ~17%. Horn shields soak it first.
+          final fraction = (0.045 + enemy.damage * 0.005)
+              .clamp(0.05, 0.2)
+              .toDouble();
+          var dmg = max(1, (comp.maxHp * fraction).round());
+          if (comp.shieldHp > 0) {
+            final absorbed = min(comp.shieldHp, dmg);
+            comp.shieldHp -= absorbed;
+            dmg -= absorbed;
+          }
+          if (dmg > 0) {
+            comp.currentHp = (comp.currentHp - dmg).clamp(0, comp.maxHp);
+            // Lightning horn reactive guard: damage taken during the dash
+            // or storm brew is absorbed into the coming chain discharge.
+            if (comp.member.family.toLowerCase() == 'horn' &&
+                comp.member.element == 'Lightning' &&
+                (comp.chargeTimer > 0 ||
+                    comp.windUpTimer > 0 ||
+                    comp.hornPostDashWindUpTimer > 0)) {
+              comp.hornLightningAbsorbed += dmg.toDouble();
+            }
+            // A landed dive on the echo-carrier tears the echo loose — it
+            // drifts back to its resting place (carrying is a commitment).
+            if (targetIndex == activeIndex && carriedCloudId != null) {
+              _spawnAlchemyBurst(
+                creatures[targetIndex].position + const Offset(0, -30),
+                producedElement: 'Air',
+                reagentElements: const ['Spirit'],
+                unstable: true,
+                particleCount: 14,
+                intensity: 0.8,
+              );
+              carriedCloudId = null;
+              carriedCloudType = null;
+              _cloudPickupCooldown = 1.2;
+              _setHint(
+                'The wisp tears the echo loose — it drifts back to rest!',
+                2.8,
+              );
+            }
+          }
+          comp.hitFlash = 0.22;
+        }
+        enemy.attackCooldown = 0.45;
+      }
+
+      enemy.position += tick.velocity * dt;
+      if (tick.velocity.distanceSquared > 16) {
+        enemy.angle = atan2(tick.velocity.dy, tick.velocity.dx);
+      } else {
+        final d = toTarget.distance;
+        if (d > 0.001) enemy.angle = atan2(toTarget.dy, toTarget.dx);
+      }
+      // The Roc sheds white feathers along its dives.
+      if (isGuardian &&
+          (enemy.flightSteering?.diving ?? false) &&
+          _combatRng.nextDouble() < 0.5) {
+        final jx = (_combatRng.nextDouble() - 0.5) * 40;
+        final jy = (_combatRng.nextDouble() - 0.5) * 30;
+        _alchemyParticles.add(
+          _AlchemyParticle(
+            position: enemy.position + Offset(jx, jy),
+            velocity: Offset(
+              (_combatRng.nextDouble() - 0.5) * 34,
+              -18 - _combatRng.nextDouble() * 26,
+            ),
+            color: const Color(0xFFF4FAFF),
+            maxLife: 0.6,
+            size: 2.4,
+          ),
+        );
+      }
+
+      // Gentle separation so wisps don't stack into one blob.
+      for (final other in combatEnemies) {
+        if (identical(other, enemy) || other.isDead) continue;
+        final away = enemy.position - other.position;
+        final d = away.distance;
+        final minD = enemy.radius + other.radius + 6;
+        if (d > 0.001 && d < minD) {
+          enemy.position += away / d * (minD - d) * min(1.0, dt * 9) * 0.5;
+        }
+      }
+
+      if (!currentRoom.bounds.inflate(80).contains(enemy.position)) {
+        enemy.position = _clampToBounds(enemy.position, currentRoom);
+      }
+    }
+  }
+
+  /// Mane+Lightning sigil orb in transit: flies to its scattered target,
+  /// then blooms into a stationary shock field (ported from survival).
+  bool _updateManeLightningOrbTransfer(Projectile p, double dt) {
+    if (p.abilityFamily != 'mane' ||
+        p.element != 'Lightning' ||
+        p.effectStacks != 1) {
+      return false;
+    }
+    final target = p.cachedHomingTarget;
+    if (target == null) return false;
+    final toTarget = target - p.position;
+    final dist = toTarget.distance;
+    final step = Projectile.speed * max(0.25, p.speedMultiplier) * dt;
+    if (dist <= step || dist < 8) {
+      combatProjectiles.add(
+        Projectile(
+          position: target,
+          angle: 0,
+          element: 'Lightning',
+          damage: 0,
+          life: 4.0,
+          speedMultiplier: 0,
+          stationary: true,
+          piercing: true,
+          radiusMultiplier: 0.95,
+          visualScale: 1.05,
+          visualStyle: ProjectileVisualStyle.sigil,
+          sourceSlotIndex: p.sourceSlotIndex,
+          abilityFamily: 'mane',
+          tickEffect: AbilityEffectKind.zoneDamage,
+          effectPower: p.effectPower,
+          effectRadius: p.effectRadius.clamp(36.0, 48.0).toDouble(),
+          effectDuration: p.effectDuration,
+          effectStacks: 2,
+        ),
+      );
+      _spawnAlchemyBurst(
+        target,
+        producedElement: 'Lightning',
+        unstable: true,
+        particleCount: 10,
+        intensity: 0.6,
+      );
+      p.life = 0;
+      return true;
+    }
+    final dir = toTarget / dist;
+    p.angle = atan2(dir.dy, dir.dx);
+    p.position += dir * step;
+    return true;
+  }
+
+  void _updateCombatProjectiles(double dt) {
+    for (var i = combatProjectiles.length - 1; i >= 0; i--) {
+      final p = combatProjectiles[i];
+      // Sigil orbs own their motion until they bloom.
+      if (_updateManeLightningOrbTransfer(p, dt)) {
+        p.life -= dt;
+        if (p.life <= 0) combatProjectiles.removeAt(i);
+        continue;
+      }
+      if (p.abilityGrowthTimer > 0) p.abilityGrowthTimer -= dt;
+      // Attached auras (mask dust shields) ride along with their ally.
+      if (p.attachedToSlot != -2 && p.stationary) {
+        final hostIndex = combatCompanions.indexWhere(
+          (c) => c.slotIndex == p.attachedToSlot,
+        );
+        if (hostIndex >= 0 &&
+            hostIndex < creatures.length &&
+            creatures[hostIndex].alive) {
+          p.position = creatures[hostIndex].position;
+        } else {
+          p.life = min(p.life, 0.4); // host down — the aura fades out
+        }
+      }
+      if (p.homing) {
+        final target = _nearestEnemyPosition(p.position);
+        if (target != null) {
+          final desired = atan2(
+            target.dy - p.position.dy,
+            target.dx - p.position.dx,
+          );
+          var diff = desired - p.angle;
+          while (diff > pi) {
+            diff -= pi * 2;
+          }
+          while (diff < -pi) {
+            diff += pi * 2;
+          }
+          final maxTurn = p.homingStrength * dt;
+          p.angle += diff.clamp(-maxTurn, maxTurn);
+        }
+      }
+
+      if (p.orbitCenter != null && (p.holdOrbit || p.orbitTime > 0)) {
+        if (!p.holdOrbit) p.orbitTime -= dt;
+        p.orbitAngle += p.orbitSpeed * dt;
+        p.position =
+            p.orbitCenter! +
+            Offset(cos(p.orbitAngle), sin(p.orbitAngle)) * p.orbitRadius;
+        if (!p.holdOrbit && p.orbitTime <= 0) {
+          p.angle = p.orbitAngle;
+          p.orbitCenter = null;
+        }
+      } else if (!p.stationary) {
+        final speed = Projectile.speed * p.speedMultiplier;
+        p.position += Offset(cos(p.angle), sin(p.angle)) * speed * dt;
+      }
+
+      if (p.trailInterval > 0 && !p.stationary && p.orbitCenter == null) {
+        p.trailTimer += dt;
+        if (p.trailTimer >= p.trailInterval) {
+          p.trailTimer -= p.trailInterval;
+          combatProjectiles.add(
+            Projectile(
+              position: p.position,
+              angle: 0,
+              element: p.element,
+              damage: p.trailDamage,
+              life: p.trailLife,
+              stationary: true,
+              radiusMultiplier: 1.5,
+              piercing: true,
+              visualScale: 1.2,
+              abilityFamily: p.abilityFamily,
+              hitEffect: p.tickEffect == AbilityEffectKind.none
+                  ? p.hitEffect
+                  : p.tickEffect,
+              tickEffect: p.tickEffect,
+              effectPower: p.effectPower * 0.55,
+              effectRadius: p.effectRadius,
+              effectDuration: p.effectDuration,
+            ),
+          );
+        }
+      }
+
+      if (p.tickEffect != AbilityEffectKind.none &&
+          p.effectRadius > 0 &&
+          p.stationary) {
+        p.tickTimer += dt;
+        if (p.tickTimer >= 0.35) {
+          p.tickTimer -= 0.35;
+          _applyProjectileAreaEffect(p, p.tickEffect);
+        }
+      }
+
+      if (p.clusterCount > 0 && !p.clustered && p.life < 0.75) {
+        p.clustered = true;
+        for (var ci = 0; ci < p.clusterCount; ci++) {
+          final a = ci * pi * 2 / p.clusterCount;
+          combatProjectiles.add(
+            Projectile(
+              position: p.position + Offset(cos(a), sin(a)) * 10,
+              angle: a,
+              element: p.element,
+              damage: p.clusterDamage,
+              life: 1.5,
+              speedMultiplier: 0.7,
+              radiusMultiplier: 1.5,
+              piercing: true,
+              visualScale: 1.0,
+              visualStyle: p.visualStyle,
+              sourceSlotIndex: p.sourceSlotIndex,
+              abilityFamily: p.abilityFamily,
+              hitEffect: p.hitEffect,
+              killEffect: p.killEffect,
+              pierceEffect: p.pierceEffect,
+              tickEffect: p.tickEffect,
+              effectPower: p.effectPower * 0.65,
+              effectRadius: p.effectRadius,
+              effectDuration: p.effectDuration,
+              effectCount: p.effectCount,
+            ),
+          );
+        }
+      }
+
+      p.life -= dt;
+      if (p.life <= 0) {
+        combatProjectiles.removeAt(i);
+        continue;
+      }
+
+      final hitRadius = Projectile.radius * p.radiusMultiplier;
+      var consumed = false;
+      for (final enemy in combatEnemies) {
+        if (enemy.isDead) continue;
+        final hitR = enemy.radius + hitRadius;
+        if ((p.position - enemy.position).distanceSquared >= hitR * hitR) {
+          continue;
+        }
+        // Mane+Plant roots BEFORE damage so a one-shot still detonates the
+        // rooted-kill AOE (survival's preRoot ordering).
+        if (p.piercing && p.abilityFamily == 'mane' && p.element == 'Plant') {
+          _resolveAbilityPierce(p, enemy);
+        }
+        final wasDead = enemy.isDead;
+        final isPipSpecialDart =
+            p.abilityFamily == 'pip' &&
+            p.visualStyle == ProjectileVisualStyle.dart;
+        _damageEnemyDirect(
+          enemy,
+          p.damage,
+          sourceSlot: p.sourceSlotIndex,
+          fromPipSpecial: isPipSpecialDart,
+        );
+        final killed = !wasDead && enemy.isDead;
+        _resolveAbilityHit(p, enemy, killed: killed);
+        if (p.piercing) _resolveAbilityPierce(p, enemy);
+
+        // Pip+Water: a kill on the dart's final hit erupts a huge splash
+        // scaled by the caster's Beauty.
+        if (killed &&
+            p.element == 'Water' &&
+            p.bounceCount <= 0 &&
+            p.sourceSlotIndex != null) {
+          final src = _combatCompanionForSlot(p.sourceSlotIndex!);
+          if (src != null && src.member.family.toLowerCase() == 'pip') {
+            final splashScale =
+                (1.0 + (src.member.statBeauty.clamp(0.5, 8.0) - 3.0) * 0.10)
+                    .clamp(0.85, 1.35);
+            _damageEnemiesNear(
+              enemy.position,
+              160 * splashScale,
+              p.damage * 2.4 * splashScale,
+              sourceSlot: p.sourceSlotIndex,
+              exclude: enemy,
+            );
+            _spawnHitSpark(enemy.position, elementColor('Water'));
+          }
+        }
+        // Pip+Mud: tag the enemy to drop slowing mud puffs as it moves.
+        if (!killed &&
+            p.abilityFamily.isEmpty &&
+            p.element == 'Mud' &&
+            p.sourceSlotIndex != null) {
+          final src = _combatCompanionForSlot(p.sourceSlotIndex!);
+          if (src != null && src.member.family.toLowerCase() == 'pip') {
+            enemy.pipMudTrail = true;
+          }
+        }
+        // Pip+Poison: special darts weave a poison-line web between
+        // consecutive impact points.
+        if (p.abilityFamily == 'pip' &&
+            p.visualStyle == ProjectileVisualStyle.dart &&
+            p.element == 'Poison' &&
+            p.sourceSlotIndex != null) {
+          final src = _combatCompanionForSlot(p.sourceSlotIndex!);
+          if (src != null && src.member.family.toLowerCase() == 'pip') {
+            final prev = src.lastPipPoisonHitPos;
+            if (prev != null) {
+              final dx = enemy.position.dx - prev.dx;
+              final dy = enemy.position.dy - prev.dy;
+              final dist = sqrt(dx * dx + dy * dy);
+              if (dist < 600) {
+                final segCount = (dist / 36).ceil().clamp(1, 18);
+                for (var seg = 0; seg < segCount; seg++) {
+                  final t = (seg + 0.5) / segCount;
+                  combatProjectiles.add(
+                    Projectile(
+                      position: Offset(prev.dx + dx * t, prev.dy + dy * t),
+                      angle: 0,
+                      element: 'Poison',
+                      damage: 0,
+                      life: 6.5,
+                      speedMultiplier: 0,
+                      stationary: true,
+                      piercing: true,
+                      radiusMultiplier: 0.95,
+                      visualScale: 0.85,
+                      visualStyle: ProjectileVisualStyle.sigil,
+                      sourceSlotIndex: p.sourceSlotIndex,
+                      abilityFamily: 'pip',
+                      tickEffect: AbilityEffectKind.poison,
+                      effectPower: p.damage * 0.22,
+                      effectRadius: 32,
+                      effectDuration: 1.5,
+                    ),
+                  );
+                }
+              }
+            }
+            src.lastPipPoisonHitPos = enemy.position;
+          }
+        }
+        // Mane+Mud: first hit splits into ten smaller fragments.
+        if (p.abilityFamily == 'mane' &&
+            p.element == 'Mud' &&
+            !p.clustered &&
+            p.effectStacks == 0) {
+          p.clustered = true;
+          for (var fi = 0; fi < 10; fi++) {
+            combatProjectiles.add(
+              Projectile(
+                position: enemy.position,
+                angle: fi * (pi * 2 / 10),
+                element: 'Mud',
+                damage: p.damage * 0.45,
+                life: 1.0,
+                speedMultiplier: 1.4,
+                radiusMultiplier: max(p.radiusMultiplier * 0.55, 0.7),
+                visualScale: max(p.visualScale * 0.55, 0.7),
+                piercing: false,
+                visualStyle: ProjectileVisualStyle.slash,
+                sourceSlotIndex: p.sourceSlotIndex,
+                abilityFamily: 'mane',
+                hitEffect: AbilityEffectKind.slow,
+                effectPower: p.effectPower * 0.6,
+                effectRadius: 40,
+                effectDuration: 1.5,
+                effectStacks: 1,
+              ),
+            );
+          }
+          consumed = true;
+        }
+        _spawnProjectileHitSpark(p);
+        if (_isAnyKinLightningChargeActive() && p.sourceSlotIndex != null) {
+          _triggerChainLightning(
+            sourceEnemy: enemy,
+            baseDamage: p.damage,
+            remainingChains: 2,
+            sourceSlot: p.sourceSlotIndex,
+          );
+        }
+
+        // Ricochet (pip): bounce to the nearest clustered target, shedding
+        // damage per hop (Lightning sheds less — its ricochet identity).
+        final isPipSpecialProjectile = p.abilityFamily == 'pip';
+        if (p.bounceCount > 0) {
+          p.bounceCount--;
+          if (isPipSpecialProjectile) p.pierceCount++;
+          CosmicSurvivalEnemy? next;
+          var bestD = 110.0;
+          for (final other in combatEnemies) {
+            if (other.isDead || identical(other, enemy)) continue;
+            final d = (other.position - enemy.position).distance;
+            if (d < bestD) {
+              bestD = d;
+              next = other;
+            }
+          }
+          if (next != null) {
+            p.angle = atan2(
+              next.position.dy - p.position.dy,
+              next.position.dx - p.position.dx,
+            );
+            p.life = isPipSpecialProjectile
+                ? min(max(p.life, 0.18), kPipRicochetPostHitLife)
+                : max(p.life, 0.45);
+            final falloff = (p.element == 'Lightning') ? 0.85 : 0.70;
+            p.damage = p.damage * falloff;
+            p.speedMultiplier = max(0.6, p.speedMultiplier * 0.92);
+          } else {
+            p.bounceCount = 0;
+            if (isPipSpecialProjectile) consumed = true;
+          }
+        } else if (!p.piercing) {
+          consumed = true;
+        } else {
+          p.pierceCount++;
+          if (isPipSpecialProjectile && p.pierceCount >= kPipMaxPierceHits) {
+            consumed = true;
+          }
+        }
+        if (consumed) break;
+      }
+      if (consumed && i < combatProjectiles.length) {
+        combatProjectiles.removeAt(i);
+      }
+    }
+  }
+
+  void _activateWingBeams(
+    List<WingBeamEffect> beams, {
+    required int sourceSlotIndex,
+    required Offset origin,
+    required double angle,
+  }) {
+    for (final descriptor in beams) {
+      _activeWingBeams.add(
+        _DungeonWingBeam(
+          descriptor: descriptor,
+          sourceSlotIndex: sourceSlotIndex,
+          origin: origin,
+          angle: angle,
+        ),
+      );
+    }
+  }
+
+  void _updateWingBeams(double dt) {
+    for (final beam in _activeWingBeams) {
+      if (beam.dead) continue;
+      final comp = _combatCompanionForSlot(beam.sourceSlotIndex);
+      if (comp != null && !comp.isDead) {
+        beam.origin = comp.position;
+        beam.angle = comp.angle;
+      }
+
+      beam.life -= dt;
+      if (beam.chargeTimer > 0) {
+        beam.chargeTimer = max(0, beam.chargeTimer - dt);
+        if (beam.chargeTimer > 0) continue;
+        beam.tickTimer = 0;
+      }
+
+      beam.tickTimer -= dt;
+      if (beam.tickTimer > 0) continue;
+      beam.tickTimer += max(0.05, beam.descriptor.tickInterval);
+      _resolveWingBeamTick(beam);
+    }
+  }
+
+  void _resolveWingBeamTick(_DungeonWingBeam beam) {
+    final descriptor = beam.descriptor;
+    final pulseDamage = descriptor.tickEffect == AbilityEffectKind.chargeBlast
+        ? descriptor.damagePerTick * 8.0
+        : descriptor.damagePerTick;
+    final effectProjectile = Projectile(
+      position: beam.origin,
+      angle: beam.angle,
+      element: descriptor.element,
+      damage: descriptor.effectPower,
+      life: 0.1,
+      sourceSlotIndex: beam.sourceSlotIndex,
+      abilityFamily: 'wing',
+      effectPower: descriptor.effectPower,
+      effectRadius: max(descriptor.radius, descriptor.width * 8),
+      effectDuration: descriptor.effectDuration,
+      hitEffect: descriptor.tickEffect,
+    );
+
+    if (descriptor.targetPolicy == WingBeamTargetPolicy.ring &&
+        descriptor.radius > 0) {
+      for (final enemy in combatEnemies) {
+        if (enemy.isDead) continue;
+        if ((enemy.position - beam.origin).distance > descriptor.radius) {
+          continue;
+        }
+        _damageEnemyFromBeam(enemy, pulseDamage);
+        _applyProjectileEffect(effectProjectile, enemy, descriptor.tickEffect);
+      }
+      return;
+    }
+
+    final end = _wingBeamEnd(beam);
+    final radius = max(10.0, descriptor.width * 1.35);
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      final distance = _distanceToSegment(enemy.position, beam.origin, end);
+      if (distance > enemy.radius + radius) continue;
+      _damageEnemyFromBeam(enemy, pulseDamage);
+      _applyProjectileEffect(effectProjectile, enemy, descriptor.tickEffect);
+    }
+
+    if (descriptor.healPerTick > 0) {
+      final comp = _combatCompanionForSlot(beam.sourceSlotIndex);
+      if (comp != null) {
+        comp.currentHp = min(
+          comp.maxHp,
+          comp.currentHp + descriptor.healPerTick.round(),
+        );
+      }
+    }
+  }
+
+  void _damageEnemyFromBeam(CosmicSurvivalEnemy enemy, double damage) {
+    enemy.hp -= damage * _enemyDamageTakenScale(enemy);
+    enemy.hitFlash = 0.18;
+    if (enemy.hp <= 0) enemy.isDead = true;
+  }
+
+  /// The Roc shrugs off most ranged damage while raging; the lull (the same
+  /// window that allows utility strikes) is the burst window.
+  double _enemyDamageTakenScale(CosmicSurvivalEnemy enemy) =>
+      identical(enemy, _guardianEnemy) && !guardianVulnerable ? 0.35 : 1.0;
+
+  Offset _wingBeamEnd(_DungeonWingBeam beam) {
+    final descriptor = beam.descriptor;
+    final target = switch (descriptor.targetPolicy) {
+      WingBeamTargetPolicy.lowestHealthEnemy => _lowestHealthEnemyPosition(
+        beam.origin,
+        descriptor.range,
+      ),
+      WingBeamTargetPolicy.nearestEnemy => _nearestEnemyPosition(
+        beam.origin,
+        maxRange: descriptor.range,
+      ),
+      _ => null,
+    };
+    if (target != null) return target;
+    return beam.origin +
+        Offset(cos(beam.angle), sin(beam.angle)) * descriptor.range;
+  }
+
+  Offset? _lowestHealthEnemyPosition(Offset from, double maxRange) {
+    CosmicSurvivalEnemy? best;
+    var bestHealth = double.infinity;
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      if ((enemy.position - from).distance > maxRange) continue;
+      if (enemy.hp < bestHealth) {
+        bestHealth = enemy.hp;
+        best = enemy;
+      }
+    }
+    return best?.position;
+  }
+
+  double _distanceToSegment(Offset point, Offset a, Offset b) {
+    final ab = b - a;
+    final abLen2 = ab.dx * ab.dx + ab.dy * ab.dy;
+    if (abLen2 <= 0.0001) return (point - a).distance;
+    final ap = point - a;
+    final t = ((ap.dx * ab.dx + ap.dy * ab.dy) / abLen2)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final closest = a + ab * t;
+    return (point - closest).distance;
+  }
+
+  Offset? _nearestEnemyPosition(
+    Offset from, {
+    double maxRange = double.infinity,
+  }) {
+    CosmicSurvivalEnemy? best;
+    var bestDist = maxRange;
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      final d = (enemy.position - from).distance;
+      if (d < bestDist) {
+        bestDist = d;
+        best = enemy;
+      }
+    }
+    return best?.position;
+  }
+
+  CosmicSurvivalEnemy? _nearestCombatEnemy(
+    Offset from, {
+    required double maxRange,
+  }) {
+    CosmicSurvivalEnemy? best;
+    var bestDist = maxRange;
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      final d = (enemy.position - from).distance;
+      if (d < bestDist) {
+        bestDist = d;
+        best = enemy;
+      }
+    }
+    return best;
+  }
+
+  Offset _fallbackAimPoint(
+    DungeonCreature creature,
+    double range, {
+    double minDistance = 110,
+  }) {
+    final distance = max(minDistance, range);
+    final dir = Offset(cos(creature.angle), sin(creature.angle));
+    return creature.position + dir * distance;
+  }
+
+  void _applyProjectileAreaEffect(
+    Projectile projectile,
+    AbilityEffectKind effect,
+  ) {
+    final radius = CosmicAbilityRuntime.projectileEffectRadius(projectile);
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      if ((enemy.position - projectile.position).distance <= radius) {
+        _applyProjectileEffect(projectile, enemy, effect);
+      }
+    }
+  }
+
+  void _applyProjectileEffect(
+    Projectile projectile,
+    CosmicSurvivalEnemy enemy,
+    AbilityEffectKind effect,
+  ) {
+    if (effect == AbilityEffectKind.none || enemy.isDead) return;
+    // Survival's _applyAbilityEffectToEnemy, adapted: orb/ship heals become
+    // creature heals; flowers (survival's resource) are inert here.
+    final origin = projectile.position;
+    final rawPower = CosmicAbilityRuntime.projectileEffectPower(projectile);
+    final rawRadius = CosmicAbilityRuntime.projectileEffectRadius(projectile);
+    final effectPower = rawPower > 0 ? rawPower : 4.0;
+    final effectRadius = rawRadius > 0 ? rawRadius : 80.0;
+    final effectDuration = projectile.effectDuration > 0
+        ? projectile.effectDuration
+        : 1.5;
+    final slot = projectile.sourceSlotIndex;
+    switch (effect) {
+      case AbilityEffectKind.knockback:
+        final dir = enemy.position - origin;
+        final dist = dir.distance;
+        if (dist > 0.01) {
+          enemy.knockbackVelocity +=
+              (dir / dist) * (160.0 + effectPower * 8.0).clamp(120.0, 520.0);
+        }
+        break;
+      case AbilityEffectKind.slow:
+      case AbilityEffectKind.freeze:
+        enemy.slowTimer = max(
+          enemy.slowTimer,
+          CosmicAbilityRuntime.survivalCrowdControlDuration(
+            effect,
+            effectDuration,
+          ),
+        );
+        enemy.slowMultiplier = min(
+          enemy.slowMultiplier,
+          CosmicAbilityRuntime.survivalSlowMultiplier(effect),
+        );
+        if (effect == AbilityEffectKind.freeze) {
+          enemy.knockbackVelocity = Offset.zero;
+        }
+        break;
+      case AbilityEffectKind.root:
+        enemy.slowTimer = max(
+          enemy.slowTimer,
+          CosmicAbilityRuntime.survivalCrowdControlDuration(
+            effect,
+            effectDuration,
+          ),
+        );
+        enemy.slowMultiplier = min(
+          enemy.slowMultiplier,
+          CosmicAbilityRuntime.survivalSlowMultiplier(effect),
+        );
+        enemy.maneRootTimer = max(enemy.maneRootTimer, enemy.slowTimer);
+        _damageEnemyDirect(enemy, effectPower, sourceSlot: slot);
+        enemy.knockbackVelocity = Offset.zero;
+        break;
+      case AbilityEffectKind.stun:
+        enemy.slowTimer = max(
+          enemy.slowTimer,
+          CosmicAbilityRuntime.survivalCrowdControlDuration(
+            effect,
+            effectDuration,
+          ),
+        );
+        enemy.slowMultiplier = min(
+          enemy.slowMultiplier,
+          CosmicAbilityRuntime.survivalSlowMultiplier(effect),
+        );
+        enemy.attackCooldown = max(enemy.attackCooldown, effectDuration);
+        break;
+      case AbilityEffectKind.suppressShooting:
+        enemy.disorientTimer = max(enemy.disorientTimer, effectDuration);
+        enemy.attackCooldown = max(enemy.attackCooldown, effectDuration * 0.4);
+        break;
+      case AbilityEffectKind.burn:
+      case AbilityEffectKind.poison:
+      case AbilityEffectKind.zoneDamage:
+      case AbilityEffectKind.geyser:
+        _damageEnemyDirect(enemy, effectPower, sourceSlot: slot);
+        if (effect == AbilityEffectKind.geyser) {
+          enemy.knockbackVelocity += const Offset(0, -140);
+        }
+        break;
+      case AbilityEffectKind.execute:
+      case AbilityEffectKind.refraction:
+      case AbilityEffectKind.chargeBlast:
+        _damageEnemyDirect(
+          enemy,
+          CosmicAbilityRuntime.directDamageForEffect(
+            effect,
+            power: effectPower,
+            targetHp: enemy.hp,
+            targetHpFraction: enemy.hpFraction,
+          ),
+          sourceSlot: slot,
+        );
+        break;
+      case AbilityEffectKind.splash:
+      case AbilityEffectKind.split:
+      case AbilityEffectKind.chain:
+        _damageEnemiesNear(
+          enemy.position,
+          effectRadius,
+          effectPower * CosmicAbilityRuntime.splashMultiplier(effect),
+          sourceSlot: slot,
+          exclude: enemy,
+        );
+        break;
+      case AbilityEffectKind.pull:
+      case AbilityEffectKind.blackHole:
+        for (final other in combatEnemies) {
+          if (other.isDead) continue;
+          final dir = origin - other.position;
+          final dist = dir.distance;
+          if (dist <= 0.01 || dist > effectRadius) continue;
+          other.position += (dir / dist) * min(28.0, 720.0 / dist);
+          other.slowTimer = max(other.slowTimer, effectDuration);
+          other.slowMultiplier = min(other.slowMultiplier, 0.25);
+          if (effect == AbilityEffectKind.blackHole &&
+              other.hpFraction <= 0.18) {
+            _damageEnemyDirect(other, other.hp + 1, sourceSlot: slot);
+          }
+        }
+        break;
+      case AbilityEffectKind.leech:
+      case AbilityEffectKind.zoneHeal:
+        _healSourceCreature(slot, effectPower.toDouble());
+        if (slot == null) {
+          final comp = activeCombat;
+          final creature = active;
+          if (comp != null && creature != null) {
+            _healCreature(creature, comp, effectPower.toDouble());
+          }
+        }
+        break;
+      case AbilityEffectKind.buff:
+      case AbilityEffectKind.cooldownRefund:
+        final comp = _combatCompanionForSlot(slot);
+        if (comp != null) {
+          comp.basicHasteTimer = max(comp.basicHasteTimer, effectDuration);
+          comp.basicHasteMultiplier = min(comp.basicHasteMultiplier, 0.72);
+          if (effect == AbilityEffectKind.cooldownRefund) {
+            comp.specialCooldown = max(0, comp.specialCooldown - 0.45);
+          }
+          // Mask+Ice pillar passive: broadcast a damage amp to allies in
+          // range of the trap.
+          if (comp.member.family.toLowerCase() == 'mask' &&
+              comp.member.element == 'Ice') {
+            for (final ally in combatCompanions) {
+              if (ally.isDead) continue;
+              if ((ally.position - origin).distance > effectRadius * 1.4) {
+                continue;
+              }
+              ally.damageAmpTimer = max(ally.damageAmpTimer, effectDuration);
+              ally.damageAmpMultiplier = max(ally.damageAmpMultiplier, 2.4);
+            }
+          }
+        }
+        break;
+      case AbilityEffectKind.taunt:
+        enemy.slowTimer = max(enemy.slowTimer, effectDuration * 0.5);
+        break;
+      case AbilityEffectKind.carry:
+        final dir = enemy.position - origin;
+        final dist = dir.distance;
+        if (dist > 0.01) {
+          enemy.position = _clampToBounds(
+            enemy.position + (dir / dist) * 18.0,
+            currentRoom,
+          );
+        }
+        break;
+      case AbilityEffectKind.alchemyBonus:
+      case AbilityEffectKind.flower:
+        // Survival-only resource pickups — inert in dungeons.
+        break;
+      case AbilityEffectKind.none:
+        break;
+    }
+  }
+
+  bool _isAnyKinLightningChargeActive() {
+    for (final comp in combatCompanions) {
+      if (comp.kinLightningChargeTimer > 0 &&
+          comp.member.family.toLowerCase() == 'kin' &&
+          comp.member.element == 'Lightning') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  CosmicSurvivalCompanion? _combatCompanionForSlot(int? slotIndex) {
+    if (slotIndex == null) return null;
+    for (final comp in combatCompanions) {
+      if (comp.slotIndex == slotIndex) return comp;
+    }
+    return null;
+  }
+
+  void spawnWispWave({
+    required String element,
+    required Offset center,
+    int count = 3,
+    bool unstable = false,
+    bool announce = true, // false = the caller's own hint explains the wave
+  }) {
+    // Hard cap: the consequence layer harasses, it never floods the room.
+    final liveWisps = combatEnemies
+        .where((e) => !e.isDead && !identical(e, _guardianEnemy))
+        .length;
+    count = min(count, 10 - liveWisps);
+    if (count <= 0) return;
+    final wave = unstable ? 5 : 3;
+    final hpScale = CosmicSurvivalBalance.enemyWaveHpScale(wave);
+    final damageScale = CosmicSurvivalBalance.enemyWaveDamageScale(wave);
+    final speedScale = CosmicSurvivalBalance.enemyWaveSpeedScale(wave);
+    for (var i = 0; i < count; i++) {
+      final a = i * pi * 2 / max(1, count) + _combatRng.nextDouble() * 0.45;
+      final r = 70 + _combatRng.nextDouble() * 46;
+      combatEnemies.add(
+        CosmicSurvivalEnemy(
+          position: center + Offset(cos(a), sin(a)) * r,
+          hp: (unstable ? 34 : 24) * hpScale,
+          maxHp: (unstable ? 34 : 24) * hpScale,
+          speed: (unstable ? 92 : 76) * speedScale,
+          damage: (unstable ? 13 : 9) * damageScale,
+          radius: unstable ? 15 : 12,
+          tier: EnemyTier.wisp,
+          element: element,
+          role: CosmicEnemyRole.striker,
+          variant: unstable
+              ? SurvivalEnemyVariant.pouncer
+              : SurvivalEnemyVariant.standard,
+          target: CosmicEnemyTarget.companion,
+        ),
+      );
+    }
+    if (announce) _setHint('${unstable ? 'Unstable' : element} wisps gather');
+    onChanged();
+  }
+
+  void _maybeSpawnGuardianCombat(DungeonRoom room) {
+    final g = room.guardian;
+    if (g == null || !guardianAwake || hasStar(g.starIndex)) return;
+    if (_guardianEnemy != null && !_guardianEnemy!.isDead) return;
+    // A downed body whose victory hasn't been banked yet (the bank runs later
+    // in the frame) must not be replaced by a fresh guardian.
+    if (_guardianEnemy != null && _guardianEnemy!.isDead) return;
+    final hpScale =
+        CosmicSurvivalBalance.enemyWaveHpScale(7) * (raid?.hpMul ?? 1.0);
+    final damageScale =
+        CosmicSurvivalBalance.enemyWaveDamageScale(7) * (raid?.dmgMul ?? 1.0);
+    _guardianEnemy = CosmicSurvivalEnemy(
+      position: g.position,
+      hp: 220 * hpScale,
+      maxHp: 220 * hpScale,
+      speed: 58,
+      damage: 20 * damageScale,
+      radius: 38,
+      tier: EnemyTier.phantom,
+      element: g.encounter?.element ?? 'Air',
+      role: CosmicEnemyRole.hunter,
+      variant: SurvivalEnemyVariant.crusher,
+      target: CosmicEnemyTarget.companion,
+      isElite: true,
+    );
+    combatEnemies.add(_guardianEnemy!);
+    _setHint(
+      isRaid
+          ? 'The raid-maddened guardian descends — bring it down!'
+          : 'Roc descends — use Auto Attack and Ability',
+    );
+  }
+
+  /// Raid escalation: each time the guardian's HP crosses a configured
+  /// threshold, a wave of lesser storm-spawn joins the fight.
+  void _updateRaidPhases() {
+    final cfg = raid;
+    final g = _guardianEnemy;
+    if (cfg == null || g == null || g.isDead) return;
+    if (_raidPhaseIndex >= cfg.addPhaseThresholds.length) return;
+    final frac = g.maxHp <= 0 ? 0.0 : (g.hp / g.maxHp).clamp(0.0, 1.0);
+    if (frac > cfg.addPhaseThresholds[_raidPhaseIndex]) return;
+    _raidPhaseIndex++;
+    final hpScale = CosmicSurvivalBalance.enemyWaveHpScale(7);
+    final damageScale = CosmicSurvivalBalance.enemyWaveDamageScale(7);
+    final rng = Random(combatEnemies.length * 31 + _raidPhaseIndex);
+    for (var i = 0; i < 4; i++) {
+      final angle = (i / 4) * pi * 2 + rng.nextDouble() * 0.8;
+      final pos = g.position + Offset(cos(angle), sin(angle)) * 240;
+      final b = currentRoom.bounds.deflate(40);
+      final spawn = Offset(
+        pos.dx.clamp(b.left, b.right),
+        pos.dy.clamp(b.top, b.bottom),
+      );
+      final add = CosmicSurvivalEnemy(
+        position: spawn,
+        hp: 55 * hpScale,
+        maxHp: 55 * hpScale,
+        speed: 90,
+        damage: 8 * damageScale,
+        radius: 13,
+        tier: i.isEven ? EnemyTier.wisp : EnemyTier.drone,
+        element: g.element,
+        role: CosmicEnemyRole.hunter,
+        variant: SurvivalEnemyVariant.pouncer,
+        target: CosmicEnemyTarget.companion,
+      );
+      add.flightSteering = FlightSteeringState(rng);
+      combatEnemies.add(add);
+    }
+    _spawnAlchemyBurst(
+      g.position,
+      producedElement: g.element,
+      unstable: true,
+      particleCount: 22,
+      intensity: 1.1,
+    );
+    _setHint('The guardian shrieks — storm-spawn answer the call!', 3.0);
+  }
+
+  bool activateAutoAttack() {
+    final comp = activeCombat;
+    final creature = active;
+    if (comp == null || creature == null || !creature.alive) return false;
+    if (comp.basicCooldown > 0) {
+      _setHint('Auto attack cooling down');
+      onChanged();
+      return false;
+    }
+    _fireBasicAttack(activeIndex, allowFallbackAim: true);
+    onChanged();
+    return true;
+  }
+
+  /// Fire one basic attack for party slot [index] at the nearest enemy.
+  /// Manual taps ([allowFallbackAim]) fire even with no target; idle
+  /// companions only shoot when something is actually in range.
+  bool _fireBasicAttack(
+    int index, {
+    bool allowFallbackAim = false,
+    double cooldownScale = 1.0,
+  }) {
+    if (index < 0 ||
+        index >= creatures.length ||
+        index >= combatCompanions.length) {
+      return false;
+    }
+    final creature = creatures[index];
+    final comp = combatCompanions[index];
+    if (!creature.alive || comp.isDead || comp.basicCooldown > 0) return false;
+    // Manual presses auto-target the nearest enemy ANYWHERE in the room
+    // (never fire into empty air while something is on screen); idle
+    // companions keep their range gate so they don't snipe across the map.
+    final target = _nearestCombatEnemy(
+      creature.position,
+      maxRange: allowFallbackAim ? double.infinity : comp.attackRange,
+    );
+    if (target == null && !allowFallbackAim) return false;
+    final targetPoint =
+        target?.position ?? _fallbackAimPoint(creature, comp.attackRange);
+    // Kin auto-attack: charged thin laser instead of regular basics (same
+    // as survival). The charge holds the kin still; _updateKinAutoCharges
+    // fires the beam when it completes.
+    if (comp.member.family.toLowerCase() == 'kin') {
+      if (comp.kinAutoChargeTimer > 0) return false; // already charging
+      if (target == null) return false; // lasers need a real mark
+      comp.kinAutoChargeTimer = 0.001;
+      comp.kinAutoChargeTarget = targetPoint;
+      comp.kinAutoChargeEnemy = target;
+      final toKinTarget = targetPoint - creature.position;
+      if (toKinTarget.distance > 0.01) {
+        creature.angle = atan2(toKinTarget.dy, toKinTarget.dx);
+        comp.angle = creature.angle;
+      }
+      return true;
+    }
+    final toTarget = targetPoint - creature.position;
+    final angle = toTarget.distance > 0.01
+        ? atan2(toTarget.dy, toTarget.dx)
+        : creature.angle;
+    creature.angle = angle;
+    comp.angle = angle;
+    comp.basicCooldown = comp.effectiveBasicCooldown * cooldownScale;
+    final basics = createFamilyBasicAttack(
+      origin: creature.position,
+      angle: angle,
+      element: comp.member.element,
+      family: comp.member.family,
+      damage: comp.physAtk.toDouble() * comp.damageAmp,
+    );
+    for (final projectile in basics) {
+      projectile.sourceSlotIndex = comp.slotIndex;
+    }
+    combatProjectiles.addAll(basics);
+    if (comp.member.family.toLowerCase() == 'pip' &&
+        comp.member.element == 'Earth') {
+      comp.specialCooldown = max(0, comp.specialCooldown - 0.4);
+    }
+    return true;
+  }
+
+  /// Idle party members defend themselves: whenever an enemy drifts into
+  /// range they fire their family basic on a slightly relaxed cooldown, so
+  /// swap-control puzzling doesn't leave the rest of the team decorative.
+  void _updateIdleCompanionAttacks() {
+    if (combatEnemies.isEmpty) return;
+    for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
+      if (i == activeIndex) continue;
+      _fireBasicAttack(i, cooldownScale: 1.35);
+    }
+  }
+
+  bool activateCombatAbility() {
+    final comp = activeCombat;
+    final creature = active;
+    if (comp == null || creature == null) return false;
+    if (isPassiveOnlyCosmicAbility(comp.member.family, comp.member.element)) {
+      _setHint('This specimen\'s special works passively in combat');
+      onChanged();
+      return false;
+    }
+    if (comp.specialCooldown > 0) {
+      _setHint('Ability cooling down');
+      onChanged();
+      return false;
+    }
+    // Specials auto-target the nearest enemy anywhere in the room; the
+    // fallback aim point is only for genuinely empty rooms.
+    final target = _nearestCombatEnemy(
+      creature.position,
+      maxRange: double.infinity,
+    );
+    final targetPoint =
+        target?.position ??
+        _fallbackAimPoint(creature, comp.specialAbilityRange, minDistance: 150);
+    final toTarget = targetPoint - creature.position;
+    final angle = toTarget.distance > 0.01
+        ? atan2(toTarget.dy, toTarget.dx)
+        : creature.angle;
+    creature.angle = angle;
+    comp.angle = angle;
+    comp.specialCooldown =
+        comp.effectiveSpecialCooldown *
+        cosmicSurvivalSpecialCooldownMultiplier(comp.member.family);
+    if (comp.member.family.toLowerCase() == 'pip' &&
+        comp.member.element == 'Poison') {
+      for (final existing in combatProjectiles) {
+        if (existing.sourceSlotIndex == comp.slotIndex &&
+            existing.abilityFamily == 'pip' &&
+            existing.element == 'Poison' &&
+            existing.stationary) {
+          existing.life = 0;
+        }
+      }
+      comp.lastPipPoisonHitPos = null;
+    }
+    final result = createCosmicSpecialAbility(
+      origin: creature.position,
+      baseAngle: angle,
+      family: comp.member.family,
+      element: comp.member.element,
+      damage: comp.elemAtk * 1.15 * comp.damageAmp,
+      maxHp: comp.maxHp,
+      casterPower: comp.member.statIntelligence,
+      casterBeauty: comp.member.statBeauty,
+      casterIntelligence: comp.member.statIntelligence,
+      casterStrength: comp.member.statStrength,
+      targetPos: targetPoint,
+    );
+    for (final projectile in result.projectiles) {
+      projectile.sourceSlotIndex = comp.slotIndex;
+    }
+    _activateWingBeams(
+      result.beams,
+      sourceSlotIndex: comp.slotIndex,
+      origin: creature.position,
+      angle: angle,
+    );
+
+    // Companion-side support effects (shields / heals / blessing regen /
+    // attack haste) — same as survival's post-cast applier. Without this,
+    // support-flavoured specials (horn shields, kin blessings, the haste
+    // surge baked into manes like Fire) silently do nothing in dungeons.
+    _applySpecialSupportEffects(comp, creature, result);
+
+    // Mane+Spirit: each cast adds another shot to a tight machine-gun
+    // stream up to 10, then resets (ported from survival; abilityKillStacks
+    // doubles as the cast counter).
+    var specialProjectiles = result.projectiles;
+    if (comp.member.family.toLowerCase() == 'mane' &&
+        comp.member.element == 'Spirit' &&
+        specialProjectiles.isNotEmpty) {
+      final stacks = comp.abilityKillStacks.clamp(0, 9);
+      final shotCount = 1 + stacks;
+      final base = specialProjectiles.first;
+      final dir = Offset(cos(angle), sin(angle));
+      final perp = Offset(-dir.dy, dir.dx);
+      final soulSlashes = <Projectile>[];
+      for (var i = 0; i < shotCount; i++) {
+        final laneOffset = ((i % 3) - 1) * 2.5;
+        soulSlashes.add(
+          Projectile(
+            position: base.position - dir * (i * 9.0) + perp * laneOffset,
+            angle: angle + (i.isEven ? -0.018 : 0.018),
+            element: base.element,
+            damage: base.damage,
+            life: base.life + i * 0.025,
+            speedMultiplier: min(base.speedMultiplier + i * 0.012, 0.74),
+            radiusMultiplier: max(base.radiusMultiplier * 0.88, 0.72),
+            visualScale: max(base.visualScale * 0.86, 0.72),
+            piercing: base.piercing,
+            homing: base.homing,
+            homingStrength: base.homingStrength,
+            visualStyle: base.visualStyle,
+            sourceSlotIndex: comp.slotIndex,
+            abilityFamily: base.abilityFamily,
+            hitEffect: base.hitEffect,
+            killEffect: base.killEffect,
+            pierceEffect: base.pierceEffect,
+            effectPower: base.effectPower,
+            effectRadius: base.effectRadius,
+            effectDuration: base.effectDuration,
+          ),
+        );
+      }
+      specialProjectiles = soulSlashes;
+      comp.abilityKillStacks = comp.abilityKillStacks >= 9
+          ? 0
+          : comp.abilityKillStacks + 1;
+    }
+    // Mane+Lightning: fire 5–10 small sigil orbs toward scattered positions;
+    // each blooms into a shock field on arrival (ported from survival,
+    // scattered within the current room instead of the arena).
+    if (comp.member.family.toLowerCase() == 'mane' &&
+        comp.member.element == 'Lightning' &&
+        specialProjectiles.isNotEmpty) {
+      final base = specialProjectiles.first;
+      final orbCount = 5 + _combatRng.nextInt(6);
+      final scatterCenter = creature.position;
+      final scatterRadius = min(
+        420.0,
+        min(currentRoom.bounds.width, currentRoom.bounds.height) * 0.4,
+      );
+      final orbs = <Projectile>[];
+      for (var i = 0; i < orbCount; i++) {
+        final a = angle + i * 2.399963 + (_combatRng.nextDouble() - 0.5) * 0.42;
+        final dist = 120.0 + _combatRng.nextDouble() * scatterRadius;
+        final orbTarget = _clampToBounds(
+          scatterCenter + Offset(cos(a), sin(a)) * dist,
+          currentRoom,
+        );
+        final launchAngle = atan2(
+          orbTarget.dy - creature.position.dy,
+          orbTarget.dx - creature.position.dx,
+        );
+        final orb = Projectile(
+          position: Offset(
+            creature.position.dx + cos(launchAngle) * 24,
+            creature.position.dy + sin(launchAngle) * 24,
+          ),
+          angle: launchAngle,
+          element: 'Lightning',
+          damage: 0,
+          life: 2.9,
+          speedMultiplier: 0.82 + (i % 3) * 0.05,
+          piercing: true,
+          radiusMultiplier: 0.58,
+          visualScale: 0.62,
+          visualStyle: ProjectileVisualStyle.sigil,
+          sourceSlotIndex: comp.slotIndex,
+          abilityFamily: 'mane',
+          effectPower: base.damage * 0.30,
+          effectRadius: 44,
+          effectDuration: 1.0,
+          effectStacks: 1,
+        );
+        orb.cachedHomingTarget = orbTarget;
+        orbs.add(orb);
+      }
+      specialProjectiles = orbs;
+    }
+
+    final isHornCharge =
+        comp.member.family.toLowerCase() == 'horn' && result.chargeTimer > 0;
+    if (comp.member.family.toLowerCase() == 'horn') {
+      // On-kill payoff window (Steam chain-cast, Lava seekers, Blood heal).
+      comp.hornSpecialActiveWindow = 5.0 + result.windUpTime;
+    }
+    if (comp.member.family.toLowerCase() == 'kin' &&
+        comp.member.element == 'Lightning') {
+      // Tesla charge window: while live, every party hit chains lightning
+      // (the trigger in the hit loop reads this timer). Survival locks the
+      // AI kin in place; dungeon creatures are player-driven, so movement
+      // stays free.
+      comp.kinLightningChargeTimer =
+          10.0 *
+          _effStatScale(
+            comp.member.statIntelligence,
+            perPoint: 0.10,
+            min: 0.85,
+            max: 1.40,
+          );
+      _setHint('The kin hums with storm-charge — strikes now chain', 3.0);
+    }
+    if (isHornCharge) {
+      // Real horn flow (identical to survival): wind-up lock → dash with
+      // sweep damage → pending burst released at the impact point. Field
+      // caps keep impacts from dropping oversized bowls in a small room.
+      for (final p in specialProjectiles) {
+        if (p.snareRadius > 100) p.snareRadius = 100;
+        if (p.tauntRadius > 180) p.tauntRadius = 180;
+        if (p.effectRadius > 110) p.effectRadius = 110;
+        if (p.stationary && p.life < 2.5) p.life = 2.5;
+      }
+      comp.pendingChargeBurst = specialProjectiles;
+      comp.pendingChargeOrigin = creature.position;
+      comp.pendingChargeAngle = angle;
+      comp.chargeDamage = result.chargeDamage;
+      comp.chargeSpeedMultiplier = result.chargeSpeedMultiplier;
+      comp.chargeSweepRadius = min(result.chargeSweepRadius, 70);
+      comp.chargeOvershootDistance = result.chargeOvershootDistance;
+      comp.chargeFinalSweepRadius = min(result.chargeFinalSweepRadius, 80);
+      comp.chargeHitIds = <int>{};
+      comp.hornLightningAbsorbed = 0;
+      // Horn+Blood: HP sacrifice on cast — 18% of current HP banked into
+      // the impact damage (the creature pool is authoritative).
+      if (comp.member.element == 'Blood') {
+        final sac = (comp.currentHp * 0.18).round();
+        if (sac > 0 && comp.currentHp - sac > 1) {
+          creature.hp = (creature.hp - creature.maxHp * (sac / comp.maxHp))
+              .clamp(1.0, creature.maxHp);
+          comp.hitFlash = 1.0;
+          comp.chargeDamage += sac * 0.25;
+        }
+      }
+      if (result.windUpTime > 0) {
+        // Dark / Crystal / Spirit wind-up: hold in place, run the element
+        // tick (Dark pulls enemies into the brew), THEN dash.
+        comp.windUpTimer = result.windUpTime;
+        comp.windUpElement = result.windUpElement;
+        comp.windUpDashTarget = targetPoint;
+        comp.windUpFireAngle = angle;
+      } else if (comp.member.element == 'Water') {
+        // Curved circular charge sweeping around the cast point.
+        const circleDuration = 1.0;
+        comp.chargePathType = 'circle';
+        comp.chargeCircleCenter = creature.position;
+        comp.chargeCircleRadius = comp.chargeOvershootDistance
+            .clamp(90.0, 200.0)
+            .toDouble();
+        comp.chargeCircleAngle = angle - pi / 2;
+        comp.chargeCircleAngularSpeed = 2 * pi / circleDuration;
+        comp.chargeTimer = circleDuration;
+        comp.chargeTarget = null;
+      } else if (comp.member.element == 'Ice') {
+        // Dash sideways, painting an ice wall along the path.
+        const wallLength = 240.0;
+        final unit = toTarget.distance > 1
+            ? toTarget / toTarget.distance
+            : Offset(cos(angle), sin(angle));
+        final perp = Offset(-unit.dy, unit.dx);
+        comp.chargeTarget = _clampToBounds(
+          creature.position + perp * wallLength,
+          currentRoom,
+        );
+        comp.chargePathType = 'ice-wall';
+        comp.iceWallTrailTimer = 0;
+        final travelTime =
+            wallLength /
+            (CosmicSurvivalCompanion.chargeSpeed * comp.chargeSpeedMultiplier);
+        comp.chargeTimer = (travelTime + 0.10).clamp(0.3, 3.0);
+      } else {
+        _startDungeonHornCharge(
+          comp,
+          creature,
+          targetPoint,
+          result.chargeTimer,
+        );
+      }
+    } else {
+      final family = comp.member.family.toLowerCase();
+      if (family == 'mask' && comp.member.element == 'Plant') {
+        // Persistent feedable vine (identical to survival). Mask+Spirit is
+        // the deliberate exception — its wisps are ship-collected pickups,
+        // so it falls back to plain projectiles down here.
+        _feedOrSpawnMaskPlantVine(comp.slotIndex, specialProjectiles);
+      } else if (family == 'mask' && comp.member.element == 'Dust') {
+        _spawnMaskDustShields(comp.slotIndex, specialProjectiles);
+      } else {
+        combatProjectiles.addAll(specialProjectiles);
+      }
+    }
+    onChanged();
+    return true;
+  }
+
+  static const int _maskPlantMaxFeeds = 100;
+
+  /// Mask+Plant: one persistent vine per caster. First cast plants the
+  /// seed; every later cast feeds it (+1 stack), growing its snare/aura and
+  /// per-tick damage, gently re-anchoring toward the new cast spot.
+  void _feedOrSpawnMaskPlantVine(
+    int slotIndex,
+    List<Projectile> specialProjectiles,
+  ) {
+    if (specialProjectiles.isEmpty) return;
+    Projectile? existing;
+    for (final p in combatProjectiles) {
+      if (p.sourceSlotIndex == slotIndex &&
+          p.abilityFamily == 'mask' &&
+          p.element == 'Plant' &&
+          p.stationary) {
+        existing = p;
+        break;
+      }
+    }
+    if (existing == null) {
+      final seed = specialProjectiles.first;
+      seed.effectStacks = 1;
+      _applyMaskPlantVineFeed(seed, 1);
+      seed.abilityGrowthTimer = 2.0;
+      _spawnAlchemyBurst(
+        seed.position,
+        producedElement: 'Plant',
+        particleCount: 18,
+        intensity: 0.9,
+      );
+      combatProjectiles.add(seed);
+      return;
+    }
+    final newSeed = specialProjectiles.first;
+    final prevFeeds = existing.effectStacks;
+    final feeds = (prevFeeds + 1).clamp(1, _maskPlantMaxFeeds);
+    final newTendril = (feeds ~/ 10) != (prevFeeds ~/ 10);
+    existing.effectStacks = feeds;
+    existing.life = max(existing.life, newSeed.life);
+    final delta = newSeed.position - existing.position;
+    final dist = delta.distance;
+    if (dist > 0.01) {
+      existing.position += delta * (min(60.0, dist) / dist);
+    }
+    _applyMaskPlantVineFeed(existing, feeds);
+    existing.abilityGrowthTimer = newTendril ? 2.0 : 1.0;
+    _spawnAlchemyBurst(
+      existing.position,
+      producedElement: 'Plant',
+      particleCount: newTendril ? 18 : 9,
+      intensity: newTendril ? 1.0 : 0.6,
+    );
+  }
+
+  void _applyMaskPlantVineFeed(Projectile vine, int feeds) {
+    final t = (feeds / _maskPlantMaxFeeds).clamp(0.0, 1.0);
+    const baseSnare = 90.0;
+    const maxSnare = 300.0;
+    const baseEffect = 90.0;
+    const maxEffect = 320.0;
+    const baseVisual = 2.4;
+    const maxVisual = 6.5;
+    const baseRadius = 2.4;
+    const maxRadius = 6.5;
+    vine.snareRadius = baseSnare + (maxSnare - baseSnare) * t;
+    vine.snareMoveMultiplier = (0.5 - 0.40 * t).clamp(0.10, 0.50);
+    vine.effectRadius = baseEffect + (maxEffect - baseEffect) * t;
+    vine.visualScale = baseVisual + (maxVisual - baseVisual) * t;
+    vine.radiusMultiplier = baseRadius + (maxRadius - baseRadius) * t;
+    vine.effectPower = vine.effectPower == 0
+        ? 1.0 + 5.0 * t
+        : max(vine.effectPower, 1.0 + 5.0 * t);
+  }
+
+  /// Mask+Dust: a protective dust aura attached to every living party
+  /// member (the ship shield maps to "everyone" — no ship down here).
+  /// Refreshing casts top up life/charges instead of stacking.
+  void _spawnMaskDustShields(
+    int slotIndex,
+    List<Projectile> specialProjectiles,
+  ) {
+    if (specialProjectiles.isEmpty) return;
+    final seed = specialProjectiles.first;
+    final existing = <int, Projectile>{};
+    for (final p in combatProjectiles) {
+      if (p.sourceSlotIndex == slotIndex &&
+          p.abilityFamily == 'mask' &&
+          p.element == 'Dust' &&
+          p.attachedToSlot != -2) {
+        existing[p.attachedToSlot] = p;
+      }
+    }
+    void upsertShield(int targetSlot, Offset position) {
+      final prev = existing.remove(targetSlot);
+      if (prev != null) {
+        prev.life = max(prev.life, seed.life);
+        prev.interceptCharges = max(prev.interceptCharges, 5);
+        prev.abilityGrowthTimer = max(prev.abilityGrowthTimer, 0.8);
+        return;
+      }
+      combatProjectiles.add(
+        Projectile(
+          position: position,
+          angle: 0,
+          element: 'Dust',
+          damage: 0,
+          life: max(8.0, seed.life),
+          speedMultiplier: 0,
+          stationary: true,
+          piercing: true,
+          radiusMultiplier: max(1.4, seed.radiusMultiplier),
+          visualScale: max(1.6, seed.visualScale),
+          visualStyle: ProjectileVisualStyle.sigil,
+          sourceSlotIndex: slotIndex,
+          attachedToSlot: targetSlot,
+          abilityFamily: 'mask',
+          tickEffect: AbilityEffectKind.zoneDamage,
+          effectPower: max(seed.effectPower, 1.0),
+          effectRadius: max(72.0, seed.effectRadius),
+          effectDuration: seed.effectDuration,
+          interceptRadius: max(72.0, seed.effectRadius),
+          interceptCharges: 5,
+        ),
+      );
+    }
+
+    for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
+      if (!creatures[i].alive) continue;
+      upsertShield(combatCompanions[i].slotIndex, creatures[i].position);
+    }
+  }
+
+  void _startDungeonHornCharge(
+    CosmicSurvivalCompanion comp,
+    DungeonCreature creature,
+    Offset attackTarget,
+    double requestedChargeTimer,
+  ) {
+    final dir = attackTarget - creature.position;
+    final dist = dir.distance;
+    if (dist > 1) {
+      final overshoot = _clampToBounds(
+        attackTarget + (dir / dist) * comp.chargeOvershootDistance,
+        currentRoom,
+      );
+      comp.chargeTarget = overshoot;
+      final travelTime =
+          (overshoot - creature.position).distance /
+          (CosmicSurvivalCompanion.chargeSpeed * comp.chargeSpeedMultiplier);
+      comp.chargeTimer = (travelTime + 0.15).clamp(0.3, 3.0);
+    } else {
+      comp.chargeTarget = attackTarget;
+      comp.chargeTimer = requestedChargeTimer.clamp(0.3, 3.0);
+    }
+    comp.chargeHitIds = <int>{};
+  }
+
+  /// Per-frame kin laser charges: tick up while the kin holds still, then
+  /// fire a piercing line beam (physAtk × 4 — survival's cadence trade).
+  void _updateKinAutoCharges(double dt) {
+    for (var i = 0; i < combatCompanions.length && i < creatures.length; i++) {
+      final comp = combatCompanions[i];
+      final creature = creatures[i];
+      if (comp.kinAutoChargeTimer <= 0) continue;
+      if (!creature.alive) {
+        comp.kinAutoChargeTimer = 0;
+        comp.kinAutoChargeEnemy = null;
+        comp.kinAutoChargeTarget = null;
+        continue;
+      }
+      comp.kinAutoChargeTimer += dt;
+      if (comp.kinAutoChargeTimer < _kinChargeTime) continue;
+
+      // Fire: prefer the locked enemy if still alive, else nearest.
+      final locked = comp.kinAutoChargeEnemy;
+      final fireAt = (locked != null && !locked.isDead)
+          ? locked.position
+          : (_nearestCombatEnemy(
+                  creature.position,
+                  maxRange: comp.attackRange + 80,
+                )?.position ??
+                comp.kinAutoChargeTarget ??
+                creature.position + Offset(cos(creature.angle), 0) * 120);
+      final dir = fireAt - creature.position;
+      final dist = dir.distance;
+      comp.kinAutoChargeTimer = 0;
+      comp.kinAutoChargeTarget = null;
+      comp.kinAutoChargeEnemy = null;
+      comp.basicCooldown = comp.effectiveBasicCooldown;
+      if (dist < 0.01) continue;
+      final norm = dir / dist;
+      final beamLength = (dist + 60.0).clamp(120.0, 720.0).toDouble();
+      final beamEnd = creature.position + norm * beamLength;
+      final dmg = comp.physAtk.toDouble() * 4.0 * comp.damageAmp;
+      const lateral = 14.0;
+      for (final enemy in combatEnemies) {
+        if (enemy.isDead) continue;
+        final d = _distanceToSegment(
+          enemy.position,
+          creature.position,
+          beamEnd,
+        );
+        if (d <= enemy.radius + lateral) {
+          enemy.hp -= dmg * _enemyDamageTakenScale(enemy);
+          enemy.hitFlash = 0.18;
+          if (enemy.hp <= 0) enemy.isDead = true;
+        }
+      }
+      creature.angle = atan2(norm.dy, norm.dx);
+      comp.angle = creature.angle;
+      if (_kinBeams.length >= 12) _kinBeams.removeAt(0);
+      _kinBeams.add(
+        _KinBeamFx(
+          origin: creature.position,
+          end: beamEnd,
+          color: elementColor(comp.member.element),
+        ),
+      );
+    }
+  }
+
+  /// True while a cast sequence owns this companion's body (wind-up lock,
+  /// dash, post-dash storm brew, or kin laser charge) — joystick movement
+  /// is suspended for the active creature during these.
+  bool _castLocksMovement(CosmicSurvivalCompanion comp) =>
+      comp.windUpTimer > 0 ||
+      comp.chargeTimer > 0 ||
+      comp.hornPostDashWindUpTimer > 0 ||
+      comp.kinAutoChargeTimer > 0;
+
+  /// Per-frame horn cast machine — the survival flow driving the CREATURE
+  /// body: wind-up (locked, Dark pulls enemies in) → dash with sweep damage
+  /// and element trails → final sweep → pending burst released at impact
+  /// (Lightning brews 3s first).
+  void _updateHornCasts(double dt) {
+    for (var i = 0; i < combatCompanions.length && i < creatures.length; i++) {
+      final comp = combatCompanions[i];
+      final creature = creatures[i];
+      if (!creature.alive) {
+        comp.windUpTimer = 0;
+        comp.chargeTimer = 0;
+        comp.hornPostDashWindUpTimer = 0;
+        comp.pendingChargeBurst = null;
+        continue;
+      }
+
+      // ── Wind-up phase ──
+      if (comp.windUpTimer > 0) {
+        comp.windUpTimer -= dt;
+        if (comp.windUpElement == 'Dark') {
+          // Void-suck: drag enemies into the brew.
+          for (final e in combatEnemies) {
+            if (e.isDead) continue;
+            final toCaster = creature.position - e.position;
+            final d = toCaster.distance;
+            if (d > 1 && d < 200) {
+              e.position += toCaster / d * 95 * dt;
+            }
+          }
+        }
+        if (comp.windUpTimer <= 0) {
+          if (comp.windUpElement == 'Dark') {
+            // Capture the gathered cluster; the dash delivers them.
+            comp.hornDarkCaptured = [
+              for (final e in combatEnemies)
+                if (!e.isDead &&
+                    (e.position - creature.position).distance < 200 &&
+                    !identical(e, _guardianEnemy))
+                  e,
+            ];
+            final dir = Offset(
+              cos(comp.windUpFireAngle),
+              sin(comp.windUpFireAngle),
+            );
+            final dashTarget = _clampToBounds(
+              creature.position + dir * (comp.chargeOvershootDistance + 200),
+              currentRoom,
+            );
+            comp.chargeTarget = dashTarget;
+            comp.chargeHitIds = <int>{};
+            final travelTime =
+                (dashTarget - creature.position).distance /
+                (CosmicSurvivalCompanion.chargeSpeed *
+                    comp.chargeSpeedMultiplier);
+            comp.chargeTimer = (travelTime + 0.15).clamp(0.3, 3.0);
+          } else {
+            _startDungeonHornCharge(
+              comp,
+              creature,
+              comp.windUpDashTarget ?? creature.position,
+              1.0,
+            );
+          }
+        }
+        continue;
+      }
+
+      // ── Post-dash storm brew (Lightning) ──
+      if (comp.hornPostDashWindUpTimer > 0) {
+        comp.hornPostDashWindUpTimer -= dt;
+        // Visible storm: crackling particles swirl around the rooted horn
+        // (iceWallTrailTimer is idle outside dashes — reuse it as the FX
+        // cadence so no new field is needed).
+        comp.iceWallTrailTimer -= dt;
+        if (comp.iceWallTrailTimer <= 0) {
+          comp.iceWallTrailTimer = 0.16;
+          _spawnAlchemyBurst(
+            creature.position +
+                Offset(
+                  (_combatRng.nextDouble() - 0.5) * 44,
+                  (_combatRng.nextDouble() - 0.5) * 44,
+                ),
+            producedElement: 'Lightning',
+            unstable: true,
+            particleCount: 6,
+            intensity: 0.7,
+          );
+        }
+        if (comp.hornPostDashWindUpTimer <= 0) {
+          _releasePendingChargeBurst(comp, creature);
+        }
+        continue;
+      }
+
+      // ── Dash phase ──
+      if (comp.chargeTimer > 0) {
+        comp.chargeTimer -= dt;
+        // Horn+Lava: molten ember telegraph that brightens as the slam
+        // nears (survival's charge-time visual).
+        if (comp.member.element == 'Lava' &&
+            _alchemyParticles.length < 130 &&
+            _combatRng.nextDouble() < 0.55) {
+          final a = _combatRng.nextDouble() * 2 * pi;
+          final r = 18.0 + _combatRng.nextDouble() * 14.0;
+          _alchemyParticles.add(
+            _AlchemyParticle(
+              position: creature.position + Offset(cos(a), sin(a)) * r,
+              velocity: Offset(0, -30 - _combatRng.nextDouble() * 40),
+              color: _combatRng.nextBool()
+                  ? elementColor('Lava')
+                  : const Color(0xFFFFB050),
+              maxLife: 0.3 + _combatRng.nextDouble() * 0.25,
+              size: 1.4 + _combatRng.nextDouble() * 1.6,
+            ),
+          );
+        }
+        if (comp.chargePathType == 'circle' &&
+            comp.chargeCircleCenter != null) {
+          comp.chargeCircleAngle += comp.chargeCircleAngularSpeed * dt;
+          final center = comp.chargeCircleCenter!;
+          final desired = Offset(
+            center.dx + cos(comp.chargeCircleAngle) * comp.chargeCircleRadius,
+            center.dy + sin(comp.chargeCircleAngle) * comp.chargeCircleRadius,
+          );
+          creature.position = _moveDashing(
+            creature.position,
+            desired - creature.position,
+            currentRoom,
+          );
+          creature.angle = comp.chargeCircleAngle + pi / 2;
+          _hornSweepDamage(comp, creature, comp.chargeSweepRadius);
+        } else if (comp.chargeTarget != null) {
+          final dir = comp.chargeTarget! - creature.position;
+          final dist = dir.distance;
+          if (dist > 5) {
+            final step =
+                CosmicSurvivalCompanion.chargeSpeed *
+                comp.chargeSpeedMultiplier *
+                dt;
+            final before = creature.position;
+            // Airborne ram: crosses gaps/open sky; only walls stop it.
+            creature.position = _moveDashing(
+              creature.position,
+              (dir / dist) * min(step, dist),
+              currentRoom,
+            );
+            creature.angle = atan2(dir.dy, dir.dx);
+            // A wall stops the ram — impact happens there.
+            if ((creature.position - before).distance < step * 0.2) {
+              comp.chargeTimer = 0;
+            }
+            _hornSweepDamage(comp, creature, comp.chargeSweepRadius);
+            // Element trails along the dash path.
+            final element = comp.member.element;
+            if (comp.chargePathType == 'ice-wall' || element == 'Fire') {
+              comp.iceWallTrailTimer -= dt;
+              if (comp.iceWallTrailTimer <= 0) {
+                comp.iceWallTrailTimer = element == 'Fire' ? 0.12 : 0.05;
+                _spawnHornTrailSegment(comp, creature, element);
+              }
+            }
+          } else {
+            comp.chargeTimer = 0;
+          }
+        }
+        if (comp.chargeTimer <= 0) {
+          _finishHornCharge(comp, creature);
+        }
+      }
+    }
+  }
+
+  void _hornSweepDamage(
+    CosmicSurvivalCompanion comp,
+    DungeonCreature creature,
+    double sweepRadius,
+  ) {
+    final element = comp.member.family.toLowerCase() == 'horn'
+        ? comp.member.element
+        : null;
+    for (final e in combatEnemies) {
+      if (e.isDead) continue;
+      final d = (e.position - creature.position).distance;
+      if (d < e.radius + sweepRadius &&
+          !(comp.chargeHitIds?.contains(e.hashCode) ?? false)) {
+        comp.chargeHitIds?.add(e.hashCode);
+        e.hp -= comp.chargeDamage * _enemyDamageTakenScale(e);
+        e.hitFlash = 0.18;
+        if (e.hp <= 0) e.isDead = true;
+        // Horn+Plant: root survivors in place.
+        if (element == 'Plant' && !e.isDead) {
+          final rootScale = (0.80 + (comp.member.statIntelligence - 1) * 0.20)
+              .clamp(0.80, 1.80);
+          final dur = 3.0 * rootScale;
+          e.hornPlantRootTimer = max(e.hornPlantRootTimer, dur);
+          e.slowTimer = max(e.slowTimer, dur);
+          e.slowMultiplier = 0;
+        }
+        // Horn+Poison: heavy DoT on each swept enemy.
+        if (element == 'Poison' && !e.isDead) {
+          e.hp -= CosmicAbilityRuntime.directDamageForEffect(
+            AbilityEffectKind.poison,
+            power: comp.elemAtk * 0.40,
+            targetHp: e.hp,
+            targetHpFraction: e.hpFraction,
+          );
+          if (e.hp <= 0) e.isDead = true;
+        }
+      }
+    }
+  }
+
+  void _spawnHornTrailSegment(
+    CosmicSurvivalCompanion comp,
+    DungeonCreature creature,
+    String element,
+  ) {
+    final isFire = element == 'Fire';
+    combatProjectiles.add(
+      Projectile(
+        position: creature.position,
+        angle: 0,
+        element: element,
+        damage: 0,
+        life: isFire ? 2.4 : 3.2,
+        stationary: true,
+        piercing: true,
+        radiusMultiplier: 1.2,
+        visualScale: isFire ? 1.0 : 1.15,
+        visualStyle: ProjectileVisualStyle.sigil,
+        sourceSlotIndex: comp.slotIndex,
+        abilityFamily: 'horn',
+        tickEffect: isFire ? AbilityEffectKind.burn : AbilityEffectKind.slow,
+        effectPower: isFire ? comp.elemAtk * 0.30 : 0,
+        effectRadius: isFire ? 30 : 26,
+        effectDuration: isFire ? 1.2 : 1.6,
+        snareRadius: isFire ? 0 : 26,
+        snareMoveMultiplier: isFire ? 1.0 : 0.35,
+      ),
+    );
+  }
+
+  void _finishHornCharge(
+    CosmicSurvivalCompanion comp,
+    DungeonCreature creature,
+  ) {
+    _hornSweepDamage(comp, creature, comp.chargeFinalSweepRadius);
+    // Horn+Lightning: brew the storm for 3s, then discharge.
+    if (comp.member.family.toLowerCase() == 'horn' &&
+        comp.member.element == 'Lightning' &&
+        comp.pendingChargeBurst != null) {
+      comp.hornPostDashWindUpTimer = 3.0;
+      comp.iceWallTrailTimer = 0;
+      comp.chargeTarget = null;
+      comp.chargePathType = '';
+      comp.chargeCircleCenter = null;
+      _setHint('The storm brews — hits taken feed the discharge', 2.8);
+      return;
+    }
+    _releasePendingChargeBurst(comp, creature);
+  }
+
+  /// Survival's universal impact feedback: a small burst of element-colored
+  /// darts at every projectile hit. Capped so dense fights stay cheap.
+  void _spawnHitSpark(Offset pos, Color color) {
+    if (_alchemyParticles.length >= 150) return;
+    for (var i = 0; i < 6; i++) {
+      final a = _combatRng.nextDouble() * 2 * pi;
+      final spd = 40 + _combatRng.nextDouble() * 80;
+      _alchemyParticles.add(
+        _AlchemyParticle(
+          position: pos,
+          velocity: Offset(cos(a), sin(a)) * spd,
+          color: color,
+          maxLife: 0.3 + _combatRng.nextDouble() * 0.3,
+          size: 1.5 + _combatRng.nextDouble() * 2,
+        ),
+      );
+    }
+  }
+
+  void _spawnProjectileHitSpark(Projectile projectile) {
+    final color = elementColor(projectile.element ?? 'Fire');
+    if (projectile.visualStyle != ProjectileVisualStyle.mysticOrbital) {
+      _spawnHitSpark(projectile.position, color);
+      return;
+    }
+    if (_alchemyParticles.length >= 150) return;
+    for (var i = 0; i < 2; i++) {
+      final a = projectile.angle + pi + (_combatRng.nextDouble() - 0.5) * 1.2;
+      final spd = 26 + _combatRng.nextDouble() * 42;
+      _alchemyParticles.add(
+        _AlchemyParticle(
+          position: projectile.position,
+          velocity: Offset(cos(a), sin(a)) * spd,
+          color: color.withValues(alpha: 0.72),
+          maxLife: 0.16 + _combatRng.nextDouble() * 0.14,
+          size: 1.0 + _combatRng.nextDouble() * 1.2,
+        ),
+      );
+    }
+  }
+
+  /// Survival's per-element mane pierce verbs (resolveAbilityPierce),
+  /// adapted: orb heals become creature heals, arena clamps become room
+  /// clamps. Dedupe via effectHitIds so each enemy is verbed once per shot.
+  void _resolveAbilityPierce(Projectile projectile, CosmicSurvivalEnemy enemy) {
+    final id = identityHashCode(enemy);
+    if (!projectile.effectHitIds.add(id)) return;
+    if (projectile.abilityFamily == 'mane' && projectile.element == 'Air') {
+      final dir = Offset(cos(projectile.angle), sin(projectile.angle));
+      final pushDistance = max(
+        95.0,
+        projectile.effectPower * 0.72,
+      ).clamp(95.0, 180.0).toDouble();
+      enemy.position = _clampToBounds(
+        enemy.position + dir * pushDistance,
+        currentRoom,
+      );
+      enemy.knockbackVelocity += dir * 170;
+      enemy.slowTimer = max(
+        enemy.slowTimer,
+        max(0.45, projectile.effectDuration * 0.35),
+      );
+      enemy.slowMultiplier = min(enemy.slowMultiplier, 0.68);
+      _spawnHitSpark(enemy.position, elementColor('Air'));
+      return;
+    }
+    // "Carry": dragged along the projectile's path instead of pushed back.
+    if (projectile.pierceEffect == AbilityEffectKind.carry) {
+      final isManeWaterWall =
+          projectile.abilityFamily == 'mane' && projectile.element == 'Water';
+      final dragDistance = isManeWaterWall
+          ? max(
+              120.0,
+              projectile.effectPower * 0.85,
+            ).clamp(120.0, 190.0).toDouble()
+          : CosmicAbilityRuntime.maneCarryDistance(projectile.effectPower);
+      enemy.position = _clampToBounds(
+        enemy.position +
+            Offset(
+              cos(projectile.angle) * dragDistance,
+              sin(projectile.angle) * dragDistance,
+            ),
+        currentRoom,
+      );
+      enemy.slowTimer = max(
+        enemy.slowTimer,
+        projectile.effectDuration + (isManeWaterWall ? 0.8 : 0.0),
+      );
+      enemy.slowMultiplier = min(
+        enemy.slowMultiplier,
+        isManeWaterWall ? 0.38 : 0.55,
+      );
+      if (isManeWaterWall) {
+        _spawnHitSpark(enemy.position, elementColor('Water'));
+      }
+      return;
+    }
+    if (projectile.abilityFamily == 'mane') {
+      switch (projectile.element) {
+        case 'Plant':
+          // Tag so a kill-while-rooted detonates AOE.
+          enemy.maneRootSlot = projectile.sourceSlotIndex;
+          enemy.maneRootTimer = max(enemy.maneRootTimer, 2.6);
+          enemy.slowTimer = max(enemy.slowTimer, 2.6);
+          enemy.slowMultiplier = 0;
+          _spawnHitSpark(enemy.position, elementColor('Plant'));
+          break;
+        case 'Light':
+          // Ball gets bigger and hits harder per pierce.
+          const maxLightManeRadius = 28.0;
+          const maxLightManeVisual = 24.0;
+          if (projectile.radiusMultiplier < maxLightManeRadius) {
+            projectile.damage *= 2.0;
+            projectile.radiusMultiplier = min(
+              projectile.radiusMultiplier * 2.0,
+              maxLightManeRadius,
+            );
+            projectile.visualScale = min(
+              projectile.visualScale * 2.0,
+              maxLightManeVisual,
+            );
+            projectile.effectRadius = min(projectile.effectRadius * 2.0, 360);
+          }
+          _spawnHitSpark(enemy.position, elementColor('Light'));
+          break;
+        case 'Lava':
+          // Drop a lava blob (DoT zone) at the pierce point.
+          combatProjectiles.add(
+            Projectile(
+              position: enemy.position,
+              angle: 0,
+              element: 'Lava',
+              damage: 0,
+              life: 3.6,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              radiusMultiplier: 1.4,
+              visualScale: 1.3,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: projectile.sourceSlotIndex,
+              abilityFamily: 'mane',
+              tickEffect: AbilityEffectKind.burn,
+              effectPower: projectile.damage * 0.18,
+              effectRadius: 50,
+              effectDuration: 3.6,
+            ),
+          );
+          break;
+        case 'Blood':
+          // Every pierce restores HP — here the caster's creature instead
+          // of survival's orb.
+          final srcSlot = projectile.sourceSlotIndex;
+          if (srcSlot != null) {
+            final idx = combatCompanions.indexWhere(
+              (c) => c.slotIndex == srcSlot,
+            );
+            if (idx >= 0 && idx < creatures.length) {
+              _healCreature(
+                creatures[idx],
+                combatCompanions[idx],
+                max(2, (projectile.damage * 0.10).round()).toDouble(),
+              );
+            }
+          }
+          _spawnHitSpark(enemy.position, elementColor('Blood'));
+          break;
+        case 'Poison':
+          // Each pierce stacks poison; later hits sting harder per stack.
+          enemy.manePoisonStacks = (enemy.manePoisonStacks + 1).clamp(0, 8);
+          final stackMul = 1.0 + (enemy.manePoisonStacks - 1) * 0.20;
+          _damageEnemyDirect(
+            enemy,
+            CosmicAbilityRuntime.projectileEffectPower(projectile) * stackMul,
+            sourceSlot: projectile.sourceSlotIndex,
+          );
+          _spawnHitSpark(enemy.position, elementColor('Poison'));
+          return;
+        case 'Dark':
+          // Execute low-HP enemies caught in the slow void bolt's path.
+          if (enemy.hpFraction <= 0.18) {
+            _damageEnemyDirect(
+              enemy,
+              enemy.hp + 1,
+              sourceSlot: projectile.sourceSlotIndex,
+            );
+            _spawnHitSpark(enemy.position, elementColor('Dark'));
+          }
+          break;
+      }
+    }
+    _applyProjectileEffect(projectile, enemy, projectile.pierceEffect);
+  }
+
+  /// Survival's `_hornStatScale`: stat-driven multiplier around the 3.0
+  /// baseline.
+  double _effStatScale(
+    double stat, {
+    double perPoint = 0.12,
+    double min = 0.82,
+    double max = 1.22,
+  }) {
+    final clamped = stat.clamp(0.5, 8.0);
+    return (1.0 + (clamped - 3.0) * perPoint).clamp(min, max).toDouble();
+  }
+
+  /// Central damage funnel for player-sourced damage: applies the dungeon's
+  /// boss-scaling, flashes, and fires the kill-verb hook on a lethal blow.
+  void _damageEnemyDirect(
+    CosmicSurvivalEnemy enemy,
+    double amount, {
+    int? sourceSlot,
+    bool fromPipSpecial = false,
+  }) {
+    if (enemy.isDead || amount <= 0) return;
+    enemy.hp -= amount * _enemyDamageTakenScale(enemy);
+    enemy.hitFlash = max(enemy.hitFlash, 0.14);
+    if (enemy.hp <= 0) {
+      enemy.isDead = true;
+      _onEnemyKilledByPlayer(enemy, sourceSlot, fromPipSpecial: fromPipSpecial);
+    }
+  }
+
+  void _damageEnemiesNear(
+    Offset center,
+    double radius,
+    double damage, {
+    int? sourceSlot,
+    CosmicSurvivalEnemy? exclude,
+  }) {
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      if (exclude != null && identical(enemy, exclude)) continue;
+      if ((enemy.position - center).distance > radius) continue;
+      _damageEnemyDirect(enemy, damage, sourceSlot: sourceSlot);
+    }
+  }
+
+  /// Survival's `_healAllCompanionsAndShip`, minus the ship.
+  void _healAllCreatures(double amount) {
+    for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
+      if (!creatures[i].alive) continue;
+      _healCreature(creatures[i], combatCompanions[i], amount);
+    }
+  }
+
+  void _healSourceCreature(int? slot, double amount) {
+    if (slot == null) return;
+    final idx = combatCompanions.indexWhere((c) => c.slotIndex == slot);
+    if (idx < 0 || idx >= creatures.length) return;
+    _healCreature(creatures[idx], combatCompanions[idx], amount);
+  }
+
+  /// Survival's `_killEnemy` player-facing verbs: rooted-plant detonation,
+  /// horn on-kill payoffs, pip kill placements, Pip/Mask Spirit streaks.
+  void _onEnemyKilledByPlayer(
+    CosmicSurvivalEnemy enemy,
+    int? sourceSlot, {
+    bool fromPipSpecial = false,
+  }) {
+    if (sourceSlot == null) return;
+    final idx = combatCompanions.indexWhere((c) => c.slotIndex == sourceSlot);
+    final companion = idx >= 0 ? combatCompanions[idx] : null;
+
+    // Mane+Plant rooted explosion — root tags spread to the splashed.
+    if (enemy.maneRootSlot != null && enemy.maneRootTimer > 0) {
+      const explodeRadius = 165.0;
+      final explodeDamage = (companion?.elemAtk ?? 4) * 2.1;
+      for (final other in combatEnemies) {
+        if (other.isDead || identical(other, enemy)) continue;
+        if ((other.position - enemy.position).distance > explodeRadius) {
+          continue;
+        }
+        _damageEnemyDirect(
+          other,
+          explodeDamage,
+          sourceSlot: enemy.maneRootSlot,
+        );
+        other.maneRootSlot = enemy.maneRootSlot;
+        other.maneRootTimer = max(other.maneRootTimer, 1.4);
+        other.slowTimer = max(other.slowTimer, 1.4);
+        other.slowMultiplier = 0;
+      }
+      _spawnHitSpark(enemy.position, elementColor('Plant'));
+    }
+
+    if (companion == null) return;
+    final family = companion.member.family.toLowerCase();
+
+    // Horn special on-kill effects, gated by the cast's active window.
+    if (family == 'horn' && companion.hornSpecialActiveWindow > 0) {
+      _applyHornSpecialKillEffect(companion, enemy, sourceSlot);
+    }
+
+    _spawnPipKillPlacement(
+      sourceSlot,
+      companion,
+      enemy.position,
+      fromPipSpecial: fromPipSpecial,
+    );
+
+    // Pip+Spirit: kill streak charges an empower window.
+    if (family == 'pip' && companion.member.element == 'Spirit') {
+      companion.abilityKillStacks++;
+      final intel = companion.member.statIntelligence;
+      final spiritThreshold =
+          (8 * _effStatScale(intel, perPoint: -0.10, min: 0.55, max: 1.20))
+              .round()
+              .clamp(4, 10);
+      if (companion.abilityKillStacks >= spiritThreshold) {
+        companion.abilityKillStacks = 0;
+        companion.pipSpiritEmpowerTimer = max(
+          companion.pipSpiritEmpowerTimer,
+          6.0 * _effStatScale(intel, perPoint: 0.12, min: 0.85, max: 1.50),
+        );
+        _spawnHitSpark(companion.position, elementColor('Spirit'));
+      }
+    }
+
+    // Mask+Spirit: kills gather wisps; at the threshold they erupt.
+    if (family == 'mask' && companion.member.element == 'Spirit') {
+      companion.abilityKillStacks++;
+      const wispThreshold = 6;
+      if (companion.abilityKillStacks >= wispThreshold) {
+        companion.abilityKillStacks = 0;
+        final burstDamage = companion.elemAtk * 1.6;
+        const burstRadius = 220.0;
+        _damageEnemiesNear(
+          companion.position,
+          burstRadius,
+          burstDamage,
+          sourceSlot: sourceSlot,
+          exclude: enemy,
+        );
+        _spawnDetonationBurst(
+          companion.position,
+          elementColor('Spirit'),
+          burstRadius * 0.6,
+        );
+      }
+    }
+  }
+
+  /// Horn per-element on-kill payoffs (Steam chain-cast geyser, Lava seeker
+  /// flames, Blood self-heal) — survival's dispatcher, creature-pool heals.
+  void _applyHornSpecialKillEffect(
+    CosmicSurvivalCompanion comp,
+    CosmicSurvivalEnemy enemy,
+    int? sourceSlot,
+  ) {
+    switch (comp.member.element) {
+      case 'Steam':
+        comp.specialCooldown = 0;
+        final sizeScale = _effStatScale(
+          comp.member.statBeauty,
+          perPoint: 0.10,
+          min: 0.85,
+          max: 1.25,
+        );
+        final durScale = _effStatScale(
+          comp.member.statIntelligence,
+          perPoint: 0.08,
+          min: 0.88,
+          max: 1.20,
+        );
+        combatProjectiles.add(
+          Projectile(
+            position: enemy.position,
+            angle: 0,
+            element: 'Steam',
+            damage: 0,
+            life: 2.6 * durScale,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            radiusMultiplier: 1.6 * sizeScale,
+            visualScale: 1.6 * sizeScale,
+            visualStyle: ProjectileVisualStyle.hornImpact,
+            sourceSlotIndex: sourceSlot,
+            abilityFamily: 'horn',
+            tauntRadius: 100.0 * sizeScale,
+            tauntStrength: 1.0,
+            tickEffect: AbilityEffectKind.geyser,
+            effectPower: max(1.0, comp.elemAtk * 0.5),
+            effectRadius: 60.0 * sizeScale,
+            effectDuration: 2.6 * durScale,
+          ),
+        );
+        break;
+      case 'Lava':
+        _spawnDetonationBurst(enemy.position, elementColor('Lava'), 150);
+        final lavaScale = _effStatScale(
+          comp.member.statBeauty,
+          perPoint: 0.10,
+          min: 0.85,
+          max: 1.30,
+        );
+        final seekRadius = 280.0 * lavaScale;
+        final nearbyTargets = <CosmicSurvivalEnemy>[
+          for (final other in combatEnemies)
+            if (!other.isDead &&
+                !identical(other, enemy) &&
+                (other.position - enemy.position).distance <= seekRadius)
+              other,
+        ];
+        if (nearbyTargets.isEmpty) break;
+        final flameCount = min(
+          (4 * lavaScale).round().clamp(3, 6),
+          nearbyTargets.length,
+        );
+        for (var i = 0; i < flameCount; i++) {
+          final tgt = nearbyTargets[i % nearbyTargets.length];
+          final dir = tgt.position - enemy.position;
+          combatProjectiles.add(
+            Projectile(
+              position: enemy.position,
+              angle: atan2(dir.dy, dir.dx),
+              element: 'Fire',
+              damage: max(1.0, comp.elemAtk * 0.50),
+              life: 1.4,
+              speedMultiplier: 1.5,
+              homing: true,
+              homingStrength: 4.0,
+              piercing: false,
+              radiusMultiplier: 0.9,
+              visualScale: 0.95,
+              visualStyle: ProjectileVisualStyle.standard,
+              sourceSlotIndex: sourceSlot,
+              abilityFamily: 'horn',
+            ),
+          );
+        }
+        break;
+      case 'Blood':
+        final bloodScale = _effStatScale(
+          comp.member.statBeauty,
+          perPoint: 0.10,
+          min: 0.85,
+          max: 1.40,
+        );
+        _healSourceCreature(
+          sourceSlot,
+          max(2, (comp.maxHp * 0.05 * bloodScale).round()).toDouble(),
+        );
+        break;
+    }
+  }
+
+  /// Pip element-on-kill placements (Fire/Dust/Crystal pools from SPECIAL
+  /// kills, Dark black hole from AUTO kills) — survival's dispatcher.
+  void _spawnPipKillPlacement(
+    int? slot,
+    CosmicSurvivalCompanion? companion,
+    Offset position, {
+    bool fromPipSpecial = false,
+  }) {
+    if (companion == null) return;
+    if (companion.member.family.toLowerCase() != 'pip') return;
+    final element = companion.member.element;
+    final allowedBySource = switch (element) {
+      'Dark' => !fromPipSpecial,
+      'Fire' || 'Dust' || 'Crystal' => fromPipSpecial,
+      _ => true,
+    };
+    if (!allowedBySource) return;
+    final scale = companion.elemAtk * 0.20 + 4.0;
+    final sizeScale = _effStatScale(
+      companion.member.statBeauty,
+      perPoint: 0.10,
+      min: 0.85,
+      max: 1.30,
+    );
+    final durScale = _effStatScale(
+      companion.member.statIntelligence,
+      perPoint: 0.08,
+      min: 0.88,
+      max: 1.25,
+    );
+    switch (element) {
+      case 'Fire':
+        combatProjectiles.add(
+          Projectile(
+            position: position,
+            angle: 0,
+            element: 'Fire',
+            damage: 0,
+            life: 4.5 * durScale,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            radiusMultiplier: 1.6 * sizeScale,
+            visualScale: 1.4 * sizeScale,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: slot,
+            abilityFamily: 'pip',
+            tickEffect: AbilityEffectKind.burn,
+            effectPower: scale * 0.45,
+            effectRadius: 60 * sizeScale,
+            effectDuration: 4.5 * durScale,
+          ),
+        );
+        break;
+      case 'Dust':
+        combatProjectiles.add(
+          Projectile(
+            position: position,
+            angle: 0,
+            element: 'Dust',
+            damage: 0,
+            life: 3.5 * durScale,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            radiusMultiplier: 1.4 * sizeScale,
+            visualScale: 1.3 * sizeScale,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: slot,
+            abilityFamily: 'pip',
+            tickEffect: AbilityEffectKind.slow,
+            effectPower: scale * 0.18,
+            effectRadius: 70 * sizeScale,
+            effectDuration: 1.6 * durScale,
+          ),
+        );
+        break;
+      case 'Crystal':
+        combatProjectiles.add(
+          Projectile(
+            position: position,
+            angle: 0,
+            element: 'Crystal',
+            damage: 0,
+            life: 9.0 * durScale,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            decoy: true,
+            decoyHp: (18.0 + companion.elemAtk * 0.6) * sizeScale,
+            tauntRadius: 130 * sizeScale,
+            tauntStrength: 3.6,
+            effectRadius: 38 * sizeScale,
+            radiusMultiplier: 0.7 * sizeScale,
+            visualScale: 0.75 * sizeScale,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: slot,
+            abilityFamily: 'pip',
+          ),
+        );
+        break;
+      case 'Dark':
+        combatProjectiles.add(
+          Projectile(
+            position: position,
+            angle: 0,
+            element: 'Dark',
+            damage: 0,
+            life: 3.6,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            radiusMultiplier: 1.5 * sizeScale,
+            visualScale: 1.4 * sizeScale,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: slot,
+            abilityFamily: 'pip',
+            tickEffect: AbilityEffectKind.blackHole,
+            effectPower: scale * 0.32,
+            effectRadius: 120 * sizeScale,
+            effectDuration: 3.6 * durScale,
+          ),
+        );
+        break;
+    }
+  }
+
+  /// Survival's `resolveAbilityHit`: let meteors and mask traps run their
+  /// per-element on-contact dispatchers before the generic effect.
+  void _resolveAbilityHit(
+    Projectile projectile,
+    CosmicSurvivalEnemy enemy, {
+    required bool killed,
+  }) {
+    if (projectile.abilityFamily == 'let') {
+      _resolveLetMeteorHit(projectile, enemy);
+      return;
+    }
+    if (projectile.abilityFamily == 'mask') {
+      final consumed = _resolveMaskTrapHit(projectile, enemy);
+      if (consumed) {
+        if (killed) _resolveAbilityKill(projectile, enemy);
+        return;
+      }
+    }
+    _applyProjectileEffect(projectile, enemy, projectile.hitEffect);
+    if (killed) _resolveAbilityKill(projectile, enemy);
+  }
+
+  void _resolveAbilityKill(Projectile projectile, CosmicSurvivalEnemy enemy) {
+    if (projectile.abilityFamily == 'let') {
+      _resolveLetMeteorImpactAftermath(
+        projectile,
+        enemy.position,
+        primary: enemy,
+      );
+      return;
+    }
+    _applyProjectileEffect(projectile, enemy, projectile.killEffect);
+  }
+
+  /// Mask-family on-contact dispatcher (survival's `_resolveMaskTrapHit`).
+  /// Returns true when the element fully handles the hit.
+  bool _resolveMaskTrapHit(Projectile projectile, CosmicSurvivalEnemy enemy) {
+    switch (projectile.element ?? '') {
+      case 'Air':
+        projectile.abilityGrowthTimer = 1.0; // activation flash
+        return false;
+      case 'Light':
+        // The void is always lethal; bright collapse, then expire.
+        _damageEnemyDirect(
+          enemy,
+          enemy.hp + 1,
+          sourceSlot: projectile.sourceSlotIndex,
+        );
+        projectile.abilityGrowthTimer = 1.0;
+        projectile.life = min(projectile.life, 0.4);
+        return true;
+      case 'Dark':
+        // Yeet: sling the enemy hard away from the void hole.
+        final dir = enemy.position - projectile.position;
+        final dist = dir.distance;
+        if (dist > 0.01) {
+          final norm = dir / dist;
+          enemy.knockbackVelocity += norm * 820.0;
+          enemy.position = _clampToBounds(
+            enemy.position + norm * 48.0,
+            currentRoom,
+          );
+        }
+        enemy.slowTimer = max(enemy.slowTimer, 0.9);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.55);
+        return true;
+      case 'Crystal':
+        _damageEnemyDirect(
+          enemy,
+          projectile.damage,
+          sourceSlot: projectile.sourceSlotIndex,
+        );
+        _spawnMaskCrystalShards(projectile, enemy.position);
+        projectile.abilityGrowthTimer = 1.0;
+        projectile.life = min(projectile.life, 0.3);
+        return true;
+      case 'Fire':
+        _damageEnemyDirect(
+          enemy,
+          projectile.damage,
+          sourceSlot: projectile.sourceSlotIndex,
+        );
+        _spawnMaskFirePool(projectile, projectile.position);
+        projectile.abilityGrowthTimer = 1.0;
+        projectile.life = min(projectile.life, 0.35);
+        return true;
+      case 'Lightning':
+        // Field grows on each hit; damage ticks via the generic chain.
+        projectile.effectRadius = min(260.0, projectile.effectRadius + 14.0);
+        projectile.life = min(projectile.life + 0.6, 18.0);
+        return false;
+      case 'Blood':
+        // Tag for the permanent per-frame drain (consumed in the enemy
+        // update loop; drained HP heals the party).
+        enemy.maskBloodDrainSlot =
+            projectile.sourceSlotIndex ?? enemy.maskBloodDrainSlot;
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  void _spawnMaskCrystalShards(Projectile parent, Offset at) {
+    final baseAngle = _combatRng.nextDouble() * pi * 2;
+    for (var i = 0; i < 3; i++) {
+      final a = baseAngle + i * (pi * 2 / 3);
+      combatProjectiles.add(
+        Projectile(
+          position: at + Offset(cos(a), sin(a)) * 18.0,
+          angle: 0,
+          element: parent.element,
+          damage: parent.damage * 0.55,
+          life: 4.0,
+          speedMultiplier: 0,
+          stationary: true,
+          piercing: true,
+          radiusMultiplier: max(0.9, parent.radiusMultiplier * 0.55),
+          visualScale: max(1.0, parent.visualScale * 0.55),
+          visualStyle: ProjectileVisualStyle.sigil,
+          sourceSlotIndex: parent.sourceSlotIndex,
+          abilityFamily: 'mask',
+          hitEffect: AbilityEffectKind.splash,
+          effectPower: parent.effectPower * 0.55,
+          effectRadius: max(60.0, parent.effectRadius * 0.65),
+          effectDuration: 0,
+        ),
+      );
+    }
+  }
+
+  void _spawnMaskFirePool(Projectile parent, Offset at) {
+    combatProjectiles.add(
+      Projectile(
+        position: at,
+        angle: 0,
+        element: 'Fire',
+        damage: 0,
+        life: max(4.0, parent.effectDuration),
+        speedMultiplier: 0,
+        stationary: true,
+        piercing: true,
+        radiusMultiplier: max(1.2, parent.radiusMultiplier * 1.2),
+        visualScale: max(1.6, parent.visualScale * 1.2),
+        visualStyle: ProjectileVisualStyle.sigil,
+        sourceSlotIndex: parent.sourceSlotIndex,
+        abilityFamily: 'mask',
+        tickEffect: AbilityEffectKind.burn,
+        effectPower: parent.effectPower,
+        effectRadius: max(80.0, parent.effectRadius),
+        effectDuration: max(4.0, parent.effectDuration),
+      ),
+    );
+  }
+
+  /// Let meteor per-element ON-HIT verbs (survival's dispatcher).
+  void _resolveLetMeteorHit(Projectile projectile, CosmicSurvivalEnemy enemy) {
+    final element = projectile.element ?? '';
+    final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
+    switch (element) {
+      case 'Dust':
+        if (isMeteorCore) {
+          _spawnLetZone(
+            projectile,
+            enemy.position,
+            element: element,
+            tickEffect: AbilityEffectKind.slow,
+            radius: 130,
+            duration: 4.5,
+            power: projectile.effectPower * 0.25,
+          );
+        }
+        break;
+      case 'Lava':
+        if (isMeteorCore) {
+          _spawnLetZone(
+            projectile,
+            enemy.position,
+            element: element,
+            tickEffect: AbilityEffectKind.burn,
+            radius: 145,
+            duration: 4.2,
+            power: projectile.damage * 0.13,
+          );
+        }
+        break;
+      case 'Poison':
+        enemy.slowTimer = max(enemy.slowTimer, 2.2);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.72);
+        enemy.attackCooldown = max(enemy.attackCooldown, 1.4);
+        _damageEnemyDirect(
+          enemy,
+          projectile.damage * 0.20,
+          sourceSlot: projectile.sourceSlotIndex,
+        );
+        if (isMeteorCore) {
+          _spawnLetZone(
+            projectile,
+            enemy.position,
+            element: element,
+            tickEffect: AbilityEffectKind.poison,
+            radius: 116,
+            duration: 3.8,
+            power: projectile.damage * 0.08,
+            visualScale: 1.9,
+          );
+        }
+        break;
+      case 'Earth':
+        _healAllCreatures(projectile.damage * 0.26 * 0.4);
+        _damageEnemiesNear(
+          enemy.position,
+          max(150, projectile.effectRadius),
+          projectile.damage * 0.38,
+          sourceSlot: projectile.sourceSlotIndex,
+          exclude: enemy,
+        );
+        if (isMeteorCore) {
+          _spawnLetZone(
+            projectile,
+            enemy.position,
+            element: element,
+            tickEffect: AbilityEffectKind.stun,
+            radius: 128,
+            duration: 3.2,
+            power: projectile.damage * 0.10,
+            visualScale: 1.55,
+          );
+        }
+        break;
+      case 'Spirit':
+        if (!enemy.isDead &&
+            (enemy.hpFraction <= 0.35 ||
+                _combatRng.nextDouble() <= projectile.effectChance)) {
+          _damageEnemyDirect(
+            enemy,
+            enemy.hp + 1,
+            sourceSlot: projectile.sourceSlotIndex,
+          );
+        } else if (!enemy.isDead) {
+          _damageEnemyDirect(
+            enemy,
+            projectile.damage * 0.35,
+            sourceSlot: projectile.sourceSlotIndex,
+          );
+        }
+        break;
+      case 'Crystal':
+        enemy.slowTimer = max(enemy.slowTimer, 3.5);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.10);
+        enemy.knockbackVelocity = Offset.zero;
+        _damageEnemyDirect(
+          enemy,
+          projectile.damage * 0.25,
+          sourceSlot: projectile.sourceSlotIndex,
+        );
+        _damageEnemiesNear(
+          enemy.position,
+          max(140, projectile.effectRadius),
+          projectile.damage * 0.32,
+          sourceSlot: projectile.sourceSlotIndex,
+          exclude: enemy,
+        );
+        break;
+      case 'Lightning':
+        _triggerChainLightning(
+          sourceEnemy: enemy,
+          baseDamage: projectile.damage * 0.72,
+          sourceSlot: projectile.sourceSlotIndex,
+          remainingChains: max(2, projectile.effectCount),
+        );
+        _damageEnemyDirect(
+          enemy,
+          projectile.damage * 0.18,
+          sourceSlot: projectile.sourceSlotIndex,
+        );
+        break;
+      case 'Ice':
+        enemy.slowTimer = max(enemy.slowTimer, 3.2);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.05);
+        enemy.knockbackVelocity = Offset.zero;
+        break;
+      case 'Water':
+        _damageEnemiesNear(
+          enemy.position,
+          max(125, projectile.effectRadius),
+          projectile.damage * 0.42,
+          sourceSlot: projectile.sourceSlotIndex,
+          exclude: enemy,
+        );
+        break;
+      default:
+        break;
+    }
+    _resolveLetMeteorImpactAftermath(
+      projectile,
+      enemy.position,
+      primary: enemy,
+    );
+  }
+
+  /// Let meteor per-element AFTERMATH (zones, follow-ups, drains).
+  void _resolveLetMeteorImpactAftermath(
+    Projectile projectile,
+    Offset center, {
+    CosmicSurvivalEnemy? primary,
+  }) {
+    final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
+    switch (projectile.element) {
+      case 'Air':
+        final radius = max(180.0, projectile.effectRadius);
+        for (final enemy in combatEnemies) {
+          if (enemy.isDead) continue;
+          if ((enemy.position - center).distance > radius) continue;
+          final dir = enemy.position - center;
+          final dist = dir.distance;
+          if (dist > 0.01) {
+            enemy.knockbackVelocity +=
+                (dir / dist) * (340 + projectile.damage * 5.0).clamp(120, 760);
+          }
+        }
+        break;
+      case 'Plant':
+        if (isMeteorCore) {
+          for (var i = 0; i < 4; i++) {
+            final a = projectile.angle + (i - 1.5) * 0.75;
+            _spawnLetZone(
+              projectile,
+              _clampToBounds(
+                center + Offset(cos(a), sin(a)) * (28 + i * 8),
+                currentRoom,
+              ),
+              element: 'Plant',
+              tickEffect: AbilityEffectKind.zoneDamage,
+              radius: 64,
+              duration: 30.0,
+              power: projectile.damage * 0.22,
+              visualScale: 1.2,
+            );
+          }
+        }
+        break;
+      case 'Blood':
+        final drain = projectile.damage * 0.22;
+        final radius = max(170.0, projectile.effectRadius);
+        for (final enemy in combatEnemies) {
+          if (enemy.isDead) continue;
+          if (primary != null && identical(enemy, primary)) continue;
+          if ((enemy.position - center).distance > radius) continue;
+          _damageEnemyDirect(
+            enemy,
+            drain,
+            sourceSlot: projectile.sourceSlotIndex,
+          );
+          _kinBeams.add(
+            _KinBeamFx(
+              origin: enemy.position,
+              end: center,
+              color: elementColor('Blood'),
+            ),
+          );
+        }
+        _healAllCreatures(drain * 0.18);
+        break;
+      case 'Light':
+        if (isMeteorCore) {
+          _spawnLetZone(
+            projectile,
+            center,
+            element: 'Light',
+            tickEffect: AbilityEffectKind.zoneHeal,
+            radius: 130,
+            duration: 5.5,
+            power: projectile.damage * 0.16,
+            visualScale: 1.7,
+          );
+        }
+        break;
+      case 'Fire':
+        _damageEnemiesNear(
+          center,
+          max(555, projectile.effectRadius * 3.0),
+          projectile.damage * 0.72,
+          sourceSlot: projectile.sourceSlotIndex,
+          exclude: primary,
+        );
+        _spawnDetonationBurst(
+          center,
+          elementColor('Fire'),
+          max(240, projectile.effectRadius * 3.0),
+        );
+        break;
+      case 'Dark':
+        if (projectile.effectStacks == 0) {
+          _spawnDarkLetKillMeteors(projectile, center);
+        } else {
+          final radius = max(120.0, projectile.effectRadius);
+          for (final enemy in combatEnemies) {
+            if (enemy.isDead) continue;
+            final dir = center - enemy.position;
+            final dist = dir.distance;
+            if (dist <= 0.01 || dist > radius) continue;
+            enemy.position += (dir / dist) * min(28.0, 720.0 / dist);
+            enemy.slowTimer = max(enemy.slowTimer, projectile.effectDuration);
+            enemy.slowMultiplier = min(enemy.slowMultiplier, 0.25);
+          }
+        }
+        break;
+      case 'Steam':
+        if (isMeteorCore) {
+          _spawnLetZone(
+            projectile,
+            center,
+            element: 'Steam',
+            tickEffect: AbilityEffectKind.geyser,
+            radius: 115,
+            duration: 12.0,
+            power: projectile.damage * 0.12,
+            visualScale: 1.6,
+          );
+        }
+        break;
+      case 'Mud':
+        if (isMeteorCore) {
+          _spawnLetZone(
+            projectile,
+            center,
+            element: 'Mud',
+            tickEffect: AbilityEffectKind.stun,
+            radius: 130,
+            duration: 4.8,
+            power: projectile.damage * 0.08,
+            visualScale: 1.5,
+          );
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _spawnLetZone(
+    Projectile source,
+    Offset center, {
+    required String element,
+    required AbilityEffectKind tickEffect,
+    required double radius,
+    required double duration,
+    required double power,
+    double visualScale = 1.35,
+  }) {
+    combatProjectiles.add(
+      Projectile(
+        position: center,
+        angle: 0,
+        element: element,
+        damage: 0,
+        life: duration,
+        speedMultiplier: 0,
+        stationary: true,
+        piercing: true,
+        radiusMultiplier: max(1.0, radius / 28.0),
+        visualScale: visualScale,
+        visualStyle: ProjectileVisualStyle.letShard,
+        sourceSlotIndex: source.sourceSlotIndex,
+        abilityFamily: 'let',
+        tickEffect: tickEffect,
+        effectPower: power,
+        effectRadius: radius,
+        effectDuration: duration,
+      ),
+    );
+  }
+
+  void _spawnDarkLetKillMeteors(Projectile source, Offset center) {
+    final count = CosmicAbilityRuntime.darkLetFollowupCount(
+      source.letCasterIntelligence,
+    );
+    final seekRadius = max(420.0, source.effectRadius * 3.0);
+    final targets = <CosmicSurvivalEnemy>[
+      for (final enemy in combatEnemies)
+        if (!enemy.isDead && (enemy.position - center).distance <= seekRadius)
+          enemy,
+    ];
+    for (var i = 0; i < count; i++) {
+      final target = i < targets.length ? targets[i].position : null;
+      final a = target != null
+          ? atan2(target.dy - center.dy, target.dx - center.dx)
+          : source.angle + (i - 2) * 0.42;
+      combatProjectiles.add(
+        Projectile(
+          position: center - Offset(cos(a), sin(a)) * (46.0 + i * 8.0),
+          angle: a,
+          element: 'Dark',
+          damage: source.damage * 0.7,
+          life: 1.8,
+          speedMultiplier: 0.82,
+          radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
+          visualScale: max(3.5, source.visualScale * 2.0),
+          visualStyle: ProjectileVisualStyle.meteor,
+          homing: target != null,
+          homingStrength: 2.4,
+          sourceSlotIndex: source.sourceSlotIndex,
+          abilityFamily: 'let',
+          hitEffect: AbilityEffectKind.pull,
+          effectPower: source.effectPower * 0.85,
+          effectRadius: max(140.0, source.effectRadius),
+          effectDuration: source.effectDuration,
+          effectStacks: 1, // children never chain again
+        ),
+      );
+    }
+  }
+
+  void _triggerChainLightning({
+    required CosmicSurvivalEnemy sourceEnemy,
+    required double baseDamage,
+    required int remainingChains,
+    int? sourceSlot,
+  }) {
+    if (remainingChains <= 0 || sourceSlot == null) return;
+    var current = sourceEnemy;
+    for (var i = 0; i < remainingChains; i++) {
+      CosmicSurvivalEnemy? next;
+      var bestD = 135.0;
+      for (final other in combatEnemies) {
+        if (other.isDead || identical(other, current)) continue;
+        final d = (other.position - current.position).distance;
+        if (d < bestD) {
+          bestD = d;
+          next = other;
+        }
+      }
+      if (next == null) break;
+      final bounceDamage = baseDamage * (0.55 - i * 0.10).clamp(0.25, 0.55);
+      _spawnHitSpark(next.position, elementColor('Lightning'));
+      _kinBeams.add(
+        _KinBeamFx(
+          origin: current.position,
+          end: next.position,
+          color: elementColor('Lightning'),
+        ),
+      );
+      _damageEnemyDirect(next, bounceDamage, sourceSlot: sourceSlot);
+      current = next;
+    }
+  }
+
+  void _spawnDetonationBurst(Offset center, Color color, double radius) {
+    if (_alchemyParticles.length >= 150) return;
+    final burstCount = max(10, (radius / 10).round()).clamp(10, 26);
+    for (var i = 0; i < burstCount; i++) {
+      final angle = (i / burstCount) * pi * 2;
+      final speed = radius * (1.4 + _combatRng.nextDouble() * 0.6);
+      _alchemyParticles.add(
+        _AlchemyParticle(
+          position: center,
+          velocity: Offset(cos(angle), sin(angle)) * speed,
+          color: color.withValues(alpha: 0.92),
+          maxLife: 0.24 + _combatRng.nextDouble() * 0.22,
+          size: 3.0 + _combatRng.nextDouble() * 3.2,
+        ),
+      );
+    }
+  }
+
+  void _releasePendingChargeBurst(
+    CosmicSurvivalCompanion comp,
+    DungeonCreature creature,
+  ) {
+    final pending = comp.pendingChargeBurst;
+    if (pending != null && pending.isNotEmpty) {
+      final originDelta =
+          creature.position - (comp.pendingChargeOrigin ?? creature.position);
+      // Absorb-to-blast conversion scales with Beauty (survival's brew
+      // formula): 1.4 × statScale(0.85..1.40).
+      final absorbMul =
+          1.4 * (1.0 + (comp.member.statBeauty - 3.0) * 0.10).clamp(0.85, 1.40);
+      for (final p in pending) {
+        p.position = p.position + originDelta;
+        // Lightning discharge: absorbed damage pumps the chain zone.
+        if (p.tickEffect == AbilityEffectKind.chain &&
+            comp.hornLightningAbsorbed > 0) {
+          p.effectPower += comp.hornLightningAbsorbed * absorbMul;
+        }
+      }
+      comp.hornLightningAbsorbed = 0;
+      combatProjectiles.addAll(pending);
+      _spawnHitSpark(creature.position, elementColor(comp.member.element));
+      final isStorm = comp.member.element == 'Lightning';
+      _spawnAlchemyBurst(
+        creature.position,
+        producedElement: comp.member.element,
+        unstable: isStorm,
+        particleCount: isStorm ? 36 : 22,
+        intensity: isStorm ? 1.35 : 1.0,
+      );
+    }
+    // Horn+Dark: slam the captured cluster down at the arrival point.
+    final captured = comp.hornDarkCaptured;
+    if (captured != null && captured.isNotEmpty) {
+      for (final e in captured) {
+        if (e.isDead) continue;
+        final a = _combatRng.nextDouble() * 2 * pi;
+        final r = 20.0 + _combatRng.nextDouble() * 50.0;
+        e.position = _clampToBounds(
+          creature.position + Offset(cos(a) * r, sin(a) * r),
+          currentRoom,
+        );
+        e.hp -= comp.chargeDamage * 1.2 * _enemyDamageTakenScale(e);
+        e.hitFlash = 0.2;
+        if (e.hp <= 0) e.isDead = true;
+      }
+      comp.hornDarkCaptured = null;
+    }
+    comp.pendingChargeBurst = null;
+    comp.pendingChargeOrigin = null;
+    comp.chargeTarget = null;
+    comp.chargeHitIds = null;
+    comp.chargePathType = '';
+    comp.chargeCircleCenter = null;
+    // The airborne ram may end over open sky — settle back to footing
+    // (fall recovery for the player's body, snap for anything else).
+    if (!_onSolidGround(creature.position, currentRoom)) {
+      if (identical(creature, active) && !flightActive) {
+        _beginFallRecovery(
+          creature,
+          creature.lastSafe,
+          hint: 'The ram carried you over the void — drifting back',
+        );
+      } else {
+        creature.position = creature.lastSafe;
+      }
+    } else {
+      creature.lastSafe = creature.position;
+    }
+  }
+
+  /// Mirror survival's companion-side support effects. Heals are applied to
+  /// the CREATURE pool — it is authoritative (comp.currentHp is re-derived
+  /// from creature hp every frame by _syncCombatFromCreatures).
+  void _applySpecialSupportEffects(
+    CosmicSurvivalCompanion comp,
+    DungeonCreature creature,
+    CosmicSpecialResult result,
+  ) {
+    if (result.shieldHp > 0) {
+      comp.shieldHp = max(comp.shieldHp, result.shieldHp);
+    }
+    if (result.selfHeal > 0) {
+      _healCreature(creature, comp, result.selfHeal.toDouble());
+      _spawnAlchemyBurst(
+        creature.position,
+        producedElement: 'Light',
+        reagentElements: [creature.member.element],
+        particleCount: 12,
+        intensity: 0.6,
+      );
+    }
+    if (result.shipHeal > 0) {
+      // No ship down here — the party is the vessel: share it out.
+      for (
+        var i = 0;
+        i < creatures.length && i < combatCompanions.length;
+        i++
+      ) {
+        if (!creatures[i].alive) continue;
+        _healCreature(creatures[i], combatCompanions[i], result.shipHeal * 0.5);
+      }
+    }
+    if (result.blessingTimer > 0) {
+      comp.blessingTimer = max(comp.blessingTimer, result.blessingTimer);
+      comp.blessingHealPerTick = max(
+        comp.blessingHealPerTick,
+        result.blessingHealPerTick,
+      );
+    }
+    if (result.basicHasteTimer > 0) {
+      comp.basicHasteTimer = result.basicHasteTimer;
+      comp.basicHasteMultiplier = result.basicHasteMultiplier;
+    }
+  }
+
+  /// Heal a creature by an amount expressed in COMPANION hp units.
+  void _healCreature(
+    DungeonCreature creature,
+    CosmicSurvivalCompanion comp,
+    double compAmount,
+  ) {
+    if (!creature.alive || comp.maxHp <= 0) return;
+    creature.hp = (creature.hp + creature.maxHp * (compAmount / comp.maxHp))
+        .clamp(0.0, creature.maxHp);
+  }
+
+  // ── Utility activation ──────────────────────────────────
+
+  void activateAbility() {
+    final a = active;
+    if (a == null) return;
+    _spawnUtilitySignature(a);
+    // Object-driven interactions first (graded Perfect/Valid/Weak/Failed),
+    // so any creature near a conduit can attempt it (not just a Horn).
+    if (_tryChannel(a)) {
+      onChanged();
+      return;
+    }
+    // Airwing steadies the storm — extends energized conduit timers so the
+    // dual-conduit sync is achievable solo.
+    if (_tryStabilize(a)) {
+      onChanged();
+      return;
+    }
+    // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
+    if (_tryGuardian(a)) {
+      onChanged();
+      return;
+    }
+    // Wonder-cloud trials (ring conjunction, anvil shell, veil pinning) —
+    // checked before the generic Fire ignite so trial-specific recipe uses
+    // (Fire arcing the anvil shell) win over the flavour spark.
+    if (_tryWonderTrial(a)) {
+      onChanged();
+      return;
+    }
+    // The secret: with all three stars, commune at the compass's heart.
+    if (currentRoomId == 'hub' &&
+        starsEarnedCount >= 3 &&
+        (a.position - currentRoom.bounds.center).distance < 34) {
+      _setHint(
+        'The compass stills. Long before the storm, the Roc wove the first '
+        'wind through this loom — the planet remembers, and now it rests.',
+        7.5,
+      );
+      _spawnAlchemyBurst(
+        currentRoom.bounds.center,
+        producedElement: 'Light',
+        reagentElements: const ['Air', 'Spirit'],
+        particleCount: 20,
+        intensity: 0.8,
+      );
+      onChanged();
+      return;
+    }
+    // Fire-element contextual ignition (the Air+Fire→Lightning recipe).
+    if (a.member.element == 'Fire' && _tryFireIgnite(a)) {
+      onChanged();
+      return;
+    }
+    // Lightning answers its own: everything the braid electrifies, the
+    // storm-born arc directly (entry rune, conduit B, a carried Anvil).
+    if (a.member.element == 'Lightning' && _tryLightningArc(a)) {
+      onChanged();
+      return;
+    }
+    // Otherwise fall back to the creature's family ability.
+    switch (a.ability) {
+      case DungeonAbility.aerialTraversal:
+        _toggleGlide(a);
+        break;
+      case DungeonAbility.insight:
+        _doReveal(a);
+        break;
+      case DungeonAbility.heavyForce:
+        _setHint('${a.member.element} force ripples outward');
+        break;
+      case DungeonAbility.ancientStabilize:
+      case DungeonAbility.smallAccess:
+      case DungeonAbility.terrainTrail:
+      case DungeonAbility.guardianRelic:
+      case DungeonAbility.none:
+        _setHint(
+          '${a.member.element} energy answers, but nothing nearby takes',
+        );
+        break;
+    }
+    onChanged();
+  }
+
+  void _toggleGlide(DungeonCreature a) {
+    if (flightActive) {
+      flightActive = false;
+      // Folding wings over open sky must never strand the creature — drift
+      // back to the last solid footing (same recovery as meter exhaustion).
+      if (!_onSolidGround(a.position, currentRoom)) {
+        _beginFallRecovery(
+          a,
+          a.lastSafe,
+          hint: 'Wings folded mid-air — drifting back to footing',
+        );
+      }
+      return;
+    }
+    if (!_onSolidGround(a.position, currentRoom)) {
+      _setHint('Launch from solid ground');
+      return;
+    }
+    flightMax = glideSeconds(a.member.statSpeed);
+    flightMeter = flightMax;
+    flightActive = true;
+  }
+
+  void _doReveal(DungeonCreature a) {
+    final room = currentRoom;
+    if (room.clouds.isEmpty && room.anchors.isEmpty) {
+      // The rune hall: insight completes the mural's diagram.
+      if (room.id == 'storm_rune_hall') {
+        revealFlash = 0.6;
+        revealTier = revealHintTier(a.member.statIntelligence);
+        _setHint('The mural completes — BOTH pylons must sing at once', 3.6);
+        return;
+      }
+      // At the altar, a Mask reads the storm runes (sync hint).
+      if (room.conduits.isNotEmpty) {
+        _setHint(
+          'Storm runes: light BOTH conduits at once — '
+          'channel A, then arc B before A fades',
+        );
+      } else {
+        _setHint('Nothing hidden stirs here');
+      }
+      return;
+    }
+    revealFlash = 0.6;
+    revealTier = revealHintTier(a.member.statIntelligence);
+    // In a trial chamber, insight reads the TRIAL (it never bypasses it).
+    final sealed = _sealedWonderCloud(room);
+    if (sealed != null) {
+      _setHint(_wonderInsight(room.id, revealTier), 3.6);
+      return;
+    }
+    _setHint(
+      revealTier >= 2
+          ? 'The anchors show ghost outlines'
+          : revealTier >= 1
+          ? 'The anchors hint at cloud types; more Intelligence would clarify them'
+          : 'Needs more Intelligence to read the hidden pattern clearly',
+    );
+  }
+
+  /// Mask insight, tiered by Intelligence, for each wonder trial.
+  String _wonderInsight(String roomId, int tier) => switch (roomId) {
+    'spiral_cloud' =>
+      tier >= 1
+          ? 'Three eddies turn the gale — ride them outermost first, '
+                'then ever inward'
+          : 'The gale turns around unseen pivots — find its rhythm',
+    'ring_cloud' =>
+      tier >= 1
+          ? 'Air, Fire and Lightning circle the orbit — seal it the moment '
+                'all three gather'
+          : 'Three reagents wander the orbit — their meeting matters',
+    'anvil_cloud' =>
+      tier >= 1
+          ? 'Only storm-charge cracks the shell — Lightning\'s touch, or '
+                'Fire braided through the wind'
+          : 'The shell is deaf to all but the storm',
+    'feather_cloud' =>
+      tier >= 1
+          ? 'Catch three falling plumes before they settle — the wind '
+                'favours Air'
+          : 'What falls here must be caught, not found',
+    'veil_cloud' =>
+      tier >= 1
+          ? 'The folds breathe one at a time — pin each while it shows. '
+                'Firelight bares them; Lightning pins from afar'
+          : 'The shroud hides in plain sight, breathing',
+    _ => 'Something here waits to be earned',
+  };
+
+  /// Aerial-control role at the altar: refresh energized conduits so both can
+  /// be lit in time. Returns true if it did something. Speed scales the bonus.
+  bool _tryStabilize(DungeonCreature a) {
+    if (a.ability != DungeonAbility.aerialTraversal) return false;
+    if (currentRoom.conduits.isEmpty) return false;
+    if (!conduitEnergy.values.any((v) => v > 0)) return false;
+    final bonus = 2.0 + 3.0 * normStat(a.member.statSpeed);
+    conduitEnergy.updateAll((k, v) => v > 0 ? v + bonus : v);
+    _setHint('Aerial control steadies the storm currents');
+    _spawnAlchemyBurst(
+      a.position,
+      producedElement: 'Air',
+      reagentElements: const ['Air', 'Lightning'],
+    );
+    return true;
+  }
+
+  /// Try to channel a conduit the active creature is standing on. Returns true
+  /// if a conduit was nearby (action consumed). Quality-graded:
+  /// Perfect (right element + Horn) = full hold; Valid (right element, any
+  /// family) = half hold; otherwise a hint about what's needed.
+  bool _tryChannel(DungeonCreature a) {
+    for (final c in currentRoom.conduits) {
+      if (c.preferred == null) continue; // arc-only conduits (e.g. B)
+      if ((a.position - c.position).distance > 34) continue;
+      final q = evaluateInteraction(a.member, c.requirement);
+      final hold = channelHoldSeconds(a.member.statStrength);
+      switch (q) {
+        case InteractionQuality.perfect:
+          _energizeConduit(c.id, hold);
+          _setHint('Channeling conduit ${c.id}');
+          _spawnAlchemyBurst(
+            c.position,
+            producedElement: c.requireElement,
+            reagentElements: [a.member.element],
+          );
+          break;
+        case InteractionQuality.valid:
+          _energizeConduit(c.id, hold * 0.5);
+          _setHint(
+            'Channeling slowly — more Strength may hold this current longer',
+          );
+          _spawnAlchemyBurst(
+            c.position,
+            producedElement: c.requireElement,
+            reagentElements: [a.member.element],
+          );
+          break;
+        case InteractionQuality.weak:
+        case InteractionQuality.failed:
+          _setHint(
+            'Conduit ${c.id} hums with ${c.requireElement}; more Strength may be needed to hold it',
+          );
+          _spawnAlchemyBurst(
+            c.position,
+            producedElement: c.requireElement,
+            reagentElements: [a.member.element],
+            unstable: true,
+          );
+          break;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  bool _tryFireIgnite(DungeonCreature a) {
+    final room = currentRoom;
+    for (final cur in room.currents) {
+      if (!cur.rect.contains(a.position)) continue;
+      if (room.id == 'entry' && !entryDoorRevealed) {
+        entryDoorRevealed = true;
+        _discoverCloud(entryDoorDiscoveryId); // persist the reveal
+        final doorCenter = room.doors.isNotEmpty
+            ? room.doors.first.rect.center
+            : a.position;
+        _setHint('Air and Fire flare — the right passage reveals');
+        _spawnAlchemyBurst(
+          cur.rect.center,
+          producedElement: 'Lightning',
+          reagentElements: const ['Air', 'Fire'],
+          unstable: true,
+          particleCount: 34,
+          intensity: 1.35,
+        );
+        _spawnAlchemyBurst(
+          doorCenter,
+          producedElement: 'Lightning',
+          reagentElements: const ['Air', 'Fire'],
+          unstable: true,
+          particleCount: 26,
+          intensity: 1.15,
+        );
+        return true;
+      }
+      // Altar conduit B: light the arc.
+      for (final c in room.conduits) {
+        if (c.id == 'B' && c.requireElement == 'Fire') {
+          _energizeConduit('B', 4.0);
+          _setHint(
+            'Air and Fire braid into Lightning — conduit B arcs to life',
+          );
+          _spawnAlchemyBurst(
+            a.position,
+            producedElement: 'Lightning',
+            reagentElements: const ['Air', 'Fire'],
+            unstable: true,
+          );
+          return true;
+        }
+      }
+      // Loom: charge a carried Anvil into a Thundercloud.
+      if (carriedCloudType == 'Anvil') {
+        carriedCloudType = 'Thundercloud';
+        _setHint('Air and Fire braid through the cloud — thunder wakes inside');
+        _spawnAlchemyBurst(
+          a.position,
+          producedElement: 'Lightning',
+          reagentElements: const ['Air', 'Fire'],
+          unstable: true,
+        );
+        spawnWispWave(
+          element: 'Lightning',
+          center: a.position,
+          count: 2,
+          unstable: true,
+          announce: false, // "thunder wakes inside" stays on screen
+        );
+        return true;
+      }
+      _setHint('Air and Fire braid into a brief Lightning spark');
+      _spawnAlchemyBurst(
+        a.position,
+        producedElement: 'Lightning',
+        reagentElements: const ['Air', 'Fire'],
+        unstable: true,
+      );
+      return true;
+    }
+    return false;
+  }
+
+  /// Lightning answers its own: anywhere the Air+Fire braid would electrify
+  /// something, a Lightning creature arcs it DIRECTLY — the entry rune (from
+  /// inside the gust), conduit B (by touch), or a carried Anvil
+  /// ("electrifying the cloud"). Returns true if the arc was consumed.
+  bool _tryLightningArc(DungeonCreature a) {
+    final room = currentRoom;
+    // Entry passage: the gust carries the arc to the hidden door.
+    if (room.id == 'entry' && !entryDoorRevealed) {
+      for (final cur in room.currents) {
+        if (!cur.rect.contains(a.position)) continue;
+        entryDoorRevealed = true;
+        _discoverCloud(entryDoorDiscoveryId); // persist the reveal
+        final doorCenter = room.doors.isNotEmpty
+            ? room.doors.first.rect.center
+            : a.position;
+        _setHint('Lightning answers its own — the passage reveals');
+        _spawnAlchemyBurst(
+          cur.rect.center,
+          producedElement: 'Lightning',
+          unstable: true,
+          particleCount: 34,
+          intensity: 1.35,
+        );
+        _spawnAlchemyBurst(
+          doorCenter,
+          producedElement: 'Lightning',
+          unstable: true,
+          particleCount: 26,
+          intensity: 1.15,
+        );
+        return true;
+      }
+    }
+    // Arc-only conduits (B): a direct touch replaces the Fire-in-wind braid.
+    for (final c in room.conduits) {
+      if (c.preferred != null) continue; // channelled conduits use _tryChannel
+      if ((a.position - c.position).distance > 34) continue;
+      _energizeConduit(c.id, 4.0);
+      _setHint('The conduit drinks the arc — ${c.id} hums alive');
+      _spawnAlchemyBurst(
+        c.position,
+        producedElement: 'Lightning',
+        unstable: true,
+      );
+      return true;
+    }
+    // A carried Anvil: electrify the cloud directly, no wind needed.
+    if (carriedCloudType == 'Anvil') {
+      carriedCloudType = 'Thundercloud';
+      _setHint('The arc sinks into the anvil-cloud — thunder wakes inside');
+      _spawnAlchemyBurst(
+        a.position,
+        producedElement: 'Lightning',
+        unstable: true,
+      );
+      spawnWispWave(
+        element: 'Lightning',
+        center: a.position,
+        count: 2,
+        unstable: true,
+        announce: false, // "thunder wakes inside" stays on screen
+      );
+      return true;
+    }
+    return false;
+  }
+
+  /// Interact with an awake guardian nearby. Returns true if handled (consumed
+  /// the action). Two paths: a Kin with enough Beauty CALMS it instantly; any
+  /// other creature STRIKES it during the vulnerable lull (defeat over a few
+  /// hits). Either way → Star 3.
+  bool _tryGuardian(DungeonCreature a) {
+    final g = currentRoom.guardian;
+    if (g == null || !guardianAwake) return false;
+    if ((a.position - _guardianPosition(g)).distance > 90) return false;
+    final enc = g.encounter;
+    final canCalm = enc?.canCalm ?? true;
+    final canDefeat = enc?.canDefeat ?? true;
+    if (!guardianVulnerable) {
+      _setHint('The guardian rages — act during the lull');
+      return true;
+    }
+    // Elegant path: a high-Beauty Kin calms it at once.
+    if (canCalm &&
+        a.ability == DungeonAbility.ancientStabilize &&
+        charmOk(a.member.statBeauty)) {
+      if (!hasStar(g.starIndex)) earnStar(g.starIndex);
+      _guardianEnemy?.isDead = true;
+      _setHint('The guardian is calmed');
+      _spawnAlchemyBurst(
+        _guardianPosition(g),
+        producedElement: 'Light',
+        reagentElements: [a.member.element],
+      );
+      return true;
+    }
+    // Defeat path: strike during the lull. The strike and the party's
+    // projectiles drain the SAME pool (the combat body's hp) — a lull strike
+    // just takes a big fixed chunk of it.
+    if (!canDefeat) {
+      _setHint('This guardian can only be calmed — more Beauty may be needed');
+      return true;
+    }
+    // Pace the lull strikes (~2 per lull window) so the rage/lull rhythm
+    // stays the fight instead of four instant taps deleting it.
+    if (_guardianStrikeCooldown > 0) {
+      _setHint('The guardian reels — let the strike land');
+      return true;
+    }
+    _guardianStrikeCooldown = 1.2;
+    final e = _guardianEnemy;
+    if (e != null && !e.isDead) {
+      e.hp -= e.maxHp / maxGuardianHp;
+      e.hitFlash = 0.3;
+      if (e.hp <= 0) e.isDead = true; // _updateCombat banks the star
+    } else {
+      guardianHp -= 1; // fallback pool if the combat body never spawned
+    }
+    guardianHitFlash = 0.3;
+    if (_guardianHpFraction <= 0 || guardianHp <= 0) {
+      if (!hasStar(g.starIndex)) earnStar(g.starIndex);
+      _guardianEnemy?.isDead = true;
+      _setHint('The guardian is vanquished');
+      _spawnAlchemyBurst(
+        _guardianPosition(g),
+        producedElement: g.encounter?.element ?? 'Air',
+        reagentElements: [a.member.element],
+        unstable: true,
+      );
+    } else {
+      _setHint('You strike the guardian — its storm thins');
+    }
+    return true;
+  }
+
+  Offset _moveWithCollision(Offset from, Offset delta, DungeonRoom room) {
+    var pos = Offset(from.dx + delta.dx, from.dy);
+    if (_hitsWall(pos, room)) pos = Offset(from.dx, from.dy);
+    var pos2 = Offset(pos.dx, pos.dy + delta.dy);
+    if (_hitsWall(pos2, room)) pos2 = Offset(pos.dx, pos.dy);
+    return _clampToBounds(pos2, room);
+  }
+
+  bool _hitsWallRect(Offset center, DungeonRoom room) {
+    for (final w in room.walls) {
+      if (center.dx > w.left - _radius &&
+          center.dx < w.right + _radius &&
+          center.dy > w.top - _radius &&
+          center.dy < w.bottom + _radius) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _hitsWall(Offset center, DungeonRoom room) {
+    if (_hitsWallRect(center, room)) return true;
+    // When walking, you can't leave solid ground (gaps / open sky block you).
+    if (!flightActive && !_onSolidGround(center, room)) return true;
+    return false;
+  }
+
+  /// Horn-dash movement: the ram is airborne, so it crosses gaps and open
+  /// sky freely — only walls and the room bounds stop it. The caller settles
+  /// any over-the-void landing afterwards (fall recovery to last footing).
+  Offset _moveDashing(Offset from, Offset delta, DungeonRoom room) {
+    var pos = Offset(from.dx + delta.dx, from.dy);
+    if (_hitsWallRect(pos, room)) pos = Offset(from.dx, from.dy);
+    var pos2 = Offset(pos.dx, pos.dy + delta.dy);
+    if (_hitsWallRect(pos2, room)) pos2 = Offset(pos.dx, pos.dy);
+    return _clampToBounds(pos2, room);
+  }
+
+  Offset _clampToBounds(Offset c, DungeonRoom room) {
+    final b = room.bounds;
+    return Offset(
+      c.dx.clamp(b.left + _radius, b.right - _radius),
+      c.dy.clamp(b.top + _radius, b.bottom - _radius),
+    );
+  }
+
+  void _checkDoors(DungeonCreature a) {
+    if (_doorCooldown > 0) return;
+    for (final d in currentRoom.doors) {
+      if (isDoorHidden(currentRoom, d)) continue;
+      if (isDoorLocked(currentRoom, d)) {
+        // Sealed: the door refuses passage and explains its key.
+        if (d.rect.inflate(14).contains(a.position)) {
+          _setStatHint(
+            'The storm door is sealed — it parts only for both the Wind and '
+            'Loom stars',
+          );
+        }
+        continue;
+      }
+      if (d.rect.contains(a.position)) {
+        currentRoomId = d.targetRoomId;
+        _spreadCreaturesAround(d.targetSpawn);
+        _carryPursuersThroughDoor(d.targetSpawn);
+        // Don't carry loom clouds out of the loom.
+        carriedCloudId = null;
+        carriedCloudType = null;
+        _doorCooldown = 0.5;
+        final hint = _roomObjectiveHint(currentRoomId);
+        if (hint != null) _setHint(hint, 4.5);
+        _maybeSpawnGuardianCombat(currentRoom);
+        onChanged();
+        return;
+      }
+    }
+  }
+
+  /// Hidden doors don't exist yet — no render, no transition, no map mark.
+  ///  • The entry passage hides until the Air+Fire ignition reveals it.
+  ///  • The summit↔loom shortcut hides until the Wind Star (Star 1) is
+  ///    claimed: it's a reward EXIT from the climb, never a way to stroll
+  ///    to the top of it.
+  bool isDoorHidden(DungeonRoom room, DungeonDoor door) =>
+      (room.id == 'entry' &&
+          door.targetRoomId == 'hub' &&
+          !entryDoorRevealed) ||
+      (room.id == 'spire_summit' &&
+          door.targetRoomId == 'sky_loom' &&
+          !hasStar(0)) ||
+      (room.id == 'sky_loom' &&
+          door.targetRoomId == 'spire_summit' &&
+          !hasStar(0));
+
+  /// Star-gated doors: the storm wing stays sealed until the loom's relic
+  /// (Star 2) is woven, so the guardian reads as a true finale. Stars 1 and
+  /// 2 remain freely interleavable — this is the dungeon's only lock.
+  bool isDoorLocked(DungeonRoom room, DungeonDoor door) =>
+      room.id == 'sky_loom' &&
+      door.targetRoomId == 'storm_rune_hall' &&
+      !guardianRiteUnlocked;
+
+  /// Wisps pursue the party through doors: re-place them in a loose ring
+  /// around the arrival point (in the NEW room's coordinates) so they swoop
+  /// back in rather than getting clamped against a wall in stale coordinates.
+  /// The guardian never leaves its arena.
+  void _carryPursuersThroughDoor(Offset arrival) {
+    var k = 0;
+    for (final e in combatEnemies) {
+      if (e.isDead || identical(e, _guardianEnemy)) continue;
+      final a = k * 1.7 + _combatRng.nextDouble() * 0.6;
+      final r = 170.0 + _combatRng.nextDouble() * 70.0;
+      e.position = _clampToBounds(
+        arrival + Offset(cos(a), sin(a)) * r,
+        currentRoom,
+      );
+      e.flightSteering?.velocity = Offset.zero;
+      k++;
+    }
+  }
+
+  /// One-line "what to do here" on room entry (null once that room's
+  /// business is finished — no stale or pointless prompts).
+  String? _roomObjectiveHint(String roomId) {
+    final room = layout.rooms[roomId];
+    if (room == null || _roomCleared(room)) return null;
+    if (room.summit != null) {
+      return 'Wind Spire — glide through the rings in order, then reach the top';
+    }
+    if (room.loomStarIndex != null) {
+      return 'Sky Loom — each anchor whispers a riddle up close; '
+          'match it with the echo it describes';
+    }
+    if (room.guardian != null) {
+      return 'Storm Altar — light both conduits at once, then face the guardian';
+    }
+    // Star-1 ascent rooms: the ring path is live until the star banks.
+    if (room.rings.isNotEmpty && !hasStar(0)) {
+      return 'A sky-ring of the ascent turns here — glide through it, '
+          'or ride the thermals up';
+    }
+    // Wonder trial chambers (until their echo is earned).
+    if (_sealedWonderCloud(room) != null) {
+      return switch (roomId) {
+        'spiral_cloud' => 'Gale Eye — ride the three eddies, outermost inward',
+        'ring_cloud' =>
+          'The Conjunction — seal the orbit when the three reagents gather',
+        'anvil_cloud' =>
+          'Storm Forge — crack the shell with storm-charge, '
+              'then best its guardians',
+        'feather_cloud' =>
+          'The Moult — catch three falling plumes before they settle',
+        'veil_cloud' => 'The Shroud — pin each fold while it breathes',
+        _ => null,
+      };
+    }
+    // Storm-path connective rooms keep a pointer while Star 3 is open.
+    if (!hasStar(2)) {
+      return switch (roomId) {
+        'storm_rune_hall' =>
+          'The rune hall murmurs — a Mask can read the storm\'s order ahead',
+        'twin_conduit' =>
+          'Twin conduits — channel A with Lightning; arc B with Fire '
+              'through the wind, or Lightning\'s own touch',
+        'storm_altar' => 'The altar sleeps until its twin conduits sing',
+        _ => null,
+      };
+    }
+    return null;
+  }
+
+  void _checkHazards(DungeonCreature a, double dt) {
+    for (final h in currentRoom.hazards) {
+      if (h.contains(a.position)) {
+        a.hp = max(0, a.hp - _hazardDps * dt); // _handleDowns resolves a KO
+        return;
+      }
+    }
+  }
+
+  void _checkStars(DungeonCreature a) {
+    for (final s in currentRoom.stars) {
+      if (_earnedStars.contains(s.starIndex)) continue;
+      if ((a.position - s.position).distance < 28) {
+        earnStar(s.starIndex);
+      }
+    }
+  }
+
+  /// World position of the most recently earned star (the player is always
+  /// at/near it when it banks) — the screen uses it to launch the fly-up
+  /// animation from where the star was actually won.
+  Offset lastStarEarnPosition = Offset.zero;
+
+  /// Map a world position to screen coordinates (GameWidget fills the screen,
+  /// so screen space == viewport space).
+  Offset worldToScreen(Offset world) {
+    final cam = _cameraTopLeft(
+      currentRoom,
+      active?.position ?? currentRoom.bounds.center,
+    );
+    return world - cam;
+  }
+
+  /// Debug helper: wipe ALL banked progress for this dungeon — stars, cloud
+  /// discoveries, the entry reveal — and restart the run from the entrance,
+  /// as if entering the planet for the first time. (The screen clears the
+  /// persisted copy; this clears the live run.)
+  void debugResetDungeon() {
+    starMask = 0;
+    _earnedStars.clear();
+    discoveredClouds.clear();
+    _resetPuzzleState(); // re-derives entryDoorRevealed=false from cleared set
+    _placeAtEntrance();
+    _setHint('Dungeon progress reset (debug)');
+    onChanged();
+  }
+
+  /// Bank a star instantly (idempotent). Slice-2 persistence handles the save.
+  void earnStar(int starIndex) {
+    if (starIndex < 0 || starIndex > 2) return;
+    if (_earnedStars.contains(starIndex)) return;
+    _earnedStars.add(starIndex);
+    starMask |= (1 << starIndex);
+    lastStarEarnPosition = active?.position ?? currentRoom.bounds.center;
+    _spawnAlchemyBurst(
+      lastStarEarnPosition,
+      producedElement: 'Light',
+      reagentElements: const ['Air'],
+      particleCount: 26,
+      intensity: 1.1,
+    );
+    if (isRaid) {
+      // A raid has no stars to bank — the guardian falling IS the win.
+      _setHint('The raid is broken — the storm releases the planet', 4.2);
+      onRaidCleared?.call();
+      onChanged();
+      return;
+    }
+    onStarEarned(starIndex);
+    // Unlock announcements: each star opens something.
+    if (starIndex == 0) {
+      _setHint(
+        'The Wind Star is yours — a passage to the Sky Loom parts below',
+        4.2,
+      );
+      _queueDoorReveal('spire_summit', 'sky_loom');
+      _queueDoorReveal('sky_loom', 'spire_summit');
+    }
+    // The storm wing opens when the SECOND of the first two stars lands —
+    // either order.
+    if (starIndex <= 1 && guardianRiteUnlocked && !hasStar(2)) {
+      _setHint(
+        'Wind and Loom sing in accord — the storm door in the loom parts',
+        4.2,
+      );
+      _queueDoorReveal('sky_loom', 'storm_rune_hall');
+    }
+    onChanged();
+  }
+
+  // ── Render ──────────────────────────────────────────────
+
+  @override
+  void render(Canvas canvas) {
+    super.render(canvas);
+    final vp = Size(size.x, size.y);
+    final room = currentRoom;
+    final a = active;
+    final cam = _cameraTopLeft(room, a?.position ?? room.bounds.center);
+
+    // Screen-space atmosphere. Background = elemental shader, else gradient.
+    if (_sky.ready) {
+      _sky.paint(canvas, vp, _time, mood: _skyMood);
+    } else {
+      drawSky(canvas, vp); // gradient fallback
+    }
+    drawDriftingClouds(canvas, vp, _time); // soft faction-style clouds
+    _drawWindStreaks(canvas, vp); // the air itself, always moving
+    _ambient.ensure(vp);
+    if (_fx.ready) {
+      _ambient.render(canvas, _fx.mote!, _time);
+    }
+
+    canvas.save();
+    canvas.translate(-cam.dx, -cam.dy);
+
+    _renderIslandAndVoid(canvas, room);
+    _renderRoomLandmarks(canvas, room);
+    _renderCurrents(canvas, room);
+    _renderAlchemyParticles(canvas);
+    _renderHazards(canvas, room);
+    _renderWalls(canvas, room);
+    _renderDoors(canvas, room);
+    _renderDoorRevealFx(canvas);
+    _renderRingsAndSummit(canvas, room);
+    _renderClouds(canvas, room);
+    _renderAnchors(canvas, room);
+    _renderConduitsAndGuardian(canvas, room);
+    _renderStars(canvas, room);
+    _renderGlideTrail(canvas);
+    _renderWingBeams(canvas);
+    _renderKinBeams(canvas);
+    _renderCombatProjectiles(canvas);
+    _renderCombatEnemies(canvas);
+    _renderCreatures(canvas);
+    _renderCarriedCloud(canvas);
+
+    canvas.restore();
+
+    // Screen-space framing.
+    drawVignette(canvas, vp);
+  }
+
+  /// Ambient wind: a handful of thin streaks sliding across the viewport on
+  /// staggered loops — the Air planet's air, visible in every chamber.
+  /// 3 stroked paths per frame; negligible cost.
+  void _drawWindStreaks(Canvas canvas, Size vp) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 3; i++) {
+      final speed = 60.0 + i * 26;
+      final span = vp.width + 260;
+      final t = ((_time * speed + i * 467) % span) - 130;
+      final y = vp.height * (0.18 + 0.27 * i) + sin(_time * 0.7 + i * 2.1) * 26;
+      final len = 90.0 + i * 34;
+      final bow = 10.0 + i * 4;
+      final path = Path()
+        ..moveTo(t, y)
+        ..quadraticBezierTo(t + len * 0.5, y - bow, t + len, y + bow * 0.3);
+      paint.color = const Color(
+        0xFFBFD2E6,
+      ).withValues(alpha: 0.05 + 0.02 * i + 0.02 * _skyMood);
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  _AirRoomTheme _themeFor(DungeonRoom room) {
+    switch (room.id) {
+      case 'entry':
+        return _AirRoomTheme.entry;
+      case 'hub':
+        return _AirRoomTheme.hub;
+      case 'lower_spire':
+        return _AirRoomTheme.ascent;
+      case 'crosswind_hall':
+        return _AirRoomTheme.crosswind;
+      case 'cloud_platforms':
+        return _AirRoomTheme.cloudPlatform;
+      case 'spire_summit':
+        return _AirRoomTheme.summit;
+      case 'spiral_cloud':
+      case 'ring_cloud':
+      case 'anvil_cloud':
+      case 'feather_cloud':
+      case 'veil_cloud':
+        return _AirRoomTheme.wonderCloud;
+      case 'sky_loom':
+        return _AirRoomTheme.loom;
+      case 'relic_chamber':
+        return _AirRoomTheme.relic;
+      case 'storm_rune_hall':
+      case 'twin_conduit':
+      case 'storm_altar':
+        return _AirRoomTheme.storm;
+      case 'guardian_summit':
+        return _AirRoomTheme.guardian;
+    }
+    return _AirRoomTheme.generic;
+  }
+
+  bool _isStormRoom(DungeonRoom room) =>
+      _themeFor(room) == _AirRoomTheme.storm ||
+      _themeFor(room) == _AirRoomTheme.guardian;
+
+  /// Per-room sky mood: bright thin air at the summit, bruised storm-dark
+  /// in the storm wing — and permanent dawn once the planet is pacified
+  /// (all three stars).
+  double get _skyMoodTarget {
+    if (starsEarnedCount >= 3) return 0.95;
+    return switch (_themeFor(currentRoom)) {
+      _AirRoomTheme.summit => 0.78,
+      _AirRoomTheme.ascent ||
+      _AirRoomTheme.crosswind ||
+      _AirRoomTheme.cloudPlatform => 0.62,
+      _AirRoomTheme.loom || _AirRoomTheme.relic => 0.56,
+      _AirRoomTheme.storm => 0.3,
+      _AirRoomTheme.guardian => 0.22,
+      _ => 0.5,
+    };
+  }
+
+  void _renderRoomLandmarks(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    switch (_themeFor(room)) {
+      case _AirRoomTheme.entry:
+        _drawEntryIgnitionPuzzle(canvas, room);
+        _drawDistantSpireSilhouette(canvas, b);
+        break;
+      case _AirRoomTheme.hub:
+        _drawHubProgressCompass(canvas, room);
+        _drawRunePillars(canvas, b.center, 235, 4);
+        break;
+      case _AirRoomTheme.ascent:
+        _drawVerticalSpireGhost(canvas, b);
+        _drawHangingChains(canvas, room.platforms);
+        break;
+      case _AirRoomTheme.crosswind:
+        _drawBrokenBridgeLines(canvas, room.platforms);
+        _drawWindBanners(canvas, b);
+        break;
+      case _AirRoomTheme.cloudPlatform:
+        _drawMoonbeam(canvas, Offset(b.center.dx, 130), 120, 780);
+        _drawAmbientStarAnchors(canvas, const [
+          Offset(150, 350),
+          Offset(575, 510),
+          Offset(350, 710),
+        ]);
+        break;
+      case _AirRoomTheme.summit:
+        _drawWindSpireSummitEndpoint(canvas, room);
+        break;
+      case _AirRoomTheme.wonderCloud:
+        _drawWonderRoomLandmark(canvas, room);
+        break;
+      case _AirRoomTheme.loom:
+        _drawSkyLoomMechanism(canvas, b.center, 210, room);
+        break;
+      case _AirRoomTheme.relic:
+        _drawRelicShrine(canvas, b.center);
+        break;
+      case _AirRoomTheme.storm:
+        _drawStormFloor(canvas, b);
+        if (room.id == 'storm_altar') {
+          _drawStormAltar(canvas, b.center, active: guardianAwake);
+        }
+        if (room.id == 'storm_rune_hall') {
+          _drawStormMural(canvas, room);
+        }
+        break;
+      case _AirRoomTheme.guardian:
+        _drawStormFloor(canvas, b);
+        _drawCrownRuins(
+          canvas,
+          const Offset(410, 305),
+          270,
+          stormVariant: true,
+        );
+        break;
+      case _AirRoomTheme.generic:
+        break;
+    }
+  }
+
+  void _drawRuneCircle(Canvas canvas, Offset c, double r, Color color) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = color;
+    canvas.drawCircle(c, r, p);
+    canvas.drawCircle(
+      c,
+      r * 0.58,
+      p..color = color.withValues(alpha: color.a * 0.7),
+    );
+    for (var i = 0; i < 12; i++) {
+      final a = i * pi / 6 + _time * 0.03;
+      final p1 = c + Offset(cos(a), sin(a)) * r * 0.78;
+      final p2 = c + Offset(cos(a), sin(a)) * r * 0.92;
+      canvas.drawLine(p1, p2, p);
+    }
+  }
+
+  void _drawRouteLine(Canvas canvas, Offset from, Offset to, Color color) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+    final path = Path()
+      ..moveTo(from.dx, from.dy)
+      ..quadraticBezierTo(
+        (from.dx + to.dx) / 2,
+        (from.dy + to.dy) / 2 - 34,
+        to.dx,
+        to.dy,
+      );
+    canvas.drawPath(path, p);
+  }
+
+  void _drawHubProgressCompass(Canvas canvas, DungeonRoom room) {
+    final c = room.bounds.center;
+    final windProgress = hasStar(0)
+        ? 1.0
+        : summitOpen
+        ? 0.82
+        : (_ringProgress / max(1, _totalSpireRings))
+              .clamp(0.0, 0.72)
+              .toDouble();
+    // Only true cloud echoes count toward loom progress (synthetic discovery
+    // ids like the entry-door reveal use the same persistence channel).
+    final discoveredCloudCount = discoveredClouds
+        .where((id) => !id.startsWith('rune:'))
+        .length
+        .clamp(0, 5);
+    final loomAnchorCount = layout.rooms['sky_loom']?.anchors.length ?? 1;
+    final loomProgress = hasStar(1)
+        ? 1.0
+        : max(
+            discoveredCloudCount / 5 * 0.55,
+            filledAnchors.length / max(1, loomAnchorCount) * 0.9,
+          ).clamp(0.0, 0.92).toDouble();
+    final stormProgress = hasStar(2)
+        ? 1.0
+        : guardianAwake
+        ? 0.86
+        : altarOpen
+        ? 0.72
+        : conduitEnergy.isNotEmpty
+        ? 0.38
+        : 0.0;
+
+    _drawCelestialCompass(
+      canvas,
+      c,
+      170,
+      windProgress: windProgress,
+      loomProgress: loomProgress,
+      stormProgress: stormProgress,
+    );
+    // Pacified planet: the compass projects a slow constellation — the
+    // dungeon's quiet acknowledgement of a 3-star clear.
+    if (starsEarnedCount >= 3) {
+      _drawCelebrationConstellation(canvas, c);
+    }
+
+    for (final d in room.doors) {
+      final target = d.targetRoomId;
+      if (target == 'entry') {
+        // Way-back marker, not a progress route — no travelling motes.
+        _drawHubRouteLine(
+          canvas,
+          c,
+          d.rect.center,
+          const Color(0xFF74613A),
+          0.18,
+          motes: false,
+        );
+        continue;
+      }
+
+      if (target == 'lower_spire') {
+        _drawHubRouteLine(
+          canvas,
+          c,
+          d.rect.center,
+          const Color(0xFF5BC8E8),
+          windProgress,
+        );
+        continue;
+      }
+
+      if (target == 'spiral_cloud' || target == 'ring_cloud') {
+        final branchClouds = layout.rooms[target]?.clouds ?? const [];
+        final branchDiscovered = branchClouds.any(
+          (cloud) => discoveredClouds.contains(cloud.id),
+        );
+        if (!branchDiscovered) continue;
+        // Active marks while the discovered echo still needs carrying to the
+        // loom; once placed (or the loom star is earned) the route settles
+        // into a quiet "completed" line.
+        final branchDone =
+            hasStar(1) ||
+            branchClouds.every(
+              (cloud) =>
+                  placedClouds.contains(cloud.id) ||
+                  filledAnchors.values.contains(cloud.cloudType),
+            );
+        _drawHubRouteLine(
+          canvas,
+          c,
+          d.rect.center,
+          const Color(0xFFB9C7D6),
+          branchDone ? 0.4 : 0.7,
+          motes: !branchDone,
+        );
+        continue;
+      }
+
+      if (target == 'sky_loom') {
+        // Mere cloud discoveries only brighten this route quietly; the
+        // travelling progress motes start once the loom itself is engaged
+        // (an echo placed) — otherwise discovering a branch cloud sprays
+        // animated marks toward BOTH that branch and the loom at once.
+        final loomEngaged = filledAnchors.isNotEmpty || hasStar(1);
+        _drawHubRouteLine(
+          canvas,
+          c,
+          d.rect.center,
+          const Color(0xFFE4C16A),
+          loomProgress,
+          motes: loomEngaged,
+        );
+        if (stormProgress > 0) {
+          _drawHubRouteMotes(
+            canvas,
+            c,
+            d.rect.center,
+            const Color(0xFFFFFF8A),
+            stormProgress,
+            electric: true,
+          );
+          _drawHubDoorElectricAccent(canvas, d.rect.center, stormProgress);
+        }
+      }
+    }
+  }
+
+  void _drawEntryIgnitionPuzzle(Canvas canvas, DungeonRoom room) {
+    final gust = room.currents.isNotEmpty
+        ? room.currents.first.rect.center
+        : const Offset(360, 310);
+    final door = room.doors.isNotEmpty
+        ? room.doors.first.rect.center
+        : const Offset(708, 275);
+    final lit = entryDoorRevealed;
+    final cyan = const Color(0xFF5BC8E8);
+    final gold = const Color(0xFFE4C16A);
+    final lightning = const Color(0xFFFFFF8A);
+    final pulse = 0.55 + 0.45 * sin(_time * (lit ? 5.5 : 2.0)).abs();
+    final ringColor = lit ? lightning : cyan;
+
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        gust,
+        lit ? 132 : 82,
+        ringColor.withValues(alpha: lit ? 0.24 : 0.10),
+      );
+    }
+
+    _drawWindRing(
+      canvas,
+      gust,
+      56,
+      ringColor.withValues(alpha: lit ? 0.82 + 0.16 * pulse : 0.34),
+      active: lit,
+    );
+    _drawRuneCircle(
+      canvas,
+      gust,
+      86,
+      (lit ? gold : cyan).withValues(alpha: lit ? 0.38 : 0.14),
+    );
+
+    final streamPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = lit ? 2.0 : 1.2
+      ..color = (lit ? lightning : cyan).withValues(alpha: lit ? 0.52 : 0.12);
+    final path = Path()
+      ..moveTo(gust.dx + 62, gust.dy)
+      ..cubicTo(
+        gust.dx + 150,
+        gust.dy - 52,
+        door.dx - 130,
+        door.dy + 44,
+        door.dx - 12,
+        door.dy,
+      );
+    canvas.drawPath(path, streamPaint);
+
+    for (var i = 0; i < (lit ? 10 : 5); i++) {
+      final t = ((_time * (lit ? 0.75 : 0.28) + i / 10) % 1.0).toDouble();
+      final a = Offset.lerp(gust + const Offset(62, 0), door, t)!;
+      final wobble = Offset(
+        sin(_time * 4 + i) * (lit ? 9 : 5),
+        cos(_time * 3 + i * 1.4) * (lit ? 6 : 3),
+      );
+      canvas.drawCircle(
+        a + wobble,
+        lit ? 2.4 : 1.6,
+        Paint()
+          ..color = Color.lerp(
+            ringColor,
+            Colors.white,
+            lit ? 0.55 : 0.30,
+          )!.withValues(alpha: lit ? 0.58 : 0.22),
+      );
+    }
+
+    final veil = Rect.fromCenter(center: door, width: 76, height: 124);
+    if (!lit) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(veil, const Radius.circular(20)),
+        Paint()..color = const Color(0xFF0B111D).withValues(alpha: 0.86),
+      );
+      for (var i = 0; i < 5; i++) {
+        final x = door.dx - 25 + i * 12.5;
+        final p = Path()
+          ..moveTo(x, door.dy - 46)
+          ..cubicTo(
+            x + sin(_time + i) * 7,
+            door.dy - 18,
+            x - 4,
+            door.dy + 14,
+            x + sin(_time * 0.7 + i) * 7,
+            door.dy + 48,
+          );
+        canvas.drawPath(
+          p,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.3
+            ..strokeCap = StrokeCap.round
+            ..color = cyan.withValues(alpha: 0.16),
+        );
+      }
+    } else {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(veil, const Radius.circular(18)),
+        Paint()..color = cyan.withValues(alpha: 0.11 + 0.05 * pulse),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(veil, const Radius.circular(18)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..color = lightning.withValues(alpha: 0.68 + 0.20 * pulse),
+      );
+    }
+  }
+
+  void _drawHubRouteLine(
+    Canvas canvas,
+    Offset from,
+    Offset to,
+    Color baseColor,
+    double progress, {
+    bool electric = false,
+    bool motes = true,
+  }) {
+    final p = progress.clamp(0.0, 1.0).toDouble();
+    final path = Path()
+      ..moveTo(from.dx, from.dy)
+      ..quadraticBezierTo(
+        (from.dx + to.dx) / 2,
+        (from.dy + to.dy) / 2 - 34,
+        to.dx,
+        to.dy,
+      );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF74613A).withValues(alpha: 0.16),
+    );
+    if (p > 0.02) {
+      // Quiet routes (e.g. loom hinted by discoveries only) glow statically;
+      // the pulse + travelling motes mean "active progress here".
+      final pulse = motes ? 0.72 + 0.28 * sin(_time * (electric ? 9 : 4)) : 0.6;
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = electric ? 2.0 : 1.55
+          ..strokeCap = StrokeCap.round
+          ..color = baseColor.withValues(alpha: (0.18 + 0.58 * p) * pulse),
+      );
+      if (motes) {
+        _drawHubRouteMotes(canvas, from, to, baseColor, p, electric: electric);
+      }
+    }
+
+    final doorColor = p >= 1
+        ? const Color(0xFFE4C16A)
+        : Color.lerp(const Color(0xFF74613A), baseColor, p)!;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: to, width: 58, height: 18),
+        const Radius.circular(9),
+      ),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = p > 0.45 ? 1.7 : 1.0
+        ..color = doorColor.withValues(alpha: 0.30 + 0.55 * p),
+    );
+  }
+
+  void _drawHubRouteMotes(
+    Canvas canvas,
+    Offset from,
+    Offset to,
+    Color color,
+    double progress, {
+    required bool electric,
+  }) {
+    final count = (2 + progress * 5).round();
+    final control = Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2 - 34);
+    for (var i = 0; i < count; i++) {
+      final t = ((_time * (electric ? 0.85 : 0.45) + i / count) % 1.0)
+          .clamp(0.0, 1.0)
+          .toDouble();
+      final a = Offset.lerp(from, control, t)!;
+      final b = Offset.lerp(control, to, t)!;
+      final pos = Offset.lerp(a, b, t)!;
+      if (electric) {
+        final jitter = Offset(
+          sin(_time * 12 + i) * 5,
+          cos(_time * 10 + i * 1.7) * 4,
+        );
+        canvas.drawLine(
+          pos - jitter * 0.55,
+          pos + jitter,
+          Paint()
+            ..strokeWidth = 1.1
+            ..strokeCap = StrokeCap.round
+            ..color = Colors.white.withValues(alpha: 0.62 * progress),
+        );
+      }
+      canvas.drawCircle(
+        pos,
+        electric ? 2.3 : 2.0,
+        Paint()
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            electric ? 0.55 : 0.24,
+          )!.withValues(alpha: 0.42 + 0.42 * progress),
+      );
+    }
+  }
+
+  void _drawHubDoorElectricAccent(
+    Canvas canvas,
+    Offset center,
+    double progress,
+  ) {
+    final p = progress.clamp(0.0, 1.0).toDouble();
+    if (p <= 0.02) return;
+    final pulse = 0.55 + 0.45 * sin(_time * 9).abs();
+    final color = const Color(0xFFFFFF8A);
+    final rect = Rect.fromCenter(center: center, width: 70, height: 24);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(12)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2 + p * 0.8
+        ..color = color.withValues(alpha: (0.22 + p * 0.38) * pulse),
+    );
+
+    final sparkPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.36 * p * pulse);
+    for (var i = 0; i < 3; i++) {
+      final phase = _time * 7 + i * 2.1;
+      final side = i.isEven ? -1.0 : 1.0;
+      final start = center + Offset(side * (26 + sin(phase) * 4), -8 + i * 7);
+      canvas.drawLine(
+        start,
+        start + Offset(side * 8, 3 + cos(phase) * 3),
+        sparkPaint,
+      );
+      canvas.drawLine(
+        start + Offset(side * 8, 3 + cos(phase) * 3),
+        start + Offset(side * 3, 9 + sin(phase * 0.7) * 2),
+        sparkPaint,
+      );
+    }
+  }
+
+  void _drawDistantSpireSilhouette(Canvas canvas, Rect b) {
+    final c = Offset(b.right - 120, b.top + 155);
+    final p = Paint()..color = const Color(0xFF070B13).withValues(alpha: 0.38);
+    final path = Path()
+      ..moveTo(c.dx, c.dy - 120)
+      ..lineTo(c.dx + 38, c.dy + 90)
+      ..lineTo(c.dx - 42, c.dy + 90)
+      ..close();
+    canvas.drawPath(path, p);
+    canvas.drawCircle(
+      c + const Offset(0, -32),
+      42,
+      Paint()..color = const Color(0xFF5BC8E8).withValues(alpha: 0.035),
+    );
+  }
+
+  /// Seven stars wheel slowly around the compass, joined by faint threads —
+  /// drawn only after all three stars are banked.
+  void _drawCelebrationConstellation(Canvas canvas, Offset c) {
+    final pts = <Offset>[];
+    for (var i = 0; i < 7; i++) {
+      final a = _time * 0.12 + i * pi * 2 / 7;
+      final r = 120.0 + 46 * sin(i * 1.7 + _time * 0.2);
+      pts.add(c + Offset(cos(a), sin(a)) * r);
+    }
+    final thread = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = const Color(0xFFE4C16A).withValues(alpha: 0.22);
+    for (var i = 0; i < pts.length; i++) {
+      canvas.drawLine(pts[i], pts[(i + 2) % pts.length], thread);
+    }
+    for (var i = 0; i < pts.length; i++) {
+      final tw = 0.55 + 0.45 * sin(_time * 2.2 + i * 1.3);
+      _drawStarGlyph(
+        canvas,
+        pts[i],
+        4.5 + 1.5 * tw,
+        Color.lerp(
+          const Color(0xFFE4C16A),
+          Colors.white,
+          0.4,
+        )!.withValues(alpha: 0.5 + 0.4 * tw),
+      );
+    }
+  }
+
+  void _drawCelestialCompass(
+    Canvas canvas,
+    Offset c,
+    double r, {
+    double windProgress = 0,
+    double loomProgress = 0,
+    double stormProgress = 0,
+  }) {
+    _drawRuneCircle(
+      canvas,
+      c,
+      r,
+      const Color(0xFFC4A35A).withValues(alpha: 0.25),
+    );
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF5BC8E8).withValues(alpha: 0.32);
+    for (var i = 0; i < 8; i++) {
+      final a = i * pi / 4;
+      final p1 = c + Offset(cos(a), sin(a)) * r * 0.18;
+      final p2 = c + Offset(cos(a), sin(a)) * r * (i.isEven ? 0.95 : 0.62);
+      canvas.drawLine(p1, p2, p);
+    }
+    _drawStarGlyph(
+      canvas,
+      c,
+      18,
+      const Color(0xFFE4C16A).withValues(alpha: 0.65),
+    );
+    _drawCompassProgressArc(
+      canvas,
+      c,
+      r * 0.62,
+      windProgress,
+      const Color(0xFF5BC8E8),
+      -pi / 2,
+    );
+    _drawCompassProgressArc(
+      canvas,
+      c,
+      r * 0.82,
+      loomProgress,
+      const Color(0xFFE4C16A),
+      pi * 0.18,
+    );
+    _drawCompassProgressArc(
+      canvas,
+      c,
+      r * 1.02,
+      stormProgress,
+      const Color(0xFFFFFF8A),
+      pi * 0.72,
+      electric: true,
+    );
+    final total = (windProgress + loomProgress + stormProgress) / 3;
+    if (total > 0.02) {
+      canvas.drawCircle(
+        c,
+        28 + 10 * total,
+        Paint()
+          ..color = Color.lerp(
+            const Color(0xFF5BC8E8),
+            const Color(0xFFE4C16A),
+            loomProgress.clamp(0.0, 1.0),
+          )!.withValues(alpha: 0.08 + 0.16 * total),
+      );
+    }
+  }
+
+  void _drawCompassProgressArc(
+    Canvas canvas,
+    Offset c,
+    double r,
+    double progress,
+    Color color,
+    double start, {
+    bool electric = false,
+  }) {
+    final p = progress.clamp(0.0, 1.0).toDouble();
+    if (p <= 0.01) return;
+    final pulse = 0.78 + 0.22 * sin(_time * (electric ? 9 : 3.6) + r * 0.02);
+    final rect = Rect.fromCircle(center: c, radius: r);
+    canvas.drawArc(
+      rect,
+      start,
+      pi * 2 * p,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = electric ? 2.2 : 1.8
+        ..strokeCap = StrokeCap.round
+        ..color = color.withValues(alpha: (0.28 + 0.48 * p) * pulse),
+    );
+    if (p >= 1) {
+      for (var i = 0; i < 8; i++) {
+        final a = start + i * pi * 2 / 8 + _time * (electric ? 0.18 : 0.06);
+        final pos = c + Offset(cos(a), sin(a)) * r;
+        _drawStarGlyph(
+          canvas,
+          pos,
+          electric ? 4.0 : 3.2,
+          Color.lerp(color, Colors.white, 0.35)!.withValues(alpha: 0.72),
+        );
+      }
+    }
+  }
+
+  void _drawRunePillars(Canvas canvas, Offset c, double radius, int count) {
+    for (var i = 0; i < count; i++) {
+      final a = i * pi * 2 / count + pi / 4;
+      final pos = c + Offset(cos(a), sin(a)) * radius;
+      final rect = Rect.fromCenter(center: pos, width: 34, height: 64);
+      canvas.save();
+      canvas.translate(pos.dx, pos.dy);
+      canvas.rotate(a + pi / 2);
+      canvas.translate(-pos.dx, -pos.dy);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+        Paint()..color = const Color(0xFF111723).withValues(alpha: 0.82),
+      );
+      canvas.drawLine(
+        pos + const Offset(-9, 0),
+        pos + const Offset(9, 0),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = const Color(0xFF5BC8E8).withValues(alpha: 0.35),
+      );
+      canvas.restore();
+    }
+  }
+
+  void _drawVerticalSpireGhost(Canvas canvas, Rect b) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..color = const Color(0xFF8FE6FF).withValues(alpha: 0.09);
+    for (var i = 0; i < 4; i++) {
+      final x = b.center.dx + (i - 1.5) * 48 + sin(_time + i) * 8;
+      canvas.drawLine(Offset(x, b.bottom - 70), Offset(x, b.top + 70), p);
+    }
+  }
+
+  void _drawHangingChains(Canvas canvas, List<Rect> platforms) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFFC4A35A).withValues(alpha: 0.16);
+    for (final pl in platforms.skip(1)) {
+      canvas.drawLine(
+        pl.topLeft + const Offset(22, 4),
+        pl.topLeft + const Offset(-20, -76),
+        p,
+      );
+      canvas.drawLine(
+        pl.topRight + const Offset(-22, 4),
+        pl.topRight + const Offset(24, -70),
+        p,
+      );
+    }
+  }
+
+  void _drawBrokenBridgeLines(Canvas canvas, List<Rect> platforms) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF74613A).withValues(alpha: 0.28);
+    for (var i = 0; i < platforms.length - 1; i++) {
+      final a = platforms[i].centerRight;
+      final b = platforms[i + 1].centerLeft;
+      canvas.drawLine(a + const Offset(-12, -22), b + const Offset(12, -22), p);
+      canvas.drawLine(a + const Offset(-12, 24), b + const Offset(12, 24), p);
+    }
+  }
+
+  void _drawWindBanners(Canvas canvas, Rect b) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFBFD2E6).withValues(alpha: 0.18);
+    for (var i = 0; i < 10; i++) {
+      final x = b.left + 90 + i * 88;
+      final y = b.top + 95 + (i.isEven ? 0 : 310);
+      final path = Path()..moveTo(x, y);
+      path.cubicTo(
+        x + 28,
+        y + sin(_time * 2 + i) * 18,
+        x + 74,
+        y - 16,
+        x + 116,
+        y + 6,
+      );
+      canvas.drawPath(path, p);
+    }
+  }
+
+  void _drawMoonbeam(Canvas canvas, Offset top, double width, double height) {
+    final path = Path()
+      ..moveTo(top.dx - width * 0.35, top.dy)
+      ..lineTo(top.dx + width * 0.35, top.dy)
+      ..lineTo(top.dx + width, top.dy + height)
+      ..lineTo(top.dx - width, top.dy + height)
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..shader = ui.Gradient.linear(top, top + Offset(0, height), [
+          const Color(0xFFBFD2E6).withValues(alpha: 0.08),
+          const Color(0x00BFD2E6),
+        ]),
+    );
+  }
+
+  void _drawAmbientStarAnchors(Canvas canvas, List<Offset> anchors) {
+    for (final p in anchors) {
+      _drawStarGlyph(
+        canvas,
+        p,
+        7,
+        const Color(0xFFBFD2E6).withValues(alpha: 0.45),
+      );
+      canvas.drawCircle(
+        p,
+        18,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = const Color(0xFFC4A35A).withValues(alpha: 0.22),
+      );
+    }
+  }
+
+  void _drawCrownRuins(
+    Canvas canvas,
+    Offset c,
+    double r, {
+    bool stormVariant = false,
+  }) {
+    final col = stormVariant
+        ? const Color(0xFF090B12)
+        : const Color(0xFF111723);
+    for (var i = 0; i < 9; i++) {
+      final a = -pi * 0.95 + i * pi * 1.9 / 8;
+      final pos = c + Offset(cos(a), sin(a)) * r * (0.72 + 0.08 * (i % 3));
+      final h = 48 + (i % 4) * 12.0;
+      final rect = Rect.fromCenter(center: pos, width: 28, height: h);
+      canvas.save();
+      canvas.translate(pos.dx, pos.dy);
+      canvas.rotate(a + pi / 2);
+      canvas.translate(-pos.dx, -pos.dy);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+        Paint()..color = col.withValues(alpha: stormVariant ? 0.88 : 0.78),
+      );
+      canvas.restore();
+    }
+  }
+
+  void _drawStarPedestal(Canvas canvas, Offset c, {required bool active}) {
+    final col = active ? const Color(0xFFE4C16A) : const Color(0xFF74613A);
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        55,
+        col.withValues(alpha: active ? 0.34 : 0.12),
+      );
+    }
+    canvas.drawCircle(
+      c,
+      34,
+      Paint()..color = const Color(0xFF111723).withValues(alpha: 0.9),
+    );
+    canvas.drawCircle(
+      c,
+      34,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = col.withValues(alpha: active ? 0.78 : 0.35),
+    );
+    _drawStarGlyph(canvas, c, 15, col.withValues(alpha: active ? 0.95 : 0.38));
+  }
+
+  void _drawWindSpireSummitEndpoint(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final summit = room.summit;
+    final claimed = hasStar(0);
+    final ready = claimed || summitOpen;
+    final center = summit?.rect.center ?? b.center;
+
+    _drawCrownRuins(canvas, b.center, 230);
+
+    final entry = Offset(b.center.dx, b.bottom - 48);
+    final routeColor = claimed
+        ? const Color(0xFFE4C16A)
+        : ready
+        ? const Color(0xFF5BC8E8)
+        : const Color(0xFF74613A);
+    final routeAlpha = claimed
+        ? 0.74
+        : ready
+        ? 0.56
+        : 0.18;
+    _drawSpireEndpointRoute(
+      canvas,
+      entry,
+      center,
+      routeColor.withValues(alpha: routeAlpha),
+      active: ready,
+    );
+
+    if (ready) {
+      _drawMoonbeam(
+        canvas,
+        Offset(center.dx, b.top + 18),
+        86,
+        center.dy - b.top + 80,
+      );
+      for (var i = 0; i < 7; i++) {
+        final a = _time * 0.75 + i * pi * 2 / 7;
+        final r = 64 + sin(_time * 1.8 + i) * 6;
+        final p = center + Offset(cos(a), sin(a)) * r;
+        canvas.drawCircle(
+          p,
+          claimed ? 2.8 : 2.2,
+          Paint()..color = routeColor.withValues(alpha: claimed ? 0.72 : 0.46),
+        );
+      }
+    }
+
+    _drawStarPedestal(canvas, center, active: ready);
+
+    if (summit != null) {
+      final rect = summit.rect.inflate(ready ? 10 : 0);
+      final col = ready ? routeColor : const Color(0xFF3A352B);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(18)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ready ? 2.0 : 1.1
+          ..color = col.withValues(alpha: ready ? 0.72 : 0.35),
+      );
+    }
+  }
+
+  void _drawSpireEndpointRoute(
+    Canvas canvas,
+    Offset from,
+    Offset to,
+    Color color, {
+    required bool active,
+  }) {
+    final path = Path()
+      ..moveTo(from.dx, from.dy)
+      ..cubicTo(
+        from.dx - 80,
+        from.dy - 95,
+        to.dx - 92,
+        to.dy + 70,
+        to.dx,
+        to.dy + 34,
+      );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = active ? 2.2 : 1.2
+        ..strokeCap = StrokeCap.round
+        ..color = color,
+    );
+    final mirror = Path()
+      ..moveTo(from.dx, from.dy)
+      ..cubicTo(
+        from.dx + 80,
+        from.dy - 95,
+        to.dx + 92,
+        to.dy + 70,
+        to.dx,
+        to.dy + 34,
+      );
+    canvas.drawPath(
+      mirror,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = active ? 2.2 : 1.2
+        ..strokeCap = StrokeCap.round
+        ..color = color.withValues(alpha: color.a * 0.86),
+    );
+    if (!active) return;
+    for (var i = 0; i < 8; i++) {
+      final t = ((_time * 0.55 + i / 8) % 1.0).toDouble();
+      final base = Offset.lerp(from, to, t)!;
+      final sway = Offset(
+        sin(t * pi * 2 + _time * 2.4) * 24,
+        -22 * sin(t * pi),
+      );
+      canvas.drawCircle(
+        base + sway,
+        2.0,
+        Paint()
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            0.42,
+          )!.withValues(alpha: 0.42 + 0.24 * sin(_time * 5 + i)),
+      );
+    }
+  }
+
+  void _drawWonderRoomLandmark(Canvas canvas, DungeonRoom room) {
+    final c = room.bounds.center;
+    final type = room.clouds.isNotEmpty ? room.clouds.first.cloudType : '';
+    if (_sealedWonderCloud(room) != null) {
+      _drawWonderTrialOverlay(canvas, room);
+    }
+    switch (type) {
+      case 'Spiral':
+        // Galaxy arm: soft wide underlay + bright core + outward motes.
+        final cyan = const Color(0xFF5BC8E8);
+        final path = Path()..moveTo(c.dx, c.dy);
+        for (var i = 1; i <= 70; i++) {
+          final a = i * 0.28 + _time * 0.15;
+          final r = i * 1.55;
+          path.lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
+        }
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 7
+            ..strokeCap = StrokeCap.round
+            ..color = cyan.withValues(alpha: 0.07),
+        );
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..strokeCap = StrokeCap.round
+            ..color = cyan.withValues(alpha: 0.25),
+        );
+        for (var i = 0; i < 5; i++) {
+          final u = ((_time * 0.18 + i / 5) % 1.0) * 64 + 4;
+          final a = u * 0.28 + _time * 0.15;
+          canvas.drawCircle(
+            c + Offset(cos(a), sin(a)) * (u * 1.55),
+            2.0,
+            Paint()
+              ..color = Color.lerp(
+                cyan,
+                Colors.white,
+                0.4,
+              )!.withValues(alpha: 0.4),
+          );
+        }
+        break;
+      case 'Ring':
+        _drawRuneCircle(
+          canvas,
+          c,
+          135,
+          const Color(0xFFC4A35A).withValues(alpha: 0.24),
+        );
+        break;
+      case 'Anvil':
+        _drawStormFloor(canvas, room.bounds);
+        _drawStormRods(canvas, c, 170, 4, dim: true);
+        break;
+      case 'Feather':
+        _drawFeatherRune(
+          canvas,
+          c,
+          170,
+          color: const Color(0xFFBFD2E6).withValues(alpha: 0.34),
+        );
+        break;
+      case 'Veil':
+        _drawVeilCurtain(canvas, room.bounds);
+        break;
+    }
+  }
+
+  /// A moonlit quill: curved spine, a gradient-filled vane silhouette,
+  /// swept barbs and downy curls at the base — drifting gently as it
+  /// floats. ~20 small path ops, comparable to the old stick drawing.
+  /// Trial progress pips drawn under the sealed echo.
+  void _drawTrialPips(Canvas canvas, Offset at, int total, int done) {
+    const pip = 6.0;
+    const gap = 6.0;
+    final width = total * pip + (total - 1) * gap;
+    var x = at.dx - width / 2;
+    for (var i = 0; i < total; i++) {
+      final filled = i < done;
+      canvas.drawCircle(
+        Offset(x + pip / 2, at.dy),
+        pip / 2,
+        Paint()
+          ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color = filled
+              ? const Color(0xFFE4C16A)
+              : const Color(0xFF74613A).withValues(alpha: 0.7),
+      );
+      x += pip + gap;
+    }
+  }
+
+  /// Live trial state for the sealed wonder chambers — every visit shows
+  /// something moving, progressing, or waiting to be read.
+  void _drawWonderTrialOverlay(Canvas canvas, DungeonRoom room) {
+    final c = room.bounds.center;
+    final cl = room.clouds.first;
+    final pipAnchor = cl.position + const Offset(0, 52);
+    switch (room.id) {
+      case 'spiral_cloud':
+        final eddies = spiralEddies(room);
+        final progress = _wonderProgress['spiral_cloud'] ?? 0;
+        for (var i = 0; i < eddies.length; i++) {
+          final done = i < progress;
+          final next = i == progress;
+          final col = done
+              ? const Color(0xFF22C55E)
+              : next
+              ? const Color(0xFFE4C16A)
+              : const Color(0xFF74613A);
+          final pulse = next ? 0.7 + 0.3 * sin(_time * 4) : 1.0;
+          if (_fx.ready) {
+            drawGlow(
+              canvas,
+              _fx.glow!,
+              eddies[i],
+              26,
+              col.withValues(alpha: 0.4 * pulse),
+            );
+          }
+          _drawWindRing(
+            canvas,
+            eddies[i],
+            20,
+            col.withValues(alpha: 0.85 * pulse),
+            active: next,
+          );
+        }
+        _drawTrialPips(canvas, pipAnchor, eddies.length, progress);
+        break;
+
+      case 'ring_cloud':
+        // The trio reagents circle the orbit; they brighten as they gather.
+        final orbitR = 135.0;
+        final aligned = ringMotesAligned;
+        final gather =
+            1.0 -
+            (_angularGap(_ringMoteAngle(0), _ringMoteAngle(1)) +
+                    _angularGap(_ringMoteAngle(1), _ringMoteAngle(2))) /
+                (pi * 2);
+        const elements = ['Air', 'Fire', 'Lightning'];
+        for (var i = 0; i < 3; i++) {
+          final a = _ringMoteAngle(i);
+          final p = c + Offset(cos(a), sin(a)) * orbitR;
+          final col = elementColor(elements[i]);
+          if (_fx.ready) {
+            drawGlow(
+              canvas,
+              _fx.glow!,
+              p,
+              14 + 16 * gather,
+              col.withValues(alpha: 0.25 + 0.4 * gather),
+            );
+          }
+          canvas.drawCircle(p, 5.5, Paint()..color = col);
+          canvas.drawCircle(
+            p,
+            2.2,
+            Paint()..color = Colors.white.withValues(alpha: 0.85),
+          );
+        }
+        // Keeper socket at the centre — flares while the trio is gathered.
+        canvas.drawCircle(
+          c,
+          16,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = aligned ? 2.4 : 1.2
+            ..color =
+                (aligned ? const Color(0xFFFFFFFF) : const Color(0xFFC4A35A))
+                    .withValues(alpha: aligned ? 0.95 : 0.4),
+        );
+        if (aligned && _fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            c,
+            54,
+            Colors.white.withValues(alpha: 0.30),
+          );
+        }
+        break;
+
+      case 'anvil_cloud':
+        // The storm shell over the sleeping anvil; cracks once struck.
+        final shell = cl.position;
+        final struck = _anvilShellStruck;
+        final col = struck ? const Color(0xFFFFFF8A) : const Color(0xFF8FB3D6);
+        for (var i = 0; i < 3; i++) {
+          canvas.drawArc(
+            Rect.fromCircle(center: shell, radius: 44.0 + i * 7),
+            pi + i * 0.2,
+            pi - i * 0.4,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.0 - i * 0.4
+              ..color = col.withValues(alpha: (struck ? 0.7 : 0.45) - i * 0.1),
+          );
+        }
+        if (struck) {
+          _drawLightningArc(
+            canvas,
+            shell + const Offset(-20, -34),
+            shell + const Offset(12, 6),
+            const Color(0xFFFFF4B0),
+          );
+          final remaining = _anvilWave
+              .where((e) => !e.isDead && e.hp > 0)
+              .length;
+          _drawTrialPips(
+            canvas,
+            pipAnchor,
+            _anvilWave.length.clamp(1, 3),
+            (_anvilWave.length - remaining).clamp(0, 3),
+          );
+        }
+        break;
+
+      case 'feather_cloud':
+        for (final p in _feathers) {
+          _drawFeatherRune(
+            canvas,
+            p,
+            34,
+            color: const Color(0xFFE8F2FA).withValues(alpha: 0.6),
+          );
+          if (_fx.ready) {
+            drawGlow(
+              canvas,
+              _fx.glow!,
+              p,
+              20,
+              const Color(0xFFBFD2E6).withValues(alpha: 0.22),
+            );
+          }
+        }
+        _drawTrialPips(
+          canvas,
+          pipAnchor,
+          3,
+          _wonderProgress['feather_cloud'] ?? 0,
+        );
+        break;
+
+      case 'veil_cloud':
+        final spots = veilSpots(room);
+        final visible = veilVisibleSpotIndex;
+        final flare = veilFlareTimer > 0;
+        for (var i = 0; i < spots.length; i++) {
+          if (_veilPinned.contains(i)) {
+            _drawStarGlyph(
+              canvas,
+              spots[i],
+              7,
+              const Color(0xFFE4C16A).withValues(alpha: 0.85),
+            );
+            continue;
+          }
+          final showing = flare || visible == i;
+          final ghost = revealTier >= 1; // Mask insight: faint markers
+          if (!showing && !ghost) continue;
+          final breath = ((_time % 2.5) / 1.6).clamp(0.0, 1.0);
+          final alpha = showing ? (0.55 - 0.3 * breath) : 0.12;
+          for (var ring = 0; ring < 2; ring++) {
+            canvas.drawCircle(
+              spots[i],
+              12 + ring * 9 + (showing ? breath * 10 : 0),
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.2
+                ..color = const Color(
+                  0xFFBFD2E6,
+                ).withValues(alpha: alpha - ring * 0.12),
+            );
+          }
+        }
+        _drawTrialPips(canvas, pipAnchor, spots.length, _veilPinned.length);
+        break;
+    }
+  }
+
+  void _drawFeatherRune(Canvas canvas, Offset c, double len, {Color? color}) {
+    final col = color ?? const Color(0xFFBFD2E6).withValues(alpha: 0.30);
+    final sway = sin(_time * 1.1 + c.dx * 0.01) * 0.05;
+    canvas.save();
+    canvas.translate(c.dx, c.dy + sin(_time * 0.9 + c.dy * 0.01) * 2.5);
+    canvas.rotate(-0.62 + sway); // the plume lies on a gentle diagonal
+
+    final half = len * 0.5;
+    final maxW = len * 0.20;
+    Offset spinePt(double t) =>
+        Offset(-half + t * len, -sin(t * pi) * len * 0.06);
+    double vaneW(double t) {
+      final u = ((t - 0.18) / 0.82).clamp(0.0, 1.0);
+      return maxW * pow(sin(u * pi), 0.65).toDouble() * (1.0 - u * 0.22);
+    }
+
+    // Vane silhouette (upper edge out to the tip, back along the lower).
+    final vane = Path();
+    const samples = 13;
+    for (var i = 0; i <= samples; i++) {
+      final t = 0.18 + (i / samples) * 0.82;
+      final p = spinePt(t);
+      final w = vaneW(t);
+      final q = Offset(p.dx - w * 0.30, p.dy - w);
+      if (i == 0) {
+        vane.moveTo(q.dx, q.dy);
+      } else {
+        vane.lineTo(q.dx, q.dy);
+      }
+    }
+    for (var i = samples; i >= 0; i--) {
+      final t = 0.18 + (i / samples) * 0.82;
+      final p = spinePt(t);
+      final w = vaneW(t);
+      vane.lineTo(p.dx - w * 0.16, p.dy + w * 0.70);
+    }
+    vane.close();
+    canvas.drawPath(
+      vane,
+      Paint()
+        ..shader = ui.Gradient.linear(Offset(-half, 0), Offset(half, 0), [
+          col.withValues(alpha: (col.a * 0.50).clamp(0.0, 1.0)),
+          col.withValues(alpha: (col.a * 0.16).clamp(0.0, 1.0)),
+        ]),
+    );
+    canvas.drawPath(
+      vane,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = col.withValues(alpha: (col.a * 0.85).clamp(0.0, 1.0)),
+    );
+
+    // Quill shaft — bright, extending below the vane to a bare point.
+    final spine = Path()..moveTo(-half - len * 0.13, len * 0.035);
+    for (var i = 0; i <= samples; i++) {
+      final p = spinePt(i / samples);
+      spine.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(
+      spine,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = Color.lerp(
+          col,
+          Colors.white,
+          0.35,
+        )!.withValues(alpha: (col.a * 1.1).clamp(0.0, 1.0)),
+    );
+
+    // Swept barbs: curving toward the tip, never straight ticks.
+    final barbPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9
+      ..strokeCap = StrokeCap.round
+      ..color = col.withValues(alpha: (col.a * 0.6).clamp(0.0, 1.0));
+    for (var k = 0; k < 7; k++) {
+      final t = 0.27 + k * 0.094;
+      final p = spinePt(t);
+      final w = vaneW(t);
+      canvas.drawPath(
+        Path()
+          ..moveTo(p.dx, p.dy)
+          ..quadraticBezierTo(
+            p.dx + w * 0.42,
+            p.dy - w * 0.5,
+            p.dx + len * 0.045 + w * 0.26,
+            p.dy - w * 0.92,
+          ),
+        barbPaint,
+      );
+      canvas.drawPath(
+        Path()
+          ..moveTo(p.dx, p.dy)
+          ..quadraticBezierTo(
+            p.dx + w * 0.30,
+            p.dy + w * 0.36,
+            p.dx + len * 0.04 + w * 0.18,
+            p.dy + w * 0.62,
+          ),
+        barbPaint,
+      );
+    }
+
+    // Downy curls where the vane meets the bare quill.
+    for (var k = 0; k < 2; k++) {
+      final p = spinePt(0.16 + k * 0.05);
+      canvas.drawArc(
+        Rect.fromCircle(center: p + Offset(-2, -3 - k * 3), radius: 4 + k * 2),
+        pi * 0.2,
+        pi * 0.9,
+        false,
+        barbPaint,
+      );
+    }
+    canvas.restore();
+  }
+
+  /// Layered gossamer curtain: translucent swaying ribbon fills with fine
+  /// inner strands — instead of bare wavy lines.
+  void _drawVeilCurtain(Canvas canvas, Rect b) {
+    final col = const Color(0xFFBFD2E6);
+    final top = b.top + 105;
+    final bottom = b.bottom - 80;
+    // Three wide translucent ribbons.
+    for (var i = 0; i < 3; i++) {
+      final x = b.left + 150 + i * (b.width - 300) / 2;
+      final w = 90.0 + i * 14;
+      final sway1 = sin(_time * 0.7 + i * 1.9) * 26;
+      final sway2 = sin(_time * 0.5 + i * 1.3 + 2) * 34;
+      final ribbon = Path()
+        ..moveTo(x - w / 2, top)
+        ..quadraticBezierTo(x, top - 14, x + w / 2, top)
+        ..cubicTo(
+          x + w / 2 + sway1,
+          top + (bottom - top) * 0.4,
+          x + w / 3 + sway2,
+          top + (bottom - top) * 0.75,
+          x + w * 0.28 + sway2,
+          bottom,
+        )
+        ..quadraticBezierTo(
+          x + sway2 * 0.6,
+          bottom + 10,
+          x - w * 0.3 + sway2,
+          bottom,
+        )
+        ..cubicTo(
+          x - w / 3 + sway2,
+          top + (bottom - top) * 0.7,
+          x - w / 2 + sway1,
+          top + (bottom - top) * 0.35,
+          x - w / 2,
+          top,
+        )
+        ..close();
+      canvas.drawPath(
+        ribbon,
+        Paint()
+          ..shader = ui.Gradient.linear(Offset(x, top), Offset(x, bottom), [
+            col.withValues(alpha: 0.09),
+            col.withValues(alpha: 0.025),
+          ]),
+      );
+      canvas.drawPath(
+        ribbon,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0
+          ..color = col.withValues(alpha: 0.16),
+      );
+    }
+    // Fine strands drifting between the ribbons.
+    final strand = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..strokeCap = StrokeCap.round
+      ..color = col.withValues(alpha: 0.12);
+    for (var i = 0; i < 6; i++) {
+      final x = b.left + 130 + i * (b.width - 260) / 5;
+      final path = Path()..moveTo(x, top + 8);
+      path.cubicTo(
+        x + sin(_time + i) * 22,
+        top + (bottom - top) * 0.38,
+        x - 18,
+        top + (bottom - top) * 0.7,
+        x + sin(_time * 0.7 + i) * 30,
+        bottom - 6,
+      );
+      canvas.drawPath(path, strand);
+    }
+  }
+
+  void _drawSkyLoomMechanism(
+    Canvas canvas,
+    Offset c,
+    double r,
+    DungeonRoom room,
+  ) {
+    _drawRuneCircle(
+      canvas,
+      c,
+      r,
+      const Color(0xFFC4A35A).withValues(alpha: 0.20),
+    );
+    _drawRuneCircle(
+      canvas,
+      c,
+      r * 0.58,
+      const Color(0xFF5BC8E8).withValues(alpha: 0.19),
+    );
+    final corePulse =
+        0.14 + 0.10 * filledAnchors.length / max(1, room.anchors.length);
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        78,
+        const Color(0xFF5BC8E8).withValues(alpha: corePulse),
+      );
+    }
+    canvas.drawCircle(
+      c,
+      42,
+      Paint()..color = const Color(0xFF111723).withValues(alpha: 0.92),
+    );
+    canvas.drawCircle(
+      c,
+      42,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFFE4C16A).withValues(alpha: 0.42),
+    );
+    for (final an in room.anchors) {
+      final filled = filledAnchors.containsKey(an.id);
+      final col = filled
+          ? const Color(0xFF5BC8E8).withValues(alpha: 0.55)
+          : const Color(0xFF74613A).withValues(alpha: 0.18);
+      _drawRouteLine(canvas, c, an.position, col);
+    }
+  }
+
+  void _drawRelicShrine(Canvas canvas, Offset c) {
+    _drawMoonbeam(canvas, c + const Offset(0, -210), 82, 360);
+    canvas.drawCircle(
+      c,
+      42,
+      Paint()..color = const Color(0xFF111723).withValues(alpha: 0.92),
+    );
+    canvas.drawCircle(
+      c,
+      42,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFFC4A35A).withValues(alpha: 0.45),
+    );
+    final relic = Path()
+      ..moveTo(c.dx, c.dy - 32)
+      ..lineTo(c.dx + 18, c.dy)
+      ..lineTo(c.dx, c.dy + 32)
+      ..lineTo(c.dx - 18, c.dy)
+      ..close();
+    canvas.drawPath(
+      relic,
+      Paint()..color = const Color(0xFFBFD2E6).withValues(alpha: 0.60),
+    );
+  }
+
+  /// The rune hall's mural: a wall diagram of the twin-conduit sync. Partial
+  /// for everyone (one pylon lit, the other a question); a Mask's reveal
+  /// completes it — both pylons arcing to the altar IN UNISON.
+  void _drawStormMural(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final c = Offset(b.center.dx, b.top + 140);
+    const cyan = Color(0xFF5BC8E8);
+    const gold = Color(0xFFC4A35A);
+    final complete = revealTier >= 1;
+
+    // Stone panel.
+    final panel = Rect.fromCenter(center: c, width: 340, height: 150);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(panel, const Radius.circular(12)),
+      Paint()..color = const Color(0xFF0B0F18).withValues(alpha: 0.78),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(panel, const Radius.circular(12)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = gold.withValues(alpha: 0.4),
+    );
+
+    final leftPylon = c + const Offset(-110, 28);
+    final rightPylon = c + const Offset(110, 28);
+    final altarGlyph = c + const Offset(0, -34);
+
+    void pylonGlyph(Offset p, bool lit) {
+      final path = Path()
+        ..moveTo(p.dx - 12, p.dy + 14)
+        ..lineTo(p.dx, p.dy - 16)
+        ..lineTo(p.dx + 12, p.dy + 14)
+        ..close();
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = (lit ? cyan : gold).withValues(alpha: lit ? 0.8 : 0.35),
+      );
+    }
+
+    canvas.drawCircle(
+      altarGlyph,
+      11,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = gold.withValues(alpha: 0.6),
+    );
+
+    if (complete) {
+      // The lesson: both arcs pulse IN UNISON.
+      final sync = 0.5 + 0.5 * sin(_time * 3.0);
+      pylonGlyph(leftPylon, true);
+      pylonGlyph(rightPylon, true);
+      final arcPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..strokeCap = StrokeCap.round
+        ..color = cyan.withValues(alpha: 0.25 + 0.5 * sync);
+      for (final p in [leftPylon, rightPylon]) {
+        final mid = Offset(
+          (p.dx + altarGlyph.dx) / 2 + sin(_time * 9) * 5,
+          (p.dy + altarGlyph.dy) / 2 - 10,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(p.dx, p.dy - 14)
+            ..lineTo(mid.dx, mid.dy)
+            ..lineTo(altarGlyph.dx, altarGlyph.dy + 9),
+          arcPaint,
+        );
+      }
+      canvas.drawCircle(
+        altarGlyph,
+        11,
+        Paint()..color = cyan.withValues(alpha: 0.15 + 0.25 * sync),
+      );
+    } else {
+      // Partial: one pylon dimly remembered, the other unread.
+      pylonGlyph(leftPylon, true);
+      pylonGlyph(rightPylon, false);
+      canvas.drawPath(
+        Path()
+          ..moveTo(leftPylon.dx, leftPylon.dy - 14)
+          ..lineTo(
+            (leftPylon.dx + altarGlyph.dx) / 2,
+            (leftPylon.dy + altarGlyph.dy) / 2 - 10,
+          )
+          ..lineTo(altarGlyph.dx, altarGlyph.dy + 9),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..strokeCap = StrokeCap.round
+          ..color = cyan.withValues(alpha: 0.18),
+      );
+      _drawTinyLabel(canvas, rightPylon + const Offset(0, 24), '?');
+    }
+  }
+
+  void _drawStormFloor(Canvas canvas, Rect b) {
+    final scar = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF5BC8E8).withValues(alpha: 0.18);
+    for (var i = 0; i < 9; i++) {
+      final sx = b.left + 90 + (i * 97) % max(1, b.width.toInt() - 180);
+      final sy = b.top + 100 + (i * 73) % max(1, b.height.toInt() - 190);
+      final path = Path()
+        ..moveTo(sx.toDouble(), sy.toDouble())
+        ..lineTo(sx + 24, sy + 18)
+        ..lineTo(sx + 8, sy + 42)
+        ..lineTo(sx + 38, sy + 64);
+      canvas.drawPath(path, scar);
+    }
+  }
+
+  void _drawStormRods(
+    Canvas canvas,
+    Offset c,
+    double r,
+    int count, {
+    bool dim = false,
+  }) {
+    final col = dim
+        ? const Color(0xFF74613A).withValues(alpha: 0.35)
+        : const Color(0xFF5BC8E8).withValues(alpha: 0.55);
+    for (var i = 0; i < count; i++) {
+      final a = i * pi * 2 / count + pi / 4;
+      final p = c + Offset(cos(a), sin(a)) * r;
+      final top = p + Offset(cos(a), sin(a)) * 28;
+      canvas.drawLine(
+        p,
+        top,
+        Paint()
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF111723),
+      );
+      canvas.drawCircle(top, 5, Paint()..color = col);
+    }
+  }
+
+  void _drawStormAltar(Canvas canvas, Offset c, {required bool active}) {
+    _drawStormRods(canvas, c, 170, 8, dim: !active);
+    final col = active ? const Color(0xFF5BC8E8) : const Color(0xFF74613A);
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        active ? 88 : 48,
+        col.withValues(alpha: active ? 0.36 : 0.12),
+      );
+    }
+    canvas.drawCircle(
+      c,
+      66,
+      Paint()..color = const Color(0xFF090B12).withValues(alpha: 0.94),
+    );
+    for (var i = 0; i < 3; i++) {
+      canvas.drawCircle(
+        c,
+        34 + i * 16,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..color = col.withValues(alpha: active ? 0.42 : 0.18),
+      );
+    }
+  }
+
+  void _renderCurrents(Canvas canvas, DungeonRoom room) {
+    final mote = _fx.mote;
+    for (final cur in room.currents) {
+      if (room.id == 'entry') continue;
+      final len = cur.dir.distance;
+      final dir = len > 0 ? cur.dir / len : const Offset(0, -1);
+      final strong = cur.requiredSpeed > 0;
+      final tint = strong
+          ? const Color(0xFF8FE6FF)
+          : (cur.strength > 0
+                ? const Color(0xFFE4C16A)
+                : const Color(0xFF9FB3C8));
+
+      // Soft channel wash.
+      canvas.drawRect(
+        cur.rect,
+        Paint()..color = tint.withValues(alpha: strong ? 0.07 : 0.04),
+      );
+
+      if (mote == null) continue;
+      final r = cur.rect;
+      // Flowing motes: travel up the channel with a per-current crosswind lean.
+      final speed = 40 + cur.strength * 0.7;
+      final cycle = r.height;
+      final count = (r.width * r.height / 14000).clamp(6, 26).toInt();
+      for (var i = 0; i < count; i++) {
+        final colX = r.left + ((i * 113) % r.width.toInt());
+        final travel = (_time * speed + i * 37.0) % cycle;
+        final y = r.bottom - travel;
+        final x = colX + dir.dx * (cycle - travel) * 0.35;
+        if (x < r.left || x > r.right) continue;
+        final fade = (travel / cycle); // brighter as it rises
+        final sz = (strong ? 7.0 : 5.0) + 2.0 * sin(_time * 3 + i);
+        drawGlow(
+          canvas,
+          mote,
+          Offset(x, y),
+          sz,
+          tint.withValues(alpha: (0.18 + 0.5 * fade).clamp(0.0, 0.8)),
+        );
+      }
+    }
+  }
+
+  void _renderRingsAndSummit(Canvas canvas, DungeonRoom room) {
+    if (_roomCleared(room)) return; // star earned — objectives gone
+    // Ring rooms don't own a star, so hide their rings once Star 1 banks.
+    if (hasStar(0)) return;
+    for (final ring in room.rings) {
+      final done = ring.order < _ringProgress;
+      final next = ring.order == _ringProgress;
+      final col = done
+          ? const Color(0xFF22C55E)
+          : next
+          ? const Color(0xFFE4C16A)
+          : const Color(0xFF74613A);
+      final pulse = next ? 0.7 + 0.3 * sin(_time * 4) : 1.0;
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          ring.position,
+          30,
+          col.withValues(alpha: 0.45 * pulse),
+        );
+      }
+      _drawWindRing(
+        canvas,
+        ring.position,
+        24,
+        col.withValues(alpha: 0.9 * pulse),
+        active: next,
+      );
+    }
+    final summit = room.summit;
+    if (summit != null) {
+      if (room.id == 'spire_summit') return;
+      final open = summitOpen;
+      final col = open ? const Color(0xFFE4C16A) : const Color(0xFF3A352B);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(summit.rect, const Radius.circular(6)),
+        Paint()..color = col.withValues(alpha: open ? 0.16 : 0.08),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(summit.rect, const Radius.circular(6)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = col.withValues(alpha: open ? 0.9 : 0.4),
+      );
+      if (open) _drawStarGlyph(canvas, summit.rect.center, 11, col);
+    }
+  }
+
+  void _drawWindRing(
+    Canvas canvas,
+    Offset c,
+    double r,
+    Color color, {
+    required bool active,
+  }) {
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+    final rect = Rect.fromCircle(center: c, radius: r);
+    final rot = active ? _time * 1.35 : _time * 0.18;
+    for (var i = 0; i < 4; i++) {
+      canvas.drawArc(rect, rot + i * pi / 2, pi * 0.34, false, ringPaint);
+    }
+    final tickPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = color.withValues(alpha: color.a * 0.72);
+    for (var i = 0; i < 12; i++) {
+      final a = -rot * 0.7 + i * pi * 2 / 12;
+      final p1 = c + Offset(cos(a), sin(a)) * (r + 5);
+      final p2 = c + Offset(cos(a), sin(a)) * (r + (i % 3 == 0 ? 14 : 10));
+      canvas.drawLine(p1, p2, tickPaint);
+    }
+    if (!active) return;
+    final streakPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFBFD2E6).withValues(alpha: 0.28);
+    for (var i = 0; i < 5; i++) {
+      final y = c.dy - 16 + i * 8.0;
+      final x = c.dx - 20 + ((_time * 52 + i * 17) % 40);
+      canvas.drawLine(Offset(x - 18, y), Offset(x + 14, y - 4), streakPaint);
+    }
+  }
+
+  void _renderClouds(Canvas canvas, DungeonRoom room) {
+    if (_roomCleared(room)) return; // loom solved — clouds gone
+    for (final cl in room.clouds) {
+      final branchClaimed = _branchWonderCloudClaimed(room, cl);
+      if (placedClouds.contains(cl.id) || branchClaimed) {
+        if (room.anchors.isEmpty) {
+          _drawWonderCloudRemnant(
+            canvas,
+            cl.position,
+            cl.cloudType,
+            strong: branchClaimed,
+          );
+        }
+        continue;
+      }
+      if (cl.id == carriedCloudId) continue;
+      final discovered = discoveredClouds.contains(cl.id);
+      final col = discovered
+          ? const Color(0xFFB9C7D6)
+          : const Color(0xFF5BC8E8);
+      final alpha = discovered ? 0.85 : (0.2 + 0.12 * sin(_time * 2));
+      _drawWonderCloud(
+        canvas,
+        cl.position,
+        cl.cloudType,
+        col.withValues(alpha: alpha),
+        discovered: discovered,
+      );
+    }
+  }
+
+  bool _branchWonderCloudClaimed(DungeonRoom room, HiddenCloud cloud) {
+    if (room.anchors.isNotEmpty || room.clouds.length != 1) return false;
+    if (placedClouds.contains(cloud.id)) return true;
+    if (filledAnchors.values.contains(cloud.cloudType)) return true;
+    // The Sky Loom star means the branch echoes have already served their role,
+    // even after a restart/re-entry where transient placement state is gone.
+    return hasStar(1) &&
+        const {
+          'Spiral',
+          'Ring',
+          'Anvil',
+          'Feather',
+          'Veil',
+        }.contains(cloud.cloudType);
+  }
+
+  void _renderAnchors(Canvas canvas, DungeonRoom room) {
+    if (_roomCleared(room)) return; // loom solved — anchors gone
+    for (final an in room.anchors) {
+      final filled = filledAnchors.containsKey(an.id);
+      final col = filled ? const Color(0xFF22C55E) : const Color(0xFFC4A35A);
+      // Fixed celestial point the constellation aligns to (above the socket).
+      _drawStarGlyph(
+        canvas,
+        an.position + const Offset(0, -30),
+        6,
+        const Color(0xFF9FB3D6).withValues(alpha: 0.55),
+      );
+      canvas.drawCircle(
+        an.position,
+        16,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = col.withValues(alpha: filled ? 0.9 : 0.55),
+      );
+      if (filled) {
+        _drawWonderCloud(
+          canvas,
+          an.position,
+          filledAnchors[an.id] ?? an.requiredCloudType,
+          const Color(0xFFB9C7D6).withValues(alpha: 0.9),
+          discovered: true,
+          echo: true,
+        );
+      } else {
+        // Hint label scales with the last reveal tier.
+        final label = revealTier >= 1 ? an.requiredCloudType : '?';
+        _drawTinyLabel(canvas, an.position + const Offset(0, 22), label);
+        // The no-Mask strategy: up close, every anchor whispers its riddle
+        // ("the endless orbit" → Ring). Mask reveal upgrades this to the
+        // explicit type / ghost outline.
+        final a = active;
+        if (revealTier < 1 &&
+            an.clue.isNotEmpty &&
+            a != null &&
+            (a.position - an.position).distance < 100) {
+          _drawClueLabel(canvas, an.position + const Offset(0, 36), an.clue);
+        }
+        if (revealTier >= 2) {
+          _drawWonderCloud(
+            canvas,
+            an.position,
+            an.requiredCloudType,
+            const Color(0xFFB9C7D6).withValues(alpha: 0.18),
+            discovered: true,
+            echo: true,
+          );
+        }
+      }
+    }
+  }
+
+  void _renderConduitsAndGuardian(Canvas canvas, DungeonRoom room) {
+    if (_roomCleared(room)) return; // altar solved — conduits & guardian gone
+    for (final c in room.conduits) {
+      final live = altarOpen || (conduitEnergy[c.id] ?? 0) > 0;
+      final col = live ? const Color(0xFF5BC8E8) : const Color(0xFF74613A);
+      final pulse = live ? 0.6 + 0.4 * sin(_time * 10) : 1.0;
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          c.position,
+          live ? 34 : 22,
+          col.withValues(alpha: (live ? 0.6 : 0.18) * pulse),
+        );
+      }
+      _drawStormConduit(canvas, c.position, col, charged: live);
+      // Drain timer: the hold's remaining window, readable at a glance.
+      final energy = conduitEnergy[c.id] ?? 0;
+      if (live && energy.isFinite && energy > 0) {
+        final maxE = _conduitMaxEnergy[c.id] ?? energy;
+        final frac = (energy / max(0.001, maxE)).clamp(0.0, 1.0).toDouble();
+        canvas.drawArc(
+          Rect.fromCircle(center: c.position, radius: 40),
+          -pi / 2,
+          pi * 2 * frac,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..strokeCap = StrokeCap.round
+            ..color = Color.lerp(
+              const Color(0xFFC0392B),
+              const Color(0xFF5BC8E8),
+              frac,
+            )!.withValues(alpha: 0.85),
+        );
+      } else if (live && !energy.isFinite) {
+        // Synchronized: a steady full ring.
+        canvas.drawCircle(
+          c.position,
+          40,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.2
+            ..color = const Color(0xFF5BC8E8).withValues(alpha: 0.6),
+        );
+      }
+      _drawTinyLabel(canvas, c.position + const Offset(0, 30), c.id);
+    }
+    final g = room.guardian;
+    if (g != null && (altarOpen || guardianAwake)) {
+      final pos = _guardianPosition(g);
+      final col = guardianVulnerable
+          ? const Color(0xFFE4C16A)
+          : const Color(0xFFC0392B);
+      final pulse = 0.5 + 0.5 * sin(_time * (guardianVulnerable ? 3 : 8));
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          pos,
+          56,
+          col.withValues(alpha: 0.5 * pulse),
+        );
+      }
+      // Guardian is procedural (cosmic-enemy wisp/phantom style). The combat
+      // body drives position + hit flash so there is exactly one Roc.
+      final enemyFlash = _guardianEnemy?.hitFlash ?? 0;
+      final flash = max(guardianHitFlash, enemyFlash);
+      final bodyCol = flash > 0
+          ? Color.lerp(col, Colors.white, (flash / 0.3).clamp(0, 1))!
+          : col;
+      _renderGuardianBody(canvas, pos, 40, bodyCol, guardianVulnerable);
+      // Swoop telegraph ring while the Roc rears back.
+      final ge = _guardianEnemy;
+      final gm = ge?.flightSteering;
+      if (gm != null && gm.showTelegraphRing) {
+        canvas.drawCircle(
+          pos,
+          52 + gm.windupTimer * 70,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0
+            ..color = Colors.white.withValues(alpha: 0.6),
+        );
+      }
+
+      // HP pips (one shared pool), shown once it's been hurt at all.
+      final frac = _guardianHpFraction;
+      if (frac < 1) {
+        const pip = 6.0;
+        const gap = 5.0;
+        final filledPips = (frac * maxGuardianHp).ceil();
+        final total = maxGuardianHp * pip + (maxGuardianHp - 1) * gap;
+        var px = pos.dx - total / 2;
+        final py = pos.dy - 60;
+        for (var i = 0; i < maxGuardianHp; i++) {
+          final filled = i < filledPips;
+          canvas.drawCircle(
+            Offset(px + pip / 2, py),
+            pip / 2,
+            Paint()
+              ..color = filled
+                  ? const Color(0xFFE4C16A)
+                  : const Color(0xFF74613A).withValues(alpha: 0.5),
+          );
+          px += pip + gap;
+        }
+      }
+    }
+  }
+
+  void _drawStormConduit(
+    Canvas canvas,
+    Offset c,
+    Color color, {
+    required bool charged,
+  }) {
+    final body = Path()
+      ..moveTo(c.dx - 24, c.dy + 22)
+      ..lineTo(c.dx - 16, c.dy - 30)
+      ..lineTo(c.dx, c.dy - 42)
+      ..lineTo(c.dx + 16, c.dy - 30)
+      ..lineTo(c.dx + 24, c.dy + 22)
+      ..lineTo(c.dx + 13, c.dy + 32)
+      ..lineTo(c.dx - 13, c.dy + 32)
+      ..close();
+    canvas.drawPath(
+      body,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          c + const Offset(0, -42),
+          c + const Offset(0, 34),
+          const [Color(0xFF222837), Color(0xFF090B12)],
+        ),
+    );
+    canvas.drawPath(
+      body,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = color.withValues(alpha: charged ? 0.85 : 0.38),
+    );
+    final channel = Rect.fromCenter(
+      center: c + const Offset(0, -2),
+      width: 8,
+      height: 54,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(channel, const Radius.circular(6)),
+      Paint()..color = color.withValues(alpha: charged ? 0.70 : 0.20),
+    );
+    for (var i = 0; i < 3; i++) {
+      final y = c.dy - 22 + i * 19.0;
+      canvas.drawLine(
+        Offset(c.dx - 17, y),
+        Offset(c.dx - 7, y + 6),
+        Paint()
+          ..strokeWidth = 1
+          ..color = color.withValues(alpha: charged ? 0.65 : 0.25),
+      );
+      canvas.drawLine(
+        Offset(c.dx + 17, y),
+        Offset(c.dx + 7, y + 6),
+        Paint()
+          ..strokeWidth = 1
+          ..color = color.withValues(alpha: charged ? 0.65 : 0.25),
+      );
+    }
+    if (!charged) return;
+    _drawLightningArc(
+      canvas,
+      c + const Offset(-28, -18),
+      c + const Offset(30, 12),
+      const Color(0xFFBFF5FF),
+    );
+  }
+
+  /// The planet guardian. With an authored Mystic sheet it renders the REAL
+  /// creature sprite — perched and breathing during the lull, airborne and
+  /// bobbing during rage. Falls back to the procedural orb-with-wings.
+  void _renderGuardianBody(
+    Canvas canvas,
+    Offset c,
+    double r,
+    Color color,
+    bool vulnerable,
+  ) {
+    final t = _time;
+    final ticker = _guardianTicker;
+    if (ticker != null) {
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          c,
+          r * 2.3,
+          color.withValues(
+            alpha: 0.30 * (0.6 + 0.4 * sin(t * (vulnerable ? 2.4 : 7))),
+          ),
+        );
+      }
+      if (vulnerable) {
+        // Perched: grounded shadow + a gold lull halo (the strike window).
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: c + const Offset(0, 52),
+            width: 96,
+            height: 22,
+          ),
+          Paint()..color = Colors.black.withValues(alpha: 0.30),
+        );
+        canvas.drawCircle(
+          c,
+          66 + 5 * sin(t * 2.2),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.8
+            ..color = const Color(0xFFE4C16A).withValues(alpha: 0.55),
+        );
+      }
+      final facingRight =
+          (active?.position.dx ?? c.dx) >= c.dx; // face the party
+      final breathe = vulnerable ? 1.0 + 0.03 * sin(t * 2.2) : 1.0;
+      final hover = vulnerable ? 10.0 : sin(t * 2.6) * 6.0;
+      canvas.save();
+      canvas.translate(c.dx, c.dy + hover);
+      canvas.scale(
+        (facingRight ? -1 : 1) * _guardianSpriteScale * breathe,
+        _guardianSpriteScale * breathe,
+      );
+      ticker.getSprite().render(
+        canvas,
+        anchor: Anchor.center,
+        overridePaint: Paint()..filterQuality = ui.FilterQuality.high,
+      );
+      canvas.restore();
+      // Hit feedback: a white bloom (the sprite itself stays untinted).
+      if (guardianHitFlash > 0 || (_guardianEnemy?.hitFlash ?? 0) > 0) {
+        final f = max(guardianHitFlash, _guardianEnemy?.hitFlash ?? 0);
+        canvas.drawCircle(
+          c + Offset(0, hover),
+          54,
+          Paint()
+            ..color = Colors.white.withValues(
+              alpha: 0.35 * (f / 0.3).clamp(0.0, 1.0),
+            ),
+        );
+      }
+      return;
+    }
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        r * 2.2,
+        color.withValues(
+          alpha: 0.35 * (0.6 + 0.4 * sin(t * (vulnerable ? 3 : 8))),
+        ),
+      );
+    }
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+
+    // Writhing tendrils.
+    final tp = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..color = color.withValues(alpha: 0.5);
+    for (var i = 0; i < 6; i++) {
+      final a = i * pi / 3 + t * 0.6;
+      final len = r * (1.4 + 0.3 * sin(t * 2 + i));
+      final path = Path()..moveTo(cos(a) * r * 0.5, sin(a) * r * 0.5);
+      path.quadraticBezierTo(
+        cos(a + 0.3 * sin(t + i)) * r,
+        sin(a + 0.3 * sin(t + i)) * r,
+        cos(a) * len,
+        sin(a) * len,
+      );
+      canvas.drawPath(path, tp);
+    }
+
+    // Storm wings (Roc silhouette), gently flapping.
+    final flap = 0.5 + 0.5 * sin(t * (vulnerable ? 2.5 : 5));
+    final wingPaint = Paint()..color = color.withValues(alpha: 0.30);
+    final wingEdge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = color.withValues(alpha: 0.6);
+    for (final side in [-1.0, 1.0]) {
+      final lift = (0.5 - flap) * r * 0.7;
+      final wing = Path()
+        ..moveTo(side * r * 0.35, -r * 0.1)
+        ..quadraticBezierTo(
+          side * r * 1.9,
+          -r * 0.9 - lift,
+          side * r * 2.3,
+          -r * 0.05 - lift,
+        )
+        ..quadraticBezierTo(side * r * 1.7, r * 0.5, side * r * 0.35, r * 0.3)
+        ..close();
+      canvas.drawPath(wing, wingPaint);
+      canvas.drawPath(wing, wingEdge);
+    }
+
+    // Body orb.
+    canvas.drawCircle(
+      Offset.zero,
+      r,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(-r * 0.2, -r * 0.2),
+          r * 1.3,
+          [
+            Color.lerp(color, Colors.white, 0.5)!.withValues(alpha: 0.95),
+            color.withValues(alpha: 0.85),
+            Color.lerp(color, Colors.black, 0.5)!.withValues(alpha: 0.85),
+          ],
+          const [0.0, 0.5, 1.0],
+        ),
+    );
+    canvas.drawCircle(
+      Offset.zero,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = Color.lerp(color, Colors.white, 0.3)!.withValues(alpha: 0.6),
+    );
+
+    // Glowing eyes.
+    final eyePulse = 0.6 + 0.4 * sin(t * 8);
+    final eyeSpread = r * 0.32;
+    final eyeY = -r * 0.1;
+    for (final ex in [-eyeSpread, eyeSpread]) {
+      canvas.drawCircle(
+        Offset(ex, eyeY),
+        r * 0.22,
+        Paint()..color = color.withValues(alpha: 0.4 * eyePulse),
+      );
+      canvas.drawCircle(
+        Offset(ex, eyeY),
+        r * 0.12,
+        Paint()..color = Colors.white.withValues(alpha: 0.9 * eyePulse),
+      );
+    }
+    canvas.restore();
+  }
+
+  void _renderGlideTrail(Canvas canvas) {
+    final mote = _fx.mote;
+    if (mote == null || _glideTrail.length < 2) return;
+    for (var i = 0; i < _glideTrail.length; i++) {
+      final t = i / _glideTrail.length; // 0 oldest .. 1 newest
+      drawGlow(
+        canvas,
+        mote,
+        _glideTrail[i],
+        6 + 8 * t,
+        const Color(0xFF8FE6FF).withValues(alpha: 0.30 * t),
+      );
+    }
+  }
+
+  void _renderCarriedCloud(Canvas canvas) {
+    final a = active;
+    if (a == null || carriedCloudType == null) return;
+    // Wind wake behind the carrier.
+    final mote = _fx.mote;
+    if (mote != null) {
+      for (var i = 0; i < _carryTrail.length; i++) {
+        final t = i / max(1, _carryTrail.length);
+        drawGlow(
+          canvas,
+          mote,
+          _carryTrail[i],
+          4 + 6 * t,
+          const Color(0xFFB9C7D6).withValues(alpha: 0.18 * t),
+        );
+      }
+    }
+    final sway = Offset(sin(_time * 2.1) * 5, sin(_time * 3.1) * 2.5);
+    final pos = a.position + const Offset(0, -30) + sway;
+    final col = carriedCloudType == 'Thundercloud'
+        ? const Color(0xFF5BC8E8)
+        : const Color(0xFFB9C7D6);
+    _drawWonderCloud(
+      canvas,
+      pos,
+      carriedCloudType!,
+      col.withValues(alpha: 0.95),
+      discovered: true,
+    );
+  }
+
+  void _drawWonderCloud(
+    Canvas canvas,
+    Offset c,
+    String type,
+    Color color, {
+    required bool discovered,
+    bool echo = false,
+  }) {
+    final pulse = discovered ? 1.0 : 0.65 + 0.25 * sin(_time * 2.0);
+    final col = color.withValues(alpha: (color.a * pulse).clamp(0.0, 1.0));
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = echo ? 1.1 : 1.5
+      ..strokeCap = StrokeCap.round
+      ..color = col.withValues(alpha: (col.a * 0.9).clamp(0.0, 1.0));
+    final fill = Paint()
+      ..color = col.withValues(alpha: (col.a * 0.35).clamp(0.0, 1.0));
+
+    if (_fx.ready) {
+      final width = switch (type) {
+        'Feather' => 74.0,
+        'Veil' => 68.0,
+        'Anvil' || 'Thundercloud' => 66.0,
+        'Ring' => 56.0,
+        _ => 50.0,
+      };
+      drawPuff(
+        canvas,
+        _fx.puff!,
+        c,
+        width,
+        col.withValues(alpha: col.a * 0.58),
+      );
+    }
+
+    switch (type) {
+      case 'Spiral':
+        // Smooth galaxy curl: a soft wide pass under a bright core stroke,
+        // with motes flowing outward along the arm.
+        final spiral = Path()..moveTo(c.dx, c.dy);
+        for (var i = 1; i <= 34; i++) {
+          final a = i * 0.34 + _time * 0.45;
+          final r = i * 0.7;
+          spiral.lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
+        }
+        canvas.drawPath(
+          spiral,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4.5
+            ..strokeCap = StrokeCap.round
+            ..color = col.withValues(alpha: (col.a * 0.22).clamp(0.0, 1.0)),
+        );
+        canvas.drawPath(spiral, stroke);
+        canvas.drawCircle(
+          c,
+          3.2,
+          Paint()
+            ..color = Color.lerp(
+              col,
+              Colors.white,
+              0.5,
+            )!.withValues(alpha: (col.a * 0.9).clamp(0.0, 1.0)),
+        );
+        for (var i = 0; i < 3; i++) {
+          final u = ((_time * 0.32 + i / 3) % 1.0) * 30 + 4;
+          final a = u * 0.34 + _time * 0.45;
+          canvas.drawCircle(
+            c + Offset(cos(a), sin(a)) * (u * 0.7),
+            1.8,
+            Paint()
+              ..color = Color.lerp(
+                col,
+                Colors.white,
+                0.4,
+              )!.withValues(alpha: (col.a * 0.7).clamp(0.0, 1.0)),
+          );
+        }
+        break;
+      case 'Ring':
+        // A slowly turning halo: arc segments with a soft body, dark eye,
+        // and orbiting motes trailing thin arcs.
+        final rot = _time * 0.7;
+        final rect18 = Rect.fromCircle(center: c, radius: 18);
+        canvas.drawCircle(
+          c,
+          18,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 6
+            ..color = col.withValues(alpha: (col.a * 0.18).clamp(0.0, 1.0)),
+        );
+        for (var i = 0; i < 3; i++) {
+          canvas.drawArc(rect18, rot + i * pi * 2 / 3, pi * 0.5, false, stroke);
+        }
+        canvas.drawCircle(
+          c,
+          9,
+          Paint()..color = Colors.black.withValues(alpha: 0.16),
+        );
+        for (var i = 0; i < 5; i++) {
+          final a = _time * 0.8 + i * pi * 2 / 5;
+          canvas.drawArc(
+            Rect.fromCircle(center: c, radius: 25),
+            a - 0.5,
+            0.42,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.0
+              ..color = col.withValues(alpha: (col.a * 0.35).clamp(0.0, 1.0)),
+          );
+          canvas.drawCircle(
+            c + Offset(cos(a), sin(a)) * 25,
+            2.2,
+            Paint()
+              ..color = Color.lerp(
+                col,
+                Colors.white,
+                0.35,
+              )!.withValues(alpha: col.a),
+          );
+        }
+        break;
+      case 'Anvil':
+      case 'Thundercloud':
+        // A proper cumulonimbus: puffy base lobes, a rising column, and the
+        // sheared flat-topped anvil slab. Thunderclouds glow from within.
+        final thunder = type == 'Thundercloud';
+        final baseY = c.dy + 12;
+        final puff = Paint()
+          ..color = col.withValues(alpha: (col.a * 0.40).clamp(0.0, 1.0));
+        canvas.drawCircle(Offset(c.dx - 17, baseY), 11, puff);
+        canvas.drawCircle(Offset(c.dx + 3, baseY + 2), 13, puff);
+        canvas.drawCircle(Offset(c.dx + 20, baseY), 10, puff);
+        final column = Path()
+          ..moveTo(c.dx - 18, baseY)
+          ..quadraticBezierTo(c.dx - 24, c.dy - 4, c.dx - 27, c.dy - 9)
+          ..lineTo(c.dx + 33, c.dy - 9)
+          ..quadraticBezierTo(c.dx + 20, c.dy - 1, c.dx + 17, baseY)
+          ..close();
+        canvas.drawPath(
+          column,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              Offset(c.dx, c.dy - 17),
+              Offset(c.dx, baseY),
+              [
+                col.withValues(alpha: (col.a * 0.55).clamp(0.0, 1.0)),
+                col.withValues(alpha: (col.a * 0.18).clamp(0.0, 1.0)),
+              ],
+            ),
+        );
+        final slab = Path()
+          ..moveTo(c.dx - 31, c.dy - 9)
+          ..lineTo(c.dx + 38, c.dy - 9)
+          ..lineTo(c.dx + 28, c.dy - 17)
+          ..lineTo(c.dx - 23, c.dy - 17)
+          ..close();
+        canvas.drawPath(
+          slab,
+          Paint()
+            ..color = Color.lerp(
+              col,
+              Colors.white,
+              0.18,
+            )!.withValues(alpha: (col.a * 0.6).clamp(0.0, 1.0)),
+        );
+        canvas.drawLine(
+          Offset(c.dx - 31, c.dy - 9),
+          Offset(c.dx + 38, c.dy - 9),
+          stroke,
+        );
+        if (thunder) {
+          final flicker = 0.5 + 0.5 * sin(_time * 9).abs();
+          canvas.drawCircle(
+            Offset(c.dx, c.dy + 2),
+            10,
+            Paint()
+              ..color = const Color(
+                0xFFFFF4B0,
+              ).withValues(alpha: 0.18 * flicker),
+          );
+          _drawLightningArc(
+            canvas,
+            c + const Offset(-12, 8),
+            c + const Offset(-4, 30),
+            const Color(0xFFFFF4B0),
+          );
+          _drawLightningArc(
+            canvas,
+            c + const Offset(14, 10),
+            c + const Offset(20, 28),
+            const Color(0xFFFFF4B0),
+          );
+        }
+        break;
+      case 'Feather':
+        _drawFeatherRune(canvas, c, 76, color: col);
+        break;
+      case 'Veil':
+        // A miniature gossamer drape: one translucent ribbon + strands.
+        final sway = sin(_time * 0.8 + c.dx * 0.02) * 7;
+        final ribbon = Path()
+          ..moveTo(c.dx - 22, c.dy - 26)
+          ..quadraticBezierTo(c.dx, c.dy - 33, c.dx + 22, c.dy - 26)
+          ..cubicTo(
+            c.dx + 25 + sway,
+            c.dy - 4,
+            c.dx + 12 + sway,
+            c.dy + 16,
+            c.dx + 14 + sway,
+            c.dy + 33,
+          )
+          ..quadraticBezierTo(
+            c.dx + sway,
+            c.dy + 38,
+            c.dx - 12 + sway,
+            c.dy + 33,
+          )
+          ..cubicTo(
+            c.dx - 16 + sway,
+            c.dy + 12,
+            c.dx - 25,
+            c.dy - 6,
+            c.dx - 22,
+            c.dy - 26,
+          )
+          ..close();
+        canvas.drawPath(
+          ribbon,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              Offset(c.dx, c.dy - 30),
+              Offset(c.dx, c.dy + 36),
+              [
+                col.withValues(alpha: (col.a * 0.30).clamp(0.0, 1.0)),
+                col.withValues(alpha: (col.a * 0.06).clamp(0.0, 1.0)),
+              ],
+            ),
+        );
+        canvas.drawPath(
+          ribbon,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0
+            ..color = col.withValues(alpha: (col.a * 0.55).clamp(0.0, 1.0)),
+        );
+        for (var i = 0; i < 3; i++) {
+          final x = c.dx - 12 + i * 12.0;
+          final path = Path()..moveTo(x, c.dy - 22);
+          path.cubicTo(
+            x + sin(_time + i) * 7,
+            c.dy - 4,
+            x - 5,
+            c.dy + 12,
+            x + sin(_time * 0.7 + i) * 9 + sway * 0.5,
+            c.dy + 30,
+          );
+          canvas.drawPath(path, stroke);
+        }
+        break;
+      default:
+        canvas.drawCircle(c + const Offset(-8, 2), 8, fill);
+        canvas.drawCircle(c + const Offset(8, 2), 8, fill);
+        canvas.drawCircle(c + const Offset(0, -4), 10, fill);
+    }
+  }
+
+  void _drawWonderCloudRemnant(
+    Canvas canvas,
+    Offset c,
+    String type, {
+    bool strong = false,
+  }) {
+    final pulse = 0.5 + 0.5 * sin(_time * 2.2).abs();
+    final cyan = const Color(0xFF5BC8E8);
+    final gold = const Color(0xFFE4C16A);
+    final strength = strong ? 1.0 : 0.55;
+    final remnantPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strong ? 1.8 : 1.2
+      ..strokeCap = StrokeCap.round
+      ..color = cyan.withValues(alpha: (0.18 + 0.16 * pulse) * strength);
+    final motePaint = Paint()
+      ..color = Color.lerp(
+        cyan,
+        Colors.white,
+        0.35,
+      )!.withValues(alpha: strong ? 0.62 : 0.35);
+
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        strong ? 150 : 95,
+        cyan.withValues(alpha: strong ? 0.14 : 0.08),
+      );
+    }
+
+    canvas.drawCircle(
+      c,
+      strong ? 52 : 38,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strong ? 1.2 : 0.8
+        ..color = gold.withValues(alpha: strong ? 0.20 : 0.10),
+    );
+
+    _drawWonderCloud(
+      canvas,
+      c,
+      type,
+      cyan.withValues(alpha: strong ? 0.34 : 0.18),
+      discovered: true,
+      echo: true,
+    );
+
+    switch (type) {
+      case 'Ring':
+        canvas.drawCircle(c, strong ? 44 : 31, remnantPaint..strokeWidth = 2.0);
+        canvas.drawCircle(
+          c,
+          strong ? 20 : 12,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = strong ? 1.4 : 1
+            ..color = gold.withValues(
+              alpha: (strong ? 0.30 : 0.18) + 0.08 * pulse,
+            ),
+        );
+        final moteCount = strong ? 10 : 7;
+        for (var i = 0; i < moteCount; i++) {
+          final a = -_time * 0.35 + i * pi * 2 / moteCount;
+          canvas.drawCircle(
+            c + Offset(cos(a), sin(a)) * (strong ? 60 : 39),
+            strong ? 2.4 : 1.8,
+            motePaint,
+          );
+        }
+        break;
+      case 'Spiral':
+        final path = Path()..moveTo(c.dx, c.dy);
+        for (var i = 0; i < 46; i++) {
+          final a = i * 0.32 + _time * 0.12;
+          final r = i * 0.95;
+          path.lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
+        }
+        canvas.drawPath(path, remnantPaint);
+        break;
+      case 'Anvil':
+      case 'Thundercloud':
+        canvas.drawLine(
+          c + const Offset(-42, 18),
+          c + const Offset(42, 18),
+          remnantPaint..strokeWidth = 1.7,
+        );
+        for (var i = 0; i < 4; i++) {
+          final x = c.dx - 27 + i * 18;
+          canvas.drawLine(
+            Offset(x, c.dy + 24),
+            Offset(x + sin(_time * 3 + i) * 5, c.dy + 40),
+            remnantPaint,
+          );
+        }
+        break;
+      case 'Feather':
+        final path = Path()
+          ..moveTo(c.dx - 35, c.dy + 22)
+          ..quadraticBezierTo(c.dx + 4, c.dy - 26, c.dx + 44, c.dy - 12);
+        canvas.drawPath(path, remnantPaint..strokeWidth = 1.6);
+        break;
+      case 'Veil':
+        for (var i = 0; i < 5; i++) {
+          final x = c.dx - 30 + i * 15.0;
+          canvas.drawLine(
+            Offset(x, c.dy - 26),
+            Offset(x + sin(_time + i) * 6, c.dy + 32),
+            remnantPaint,
+          );
+        }
+        break;
+    }
+  }
+
+  void _drawLightningArc(Canvas canvas, Offset a, Offset b, Color color) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..color = color.withValues(alpha: 0.78);
+    final mid = Offset(
+      (a.dx + b.dx) / 2 + sin(_time * 12) * 9,
+      (a.dy + b.dy) / 2 - 8,
+    );
+    final path = Path()
+      ..moveTo(a.dx, a.dy)
+      ..lineTo(mid.dx, mid.dy)
+      ..lineTo(b.dx, b.dy);
+    canvas.drawPath(path, p);
+  }
+
+  void _drawTinyLabel(Canvas canvas, Offset center, String text) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          color: Color(0xFFE8DFC8),
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    // Rune-chip backing so labels read over busy geometry.
+    final origin = center - Offset(tp.width / 2, 0);
+    final chip = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        origin.dx - 5,
+        origin.dy - 2.5,
+        tp.width + 10,
+        tp.height + 5,
+      ),
+      const Radius.circular(5),
+    );
+    canvas.drawRRect(
+      chip,
+      Paint()..color = const Color(0xFF0B0F18).withValues(alpha: 0.72),
+    );
+    canvas.drawRRect(
+      chip,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9
+        ..color = const Color(0xFFC4A35A).withValues(alpha: 0.45),
+    );
+    tp.paint(canvas, origin);
+  }
+
+  /// Muted italic riddle text under an anchor ("the endless orbit").
+  void _drawClueLabel(Canvas canvas, Offset center, String text) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '“$text”',
+        style: TextStyle(
+          color: const Color(0xFFC4A35A).withValues(alpha: 0.85),
+          fontSize: 8.5,
+          fontStyle: FontStyle.italic,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: 150);
+    final origin = center - Offset(tp.width / 2, 0);
+    // Soft backing so the riddle reads over busy loom geometry.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          origin.dx - 5,
+          origin.dy - 2,
+          tp.width + 10,
+          tp.height + 4,
+        ),
+        const Radius.circular(6),
+      ),
+      Paint()..color = const Color(0xFF080808).withValues(alpha: 0.55),
+    );
+    tp.paint(canvas, origin);
+  }
+
+  Offset _cameraTopLeft(DungeonRoom room, Offset focus) {
+    final vw = size.x, vh = size.y;
+    final b = room.bounds;
+    double camX, camY;
+    if (b.width <= vw) {
+      camX = b.center.dx - vw / 2; // center small room
+    } else {
+      camX = (focus.dx - vw / 2).clamp(b.left, b.right - vw);
+    }
+    if (b.height <= vh) {
+      camY = b.center.dy - vh / 2;
+    } else {
+      camY = (focus.dy - vh / 2).clamp(b.top, b.bottom - vh);
+    }
+    return Offset(camX, camY);
+  }
+
+  void _renderIslandAndVoid(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+
+    // Open-sky rooms (platforms): floating ledges over the drifting sky.
+    if (room.platforms.isNotEmpty) {
+      for (final p in room.platforms) {
+        _renderFloatingIsland(canvas, p, sigil: false);
+      }
+      return;
+    }
+
+    // Plain rooms: a translucent, soft-edged sky-island so the shader sky
+    // shows through and around it (no boxy slab).
+    if (room.gaps.isEmpty) {
+      _renderPlainFloor(canvas, b, room.id == layout.entranceRoomId);
+      return;
+    }
+
+    // Spire-style rooms: open sky with solid island ledges between the gaps.
+    final gaps = room.gaps.map((g) => g.rect).toList()
+      ..sort((x, y) => x.top.compareTo(y.top));
+    var cursor = b.top;
+    final solids = <Rect>[];
+    for (final g in gaps) {
+      if (g.top > cursor) {
+        solids.add(Rect.fromLTRB(b.left, cursor, b.right, g.top));
+      }
+      cursor = max(cursor, g.bottom);
+    }
+    if (cursor < b.bottom) {
+      solids.add(Rect.fromLTRB(b.left, cursor, b.right, b.bottom));
+    }
+
+    // Floating ledges over the drifting sky.
+    for (final s in solids) {
+      _renderFloatingIsland(canvas, s, sigil: false);
+    }
+  }
+
+  /// A whole-room sky-island for plain rooms (hub/loom/altar): heavily rounded,
+  /// translucent so the elemental sky shows through, with cloud-feathered edges
+  /// on all sides so it reads as land floating in air rather than a box.
+  void _renderPlainFloor(Canvas canvas, Rect b, bool showSigil) {
+    final rr = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(70));
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, [
+          const Color(0xFF2A3646).withValues(alpha: 0.52),
+          const Color(0xFF1A222E).withValues(alpha: 0.60),
+        ]),
+    );
+    // Cloud feathering around the whole perimeter dissolves the edges.
+    if (_fx.ready) {
+      final cols = (b.width / 110).clamp(4, 12).toInt();
+      for (var i = 0; i < cols; i++) {
+        final x = b.left + (i + 0.5) / cols * b.width;
+        drawPuff(
+          canvas,
+          _fx.puff!,
+          Offset(x, b.top + 8),
+          130,
+          const Color(0xFF3E4E66).withValues(alpha: 0.55),
+        );
+        drawPuff(
+          canvas,
+          _fx.puff!,
+          Offset(x, b.bottom - 8),
+          130,
+          const Color(0xFF2A3850).withValues(alpha: 0.6),
+        );
+      }
+      final rows = (b.height / 110).clamp(3, 10).toInt();
+      for (var i = 0; i < rows; i++) {
+        final y = b.top + (i + 0.5) / rows * b.height;
+        drawPuff(
+          canvas,
+          _fx.puff!,
+          Offset(b.left + 8, y),
+          120,
+          const Color(0xFF34465E).withValues(alpha: 0.5),
+        );
+        drawPuff(
+          canvas,
+          _fx.puff!,
+          Offset(b.right - 8, y),
+          120,
+          const Color(0xFF34465E).withValues(alpha: 0.5),
+        );
+      }
+    }
+    // Faint top rim + sigil (no hard rectangular border).
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFFAFC4DC).withValues(alpha: 0.16),
+    );
+    if (showSigil) _drawSigil(canvas, b); // hub only — declutter trial rooms
+  }
+
+  _IslandGeometry _cachedIslandGeometry(
+    Rect rect, {
+    required bool stormVariant,
+  }) {
+    final key =
+        '${rect.left.toStringAsFixed(1)},${rect.top.toStringAsFixed(1)},'
+        '${rect.width.toStringAsFixed(1)},${rect.height.toStringAsFixed(1)},'
+        '${stormVariant ? 1 : 0}';
+    return _islandCache.putIfAbsent(key, () {
+      final seed =
+          rect.left * 0.73 +
+          rect.top * 1.37 +
+          rect.width * 0.19 +
+          rect.height * 0.31 +
+          (stormVariant ? 91 : 17);
+      double n(int i) {
+        final v = sin(seed + i * 12.9898) * 43758.5453;
+        return v - v.floorToDouble();
+      }
+
+      final radius = min(24.0, rect.height * 0.34);
+      final top = Path()
+        ..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)));
+
+      final underside = Path()
+        ..moveTo(rect.left + radius * 0.4, rect.top + rect.height * 0.48)
+        ..lineTo(rect.right - radius * 0.4, rect.top + rect.height * 0.48);
+      final points = 9;
+      for (var i = points; i >= 0; i--) {
+        final u = i / points;
+        final x = rect.left + rect.width * u;
+        final jag = rect.bottom + 10 + n(i) * rect.height * 0.42;
+        final taper = sin(u * pi) * rect.height * 0.34;
+        underside.lineTo(x, jag + taper);
+      }
+      underside.close();
+
+      final debris = <Offset>[];
+      final debrisCount = (rect.width / 110).clamp(2, 7).toInt();
+      for (var i = 0; i < debrisCount; i++) {
+        final side = n(40 + i) > 0.5 ? 1.0 : -1.0;
+        debris.add(
+          Offset(
+            rect.center.dx + side * (rect.width * (0.48 + n(50 + i) * 0.22)),
+            rect.center.dy + (n(60 + i) - 0.25) * rect.height * 0.95,
+          ),
+        );
+      }
+
+      final runes = <Offset>[];
+      final runeCount = (rect.width / 180).clamp(1, 4).toInt();
+      for (var i = 0; i < runeCount; i++) {
+        runes.add(
+          Offset(
+            rect.left + rect.width * (0.18 + 0.64 * n(80 + i)),
+            rect.top + rect.height * (0.20 + 0.20 * n(90 + i)),
+          ),
+        );
+      }
+
+      return _IslandGeometry(
+        top: top,
+        underside: underside,
+        debris: debris,
+        runes: runes,
+      );
+    });
+  }
+
+  /// A solid floating island: cached procedural top/underside paths, readable
+  /// flat walkable surface, jagged hanging stone, and sparse rune/debris detail.
+  void _renderFloatingIsland(Canvas canvas, Rect rect, {required bool sigil}) {
+    final stormVariant = _isStormRoom(currentRoom);
+    final geom = _cachedIslandGeometry(rect, stormVariant: stormVariant);
+
+    // Dark hanging underside, drawn first so the playable top remains crisp.
+    canvas.drawPath(
+      geom.underside.shift(const Offset(0, 5)),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          rect.topCenter,
+          Offset(rect.center.dx, rect.bottom + rect.height * 0.65),
+          stormVariant
+              ? const [Color(0xFF0A0B12), Color(0xFF030407)]
+              : const [Color(0xFF111723), Color(0xFF05070D)],
+        ),
+    );
+
+    // Opaque stone body.
+    canvas.drawPath(
+      geom.top,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          rect.topCenter,
+          rect.bottomCenter,
+          stormVariant
+              ? const [Color(0xFF26303F), Color(0xFF151B27), Color(0xFF080A11)]
+              : const [Color(0xFF35465A), Color(0xFF202B3A), Color(0xFF101722)],
+          const [0.0, 0.4, 1.0],
+        ),
+    );
+    // Lit top surface band.
+    canvas.save();
+    canvas.clipPath(geom.top);
+    canvas.drawRect(
+      Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * 0.34),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          rect.topCenter,
+          Offset(rect.center.dx, rect.top + rect.height * 0.34),
+          [
+            (stormVariant ? const Color(0xFF5BC8E8) : const Color(0xFFBFD2E6))
+                .withValues(alpha: stormVariant ? 0.16 : 0.22),
+            const Color(0x00000000),
+          ],
+        ),
+    );
+    canvas.restore();
+    // Crisp top rim highlight.
+    canvas.drawPath(
+      geom.top,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color =
+            (stormVariant ? const Color(0xFF5BC8E8) : const Color(0xFFBFD2E6))
+                .withValues(alpha: stormVariant ? 0.42 : 0.35),
+    );
+
+    final runePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round
+      ..color =
+          (stormVariant ? const Color(0xFF5BC8E8) : const Color(0xFFC4A35A))
+              .withValues(alpha: 0.24);
+    for (final r in geom.runes) {
+      canvas.drawLine(
+        r + const Offset(-8, 0),
+        r + const Offset(8, 0),
+        runePaint,
+      );
+      canvas.drawLine(
+        r + const Offset(0, -6),
+        r + const Offset(0, 6),
+        runePaint,
+      );
+    }
+
+    final debrisPaint = Paint()
+      ..color = const Color(
+        0xFF0A0E16,
+      ).withValues(alpha: stormVariant ? 0.85 : 0.68);
+    for (var i = 0; i < geom.debris.length; i++) {
+      final d = geom.debris[i];
+      final wobble = Offset(0, sin(_time * 0.8 + i) * 2);
+      canvas.drawCircle(d + wobble, 3 + (i % 3) * 1.5, debrisPaint);
+    }
+
+    // Thin mist clinging to the underside only (doesn't engulf the island).
+    if (_fx.ready) {
+      final n = (rect.width / 140).clamp(2, 6).toInt();
+      for (var i = 0; i < n; i++) {
+        final x = rect.left + (i + 0.5) / n * rect.width;
+        drawPuff(
+          canvas,
+          _fx.puff!,
+          Offset(x, rect.bottom + 6),
+          70,
+          const Color(0xFF2A3850).withValues(alpha: stormVariant ? 0.28 : 0.4),
+        );
+      }
+    }
+
+    if (sigil) _drawSigil(canvas, rect);
+  }
+
+  void _drawSigil(Canvas canvas, Rect rect) {
+    final sigilR = min(rect.width, rect.height) * 0.22;
+    final pulse = 0.06 + 0.03 * sin(_time * 1.5);
+    canvas.drawCircle(
+      rect.center,
+      sigilR,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF8FB3D6).withValues(alpha: pulse),
+    );
+    canvas.drawCircle(
+      rect.center,
+      sigilR * 0.62,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = const Color(0xFF8FB3D6).withValues(alpha: pulse * 0.7),
+    );
+  }
+
+  void _renderWalls(Canvas canvas, DungeonRoom room) {
+    for (final w in room.walls) {
+      // Soft cast shadow under the rock.
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          w.translate(0, 4).inflate(2),
+          const Radius.circular(12),
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.35),
+      );
+      final rock = RRect.fromRectAndRadius(w, const Radius.circular(11));
+      // Cool stone body.
+      canvas.drawRRect(
+        rock,
+        Paint()
+          ..shader = ui.Gradient.linear(
+            w.topCenter,
+            w.bottomCenter,
+            const [Color(0xFF45566B), Color(0xFF2A3543), Color(0xFF1C2531)],
+            const [0.0, 0.55, 1.0],
+          ),
+      );
+      // Top highlight (lit from above).
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(w.left, w.top, w.width, w.height * 0.42),
+          const Radius.circular(11),
+        ),
+        Paint()..color = const Color(0xFF6E8197).withValues(alpha: 0.30),
+      );
+      // Faint cool rim.
+      canvas.drawRRect(
+        rock,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = const Color(0xFF9FB6CE).withValues(alpha: 0.25),
+      );
+    }
+  }
+
+  void _renderHazards(Canvas canvas, DungeonRoom room) {
+    for (final h in room.hazards) {
+      final pulse = 0.18 + 0.10 * sin(_time * 4);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(h, const Radius.circular(6)),
+        Paint()..color = const Color(0xFFC0392B).withValues(alpha: pulse),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(h, const Radius.circular(6)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = const Color(0xFFC0392B).withValues(alpha: 0.6),
+      );
+    }
+  }
+
+  /// Wind-gates instead of plain teal rectangles: a soft passage glow, a
+  /// gradient veil that fades into the room, rune posts flanking the
+  /// opening, and motes drifting through to say "this way out".
+  void _renderDoors(Canvas canvas, DungeonRoom room) {
+    const cyan = Color(0xFF5BC8E8);
+    const amber = Color(0xFFC4A35A);
+    for (final d in room.doors) {
+      if (isDoorHidden(room, d)) continue;
+      final r = d.rect;
+      // Sealed star-gated door: a dark slab with an amber lock rune — no
+      // veil, no motes, no "this way" language.
+      if (isDoorLocked(room, d)) {
+        final rrLocked = RRect.fromRectAndRadius(r, const Radius.circular(5));
+        canvas.drawRRect(
+          rrLocked,
+          Paint()..color = const Color(0xFF0B0F18).withValues(alpha: 0.88),
+        );
+        canvas.drawRRect(
+          rrLocked,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.3
+            ..color = amber.withValues(alpha: 0.5),
+        );
+        final lockPulse = 0.5 + 0.25 * sin(_time * 1.8);
+        canvas.drawCircle(
+          r.center,
+          7,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = amber.withValues(alpha: lockPulse),
+        );
+        canvas.drawLine(
+          r.center + const Offset(0, -3),
+          r.center + const Offset(0, 3),
+          Paint()
+            ..strokeWidth = 1.4
+            ..strokeCap = StrokeCap.round
+            ..color = amber.withValues(alpha: lockPulse),
+        );
+        continue;
+      }
+      final horizontal = r.width >= r.height; // opening in a top/bottom edge
+      final pulse = 0.7 + 0.3 * sin(_time * 2.2 + r.left * 0.013);
+
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          r.center,
+          max(r.width, r.height) * 0.85,
+          cyan.withValues(alpha: 0.10 * pulse),
+        );
+      }
+
+      // Gradient veil along the passage axis (brighter at the threshold).
+      final rrect = RRect.fromRectAndRadius(r, const Radius.circular(5));
+      canvas.drawRRect(
+        rrect,
+        Paint()
+          ..shader = ui.Gradient.linear(
+            horizontal ? r.topCenter : r.centerLeft,
+            horizontal ? r.bottomCenter : r.centerRight,
+            [
+              cyan.withValues(alpha: 0.26 * pulse),
+              cyan.withValues(alpha: 0.07),
+            ],
+          ),
+      );
+      canvas.drawRRect(
+        rrect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = cyan.withValues(alpha: 0.55 + 0.2 * pulse),
+      );
+
+      // Rune posts flanking the opening.
+      final ends = horizontal
+          ? [
+              r.centerLeft + const Offset(-5, 0),
+              r.centerRight + const Offset(5, 0),
+            ]
+          : [
+              r.topCenter + const Offset(0, -5),
+              r.bottomCenter + const Offset(0, 5),
+            ];
+      for (final e in ends) {
+        canvas.drawCircle(
+          e,
+          4.5,
+          Paint()..color = const Color(0xFF111723).withValues(alpha: 0.9),
+        );
+        canvas.drawCircle(
+          e,
+          4.5,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1
+            ..color = amber.withValues(alpha: 0.6),
+        );
+        canvas.drawCircle(
+          e,
+          1.6,
+          Paint()..color = cyan.withValues(alpha: 0.65 * pulse),
+        );
+      }
+
+      // Motes drifting through the opening.
+      for (var i = 0; i < 3; i++) {
+        final t = ((_time * 0.45 + i / 3) % 1.0).toDouble();
+        final along = horizontal
+            ? Offset(r.left + r.width * t, r.center.dy)
+            : Offset(r.center.dx, r.top + r.height * t);
+        final wobble = sin(_time * 3 + i * 2.1) * 3.0;
+        canvas.drawCircle(
+          along + (horizontal ? Offset(0, wobble) : Offset(wobble, 0)),
+          1.8,
+          Paint()
+            ..color = Color.lerp(
+              cyan,
+              Colors.white,
+              0.4,
+            )!.withValues(alpha: 0.55 * (1 - (t - 0.5).abs() * 2 * 0.6)),
+        );
+      }
+    }
+  }
+
+  void _renderDoorRevealFx(Canvas canvas) {
+    for (final fx in _doorRevealFx) {
+      if (fx.roomId != currentRoomId || !fx.burstFired) continue;
+      final p = (1 - fx.ttl / 2.2).clamp(0.0, 1.0).toDouble();
+      final alpha = (1 - p) * 0.7;
+      for (var ring = 0; ring < 2; ring++) {
+        canvas.drawCircle(
+          fx.position,
+          14 + p * 70 + ring * 12,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0 - ring * 0.7
+            ..color = const Color(
+              0xFFE4C16A,
+            ).withValues(alpha: alpha - ring * 0.2),
+        );
+      }
+    }
+  }
+
+  void _renderStars(Canvas canvas, DungeonRoom room) {
+    for (final s in room.stars) {
+      if (_earnedStars.contains(s.starIndex)) continue;
+      final pulse = 0.6 + 0.4 * sin(_time * 3 + s.starIndex);
+      canvas.drawCircle(
+        s.position,
+        18,
+        Paint()
+          ..color = const Color(0xFFE4C16A).withValues(alpha: 0.18 * pulse),
+      );
+      _drawStarGlyph(canvas, s.position, 10, const Color(0xFFE4C16A));
+    }
+  }
+
+  void _drawStarGlyph(Canvas canvas, Offset c, double r, Color color) {
+    final path = Path();
+    for (var i = 0; i < 5; i++) {
+      final outer = -pi / 2 + i * (pi * 2 / 5);
+      final inner = outer + pi / 5;
+      final po = Offset(c.dx + cos(outer) * r, c.dy + sin(outer) * r);
+      final pi2 = Offset(
+        c.dx + cos(inner) * r * 0.45,
+        c.dy + sin(inner) * r * 0.45,
+      );
+      if (i == 0) {
+        path.moveTo(po.dx, po.dy);
+      } else {
+        path.lineTo(po.dx, po.dy);
+      }
+      path.lineTo(pi2.dx, pi2.dy);
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  void _renderAlchemyParticles(Canvas canvas) {
+    for (final p in _alchemyParticles) {
+      final fade = (1 - p.t).clamp(0.0, 1.0).toDouble();
+      final alpha = fade * fade;
+      if (p.arc) {
+        final dir = p.velocity.distance > 0.01
+            ? p.velocity / p.velocity.distance
+            : const Offset(1, 0);
+        final perp = Offset(-dir.dy, dir.dx);
+        final kink =
+            p.position - dir * p.size * 2.4 + perp * sin(_time * 18) * 5;
+        canvas.drawLine(
+          p.position - dir * p.size * 5.0,
+          kink,
+          Paint()
+            ..color = p.color.withValues(alpha: 0.44 * alpha)
+            ..strokeWidth = max(1.0, p.size * 0.42)
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawLine(
+          kink,
+          p.position + dir * p.size * 2.2,
+          Paint()
+            ..color = Colors.white.withValues(alpha: 0.62 * alpha)
+            ..strokeWidth = max(0.8, p.size * 0.28)
+            ..strokeCap = StrokeCap.round,
+        );
+      } else {
+        canvas.drawCircle(
+          p.position,
+          p.size * (0.9 + p.t * 0.8),
+          Paint()..color = p.color.withValues(alpha: 0.42 * alpha),
+        );
+      }
+      canvas.drawCircle(
+        p.position,
+        max(0.8, p.size * 0.38),
+        Paint()
+          ..color = Color.lerp(
+            p.color,
+            Colors.white,
+            0.45,
+          )!.withValues(alpha: 0.76 * alpha),
+      );
+    }
+  }
+
+  void _renderWingBeams(Canvas canvas) {
+    for (final beam in _activeWingBeams) {
+      if (beam.dead) continue;
+      final descriptor = beam.descriptor;
+      final color = elementColor(descriptor.element);
+      final pulse = 0.78 + 0.22 * sin(_time * 7.0 + beam.life);
+      final fade = beam.life < 0.35
+          ? (beam.life / 0.35).clamp(0.0, 1.0).toDouble()
+          : 1.0;
+
+      if (beam.chargeTimer > 0) {
+        final progress = descriptor.chargeTime <= 0
+            ? 1.0
+            : (1.0 - beam.chargeTimer / descriptor.chargeTime)
+                  .clamp(0.0, 1.0)
+                  .toDouble();
+        final chargeRadius = 20 + 34 * progress;
+        canvas.drawCircle(
+          beam.origin,
+          chargeRadius,
+          Paint()..color = color.withValues(alpha: 0.18 * pulse),
+        );
+        canvas.drawCircle(
+          beam.origin,
+          chargeRadius * 0.48,
+          Paint()
+            ..color = Color.lerp(
+              color,
+              Colors.white,
+              0.5,
+            )!.withValues(alpha: 0.36 * pulse),
+        );
+        for (var i = 0; i < 5; i++) {
+          final a = _time * 5.5 + i * pi * 2 / 5;
+          canvas.drawLine(
+            beam.origin + Offset(cos(a), sin(a)) * chargeRadius * 0.55,
+            beam.origin + Offset(cos(a + 0.22), sin(a + 0.22)) * chargeRadius,
+            Paint()
+              ..color = Colors.white.withValues(alpha: 0.45 * progress)
+              ..strokeWidth = 1.2
+              ..strokeCap = StrokeCap.round,
+          );
+        }
+        continue;
+      }
+
+      if (descriptor.targetPolicy == WingBeamTargetPolicy.ring &&
+          descriptor.radius > 0) {
+        _renderWingBeamRing(canvas, beam, color, pulse * fade);
+        continue;
+      }
+
+      final end = _wingBeamEnd(beam);
+      final width = descriptor.width;
+      canvas.drawLine(
+        beam.origin,
+        end,
+        Paint()
+          ..color = color.withValues(alpha: 0.18 * pulse * fade)
+          ..strokeWidth = width * 3.0
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawLine(
+        beam.origin,
+        end,
+        Paint()
+          ..color = color.withValues(alpha: 0.54 * pulse * fade)
+          ..strokeWidth = width * 1.35
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawLine(
+        beam.origin,
+        end,
+        Paint()
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            0.72,
+          )!.withValues(alpha: 0.86 * pulse * fade)
+          ..strokeWidth = max(2.0, width * 0.38)
+          ..strokeCap = StrokeCap.round,
+      );
+
+      final dir = end - beam.origin;
+      final dist = dir.distance;
+      if (dist > 0.01) {
+        final unit = dir / dist;
+        final perp = Offset(-unit.dy, unit.dx);
+        for (var i = 0; i < 5; i++) {
+          final t = ((_time * 1.8 + i * 0.19) % 1.0).toDouble();
+          final p =
+              beam.origin +
+              unit * dist * t +
+              perp * sin(t * pi * 4 + i) * width * 0.55;
+          canvas.drawCircle(
+            p,
+            1.3 + width * 0.08,
+            Paint()
+              ..color = Color.lerp(
+                color,
+                Colors.white,
+                0.45,
+              )!.withValues(alpha: 0.58 * fade),
+          );
+        }
+      }
+    }
+  }
+
+  void _renderWingBeamRing(
+    Canvas canvas,
+    _DungeonWingBeam beam,
+    Color color,
+    double alphaScale,
+  ) {
+    final r = beam.descriptor.radius;
+    canvas.drawCircle(
+      beam.origin,
+      r,
+      Paint()..color = color.withValues(alpha: 0.055 * alphaScale),
+    );
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = beam.descriptor.width * 0.55
+      ..color = color.withValues(alpha: 0.42 * alphaScale);
+    for (var i = 0; i < 3; i++) {
+      canvas.drawArc(
+        Rect.fromCircle(center: beam.origin, radius: r * (0.78 + i * 0.1)),
+        _time * (0.8 + i * 0.25) + i * pi * 2 / 3,
+        pi * 0.72,
+        false,
+        ringPaint,
+      );
+    }
+    final hot = Color.lerp(color, Colors.white, 0.62)!;
+    for (var i = 0; i < 10; i++) {
+      final a = _time * 1.3 + i * pi * 2 / 10;
+      final p = beam.origin + Offset(cos(a), sin(a)) * r;
+      canvas.drawCircle(
+        p,
+        2.0,
+        Paint()..color = hot.withValues(alpha: 0.45 * alphaScale),
+      );
+    }
+  }
+
+  /// Kin charged-laser flashes: three-layer beam that fades fast.
+  void _renderKinBeams(Canvas canvas) {
+    for (final beam in _kinBeams) {
+      final fade = (beam.life / 0.34).clamp(0.0, 1.0).toDouble();
+      canvas.drawLine(
+        beam.origin,
+        beam.end,
+        Paint()
+          ..color = beam.color.withValues(alpha: 0.16 * fade)
+          ..strokeWidth = 9
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawLine(
+        beam.origin,
+        beam.end,
+        Paint()
+          ..color = beam.color.withValues(alpha: 0.5 * fade)
+          ..strokeWidth = 3.4
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawLine(
+        beam.origin,
+        beam.end,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.85 * fade)
+          ..strokeWidth = 1.4
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  void _renderCombatProjectiles(Canvas canvas) {
+    for (final p in combatProjectiles) {
+      final color = elementColor(p.element ?? 'Air');
+      if (_drawSurvivalProjectileVisual(canvas, p, color)) {
+        continue;
+      }
+      _drawSurvivalFallbackProjectile(canvas, p, color);
+    }
+  }
+
+  bool _drawSurvivalProjectileVisual(
+    Canvas canvas,
+    Projectile projectile,
+    Color color,
+  ) {
+    final position = projectile.position;
+    if (projectile.abilityFamily == 'kin' &&
+        projectile.element == 'Spirit' &&
+        projectile.followSourceCompanion) {
+      final tier = projectile.effectCount.clamp(1, 4);
+      final spirit = elementColor('Spirit');
+      final white = Color.lerp(spirit, Colors.white, 0.55)!;
+      final scale = 1.0 + 0.35 * (tier - 1);
+      canvas.drawCircle(
+        position,
+        14.0 * scale,
+        Paint()..color = spirit.withValues(alpha: 0.16 + 0.04 * tier),
+      );
+      canvas.drawCircle(
+        position,
+        8.5 * scale,
+        Paint()..color = spirit.withValues(alpha: 0.30 + 0.06 * tier),
+      );
+      canvas.drawCircle(
+        position,
+        4.0 * scale,
+        Paint()..color = white.withValues(alpha: 0.55 + 0.10 * tier),
+      );
+      canvas.drawCircle(
+        position,
+        1.4 + 0.4 * tier,
+        Paint()..color = Colors.white.withValues(alpha: 0.95),
+      );
+      for (var i = 0; i < tier - 1; i++) {
+        final a = _time * 2.4 + i * (pi * 2 / max(1, tier - 1));
+        final r = 9.0 * scale + 2.0;
+        canvas.drawCircle(
+          position + Offset(cos(a) * r, sin(a) * r),
+          1.6,
+          Paint()..color = white.withValues(alpha: 0.85),
+        );
+      }
+      return true;
+    }
+
+    if (projectile.visualStyle == ProjectileVisualStyle.mysticOrbital) {
+      if (projectile.stationary &&
+          drawMaskElementalProjectileVisual(
+            canvas: canvas,
+            projectile: projectile,
+            position: position,
+            color: color,
+            time: _time,
+          )) {
+        return true;
+      }
+      _drawSurvivalMysticOrbital(canvas, projectile, color);
+      return true;
+    }
+
+    final drawn =
+        drawMaskElementalProjectileVisual(
+          canvas: canvas,
+          projectile: projectile,
+          position: position,
+          color: color,
+          time: _time,
+        ) ||
+        drawLetElementalProjectileVisual(
+          canvas: canvas,
+          projectile: projectile,
+          position: position,
+          color: color,
+          time: _time,
+        ) ||
+        drawPipElementalProjectileVisual(
+          canvas: canvas,
+          projectile: projectile,
+          position: position,
+          color: color,
+          time: _time,
+        ) ||
+        drawManeElementalProjectileVisual(
+          canvas: canvas,
+          projectile: projectile,
+          position: position,
+          color: color,
+          time: _time,
+        ) ||
+        drawHornElementalProjectileVisual(
+          canvas: canvas,
+          projectile: projectile,
+          position: position,
+          color: color,
+          time: _time,
+        );
+    if (drawn) {
+      drawProjectileRoleOverlay(
+        canvas: canvas,
+        projectile: projectile,
+        position: position,
+        color: color,
+        time: _time,
+      );
+    }
+    return drawn;
+  }
+
+  void _drawSurvivalMysticOrbital(
+    Canvas canvas,
+    Projectile projectile,
+    Color color,
+  ) {
+    final dir = Offset(cos(projectile.angle), sin(projectile.angle));
+    final radius = (1.65 * projectile.visualScale).clamp(1.4, 6.1).toDouble();
+    final pulse = 0.78 + 0.22 * sin(_time * 4.0 + projectile.life);
+
+    canvas.drawCircle(
+      projectile.position,
+      radius * 2.6,
+      Paint()..color = color.withValues(alpha: 0.18 * pulse),
+    );
+    for (var i = 1; i <= 3; i++) {
+      final fade = 1.0 - i * 0.30;
+      final back = projectile.position - dir * (radius * 2.0 * i);
+      canvas.drawCircle(
+        back,
+        radius * (1.0 + i * 0.18) * 0.55,
+        Paint()..color = color.withValues(alpha: 0.32 * fade),
+      );
+    }
+    canvas.drawCircle(
+      projectile.position,
+      radius,
+      Paint()..color = color.withValues(alpha: 0.92 * pulse),
+    );
+    canvas.drawCircle(
+      projectile.position,
+      radius * 0.42,
+      Paint()..color = Colors.white.withValues(alpha: 0.85 * pulse),
+    );
+    drawProjectileRoleOverlay(
+      canvas: canvas,
+      projectile: projectile,
+      position: projectile.position,
+      color: color,
+      time: _time,
+    );
+  }
+
+  void _drawSurvivalFallbackProjectile(
+    Canvas canvas,
+    Projectile projectile,
+    Color color,
+  ) {
+    final position = projectile.position;
+    final visualScale = projectile.visualScale;
+    switch (projectile.visualStyle) {
+      case ProjectileVisualStyle.meteor:
+        final tailLen = 22.0 * visualScale;
+        final tailStart =
+            position -
+            Offset(cos(projectile.angle), sin(projectile.angle)) * tailLen;
+        canvas.drawLine(
+          tailStart,
+          position,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tailStart,
+              position,
+              [
+                color.withValues(alpha: 0.02),
+                color.withValues(alpha: 0.35),
+                Color.lerp(color, Colors.white, 0.35)!,
+              ],
+              const [0.0, 0.6, 1.0],
+            )
+            ..strokeWidth = 7.5 * visualScale
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawCircle(
+          position,
+          6.0 * visualScale,
+          Paint()..color = color.withValues(alpha: 0.92),
+        );
+        canvas.drawCircle(
+          position -
+              Offset(cos(projectile.angle), sin(projectile.angle)) *
+                  (2.5 * visualScale),
+          3.2 * visualScale,
+          Paint()..color = Color.lerp(color, const Color(0xFF2B1A12), 0.55)!,
+        );
+        canvas.drawCircle(
+          position +
+              Offset(cos(projectile.angle + 0.6), sin(projectile.angle + 0.6)) *
+                  (1.8 * visualScale),
+          1.7 * visualScale,
+          Paint()..color = const Color(0xFFFFF2D6).withValues(alpha: 0.85),
+        );
+        break;
+      case ProjectileVisualStyle.slash:
+        final len = 8.0 * visualScale;
+        canvas.drawLine(
+          position - Offset(cos(projectile.angle), sin(projectile.angle)) * len,
+          position + Offset(cos(projectile.angle), sin(projectile.angle)) * len,
+          Paint()
+            ..color = color.withValues(alpha: 0.9)
+            ..strokeWidth = 2.5
+            ..strokeCap = StrokeCap.round,
+        );
+        break;
+      case ProjectileVisualStyle.dart:
+        canvas.drawCircle(
+          position,
+          2 * visualScale,
+          Paint()..color = color.withValues(alpha: 0.9),
+        );
+        canvas.drawCircle(
+          position,
+          4 * visualScale,
+          Paint()..color = color.withValues(alpha: 0.15),
+        );
+        break;
+      case ProjectileVisualStyle.sigil:
+      case ProjectileVisualStyle.hornImpact:
+        final pulse = 0.7 + 0.3 * sin(_time * 4);
+        canvas.drawCircle(
+          position,
+          4 * visualScale,
+          Paint()..color = color.withValues(alpha: 0.4 * pulse),
+        );
+        canvas.drawCircle(
+          position,
+          2 * visualScale,
+          Paint()..color = Colors.white.withValues(alpha: 0.6 * pulse),
+        );
+        break;
+      case ProjectileVisualStyle.kinOrbital:
+        final radius = (1.6 * visualScale).clamp(1.4, 5.8).toDouble();
+        final pulse = 0.78 + 0.22 * sin(_time * 3.4 + projectile.life);
+        canvas.drawCircle(
+          position,
+          radius * 2.6,
+          Paint()..color = color.withValues(alpha: 0.20 * pulse),
+        );
+        for (var i = 0; i < 2; i++) {
+          final a = _time * 2.4 + i * pi;
+          canvas.drawCircle(
+            position + Offset(cos(a), sin(a)) * radius * 1.9,
+            radius * 0.42,
+            Paint()..color = color.withValues(alpha: 0.75 * pulse),
+          );
+        }
+        canvas.drawCircle(
+          position,
+          radius,
+          Paint()..color = color.withValues(alpha: 0.92 * pulse),
+        );
+        canvas.drawCircle(
+          position,
+          radius * 0.42,
+          Paint()..color = Colors.white.withValues(alpha: 0.85 * pulse),
+        );
+        break;
+      case ProjectileVisualStyle.mysticOrbital:
+        canvas.drawCircle(
+          position,
+          3 * visualScale,
+          Paint()..color = color.withValues(alpha: 0.6),
+        );
+        canvas.drawCircle(
+          position,
+          6 * visualScale,
+          Paint()..color = color.withValues(alpha: 0.12),
+        );
+        break;
+      case ProjectileVisualStyle.letShard:
+        final dir = Offset(cos(projectile.angle), sin(projectile.angle));
+        final perp = Offset(-dir.dy, dir.dx);
+        final tailLen = 30.0 * visualScale;
+        final tail = position - dir * tailLen;
+        canvas.drawLine(
+          tail,
+          position,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tail,
+              position,
+              [
+                color.withValues(alpha: 0.0),
+                color.withValues(alpha: 0.16),
+                Color.lerp(color, Colors.white, 0.18)!,
+              ],
+              const [0.0, 0.58, 1.0],
+            )
+            ..strokeWidth = 5.4 * visualScale
+            ..strokeCap = StrokeCap.round,
+        );
+        final shard = Path()
+          ..moveTo(
+            position.dx + dir.dx * (8.5 * visualScale),
+            position.dy + dir.dy * (8.5 * visualScale),
+          )
+          ..lineTo(
+            position.dx + perp.dx * (4.2 * visualScale),
+            position.dy + perp.dy * (4.2 * visualScale),
+          )
+          ..lineTo(
+            position.dx - dir.dx * (6.0 * visualScale),
+            position.dy - dir.dy * (6.0 * visualScale),
+          )
+          ..lineTo(
+            position.dx - perp.dx * (4.2 * visualScale),
+            position.dy - perp.dy * (4.2 * visualScale),
+          )
+          ..close();
+        canvas.drawPath(
+          shard,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tail,
+              position + dir * (10.0 * visualScale),
+              [
+                Color.lerp(color, const Color(0xFF1A1014), 0.42)!,
+                color,
+                Color.lerp(color, Colors.white, 0.55)!,
+              ],
+              const [0.0, 0.62, 1.0],
+            ),
+        );
+        canvas.drawPath(
+          shard,
+          Paint()
+            ..color = Color.lerp(
+              color,
+              Colors.white,
+              0.42,
+            )!.withValues(alpha: 0.8)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1 * visualScale,
+        );
+        canvas.drawCircle(
+          position - dir * (1.2 * visualScale),
+          2.4 * visualScale,
+          Paint()..color = const Color(0xFFFFF4DC).withValues(alpha: 0.85),
+        );
+        break;
+      case ProjectileVisualStyle.standard:
+        canvas.drawCircle(
+          position,
+          3 * visualScale,
+          Paint()..color = color.withValues(alpha: 0.8),
+        );
+        canvas.drawCircle(
+          position,
+          5 * visualScale,
+          Paint()..color = color.withValues(alpha: 0.15),
+        );
+        break;
+    }
+
+    drawProjectileRoleOverlay(
+      canvas: canvas,
+      projectile: projectile,
+      position: position,
+      color: color,
+      time: _time,
+    );
+
+    if (projectile.decoy) {
+      canvas.drawCircle(
+        position,
+        12 * visualScale,
+        Paint()
+          ..color = color.withValues(alpha: 0.2)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+    }
+  }
+
+  void _renderCombatEnemies(Canvas canvas) {
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      // The guardian is drawn as the winged Roc body (one Roc, not a blob
+      // chasing alongside it).
+      if (identical(enemy, _guardianEnemy)) continue;
+      final base = elementColor(enemy.element);
+      // Dive telegraph: a tightening ring during the windup so the swoop is
+      // readable and dodgeable.
+      final motion = enemy.flightSteering;
+      if (motion != null && motion.showTelegraphRing) {
+        canvas.drawCircle(
+          enemy.position,
+          enemy.radius + 6 + motion.windupTimer * 46,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = Color.lerp(
+              base,
+              Colors.white,
+              0.5,
+            )!.withValues(alpha: 0.75),
+        );
+      }
+      final flash = enemy.hitFlash > 0
+          ? Color.lerp(base, Colors.white, enemy.hitFlash.clamp(0.0, 1.0))!
+          : base;
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          enemy.position,
+          enemy.radius * (enemy.isElite ? 2.8 : 2.1),
+          flash.withValues(alpha: enemy.isElite ? 0.34 : 0.22),
+        );
+      }
+      canvas.save();
+      canvas.translate(enemy.position.dx, enemy.position.dy);
+      canvas.rotate(enemy.angle);
+      for (var i = 0; i < 4; i++) {
+        final a = i * pi / 2 + _time * (enemy.isElite ? 1.2 : 1.8);
+        final path = Path()
+          ..moveTo(cos(a) * enemy.radius * 0.4, sin(a) * enemy.radius * 0.4)
+          ..quadraticBezierTo(
+            cos(a + 0.35) * enemy.radius * 1.1,
+            sin(a + 0.35) * enemy.radius * 1.1,
+            cos(a) * enemy.radius * 1.7,
+            sin(a) * enemy.radius * 1.7,
+          );
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = enemy.isElite ? 3 : 2
+            ..strokeCap = StrokeCap.round
+            ..color = flash.withValues(alpha: 0.38),
+        );
+      }
+      canvas.drawCircle(
+        Offset.zero,
+        enemy.radius,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            Offset(-enemy.radius * 0.2, -enemy.radius * 0.25),
+            enemy.radius * 1.25,
+            [
+              Color.lerp(flash, Colors.white, 0.45)!.withValues(alpha: 0.95),
+              flash.withValues(alpha: 0.82),
+              const Color(0xFF05070D).withValues(alpha: 0.92),
+            ],
+            const [0.0, 0.52, 1.0],
+          ),
+      );
+      canvas.restore();
+
+      final barW = enemy.radius * 2.2;
+      final bar = Rect.fromCenter(
+        center: enemy.position + Offset(0, -enemy.radius - 12),
+        width: barW,
+        height: 4,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(bar, const Radius.circular(3)),
+        Paint()..color = Colors.black.withValues(alpha: 0.55),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            bar.left,
+            bar.top,
+            bar.width * enemy.hpFraction,
+            bar.height,
+          ),
+          const Radius.circular(3),
+        ),
+        Paint()..color = flash.withValues(alpha: 0.85),
+      );
+    }
+  }
+
+  void _renderCreatures(Canvas canvas) {
+    for (var i = 0; i < creatures.length; i++) {
+      final c = creatures[i];
+      final isActive = i == activeIndex && c.alive;
+      final ec = elementColor(c.member.element);
+
+      canvas.save();
+      canvas.translate(c.position.dx, c.position.dy);
+
+      // Downed: a dim, grounded ghost of the creature — no aura, no ring.
+      if (!c.alive) {
+        canvas.drawOval(
+          Rect.fromCenter(center: const Offset(0, 14), width: 34, height: 10),
+          Paint()..color = Colors.black.withValues(alpha: 0.30),
+        );
+        final ticker = c.ticker;
+        if (ticker != null) {
+          final sprite = ticker.getSprite();
+          final paint = Paint()
+            ..filterQuality = ui.FilterQuality.high
+            ..color = Colors.white.withValues(alpha: 0.32);
+          canvas.save();
+          canvas.scale(c.spriteScale, c.spriteScale);
+          sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+          canvas.restore();
+        } else {
+          canvas.drawCircle(
+            Offset.zero,
+            13,
+            Paint()..color = ec.withValues(alpha: 0.25),
+          );
+        }
+        canvas.restore();
+        continue;
+      }
+
+      // Elemental aura (baked glow) — kept soft so it never reads as a
+      // shield bubble around the body.
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          Offset.zero,
+          isActive ? 26 : 24,
+          ec.withValues(alpha: isActive ? 0.38 : 0.28),
+        );
+      } else {
+        canvas.drawCircle(
+          Offset.zero,
+          22,
+          Paint()..color = ec.withValues(alpha: isActive ? 0.18 : 0.12),
+        );
+      }
+      // Charge trail: glow + trailing motes behind a ramming horn — the
+      // same dash language as survival.
+      final chargingComp = i < combatCompanions.length
+          ? combatCompanions[i]
+          : null;
+      if (chargingComp != null && chargingComp.chargeTimer > 0) {
+        final chargeWidth = (chargingComp.chargeSweepRadius / 48.0).clamp(
+          0.70,
+          2.20,
+        );
+        final trailScale = (chargingComp.chargeOvershootDistance / 80.0).clamp(
+          0.65,
+          2.10,
+        );
+        canvas.drawCircle(
+          Offset.zero,
+          28 * chargeWidth,
+          Paint()..color = ec.withValues(alpha: 0.35),
+        );
+        for (var t = 0; t < 4; t++) {
+          final trailAngle = c.angle + pi;
+          final trailDist = (7.0 + t * 7.0) * trailScale;
+          canvas.drawCircle(
+            Offset(cos(trailAngle) * trailDist, sin(trailAngle) * trailDist),
+            (5.0 - t) * chargeWidth,
+            Paint()..color = ec.withValues(alpha: (1.0 - t / 4.0) * 0.34),
+          );
+        }
+      }
+      if (isActive) {
+        // Underfoot selection marker (ground reticle, not a bubble).
+        final markerPulse = 0.65 + 0.35 * sin(_time * 3.2);
+        final marker = Rect.fromCenter(
+          center: const Offset(0, 17),
+          width: 36,
+          height: 11,
+        );
+        canvas.drawOval(
+          marker,
+          Paint()
+            ..color = const Color(
+              0xFFE4C16A,
+            ).withValues(alpha: 0.14 * markerPulse),
+        );
+        canvas.drawOval(
+          marker,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5
+            ..color = const Color(
+              0xFFE4C16A,
+            ).withValues(alpha: 0.55 + 0.25 * markerPulse),
+        );
+        if (flightActive) {
+          // Swirling wind ring while gliding.
+          for (var k = 0; k < 3; k++) {
+            final ang = _time * 5 + k * (pi * 2 / 3);
+            canvas.drawCircle(
+              Offset(cos(ang) * 28, sin(ang) * 28),
+              2.2,
+              Paint()..color = const Color(0xFF5BC8E8).withValues(alpha: 0.8),
+            );
+          }
+        }
+      }
+
+      // Damage feedback: brief red flash on the body when struck.
+      final hitFlash = i < combatCompanions.length
+          ? combatCompanions[i].hitFlash
+          : 0.0;
+      if (hitFlash > 0) {
+        canvas.drawCircle(
+          Offset.zero,
+          20,
+          Paint()
+            ..color = const Color(
+              0xFFE0524D,
+            ).withValues(alpha: 0.45 * (hitFlash / 0.22).clamp(0.0, 1.0)),
+        );
+      }
+
+      // Cast telegraphs: a converging ring while a kin laser charges or a
+      // horn winds up / brews its storm.
+      if (i < combatCompanions.length) {
+        final castComp = combatCompanions[i];
+        double progress = -1;
+        if (castComp.kinAutoChargeTimer > 0) {
+          progress = (castComp.kinAutoChargeTimer / _kinChargeTime).clamp(
+            0.0,
+            1.0,
+          );
+        } else if (castComp.windUpTimer > 0 ||
+            castComp.hornPostDashWindUpTimer > 0) {
+          progress = 0.5 + 0.5 * sin(_time * 7).abs();
+        }
+        if (progress >= 0) {
+          canvas.drawCircle(
+            Offset.zero,
+            26 - 12 * progress,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.6
+              ..color = Color.lerp(
+                ec,
+                Colors.white,
+                0.45,
+              )!.withValues(alpha: 0.35 + 0.45 * progress),
+          );
+        }
+      }
+
+      // Active horn shield: rotating arc segments (reads as a barrier,
+      // not a selection marker).
+      final shieldHp = i < combatCompanions.length
+          ? combatCompanions[i].shieldHp
+          : 0;
+      if (shieldHp > 0) {
+        final shieldPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF8FE6FF).withValues(alpha: 0.62);
+        final rect = Rect.fromCircle(center: Offset.zero, radius: 23);
+        for (var k = 0; k < 3; k++) {
+          canvas.drawArc(
+            rect,
+            _time * 1.6 + k * pi * 2 / 3,
+            pi * 0.42,
+            false,
+            shieldPaint,
+          );
+        }
+      }
+
+      final ticker = c.ticker;
+      if (ticker != null) {
+        final sprite = ticker.getSprite();
+        final paint = Paint()..filterQuality = ui.FilterQuality.high;
+        final facingRight = cos(c.angle) > 0;
+        canvas.save();
+        canvas.scale(
+          facingRight ? -c.spriteScale : c.spriteScale,
+          c.spriteScale,
+        );
+        sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+        canvas.restore();
+      } else {
+        canvas.drawCircle(
+          Offset.zero,
+          13,
+          Paint()..color = ec.withValues(alpha: 0.9),
+        );
+      }
+      canvas.restore();
+    }
+  }
+}

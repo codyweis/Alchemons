@@ -16,7 +16,6 @@ enum NotificationBannerType {
   eggReady,
   harvestReady,
   dailyReward,
-  bossAvailable,
   eventActive,
   wildernessSpawn,
 }
@@ -114,8 +113,6 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
         return t.success;
       case NotificationBannerType.dailyReward:
         return const Color(0xFFB089FF);
-      case NotificationBannerType.bossAvailable:
-        return t.danger;
       case NotificationBannerType.eventActive:
         return t.teal;
       case NotificationBannerType.wildernessSpawn:
@@ -131,8 +128,6 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
         return AppIcons.science_rounded;
       case NotificationBannerType.dailyReward:
         return AppIcons.auto_awesome_rounded;
-      case NotificationBannerType.bossAvailable:
-        return AppIcons.local_fire_department_rounded;
       case NotificationBannerType.eventActive:
         return AppIcons.stars_rounded;
       case NotificationBannerType.wildernessSpawn:

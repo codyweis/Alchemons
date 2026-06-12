@@ -718,6 +718,72 @@ void main() {
       );
     });
 
+    test('pip special darts stay short lived', () {
+      const elements = [
+        'Fire',
+        'Lava',
+        'Lightning',
+        'Water',
+        'Ice',
+        'Steam',
+        'Earth',
+        'Mud',
+        'Dust',
+        'Crystal',
+        'Air',
+        'Plant',
+        'Poison',
+        'Spirit',
+        'Dark',
+        'Light',
+        'Blood',
+      ];
+
+      for (final element in elements) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'pip',
+          element: element,
+          damage: 10,
+          maxHp: 100,
+          casterBeauty: 8,
+          casterIntelligence: 8,
+          targetPos: const Offset(120, 0),
+        );
+
+        if (isPassiveOnlyCosmicAbility('pip', element)) {
+          expect(result.projectiles, isEmpty);
+          continue;
+        }
+
+        expect(
+          result.projectiles.every(
+            (p) => p.life <= kPipSpecialMaxProjectileLife,
+          ),
+          isTrue,
+          reason: '$element Pip special should not leave endless darts',
+        );
+      }
+    });
+
+    test('dark pip is passive-only', () {
+      final result = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'pip',
+        element: 'Dark',
+        damage: 10,
+        maxHp: 100,
+        targetPos: const Offset(120, 0),
+      );
+
+      expect(isPassiveOnlyCosmicAbility('pip', 'Dark'), isTrue);
+      expect(cosmicSpecialAbilityName('pip', 'Dark'), 'Black Hole Passive');
+      expect(result.projectiles, isEmpty);
+      expect(result.beams, isEmpty);
+    });
+
     test('pip basic payload is discounted for faster cadence', () {
       final pip = createFamilyBasicAttack(
         origin: const Offset(0, 0),
@@ -781,7 +847,7 @@ void main() {
     test('planned families apply elemental special cooldown multipliers', () {
       final lightMask = _testCompanion(family: 'mask', element: 'Light');
       final airMask = _testCompanion(family: 'mask', element: 'Air');
-      final darkPip = _testCompanion(family: 'pip', element: 'Dark');
+      final lightPip = _testCompanion(family: 'pip', element: 'Light');
       final earthPip = _testCompanion(family: 'pip', element: 'Earth');
 
       expect(
@@ -789,7 +855,7 @@ void main() {
         greaterThan(airMask.effectiveSpecialCooldown),
       );
       expect(
-        darkPip.effectiveSpecialCooldown,
+        lightPip.effectiveSpecialCooldown,
         greaterThan(earthPip.effectiveSpecialCooldown),
       );
       expect(
@@ -898,6 +964,10 @@ void main() {
           maxHp: 100,
           targetPos: const Offset(120, 0),
         );
+        if (isPassiveOnlyCosmicAbility('pip', element)) {
+          signatures.add('passive-only');
+          continue;
+        }
         final totalBounces = result.projectiles.fold<int>(
           0,
           (sum, p) => sum + p.bounceCount,
@@ -1067,6 +1137,14 @@ void main() {
             isTrue,
             reason: element,
           );
+        } else if (element == 'Fire') {
+          // Design board: "(3–8) fireballs shot out and travel FAST" —
+          // Fire is the other speed outlier alongside Air.
+          expect(
+            result.projectiles.every((p) => p.speedMultiplier >= 1.0),
+            isTrue,
+            reason: element,
+          );
         } else {
           expect(
             result.projectiles.every((p) => p.speedMultiplier <= 0.96),
@@ -1164,7 +1242,8 @@ void main() {
       expect(light.projectiles.every((p) => p.piercing), isTrue);
       expect(light.projectiles.every((p) => p.speedMultiplier <= 0.38), isTrue);
       expect(light.projectiles.every((p) => p.radiusMultiplier < 1.2), isTrue);
-      expect(fire.projectiles.length, inInclusiveRange(6, 16));
+      // Design board: "(3–8) fireballs shot out and travel fast."
+      expect(fire.projectiles.length, inInclusiveRange(3, 8));
       expect(fire.projectiles.every((p) => p.piercing), isTrue);
     });
 
@@ -1550,6 +1629,24 @@ void main() {
         greaterThanOrEqualTo(2),
       );
       expect(dust.projectiles.length, greaterThanOrEqualTo(7));
+    });
+
+    test('dark wing keeps its speedup as a passive', () {
+      final dark = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'wing',
+        element: 'Dark',
+        damage: 10,
+        maxHp: 100,
+      );
+
+      expect(dark.beams, isNotEmpty);
+      expect(
+        dark.beams.every((beam) => beam.tickEffect == AbilityEffectKind.none),
+        isTrue,
+      );
+      expect(isPassiveOnlyCosmicAbility('wing', 'Dark'), isFalse);
     });
 
     test('wing output budgets stay bounded after the authored pass', () {

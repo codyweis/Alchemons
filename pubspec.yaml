@@ -76,3 +76,4 @@ flutter:
 
   shaders:
   - assets/shaders/fire.frag
+  - assets/shaders/dungeon/built/air.frag

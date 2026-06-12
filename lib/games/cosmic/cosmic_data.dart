@@ -9,6 +9,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/systems/effects/has_effects.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 
 // ─────────────────────────────────────────────────────────
 // ELEMENT COLORS  (mirrors SurvivalAttackManager.getElementColor)
@@ -91,6 +92,25 @@ const Map<String, List<String>> kCosmicAbilityContractElementsByFamily = {
 
 bool isCosmicAuthoredAbilityFamily(String family) =>
     kCosmicAuthoredAbilityFamilies.contains(family.toLowerCase());
+
+bool isPassiveOnlyCosmicAbility(String family, String element) {
+  final f = family.toLowerCase();
+  if (f == 'pip' && element == 'Dark') return true;
+  // Horn passives per design board: Air (blow-back), Mud (sludge
+  // trail), Poison (toxic aura) emit their effects continuously while
+  // the horn is alive — no active cast.
+  // Poison was originally passive-only, but the design has evolved
+  // so it ALSO has an active charge attack. Only Air and Mud remain
+  // pure passives.
+  if (f == 'horn' && (element == 'Air' || element == 'Mud')) {
+    return true;
+  }
+  // Kin+Fire is a pure passive: by being deployed, if the orb dies
+  // the phoenix guard triggers and the post-revive orbital flame
+  // activates automatically. No active cast.
+  if (f == 'kin' && element == 'Fire') return true;
+  return false;
+}
 
 bool isCosmicTranscribedAbilityFamily(String family) =>
     kCosmicTranscribedAbilityFamilies.contains(family.toLowerCase());
@@ -288,11 +308,25 @@ class CosmicBalance {
     EnemyTier.colossus => 26.0,
   };
 
+  // ── Open-space boss difficulty curve ─────────────────────
+  // Levels 1-5 map onto the stat range so each level is beatable by the
+  // matching genetic band (statPower is harsh below 2.5, so the early
+  // curve must stay LOW and catch up steeply):
+  //   Lv1 ↔ stats ~1.0-1.5 (intro)   Lv2 ↔ ~1.5-2.0   Lv3 ↔ ~2.0-2.5
+  //   Lv4 ↔ ~3.0-3.5                 Lv5 ↔ ~4.0+ (endgame, unchanged)
+  // All Lv5 values are preserved from the previous tuning; only the
+  // low/mid levels were flattened (Lv3 HP was previously mid-curve at
+  // 11.1× — a stats-3 fight wearing a Lv3 badge).
+
+  /// Eases [t]∈[0,1] so early levels sit low and the curve catches up at 5.
+  static double _bossT(int level, double exponent) =>
+      pow(_levelT(level), exponent).toDouble();
+
   static double bossHealthScale(int level) {
-    final t = _levelT(level);
     // ×3 keeps open-world bosses in step with the rescaled enemy HP table
     // and ship weapon damage (see enemyBaseHealth).
-    return (1.0 + pow(t, 1.15).toDouble() * 6.0) * 3.0;
+    // Lv: 1→3.0, 2→4.3, 3→7.8, 4→13.4, 5→21.0 (was 3.0/6.2/11.1/16.4/21.0).
+    return (1.0 + _bossT(level, 1.9) * 6.0) * 3.0;
   }
 
   static double bossSpeedScale(int level) {
@@ -305,22 +339,32 @@ class CosmicBalance {
   }
 
   static double bossShieldHealth(int level) {
-    return (4.5 + clampLevel(level) * 1.4) * 3.0;
+    // Lv: 1→4.5, 2→7.8, 3→14.4, 4→23.4, 5→34.5 (was 17.7…34.5 linear).
+    // At Lv3 a ~8 DPS (stats ~2.0) loadout strips a shield cycle in ~2s.
+    return (1.5 + _bossT(level, 1.6) * 10.0) * 3.0;
   }
+
+  /// Per-type damage eased from a gentle low-level floor to the SAME Lv5
+  /// ceiling as before. Legacy 6-HP-pool units (see _damageShip rescale):
+  /// 0.6 legacy ≈ 10% of the ship per hit.
+  static double _bossDamageCurve(int level, double low, double high) =>
+      low + (high - low) * _bossT(level, 1.5);
 
   static double bossProjectileDamage({
     required int level,
     required BossType type,
     bool enraged = false,
   }) {
-    final safeLevel = clampLevel(level);
     return switch (type) {
       BossType.charger => 0.0,
-      BossType.gunner => 0.7 + safeLevel * 0.16,
-      BossType.skirmisher => 0.62 + safeLevel * 0.16,
-      BossType.bulwark => 0.48 + safeLevel * 0.12,
-      BossType.carrier => 0.55 + safeLevel * 0.14,
-      BossType.warden => (0.85 + safeLevel * 0.18) * (enraged ? 1.15 : 1.0),
+      // Gunner Lv3: 0.89 (≈15% ship per hit, ~7 hits to die) — was 1.18
+      // (≈20% per hit, 5 hits to die).
+      BossType.gunner => _bossDamageCurve(level, 0.55, 1.5),
+      BossType.skirmisher => _bossDamageCurve(level, 0.50, 1.42),
+      BossType.bulwark => _bossDamageCurve(level, 0.40, 1.08),
+      BossType.carrier => _bossDamageCurve(level, 0.45, 1.25),
+      BossType.warden =>
+        _bossDamageCurve(level, 0.65, 1.75) * (enraged ? 1.15 : 1.0),
     };
   }
 
@@ -329,17 +373,22 @@ class CosmicBalance {
     required BossType type,
     bool charging = false,
   }) {
-    final safeLevel = clampLevel(level);
     final base = switch (type) {
-      BossType.charger => 1.0 + safeLevel * 0.24,
-      BossType.gunner => 0.9 + safeLevel * 0.18,
-      BossType.skirmisher => 0.95 + safeLevel * 0.18,
-      BossType.bulwark => 1.15 + safeLevel * 0.22,
-      BossType.carrier => 0.85 + safeLevel * 0.16,
-      BossType.warden => 1.1 + safeLevel * 0.22,
+      BossType.charger => _bossDamageCurve(level, 0.85, 2.2),
+      BossType.gunner => _bossDamageCurve(level, 0.70, 1.8),
+      BossType.skirmisher => _bossDamageCurve(level, 0.72, 1.85),
+      BossType.bulwark => _bossDamageCurve(level, 0.90, 2.25),
+      BossType.carrier => _bossDamageCurve(level, 0.65, 1.65),
+      BossType.warden => _bossDamageCurve(level, 0.85, 2.2),
     };
     return charging ? base * 1.2 : base;
   }
+
+  /// Global post-kill escalation, CAPPED. The previous uncapped
+  /// `1 + kills × 0.05` compounded forever and silently re-broke the early
+  /// curve once a player had a few kills banked.
+  static double bossEscalationScale(int bossesDefeated) =>
+      1.0 + min(bossesDefeated, 10) * 0.05;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -372,24 +421,29 @@ String planetName(String element) => kPlanetDisplayName[element] ?? element;
 // ─────────────────────────────────────────────────────────
 
 /// Per-element planet size & gravity mass.
+// Size passes: ×1.2, then another ×1.2 — except the tiny/small tier
+// (Air, Lightning, Spirit, Ice, Poison), which got ×1.5 in the second pass
+// so the smallest worlds stop reading as specks. Derived values (particle
+// field, patrol/lair orbits, approach detection) key off these radii and
+// scale with them.
 const Map<String, double> kPlanetRadius = {
-  'Fire': 90,
-  'Lava': 110,
-  'Lightning': 55,
-  'Water': 150,
-  'Ice': 70,
-  'Steam': 100,
-  'Earth': 120,
-  'Mud': 85,
-  'Dust': 100,
-  'Crystal': 100,
-  'Air': 45,
-  'Plant': 80,
-  'Poison': 75,
-  'Spirit': 55,
-  'Dark': 95,
-  'Light': 200,
-  'Blood': 105,
+  'Fire': 130,
+  'Lava': 158,
+  'Lightning': 99,
+  'Water': 216,
+  'Ice': 126,
+  'Steam': 144,
+  'Earth': 173,
+  'Mud': 122,
+  'Dust': 144,
+  'Crystal': 144,
+  'Air': 81,
+  'Plant': 115,
+  'Poison': 135,
+  'Spirit': 99,
+  'Dark': 137,
+  'Light': 288,
+  'Blood': 151,
 };
 
 /// Gravity strength multiplier per element (bigger / denser = stronger pull).
@@ -1492,6 +1546,52 @@ class PlanetRecipe {
     );
   }
 
+  /// Build a recipe whose composition reflects an authored entry trio (the
+  /// element multiset of creatures required to enter the planet). The planet's
+  /// home element is weighted slightly higher; higher [level] tightens the
+  /// random-tolerance band. Used for dungeon-gated planets in place of
+  /// [PlanetRecipe.generate].
+  factory PlanetRecipe.fromEntryRequirement({
+    required String element,
+    required List<String> slots,
+    required int level,
+  }) {
+    final recipeLevel = level.clamp(1, 3);
+
+    // Count element occurrences in the required trio.
+    final counts = <String, double>{};
+    for (final e in slots) {
+      counts[e] = (counts[e] ?? 0) + 1.0;
+    }
+
+    // Weight by count, nudging the planet's home element up.
+    final weights = <String, double>{};
+    counts.forEach((e, c) {
+      weights[e] = c * (e == element ? 1.4 : 1.0);
+    });
+
+    final randomPct = switch (recipeLevel) {
+      1 => 10.0,
+      2 => 7.0,
+      _ => 5.0,
+    };
+    final assignable = 100.0 - randomPct;
+    final totalW = weights.values.fold(0.0, (s, v) => s + v);
+
+    final components = <String, double>{};
+    for (final e in weights.entries) {
+      components[e.key] = (e.value / totalW * assignable).roundToDouble();
+    }
+    final assigned = components.values.fold(0.0, (s, v) => s + v);
+
+    return PlanetRecipe(
+      planetElement: element,
+      level: recipeLevel,
+      components: components,
+      randomPct: max(0.0, 100.0 - assigned),
+    );
+  }
+
   /// Match score 0.0 – 1.0. 1.0 = perfect match.
   double matchScore(Map<String, double> meterBreakdown, double meterTotal) {
     if (meterTotal <= 0) return 0;
@@ -1518,6 +1618,42 @@ class PlanetRecipe {
   /// Whether the meter matches closely enough to summon (≥ 70 %).
   bool matches(Map<String, double> meterBreakdown, double meterTotal) =>
       matchScore(meterBreakdown, meterTotal) >= 0.70;
+}
+
+// ─────────────────────────────────────────────────────────
+// PLANET DUNGEON ENTRY GATING
+// ─────────────────────────────────────────────────────────
+
+/// Authored dungeon-entry requirements, keyed by planet element. The value is
+/// the multiset of creature *elements* the player must be carrying (orbiting
+/// the ship) for the planet's recipe to reveal and the dungeon to be enterable.
+/// Only listed planets are gated; planets absent from this map behave as before.
+const Map<String, List<String>> kCosmicPlanetEntry = {
+  // Air pilot: 2 verbs need Air (Wing flight) + Lightning (storm runes / Horn
+  // channel) + Fire (air+fire→electricity combo). See `project-planet-dungeons`.
+  'Air': ['Air', 'Lightning', 'Fire'],
+};
+
+/// True if [party] (the orbiting roster) contains at least the multiset of
+/// elements in [required]. Extra creatures are fine; duplicates in [required]
+/// must each be matched by a distinct party member of that element.
+bool cosmicPartySatisfiesEntry(
+  Iterable<CosmicPartyMember?> party,
+  List<String> required,
+) {
+  final have = <String, int>{};
+  for (final m in party) {
+    if (m == null) continue;
+    have[m.element] = (have[m.element] ?? 0) + 1;
+  }
+  final need = <String, int>{};
+  for (final e in required) {
+    need[e] = (need[e] ?? 0) + 1;
+  }
+  for (final e in need.entries) {
+    if ((have[e.key] ?? 0) < e.value) return false;
+  }
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -1653,6 +1789,150 @@ class CosmicRecipeState {
     completedMasks: {},
     postMaxRollLevels: {},
   );
+}
+
+// ─────────────────────────────────────────────────────────
+// PLANET STAR STATE PERSISTENCE
+// ─────────────────────────────────────────────────────────
+
+/// Tracks dungeon stars per planet. Each planet has up to 3 stars as a 3-bit
+/// mask (bit0=Star1…bit2=Star3). [starMasks] = stars EARNED; [claimedMasks] =
+/// stars whose end-of-run REWARD has been granted (so rewards grant once even
+/// across multiple runs). See `project-planet-dungeons`.
+class PlanetStarState {
+  final Map<String, int> starMasks; // element -> earned mask (0..7)
+  final Map<String, int> claimedMasks; // element -> reward-claimed mask (0..7)
+  final Map<String, Set<String>>
+  discoveredCloudIds; // element -> discovered dungeon cloud ids
+
+  const PlanetStarState({
+    required this.starMasks,
+    this.claimedMasks = const {},
+    this.discoveredCloudIds = const {},
+  });
+
+  factory PlanetStarState.fresh() => const PlanetStarState(
+    starMasks: {},
+    claimedMasks: {},
+    discoveredCloudIds: {},
+  );
+
+  int starMaskFor(String element) => (starMasks[element] ?? 0) & 0x7;
+  int claimedMaskFor(String element) => (claimedMasks[element] ?? 0) & 0x7;
+  Set<String> discoveredCloudsFor(String element) =>
+      Set.unmodifiable(discoveredCloudIds[element] ?? const <String>{});
+
+  int starsEarned(String element) {
+    final mask = starMaskFor(element);
+    return ((mask & 1) >> 0) + ((mask & 2) >> 1) + ((mask & 4) >> 2);
+  }
+
+  bool hasStar(String element, int index) {
+    if (index < 0 || index > 2) return false;
+    return (starMaskFor(element) & (1 << index)) != 0;
+  }
+
+  bool hasClaimed(String element, int index) {
+    if (index < 0 || index > 2) return false;
+    return (claimedMaskFor(element) & (1 << index)) != 0;
+  }
+
+  /// Earned but not-yet-claimed star indices for [element].
+  List<int> pendingRewards(String element) => [
+    for (var i = 0; i < 3; i++)
+      if (hasStar(element, i) && !hasClaimed(element, i)) i,
+  ];
+
+  /// Returns a new state with star [index] (0..2) set for [element].
+  PlanetStarState withStar(String element, int index) {
+    if (index < 0 || index > 2) return this;
+    final updated = Map<String, int>.from(starMasks);
+    updated[element] = (starMaskFor(element) | (1 << index)) & 0x7;
+    return PlanetStarState(
+      starMasks: updated,
+      claimedMasks: claimedMasks,
+      discoveredCloudIds: discoveredCloudIds,
+    );
+  }
+
+  /// Returns a new state marking star [index]'s reward as claimed for [element].
+  PlanetStarState withClaimed(String element, int index) {
+    if (index < 0 || index > 2) return this;
+    final updated = Map<String, int>.from(claimedMasks);
+    updated[element] = (claimedMaskFor(element) | (1 << index)) & 0x7;
+    return PlanetStarState(
+      starMasks: starMasks,
+      claimedMasks: updated,
+      discoveredCloudIds: discoveredCloudIds,
+    );
+  }
+
+  /// Returns a new state with [cloudId] marked discovered for [element].
+  PlanetStarState withDiscoveredCloud(String element, String cloudId) {
+    if (cloudId.isEmpty) return this;
+    final updated = <String, Set<String>>{
+      for (final entry in discoveredCloudIds.entries)
+        entry.key: Set<String>.from(entry.value),
+    };
+    updated.putIfAbsent(element, () => <String>{}).add(cloudId);
+    return PlanetStarState(
+      starMasks: starMasks,
+      claimedMasks: claimedMasks,
+      discoveredCloudIds: updated,
+    );
+  }
+
+  String serialise() {
+    final keys = <String>{
+      ...starMasks.keys,
+      ...claimedMasks.keys,
+      ...discoveredCloudIds.keys,
+    }.toList()..sort();
+    return keys
+        .where(
+          (k) =>
+              starMaskFor(k) != 0 ||
+              claimedMaskFor(k) != 0 ||
+              discoveredCloudsFor(k).isNotEmpty,
+        )
+        .map((k) {
+          final clouds = discoveredCloudsFor(k).toList()..sort();
+          final suffix = clouds.isEmpty ? '' : '.${clouds.join('|')}';
+          return '$k=${starMaskFor(k)}.${claimedMaskFor(k)}$suffix';
+        })
+        .join(',');
+  }
+
+  factory PlanetStarState.deserialise(String raw) {
+    if (raw.isEmpty) return PlanetStarState.fresh();
+    final masks = <String, int>{};
+    final claimed = <String, int>{};
+    final clouds = <String, Set<String>>{};
+    for (final part in raw.split(',')) {
+      final kv = part.split('=');
+      if (kv.length != 2) continue;
+      // New format "earned.claimed.cloud|ids"; old formats are "earned" and
+      // "earned.claimed".
+      final segs = kv[1].split('.');
+      final mask = (int.tryParse(segs[0]) ?? 0) & 0x7;
+      final claim = segs.length > 1 ? (int.tryParse(segs[1]) ?? 0) & 0x7 : 0;
+      final discovered = segs.length > 2
+          ? segs[2]
+                .split('|')
+                .where((id) => id.trim().isNotEmpty)
+                .map((id) => id.trim())
+                .toSet()
+          : <String>{};
+      if (mask != 0) masks[kv[0]] = mask;
+      if (claim != 0) claimed[kv[0]] = claim;
+      if (discovered.isNotEmpty) clouds[kv[0]] = discovered;
+    }
+    return PlanetStarState(
+      starMasks: masks,
+      claimedMasks: claimed,
+      discoveredCloudIds: clouds,
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────
@@ -3066,6 +3346,10 @@ class CosmicEnemy {
   bool pipMudTrail;
   double pipMudTrailTimer;
 
+  /// Shared hover/dive steering state (lazily created when this enemy
+  /// commits to an attack). See games/shared/enemy_flight_steering.dart.
+  FlightSteeringState? flightSteering;
+
   CosmicEnemy({
     required this.position,
     required this.element,
@@ -3802,6 +4086,17 @@ class Projectile {
   /// If true, the orbital center follows the player's ship each frame.
   bool followShipOrbit;
 
+  /// If true, the orbital center re-anchors to the source companion's
+  /// position each frame. Used by Horn+Crystal so the shards orbit
+  /// the moving horn (not the cast-point) all the way through dash
+  /// and after impact.
+  bool followSourceCompanion;
+
+  /// If true, this stationary fixture reflects enemy projectiles back
+  /// at their source instead of just absorbing the hit (used by
+  /// Horn+Ice walls and Horn+Light barriers).
+  bool reflectsProjectiles;
+
   /// If true, this orbital migrates from the caster to the ship after a delay.
   final bool transferToShipOrbit;
 
@@ -3841,7 +4136,9 @@ class Projectile {
   double tauntRadius;
 
   /// Turn/move aggression multiplier while enemies are taunted by this lure.
-  final double tauntStrength;
+  /// Non-final so persistent-effect updaters (e.g. Kin+Spirit wisp tier-up)
+  /// can grant/grow the taunt over time.
+  double tauntStrength;
 
   // ── Ricochet fields (Pip bounce) ──
 
@@ -3915,6 +4212,12 @@ class Projectile {
   /// Companion slot that created this projectile, if any.
   int? sourceSlotIndex;
 
+  /// Survival-side attachment marker: -2 = none, -1 = follow the ship,
+  /// >= 0 = follow the active companion in that slot each frame. Used
+  /// by Mask+Dust shields so each alchemon gets its own travelling
+  /// dust cloud aura.
+  int attachedToSlot;
+
   /// If true, this projectile spawns a delayed Let elemental follow-up on
   /// first impact instead of casting all secondary effects immediately.
 
@@ -3934,14 +4237,21 @@ class Projectile {
   final AbilityEffectKind killEffect;
   final AbilityEffectKind pierceEffect;
   final AbilityEffectKind tickEffect;
-  final double effectPower;
+  // Non-final so post-spawn ability boosts (e.g. Horn+Lightning chain
+  // shockwave pumping absorbed damage into the chain tick's power)
+  // can rewrite the per-tick magnitude.
+  double effectPower;
   // Non-final so persistent-effect updaters (e.g. Plant vine growth)
   // can expand the active radius over time.
   double effectRadius;
   final double effectDuration;
   final double effectChance;
-  final int effectCount;
-  final int effectStacks;
+  // Non-final so persistent-effect updaters (e.g. Kin+Spirit wisp tier-up
+  // bumps tier as a numeric marker) can update it.
+  int effectCount;
+  // Non-final so persistent-effect updaters (e.g. Mask+Plant vine
+  // feeding) can bump the counter on recasts.
+  int effectStacks;
   final bool effectRequiresKill;
   final bool effectOnBoss;
   final Set<int> effectHitIds;
@@ -3973,6 +4283,8 @@ class Projectile {
     this.orbitSpeed = 0,
     this.orbitTime = 0,
     this.followShipOrbit = false,
+    this.followSourceCompanion = false,
+    this.reflectsProjectiles = false,
     this.transferToShipOrbit = false,
     this.shipOrbitDelay = 0,
     this.transferOrbitCenter,
@@ -4000,6 +4312,7 @@ class Projectile {
     this.clusterCount = 0,
     this.clusterDamage = 0,
     this.sourceSlotIndex,
+    this.attachedToSlot = -2,
     this.letCasterIntelligence = 4.0,
     this.chainLightningCharges = 0,
     this.abilityFamily = '',
@@ -4176,6 +4489,13 @@ class CosmicSpecialResult {
   final double blessingHealPerTick;
   final double basicHasteTimer;
   final double basicHasteMultiplier;
+  // Horn-only: a "wind-up" phase that plays BEFORE the dash starts.
+  // The caster is locked in place during wind-up, the element-specific
+  // wind-up visual (Dark void, Crystal orbit, Spirit phantoms) plays
+  // around it, then the normal charge kicks off when this hits 0.
+  // Survival-side handling lives in Phase 3.
+  final double windUpTime;
+  final String windUpElement;
 
   const CosmicSpecialResult({
     this.projectiles = const [],
@@ -4193,6 +4513,8 @@ class CosmicSpecialResult {
     this.blessingHealPerTick = 0,
     this.basicHasteTimer = 0,
     this.basicHasteMultiplier = 1.0,
+    this.windUpTime = 0,
+    this.windUpElement = '',
   });
 }
 
@@ -4502,7 +4824,12 @@ CosmicSpecialResult _applyGuardianFamilyThresholds(
         (p) => _copyProjectile(
           p,
           damage: p.damage * dmgMul * overcapMul,
-          life: p.life * lifeMul * (1.0 + overcap * 0.03),
+          life: family == 'pip'
+              ? min(
+                  p.life * lifeMul * (1.0 + overcap * 0.03),
+                  kPipSpecialMaxProjectileLife,
+                )
+              : p.life * lifeMul * (1.0 + overcap * 0.03),
           visualScale: p.visualScale * visualMul * (1.0 + overcap * 0.04),
         ),
       )
@@ -4555,6 +4882,11 @@ CosmicSpecialResult _applyGuardianFamilyThresholds(
         : 0,
     basicHasteTimer: enableTempoRiders ? result.basicHasteTimer : 0,
     basicHasteMultiplier: enableTempoRiders ? result.basicHasteMultiplier : 1.0,
+    // Wind-up phase passes straight through — gated by chargeTimer
+    // (defensive rider), since wind-up only makes sense for horn
+    // dashes which already require defensive-rider tier to fire.
+    windUpTime: enableDefensiveRiders ? result.windUpTime : 0,
+    windUpElement: enableDefensiveRiders ? result.windUpElement : '',
   );
 }
 
@@ -4623,6 +4955,8 @@ Projectile _copyProjectile(
   double? orbitSpeed,
   double? orbitTime,
   bool? followShipOrbit,
+  bool? followSourceCompanion,
+  bool? reflectsProjectiles,
   bool? transferToShipOrbit,
   double? shipOrbitDelay,
   Offset? transferOrbitCenter,
@@ -4651,6 +4985,7 @@ Projectile _copyProjectile(
   double? clusterDamage,
   double? letCasterIntelligence,
   int? sourceSlotIndex,
+  int? attachedToSlot,
   int? chainLightningCharges,
   String? abilityFamily,
   AbilityEffectKind? hitEffect,
@@ -4687,6 +5022,8 @@ Projectile _copyProjectile(
     orbitSpeed: orbitSpeed ?? p.orbitSpeed,
     orbitTime: orbitTime ?? p.orbitTime,
     followShipOrbit: followShipOrbit ?? p.followShipOrbit,
+    followSourceCompanion: followSourceCompanion ?? p.followSourceCompanion,
+    reflectsProjectiles: reflectsProjectiles ?? p.reflectsProjectiles,
     transferToShipOrbit: transferToShipOrbit ?? p.transferToShipOrbit,
     shipOrbitDelay: shipOrbitDelay ?? p.shipOrbitDelay,
     transferOrbitCenter: transferOrbitCenter ?? p.transferOrbitCenter,
@@ -4715,6 +5052,7 @@ Projectile _copyProjectile(
     clusterDamage: clusterDamage ?? p.clusterDamage,
     letCasterIntelligence: letCasterIntelligence ?? p.letCasterIntelligence,
     sourceSlotIndex: sourceSlotIndex ?? p.sourceSlotIndex,
+    attachedToSlot: attachedToSlot ?? p.attachedToSlot,
     chainLightningCharges: chainLightningCharges ?? p.chainLightningCharges,
     abilityFamily: abilityFamily ?? p.abilityFamily,
     hitEffect: hitEffect ?? p.hitEffect,
@@ -4937,278 +5275,6 @@ AbilityEffectKind _manePierceEffect(String element) => switch (element) {
   _ => AbilityEffectKind.none,
 };
 
-AbilityEffectKind _maskHitEffect(String element) => switch (element) {
-  'Air' => AbilityEffectKind.knockback,
-  'Dust' => AbilityEffectKind.suppressShooting,
-  'Lava' || 'Fire' => AbilityEffectKind.burn,
-  'Poison' => AbilityEffectKind.poison,
-  'Plant' => AbilityEffectKind.root,
-  'Blood' => AbilityEffectKind.leech,
-  'Earth' => AbilityEffectKind.zoneHeal,
-  'Light' => AbilityEffectKind.execute,
-  'Spirit' => AbilityEffectKind.buff,
-  'Crystal' => AbilityEffectKind.split,
-  'Lightning' => AbilityEffectKind.chain,
-  'Steam' => AbilityEffectKind.geyser,
-  'Dark' => AbilityEffectKind.pull,
-  'Ice' => AbilityEffectKind.buff,
-  'Mud' => AbilityEffectKind.slow,
-  'Water' => AbilityEffectKind.splash,
-  _ => AbilityEffectKind.none,
-};
-
-class _MaskSurvivalTrap {
-  final double life;
-  final double snareRadius;
-  final double snareMove;
-  final double tauntRadius;
-  final double radiusMul;
-  final double visualScale;
-  final double powerMul;
-  final double effectRadius;
-  final double effectDuration;
-  final AbilityEffectKind? hitEffect;
-  final AbilityEffectKind? tickEffect;
-  final bool keepDecoy;
-  final int explodeCount;
-  final double explodeDamageMul;
-  final double explodeRadius;
-  const _MaskSurvivalTrap({
-    this.life = 28.0,
-    this.snareRadius = 0,
-    this.snareMove = 0.5,
-    this.tauntRadius = 0,
-    this.radiusMul = 1.6,
-    this.visualScale = 1.5,
-    this.powerMul = 0.45,
-    this.effectRadius = 70,
-    this.effectDuration = 1.0,
-    this.hitEffect,
-    this.tickEffect,
-    this.keepDecoy = false,
-    this.explodeCount = 0,
-    this.explodeDamageMul = 0,
-    this.explodeRadius = 0,
-  });
-}
-
-_MaskSurvivalTrap _maskSurvivalTrapShape(String element) {
-  switch (element) {
-    case 'Light':
-      // Void: persistent execute trap.
-      return const _MaskSurvivalTrap(
-        life: 34.0,
-        snareRadius: 48,
-        snareMove: 0.35,
-        radiusMul: 1.25,
-        visualScale: 1.25,
-        powerMul: 0.55,
-        effectRadius: 46,
-        hitEffect: AbilityEffectKind.execute,
-        tickEffect: AbilityEffectKind.execute,
-      );
-    case 'Ice':
-      // Giant ice pillar: large stationary structure that buffs allies.
-      return const _MaskSurvivalTrap(
-        life: 36.0,
-        snareRadius: 58,
-        snareMove: 0.40,
-        radiusMul: 1.45,
-        visualScale: 1.55,
-        powerMul: 0.45,
-        effectRadius: 92,
-        effectDuration: 4.5,
-        tickEffect: AbilityEffectKind.buff,
-      );
-    case 'Dark':
-      // Void hole: deep snare + pull, executes low-HP enemies.
-      return const _MaskSurvivalTrap(
-        life: 36.0,
-        snareRadius: 66,
-        snareMove: 0.20,
-        radiusMul: 1.35,
-        visualScale: 1.35,
-        powerMul: 0.50,
-        effectRadius: 72,
-        tickEffect: AbilityEffectKind.pull,
-      );
-    case 'Plant':
-      // Vine: small trap that grows over time (handled in survival
-      // game's ability-growth tick).
-      return const _MaskSurvivalTrap(
-        life: 32.0,
-        snareRadius: 42,
-        snareMove: 0.45,
-        radiusMul: 1.10,
-        visualScale: 1.10,
-        powerMul: 0.30,
-        effectRadius: 40,
-        tickEffect: AbilityEffectKind.root,
-      );
-    case 'Spirit':
-      // Wisp: small persistent trap; collected via slice-5 wisp burst.
-      return const _MaskSurvivalTrap(
-        life: 30.0,
-        snareRadius: 38,
-        snareMove: 0.55,
-        radiusMul: 1.05,
-        visualScale: 1.10,
-        powerMul: 0.40,
-        effectRadius: 40,
-        tickEffect: AbilityEffectKind.execute,
-      );
-    case 'Crystal':
-      // Stationary crystal that splits into smaller pieces on death.
-      return const _MaskSurvivalTrap(
-        life: 34.0,
-        snareRadius: 0,
-        tauntRadius: 118,
-        radiusMul: 1.25,
-        visualScale: 1.30,
-        powerMul: 0.45,
-        effectRadius: 54,
-        keepDecoy: true,
-        explodeCount: 3,
-        explodeDamageMul: 0.55,
-        explodeRadius: 80,
-        hitEffect: AbilityEffectKind.split,
-        tickEffect: AbilityEffectKind.none,
-      );
-    case 'Blood':
-      // Blood blob: large stationary leech zone.
-      return const _MaskSurvivalTrap(
-        life: 34.0,
-        snareRadius: 54,
-        snareMove: 0.55,
-        radiusMul: 1.25,
-        visualScale: 1.25,
-        powerMul: 0.40,
-        effectRadius: 52,
-        tickEffect: AbilityEffectKind.leech,
-      );
-    case 'Earth':
-      // Heal pool: regenerates orb/companions in radius.
-      return const _MaskSurvivalTrap(
-        life: 34.0,
-        snareRadius: 0,
-        radiusMul: 1.20,
-        visualScale: 1.20,
-        powerMul: 0.30,
-        effectRadius: 64,
-        effectDuration: 1.5,
-        tickEffect: AbilityEffectKind.zoneHeal,
-      );
-    case 'Lava':
-      // Lava pool: persistent burn zone.
-      return const _MaskSurvivalTrap(
-        life: 32.0,
-        snareRadius: 48,
-        snareMove: 0.6,
-        radiusMul: 1.15,
-        visualScale: 1.15,
-        powerMul: 0.40,
-        effectRadius: 46,
-        tickEffect: AbilityEffectKind.burn,
-      );
-    case 'Poison':
-      // Poison cloud: scatter DoT.
-      return const _MaskSurvivalTrap(
-        life: 30.0,
-        snareRadius: 46,
-        snareMove: 0.65,
-        radiusMul: 1.10,
-        visualScale: 1.10,
-        powerMul: 0.35,
-        effectRadius: 44,
-        tickEffect: AbilityEffectKind.poison,
-      );
-    case 'Steam':
-      // Mini geyser: stationary turret that pushes enemies.
-      return const _MaskSurvivalTrap(
-        life: 30.0,
-        snareRadius: 0,
-        radiusMul: 1.10,
-        visualScale: 1.10,
-        powerMul: 0.45,
-        effectRadius: 44,
-        tickEffect: AbilityEffectKind.geyser,
-      );
-    case 'Lightning':
-      // Lightning field: grows per enemy that hits it.
-      return const _MaskSurvivalTrap(
-        life: 32.0,
-        snareRadius: 50,
-        snareMove: 0.50,
-        radiusMul: 1.15,
-        visualScale: 1.15,
-        powerMul: 0.40,
-        effectRadius: 52,
-        tickEffect: AbilityEffectKind.chain,
-      );
-    case 'Mud':
-      // Mud pool: slows enemies inside.
-      return const _MaskSurvivalTrap(
-        life: 30.0,
-        snareRadius: 54,
-        snareMove: 0.30,
-        radiusMul: 1.15,
-        visualScale: 1.15,
-        powerMul: 0.30,
-        effectRadius: 52,
-        tickEffect: AbilityEffectKind.slow,
-      );
-    case 'Water':
-      // Splash trap: damages enemies that enter.
-      return const _MaskSurvivalTrap(
-        life: 30.0,
-        snareRadius: 0,
-        radiusMul: 1.10,
-        visualScale: 1.10,
-        powerMul: 0.50,
-        effectRadius: 48,
-        tickEffect: AbilityEffectKind.splash,
-      );
-    case 'Air':
-      // Gust pad: blows back enemies on contact.
-      return const _MaskSurvivalTrap(
-        life: 28.0,
-        snareRadius: 40,
-        snareMove: 0.6,
-        radiusMul: 1.05,
-        visualScale: 1.05,
-        powerMul: 0.40,
-        effectRadius: 38,
-        tickEffect: AbilityEffectKind.knockback,
-      );
-    case 'Dust':
-      // Dust shield: shields companions, dmg on contact.
-      return const _MaskSurvivalTrap(
-        life: 28.0,
-        snareRadius: 36,
-        snareMove: 0.7,
-        radiusMul: 1.05,
-        visualScale: 1.05,
-        powerMul: 0.45,
-        effectRadius: 38,
-        tickEffect: AbilityEffectKind.suppressShooting,
-      );
-    case 'Fire':
-      // Fire pool: burning DoT trap.
-      return const _MaskSurvivalTrap(
-        life: 30.0,
-        snareRadius: 44,
-        snareMove: 0.6,
-        radiusMul: 1.10,
-        visualScale: 1.10,
-        powerMul: 0.45,
-        effectRadius: 44,
-        tickEffect: AbilityEffectKind.burn,
-      );
-    default:
-      return const _MaskSurvivalTrap();
-  }
-}
-
 double _specialTrapPersistenceScale(
   Projectile p, {
   required double intelligence,
@@ -5349,22 +5415,6 @@ CosmicSpecialResult _hornSpecial(
     return (base * scale).round().clamp(min, max);
   }
 
-  double scaledSpread(double base) {
-    final spectacleScale = _specialStatScaleFromBaseline(
-      casterBeauty,
-      perPoint: 0.04,
-      min: 0.92,
-      max: 1.10,
-    );
-    final controlScale = _specialStatScaleFromBaseline(
-      casterIntelligence,
-      perPoint: -0.03,
-      min: 0.92,
-      max: 1.08,
-    );
-    return base * spectacleScale * controlScale;
-  }
-
   Projectile scaleHornProjectile(Projectile p) {
     final impactScale = _specialStatScaleFromBaseline(
       casterBeauty,
@@ -5464,9 +5514,12 @@ CosmicSpecialResult _hornSpecial(
     return CosmicSpecialResult(
       projectiles: result.projectiles.map(scaleHornProjectile).toList(),
       shieldHp: (result.shieldHp * guardScale).round(),
-      chargeTimer: (result.chargeTimer / controlScale)
-          .clamp(0.2, 1.6)
-          .toDouble(),
+      // Standard horn charge clamps to 0.2–1.6s. Skip the clamp when
+      // chargeTimer is 0 (Light's no-ram channel) so the channel
+      // doesn't get a phantom 0.2s pre-charge.
+      chargeTimer: result.chargeTimer == 0
+          ? 0
+          : (result.chargeTimer / controlScale).clamp(0.2, 1.6).toDouble(),
       chargeDamage: result.chargeDamage * impactScale,
       chargeSpeedMultiplier: (result.chargeSpeedMultiplier * controlScale)
           .clamp(0.45, 2.10)
@@ -5480,6 +5533,10 @@ CosmicSpecialResult _hornSpecial(
       blessingHealPerTick: result.blessingHealPerTick,
       basicHasteTimer: result.basicHasteTimer,
       basicHasteMultiplier: result.basicHasteMultiplier,
+      // Per-design wind-up time is stat-invariant (like wing-Lightning's
+      // charge). Pass through unscaled.
+      windUpTime: result.windUpTime,
+      windUpElement: result.windUpElement,
     );
   }
 
@@ -5558,710 +5615,561 @@ CosmicSpecialResult _hornSpecial(
     });
   }
 
-  // Helper: forward cone
-  List<Projectile> cone(
-    int n,
-    double spread,
-    double dmgMul, {
-    double life = 2.0,
-    double speed = 1.0,
-    double vs = 1.2,
-    double radius = 1.3,
-    bool pierce = false,
-    double snareRadius = 0,
-    double snareMoveMultiplier = 1.0,
-    double tauntRadius = 0,
-    double tauntStrength = 0,
-    double interceptRadius = 0,
-    int interceptCharges = 0,
-    bool stationary = false,
-    int bounceCount = 0,
-    double trailInterval = 0,
-    double trailDamage = 0,
-    double trailLife = 0,
-    int clusterCount = 0,
-    double clusterDamage = 0,
-    double turretInterval = 0,
-    double turretDamage = 0,
-    double turretHomingStrength = 0,
-    double turretSpeedMultiplier = 1.0,
-    double decoyHp = 0,
-    int deathExplosionCount = 0,
-    double deathExplosionDamage = 0,
-    double deathExplosionRadius = 1.5,
-  }) {
-    final scaledN = scaledCount(n, min: 3, max: 18);
-    final scaledConeSpread = scaledSpread(spread);
-    return List.generate(scaledN, (i) {
-      final t = scaledN > 1 ? (i / (scaledN - 1)) - 0.5 : 0.0;
-      final a = baseAngle + t * scaledConeSpread;
-      return Projectile(
-        position: Offset(origin.dx + cos(a) * 16, origin.dy + sin(a) * 16),
-        angle: a,
-        element: element,
-        damage: damage * dmgMul,
-        life: life,
-        speedMultiplier: speed,
-        radiusMultiplier: radius,
-        visualScale: vs,
-        visualStyle: ProjectileVisualStyle.hornImpact,
-        piercing: pierce,
-        snareRadius: snareRadius,
-        snareMoveMultiplier: snareMoveMultiplier,
-        tauntRadius: tauntRadius,
-        tauntStrength: tauntStrength,
-        interceptRadius: interceptRadius,
-        interceptCharges: interceptCharges,
-        stationary: stationary,
-        bounceCount: bounceCount,
-        trailInterval: trailInterval,
-        trailDamage: trailDamage,
-        trailLife: trailLife,
-        clusterCount: clusterCount,
-        clusterDamage: clusterDamage,
-        turretInterval: turretInterval,
-        turretDamage: turretDamage,
-        turretHomingStrength: turretHomingStrength,
-        turretSpeedMultiplier: turretSpeedMultiplier,
-        decoy: decoyHp > 0,
-        decoyHp: decoyHp,
-        deathExplosionCount: deathExplosionCount,
-        deathExplosionDamage: deathExplosionDamage,
-        deathExplosionRadius: deathExplosionRadius,
-      );
-    });
-  }
+  // (Legacy `cone`/`brace` helpers removed — the bulky-tank rewrite
+  // no longer fires multi-projectile fans/braces; the new `zone`
+  // helper inside the switch below covers all element impact spawns.)
 
-  List<Projectile> brace(
-    int n,
-    double width,
-    double dmgMul, {
-    double forward = 42.0,
-    double angleSpread = 0.16,
-    double life = 2.0,
-    double speed = 1.0,
-    double vs = 1.3,
-    double radius = 1.5,
-    bool pierce = false,
-    bool home = false,
-    double homeStr = 0,
-    double snareRadius = 0,
-    double snareMoveMultiplier = 1.0,
+  // ─────────────────────────────────────────────────────────
+  // HORN — Bulky Defense Tank (Charge + Guard + Impact)
+  // Theme: heavy slow ram, big shield, taunts, burst impact damage.
+  // Per-element layer = ONE clear control twist. Passives (Air, Mud,
+  // Poison) bypass this switch entirely via isPassiveOnlyCosmicAbility.
+  // ─────────────────────────────────────────────────────────
+
+  // Stationary impact-zone factory — every horn special drops one or
+  // more of these at impact. Keeps per-element code tight.
+  Projectile zone({
+    required Offset position,
+    required double angleArg,
+    required double life,
+    required double visualScale,
+    required double radiusMultiplier,
     double tauntRadius = 0,
     double tauntStrength = 0,
+    AbilityEffectKind tickEffect = AbilityEffectKind.none,
+    double effectPower = 0,
+    double effectRadius = 0,
+    double effectDuration = 0,
+    double snareRadius = 0,
+    double snareMoveMultiplier = 1.0,
     double interceptRadius = 0,
     int interceptCharges = 0,
-    bool stationary = false,
-    int bounceCount = 0,
-    double trailInterval = 0,
-    double trailDamage = 0,
-    double trailLife = 0,
-    int clusterCount = 0,
-    double clusterDamage = 0,
-    double turretInterval = 0,
-    double turretDamage = 0,
-    double turretHomingStrength = 0,
-    double turretSpeedMultiplier = 1.0,
     double decoyHp = 0,
     int deathExplosionCount = 0,
     double deathExplosionDamage = 0,
     double deathExplosionRadius = 1.5,
+    double turretInterval = 0,
+    double turretDamage = 0,
+    double turretSpeedMultiplier = 1.0,
+    Offset? orbitCenter,
+    double orbitRadius = 0,
+    double orbitSpeed = 0,
+    double orbitAngle = 0,
   }) {
-    final lateral = baseAngle + pi / 2;
-    final scaledN = scaledCount(n, min: 3, max: 18);
-    final scaledAngleSpread = scaledSpread(angleSpread);
-    final scaledWidth =
-        width *
-        _specialStatScaleFromBaseline(
-          casterBeauty,
-          perPoint: 0.05,
-          min: 0.90,
-          max: 1.10,
-        );
-    return List.generate(scaledN, (i) {
-      final t = scaledN > 1 ? (i / (scaledN - 1)) - 0.5 : 0.0;
-      final a = baseAngle + t * scaledAngleSpread;
-      return Projectile(
-        position: Offset(
-          origin.dx + cos(baseAngle) * forward + cos(lateral) * t * scaledWidth,
-          origin.dy + sin(baseAngle) * forward + sin(lateral) * t * scaledWidth,
-        ),
-        angle: a,
-        element: element,
-        damage: damage * dmgMul,
-        life: life,
-        speedMultiplier: speed,
-        radiusMultiplier: radius,
-        visualScale: vs,
-        visualStyle: ProjectileVisualStyle.hornImpact,
-        piercing: pierce,
-        homing: home,
-        homingStrength: homeStr,
-        snareRadius: snareRadius,
-        snareMoveMultiplier: snareMoveMultiplier,
-        tauntRadius: tauntRadius,
-        tauntStrength: tauntStrength,
-        interceptRadius: interceptRadius,
-        interceptCharges: interceptCharges,
-        stationary: stationary,
-        bounceCount: bounceCount,
-        trailInterval: trailInterval,
-        trailDamage: trailDamage,
-        trailLife: trailLife,
-        clusterCount: clusterCount,
-        clusterDamage: clusterDamage,
-        turretInterval: turretInterval,
-        turretDamage: turretDamage,
-        turretHomingStrength: turretHomingStrength,
-        turretSpeedMultiplier: turretSpeedMultiplier,
-        decoy: decoyHp > 0,
-        decoyHp: decoyHp,
-        deathExplosionCount: deathExplosionCount,
-        deathExplosionDamage: deathExplosionDamage,
-        deathExplosionRadius: deathExplosionRadius,
-      );
-    });
+    return Projectile(
+      position: position,
+      angle: angleArg,
+      element: element,
+      damage: 0,
+      life: life,
+      speedMultiplier: 0,
+      stationary: true,
+      piercing: true,
+      radiusMultiplier: radiusMultiplier,
+      visualScale: visualScale,
+      visualStyle: ProjectileVisualStyle.hornImpact,
+      // Tag every horn impact zone so survival-side lookups
+      // (Light barrier channel/protect/bounce, Spirit phantom
+      // particles, Crystal orbital sparkles) can find them.
+      abilityFamily: 'horn',
+      tauntRadius: tauntRadius,
+      tauntStrength: tauntStrength,
+      tickEffect: tickEffect,
+      effectPower: effectPower,
+      effectRadius: effectRadius,
+      effectDuration: effectDuration,
+      snareRadius: snareRadius,
+      snareMoveMultiplier: snareMoveMultiplier,
+      interceptRadius: interceptRadius,
+      interceptCharges: interceptCharges,
+      decoy: decoyHp > 0,
+      decoyHp: decoyHp,
+      deathExplosionCount: deathExplosionCount,
+      deathExplosionDamage: deathExplosionDamage,
+      deathExplosionRadius: deathExplosionRadius,
+      turretInterval: turretInterval,
+      turretDamage: turretDamage,
+      turretSpeedMultiplier: turretSpeedMultiplier,
+      orbitCenter: orbitCenter,
+      orbitRadius: orbitRadius,
+      orbitSpeed: orbitSpeed,
+      orbitAngle: orbitAngle,
+      orbitTime: orbitRadius > 0 ? life : 0,
+      holdOrbit: orbitRadius > 0,
+    );
   }
 
   switch (element) {
     case 'Fire':
-      // Blaze ram — a tight forward cone of fireballs punches through
-      // the charge lane, all damage focused on the target.
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.45).round(),
-          chargeTimer: 0.55,
-          chargeDamage: damage * 1.8,
-          chargeSpeedMultiplier: 1.25,
-          chargeSweepRadius: 42.0,
-          chargeOvershootDistance: 120.0,
-          chargeFinalSweepRadius: 60.0,
-          projectiles: cone(
-            8,
-            pi * 0.40,
-            2.0,
-            life: 2.0,
-            speed: 1.4,
-            vs: 1.5,
-            radius: 1.4,
-            tauntRadius: 190.0,
-            tauntStrength: 1.2,
-            trailInterval: 0.12,
-            trailDamage: damage * 0.28,
-            trailLife: 0.75,
-          ),
-        ),
-      );
-
-    case 'Lava':
-      // Slow obliterating charge, 5 massive piercing magma boulders
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.65).round(),
-          chargeTimer: 1.1,
-          chargeDamage: damage * 2.4,
-          chargeSpeedMultiplier: 0.65,
-          chargeSweepRadius: 84.0,
-          chargeOvershootDistance: 55.0,
-          chargeFinalSweepRadius: 110.0,
-          projectiles: ring(
-            5,
-            3.0,
-            life: 2.6,
-            speed: 0.5,
-            radius: 3.1,
-            vs: 2.5,
-            pierce: true,
-            snareRadius: 118.0,
-            snareMoveMultiplier: 0.70,
-            tauntRadius: 230.0,
-            tauntStrength: 1.8,
-            trailInterval: 0.22,
-            trailDamage: damage * 0.34,
-            trailLife: 1.15,
-            clusterCount: 3,
-            clusterDamage: damage * 0.48,
-          ),
-        ),
-      );
-
-    case 'Lightning':
-      // Instant peel charge — forked parry rods snap forward from the shield.
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.28).round(),
-          chargeTimer: 0.25,
-          chargeDamage: damage * 1.5,
-          chargeSpeedMultiplier: 1.85,
-          chargeSweepRadius: 36.0,
-          chargeOvershootDistance: 150.0,
-          chargeFinalSweepRadius: 52.0,
-          projectiles: brace(
-            10,
-            72.0,
-            1.1,
-            forward: 40.0,
-            angleSpread: 0.58,
-            life: 0.95,
-            speed: 2.7,
-            radius: 1.05,
-            vs: 1.0,
-            interceptRadius: 30.0,
-            interceptCharges: 1,
-            bounceCount: 2,
-          ),
-        ),
-      );
-
-    case 'Water':
-      // Tidal guard — two surf tusks crash inward across the ram lane.
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.50).round(),
-          chargeTimer: 0.75,
-          chargeDamage: damage * 1.8,
-          chargeSpeedMultiplier: 0.95,
-          chargeSweepRadius: 64.0,
-          chargeOvershootDistance: 100.0,
-          chargeFinalSweepRadius: 92.0,
-          projectiles: brace(
-            6,
-            52.0,
-            1.45,
-            forward: 48.0,
-            angleSpread: 0.34,
-            life: 2.2,
-            speed: 1.0,
-            vs: 1.35,
-            radius: 1.5,
-            snareRadius: 88.0,
-            snareMoveMultiplier: 0.78,
-          ),
-          shipHeal: max(1, (CosmicBalance.shipMaxHealth * 0.025).round()),
-        ),
-      );
-
-    case 'Ice':
-      // Glacier slam — a front line of ice slabs punches outward from the ram.
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.60).round(),
-          chargeTimer: 0.9,
-          chargeDamage: damage * 2.2,
-          chargeSpeedMultiplier: 0.72,
-          chargeSweepRadius: 78.0,
-          chargeOvershootDistance: 45.0,
-          chargeFinalSweepRadius: 112.0,
-          projectiles: brace(
-            5,
-            64.0,
-            1.7,
-            forward: 54.0,
-            angleSpread: 0.10,
-            life: 2.8,
-            speed: 0.46,
-            vs: 2.0,
-            radius: 2.6,
-            pierce: true,
-            snareRadius: 128.0,
-            snareMoveMultiplier: 0.48,
-            stationary: true,
-          ),
-        ),
-      );
-
-    case 'Steam':
-      // Pressure crash — vent shoulders erupt beside the charge lane.
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.42).round(),
-          chargeTimer: 0.65,
-          chargeDamage: damage * 1.6,
-          chargeSpeedMultiplier: 1.10,
-          chargeSweepRadius: 70.0,
-          chargeOvershootDistance: 70.0,
-          chargeFinalSweepRadius: 100.0,
-          projectiles: brace(
-            6,
-            44.0,
-            1.15,
-            forward: 42.0,
-            angleSpread: 0.06,
-            life: 3.8,
-            speed: 0.28,
-            radius: 2.8,
-            vs: 2.2,
-            pierce: true,
-            tauntRadius: 210.0,
-            tauntStrength: 1.4,
-            snareRadius: 104.0,
-            snareMoveMultiplier: 0.62,
-            stationary: true,
-            turretInterval: 0.82,
-            turretDamage: damage * 0.20,
-            turretSpeedMultiplier: 1.15,
-          ),
-        ),
-      );
-
-    case 'Earth':
-      // TANK — 75% shield, slow unstoppable charge, 4 colossal boulders
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.75).round(),
-          chargeTimer: 1.4,
-          chargeDamage: damage * 2.9,
-          chargeSpeedMultiplier: 0.55,
-          chargeSweepRadius: 96.0,
-          chargeOvershootDistance: 35.0,
-          chargeFinalSweepRadius: 124.0,
-          projectiles: ring(
-            4,
-            3.2,
-            life: 2.3,
-            speed: 0.4,
-            radius: 3.4,
-            vs: 2.7,
-            pierce: true,
-            snareRadius: 140.0,
-            snareMoveMultiplier: 0.58,
-            tauntRadius: 260.0,
-            tauntStrength: 2.2,
-            stationary: true,
-            decoyHp: maxHp * 0.18,
-            deathExplosionCount: 6,
-            deathExplosionDamage: damage * 0.45,
-            deathExplosionRadius: 2.4,
-          ),
-        ),
-      );
-
-    case 'Mud':
-      // Quagmire crash — a wide forward spray of heavy mud globs that
-      // linger and clog the charge lane (vs Earth's 360° boulder wall).
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.58).round(),
-          chargeTimer: 1.0,
-          chargeDamage: damage * 2.1,
-          chargeSpeedMultiplier: 0.62,
-          chargeSweepRadius: 92.0,
-          chargeOvershootDistance: 40.0,
-          chargeFinalSweepRadius: 118.0,
-          projectiles: cone(
-            6,
-            pi * 0.65,
-            2.2,
-            life: 3.5,
-            speed: 0.32,
-            vs: 2.3,
-            radius: 2.8,
-            pierce: true,
-            snareRadius: 150.0,
-            snareMoveMultiplier: 0.45,
-            trailInterval: 0.20,
-            trailDamage: damage * 0.22,
-            trailLife: 1.6,
-          ),
-        ),
-      );
-
-    case 'Dust':
-      // Glass cannon — a sandwake V fans out behind the ram.
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.22).round(),
-          chargeTimer: 0.40,
-          chargeDamage: damage * 1.3,
-          chargeSpeedMultiplier: 1.55,
-          chargeSweepRadius: 34.0,
-          chargeOvershootDistance: 155.0,
-          chargeFinalSweepRadius: 48.0,
-          projectiles: cone(
-            14,
-            pi * 0.80,
-            0.8,
-            life: 1.4,
-            speed: 2.2,
-            radius: 0.95,
-            vs: 0.72,
-            snareRadius: 66.0,
-            snareMoveMultiplier: 0.82,
-            bounceCount: 1,
-          ),
-        ),
-      );
-
-    case 'Crystal':
-      // Reflective bulwark — a ring of crystal mirrors catches incoming fire.
-      final mirrorCount = scaledCount(6, min: 5, max: 8);
+      // Impact ignites the lane in a burning trail. Five fire patches
+      // anchored BEHIND the wing's impact point — the deferred-burst
+      // shift makes them land along the charge path, painting the
+      // lane the wing rode through. Taunts + DoT inside the flames.
       return finalize(
         CosmicSpecialResult(
           shieldHp: (maxHp * 0.55).round(),
-          chargeTimer: 0.70,
-          chargeDamage: damage * 1.8,
-          chargeSpeedMultiplier: 0.90,
-          chargeSweepRadius: 72.0,
-          chargeOvershootDistance: 65.0,
+          chargeTimer: 0.9,
+          chargeDamage: damage * 2.0,
+          chargeSpeedMultiplier: 0.78,
+          chargeSweepRadius: 70.0,
+          chargeOvershootDistance: 30.0,
           chargeFinalSweepRadius: 100.0,
-          projectiles: List.generate(mirrorCount, (i) {
-            final a = i * (pi * 2 / mirrorCount);
-            return Projectile(
+          projectiles: List.generate(5, (i) {
+            final back = i * 32.0;
+            return zone(
               position: Offset(
-                origin.dx + cos(a) * 42,
-                origin.dy + sin(a) * 42,
+                origin.dx - cos(baseAngle) * back,
+                origin.dy - sin(baseAngle) * back,
               ),
-              angle: a,
-              element: element,
-              damage: damage * 1.0,
-              life: 3.8,
-              speedMultiplier: 0.0,
-              radiusMultiplier: 2.0,
-              visualScale: 1.8,
-              visualStyle: ProjectileVisualStyle.hornImpact,
-              piercing: true,
-              orbitCenter: origin,
-              orbitAngle: a,
-              orbitRadius: 42.0,
-              orbitSpeed: 1.35,
-              orbitTime: 3.8,
-              holdOrbit: true,
-              interceptRadius: 48.0,
-              interceptCharges: 1,
-              bounceCount: 1,
+              angleArg: baseAngle,
+              life: 4.5,
+              visualScale: 1.5,
+              radiusMultiplier: 1.5,
+              tauntRadius: 130.0,
+              tauntStrength: 1.4,
+              tickEffect: AbilityEffectKind.burn,
+              effectPower: damage * 0.32,
+              effectRadius: 60.0,
+              effectDuration: 4.5,
             );
           }),
         ),
       );
 
-    case 'Air':
-      // Ultra-fast gale crash — crosswind crescents shear through the target lane.
+    case 'Lava':
+      // Fire-powered tank. Long charge with a glowing build-up
+      // (survival-side telegraph), then heavy slam. No persistent
+      // pool — kills detonate into a one-shot fire explosion VFX +
+      // homing flames (survival on-kill hook).
       return finalize(
         CosmicSpecialResult(
-          shieldHp: (maxHp * 0.30).round(),
-          chargeTimer: 0.30,
-          chargeDamage: damage * 1.3,
-          chargeSpeedMultiplier: 1.70,
-          chargeSweepRadius: 38.0,
-          chargeOvershootDistance: 170.0,
-          chargeFinalSweepRadius: 54.0,
-          projectiles: brace(
-            6,
-            60.0,
-            1.15,
-            forward: 46.0,
-            angleSpread: 0.44,
-            life: 1.7,
-            speed: 1.9,
-            radius: 1.25,
-            vs: 1.0,
-            interceptRadius: 22.0,
-            interceptCharges: 1,
-          ),
+          shieldHp: (maxHp * 0.70).round(),
+          chargeTimer: 1.2,
+          chargeDamage: damage * 3.6,
+          chargeSpeedMultiplier: 0.55,
+          chargeSweepRadius: 88.0,
+          chargeOvershootDistance: 30.0,
+          chargeFinalSweepRadius: 140.0,
+          projectiles: const [],
         ),
       );
 
-    case 'Plant':
-      // Thorn phalanx — the ram grows a rooted hedge across the charge lane.
+    case 'Lightning':
+      // Reactive guard — damage absorbed by the shield during charge
+      // is released as a chain-lightning shockwave on impact. The
+      // absorb-and-discharge logic is wired in survival (Phase 3);
+      // here we set up the impact shockwave with a base magnitude.
       return finalize(
         CosmicSpecialResult(
-          shieldHp: (maxHp * 0.65).round(),
-          chargeTimer: 0.85,
-          chargeDamage: damage * 1.7,
-          chargeSpeedMultiplier: 0.75,
-          chargeSweepRadius: 76.0,
-          chargeOvershootDistance: 55.0,
-          chargeFinalSweepRadius: 105.0,
-          projectiles: brace(
-            7,
-            68.0,
-            1.35,
-            forward: 46.0,
-            angleSpread: 0.12,
-            life: 4.1,
-            speed: 0.16,
-            vs: 1.35,
-            radius: 2.2,
-            pierce: true,
-            snareRadius: 126.0,
-            snareMoveMultiplier: 0.52,
-            stationary: true,
-            turretInterval: 1.05,
-            turretDamage: damage * 0.26,
-            turretSpeedMultiplier: 0.95,
-          ),
-        ),
-      );
-
-    case 'Poison':
-      // Venom barricade — toxic fangs remain in the lane as a guarded choke.
-      final cloudCount = scaledCount(4, min: 3, max: 6);
-      return finalize(
-        CosmicSpecialResult(
-          shieldHp: (maxHp * 0.38).round(),
-          chargeTimer: 0.75,
-          chargeDamage: damage * 1.5,
-          chargeSpeedMultiplier: 0.85,
-          chargeSweepRadius: 66.0,
-          chargeOvershootDistance: 75.0,
-          chargeFinalSweepRadius: 98.0,
+          shieldHp: (maxHp * 0.45).round(),
+          chargeTimer: 0.6,
+          chargeDamage: damage * 2.0,
+          chargeSpeedMultiplier: 1.10,
+          chargeSweepRadius: 56.0,
+          chargeOvershootDistance: 70.0,
+          chargeFinalSweepRadius: 100.0,
           projectiles: [
-            ...brace(
-              5,
-              42.0,
-              1.3,
-              forward: 44.0,
-              angleSpread: 0.18,
-              life: 2.5,
-              speed: 0.82,
-              radius: 1.9,
-              vs: 1.55,
-              pierce: true,
-              snareRadius: 102.0,
-              snareMoveMultiplier: 0.60,
+            zone(
+              position: origin,
+              angleArg: baseAngle,
+              life: 0.6,
+              visualScale: 2.4,
+              radiusMultiplier: 2.0,
+              tickEffect: AbilityEffectKind.chain,
+              effectPower: damage * 1.4,
+              effectRadius: 140.0,
+              effectDuration: 0.6,
             ),
-            ...List.generate(cloudCount, (i) {
-              final offset = i - (cloudCount - 1) / 2;
-              final lateral = baseAngle + pi / 2;
-              return Projectile(
-                position: Offset(
-                  origin.dx + cos(baseAngle) * 56 + cos(lateral) * offset * 18,
-                  origin.dy + sin(baseAngle) * 56 + sin(lateral) * offset * 18,
-                ),
-                angle: baseAngle,
-                element: element,
-                damage: damage * 1.0,
-                life: 4.0,
-                speedMultiplier: 0.0,
-                radiusMultiplier: 2.35,
-                piercing: true,
-                stationary: true,
-                visualScale: 1.75,
-                visualStyle: ProjectileVisualStyle.hornImpact,
-                snareRadius: 118.0,
-                snareMoveMultiplier: 0.56,
-              );
-            }),
           ],
         ),
       );
 
-    case 'Spirit':
-      // Ethereal bastion — phase plates hang in the impact lane and intercept.
+    case 'Water':
+      // Charges in a full circular sweep around the cast point (path
+      // logic in survival), then drops a whirlpool at center that
+      // pulls enemies in and pulses damage. chargeOvershootDistance
+      // here doubles as the circle radius (survival clamps 90–200).
       return finalize(
         CosmicSpecialResult(
-          shieldHp: (maxHp * 0.38).round(),
-          chargeTimer: 0.60,
+          shieldHp: (maxHp * 0.55).round(),
+          chargeTimer: 0.9,
+          chargeDamage: damage * 1.6,
+          chargeSpeedMultiplier: 0.95,
+          chargeSweepRadius: 56.0,
+          chargeOvershootDistance: 140.0,
+          chargeFinalSweepRadius: 130.0,
+          projectiles: [
+            zone(
+              position: origin,
+              angleArg: baseAngle,
+              life: 4.5,
+              visualScale: 2.4,
+              radiusMultiplier: 2.5,
+              tickEffect: AbilityEffectKind.pull,
+              effectPower: damage * 0.40,
+              effectRadius: 140.0,
+              effectDuration: 4.5,
+              snareRadius: 140.0,
+              snareMoveMultiplier: 0.18,
+            ),
+          ],
+          shipHeal: max(1, (CosmicBalance.shipMaxHealth * 0.025).round()),
+        ),
+      );
+
+    case 'Ice':
+      // Dashes SIDEWAYS (perpendicular to enemy direction) creating
+      // an ice wall segment-by-segment along its path. The custom
+      // dash + segment spawning is wired survival-side; no
+      // deferred-burst projectiles here — the wall is built live
+      // during the charge.
+      return finalize(
+        CosmicSpecialResult(
+          shieldHp: (maxHp * 0.60).round(),
+          chargeTimer: 0.8,
           chargeDamage: damage * 1.8,
-          chargeSpeedMultiplier: 1.35,
-          chargeSweepRadius: 40.0,
-          chargeOvershootDistance: 135.0,
-          chargeFinalSweepRadius: 62.0,
-          projectiles: brace(
-            4,
-            54.0,
-            1.55,
-            forward: 52.0,
-            angleSpread: 0.20,
-            life: 3.8,
-            speed: 0.20,
-            radius: 2.0,
-            vs: 1.7,
-            pierce: true,
-            interceptRadius: 38.0,
-            interceptCharges: 1,
-          ),
+          chargeSpeedMultiplier: 1.30,
+          chargeSweepRadius: 50.0,
+          chargeOvershootDistance: 0,
+          chargeFinalSweepRadius: 80.0,
+          projectiles: const [],
+        ),
+      );
+
+    case 'Steam':
+      // Pressurized geyser at impact — launches enemies up briefly
+      // and burns. Phase 5: if the slam KILLS an enemy, the special
+      // cooldown is instantly reset AND a second geyser spawns at
+      // the kill site (chainable on a streak).
+      return finalize(
+        CosmicSpecialResult(
+          shieldHp: (maxHp * 0.50).round(),
+          chargeTimer: 0.8,
+          chargeDamage: damage * 1.9,
+          chargeSpeedMultiplier: 0.95,
+          chargeSweepRadius: 64.0,
+          chargeOvershootDistance: 60.0,
+          chargeFinalSweepRadius: 95.0,
+          projectiles: [
+            zone(
+              position: origin,
+              angleArg: baseAngle,
+              life: 3.0,
+              visualScale: 2.4,
+              radiusMultiplier: 2.2,
+              tauntRadius: 130.0,
+              tauntStrength: 1.2,
+              tickEffect: AbilityEffectKind.geyser,
+              effectPower: damage * 0.65,
+              effectRadius: 120.0,
+              effectDuration: 3.0,
+            ),
+          ],
+        ),
+      );
+
+    case 'Earth':
+      // Heaviest tank. Impact leaves a substitute clone (high-HP
+      // decoy that taunts) plus periodic mini-earthquakes that damage
+      // nearby enemies. zoneDamage tick handles the earthquake pulses.
+      return finalize(
+        CosmicSpecialResult(
+          shieldHp: (maxHp * 0.78).round(),
+          chargeTimer: 1.4,
+          chargeDamage: damage * 2.8,
+          chargeSpeedMultiplier: 0.55,
+          chargeSweepRadius: 88.0,
+          chargeOvershootDistance: 25.0,
+          chargeFinalSweepRadius: 125.0,
+          projectiles: [
+            zone(
+              position: origin,
+              angleArg: baseAngle,
+              life: 8.0,
+              visualScale: 3.0,
+              radiusMultiplier: 3.2,
+              tauntRadius: 260.0,
+              tauntStrength: 2.4,
+              decoyHp: maxHp * 0.55,
+              tickEffect: AbilityEffectKind.zoneDamage,
+              effectPower: damage * 0.40,
+              effectRadius: 120.0,
+              effectDuration: 8.0,
+              deathExplosionCount: 4,
+              deathExplosionDamage: damage * 0.55,
+              deathExplosionRadius: 2.4,
+            ),
+          ],
+        ),
+      );
+
+    case 'Mud':
+    case 'Air':
+      // PASSIVE — no active cast. Effect runs continuously in the
+      // survival update loop. Returning empty here is a safety
+      // fallback; isPassiveOnlyCosmicAbility should block the cast
+      // before this branch is reached.
+      return CosmicSpecialResult();
+
+    case 'Poison':
+      // The toxic aura is still passive (always-on), but Poison ALSO
+      // gets a charge attack: dash into enemies, contact deals heavy
+      // poison damage, the survival on-hit hook applies a long poison
+      // DoT to each enemy the dash sweeps through.
+      return finalize(
+        CosmicSpecialResult(
+          shieldHp: (maxHp * 0.42).round(),
+          chargeTimer: 0.80,
+          chargeDamage: damage * 1.9,
+          chargeSpeedMultiplier: 0.90,
+          chargeSweepRadius: 60.0,
+          chargeOvershootDistance: 70.0,
+          chargeFinalSweepRadius: 100.0,
+          projectiles: const [],
+        ),
+      );
+
+    case 'Dust':
+      // Dust cyclone at impact — pulls nearby enemies inward and
+      // disorients shooter-enemies so they fire at each other.
+      return finalize(
+        CosmicSpecialResult(
+          shieldHp: (maxHp * 0.40).round(),
+          chargeTimer: 0.75,
+          chargeDamage: damage * 1.5,
+          chargeSpeedMultiplier: 1.10,
+          chargeSweepRadius: 56.0,
+          chargeOvershootDistance: 70.0,
+          chargeFinalSweepRadius: 90.0,
+          projectiles: [
+            zone(
+              position: origin,
+              angleArg: baseAngle,
+              life: 3.6,
+              visualScale: 2.1,
+              radiusMultiplier: 2.2,
+              tauntRadius: 150.0,
+              tauntStrength: 1.4,
+              tickEffect: AbilityEffectKind.pull,
+              effectPower: damage * 0.28,
+              effectRadius: 130.0,
+              effectDuration: 3.6,
+            ),
+          ],
+        ),
+      );
+
+    case 'Crystal':
+      // Wind-up phase: 6 shards orbit the horn for ~1.2s (Phase 3
+      // anchors them to the live companion). Then the wing dashes
+      // with the shards still orbiting; on impact they shatter into
+      // a shrapnel burst.
+      final shardCount = scaledCount(6, min: 5, max: 8);
+      return finalize(
+        CosmicSpecialResult(
+          windUpTime: 1.2,
+          windUpElement: 'Crystal',
+          shieldHp: (maxHp * 0.55).round(),
+          chargeTimer: 0.9,
+          chargeDamage: damage * 1.7,
+          chargeSpeedMultiplier: 0.95,
+          chargeSweepRadius: 62.0,
+          chargeOvershootDistance: 60.0,
+          chargeFinalSweepRadius: 90.0,
+          projectiles: List.generate(shardCount, (i) {
+            final a = i * (pi * 2 / shardCount);
+            final shard = zone(
+              position: Offset(
+                origin.dx + cos(a) * 48,
+                origin.dy + sin(a) * 48,
+              ),
+              angleArg: a,
+              life: 5.0,
+              visualScale: 1.5,
+              radiusMultiplier: 1.6,
+              interceptRadius: 52.0,
+              interceptCharges: 2,
+              orbitCenter: origin,
+              orbitAngle: a,
+              orbitRadius: 48.0,
+              orbitSpeed: 1.25,
+              deathExplosionCount: 4,
+              deathExplosionDamage: damage * 0.30,
+              deathExplosionRadius: 1.6,
+            );
+            // Re-anchor the orbit to the live horn each frame so the
+            // shards travel WITH it during the dash and stay orbiting
+            // afterward — not pinned to the original cast point.
+            return _copyProjectile(shard, followSourceCompanion: true);
+          }),
+        ),
+      );
+
+    case 'Plant':
+      // Per-enemy root on charge contact: each enemy the dash sweeps
+      // through gets a personal rooted status (survival-side hook
+      // adds a vine visual + immobilizes them). No AoE zone — root
+      // only triggers on direct hits.
+      return finalize(
+        CosmicSpecialResult(
+          shieldHp: (maxHp * 0.62).round(),
+          chargeTimer: 0.95,
+          chargeDamage: damage * 2.0,
+          chargeSpeedMultiplier: 0.88,
+          chargeSweepRadius: 70.0,
+          chargeOvershootDistance: 35.0,
+          chargeFinalSweepRadius: 105.0,
+          projectiles: const [],
+        ),
+      );
+
+    case 'Spirit':
+      // Wind-up: phantoms swarm the horn (visual). On dash, the
+      // phantoms RELEASE — six big ghostly wisps drift outward in a
+      // ring, taunting enemies for the duration. They look like the
+      // wind-up particles but bigger and persistent. Also takes 60%
+      // reduced damage during the wind-up + charge (Phase 3).
+      // Phantom count scales with caster stats — high-stat Spirit
+      // horns release a denser swarm.
+      final spiritPhantomCount = scaledCount(6, min: 4, max: 9);
+      return finalize(
+        CosmicSpecialResult(
+          windUpTime: 2.0,
+          windUpElement: 'Spirit',
+          shieldHp: (maxHp * 0.40).round(),
+          chargeTimer: 0.7,
+          chargeDamage: damage * 1.8,
+          chargeSpeedMultiplier: 1.20,
+          chargeSweepRadius: 50.0,
+          chargeOvershootDistance: 85.0,
+          chargeFinalSweepRadius: 85.0,
+          projectiles: List.generate(spiritPhantomCount, (i) {
+            // Spawn in a ring around the impact, each flying outward
+            // in its own direction at a slow drift speed. They're
+            // mobile decoys with strong taunt — enemies chase the
+            // wisps instead of the horn.
+            final a = i * (pi * 2 / spiritPhantomCount);
+            final spawnR = 26.0;
+            return Projectile(
+              position: Offset(
+                origin.dx + cos(a) * spawnR,
+                origin.dy + sin(a) * spawnR,
+              ),
+              angle: a,
+              element: element,
+              damage: 0,
+              life: 6.0,
+              // Slow drift outward — flies around the impact area
+              // taunting enemies as it travels.
+              speedMultiplier: 0.32,
+              piercing: true,
+              radiusMultiplier: 2.0,
+              visualScale: 2.0,
+              visualStyle: ProjectileVisualStyle.hornImpact,
+              tauntRadius: 180.0,
+              tauntStrength: 2.4,
+              decoy: true,
+              decoyHp: maxHp * 0.18,
+              abilityFamily: 'horn',
+            );
+          }),
         ),
       );
 
     case 'Dark':
-      // Shadow crash — a tight lethal cone of shadow bolts erupts
-      // forward during the near-instant ram.
+      // Wind-up phase (5s): a void aura wraps the horn and sucks
+      // nearby enemies inward (Phase 3 wires the per-frame pull).
+      // Then a long fast dash carries the trapped enemies along to
+      // the map edge (Phase 5 teleports the captured cluster to the
+      // dash destination), where they take heavy impact damage.
       return finalize(
         CosmicSpecialResult(
-          shieldHp: (maxHp * 0.42).round(),
-          chargeTimer: 0.40,
-          chargeDamage: damage * 2.5,
-          chargeSpeedMultiplier: 1.45,
-          chargeSweepRadius: 44.0,
-          chargeOvershootDistance: 125.0,
-          chargeFinalSweepRadius: 58.0,
-          projectiles: cone(
-            7,
-            pi * 0.32,
-            2.4,
-            life: 1.4,
-            speed: 2.0,
-            vs: 1.1,
-            radius: 1.3,
-            tauntRadius: 180.0,
-            tauntStrength: 1.0,
-          ),
+          windUpTime: 5.0,
+          windUpElement: 'Dark',
+          shieldHp: (maxHp * 0.55).round(),
+          // Quick dash phase — the wind-up is the long beat. The
+          // dash is short and very fast, covering map-edge distance
+          // via the high speed multiplier + long overshoot.
+          chargeTimer: 0.55,
+          chargeDamage: damage * 2.4,
+          chargeSpeedMultiplier: 2.10,
+          chargeSweepRadius: 60.0,
+          chargeOvershootDistance: 380.0,
+          chargeFinalSweepRadius: 140.0,
+          projectiles: [
+            zone(
+              position: origin,
+              angleArg: baseAngle,
+              life: 2.0,
+              visualScale: 2.6,
+              radiusMultiplier: 2.4,
+              tauntRadius: 200.0,
+              tauntStrength: 1.6,
+              tickEffect: AbilityEffectKind.blackHole,
+              effectPower: damage * 0.55,
+              effectRadius: 180.0,
+              effectDuration: 2.0,
+            ),
+          ],
         ),
       );
 
     case 'Light':
-      // Radiant guard — stationary ward plates form a parry gate.
+      // Stops moving and channels a light barrier. NO ram — chargeTimer
+      // is 0 so the barrier spawns immediately. The barrier reflects
+      // enemy projectiles and bounces enemies; the horn's movement
+      // lock and the ally-protection pulse are wired survival-side.
+      // shipHeal is the cast-time blessing.
+      // Per design: stops moving and channels a barrier for ~5s
+      // base (scales with intelligence via finalize sustain scale).
+      // Size 20% smaller than previous pass + intelligence-driven
+      // size scaling layered on top via the finalize visual scaler.
+      final lightBarrier = zone(
+        position: origin,
+        angleArg: baseAngle,
+        life: 5.0,
+        visualScale: 4.8,
+        radiusMultiplier: 5.2,
+        tauntRadius: 0.0,
+        tauntStrength: 0.0,
+        interceptRadius: 0.0,
+        interceptCharges: 0,
+        decoyHp: maxHp * 1.10,
+      );
       return finalize(
         CosmicSpecialResult(
-          shieldHp: (maxHp * 0.46).round(),
-          chargeTimer: 0.65,
-          chargeDamage: damage * 1.15,
-          chargeSpeedMultiplier: 0.82,
-          chargeSweepRadius: 82.0,
-          chargeOvershootDistance: 50.0,
-          chargeFinalSweepRadius: 118.0,
-          projectiles: brace(
-            3,
-            58.0,
-            0.9,
-            forward: 50.0,
-            angleSpread: 0.04,
-            life: 4.2,
-            speed: 0.0,
-            radius: 2.45,
-            vs: 1.9,
-            pierce: true,
-            stationary: true,
-            snareRadius: 96.0,
-            snareMoveMultiplier: 0.70,
-            tauntRadius: 230.0,
-            tauntStrength: 1.2,
-            interceptRadius: 72.0,
-            interceptCharges: 2,
-          ),
+          shieldHp: (maxHp * 0.50).round(),
+          chargeTimer: 0,
+          chargeDamage: 0,
+          chargeSpeedMultiplier: 0,
+          chargeSweepRadius: 0,
+          chargeOvershootDistance: 0,
+          chargeFinalSweepRadius: 0,
+          projectiles: [
+            _copyProjectile(lightBarrier, reflectsProjectiles: true),
+          ],
           shipHeal: max(1, (CosmicBalance.shipMaxHealth * 0.035).round()),
         ),
       );
 
     case 'Blood':
-      // Crimson fortress — anchored blood bulwarks pull threat into the tank.
+      // No taunt. Sacrifices % current HP for amplified impact
+      // damage. Heals back on every kill in a short post-impact
+      // window. Phase 3 wires the HP sacrifice and heal-on-kill;
+      // here we set up the heavy impact + brief vampire blessing.
       return finalize(
         CosmicSpecialResult(
-          shieldHp: (maxHp * 0.50).round(),
-          chargeTimer: 0.70,
-          chargeDamage: damage * 2.2,
-          chargeSpeedMultiplier: 0.70,
-          chargeSweepRadius: 88.0,
-          chargeOvershootDistance: 45.0,
-          chargeFinalSweepRadius: 112.0,
-          selfHeal: (maxHp * 0.18).round(),
-          projectiles: ring(
-            3,
-            2.1,
-            life: 3.5,
-            speed: 0.0,
-            radius: 2.75,
-            vs: 2.1,
-            pierce: true,
-            stationary: true,
-            tauntRadius: 220.0,
-            tauntStrength: 1.5,
-            decoyHp: maxHp * 0.10,
-            deathExplosionCount: 4,
-            deathExplosionDamage: damage * 0.34,
-            deathExplosionRadius: 1.8,
-          ),
+          shieldHp: (maxHp * 0.45).round(),
+          chargeTimer: 0.85,
+          chargeDamage: damage * 2.6,
+          chargeSpeedMultiplier: 0.85,
+          chargeSweepRadius: 70.0,
+          chargeOvershootDistance: 50.0,
+          chargeFinalSweepRadius: 100.0,
+          selfHeal: 0,
+          blessingTimer: 2.5,
+          blessingHealPerTick: damage * 0.06,
+          projectiles: const [],
         ),
       );
 
@@ -6964,7 +6872,7 @@ AbilityEffectKind _wingTickEffect(String element) => switch (element) {
   'Crystal' || 'Water' => AbilityEffectKind.leech,
   'Lightning' => AbilityEffectKind.chargeBlast,
   'Steam' => AbilityEffectKind.geyser,
-  'Dark' => AbilityEffectKind.buff,
+  'Dark' => AbilityEffectKind.none,
   // Ice no longer hard-freezes per tick — the wing beam ramps a frost
   // buildup that snaps into a freeze once full (see _resolveBeamTick).
   'Ice' => AbilityEffectKind.slow,
@@ -6991,7 +6899,11 @@ List<WingBeamEffect> _wingBeamEffects({
     min: 0.84,
     max: 1.24,
   );
-  final duration = (1.8 + casterIntelligence * 0.10).clamp(1.6, 3.4);
+  // Lightning: fixed 3s charge (per design — stat-invariant) + small
+  // buffer so the post-charge blast tick lands before the beam expires.
+  final duration = element == 'Lightning'
+      ? 3.2
+      : (1.8 + casterIntelligence * 0.10).clamp(1.6, 3.4);
   final tick = (0.22 / targetingScale).clamp(0.12, 0.28).toDouble();
   final beamDamage = damage * 0.46 * powerScale;
   // A single slightly wider beam reads better than 2–3 thrashing
@@ -7021,7 +6933,9 @@ List<WingBeamEffect> _wingBeamEffects({
       _ => 0,
     },
     refractionCount: element == 'Light' ? 1 : 0,
-    chargeTime: element == 'Lightning' ? 0.75 : 0,
+    // Per design: Lightning charges for 3s (stat-invariant), then
+    // unleashes one big blast (handled in the survival update loop).
+    chargeTime: element == 'Lightning' ? 3.0 : 0,
     executeThreshold: element == 'Blood' ? 0.18 : 0,
     tickEffect: _wingTickEffect(element),
     effectPower: beamDamage * 0.5,
@@ -7249,6 +7163,10 @@ CosmicSpecialResult _letSpecial(
 // PIP — Ricochet Salvo
 // Design: Fast homing chains, bouncy, fun to watch
 // ─────────────────────────────────────────────────────────
+const double kPipSpecialMaxProjectileLife = 2.65;
+const double kPipRicochetPostHitLife = 0.42;
+const int kPipMaxPierceHits = 2;
+
 CosmicSpecialResult _pipSpecial(
   Offset origin,
   double baseAngle,
@@ -7354,7 +7272,7 @@ CosmicSpecialResult _pipSpecial(
     return _copyProjectile(
       p,
       damage: p.damage * impactScale * 0.86,
-      life: p.life * durationScale,
+      life: min(p.life * durationScale, kPipSpecialMaxProjectileLife),
       speedMultiplier: p.speedMultiplier * guidanceScale,
       radiusMultiplier: p.radiusMultiplier * visualScaleMul,
       homingStrength: p.homingStrength * guidanceScale,
@@ -7424,12 +7342,12 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(a + pi / 2) * t * 5,
               ),
               angle: a,
-              damageMultiplier: 1.10,
+              damageMultiplier: 1.45,
               life: 1.65,
               speed: 2.15,
               // Lower homing — these are ricochets, not guided missiles.
               homingStrength: 2.0,
-              visualScale: 0.82,
+              visualScale: 1.20,
               bounceCount: 1,
             ),
           );
@@ -7450,11 +7368,11 @@ CosmicSpecialResult _pipSpecial(
                 origin.dy + sin(baseAngle) * (18 + i * 3),
               ),
               angle: a,
-              damageMultiplier: 1.02,
+              damageMultiplier: 1.22,
               life: 1.35,
               speed: 2.65,
               homingStrength: 1.8,
-              visualScale: 0.74,
+              visualScale: 1.05,
               radiusMultiplier: 0.9,
               piercing: true,
               bounceCount: 5,
@@ -7479,11 +7397,11 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(a + pi / 2) * t * 9,
               ),
               angle: a,
-              damageMultiplier: 1.55,
+              damageMultiplier: 1.85,
               life: 2.9,
               speed: 1.16,
               homingStrength: 2.2,
-              visualScale: 1.02,
+              visualScale: 1.25,
               radiusMultiplier: 1.15,
               bounceCount: 2,
               snareRadius: 64.0,
@@ -7508,11 +7426,11 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(a) * 10,
               ),
               angle: a,
-              damageMultiplier: 1.45,
+              damageMultiplier: 1.75,
               life: 2.6,
               speed: 1.55,
               homingStrength: 2.4,
-              visualScale: 1.0,
+              visualScale: 1.22,
               piercing: true,
               bounceCount: 2,
             ),
@@ -7534,11 +7452,11 @@ CosmicSpecialResult _pipSpecial(
               angle: a,
               // Fewer Lava darts → each one hits harder for the same
               // overall payload, matching Lava's "heavy slow" identity.
-              damageMultiplier: 2.85,
+              damageMultiplier: 3.25,
               life: 2.75,
               speed: 0.92,
               homingStrength: 2.0,
-              visualScale: 1.45,
+              visualScale: 1.65,
               radiusMultiplier: 1.75,
               piercing: true,
             ),
@@ -7562,11 +7480,11 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(a + pi / 2) * t * 8,
               ),
               angle: a,
-              damageMultiplier: 1.50,
+              damageMultiplier: 1.85,
               life: 3.0,
               speed: 0.98,
               homingStrength: 2.2,
-              visualScale: 1.05,
+              visualScale: 1.28,
               radiusMultiplier: 1.35,
               bounceCount: 1,
               snareRadius: 72.0,
@@ -7592,11 +7510,11 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(a + pi / 2) * t * 7,
               ),
               angle: a,
-              damageMultiplier: 1.50,
+              damageMultiplier: 1.85,
               life: 3.25,
               speed: 1.22,
               homingStrength: 2.4,
-              visualScale: 0.98,
+              visualScale: 1.22,
               piercing: true,
               bounceCount: 1,
               snareRadius: 58.0,
@@ -7617,13 +7535,13 @@ CosmicSpecialResult _pipSpecial(
                 origin.dy + sin(baseAngle) * 24 + sin(a + pi / 2) * i * 5,
               ),
               angle: a,
-              damageMultiplier: 2.20,
+              damageMultiplier: 2.60,
               life: 3.7,
               speed: 1.18,
               // Spirit darts are still the family's "tracker" identity,
               // but not 6.0 homing-missile guidance.
               homingStrength: 3.2,
-              visualScale: 1.08,
+              visualScale: 1.30,
               piercing: true,
               bounceCount: 2,
             ),
@@ -7652,11 +7570,11 @@ CosmicSpecialResult _pipSpecial(
                     sin(baseAngle + pi / 2) * side * (10 + tier.abs() * 5),
               ),
               angle: a,
-              damageMultiplier: 1.05,
+              damageMultiplier: 1.35,
               life: 1.9,
               speed: 1.9,
               homingStrength: 1.8,
-              visualScale: 0.72,
+              visualScale: 1.00,
               bounceCount: 2,
             ),
           );
@@ -7678,44 +7596,19 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(a) * 16,
               ),
               angle: a + pi / 2,
-              damageMultiplier: 1.25,
+              damageMultiplier: 1.60,
               life: 1.9,
               speed: 2.05,
               homing: false,
               homingStrength: 1.0,
-              visualScale: 0.86,
+              visualScale: 1.18,
               bounceCount: 2,
             ),
           );
         }),
       );
     case 'Dark':
-      final center = Offset(
-        origin.dx + cos(baseAngle) * 28,
-        origin.dy + sin(baseAngle) * 28,
-      );
-      final localCount = scaledCount(3, min: 2, max: 4);
-      return CosmicSpecialResult(
-        projectiles: List.generate(localCount, (i) {
-          final offset = i - (localCount - 1) / 2;
-          final a = baseAngle + offset * 0.18;
-          return scalePipProjectile(
-            dart(
-              position: Offset(
-                center.dx + cos(a + pi / 2) * offset * 7,
-                center.dy + sin(a + pi / 2) * offset * 7,
-              ),
-              angle: a,
-              damageMultiplier: 3.10,
-              life: 2.8,
-              speed: 1.18,
-              homingStrength: 2.8,
-              visualScale: 1.02,
-              piercing: true,
-            ),
-          );
-        }),
-      );
+      return CosmicSpecialResult();
     case 'Blood':
       final center = Offset(
         origin.dx + cos(baseAngle) * 24,
@@ -7733,11 +7626,11 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(a + pi / 2) * offset * 10,
               ),
               angle: a,
-              damageMultiplier: 3.40,
+              damageMultiplier: 3.85,
               life: 3.2,
               speed: 1.0,
               homingStrength: 3.0,
-              visualScale: 1.08,
+              visualScale: 1.32,
               piercing: true,
             ),
           );
@@ -7762,11 +7655,11 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(lane) * side * 20 + sin(baseAngle) * tier * 8,
               ),
               angle: a + pi,
-              damageMultiplier: 1.45,
+              damageMultiplier: 1.80,
               life: 2.6,
               speed: 1.25,
               homingStrength: 2.4,
-              visualScale: 0.96,
+              visualScale: 1.22,
               bounceCount: 2,
             ),
           );
@@ -7789,12 +7682,12 @@ CosmicSpecialResult _pipSpecial(
                     sin(baseAngle + pi / 2) * side * 14,
               ),
               angle: baseAngle + side * 0.10,
-              damageMultiplier: 1.50,
+              damageMultiplier: 1.85,
               life: 2.0,
               speed: 1.55,
               homing: false,
               homingStrength: 0.8,
-              visualScale: 0.92,
+              visualScale: 1.20,
               piercing: true,
               bounceCount: 1,
             ),
@@ -7817,11 +7710,11 @@ CosmicSpecialResult _pipSpecial(
                     sin(baseAngle + pi / 2) * lane,
               ),
               angle: baseAngle + (i - (localCount - 1) / 2) * 0.08,
-              damageMultiplier: 2.55,
+              damageMultiplier: 2.95,
               life: 2.4,
               speed: 1.05,
               homingStrength: 2.0,
-              visualScale: 1.08,
+              visualScale: 1.30,
             ),
           );
         }),
@@ -7843,11 +7736,11 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(a + pi / 2) * offset * 6,
               ),
               angle: a,
-              damageMultiplier: 1.65,
+              damageMultiplier: 2.00,
               life: 3.0,
               speed: 1.0,
               homingStrength: 2.4,
-              visualScale: 0.98,
+              visualScale: 1.22,
               piercing: true,
               bounceCount: 1,
               snareRadius: 50.0,
@@ -7869,11 +7762,11 @@ CosmicSpecialResult _pipSpecial(
             dart(
               position: Offset(halo.dx + cos(a) * 18, halo.dy + sin(a) * 18),
               angle: a + pi / 2,
-              damageMultiplier: 1.30,
+              damageMultiplier: 1.65,
               life: 2.4,
               speed: 1.7,
               homingStrength: 1.6,
-              visualScale: 0.9,
+              visualScale: 1.20,
               bounceCount: 2,
               piercing: true,
               interceptRadius: 24.0,
@@ -8142,12 +8035,16 @@ CosmicSpecialResult _maneSpecial(
       max: 1.18,
     );
     final rawSpeed = p.speedMultiplier * controlScale;
-    // Manes are slow piercing catapults, except Air: its template identity is
-    // a fast gale that pushes enemies along the shot path.
+    // Manes are slow piercing catapults, except the authored speed outliers:
+    // Air's identity is a 2× gale that shoves enemies along the shot path,
+    // and Fire is "(3–8) fireballs shot out and travel FAST" per the design
+    // board — both are exempt from the catapult crawl.
     final catapultSpeed = p.stationary
         ? 0.0
         : p.element == 'Air'
         ? rawSpeed.clamp(1.5, 2.8).toDouble()
+        : p.element == 'Fire'
+        ? rawSpeed.clamp(1.0, 1.6).toDouble()
         : rawSpeed.clamp(0.24, 0.58).toDouble();
     return _copyProjectile(
       p,
@@ -8397,10 +8294,11 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Fire':
-      final fireballCount = scaledCount(6, min: 3, max: 8) * 2;
+      // Design board: "(3–8) fireballs shot out and travel fast."
+      final fireballCount = scaledCount(6, min: 3, max: 8);
       return finalize(
         fanResult(
-          lanes: fireballCount.clamp(6, 16),
+          lanes: fireballCount,
           arc: pi * 0.92,
           damageMultiplier: 1.12,
           life: 2.55,
@@ -8613,26 +8511,44 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Dark':
+      // Per design: ONE slow void bolt that travels through the field,
+      // constantly pulling nearby enemies toward it. Low-HP enemies
+      // caught in the pull are executed on pierce (survival hook).
       return finalize(
-        fanResult(
-          lanes: scaledCount(4, min: 3, max: 6),
-          arc: pi * 0.18,
-          damageMultiplier: 2.00,
-          life: 3.4,
-          speed: 0.72,
-          visualScale: 1.18,
-          piercing: true,
-          snareRadius: 88,
-          snareMoveMultiplier: 0.68,
+        CosmicSpecialResult(
           basicHasteTimer: 1.4,
           basicHasteMultiplier: 0.78,
-          radiusMultiplier: 1.20,
+          projectiles: [
+            Projectile(
+              position: origin,
+              angle: baseAngle,
+              element: 'Dark',
+              damage: damage * 2.4,
+              life: 5.5,
+              speedMultiplier: 0.42,
+              radiusMultiplier: 2.6,
+              visualScale: 2.4,
+              piercing: true,
+              visualStyle: ProjectileVisualStyle.slash,
+              abilityFamily: 'mane',
+              pierceEffect: AbilityEffectKind.blackHole,
+              effectPower: damage * 0.55,
+              effectRadius: 180,
+              effectDuration: 1.5,
+              // Survival per-frame hook reads snareRadius as the pull
+              // radius for the traveling void bolt.
+              snareRadius: 180,
+              snareMoveMultiplier: 0.55,
+            ),
+          ],
         ),
       );
     case 'Blood':
+      // Per design: restore HP per pierce instead of a fixed cast-
+      // time heal. The per-pierce heal is wired survival-side in
+      // resolveAbilityPierce.
       return finalize(
         CosmicSpecialResult(
-          selfHeal: (maxHp * 0.12).round(),
           basicHasteTimer: 1.5,
           basicHasteMultiplier: 0.82,
           projectiles: [
@@ -8873,185 +8789,73 @@ CosmicSpecialResult _maskSpecial(
   double casterIntelligence,
   Offset? targetPos,
 ) {
+  // MASK — Traps theme (per design board). Each special scatters
+  // element-specific trap placements across the field. NO homing
+  // seekers, NO decoy missiles — just placed traps that activate
+  // on contact, persist as DoT zones, or buff allies. Several
+  // elements (Spirit collectible-wisps, Plant growing-vine, etc.)
+  // require survival-side custom hooks; those are spawned here
+  // with the right shape and consumed by the survival update loop.
   final rng = Random();
   final projs = <Projectile>[];
 
-  int scaledCount(int base, {int min = 2, int max = 14}) {
+  int scaledCount(int base, {int min = 2, int max = 25}) {
     final scale = _specialCountScaleFromBaseline(
       casterBeauty,
       casterIntelligence,
       beautyPerPoint: 0.06,
       intelligencePerPoint: 0.10,
-      min: 0.76,
-      max: 1.24,
+      min: 0.50,
+      max: 1.80,
     );
     return (base * scale).round().clamp(min, max);
   }
 
+  // Generic scaling pass — applied uniformly to all mask traps.
   Projectile scaleMaskProjectile(Projectile p) {
-    // Masks are stationary *placements*, not homing chasers. Convert any
-    // homing decoy into an element-specific stationary trap so each
-    // element reads as a distinct fixture instead of a missile.
-    if (p.visualStyle == ProjectileVisualStyle.sigil &&
-        (p.decoy || p.stationary || p.tauntRadius > 0 || p.snareRadius > 0)) {
-      final element = p.element ?? '';
-      final impactScale = _specialStatScaleFromBaseline(
-        casterBeauty,
-        perPoint: 0.10,
-        min: 0.90,
-        max: 1.30,
-      );
-      final durScale = _specialStatScaleFromBaseline(
-        casterIntelligence,
-        perPoint: 0.12,
-        min: 1.00,
-        max: 1.40,
-      );
-      final radScale = _specialStatScaleFromBaseline(
-        casterIntelligence,
-        perPoint: 0.10,
-        min: 0.90,
-        max: 1.25,
-      );
-      // Per-element trap shape per design doc.
-      final shape = _maskSurvivalTrapShape(element);
-      return _copyProjectile(
-        p,
-        damage: max(p.damage, 1.0) * impactScale,
-        life: max(p.life, shape.life) * durScale,
-        speedMultiplier: 0,
-        stationary: true,
-        piercing: true,
-        homing: false,
-        homingStrength: 0,
-        decoy: shape.keepDecoy ? p.decoy : false,
-        decoyHp: shape.keepDecoy ? p.decoyHp * impactScale * 1.4 : 0,
-        tauntRadius: shape.tauntRadius * radScale,
-        tauntStrength: shape.tauntRadius > 0 ? p.tauntStrength * 0.65 : 0,
-        snareRadius: shape.snareRadius * radScale,
-        snareMoveMultiplier: shape.snareMove,
-        radiusMultiplier: max(p.radiusMultiplier, shape.radiusMul) * radScale,
-        visualScale: max(p.visualScale, shape.visualScale) * radScale,
-        abilityFamily: 'mask',
-        hitEffect: shape.hitEffect ?? _maskHitEffect(element),
-        tickEffect: shape.tickEffect ?? _maskHitEffect(element),
-        effectPower: max(p.damage, 1.0) * impactScale * shape.powerMul,
-        effectRadius: shape.effectRadius * radScale,
-        effectDuration: shape.effectDuration,
-        deathExplosionCount: shape.explodeCount,
-        deathExplosionDamage:
-            max(p.damage, 1.0) * impactScale * shape.explodeDamageMul,
-        deathExplosionRadius: shape.explodeRadius,
-      );
-    }
     final impactScale = _specialStatScaleFromBaseline(
       casterBeauty,
-      perPoint: 0.09,
-      min: 0.84,
-      max: 1.18,
+      perPoint: 0.10,
+      min: 0.85,
+      max: 1.25,
     );
     final visualScaleMul = _specialStatScaleFromBaseline(
       casterBeauty,
       perPoint: 0.12,
-      min: 0.82,
-      max: 1.22,
-    );
-    final controlScale = _specialStatScaleFromBaseline(
-      casterIntelligence,
-      perPoint: 0.12,
-      min: 0.82,
-      max: 1.24,
+      min: 0.85,
+      max: 1.25,
     );
     final durationScale = _specialStatScaleFromBaseline(
       casterIntelligence,
       perPoint: 0.10,
-      min: 0.86,
-      max: 1.18,
+      min: 0.88,
+      max: 1.30,
     );
-    final decoyScale = _specialStatScaleFromBaseline(
-      casterBeauty,
-      perPoint: 0.10,
-      min: 0.84,
-      max: 1.18,
-    );
-    final tauntScale = _specialStatScaleFromBaseline(
+    final radScale = _specialStatScaleFromBaseline(
       casterIntelligence,
       perPoint: 0.10,
-      min: 0.86,
-      max: 1.18,
-    );
-    final trapPersistenceScale = _specialTrapPersistenceScale(
-      p,
-      intelligence: casterIntelligence,
+      min: 0.88,
+      max: 1.25,
     );
     return _copyProjectile(
       p,
       damage: p.damage * impactScale,
-      life: p.life * durationScale * trapPersistenceScale,
-      speedMultiplier: p.stationary
-          ? p.speedMultiplier
-          : p.speedMultiplier * controlScale,
+      life: p.life * durationScale,
       radiusMultiplier: p.radiusMultiplier * visualScaleMul,
-      homingStrength: p.homing
-          ? p.homingStrength * controlScale
-          : p.homingStrength,
       visualScale: p.visualScale * visualScaleMul,
-      // Survival decoys get instantly mobbed at cosmic-tuned HP. Bump
-      // them harder so they actually tank a wave instead of vanishing.
-      decoyHp: p.decoy ? p.decoyHp * decoyScale * 1.65 : p.decoyHp,
+      decoyHp: p.decoy ? p.decoyHp * impactScale : p.decoyHp,
       deathExplosionDamage: p.deathExplosionDamage * impactScale,
       deathExplosionRadius: p.deathExplosionRadius * visualScaleMul,
-      // Pull taunt range in — 320+ radii overlap the whole wave and
-      // create cascading aggro thrash.
-      tauntRadius: p.tauntRadius * tauntScale * 0.65,
-      tauntStrength: p.tauntStrength * tauntScale,
-      snareRadius: p.snareRadius > 0
-          ? p.snareRadius * visualScaleMul
-          : p.snareRadius,
-      bounceCount: p.bounceCount > 0
-          ? (p.bounceCount * tauntScale).round().clamp(0, 5)
-          : p.bounceCount,
+      effectPower: p.effectPower * impactScale,
+      effectRadius: p.effectRadius * radScale,
+      effectDuration: p.effectDuration * durationScale,
       abilityFamily: 'mask',
-      hitEffect: p.hitEffect == AbilityEffectKind.none
-          ? _maskHitEffect(p.element ?? '')
-          : p.hitEffect,
-      killEffect:
-          p.killEffect == AbilityEffectKind.none &&
-              (p.element == 'Blood' || p.element == 'Spirit')
-          ? _maskHitEffect(p.element ?? '')
-          : p.killEffect,
-      tickEffect: p.tickEffect == AbilityEffectKind.none && p.stationary
-          ? _maskHitEffect(p.element ?? '')
-          : p.tickEffect,
-      effectPower: p.effectPower > 0
-          ? p.effectPower * impactScale
-          : p.damage * impactScale * 0.30,
-      effectRadius: p.effectRadius > 0
-          ? p.effectRadius * visualScaleMul
-          : max(80.0, p.snareRadius) * visualScaleMul,
-      effectDuration: p.effectDuration > 0
-          ? p.effectDuration * durationScale * trapPersistenceScale
-          : 3.0 * durationScale * trapPersistenceScale,
-      effectCount: p.effectCount > 0 ? p.effectCount : scaledCount(3),
     );
   }
 
   CosmicSpecialResult finalize(CosmicSpecialResult result) {
-    // Masks are traps — drop pure homing seekers (homing + piercing +
-    // non-decoy + non-stationary + no taunt + no snare) so we don't
-    // spawn stray missiles. The stationary baseline traps are what the
-    // player should see.
-    final projectiles = result.projectiles.where((p) {
-      final isPureSeeker =
-          p.homing &&
-          !p.decoy &&
-          !p.stationary &&
-          p.tauntRadius <= 0 &&
-          p.snareRadius <= 0;
-      return !isPureSeeker;
-    }).toList();
     return CosmicSpecialResult(
-      projectiles: projectiles.map(scaleMaskProjectile).toList(),
+      projectiles: result.projectiles.map(scaleMaskProjectile).toList(),
       beams: result.beams,
       shieldHp: result.shieldHp,
       chargeTimer: result.chargeTimer,
@@ -9069,91 +8873,27 @@ CosmicSpecialResult _maskSpecial(
     );
   }
 
-  // Helper: spawn a projectile that homes aggressively from a nearby scatter pos.
-  // This is our "active seeker" — it will immediately fly toward the nearest enemy.
-  Projectile seeker(
-    Offset pos,
-    double dmgMul, {
-    double life = 4.0,
-    double speed = 0.7,
+  // Generic stationary trap-placement projectile. Element-specific
+  // mechanics are layered via hitEffect/tickEffect markers that the
+  // survival update loop consumes. Stationary + sigil-visual by default
+  // so traps read as placed fixtures, not lures or missiles.
+  Projectile trap({
+    required Offset pos,
+    required double dmgMul,
+    required double life,
+    AbilityEffectKind hitEffect = AbilityEffectKind.none,
+    AbilityEffectKind tickEffect = AbilityEffectKind.none,
+    AbilityEffectKind killEffect = AbilityEffectKind.none,
+    double effectPower = 0,
+    double effectRadius = 0,
+    double effectDuration = 0,
+    int effectCount = 0,
     double radius = 1.8,
-    double vs = 1.4,
-    bool pierce = false,
-    double homeStr = 5.0,
-    int bounces = 0,
-  }) {
-    return Projectile(
-      position: pos,
-      angle: baseAngle,
-      element: element,
-      damage: damage * dmgMul,
-      life: life,
-      speedMultiplier: speed,
-      radiusMultiplier: radius,
-      visualScale: vs,
-      homing: true,
-      homingStrength: homeStr,
-      piercing: pierce,
-      bounceCount: bounces,
-      visualStyle: ProjectileVisualStyle.sigil,
-    );
-  }
-
-  // Helper: scatter offset from origin
-  Offset scatter({double maxDist = 60.0}) {
-    final a = rng.nextDouble() * pi * 2;
-    final d = 20 + rng.nextDouble() * maxDist;
-    return Offset(origin.dx + cos(a) * d, origin.dy + sin(a) * d);
-  }
-
-  // Helper: decoy that actively seeks + explodes (homing decoy)
-  Projectile homingDecoy(
-    double dmgMul,
-    double decoyHp,
-    int explodeCount,
-    double explodeDmg, {
-    double life = 7.0,
-    double radius = 2.5,
-    double vs = 2.2,
-    double speed = 0.6,
-  }) {
-    return Projectile(
-      position: scatter(maxDist: 40),
-      angle: baseAngle,
-      element: element,
-      damage: damage * dmgMul,
-      life: life,
-      speedMultiplier: speed,
-      radiusMultiplier: radius,
-      visualScale: vs,
-      // Decoy + active homing: rushes to nearest enemy, survives hits, then explodes
-      homing: true,
-      homingStrength: 3.5,
-      decoy: true,
-      decoyHp: decoyHp,
-      deathExplosionCount: explodeCount,
-      deathExplosionDamage: damage * explodeDmg,
-      deathExplosionRadius: 2.5,
-      tauntRadius: 320,
-      tauntStrength: 3.4,
-      visualStyle: ProjectileVisualStyle.sigil,
-    );
-  }
-
-  // Helper: stationary trap-totem that force-taunts nearby enemies.
-  Projectile tauntTrap(
-    Offset pos,
-    double dmgMul, {
-    double life = 8.0,
-    double radius = 2.0,
-    double vs = 1.9,
-    double hp = 9.0,
-    double tauntR = 420.0,
-    double tauntStr = 4.4,
-    double snareR = 0,
-    double snareMove = 1.0,
-    int explodeCount = 8,
-    double explodeDmg = 1.9,
+    double vs = 1.8,
+    bool piercing = true,
+    bool reflectsProjectiles = false,
+    double snareRadius = 0,
+    double snareMoveMultiplier = 1.0,
   }) {
     return Projectile(
       position: pos,
@@ -9161,20 +8901,54 @@ CosmicSpecialResult _maskSpecial(
       element: element,
       damage: damage * dmgMul,
       life: life,
+      speedMultiplier: 0,
       stationary: true,
+      piercing: piercing,
       radiusMultiplier: radius,
       visualScale: vs,
-      decoy: true,
-      decoyHp: hp,
-      deathExplosionCount: explodeCount,
-      deathExplosionDamage: damage * explodeDmg,
-      deathExplosionRadius: 2.2,
-      tauntRadius: tauntR,
-      tauntStrength: tauntStr,
-      snareRadius: snareR,
-      snareMoveMultiplier: snareMove,
       visualStyle: ProjectileVisualStyle.sigil,
+      reflectsProjectiles: reflectsProjectiles,
+      snareRadius: snareRadius,
+      snareMoveMultiplier: snareMoveMultiplier,
+      abilityFamily: 'mask',
+      hitEffect: hitEffect,
+      tickEffect: tickEffect,
+      killEffect: killEffect,
+      effectPower: effectPower,
+      effectRadius: effectRadius,
+      effectDuration: effectDuration,
+      effectCount: effectCount,
     );
+  }
+
+  // Low-discrepancy disc scatter around the trap anchor.
+  // Higher Intelligence → traps spread wider across the field;
+  // higher counts also fan wider so dense scatters don't stack up.
+  final intelSpreadScale = _specialStatScaleFromBaseline(
+    casterIntelligence,
+    perPoint: 0.16,
+    min: 0.85,
+    max: 2.2,
+  );
+  List<Offset> scatterPositions(
+    Offset anchor,
+    int count, {
+    double baseSpread = 200.0,
+    double startRing = 0.10,
+  }) {
+    final maxSpread =
+        baseSpread *
+        intelSpreadScale *
+        (count > 4 ? 1.0 + (count - 4) * 0.10 : 1.0);
+    return List.generate(count, (i) {
+      final ringFraction = (i + 0.5) / count;
+      final r = (startRing + (1 - startRing) * sqrt(ringFraction)) * maxSpread;
+      final a =
+          baseAngle +
+          ringFraction * pi * 2 * 1.618 +
+          (rng.nextDouble() - 0.5) * 0.5;
+      return Offset(anchor.dx + cos(a) * r, anchor.dy + sin(a) * r);
+    });
   }
 
   final trapAnchor =
@@ -9183,533 +8957,372 @@ CosmicSpecialResult _maskSpecial(
         origin.dx + cos(baseAngle) * 120,
         origin.dy + sin(baseAngle) * 120,
       );
-  // Per-element trap counts so each element reads as a distinct fixture
-  // (Air = many gust pads, Light = single void, etc.).
-  final trapCount = (() {
-    final base = switch (element) {
-      'Air' => 12,
-      'Lava' => 9,
-      'Fire' => 9,
-      'Poison' => 8,
-      'Spirit' => 6,
-      'Steam' => 6,
-      'Water' => 6,
-      'Crystal' => 5,
-      'Earth' => 4,
-      'Dust' => 4,
-      'Mud' || 'Lightning' || 'Plant' => 1,
-      'Blood' || 'Dark' || 'Ice' || 'Light' => 1,
-      _ => 3,
-    };
-    final maxOut = switch (element) {
-      'Air' => 18,
-      'Lava' || 'Fire' => 15,
-      'Poison' => 12,
-      'Water' => 10,
-      'Spirit' || 'Steam' => 8,
-      'Crystal' => 7,
-      'Earth' || 'Dust' => 5,
-      _ => 3,
-    };
-    return scaledCount(base, min: 1, max: maxOut);
-  })();
-  final trapTauntRadius = switch (element) {
-    'Dark' => 520.0,
-    'Earth' => 490.0,
-    'Mud' => 500.0,
-    'Light' => 500.0,
-    _ => 440.0,
-  };
-  final trapLife = switch (element) {
-    'Earth' || 'Mud' => 10.0,
-    'Ice' || 'Steam' => 9.0,
-    'Dark' => 9.5,
-    _ => 8.0,
-  };
-  // Spread scales with intelligence — high-Int casters spread their
-  // trap placement across the field, low-Int casters cluster tight.
-  // Higher trap counts also spread wider so 12+ Air pads don't stack
-  // on top of each other.
-  final intelSpreadScale = _specialStatScaleFromBaseline(
-    casterIntelligence,
-    perPoint: 0.18,
-    min: 0.85,
-    max: 2.4,
-  );
-  final countSpreadBoost = trapCount > 5 ? 1.0 + (trapCount - 5) * 0.18 : 1.0;
-  final maxSpread = 220.0 * intelSpreadScale * countSpreadBoost;
-  final maskRng = Random();
-  for (var i = 0; i < trapCount; i++) {
-    // Low-discrepancy-ish disc scatter so traps spread out across an
-    // area rather than fanning along a line.
-    final ringFraction = (i + 0.5) / trapCount;
-    final radius = sqrt(ringFraction) * maxSpread;
-    final jitter = (maskRng.nextDouble() - 0.5) * 0.6;
-    final ringAngle =
-        baseAngle +
-        ringFraction * pi * 2 * 1.618 + // golden-angle scatter
-        jitter;
-    final pos = Offset(
-      trapAnchor.dx + cos(ringAngle) * radius,
-      trapAnchor.dy + sin(ringAngle) * radius,
-    );
-    projs.add(
-      tauntTrap(
-        pos,
-        0.85,
-        life: trapLife,
-        tauntR: trapTauntRadius,
-        snareR: switch (element) {
-          'Dark' => 120.0,
-          'Mud' => 135.0,
-          'Steam' => 118.0,
-          'Poison' => 124.0,
-          'Air' => 96.0,
-          'Ice' => 110.0,
-          _ => 0.0,
-        },
-        snareMove: switch (element) {
-          'Dark' => 0.42,
-          'Mud' => 0.28,
-          'Steam' => 0.24,
-          'Poison' => 0.36,
-          'Air' => 0.78,
-          'Ice' => 0.32,
-          _ => 1.0,
-        },
-        hp: element == 'Earth'
-            ? 14
-            : element == 'Mud'
-            ? 12
-            : 9,
-      ),
-    );
-  }
 
   switch (element) {
-    // ── Decoy elements: rush to enemy, tank hits, explode ──
-    case 'Earth':
-      // Monolith assault: 1 colossal homing decoy + ring of boulder seekers
-      projs.add(
-        homingDecoy(
-          2.0,
-          20,
-          10,
-          4.5,
-          life: 9.0,
-          radius: 3.5,
-          vs: 3.0,
-          speed: 0.45,
-        ),
-      );
-      for (var i = 0; i < scaledCount(5, min: 4, max: 7); i++) {
+    case 'Air':
+      // 3–25 air pads; blow back enemies on contact. Long-lived so
+      // the field stays littered with pads — they're meant to be a
+      // persistent maze the player can rely on.
+      final count = scaledCount(12, min: 3, max: 25);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 240)) {
         projs.add(
-          seeker(
-            scatter(maxDist: 70),
-            3.0,
-            life: 3.0,
-            speed: 0.55,
-            radius: 2.8,
-            vs: 2.2,
-            pierce: true,
-          ),
-        );
-      }
-      break;
-
-    case 'Lava':
-      // Volcanic idol: 2 homing lava decoys that erupt into magma on death
-      for (var i = 0; i < scaledCount(2, min: 2, max: 3); i++) {
-        projs.add(
-          homingDecoy(
-            2.5,
-            14,
-            8,
-            5.0,
-            life: 7.0,
-            radius: 3.0,
-            vs: 2.5,
-            speed: 0.5,
-          ),
-        );
-      }
-      // Plus 4 seeking lava orbs
-      for (var i = 0; i < scaledCount(4, min: 3, max: 6); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 80),
-            2.5,
-            life: 3.5,
-            speed: 0.6,
-            radius: 2.2,
-            vs: 1.8,
-          ),
-        );
-      }
-      break;
-
-    case 'Crystal':
-      // Prism decoy: 2 homing crystal decoys → 12 homing shards on death
-      for (var i = 0; i < scaledCount(2, min: 2, max: 3); i++) {
-        projs.add(
-          homingDecoy(
-            1.5,
-            10,
-            12,
-            2.0,
-            life: 7.5,
-            radius: 2.2,
-            vs: 2.0,
-            speed: 0.65,
-          ),
-        );
-      }
-      // 5 extra homing crystal seekers
-      for (var i = 0; i < scaledCount(5, min: 4, max: 7); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 70),
-            2.0,
-            life: 3.0,
-            speed: 0.9,
-            homeStr: 4.5,
-            bounces: 3,
-          ),
-        );
-      }
-      break;
-
-    case 'Spirit':
-      // Phantom decoy: 3 fast homing spirit lures → homing spirit burst
-      for (var i = 0; i < scaledCount(3, min: 2, max: 4); i++) {
-        projs.add(
-          homingDecoy(
-            1.5,
-            8,
-            6,
-            3.0,
-            life: 8.0,
-            radius: 2.0,
-            vs: 1.8,
-            speed: 0.75,
-          ),
-        );
-      }
-      // 3 strong piercing homing spirits
-      for (var i = 0; i < scaledCount(3, min: 2, max: 4); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 60),
-            2.5,
-            life: 5.0,
-            speed: 0.8,
-            pierce: true,
-            homeStr: 6.0,
-          ),
-        );
-      }
-      break;
-
-    case 'Dark':
-      // Void well: 1 massive lure plus a smaller volley of execution seekers.
-      projs.add(
-        homingDecoy(
-          3.0,
-          16,
-          8,
-          6.0,
-          life: 7.0,
-          radius: 3.2,
-          vs: 2.8,
-          speed: 0.55,
-        ),
-      );
-      for (var i = 0; i < scaledCount(3, min: 2, max: 4); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 70),
-            2.4,
-            life: 2.8,
-            speed: 0.88,
-            homeStr: 4.2,
-            pierce: true,
-          ),
-        );
-      }
-      break;
-
-    case 'Water':
-      // Bubble assault: 3 medium homing decoys + 5 water seekers
-      for (var i = 0; i < scaledCount(3, min: 2, max: 4); i++) {
-        projs.add(
-          homingDecoy(
-            1.4,
-            7,
-            7,
-            1.8,
-            life: 6.0,
-            radius: 2.5,
-            vs: 2.0,
-            speed: 0.7,
-          ),
-        );
-      }
-      for (var i = 0; i < scaledCount(5, min: 4, max: 7); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 80),
-            1.8,
-            life: 3.0,
-            speed: 0.85,
-            homeStr: 3.5,
-          ),
-        );
-      }
-      break;
-
-    case 'Ice':
-      // Frost decoy: 1 big homing decoy → slow ice shards + 5 slow seeking shards
-      projs.add(
-        homingDecoy(
-          2.0,
-          12,
-          10,
-          2.5,
-          life: 8.0,
-          radius: 3.0,
-          vs: 2.5,
-          speed: 0.50,
-        ),
-      );
-      for (var i = 0; i < scaledCount(5, min: 4, max: 7); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 70),
-            2.0,
-            life: 4.0,
-            speed: 0.5,
-            radius: 2.5,
-            vs: 1.8,
-          ),
-        );
-      }
-      break;
-
-    case 'Plant':
-      // Vine construct: 2 homing plant decoys + 6 seeking thorn pods
-      for (var i = 0; i < scaledCount(2, min: 2, max: 3); i++) {
-        projs.add(
-          homingDecoy(
-            1.8,
-            9,
-            6,
-            2.5,
-            life: 9.0,
-            radius: 2.2,
-            vs: 2.0,
-            speed: 0.60,
-          ),
-        );
-      }
-      for (var i = 0; i < scaledCount(6, min: 4, max: 8); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 80),
-            1.8,
-            life: 4.0,
-            speed: 0.7,
-            pierce: true,
-            homeStr: 4.0,
-          ),
-        );
-      }
-      break;
-
-    case 'Light':
-      // Beacon assault: 3 homing light decoys + 6 seeking light bolts
-      for (var i = 0; i < scaledCount(3, min: 2, max: 4); i++) {
-        projs.add(
-          homingDecoy(
-            1.4,
-            8,
-            9,
-            1.5,
-            life: 6.5,
-            radius: 2.0,
-            vs: 1.8,
-            speed: 0.75,
-          ),
-        );
-      }
-      for (var i = 0; i < scaledCount(6, min: 4, max: 8); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 70),
-            1.5,
-            life: 2.5,
-            speed: 1.0,
-            homeStr: 3.5,
-            bounces: 2,
-          ),
-        );
-      }
-      break;
-
-    case 'Blood':
-      // Blood obelisk: 1 tough homing decoy + 4 powerful seeking blood orbs
-      projs.add(
-        homingDecoy(
-          2.5,
-          15,
-          5,
-          5.0,
-          life: 8.0,
-          radius: 2.8,
-          vs: 2.4,
-          speed: 0.55,
-        ),
-      );
-      for (var i = 0; i < scaledCount(4, min: 3, max: 6); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 60),
-            3.5,
-            life: 4.0,
-            speed: 0.7,
-            radius: 2.0,
-            homeStr: 5.0,
-          ),
-        );
-      }
-      break;
-
-    // ── "Mine" elements: converted from useless statics to aggressive homing swarms ──
-    case 'Fire':
-      // Inferno assault: 8 homing fire bolts
-      for (var i = 0; i < scaledCount(8, min: 6, max: 10); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 70),
-            2.0,
-            life: 3.5,
-            speed: 1.1,
-            homeStr: 4.0,
-          ),
-        );
-      }
-      break;
-
-    case 'Lightning':
-      // Tesla chain: 10 fast bouncing lightning seekers
-      for (var i = 0; i < scaledCount(10, min: 7, max: 12); i++) {
-        projs.add(
-          Projectile(
-            position: scatter(maxDist: 80),
-            angle: baseAngle,
-            element: element,
-            damage: damage * 1.5,
-            life: 2.5,
-            speedMultiplier: 1.8,
-            radiusMultiplier: 1.4,
-            visualScale: 1.2,
-            homing: true,
-            homingStrength: 4.5,
-            piercing: true,
-            bounceCount: 3,
-            visualStyle: ProjectileVisualStyle.sigil,
-          ),
-        );
-      }
-      break;
-
-    case 'Steam':
-      // Vent assault: fewer seekers, more reliance on slow pressure traps.
-      for (var i = 0; i < scaledCount(4, min: 3, max: 6); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 75),
-            1.4,
-            life: 4.2,
-            speed: 0.55,
-            radius: 3.0,
-            vs: 2.0,
-            homeStr: 2.5,
-          ),
-        );
-      }
-      break;
-
-    case 'Mud':
-      // Bog assault: mire traps do the locking; a few mud blobs punish escape.
-      for (var i = 0; i < scaledCount(4, min: 3, max: 6); i++) {
-        projs.add(
-          seeker(
-            scatter(maxDist: 65),
-            1.65,
-            life: 4.8,
-            speed: 0.45,
-            radius: 3.0,
-            vs: 2.2,
-            homeStr: 2.4,
+          trap(
+            pos: p,
+            dmgMul: 0.45,
+            life: 22.0,
+            hitEffect: AbilityEffectKind.knockback,
+            effectPower: 360,
+            effectRadius: 86,
+            radius: 1.5,
+            vs: 1.6,
           ),
         );
       }
       break;
 
     case 'Dust':
-      // Caltrop swarm: 12 fast tiny homing sand grains, ricochet
-      for (var i = 0; i < scaledCount(12, min: 8, max: 14); i++) {
+      // Each alchemon is wrapped in a dust cloud that shields them and
+      // damages enemies who collide. Per-alchemon attachment is wired
+      // survival-side; this seed projectile carries the contact damage
+      // and shield-radius parameters.
+      projs.add(
+        trap(
+          pos: origin,
+          dmgMul: 0.0,
+          life: 9.0,
+          tickEffect: AbilityEffectKind.alchemyBonus,
+          effectPower: damage * 0.7,
+          effectRadius: 70,
+          effectDuration: 9.0,
+          radius: 1.4,
+          vs: 1.5,
+        ),
+      );
+      break;
+
+    case 'Lava':
+      // 5–15 lava pools; DoT enemies in them.
+      final count = scaledCount(9, min: 5, max: 15);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 220)) {
         projs.add(
-          Projectile(
-            position: scatter(maxDist: 90),
-            angle: baseAngle,
-            element: element,
-            damage: damage * 1.2,
-            life: 2.0,
-            speedMultiplier: 1.8,
-            homing: true,
-            homingStrength: 3.5,
-            bounceCount: 2,
-            visualScale: 0.7,
-            visualStyle: ProjectileVisualStyle.sigil,
+          trap(
+            pos: p,
+            dmgMul: 0.0,
+            life: 8.0,
+            tickEffect: AbilityEffectKind.burn,
+            effectPower: damage * 0.35,
+            effectRadius: 92,
+            effectDuration: 8.0,
+            radius: 1.9,
+            vs: 2.0,
           ),
         );
       }
       break;
 
     case 'Poison':
-      // Plague assault: contamination traps first, guided toxins second.
-      for (var i = 0; i < scaledCount(4, min: 3, max: 6); i++) {
+      // Scattered poison clouds; DoT in them.
+      final count = scaledCount(7, min: 3, max: 12);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 210)) {
         projs.add(
-          seeker(
-            scatter(maxDist: 75),
-            1.2,
-            life: 5.4,
-            speed: 0.45,
-            radius: 3.0,
+          trap(
+            pos: p,
+            dmgMul: 0.0,
+            life: 9.0,
+            tickEffect: AbilityEffectKind.poison,
+            effectPower: damage * 0.28,
+            effectRadius: 110,
+            effectDuration: 9.0,
+            radius: 2.2,
             vs: 2.2,
-            homeStr: 2.5,
-            pierce: true,
           ),
         );
       }
       break;
 
-    case 'Air':
-      // Count is driven entirely by the baseline trap loop above
-      // (12–18 gust pads); no extra seekers.
+    case 'Plant':
+      // ONE vine. Each cast feeds the existing vine (it grows bigger);
+      // survival-side detects an active Plant-mask vine and grows it
+      // instead of letting new ones stack.
+      projs.add(
+        trap(
+          pos: trapAnchor,
+          dmgMul: 0.0,
+          life: 30.0,
+          tickEffect: AbilityEffectKind.root,
+          effectPower: damage * 0.5,
+          effectRadius: 90,
+          effectDuration: 30.0,
+          snareRadius: 90,
+          snareMoveMultiplier: 0.5,
+          radius: 2.4,
+          vs: 2.4,
+        ),
+      );
+      break;
+
+    case 'Blood':
+      // ONE blob; enemies passing through it are permanently drained
+      // (HP leached to all alchemons until that enemy dies). Survival
+      // hooks key off abilityFamily=='mask' && element=='Blood'.
+      projs.add(
+        trap(
+          pos: trapAnchor,
+          dmgMul: 0.0,
+          life: 14.0,
+          hitEffect: AbilityEffectKind.leech,
+          effectPower: damage * 0.55,
+          effectRadius: 96,
+          effectDuration: 14.0,
+          radius: 2.3,
+          vs: 2.4,
+        ),
+      );
+      break;
+
+    case 'Earth':
+      // 2–5 earth heal pools; heal ship/alchemons standing in them.
+      final count = scaledCount(3, min: 2, max: 5);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 180)) {
+        projs.add(
+          trap(
+            pos: p,
+            dmgMul: 0.0,
+            life: 12.0,
+            tickEffect: AbilityEffectKind.zoneHeal,
+            effectPower: damage * 0.30,
+            effectRadius: 110,
+            effectDuration: 12.0,
+            radius: 2.4,
+            vs: 2.4,
+          ),
+        );
+      }
+      break;
+
+    case 'Light':
+      // ONE light void. Persists until enemy collision → instant kill.
+      projs.add(
+        trap(
+          pos: trapAnchor,
+          dmgMul: 0.0,
+          life: 18.0,
+          hitEffect: AbilityEffectKind.execute,
+          effectPower: 1.0,
+          effectRadius: 70,
+          effectDuration: 18.0,
+          radius: 2.0,
+          vs: 2.2,
+        ),
+      );
+      break;
+
+    case 'Spirit':
+      // Scattered wisps. Ship collects them; threshold reached → nuke
+      // all non-boss enemies. Collection + threshold are wired survival
+      // side, keyed off hitEffect=flower.
+      final count = scaledCount(8, min: 4, max: 14);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 230)) {
+        projs.add(
+          trap(
+            pos: p,
+            dmgMul: 0.0,
+            life: 18.0,
+            hitEffect: AbilityEffectKind.flower,
+            effectPower: damage * 1.2,
+            effectRadius: 70,
+            effectDuration: 18.0,
+            radius: 1.2,
+            vs: 1.3,
+          ),
+        );
+      }
+      break;
+
+    case 'Crystal':
+      // 3–7 large crystals. On enemy contact each breaks into 3 smaller
+      // crystals (handled survival-side via hitEffect=split + count=3).
+      final count = scaledCount(5, min: 3, max: 7);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 200)) {
+        projs.add(
+          trap(
+            pos: p,
+            dmgMul: 1.0,
+            life: 12.0,
+            hitEffect: AbilityEffectKind.split,
+            effectCount: 3,
+            effectPower: damage * 0.6,
+            effectRadius: 110,
+            effectDuration: 4.0,
+            radius: 2.4,
+            vs: 2.4,
+          ),
+        );
+      }
+      break;
+
+    case 'Fire':
+      // 5–15 fire balls. On enemy collision → spawn a fire pool that
+      // DoTs. Pool spawn is wired survival-side off hitEffect=burn.
+      final count = scaledCount(9, min: 5, max: 15);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 220)) {
+        projs.add(
+          trap(
+            pos: p,
+            dmgMul: 0.5,
+            life: 10.0,
+            hitEffect: AbilityEffectKind.burn,
+            effectPower: damage * 0.32,
+            effectRadius: 95,
+            effectDuration: 6.0,
+            radius: 1.6,
+            vs: 1.7,
+          ),
+        );
+      }
+      break;
+
+    case 'Lightning':
+      // ONE field that grows for each enemy that hits it. DoT.
+      projs.add(
+        trap(
+          pos: trapAnchor,
+          dmgMul: 0.0,
+          life: 12.0,
+          tickEffect: AbilityEffectKind.chain,
+          effectPower: damage * 0.40,
+          effectRadius: 110,
+          effectDuration: 12.0,
+          radius: 2.6,
+          vs: 2.6,
+        ),
+      );
+      break;
+
+    case 'Steam':
+      // Mini geysers around the field. Two layers of pressure:
+      //   • Geyser tickEffect → on enemies in 240px radius, lifts +
+      //     DoTs (the rising puff effect from the painter).
+      //   • Turret shots → fires a steam bolt at the nearest enemy
+      //     every ~0.95s. _maybeFireProjectileTurret is already wired
+      //     into the per-frame loop; we just have to populate the
+      //     turret* fields on the trap so it emits projectiles.
+      final count = scaledCount(5, min: 3, max: 8);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 220)) {
+        final geyser = trap(
+          pos: p,
+          dmgMul: 0.0,
+          life: 12.0,
+          tickEffect: AbilityEffectKind.geyser,
+          effectPower: damage * 0.55,
+          effectRadius: 240,
+          effectDuration: 12.0,
+          radius: 1.8,
+          vs: 1.9,
+        );
+        // Layer turret behavior on top via _copyProjectile so the
+        // turret fields propagate without losing trap markers.
+        projs.add(
+          _copyProjectile(
+            geyser,
+            turretInterval: 0.95,
+            turretDamage: damage * 0.75,
+            turretSpeedMultiplier: 1.15,
+            turretHomingStrength: 1.6,
+          ),
+        );
+      }
+      break;
+
+    case 'Dark':
+      // ONE void hole. Enemies that enter are yeeted out of the area.
+      // Suction radius scales with stats (mask scaler + here).
+      projs.add(
+        trap(
+          pos: trapAnchor,
+          dmgMul: 0.0,
+          life: 9.0,
+          tickEffect: AbilityEffectKind.blackHole,
+          effectPower: 1.0,
+          effectRadius: 240,
+          effectDuration: 9.0,
+          radius: 2.6,
+          vs: 2.8,
+        ),
+      );
+      break;
+
+    case 'Ice':
+      // ONE giant ice pillar. Ship/alchemons near it get a strength
+      // buff (~2–5×). Ally-buff aura is wired survival-side.
+      projs.add(
+        trap(
+          pos: trapAnchor,
+          dmgMul: 0.0,
+          life: 14.0,
+          tickEffect: AbilityEffectKind.buff,
+          effectPower: 2.0,
+          effectRadius: 180,
+          effectDuration: 14.0,
+          radius: 2.4,
+          vs: 2.6,
+        ),
+      );
+      break;
+
+    case 'Mud':
+      // Mud pool(s) that slow enemies.
+      final count = scaledCount(3, min: 1, max: 5);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 180)) {
+        projs.add(
+          trap(
+            pos: p,
+            dmgMul: 0.0,
+            life: 11.0,
+            tickEffect: AbilityEffectKind.slow,
+            effectPower: 0.40,
+            effectRadius: 120,
+            effectDuration: 11.0,
+            snareRadius: 120,
+            snareMoveMultiplier: 0.40,
+            radius: 2.6,
+            vs: 2.6,
+          ),
+        );
+      }
+      break;
+
+    case 'Water':
+      // Traps; on enemy contact → splash damage to surrounding enemies.
+      final count = scaledCount(6, min: 3, max: 10);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 210)) {
+        projs.add(
+          trap(
+            pos: p,
+            dmgMul: 0.5,
+            life: 10.0,
+            hitEffect: AbilityEffectKind.splash,
+            effectPower: damage * 0.9,
+            effectRadius: 110,
+            effectDuration: 0.0,
+            radius: 1.8,
+            vs: 1.9,
+          ),
+        );
+      }
       break;
 
     default:
-      // Generic: 7 homing seekers
-      for (var i = 0; i < scaledCount(7, min: 5, max: 9); i++) {
+      // Fallback: scattered generic snare traps.
+      final count = scaledCount(5, min: 3, max: 8);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 200)) {
         projs.add(
-          seeker(
-            scatter(maxDist: 70),
-            2.0,
-            life: 3.5,
-            speed: 0.8,
-            homeStr: 4.0,
+          trap(
+            pos: p,
+            dmgMul: 0.6,
+            life: 8.0,
+            snareRadius: 90,
+            snareMoveMultiplier: 0.6,
           ),
         );
       }
@@ -10035,6 +9648,10 @@ Projectile _kinGroundWard({
   // sigil routes the ward through the rich per-element ground-zone
   // renderer (poison pool, ice field, dark void, etc.).
   ProjectileVisualStyle visualStyle = ProjectileVisualStyle.sigil,
+  // -2 = none, -1 = follow ship, >=0 = follow companion slot.
+  // Used by ship-attached kin auras (Water rain cloud, Air updraft)
+  // so the ward moves with the ship every frame.
+  int attachedToSlot = -2,
 }) {
   return Projectile(
     position: position,
@@ -10057,6 +9674,7 @@ Projectile _kinGroundWard({
     effectRadius: effectRadius,
     effectDuration: effectDuration,
     effectCount: effectCount,
+    attachedToSlot: attachedToSlot,
   );
 }
 
@@ -10068,11 +9686,16 @@ List<Projectile> _kinElementExtraProjectiles(
   double power,
   Offset? targetPos,
 ) {
-  final target = _kinFocusPoint(origin, baseAngle, targetPos);
+  // _kinFocusPoint helper retained for future per-element placements;
+  // all current support paths spawn at origin (ship-attached or
+  // caster-footed) or are wired survival-side.
   final longSpin = _kinEscortSpinUpDuration(power);
   final longEscort = _kinEscortShipDuration(power);
+  // mediumDuration kept for the remaining ward-style cases.
+  // ignore: unused_local_variable
   final mediumDuration = 3.8 + ((power.clamp(1.0, 5.0) - 1.0) / 4.0) * 2.6;
-  final shortDuration = 2.9 + ((power.clamp(1.0, 5.0) - 1.0) / 4.0) * 2.1;
+  // ignore: unused_local_variable
+  final target = _kinFocusPoint(origin, baseAngle, targetPos);
   switch (element) {
     case 'Light':
       // Signature: cleansing aura. Light orbs ship-escort with
@@ -10099,291 +9722,167 @@ List<Projectile> _kinElementExtraProjectiles(
         effectDuration: 0.6,
       );
     case 'Dark':
-      // Signature: Singularity — a gravity well planted on the enemy
-      // focus. Every aura tick it drags enemies toward its core,
-      // crushes them, and executes any reduced to a sliver of HP.
-      return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.blackHole,
-          effectRadius: 150.0,
-          effectPower: damage * 0.34,
-          duration: shortDuration + 0.6,
-          visualScale: 1.7,
-        ),
-      ];
+      // Signature: Void Cloak — companions become untargetable.
+      // No projectiles; the buff timer is set survival-side at cast.
+      return const [];
     case 'Crystal':
-      // Signature: prism splash. Crystal sentries ship-escort and
-      // fire piercing turrets, plus a splash aura that damages
-      // anything close — crystalline shrapnel ricochets locally.
+      // Signature: Prismatic Refractors. Spawns N orbital shards that
+      // orbit the ship, each loaded with intercept charges. When a
+      // shard intercepts an enemy projectile it also fires a
+      // refracted damaging beam back at the sender (reflect-on-hit).
+      // No turrets, no splash — pure defensive counter.
       return _kinStagedOrbitals(
         count: _kinEscortOrbCount(element, power),
         origin: origin,
         element: element,
-        damage: damage * 0.9,
-        orbitRadius: 74.0,
-        orbitSpeed: 3.0,
+        damage: damage * 0.5,
+        orbitRadius: 78.0,
+        orbitSpeed: 2.6,
         spinUp: longSpin - 0.15,
-        activeDuration: longEscort - 0.4,
+        activeDuration: longEscort,
         transferToShipOrbit: true,
         transferSpeed: 1.0,
-        radiusMultiplier: 1.8,
-        visualScale: 1.3,
+        radiusMultiplier: 1.6,
+        visualScale: 1.25,
         piercing: true,
-        turretInterval: 1.05,
-        turretDamage: damage * 0.42,
-        turretSpeedMultiplier: 0.85,
-        tickEffect: AbilityEffectKind.splash,
-        effectPower: damage * 0.25,
-        effectRadius: 70,
-        effectDuration: 0.4,
+        interceptRadius: 32.0,
+        interceptCharges: 4,
       );
     case 'Air':
-      // Signature: Cyclone Ward — a repulsion field at the team's
-      // footing. Enemies caught in it are flung outward every tick, so
-      // nothing closes on the allies it protects.
+      // Signature: Updraft Column — a moving cyclone attached to the
+      // SHIP. Enemies that try to close on the ship are lifted up and
+      // flung outward by the rising winds. Anti-melee bubble that
+      // travels with the player.
       return [
         _kinGroundWard(
           position: origin,
           element: element,
           tickEffect: AbilityEffectKind.knockback,
-          effectRadius: 120.0,
-          effectPower: damage * 0.22,
-          duration: mediumDuration + 0.4,
-          effectDuration: 0.2,
-          visualScale: 1.9,
+          effectRadius: 110.0,
+          effectPower: damage * 0.26,
+          duration: mediumDuration + 1.0,
+          effectDuration: 0.18,
+          visualScale: 2.0,
+          attachedToSlot: -1, // follow the ship
         ),
       ];
     case 'Fire':
-      // Signature: Ember Aegis — a protective ring of fire around the
-      // team's footing. Anything that closes into the ward is set
-      // ablaze every aura tick; approaching the kin's allies costs HP.
-      return [
-        _kinGroundWard(
-          position: origin,
-          element: element,
-          tickEffect: AbilityEffectKind.burn,
-          effectRadius: 124.0,
-          effectPower: damage * 0.40,
-          duration: mediumDuration,
-          effectDuration: 2.0,
-          visualScale: 1.9,
-        ),
-      ];
+      // Signature: Phoenix Guard. If the orb dies during the buff
+      // window, it's saved at ~25% HP and the fire kin gains an
+      // orbiting flame that damages nearby enemies. No projectiles
+      // here — guard timer is set survival-side at cast.
+      return const [];
     case 'Water':
-      // Signature: Tide Pool — a wide, long-lived healing zone placed at
-      // the caster's footing. Allies standing inside are restored every
-      // aura tick; it makes ground safe rather than chasing enemies.
+      // Signature: Rain Cloud — moving healing cloud attached to the
+      // SHIP. Nerfed: smaller heal-per-tick and shorter duration so
+      // the cloud is a meaningful support window, not permanent
+      // background regen.
       return [
         _kinGroundWard(
           position: origin,
           element: element,
           tickEffect: AbilityEffectKind.zoneHeal,
-          effectRadius: 132.0,
-          effectPower: damage * 0.22,
-          duration: longEscort,
-          visualScale: 2.0,
+          effectRadius: 100.0,
+          effectPower: damage * 0.14,
+          duration: longEscort - 1.5,
+          visualScale: 1.8,
+          attachedToSlot: -1, // follow the ship
         ),
       ];
     case 'Ice':
-      // Signature: Glacier Field — flash-freezes a zone on the enemy
-      // focus. Every enemy standing inside is locked solid for as long
-      // as the field holds, letting allies focus-fire freely.
-      return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.freeze,
-          effectRadius: 116.0,
-          effectPower: damage * 0.22,
-          duration: mediumDuration + 0.6,
-          effectDuration: 1.2,
-          visualScale: 1.9,
-        ),
-      ];
+      // Signature: Charged Frost. Kin enters a charge windup; on
+      // release, a 360° frost burst applies a 90% slow to every
+      // enemy in range. Range scales to global at max stats. No
+      // projectiles here — charge is started survival-side at cast.
+      return const [];
     case 'Steam':
-      // Signature: Geyser Vents — a vent field on the enemy focus that
-      // erupts each tick, bursting and battering anything stuck inside.
-      return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.geyser,
-          effectRadius: 116.0,
-          effectPower: damage * 0.34,
-          duration: mediumDuration + 0.5,
-          effectDuration: 0.4,
-          visualScale: 1.9,
-        ),
-      ];
+      // Signature: Boiler. Damage taken by ship/allies converts into
+      // stacking companion attack-speed (max 10 stacks). No projectiles
+      // here — buff window timer is set survival-side at cast.
+      return const [];
     case 'Earth':
-      // Signature: Bulwark — a stone rampart planted between the team
-      // and the enemy advance. It taunts the wave onto itself, stuns
-      // enemies packed against it via its aura, and on collapse erupts
-      // in a scattering shockburst.
-      return [
-        Projectile(
-          position: target,
-          angle: 0,
-          element: element,
-          damage: damage * 0.30,
-          life: mediumDuration + 1.5,
-          speedMultiplier: 0,
-          stationary: true,
-          decoy: true,
-          decoyHp: 14.0 + power * 4.0,
-          tauntRadius: 150.0,
-          tauntStrength: 8.0,
-          deathExplosionCount: 8,
-          deathExplosionDamage: damage * 0.6,
-          deathExplosionRadius: 2.4,
-          radiusMultiplier: 2.4,
-          visualScale: 1.7,
-          visualStyle: ProjectileVisualStyle.sigil,
-          abilityFamily: 'kin',
-          tickEffect: AbilityEffectKind.stun,
-          effectPower: damage * 0.18,
-          effectRadius: 110,
-          effectDuration: 0.6,
-        ),
-      ];
+      // Signature: Stone Barrier — a curved arc of indestructible
+      // wall segments around the ORB (handled survival-side so the
+      // arc can center on the live orb position). Returns empty
+      // here; spawn is wired in _activateKinSupportPath.
+      return const [];
     case 'Mud':
-      // Signature: Quagmire — a spreading bog on the enemy focus.
-      // Enemies inside are slowed hard and chip-damaged each tick;
-      // the wave's tempo collapses around it.
-      return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.slow,
-          effectRadius: 128.0,
-          effectPower: damage * 0.16,
-          duration: mediumDuration + 1.0,
-          effectDuration: 1.6,
-          visualScale: 2.0,
-        ),
-      ];
+      // Signature: Mud-Splattered Ship. Slings mud onto the ship,
+      // granting it a temporary buff that leaves a slowing mud trail
+      // as it moves. Ship enchant timer set survival-side at cast.
+      return const [];
     case 'Dust':
-      // Signature: Blinding Haze — a suppression cloud on the enemy
-      // focus. Shooters caught inside cannot fire; the wave is defanged.
-      return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.suppressShooting,
-          effectRadius: 124.0,
-          effectPower: damage * 0.12,
-          duration: shortDuration + 1.0,
-          effectDuration: 1.6,
-          visualScale: 1.8,
-        ),
-      ];
+      // Signature: Field-placed Dust Clouds. First cast plants one
+      // cloud at the target; subsequent casts add more (additive,
+      // persistent). Projectiles passing through any cloud have a
+      // chance to miss. Spawn is handled survival-side at cast.
+      return const [];
     case 'Lightning':
-      // Signature: Storm Conduit — a crackling field on the enemy
-      // focus. Every tick it arcs chain-lightning through the enemies
-      // caught inside, jumping between them.
-      return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.chain,
-          effectRadius: 118.0,
-          effectPower: damage * 0.34,
-          duration: shortDuration + 0.6,
-          effectDuration: 0.4,
-          effectCount: 3,
-          visualScale: 1.8,
-        ),
-      ];
+      // Signature: Tesla Charge. While the kin actively channels, all
+      // companions' auto-attacks chain to nearby enemies. Charge
+      // duration equals buff duration (1:1). Charge phase started
+      // survival-side at cast.
+      return const [];
     case 'Plant':
-      // Signature: Verdant Snare — grasping vines root enemies on the
-      // enemy focus, while a healing bloom at the caster pulses HP to
-      // allies. The only kin that locks down and sustains at once.
+      // Signature: Healing Garden. Nerfed: smaller radius, weaker
+      // per-tick heal, shorter duration. Flower drop cadence is
+      // tuned down survival-side too so harvest pace is gated.
       return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.root,
-          effectRadius: 112.0,
-          effectPower: damage * 0.20,
-          duration: mediumDuration + 1.0,
-          effectDuration: 1.4,
-          visualScale: 1.8,
-        ),
         _kinGroundWard(
           position: origin,
           element: element,
           tickEffect: AbilityEffectKind.zoneHeal,
-          effectRadius: 96.0,
-          effectPower: damage * 0.16,
-          duration: mediumDuration + 1.0,
-          visualScale: 1.5,
+          effectRadius: 100.0,
+          effectPower: damage * 0.12,
+          duration: longEscort - 2.0,
+          visualScale: 1.7,
+          // Marker for periodic flower spawn survival-side.
+          effectCount: 1,
         ),
       ];
     case 'Poison':
-      // Signature: Contagion — a toxic zone on the enemy focus. Enemies
-      // inside take stacking poison every tick; sustained chip damage
-      // that wears the whole wave down.
-      return [
-        _kinGroundWard(
-          position: target,
+      // Signature: Venom Swirl — a radial burst of homing poison darts
+      // fired in all directions from the caster. Each dart seeks a
+      // nearby enemy and applies stacking poison on hit.
+      final dartCount = 8 + ((power.clamp(1.0, 5.0) - 1.0) / 4.0 * 8).round();
+      return List.generate(dartCount, (i) {
+        final a = i * (pi * 2 / dartCount);
+        return Projectile(
+          position: Offset(origin.dx + cos(a) * 18, origin.dy + sin(a) * 18),
+          angle: a,
           element: element,
-          tickEffect: AbilityEffectKind.poison,
-          effectRadius: 122.0,
-          effectPower: damage * 0.34,
-          duration: mediumDuration + 1.2,
-          effectDuration: 2.0,
-          visualScale: 1.9,
-        ),
-      ];
+          damage: damage * 0.55,
+          life: 2.6,
+          speedMultiplier: 0.95,
+          radiusMultiplier: 1.4,
+          visualScale: 1.1,
+          piercing: true,
+          homing: true,
+          homingStrength: 3.6,
+          visualStyle: ProjectileVisualStyle.sigil,
+          abilityFamily: 'kin',
+          hitEffect: AbilityEffectKind.poison,
+          effectPower: damage * 0.30,
+          effectRadius: 1, // direct apply, no aoe
+          effectDuration: 4.0,
+        );
+      });
     case 'Spirit':
-      // Signature: Soul Warden — a reaping ward on the enemy focus.
-      // Each tick it executes enemies inside that have fallen to low
-      // HP, picking survivors off the field.
-      return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.execute,
-          effectRadius: 116.0,
-          effectPower: damage * 0.34,
-          duration: mediumDuration,
-          effectDuration: 0.6,
-          visualScale: 1.8,
-        ),
-      ];
+      // Signature: Wisp Companion. Releases a growing wisp that
+      // tiers up off enemies the Spirit kin's auto-attacks kill.
+      // Wisp + tier progression handled survival-side at cast +
+      // per-frame.
+      return const [];
     case 'Lava':
-      // Signature: Magma Moat — a wide ring of molten terrain laid
-      // around the team's footing. Enemies crossing it are seared by
-      // heavy burn damage every tick — a perimeter of fire.
-      return [
-        _kinGroundWard(
-          position: origin,
-          element: element,
-          tickEffect: AbilityEffectKind.burn,
-          effectRadius: 138.0,
-          effectPower: damage * 0.50,
-          duration: shortDuration + 0.5,
-          effectDuration: 2.4,
-          visualScale: 2.1,
-        ),
-      ];
+      // Signature: Molten Plate. Ship + companions gain reactive
+      // armor — when hit, splash burning lava back at attacker.
+      // Timer set survival-side at cast.
+      return const [];
     case 'Blood':
-      // Signature: Hemo Rite — a leech sigil planted on the enemy focus
-      // point. Each aura tick it drains the HP of enemies caught inside
-      // and pours it straight back into the party as healing.
-      return [
-        _kinGroundWard(
-          position: target,
-          element: element,
-          tickEffect: AbilityEffectKind.leech,
-          effectRadius: 122.0,
-          effectPower: damage * 0.42,
-          duration: mediumDuration + 1.0,
-          visualScale: 1.8,
-        ),
-      ];
+      // Signature: Blood Pact. While active, % of damage taken by any
+      // alchemon is converted into healing distributed across the
+      // other living alchemons. Timer set survival-side at cast.
+      return const [];
     default:
       return const [];
   }
@@ -10718,10 +10217,10 @@ CosmicSpecialResult _mysticSpecial(
             visualStyle: ProjectileVisualStyle.mysticOrbital,
             piercing: true,
             // Drop persistent magma pools along the boulder's path
-            // every 0.45s — the survival travel-shedding loop spawns
-            // them as standalone burn zones.
-            turretInterval: 0.45,
-            turretDamage: damage * 0.85,
+            // every 0.75s (slowed from 0.45s so the field isn't
+            // drowned in dozens of overlapping pools).
+            turretInterval: 0.75,
+            turretDamage: damage * 1.05,
             // Cluster on impact so the boulder also explodes when it
             // finally hits a wall of enemies.
             clusterCount: 4,
@@ -11036,6 +10535,9 @@ CosmicSpecialResult _mysticSpecial(
             orbitRadius: 55,
             orbitSpeed: 2.2,
             holdOrbit: true,
+            // Monoliths follow the ship as it moves so they protect
+            // the player's live position, not the cast point.
+            followShipOrbit: true,
             decoy: true,
             decoyHp: 26,
             deathExplosionCount: 8,
@@ -11073,7 +10575,9 @@ CosmicSpecialResult _mysticSpecial(
           snareMoveMultiplier: 0.12,
         ),
       );
-      // Pursuing mud slugs — heavy homing with snare trails
+      // Pursuing mud slugs — heavy homing with snare trails. Life
+      // shortened so they detonate close instead of leashing off the
+      // map. Speed bumped + bounce cap so they zig back into combat.
       final slugCount = scaledCount(casterStrength, 4, min: 2, max: 6);
       for (var i = 0; i < slugCount; i++) {
         final a = baseAngle + (i - (slugCount - 1) / 2) * 0.35;
@@ -11085,15 +10589,16 @@ CosmicSpecialResult _mysticSpecial(
             ),
             angle: a,
             element: element,
-            damage: damage * 1.5,
-            life: 7.0,
-            speedMultiplier: 0.65,
+            damage: damage * 1.7,
+            life: 3.8,
+            speedMultiplier: 0.80,
             radiusMultiplier: 2.0,
             visualScale: 1.6,
             visualStyle: ProjectileVisualStyle.mysticOrbital,
             homing: true,
-            homingStrength: 4.5,
+            homingStrength: 5.5,
             piercing: true,
+            bounceCount: 2,
             trailInterval: 0.20,
             trailDamage: damage * 0.5,
             trailLife: 4.0,
@@ -11207,21 +10712,17 @@ CosmicSpecialResult _mysticSpecial(
             effectPower: damage * 0.55,
             effectRadius: 130,
             effectDuration: 0.8,
-            // Towers also explode into shrapnel when destroyed by
-            // enemies (decoy semantics).
-            decoy: true,
-            decoyHp: 22,
-            deathExplosionCount: 6,
-            deathExplosionDamage: damage * 1.1,
-            deathExplosionRadius: 2.0,
+            // Towers are INDESTRUCTIBLE — they time out only. At
+            // ultimate cost they shouldn't be killable mid-cast.
           ),
         );
       }
       break;
 
     // ── AIR: Cyclone Halo ──
-    // Ship-following orbital shield ring that intercepts enemy projectiles
-    // AND deals damage on contact. Defensive + offensive.
+    // Ship-following orbital shield ring that intercepts enemy
+    // projectiles, deals high damage on contact, AND auto-fires wind
+    // gusts at nearby enemies. The cyclone protects + attacks.
     // Intelligence drives interceptor count (precision defense).
     case 'Air':
       final ringCount = scaledCount(casterIntelligence, 6, min: 4, max: 9);
@@ -11247,14 +10748,27 @@ CosmicSpecialResult _mysticSpecial(
             interceptCharges: 5,
             snareRadius: 72.0,
             snareMoveMultiplier: 0.62,
+            // Auto-fire wind gusts at nearby enemies — turns the ring
+            // from a passive shield into active defense.
+            turretInterval: 0.85,
+            turretDamage: damage * 1.10,
+            turretHomingStrength: 3.5,
+            turretSpeedMultiplier: 1.4,
+            // Knockback aura ticks on enemies that close inside the
+            // ring radius — keeps them pushed back.
+            tickEffect: AbilityEffectKind.knockback,
+            effectPower: damage * 0.30,
+            effectRadius: 90,
+            effectDuration: 0.20,
           ),
         );
       }
       break;
 
     // ── PLANT: Verdant Procession ──
-    // Line of vine turrets planted toward target. Each fires homing thorns
-    // for the duration. Sustained DPS lane.
+    // Line of vine turrets planted toward target. Each fires homing
+    // thorns for the duration, AND on cast each turret hurls a heavy
+    // thorn salvo in a forward fan as the opening spectacle.
     // Strength drives turret count (vine growth force).
     case 'Plant':
       final vineCount = scaledCount(casterStrength, 4, min: 2, max: 6);
@@ -11281,6 +10795,31 @@ CosmicSpecialResult _mysticSpecial(
             turretSpeedMultiplier: 1.3,
           ),
         );
+        // Opening salvo: each turret hurls 3 heavy homing thorns in a
+        // forward fan — gives the cast a satisfying spectacle layer
+        // beyond just "static turrets planted".
+        for (var j = -1; j <= 1; j++) {
+          final a = baseAngle + j * 0.35;
+          projs.add(
+            Projectile(
+              position: pos,
+              angle: a,
+              element: element,
+              damage: damage * 2.2,
+              life: 3.5,
+              speedMultiplier: 1.55,
+              radiusMultiplier: 1.4,
+              visualScale: 1.2,
+              visualStyle: ProjectileVisualStyle.mysticOrbital,
+              homing: true,
+              homingStrength: 4.0,
+              piercing: true,
+              trailInterval: 0.15,
+              trailDamage: damage * 0.4,
+              trailLife: 1.4,
+            ),
+          );
+        }
       }
       shipHeal = max(
         shipHeal,
@@ -11366,7 +10905,9 @@ CosmicSpecialResult _mysticSpecial(
             position: Offset(origin.dx + cos(a) * 16, origin.dy + sin(a) * 16),
             angle: a,
             element: element,
-            damage: damage * 1.6,
+            // Cleanup damage bumped — wraiths still hit hard even
+            // when no low-HP target is in range to execute.
+            damage: damage * 2.4,
             life: 8.5,
             speedMultiplier: 0.85,
             radiusMultiplier: 1.3,
@@ -11685,7 +11226,7 @@ String cosmicSpecialAbilityName(String family, String element) {
         'Plant' => 'Thorn Ricochet',
         'Poison' => 'Pandemic Chain',
         'Spirit' => 'Haunt Chain',
-        'Dark' => 'Shadow Ricochet',
+        'Dark' => 'Black Hole Passive',
         'Light' => 'Blessing Chain',
         'Blood' => 'Hemorrhage Chain',
         _ => 'Ricochet Salvo',
@@ -11838,8 +11379,8 @@ List<Projectile> createFamilyBasicAttack({
           damage: damage * 0.30 * kDamageScale,
           speedMultiplier: 1.75,
           life: 1.25,
-          homing: true,
-          homingStrength: 2.8,
+          homing: false,
+          homingStrength: 0,
           visualScale: 0.78,
           visualStyle: ProjectileVisualStyle.dart,
         );

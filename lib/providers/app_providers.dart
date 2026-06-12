@@ -4,7 +4,6 @@ import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/providers/audio_provider.dart';
-import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/breeding_config.dart';
@@ -22,7 +21,6 @@ import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/services/boss_upgrade_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
@@ -127,10 +125,6 @@ class AppProviders extends StatelessWidget {
           create: (ctx) => HarvestService(ctx.read<AlchemonsDatabase>()),
         ),
 
-        ChangeNotifierProvider<BossProgressNotifier>(
-          create: (ctx) => BossProgressNotifier(),
-        ),
-
         ChangeNotifierProvider<ConstellationEffectsService>(
           create: (context) =>
               ConstellationEffectsService(context.read<AlchemonsDatabase>()),
@@ -207,14 +201,6 @@ class AppProviders extends StatelessWidget {
         ChangeNotifierProvider<SurvivalUpgradeService>(
           create: (ctx) {
             final svc = SurvivalUpgradeService(ctx.read<AlchemonsDatabase>());
-            svc.load();
-            return svc;
-          },
-        ),
-
-        ChangeNotifierProvider<BossUpgradeService>(
-          create: (ctx) {
-            final svc = BossUpgradeService(ctx.read<AlchemonsDatabase>());
             svc.load();
             return svc;
           },

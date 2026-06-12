@@ -9,6 +9,7 @@ import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
+import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 
 enum CosmicEnemyRole { striker, orbiter, shooter, hunter }
 
@@ -106,11 +107,27 @@ class CosmicSurvivalEnemy {
   // Wing+Dust disorient: while > 0, shooter-role enemies target
   // other enemies instead of the orb/ship.
   double disorientTimer;
+  // Horn+Plant per-enemy root: while > 0, the enemy is rooted in
+  // place and wears a green vine-wrap visual. Set by Plant horn's
+  // charge-sweep hits.
+  double hornPlantRootTimer;
+  // Mane+Poison stacking damage: every pierce by the mane Poison
+  // catapult increments this; persistent poison DoT scales with
+  // the stack count so chained pierces hit harder.
+  int manePoisonStacks;
   // Wing+Ice frost buildup: a sustained ice beam ramps this from 0→1;
   // at 1 the enemy snaps into a hard freeze and it resets.
   double frostBuildup;
   // Summoner-variant cooldown. >0 means "ready to summon in X seconds".
   double summonCooldown;
+  // Mask+Blood permanent drain: enemies that pass through the blood
+  // blob are tagged here with the source slot. Per-frame drain pulls
+  // HP from them and splits it as healing across all allies until the
+  // enemy dies. Cleared on death.
+  int? maskBloodDrainSlot;
+  // Shared hover/dive steering state (lazily created by whichever mode is
+  // driving this enemy). See games/shared/enemy_flight_steering.dart.
+  FlightSteeringState? flightSteering;
 
   CosmicSurvivalEnemy({
     required this.position,
@@ -139,13 +156,20 @@ class CosmicSurvivalEnemy {
     this.pipMudTrail = false,
     this.pipMudTrailTimer = 0,
     this.disorientTimer = 0,
+    this.hornPlantRootTimer = 0,
+    this.manePoisonStacks = 0,
     this.frostBuildup = 0,
     this.summonCooldown = 0,
+    this.maskBloodDrainSlot,
   });
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
   double get effectiveSpeed {
-    if (maneRootTimer > 0 || slowMultiplier <= 0) return 0;
+    if (maneRootTimer > 0 ||
+        hornPlantRootTimer > 0 ||
+        slowMultiplier <= 0) {
+      return 0;
+    }
     if (slowTimer <= 0) return speed;
     return speed * (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }
@@ -299,7 +323,9 @@ class SurvivalBossProjectile {
 
 class SurvivalEnemyProjectile {
   Offset position;
-  final double angle;
+  // Non-final so Horn+Ice walls and Horn+Light barriers can reflect
+  // the projectile (mutates angle to point back at the firer side).
+  double angle;
   final String element;
   final double damage;
   final double speed;
@@ -308,7 +334,8 @@ class SurvivalEnemyProjectile {
   final CosmicEnemyTarget target;
   // Wing+Dust disorient: when true, this enemy projectile damages
   // other enemies on collision instead of the orb/ship/companions.
-  final bool friendlyFire;
+  // Also flipped to true by Horn+Ice / Horn+Light reflects.
+  bool friendlyFire;
 
   SurvivalEnemyProjectile({
     required this.position,

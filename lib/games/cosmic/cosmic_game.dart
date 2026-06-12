@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import 'cosmic_data.dart';
+import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
 import 'package:alchemons/systems/effects/effect_registry.dart';
@@ -146,6 +147,10 @@ class CosmicGame extends FlameGame with PanDetector {
   final VoidCallback? onShipDied;
   final void Function(LootDrop drop)? onLootCollected;
   final void Function(String bossName)? onBossDefeated;
+
+  /// Element of the planet currently overrun by a timed raid (set by the
+  /// screen). The planet gets a pulsing crimson corruption aura.
+  String? raidElement;
   final void Function(GalaxyWhirl whirl)? onWhirlActivated;
   final void Function(GalaxyWhirl whirl, int wave)? onWhirlWaveComplete;
   final void Function(GalaxyWhirl whirl)? onWhirlComplete;
@@ -3481,7 +3486,11 @@ class CosmicGame extends FlameGame with PanDetector {
             // Special attack (every 30s base, scaled by cooldownReduction)
             // Each family has a unique ability, flavored by element!
             if (comp.specialCooldown <= 0 &&
-                distToTarget <= comp.specialAbilityRange) {
+                distToTarget <= comp.specialAbilityRange &&
+                !isPassiveOnlyCosmicAbility(
+                  comp.member.family,
+                  comp.member.element,
+                )) {
               final isDarkWing = _isDarkWingMember(comp.member);
               comp.specialCooldown =
                   comp.effectiveSpecialCooldown * (isDarkWing ? 0.5 : 1.0);
@@ -5033,7 +5042,13 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       p.life -= dt;
-      if (p.life <= 0) continue;
+      if (p.life <= 0) {
+        if (p.decoy && p.deathExplosionCount > 0) {
+          _spawnDecoyExplosion(p);
+        }
+        companionProjectiles.removeAt(i);
+        continue;
+      }
 
       final isPlantTrap =
           p.element == 'Plant' &&
@@ -5054,15 +5069,6 @@ class CosmicGame extends FlameGame with PanDetector {
           }
         }
       }
-      if (p.life <= 0) {
-        // If this is a decoy, spawn death explosion
-        if (p.decoy && p.deathExplosionCount > 0) {
-          _spawnDecoyExplosion(p);
-        }
-        companionProjectiles.removeAt(i);
-        continue;
-      }
-
       final hitRadius = Projectile.radius * p.radiusMultiplier;
       bool consumed = false;
 
@@ -5131,9 +5137,15 @@ class CosmicGame extends FlameGame with PanDetector {
                   enemy.behavior == EnemyBehavior.drifting)) {
             _provokePackOf(enemy);
           }
-          if (!consumed && p.piercing) {
+          final isPipSpecialProjectile = p.abilityFamily == 'pip';
+          if (!consumed &&
+              p.piercing &&
+              !(isPipSpecialProjectile && p.bounceCount > 0)) {
             p.pierceCount++;
-            // Don't consume — keep going
+            if (isPipSpecialProjectile && p.pierceCount >= kPipMaxPierceHits) {
+              consumed = true;
+            }
+            // Don't consume — keep going, unless the family has a tighter cap.
           } else if (!consumed && p.bounceCount > 0) {
             // Ricochet: redirect toward nearest OTHER enemy
             p.bounceCount--;
@@ -5153,9 +5165,19 @@ class CosmicGame extends FlameGame with PanDetector {
                 bounceTarget.dy - p.position.dy,
                 bounceTarget.dx - p.position.dx,
               );
+              if (isPipSpecialProjectile) {
+                p.life = min(max(p.life, 0.18), kPipRicochetPostHitLife);
+                final falloff = p.element == 'Lightning' ? 0.85 : 0.70;
+                p.damage *= falloff;
+                p.speedMultiplier = max(0.6, p.speedMultiplier * 0.92);
+              }
             } else {
-              // No nearby target — bounce in a random direction
-              p.angle += pi * 0.6 + Random().nextDouble() * pi * 0.8;
+              if (isPipSpecialProjectile) {
+                consumed = true;
+              } else {
+                // No nearby target — bounce in a random direction
+                p.angle += pi * 0.6 + Random().nextDouble() * pi * 0.8;
+              }
             }
             // Don't consume — keep going as a bounce
           } else {
@@ -5229,7 +5251,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 _handleBossKill(boss);
               }
             }
-            if (cp.piercing) {
+            if (cp.piercing && cp.abilityFamily != 'pip') {
               cp.pierceCount++;
               cp.hitBoss = true;
             } else {
@@ -5258,7 +5280,7 @@ class CosmicGame extends FlameGame with PanDetector {
             final dmg = cp.damage * pierceFalloff;
             rm.health -= dmg;
             _spawnHitSpark(cp.position, elementColor(rm.element));
-            if (cp.piercing) {
+            if (cp.piercing && cp.abilityFamily != 'pip') {
               cp.pierceCount++;
             } else {
               companionProjectiles.removeAt(i);
@@ -5459,12 +5481,15 @@ class CosmicGame extends FlameGame with PanDetector {
           }
 
           // Special attack — family+element ability!
-          if (g.specialCooldown <= 0 && toTarget.distance <= g.specialRange) {
+          if (g.specialCooldown <= 0 &&
+              toTarget.distance <= g.specialRange &&
+              !isPassiveOnlyCosmicAbility(g.member.family, g.member.element)) {
             g.specialCooldown =
                 (14.0 -
                         (g.member.statSpeed * 0.6) -
                         (g.member.statIntelligence * 0.4))
-                    .clamp(6.0, 14.0);
+                    .clamp(6.0, 14.0) *
+                (_isDarkWingMember(g.member) ? 0.5 : 1.0);
             final result = createCosmicSpecialAbility(
               origin: g.position,
               baseAngle: g.faceAngle,
@@ -7046,6 +7071,34 @@ class CosmicGame extends FlameGame with PanDetector {
       if ((planet.position.dx - cx - screenW / 2).abs() > screenW &&
           (planet.position.dy - cy - screenH / 2).abs() > screenH) {
         continue;
+      }
+
+      // Raid takeover: a slow crimson storm-pulse wraps the overrun planet.
+      if (raidElement != null &&
+          planet.element == raidElement &&
+          planet.discovered) {
+        final pp = planet.position;
+        final r = planet.radius;
+        final pulse = 0.5 + 0.5 * sin(_elapsed * 1.6);
+        canvas.drawCircle(
+          pp,
+          r * (1.5 + pulse * 0.25),
+          Paint()
+            ..color = const Color(
+              0xFFE25544,
+            ).withValues(alpha: 0.10 + pulse * 0.08)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30),
+        );
+        canvas.drawCircle(
+          pp,
+          r * (1.28 + pulse * 0.10),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0
+            ..color = const Color(
+              0xFFE25544,
+            ).withValues(alpha: 0.35 + pulse * 0.25),
+        );
       }
 
       pc.render(canvas, _elapsed);
@@ -8763,6 +8816,24 @@ class CosmicGame extends FlameGame with PanDetector {
         CosmicEnemyVariant.pouncer => 1.12,
         CosmicEnemyVariant.standard => 1.0,
       };
+
+      // Dive telegraph: a tightening ring while the enemy rears back for its
+      // attack run (shared hover/dive steering), so swoops are dodgeable.
+      final steering = e.flightSteering;
+      if (steering != null && steering.showTelegraphRing) {
+        canvas.drawCircle(
+          ep,
+          e.radius + 6 + steering.windupTimer * 52,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.7
+            ..color = Color.lerp(
+              eColor,
+              Colors.white,
+              0.5,
+            )!.withValues(alpha: 0.7),
+        );
+      }
 
       canvas.save();
       canvas.translate(ep.dx, ep.dy);

@@ -9,8 +9,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/data/boss_data.dart';
-import 'package:alchemons/models/boss/boss_model.dart';
+import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
@@ -115,7 +114,7 @@ class _WitnessRequirement {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class BossAltarDetailScreen extends StatefulWidget {
-  final Boss boss;
+  final AltarEntry boss;
   const BossAltarDetailScreen({super.key, required this.boss});
 
   @override
@@ -202,7 +201,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     final bloodWitnesses = <_WitnessRequirement>[];
 
     if (_isBloodBoss) {
-      for (final boss in BossRepository.allBosses.where((b) => b.order < 17)) {
+      for (final boss in kAltarEntries.where((b) => b.order < 17)) {
         final summonedValue = await db.settingsDao.getSetting(
           'altar_summoned_${boss.id}',
         );
@@ -632,7 +631,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
   Map<String, dynamic> _payload(
     Creature sp,
-    Boss boss,
+    AltarEntry boss,
     Map<String, dynamic> sacrificePayload,
   ) => {
     'baseId': sp.id,
@@ -683,7 +682,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       ) ??
       false;
 
-  Future<void> _showSuccess(Creature sp, Boss boss) async {
+  Future<void> _showSuccess(Creature sp, AltarEntry boss) async {
     if (boss.element.toLowerCase() == 'blood') {
       final db = context.read<AlchemonsDatabase>();
       final seen =
@@ -831,7 +830,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
-  final Boss boss;
+  final AltarEntry boss;
   final Creature? mystic;
   final bool hasKey;
   final String traitName;
@@ -888,7 +887,7 @@ class _TopBar extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CarouselArena extends StatelessWidget {
-  final Boss boss;
+  final AltarEntry boss;
   final Creature? mystic;
   final List<Creature> species;
   final Map<String, String?> placed;
@@ -1271,7 +1270,7 @@ class _SlotNodeState extends State<_SlotNode>
 
 class _CenterMystic extends StatelessWidget {
   final Creature? mystic;
-  final Boss boss;
+  final AltarEntry boss;
   final double pulse, size;
   const _CenterMystic({
     required this.mystic,
@@ -1373,7 +1372,7 @@ class _RitualSacrificeOverlay extends StatelessWidget {
   });
 
   final Animation<double> animation;
-  final Boss boss;
+  final AltarEntry boss;
   final Creature? mystic;
   final List<Creature> species;
   final Map<String, String?> placed;
@@ -1516,8 +1515,11 @@ class _OfferingRitualSprite extends StatelessWidget {
               child: Image.asset(
                 'assets/images/${species.image}',
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) =>
-                    Icon(AppIcons.auto_awesome, color: color, size: size * 0.42),
+                errorBuilder: (_, __, ___) => Icon(
+                  AppIcons.auto_awesome,
+                  color: color,
+                  size: size * 0.42,
+                ),
               ),
             ),
           ),
@@ -1536,7 +1538,7 @@ class _RitualMysticCore extends StatelessWidget {
   });
 
   final Creature? mystic;
-  final Boss boss;
+  final AltarEntry boss;
   final double size;
   final double progress;
 
@@ -2188,7 +2190,7 @@ class _RelicStatusChip extends StatelessWidget {
     required this.traitName,
   });
 
-  final Boss boss;
+  final AltarEntry boss;
   final bool hasKey;
   final String traitName;
 
@@ -2800,7 +2802,7 @@ class _Btn extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SuccessDialog extends StatefulWidget {
-  final Boss boss;
+  final AltarEntry boss;
   final Creature species;
   final VoidCallback onClose;
   const _SuccessDialog({

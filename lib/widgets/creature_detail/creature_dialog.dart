@@ -2823,7 +2823,7 @@ String _formatSource(String source) {
     case 'planet_summon':
       return 'Planet Summon';
     case 'boss_summon':
-      return 'Boss Summon';
+      return 'Altar Summon';
     case 'breeding_vial':
     case 'vial':
       return 'Vial Extraction';

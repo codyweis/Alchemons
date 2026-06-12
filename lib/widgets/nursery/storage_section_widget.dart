@@ -1066,7 +1066,7 @@ class EggDetailsModal extends StatelessWidget {
       'breeding' => 'Standard Fusion',
       'rift_portal' => 'Rift Portal',
       'planet_summon' => 'Planet Summon',
-      'boss_summon' => 'Boss Summon',
+      'boss_summon' => 'Altar Summon',
       'vial' => 'Extraction Vial',
       'bloodborn' => 'Bloodborn Rite',
       'starter' => 'Starter Selection',

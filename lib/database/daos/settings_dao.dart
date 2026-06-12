@@ -281,15 +281,6 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await setSetting('creatures_screen_tutorial_seen', '1');
   }
 
-  Future<bool> hasSeenBossGauntletStoryIntro() async {
-    final v = await getSetting('boss_gauntlet_story_intro_seen_v2');
-    return v == '1';
-  }
-
-  Future<void> setBossGauntletStoryIntroSeen() async {
-    await setSetting('boss_gauntlet_story_intro_seen_v2', '1');
-  }
-
   Future<bool> hasSeenSurvivalMenuStoryIntro() async {
     final v = await getSetting('survival_menu_story_intro_seen_v2');
     return v == '1';

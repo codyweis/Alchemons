@@ -1145,6 +1145,53 @@ extension CosmicGameWorldSystems on CosmicGame {
       e.angle += snareDiff * 1.8 * dt;
     }
 
+    // ── Committed pursuit → shared hover/dive flight steering ──
+    // Ambient behaviours below keep their own character (drift, patrol,
+    // feeding, stalk-at-distance); but once an enemy actually commits to an
+    // attack run, it flies the shared hover→telegraph→dive pattern instead
+    // of beelining into the ship. Contact stays kamikaze (the ship-collision
+    // pass) — the dive is what delivers it.
+    final chaseRange = e.tier == EnemyTier.sentinel ? 700.0 : 400.0;
+    final committed = switch (e.behavior) {
+      EnemyBehavior.aggressive => distToShip < chaseRange,
+      EnemyBehavior.territorial => distToShip < e.aggroRadius,
+      EnemyBehavior.swarming => e.provoked || distToShip < 520,
+      EnemyBehavior.stalking => shipHealth <= 2.0 && distToShip < 800,
+      _ => e.provoked && distToShip < 600,
+    };
+    if (committed) {
+      if (e.behavior == EnemyBehavior.stalking) e.speed = 120; // strike boost
+      final rng = Random();
+      final steering = e.flightSteering ??= FlightSteeringState(rng);
+      final tick = tickFlightSteering(
+        state: steering,
+        profile: switch (e.variant) {
+          CosmicEnemyVariant.crusher => FlightSteeringProfile.spaceCrusher,
+          CosmicEnemyVariant.pouncer => FlightSteeringProfile.spacePouncer,
+          CosmicEnemyVariant.standard => FlightSteeringProfile.spaceMelee,
+        },
+        toTarget: Offset(dx, dy),
+        speed: e.speed * moveSpeedMult,
+        contactRange: e.radius + 8, // inside the kamikaze band (radius+14)
+        dt: dt,
+        rng: rng,
+      );
+      e.position = _wrap(e.position + tick.velocity * dt);
+      if (tick.velocity.distanceSquared > 16) {
+        e.angle = atan2(tick.velocity.dy, tick.velocity.dx);
+      } else {
+        e.angle = toShip;
+      }
+      final committedDespawn = e.whirlIndex >= 0
+          ? 4000.0
+          : (e.behavior == EnemyBehavior.feeding ||
+                e.behavior == EnemyBehavior.territorial)
+          ? 2500.0
+          : 1500.0;
+      if (distToShip > committedDespawn) e.dead = true;
+      return;
+    }
+
     switch (e.behavior) {
       case EnemyBehavior.aggressive:
         // Chase the player — sentinels within 700, wisps within 400
@@ -1455,7 +1502,8 @@ extension CosmicGameWorldSystems on CosmicGame {
 
     final lvl = lair.level;
     final healthScale =
-        CosmicBalance.bossHealthScale(lvl) * (1.0 + _bossesDefeated * 0.05);
+        CosmicBalance.bossHealthScale(lvl) *
+        CosmicBalance.bossEscalationScale(_bossesDefeated);
     final speedScale = CosmicBalance.bossSpeedScale(lvl);
     final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 
@@ -1530,7 +1578,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     final pos = _wrap(Offset(sx, sy));
 
     final healthScale =
-        CosmicBalance.bossHealthScale(lvl) * (1.0 + _bossesDefeated * 0.05);
+        CosmicBalance.bossHealthScale(lvl) *
+        CosmicBalance.bossEscalationScale(_bossesDefeated);
     final speedScale = CosmicBalance.bossSpeedScale(lvl);
     final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 
@@ -1576,7 +1625,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     final pos = _wrap(Offset(sx, sy));
 
     final healthScale =
-        CosmicBalance.bossHealthScale(lvl) * (1.0 + _bossesDefeated * 0.05);
+        CosmicBalance.bossHealthScale(lvl) *
+        CosmicBalance.bossEscalationScale(_bossesDefeated);
     final speedScale = CosmicBalance.bossSpeedScale(lvl);
     final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 

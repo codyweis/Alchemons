@@ -16,7 +16,6 @@ class SideDockFloating extends StatelessWidget {
   final bool highlightEnhance;
   //battle
   final VoidCallback onBattle;
-  final VoidCallback onBoss;
   final VoidCallback? onMysticAltar;
 
   const SideDockFloating({
@@ -33,7 +32,6 @@ class SideDockFloating extends StatelessWidget {
     this.enhanceRevealAnimation,
     this.highlightEnhance = false,
     required this.onBattle,
-    required this.onBoss,
     this.onMysticAltar,
   });
 

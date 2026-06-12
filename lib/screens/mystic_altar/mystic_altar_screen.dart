@@ -6,11 +6,9 @@
 
 import 'dart:math' as math;
 
-import 'package:alchemons/data/boss_data.dart';
+import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/boss/boss_model.dart';
 import 'package:alchemons/models/inventory.dart';
-import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/mystic_altar/boss_altar_detail_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -173,7 +171,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
-    final bosses = BossRepository.allBosses;
+    final bosses = kAltarEntries;
 
     final qtys = <String, int>{};
     final placed = <String, int>{};
@@ -225,7 +223,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
   // ── wheel math ────────────────────────────────────────────────────────────
 
-  int get _n => BossRepository.allBosses.length;
+  int get _n => kAltarEntries.length;
   double _bossAngle(int i) => _norm(_wheelOffset + (i / _n) * math.pi * 2);
   double _norm(double a) {
     while (a > math.pi) {
@@ -278,20 +276,16 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
   // ── interaction ───────────────────────────────────────────────────────────
 
-  Future<void> _handleTap(Boss boss) async {
-    final progress = context.read<BossProgressNotifier>();
-    final defeated = progress.isBossDefeated(boss.id);
+  Future<void> _handleTap(AltarEntry boss) async {
     final hasKey = (_keyItemQtys[boss.id] ?? 0) > 0;
     final relicSet = _relicPlaced.contains(boss.id);
     final ritualComplete = _ritualCompleted.contains(boss.id);
-    final unlocked = defeated && (hasKey || relicSet || ritualComplete);
+    final unlocked = hasKey || relicSet || ritualComplete;
 
     if (!unlocked) {
       HapticFeedback.lightImpact();
       _snack(
-        defeated
-            ? 'Obtain the ${_traitName(boss)} to unlock.'
-            : 'Defeat ${boss.name} first.',
+        'Defeat the ${boss.element} planet guardian to earn the ${_traitName(boss)}.',
       );
       return;
     }
@@ -303,7 +297,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     }
   }
 
-  Future<void> _doPlaceRelic(Boss boss) async {
+  Future<void> _doPlaceRelic(AltarEntry boss) async {
     final tn = _traitName(boss);
     HapticFeedback.mediumImpact();
     final ok =
@@ -384,20 +378,20 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     if (mounted) setState(() => _portalDiscovered = false);
   }
 
-  void _navigate(Boss boss) {
+  void _navigate(AltarEntry boss) {
     Navigator.push(
       context,
       _PortalRoute(child: BossAltarDetailScreen(boss: boss)),
     ).then((_) => _loadState());
   }
 
-  String _traitName(Boss boss) =>
+  String _traitName(AltarEntry boss) =>
       BossLootKeys.elementRewards[boss.element.toLowerCase()]?.traitName ??
       'Key Item';
 
   void _snack(String msg) {
     if (!mounted) return;
-    final boss = BossRepository.allBosses[_selectedIdx];
+    final boss = kAltarEntries[_selectedIdx];
     final elColor = boss.elementColor;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -444,8 +438,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
   @override
   Widget build(BuildContext context) {
-    final bosses = BossRepository.allBosses;
-    final progress = context.watch<BossProgressNotifier>();
+    final bosses = kAltarEntries;
 
     return Scaffold(
       backgroundColor: _C.bg,
@@ -482,7 +475,6 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
                           behavior: HitTestBehavior.opaque,
                           child: _SpinningWheel(
                             bosses: bosses,
-                            progress: progress,
                             keyQtys: _keyItemQtys,
                             placed: _placedCounts,
                             required: _requiredCounts,
@@ -506,7 +498,6 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
                           mysticName:
                               _mysticNames[bosses[_selectedIdx].id] ??
                               bosses[_selectedIdx].name,
-                          progress: progress,
                           keyQty: _keyItemQtys[bosses[_selectedIdx].id] ?? 0,
                           placedCount:
                               _placedCounts[bosses[_selectedIdx].id] ?? 0,
@@ -589,8 +580,7 @@ class _SpinningWheel extends StatelessWidget {
   static const int _baseSpiralLevel = 1;
   static const double _spiralSpeedStep = 0.08;
 
-  final List<Boss> bosses;
-  final BossProgressNotifier progress;
+  final List<AltarEntry> bosses;
   final Map<String, int> keyQtys, placed, required;
   final Set<String> relicPlaced;
   final Set<String> ritualCompleted;
@@ -599,13 +589,12 @@ class _SpinningWheel extends StatelessWidget {
   final AnimationController bgCtrl;
   final AnimationController relicFlashCtrl;
   final String? relicFlashBossId;
-  final void Function(Boss) onTap;
+  final void Function(AltarEntry) onTap;
   final AnimationController portalCtrl;
   final bool portalDiscovered;
 
   const _SpinningWheel({
     required this.bosses,
-    required this.progress,
     required this.keyQtys,
     required this.placed,
     required this.required,
@@ -719,11 +708,10 @@ class _SpinningWheel extends StatelessWidget {
     final nodeSize = 60.0 * scale;
     final isSel = i == selected;
 
-    final defeated = progress.isBossDefeated(boss.id);
     final hasKey = (keyQtys[boss.id] ?? 0) > 0;
     final ritualComplete = ritualCompleted.contains(boss.id);
     final rp = relicPlaced.contains(boss.id) || ritualComplete;
-    final unlocked = defeated && (hasKey || rp || ritualComplete);
+    final unlocked = hasKey || rp || ritualComplete;
     final pc = placed[boss.id] ?? 0;
     final rc = required[boss.id] ?? 0;
     final complete = !ritualComplete && unlocked && rc > 0 && pc >= rc;
@@ -798,7 +786,6 @@ class _SpinningWheel extends StatelessWidget {
                       complete: complete,
                       relicPlaced: rp,
                       ritualComplete: ritualComplete,
-                      defeated: defeated,
                       hasKey: hasKey,
                       placed: pc,
                       required: rc,
@@ -820,10 +807,10 @@ class _SpinningWheel extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BossNode extends StatelessWidget {
-  final Boss boss;
+  final AltarEntry boss;
   final double size, pulse;
   final bool isSelected, unlocked, complete, relicPlaced, ritualComplete;
-  final bool defeated, hasKey;
+  final bool hasKey;
   final int placed, required;
 
   const _BossNode({
@@ -835,7 +822,6 @@ class _BossNode extends StatelessWidget {
     required this.complete,
     required this.relicPlaced,
     required this.ritualComplete,
-    required this.defeated,
     required this.hasKey,
     required this.placed,
     required this.required,
@@ -1064,9 +1050,8 @@ class _BossNode extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _InfoPanel extends StatelessWidget {
-  final Boss boss;
+  final AltarEntry boss;
   final String mysticName;
-  final BossProgressNotifier progress;
   final int keyQty, placedCount, requiredCount;
   final bool relicPlaced, ritualComplete;
   final AnimationController bgCtrl;
@@ -1075,7 +1060,6 @@ class _InfoPanel extends StatelessWidget {
   const _InfoPanel({
     required this.boss,
     required this.mysticName,
-    required this.progress,
     required this.keyQty,
     required this.placedCount,
     required this.requiredCount,
@@ -1088,9 +1072,8 @@ class _InfoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final elColor = boss.elementColor;
-    final defeated = progress.isBossDefeated(boss.id);
     final hasKey = keyQty > 0;
-    final unlocked = defeated && (hasKey || relicPlaced || ritualComplete);
+    final unlocked = hasKey || relicPlaced || ritualComplete;
     final complete =
         !ritualComplete &&
         unlocked &&
@@ -1238,10 +1221,10 @@ class _InfoPanel extends StatelessWidget {
   }
 
   String _statusText(bool unlocked, bool complete, String tn) {
-    final def = progress.isBossDefeated(boss.id);
-    if (!def) return 'Defeat ${boss.name} first';
     if (ritualComplete) return '$tn remains awake in the altar';
-    if (!unlocked) return 'Needs $tn';
+    if (!unlocked) {
+      return 'Defeat the ${boss.element} planet guardian to earn the $tn';
+    }
     if (complete) return 'The ritual can begin';
     if (placedCount > 0) {
       return '$placedCount of $requiredCount offerings are placed';
@@ -1265,7 +1248,7 @@ class _InfoPanel extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RelicPlaceDialog extends StatefulWidget {
-  final Boss boss;
+  final AltarEntry boss;
   final String traitName;
   final VoidCallback onCancel, onConfirm;
   const _RelicPlaceDialog({
@@ -1394,7 +1377,7 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
 class _RelicPreviewMark extends StatelessWidget {
   const _RelicPreviewMark({required this.boss, required this.color});
 
-  final Boss boss;
+  final AltarEntry boss;
   final Color color;
 
   @override

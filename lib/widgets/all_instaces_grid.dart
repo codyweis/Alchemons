@@ -2,6 +2,7 @@ import 'dart:async' as async;
 import 'dart:convert';
 
 import 'package:alchemons/database/daos/creature_dao.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
 import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart';
@@ -650,7 +651,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     _TopControlChip(
                       label: _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
                       accentColor: widget.theme.primary,
-                      labelFontSize: 9.72,
+                      labelFontSize: 10.5,
                       selected:
                           _sortBy == SortBy.newest || _sortBy == SortBy.oldest,
                       onTap: () => _mutate(() {
@@ -663,7 +664,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     _TopControlChip(
                       label: _sortBy == SortBy.levelLow ? 'LV ↓' : 'LV ↑',
                       accentColor: const Color(0xFFFDE047),
-                      labelFontSize: 9.72,
+                      labelFontSize: 10.5,
                       selected:
                           _sortBy == SortBy.levelHigh ||
                           _sortBy == SortBy.levelLow,
@@ -693,7 +694,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                         ),
                         _ => widget.theme.textMuted,
                       },
-                      labelFontSize: 9.72,
+                      labelFontSize: 10.5,
                       selected: _sortBy.isStatSort,
                       onTap: () => _mutate(() {
                         _sortBy = _sortBy.nextStatSort(
@@ -709,7 +710,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       accentColor: _detailMode == InstanceDetailMode.genetics
                           ? const Color(0xFFC084FC)
                           : const Color(0xFFFDE047),
-                      labelFontSize: 9.72,
+                      labelFontSize: 10.5,
                       selected: true,
                       onTap: () => _mutate(() {
                         _detailMode = _detailMode == InstanceDetailMode.genetics
@@ -721,8 +722,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     _TopControlChip(
                       label: 'FILTERS',
                       accentColor: widget.theme.primary,
-                      labelFontSize: 9.72,
+                      labelFontSize: 10.5,
                       selected: _filtersOpen,
+                      showBracketWhenSelected: true,
                       trailing: Icon(
                         _filtersOpen
                             ? AppIcons.keyboard_arrow_up_rounded
@@ -951,6 +953,14 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   }
 }
 
+/// Top-row control pill. These chips almost always reflect a current state
+/// (sort direction, view mode, etc.) so they're nearly always `selected:true`
+/// — which used to make the whole row read as a wall of bracket frames.
+///
+/// New behavior: the bracket frame only renders when [showBracketWhenSelected]
+/// is true. Sort/view toggles use a soft accent-washed pill; the FILTERS
+/// trigger sets [showBracketWhenSelected] so the bracket appears when the
+/// popover is open.
 class _TopControlChip extends StatelessWidget {
   const _TopControlChip({
     required this.label,
@@ -958,8 +968,9 @@ class _TopControlChip extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.theme,
-    this.labelFontSize = 12,
+    this.labelFontSize = 10.5,
     this.trailing,
+    this.showBracketWhenSelected = false,
   });
 
   final String label;
@@ -969,21 +980,53 @@ class _TopControlChip extends StatelessWidget {
   final FactionTheme theme;
   final double labelFontSize;
   final Widget? trailing;
+  final bool showBracketWhenSelected;
 
   @override
   Widget build(BuildContext context) {
-    return FilterChipSolid(
-      label: label,
-      color: accentColor,
-      selected: selected,
+    final palette = BracketPalette.fromTheme(theme);
+    final tokens = ForgeTokens(theme);
+    final displayColor = tokens.readableAccent(accentColor);
+
+    final fillColor = selected
+        ? displayColor.withValues(alpha: palette.isDark ? 0.13 : 0.10)
+        : Colors.transparent;
+    final textColor = selected ? displayColor : palette.muted;
+
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      color: fillColor,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: bracketText(
+              context,
+              labelFontSize,
+              textColor,
+              weight: selected ? FontWeight.w800 : FontWeight.w600,
+              letterSpacing: 0.6,
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+        ],
+      ),
+    );
+
+    return GestureDetector(
       onTap: onTap,
-      trailing: trailing,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      unselectedTextColor: theme.text,
-      unselectedBorderColor: theme.border,
-      selectedFillOpacity: 0.12,
-      labelFontSize: labelFontSize,
-      showUnselectedBracket: false,
+      behavior: HitTestBehavior.opaque,
+      child: showBracketWhenSelected && selected
+          ? CustomPaint(
+              painter: BracketFramePainter(
+                color: displayColor,
+                bracketSize: 6,
+                strokeWidth: 1.1,
+              ),
+              child: content,
+            )
+          : content,
     );
   }
 }

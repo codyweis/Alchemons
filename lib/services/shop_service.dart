@@ -381,16 +381,17 @@ class ShopService extends ChangeNotifier {
           'assets/images/ui/instantstaminaicon.png', // optional, if you add one
     ),
     ShopOffer(
+      // Shop id kept for purchase-history continuity.
       id: 'boost.instant_boss_refresh',
-      name: 'Boss Summon',
+      name: 'Raid Beacon',
       description:
-          'Resets your daily boss rematch limit for one boss, allowing you to challenge the Mystic Altar again.',
-      icon: AppIcons.local_drink_rounded,
+          'Summons a raid on a conquered planet. Raids drop elemental loot caches.',
+      icon: AppIcons.whatshot_rounded,
       cost: const {'gold': 1},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
-      inventoryKey: InvKeys.bossRefresh,
+      inventoryKey: InvKeys.raidBeacon,
       assetName: 'assets/images/ui/boss-summon.png',
     ),
     for (final powerup in AlchemicalPowerupType.values)
@@ -1360,7 +1361,7 @@ class ShopService extends ChangeNotifier {
         return true;
 
       case 'boost.instant_boss_refresh':
-        await _db.inventoryDao.addItemQty(InvKeys.bossRefresh, qty);
+        await _db.inventoryDao.addItemQty(InvKeys.raidBeacon, qty);
         return true;
 
       // Survival Orb Skins → unlock via SurvivalUpgradeService

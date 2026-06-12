@@ -262,7 +262,7 @@ class LootBoxConfig {
       weight: 0.35,
     ),
     LootBoxDrop(
-      itemKey: InvKeys.bossRefresh,
+      itemKey: InvKeys.raidBeacon,
       minQty: 1,
       maxQty: 1,
       weight: 0.20,
@@ -489,7 +489,8 @@ class InvKeys {
   static const alchemyIntelligenceHalo = 'alchemy.intelligence_halo';
   static const alchemyBloodAura = 'alchemy.blood_aura';
   static const staminaPotion = 'item.stamina_potion';
-  static const bossRefresh = 'item.boss_refresh';
+  // Historic key string kept so existing player stacks convert for free.
+  static const raidBeacon = 'item.boss_refresh';
   static const bossSummon = 'item.boss_summon';
   static const elementalCreator = 'item.elemental_creator';
 
@@ -683,12 +684,12 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description: 'Fully restores an Alchemon\'s stamina.',
       icon: AppIcons.local_drink_rounded,
     ),
-    InvKeys.bossRefresh: InventoryItemDef(
-      key: InvKeys.bossRefresh,
-      name: 'Boss Summon Token',
+    InvKeys.raidBeacon: InventoryItemDef(
+      key: InvKeys.raidBeacon,
+      name: 'Raid Beacon',
       description:
-          'Resets your daily boss rematch, allowing an additional attempt.',
-      icon: AppIcons.local_drink_rounded,
+          'Summons a raid on a planet whose guardian you have conquered.',
+      icon: AppIcons.whatshot_rounded,
       canUse: false,
     ),
     InvKeys.bossSummon: InventoryItemDef(

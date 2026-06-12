@@ -1,7 +1,5 @@
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -26,132 +24,15 @@ class ImprovedBattleScrollArea extends StatefulWidget {
       _ImprovedBattleScrollAreaState();
 }
 
-class _ImprovedBattleScrollAreaState extends State<ImprovedBattleScrollArea>
-    with SingleTickerProviderStateMixin {
-  static const _tabLabels = ['Cosmic', 'Boss'];
-  late final TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: _tabLabels.length, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
+class _ImprovedBattleScrollAreaState extends State<ImprovedBattleScrollArea> {
   @override
   Widget build(BuildContext context) {
     final family = widget.creature.mutationFamily ?? 'Unknown';
 
-    final bossProfile = BattleCombatant(
-      id: 'view_boss',
-      name: widget.creature.name,
-      types: widget.creature.types,
+    return _ExploreTab(
+      instance: widget.instance,
       family: family,
-      statSpeed: widget.instance.statSpeed,
-      statIntelligence: widget.instance.statIntelligence,
-      statStrength: widget.instance.statStrength,
-      statBeauty: widget.instance.statBeauty,
-      level: widget.instance.level,
-    );
-    final battleSpecialMove = BattleMove.getSpecialMoveForCombatant(
-      bossProfile,
-    );
-    final battleBasicMove = BattleMove.getBasicMove(family);
-
-    return Column(
-      children: [
-        AnimatedBuilder(
-          animation: _tabController,
-          builder: (context, _) => _BracketTabSelector(
-            labels: _tabLabels,
-            selectedIndex: _tabController.index,
-            onSelect: (i) {
-              HapticFeedback.selectionClick();
-              _tabController.animateTo(i);
-            },
-          ),
-        ),
-        const SizedBox(height: 4),
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              _ExploreTab(
-                instance: widget.instance,
-                family: family,
-                types: widget.creature.types,
-              ),
-              _BossTab(
-                profile: bossProfile,
-                basicMove: battleBasicMove,
-                specialMove: battleSpecialMove,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BracketTabSelector extends StatelessWidget {
-  const _BracketTabSelector({
-    required this.labels,
-    required this.selectedIndex,
-    required this.onSelect,
-  });
-
-  final List<String> labels;
-  final int selectedIndex;
-  final ValueChanged<int> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
-    final theme = context.read<FactionTheme>();
-    final activeAccent = bracketReadableAccent(theme);
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: palette.lineSoft, width: 1)),
-      ),
-      child: Row(
-        children: List.generate(labels.length, (index) {
-          final selected = selectedIndex == index;
-          return Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onSelect(index),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: selected ? activeAccent : Colors.transparent,
-                      width: 2,
-                    ),
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  labels[index],
-                  style: bracketText(
-                    context,
-                    12.5,
-                    selected ? palette.ink : palette.muted,
-                    weight: selected ? FontWeight.w700 : FontWeight.w500,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
+      types: widget.creature.types,
     );
   }
 }
@@ -214,59 +95,6 @@ class _ExploreTab extends StatelessWidget {
           const BracketSectionDivider(label: 'Survival'),
           const SizedBox(height: 10),
           _SurvivalBracketCard(family: family, element: element),
-        ],
-      ),
-    );
-  }
-}
-
-class _BossTab extends StatelessWidget {
-  const _BossTab({
-    required this.profile,
-    required this.basicMove,
-    required this.specialMove,
-  });
-
-  final BattleCombatant profile;
-  final BattleMove basicMove;
-  final BattleMove specialMove;
-
-  @override
-  Widget build(BuildContext context) {
-    final specialMoveSummary = BattleMove.specialSummaryForCombatant(profile);
-    final specialCooldownTurns = BattleMove.specialCooldownForFamily(
-      profile.family,
-    );
-    final specialRecoveryPerBasic =
-        BattleMove.specialRecoveryPerBasicForCombatant(profile);
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const BracketSectionDivider(label: 'Stats'),
-          const SizedBox(height: 10),
-          _BossStatGrid(profile: profile),
-          const SizedBox(height: 18),
-          const BracketSectionDivider(label: 'Moves'),
-          const SizedBox(height: 10),
-          _BossMovesBracketCard(
-            basicMoveName: basicMove.name,
-            specialMoveName: specialMove.name,
-            specialMoveSummary: specialMoveSummary,
-          ),
-          const SizedBox(height: 18),
-          const BracketSectionDivider(label: 'Cooldowns'),
-          const SizedBox(height: 10),
-          _BossCooldownsBracketCard(
-            specialCooldownTurns: specialCooldownTurns,
-            specialRecoveryPerBasic: specialRecoveryPerBasic,
-          ),
-          const SizedBox(height: 18),
-          const BracketSectionDivider(label: 'Stat scaling'),
-          const SizedBox(height: 10),
-          const _BossStatScalingBracketCard(),
         ],
       ),
     );
@@ -379,23 +207,6 @@ class _ExploreStatGrid extends StatelessWidget {
   }
 }
 
-class _BossStatGrid extends StatelessWidget {
-  const _BossStatGrid({required this.profile});
-
-  final BattleCombatant profile;
-
-  @override
-  Widget build(BuildContext context) {
-    final stats = <_StatEntry>[
-      _StatEntry('HP', profile.maxHp.toString()),
-      _StatEntry('ATK', profile.physAtk.toString()),
-      _StatEntry('DEF', profile.physDef.toString()),
-      _StatEntry('SPD', profile.speed.toString()),
-    ];
-    return _StatGrid(stats: stats, columns: 4);
-  }
-}
-
 class _StatEntry {
   const _StatEntry(this.label, this.value);
   final String label;
@@ -403,10 +214,10 @@ class _StatEntry {
 }
 
 class _StatGrid extends StatelessWidget {
-  const _StatGrid({required this.stats, this.columns = 4});
+  const _StatGrid({required this.stats});
 
   final List<_StatEntry> stats;
-  final int columns;
+  static const columns = 4;
 
   @override
   Widget build(BuildContext context) {
@@ -571,20 +382,85 @@ class _BracketInfoCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 10),
-            Text(
-              description,
-              style: bracketText(
-                context,
-                12.5,
-                palette.muted,
-                weight: FontWeight.w500,
-              ),
-              strutStyle: const StrutStyle(height: 1.45),
+            _AbilityDescriptionText(
+              description: description,
+              accent: activeAccent,
+              textColor: palette.muted,
             ),
             if (footer != null) footer,
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AbilityDescriptionText extends StatelessWidget {
+  const _AbilityDescriptionText({
+    required this.description,
+    required this.accent,
+    required this.textColor,
+  });
+
+  final String description;
+  final Color accent;
+  final Color textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = cosmicAbilityDescriptionLines(description);
+    if (lines.length == 1 && lines.first.label.isEmpty) {
+      return Text(
+        lines.first.body,
+        style: bracketText(context, 12.5, textColor, weight: FontWeight.w500),
+        strutStyle: const StrutStyle(height: 1.45),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < lines.length; i++) ...[
+          if (i > 0) const SizedBox(height: 7),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                constraints: const BoxConstraints(minWidth: 58),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.10),
+                  border: Border.all(color: accent.withValues(alpha: 0.34)),
+                ),
+                child: Text(
+                  lines[i].label.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: bracketText(
+                    context,
+                    9.5,
+                    accent,
+                    weight: FontWeight.w800,
+                    letterSpacing: 0.7,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  lines[i].body,
+                  style: bracketText(
+                    context,
+                    12.5,
+                    textColor,
+                    weight: FontWeight.w500,
+                  ),
+                  strutStyle: const StrutStyle(height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -670,253 +546,6 @@ class _SurvivalBracketCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _BossMovesBracketCard extends StatelessWidget {
-  const _BossMovesBracketCard({
-    required this.basicMoveName,
-    required this.specialMoveName,
-    required this.specialMoveSummary,
-  });
-
-  final String basicMoveName;
-  final String specialMoveName;
-  final String specialMoveSummary;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: palette.line.withValues(alpha: 0.9),
-        bracketSize: 10,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
-        color: palette.surfaceFill(),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _BracketLabelValue(label: 'Basic', value: basicMoveName),
-            const SizedBox(height: 10),
-            _BracketLabelValue(label: 'Special', value: specialMoveName),
-            const SizedBox(height: 12),
-            Text(
-              specialMoveSummary,
-              style: bracketText(
-                context,
-                12.5,
-                palette.muted,
-                weight: FontWeight.w500,
-              ),
-              strutStyle: const StrutStyle(height: 1.4),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BossCooldownsBracketCard extends StatelessWidget {
-  const _BossCooldownsBracketCard({
-    required this.specialCooldownTurns,
-    required this.specialRecoveryPerBasic,
-  });
-
-  final int specialCooldownTurns;
-  final int specialRecoveryPerBasic;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
-    final rows = <(String, String)>[
-      ('Basic action', '2 turns'),
-      ('Special action', '3 turns'),
-      (
-        'Special CD',
-        '$specialCooldownTurns turn${specialCooldownTurns == 1 ? '' : 's'}',
-      ),
-      ('CD / basic', '$specialRecoveryPerBasic turn(s) recovered'),
-      ('Special unlock', 'Level 5'),
-    ];
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: palette.line.withValues(alpha: 0.9),
-        bracketSize: 10,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
-        color: palette.surfaceFill(),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var i = 0; i < rows.length; i++) ...[
-              _BracketLabelValue(label: rows[i].$1, value: rows[i].$2),
-              if (i < rows.length - 1) const SizedBox(height: 8),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BossStatScalingBracketCard extends StatelessWidget {
-  const _BossStatScalingBracketCard();
-
-  static const _entries = <(String, String, String)>[
-    (
-      'SPD',
-      'Tempo + cooldown',
-      'Turn order priority, plus extra special recovery on basics at SPD 2.0 / 3.0 / 4.0 / 4.8.',
-    ),
-    (
-      'INT',
-      'Elemental power',
-      'Raises elemental attack and boosts DoT/regen effect scaling.',
-    ),
-    (
-      'BEAUTY',
-      'Elemental defense',
-      'Raises elemental defense and adds to physical defense.',
-    ),
-    (
-      'STR',
-      'Physical core',
-      'Raises max HP, physical attack, and physical defense.',
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
-    final theme = context.read<FactionTheme>();
-    final activeAccent = bracketReadableAccent(theme);
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: palette.line.withValues(alpha: 0.9),
-        bracketSize: 10,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
-        color: palette.surfaceFill(),
-        padding: const EdgeInsets.fromLTRB(12, 12, 14, 14),
-        child: Column(
-          children: [
-            for (var i = 0; i < _entries.length; i++) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 56,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 4,
-                    ),
-                    child: CustomPaint(
-                      painter: BracketFramePainter(
-                        color: activeAccent.withValues(alpha: 0.82),
-                        bracketSize: 6,
-                        strokeWidth: 1,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        alignment: Alignment.center,
-                        child: Text(
-                          _entries[i].$1,
-                          style: bracketText(
-                            context,
-                            11,
-                            palette.ink,
-                            weight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _entries[i].$2,
-                          style: bracketText(
-                            context,
-                            12.5,
-                            palette.ink,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _entries[i].$3,
-                          style: bracketText(
-                            context,
-                            12,
-                            palette.muted,
-                            weight: FontWeight.w500,
-                          ),
-                          strutStyle: const StrutStyle(height: 1.35),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (i < _entries.length - 1) const SizedBox(height: 10),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BracketLabelValue extends StatelessWidget {
-  const _BracketLabelValue({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 96,
-          child: Text(
-            label.toUpperCase(),
-            style: bracketText(
-              context,
-              11,
-              palette.muted,
-              weight: FontWeight.w700,
-              letterSpacing: 0.9,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: bracketText(
-              context,
-              13,
-              palette.ink,
-              weight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1439,13 +1068,51 @@ class CosmicSpecialInfo {
   final String subtitle;
   final String description;
   final IconData icon;
-  final List<String> tags;
   const CosmicSpecialInfo({
     required this.subtitle,
     required this.description,
     required this.icon,
-    this.tags = const [],
   });
+}
+
+class CosmicAbilityDescriptionLine {
+  const CosmicAbilityDescriptionLine({required this.label, required this.body});
+
+  final String label;
+  final String body;
+}
+
+List<CosmicAbilityDescriptionLine> cosmicAbilityDescriptionLines(
+  String description,
+) {
+  const labels = [
+    'Auto/Special kills',
+    'Special kills',
+    'Auto hits',
+    'Base',
+    'Auto',
+    'Special',
+    'Passive',
+  ];
+  final pattern = RegExp('(${labels.map(RegExp.escape).join('|')}):');
+  final matches = pattern.allMatches(description).toList();
+  if (matches.isEmpty) {
+    return [CosmicAbilityDescriptionLine(label: '', body: description.trim())];
+  }
+
+  final lines = <CosmicAbilityDescriptionLine>[];
+  for (var i = 0; i < matches.length; i++) {
+    final match = matches[i];
+    final nextStart = i + 1 < matches.length
+        ? matches[i + 1].start
+        : description.length;
+    final body = description.substring(match.end, nextStart).trim();
+    if (body.isEmpty) continue;
+    lines.add(CosmicAbilityDescriptionLine(label: match.group(1)!, body: body));
+  }
+  return lines.isEmpty
+      ? [CosmicAbilityDescriptionLine(label: '', body: description.trim())]
+      : lines;
 }
 
 class _ElementMechanicNote {
@@ -1489,696 +1156,481 @@ _ElementMechanicNote? _elementMechanicNote(String family, String element) {
 CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
   switch (family) {
     case 'Horn':
-      final anchorElement = [
-        'Earth',
-        'Lava',
-        'Mud',
-        'Ice',
-        'Steam',
-      ].contains(element);
-      final interceptElement = [
-        'Light',
-        'Crystal',
-        'Lightning',
-        'Air',
-      ].contains(element);
-      final sustainElement = ['Water', 'Blood'].contains(element);
-      final followThrough = switch (element) {
+      // Per-element shape varies under the new "bulky defense tank"
+      // theme — some elements charge, some wind up before dashing,
+      // some are pure passives, Light is a stationary channel.
+      final isPassive = ['Air', 'Mud'].contains(element);
+      final hasWindUp = ['Dark', 'Crystal', 'Spirit'].contains(element);
+      final isChannel = element == 'Light';
+      final isCustomPath = ['Water', 'Ice'].contains(element);
+      final description = switch (element) {
         'Fire' =>
-          'Fire is a fast blaze ram that over-commits through the target lane, leaving a burning wake instead of a wall.',
+          'Charges through enemies and paints a burning trail of taunt + DoT patches along the dash path.',
         'Lava' =>
-          'Lava is a slow molten plow whose boulders leave magma trails and split into slag after impact.',
+          'Slow heavy charge with a glowing build-up telegraph. Enemies killed by the slam explode into homing flames that seek nearby targets.',
         'Lightning' =>
-          'Lightning trades shield size for the quickest snap-charge and bouncing parry rods.',
+          'Quick dash to the target, then a 3-second storm brews around the horn (movement locked). Damage taken during the dash + brew is absorbed, then released as a chain shockwave whose size scales with the absorbed total.',
         'Water' =>
-          'Water uses a medium surf shove with a wider finishing crash and a small ship heal.',
+          'Charges in a circular sweep around the cast point, then drops a whirlpool at the center that pulls and slows trapped enemies.',
         'Ice' =>
-          'Ice lumbers in with a broad glacial body-check and plants one of the hardest frontal slows.',
+          'Dashes sideways perpendicular to the enemy direction, painting an ice wall segment-by-segment along the path. Wall taunts, slows, and reflects enemy projectiles.',
         'Steam' =>
-          'Steam pops forward with a pressure-burst charge, then leaves taunting vents that keep firing pressure puffs.',
+          'Heavy slam drops a steam geyser. If the slam KILLS an enemy, the special cooldown instantly resets AND another geyser spawns at the kill site — chain-cast through a streak.',
         'Earth' =>
-          'Earth is the fortress variant: the slowest, widest charge, ending in taunting stone bulwarks that can break apart.',
+          'Impact leaves a high-HP substitute clone that taunts enemies and pulses periodic mini-earthquakes around it.',
         'Mud' =>
-          'Mud drags a wide, short charge through the lane with crawling sludge that leaves slow trails.',
+          'Passive: No active cast. Drops slowing mud sludge wherever the horn walks. Trail rate scales with intelligence. Disabled while magnet-recalled to the ship.',
         'Dust' =>
-          'Dust is a long skitter-charge with low shield, narrow contact, and quick disruption.',
+          'Impact creates a dust cyclone that pulls nearby enemies inward and disorients shooter-enemies (they fire at each other).',
         'Crystal' =>
-          'Crystal takes a measured guard step, then spins orbiting mirror plates that intercept and refract hits.',
+          'Wind-up gathers six crystal shards orbiting the horn, then dashes. Shards keep orbiting the moving horn, intercept enemy projectiles, and shatter into shrapnel when they expire.',
         'Air' =>
-          'Air is the longest gale dash, cutting through the lane with light interception and peel.',
+          'Passive: No active cast. Enemies near the horn are continuously blown back toward the arena edge. Inner deadzone lets the horn melee close targets with basics; outer aura pushes everything else away.',
         'Plant' =>
-          'Plant advances slowly and roots a thorn hedge that acts like a short-lived turret line.',
+          'Charges through enemies. Each surviving enemy hit gets a personal root status — immobilized for a few seconds and wrapped in vines.',
         'Poison' =>
-          'Poison makes a guarded venom shove, leaving fangs and toxic choke points where it lands.',
+          'Special + Passive: Active charge applies a heavy poison DoT to each enemy the dash sweeps through. Always-on toxic aura also ticks poison damage to anyone in range.',
         'Spirit' =>
-          'Spirit phase-slips farther through the target and leaves guarded plates in the impact lane.',
+          'Two-second wind-up where phantoms swarm the horn (60% damage reduction throughout wind-up + dash). On dash, six mobile phantom wisps release in a ring, drifting outward and taunting enemies.',
         'Dark' =>
-          'Dark is a sharp execution ram: quick, narrow, and built to taunt enemies into a tight kill lane.',
+          'Five-second void-suck wind-up drags nearby enemies toward the horn. Then a long fast dash carries the captured cluster to the map edge, teleporting them with the horn and slamming them for impact damage on arrival.',
         'Light' =>
-          'Light takes a short guardian step and plants wide radiant ward plates for parries, lane control, and ship healing.',
+          'Stops moving and channels a stationary light barrier for ~5s. Barrier reflects enemy projectiles, bounces enemies that touch the perimeter, and allies inside take 70% reduced damage.',
         'Blood' =>
-          'Blood is a heavy sustain body-slam, converting a short crash into self-heal and blood bulwarks.',
-        _ =>
-          'Element changes how the Horn protects the front line after impact.',
+          'Sacrifices a chunk of current HP to amplify the impact damage. Every kill during a short post-cast window heals the horn back.',
+        _ => 'Element decides the cast pattern and effect.',
       };
+      final subtitle = isPassive
+          ? 'Passive Aura • Constant battlefield pressure'
+          : isChannel
+          ? 'Channeled Barrier • Stationary defense zone'
+          : hasWindUp
+          ? 'Wind-up + Dash • Telegraphed heavy impact'
+          : isCustomPath
+          ? 'Path Dash • Custom-route slam'
+          : 'Heavy Charge • Bulky frontline impact';
       return CosmicSpecialInfo(
-        subtitle: 'Shield Charge • Frontline impact',
-        description:
-            'Raises a shield, erupts with an elemental guard burst, then '
-            'commits to a real impact charge. $followThrough',
+        subtitle: subtitle,
+        description: description,
         icon: AppIcons.shield,
-        tags: [
-          'SHIELD',
-          'CHARGE',
-          if (anchorElement) 'ANCHOR',
-          if (interceptElement) 'INTERCEPT',
-          if (sustainElement) 'SUSTAIN',
-          element.toUpperCase(),
-        ],
       );
     case 'Wing':
-      final hasTrail = ['Lava', 'Fire', 'Plant'].contains(element);
-      final hunterElement = [
-        'Crystal',
-        'Water',
-        'Ice',
-        'Dark',
-        'Blood',
-        'Steam',
-        'Mud',
-        'Plant',
-        'Poison',
-        'Spirit',
-        'Light',
-      ].contains(element);
-      final heavyElement = ['Earth', 'Lava', 'Mud'].contains(element);
-      final followThrough = switch (element) {
-        'Lightning' =>
-          'Lightning charges briefly, then releases a heavy blast through the beam lane.',
-        'Crystal' =>
-          'Crystal turns beam contact into sustain while refracting prism pressure.',
-        'Fire' => 'Fire widens into a sweeping inferno ring and burning trail.',
-        'Ice' =>
-          'Ice builds frost on sustained contact until targets snap into a hard freeze.',
-        'Dark' =>
-          'Dark doubles the tempo: basic attacks and beam pulses fire twice as fast.',
-        'Blood' =>
-          'Blood hunts the lowest-HP target and executes enemies below the threshold.',
-        'Water' =>
-          'Water heals allies and the ship while still cutting through enemies.',
+      final description = switch (element) {
+        'Fire' =>
+          'Sweeps the beam in a circle around the map perimeter, hitting everything in the ring for big damage.',
         'Lava' =>
-          'Lava scars the ground with lingering burn zones along the beam path.',
+          'The beam carves a glowing scar across the ground — enemies passing through the scar take burn damage over time.',
+        'Lightning' =>
+          'Charges for ~0.75s, then unleashes a sustained heavy-damage beam down the lane.',
+        'Water' =>
+          'Beam locks onto the lowest-HP ally or the ship and heals them; enemies along the beam path still take damage.',
+        'Ice' =>
+          'Beam contact builds frost on the target — held on long enough, the enemy snaps into a hard freeze.',
         'Steam' =>
-          'Steam executes the first target it catches, then erupts into lingering steam clouds.',
+          'Executes the first enemy the beam touches and erupts 5–10 lingering steam clouds at the kill site (DoT).',
         'Earth' =>
-          'Earth trades speed for a few enormous boulder beams with the widest body.',
-        'Mud' => 'Mud applies a long heavy slow to anything held in the beam.',
-        'Dust' => 'Dust sandblasts the lane and disrupts enemy pressure.',
+          'Standard piercing beam — the orb also fires a mirror beam alongside the wing, doubling the coverage.',
+        'Mud' => 'Permanently (60s) slows every enemy the beam touches.',
+        'Dust' =>
+          'Beam contact surrounds the enemy with disorienting dust — shooter-enemies start firing at each other instead of the ship.',
         'Air' =>
-          'Air drills forward with wind pressure that knocks enemies back.',
+          'Beam contact knocks enemies back hard, holding them off the line.',
+        'Crystal' => 'Beam damage heals the orb (lifesteal-to-orb sustain).',
         'Plant' =>
-          'Plant grows guided vine tendrils from the beam for pursuit pressure.',
+          'Enemies killed by the beam turn into flower pickups. Fly the ship near a flower to collect it; each one stacks +4% beam damage (cap +200%).',
         'Poison' =>
-          'Poison forms a venom ring around the caster for close-range area control.',
+          'Fires a poison-ring beam around the map perimeter instead of a straight line, contaminating the outer ring.',
         'Spirit' =>
-          'Spirit tethers through the ship, letting the ship fire the follow-up laser.',
+          'Beam tethers through the ship — the ship then fires its own laser at the nearest enemies.',
+        'Dark' =>
+          'Passive: Dark wing pulses its beam and auto-attacks at twice the normal rate. No active cast.',
         'Light' =>
-          'Light refracts beam kills into smaller hunting beams for cleanup.',
-        _ =>
-          'Element determines the beam follow-through: chains, refractions, hunters, or scatter effects.',
+          'If the beam kills an enemy, it refracts into two smaller beams hunting nearby enemies for the rest of the original beam\'s duration.',
+        'Blood' =>
+          'Beam locks onto the lowest-HP enemy and executes any enemy below ~18% HP outright.',
+        _ => 'Element changes the beam targeting + effect.',
       };
+      final subtitle = element == 'Dark'
+          ? 'Dark Beam • Doubled-tempo passive'
+          : element == 'Fire' || element == 'Poison'
+          ? 'Ring Beam • Perimeter sweep'
+          : element == 'Spirit'
+          ? 'Tether Beam • Ship relay'
+          : element == 'Water'
+          ? 'Heal Beam • Ally targeting'
+          : element == 'Blood'
+          ? 'Execute Beam • Lowest-HP lock'
+          : element == 'Lightning'
+          ? 'Charged Beam • Telegraphed blast'
+          : 'Piercing Beam • Long-range line';
       return CosmicSpecialInfo(
-        subtitle: 'Piercing Beam • Long-range line attack',
-        description:
-            'A long-range line special for piercing packs and pressuring bosses. '
-            '${hasTrail ? 'Leaves a lingering $element damage trail behind the beam. ' : ''}'
-            '$followThrough',
+        subtitle: subtitle,
+        description: description,
         icon: AppIcons.arrow_forward,
-        tags: [
-          'PIERCING',
-          'BEAM',
-          if (hasTrail) 'TRAIL',
-          if (hunterElement) 'HUNTER',
-          if (heavyElement) 'HEAVY',
-          element.toUpperCase(),
-        ],
       );
     case 'Let':
-      final fieldElement = [
-        'Dust',
-        'Lava',
-        'Poison',
-        'Earth',
-        'Plant',
-        'Light',
-        'Steam',
-        'Mud',
-      ].contains(element);
-      final followThrough = switch (element) {
-        'Fire' =>
-          'Fire detonates a much wider flame blast at the impact point.',
-        'Lightning' =>
-          'Lightning forks into nearby enemies on impact and shocks the struck target.',
-        'Ice' => 'Ice nearly freezes the target in place for cleanup.',
-        'Earth' =>
-          'Earth trades speed for a huge moon-drop, a team heal, and a quake field where it lands.',
-        'Spirit' =>
-          'Spirit harvests weakened targets on hit, with a chance to instantly reap healthier ones.',
-        'Poison' =>
-          'Poison slows the struck enemy and leaves a large toxic pool at impact.',
-        'Water' =>
-          'Water splashes nearby enemies on impact and helps stabilize the ship when cast.',
-        'Lava' => 'Lava leaves a burning magma pool at the impact point.',
-        'Steam' =>
-          'Steam leaves a geyser field that keeps erupting after the meteor lands.',
-        'Mud' =>
-          'Mud leaves a stunning bog field that pins enemies after impact.',
+      final description = switch (element) {
+        'Air' =>
+          'If the meteor kills an enemy on impact, blow back every nearby enemy from the impact point.',
         'Dust' =>
-          'Dust leaves a sand field that slows enemies caught in the fallout.',
-        'Crystal' =>
-          'Crystal hard-slows the target and shatters damage into nearby enemies.',
-        'Air' => 'Air knocks enemies outward from the impact point.',
-        'Plant' => 'Plant grows rooting vine pods around the impact point.',
+          'On collision, drops a dust cloud at the impact site that slows enemies caught inside.',
+        'Lava' =>
+          'On collision, sears the ground in a burning area that DoTs anything inside.',
+        'Poison' =>
+          'On collision, poisons the struck enemy and leaves a toxic pool that poisons others nearby.',
+        'Plant' =>
+          'If the meteor kills an enemy, vines grow from the ground that persist and damage enemies who walk through them.',
         'Blood' =>
-          'Blood drains nearby enemies on impact and converts part of the hit into sustain.',
-        'Dark' =>
-          'Dark immediately calls follow-up void meteors instead of waiting for a kill.',
+          'If the meteor kills an enemy, drains HP from nearby enemies and splits the drained HP as healing to every alchemon and the ship.',
+        'Earth' =>
+          'On collision, % of damage dealt is converted into a heal for the lowest-HP alchemon or the ship.',
         'Light' =>
-          'Light leaves a healing field at the impact point and restores the ship when cast.',
-        _ => 'Element determines the follow-through pattern after impact.',
+          'If the meteor kills an enemy, creates a pool of light that heals nearby allies and the ship.',
+        'Spirit' =>
+          '20% chance to one-shot any target on impact. Proc chance scales up with stats.',
+        'Crystal' =>
+          'Half the cooldown of the other lets, weaker damage, but any enemy hit is slowed by 90% on impact.',
+        'Fire' =>
+          'If the meteor kills an enemy, detonates a big explosion that damages every enemy nearby.',
+        'Lightning' =>
+          'On impact, if there are enemies nearby, chain-lightning arcs jump between them for splash damage.',
+        'Steam' =>
+          'If the meteor kills an enemy, creates a long-lasting geyser that pushes enemies upward.',
+        'Dark' =>
+          'If the meteor kills an enemy, immediately launches up to 5 follow-up meteors (twice as big) at surrounding enemies.',
+        'Ice' => 'On collision, freezes the struck enemy for a short window.',
+        'Mud' =>
+          'If the meteor kills an enemy, creates a mud pool that stuns enemies caught inside.',
+        'Water' =>
+          'On collision, splashes a big AOE damage burst across nearby enemies.',
+        _ => 'Element changes the meteor impact behavior.',
       };
       return CosmicSpecialInfo(
         subtitle: 'Meteor Strike • Impact-triggered siege',
-        description:
-            'A slow heavy meteor that rewards landing the hit: its elemental follow-through triggers on impact. $followThrough',
+        description: description,
         icon: AppIcons.south,
-        tags: [
-          'METEOR',
-          'IMPACT',
-          fieldElement ? 'FIELD' : 'SIEGE',
-          element.toUpperCase(),
-        ],
       );
     case 'Pip':
-      final reboundElement = [
-        'Crystal',
-        'Lightning',
-        'Air',
-        'Fire',
-        'Water',
-        'Ice',
-        'Dust',
-        'Light',
-      ].contains(element);
-      final snareElement = ['Ice', 'Mud', 'Plant', 'Poison'].contains(element);
-      final heavyElement = [
-        'Earth',
-        'Lava',
-        'Dark',
-        'Blood',
-        'Spirit',
-      ].contains(element);
       final followThrough = switch (element) {
         'Fire' =>
-          'Fire becomes an overheat flurry that also briefly speeds up basic attacks.',
-        'Lightning' =>
-          'Lightning is the fastest chain volley, built for rapid ricochet cleanup.',
-        'Air' =>
-          'Air throws non-homing wind darts that rely on rebound movement instead of lock-on.',
+          'Auto/Special kills: Create a fire pool that persists and burns enemies inside it.',
+        'Lightning' => 'Doubles the amount of ricochets.',
+        'Air' => 'Ricochet darts push enemies back on hit.',
         'Dust' =>
-          'Dust sprays many tiny sand darts for wide cleanup across messy packs.',
+          'Auto/Special kills: Create a dust cloud that persists and slows enemies inside it.',
         'Crystal' =>
-          'Crystal fires piercing prism darts with the strongest bank-shot behavior.',
+          'Auto/Special kills: Create a taunting crystal. Special darts also pierce and ricochet.',
         'Light' =>
-          'Light forms a halo of ricochet darts that can intercept threats as it cleans up.',
+          'Darts can intercept threats, and special kills heal allies or the ship.',
         'Water' =>
-          'Water opens inward curling darts that collapse back through a target lane.',
-        'Ice' =>
-          'Ice sends chill darts with moving snare pressure for catching leaks.',
+          'Auto/Special kills: Splash nearby enemies. The special\'s final ricochet creates a larger splash.',
+        'Ice' => 'Darts freeze and slow enemies they hit.',
         'Mud' =>
-          'Mud launches sticky rebound slugs that slow enemies while chasing them.',
+          'Auto hits mark enemies to leave mud trails. Special darts slow enemies.',
         'Plant' =>
-          'Plant fires vine darts that pierce and lightly snare moving targets.',
+          'Auto/Special kills: Grant extra alchemy meter in Cosmic Survival.',
         'Poison' =>
-          'Poison uses venom tag darts with moving slow pressure, without leaving residue fields.',
+          'Auto hits draw poison lines between hit enemies. Special darts poison and slow enemies.',
         'Earth' =>
-          'Earth trades volume for heavier homing stone darts that finish sturdy targets.',
-        'Lava' =>
-          'Lava launches slow, heavy piercing chunks for high-value cleanup.',
-        'Dark' => 'Dark fires tight piercing shadow darts for lethal pursuit.',
-        'Blood' =>
-          'Blood sends fewer heavy homing darts for focused finishing pressure.',
+          'Passive: Auto attacks reduce this Pip\'s special cooldown. Special kills refund extra cooldown.',
+        'Lava' => 'Darts pierce and burn enemies they hit.',
+        'Dark' =>
+          'Passive: Auto-attack kills create a black hole that pulls enemies inward.',
+        'Blood' => 'Enemies killed heal allies or the ship.',
         'Spirit' =>
-          'Spirit uses high-guidance phase darts that pierce and reacquire targets.',
+          'Auto/Special kills: Build Spirit stacks; enough stacks give a temporary attack-speed boost.',
         'Steam' =>
-          'Steam vents short piercing cutter darts through the forward lane.',
-        _ =>
-          'Element determines the tempo pattern, target priority, and rebound behavior.',
+          'Passive: This Pip cycles through a ramping attack-speed window. Special kills can trigger extra haste.',
+        _ => 'Element changes the dart effect.',
       };
+      if (element == 'Dark') {
+        return CosmicSpecialInfo(
+          subtitle: 'Auto Darts • Black Hole passive',
+          description:
+              'Auto: Fires three fast homing darts. Passive: This Pip has no active special; auto-attack kills create a black hole that pulls enemies inward.',
+          icon: AppIcons.bolt,
+        );
+      }
       return CosmicSpecialInfo(
-        subtitle: 'Tempo Salvo • Fast skirmish special',
+        subtitle: 'Auto Darts • Ricochet special',
         description:
-            'A quick cleanup special built for target hopping, leak control, and finishing scattered enemies. '
+            'Auto: Fires three fast homing darts. Special: Fires a short-lived elemental dart salvo; ricochet elements hop between nearby enemies. '
             '$followThrough',
         icon: AppIcons.bolt,
-        tags: [
-          reboundElement ? 'RICOCHET' : 'CHASE',
-          if (snareElement) 'SNARE',
-          if (heavyElement) 'FINISHER',
-          'TEMPO',
-          element.toUpperCase(),
-        ],
       );
     case 'Mane':
       final maneInfo = switch (element) {
         'Air' => (
-          'Gale Pierce • Push-through catapult',
-          'Fires a wide piercing gust that shoves every enemy it passes through along the shot path.',
+          'Gale Pierce • Fast push-through catapult',
+          'Projectile travels at 2× speed and shoves every enemy it pierces along the shot path.',
           AppIcons.air,
-          ['PIERCE', 'PUSH', 'WIDE', 'AIR'],
         ),
         'Dust' => (
           'Dustwake Fan • Projectile silence',
-          'Cuts a sand trail across the lane. Enemies that enter the dust cloud lose their ability to shoot for a moment.',
+          'Leaves a dust-cloud trail along its path. Enemies inside the trail can no longer shoot projectiles.',
           AppIcons.cloud,
-          ['TRAIL', 'SUPPRESS', 'PIERCE', 'DUST'],
         ),
         'Lava' => (
           'Molten Cleave • Burning residue',
-          'Pierces through enemies and drops lava blobs at each collision, turning the path into lingering burn damage.',
+          'Drops a lava blob at each enemy collision; blobs DoT enemies who step into them.',
           AppIcons.local_fire_department,
-          ['BURN', 'BLOBS', 'PIERCE', 'LAVA'],
         ),
         'Poison' => (
           'Venom Edge • Stacking toxin',
-          'Poisons every enemy the slash passes through. The more bodies it tags, the more the toxin pressure adds up.',
+          'Each pierce stacks poison on the enemy. The more times it\'s hit, the harder the poison DoT bites.',
           AppIcons.biotech,
-          ['POISON', 'STACKS', 'PIERCE', 'VENOM'],
         ),
         'Blood' => (
-          'Bloodedge Rush • Lifesteal pierce',
-          'Pierces through the lane and restores health for each enemy it cuts, making Bloodmane the sustain Mane.',
+          'Bloodedge Rush • Orb lifesteal',
+          'Every enemy pierced restores HP back to the orb.',
           AppIcons.bloodtype,
-          ['HEAL', 'SUSTAIN', 'PIERCE', 'BLOOD'],
         ),
         'Earth' => (
           'Fault Slab • Grinding quake path',
-          'Launches a huge slow stone slab that crushes through the lane and leaves quake bursts as it breaks apart.',
+          'Starts huge, slowly grinds forward, breaks apart as it travels, and shoots quake-bursts out as it breaks down.',
           AppIcons.terrain,
-          ['SLAB', 'QUAKE', 'HEAVY', 'EARTH'],
         ),
         'Light' => (
           'Radiant Growth • Scaling pierce',
-          'Launches a slow glowing orb that grows larger and hits harder each time it pierces an enemy.',
+          'Ball starts tiny. Each enemy it pierces makes it bigger and hits harder — ramps the longer the line.',
           AppIcons.wb_sunny,
-          ['GROWTH', 'PIERCE', 'SCALING', 'LIGHT'],
         ),
         'Spirit' => (
           'Phaseblade Rush • Ramping stream',
-          'Starts as one soul shot, then adds another shot on each cast up to ten before resetting into a new ramp.',
+          'Starts at 1 projectile. Each cast adds another shot up to 10, then resets back to 1.',
           AppIcons.auto_awesome,
-          ['RAMP', 'STREAM', 'RESET', 'SPIRIT'],
         ),
         'Crystal' => (
           'Prism Edge • Boss shatter',
-          'Pierces normally through packs, but detonates on bosses for a huge crystal burst and wide area damage.',
+          'If it hits a boss, instantly explodes for a huge crystal burst that wipes the boss and AOE damages everything nearby.',
           AppIcons.diamond,
-          ['BOSS', 'BURST', 'AOE', 'CRYSTAL'],
         ),
         'Fire' => (
           'Fireball Rush • Dense fire spread',
-          'Throws a doubled wave of quick fireballs through the forward lane for immediate multi-hit pressure.',
+          'Throws 3–8 fast fireballs in a forward wave.',
           AppIcons.whatshot,
-          ['FIREBALLS', 'MULTI', 'PIERCE', 'FIRE'],
         ),
         'Lightning' => (
           'Storm Orb Field • Remote zaps',
-          'Shoots small lightning balls around the map. When they land, they form compact zap traps.',
+          'Places 5–10 stationary lightning orbs on the map that shock enemies who come near.',
           AppIcons.flash_on,
-          ['ORBS', 'FIELD', 'ZAP', 'LIGHTNING'],
         ),
         'Steam' => (
           'Pressure Geyser • Traveling vent',
-          'Launches a large geyser shot that releases damaging steam puffs as it travels.',
+          'Big geyser projectile travels through the lane and periodically releases steam pulses as it goes.',
           AppIcons.blur_on,
-          ['GEYSER', 'PUFFS', 'PIERCE', 'STEAM'],
         ),
         'Dark' => (
           'Voidcut Drive • Pull and consume',
-          'Moves slowly through the lane, pulling enemies toward it and punishing weakened targets caught in the drag.',
+          'One slow void bolt that constantly pulls nearby enemies toward it as it travels, executing any low-HP enemy caught in its path.',
           AppIcons.dark_mode,
-          ['PULL', 'EXECUTE', 'SLOW', 'DARK'],
         ),
         'Ice' => (
           'Frostguard Cleave • Contact freeze',
-          'A piercing frost ball freezes enemies it touches as it pushes through the lane.',
+          'Freezes everything it touches as it travels through the lane.',
           AppIcons.ac_unit,
-          ['FREEZE', 'PIERCE', 'CONTROL', 'ICE'],
         ),
         'Mud' => (
           'Bogbreaker Split • Ten-way burst',
-          'The first enemy hit breaks the shot apart into ten mud shards that scatter in every direction.',
+          'First enemy hit, the projectile breaks apart and splits into 10 smaller mud shards firing outward.',
           AppIcons.grain,
-          ['SPLIT', 'SHARDS', 'BURST', 'MUD'],
         ),
         'Plant' => (
           'Vine Lariat • Root bloom',
-          'Roots every enemy it hits. If a rooted enemy dies, it bursts into plant area damage that can root nearby enemies too.',
+          'Every enemy passed through is temporarily rooted. If a rooted enemy dies, it explodes into plant AOE damage.',
           AppIcons.local_florist,
-          ['ROOT', 'EXPLODE', 'AOE', 'PLANT'],
         ),
         'Water' => (
           'Tidewall Crash • Carrying wave',
-          'Fires a massive water wall that drags enemies with it instead of merely damaging them.',
+          'Fires a massive wall of water that drags enemies along with it as it travels.',
           AppIcons.water,
-          ['WALL', 'CARRY', 'PIERCE', 'WATER'],
         ),
         _ => (
           'Barrage Volley • Piercing technique',
-          'Fires a piercing Mane technique with an element-specific combat rule.',
+          'Element changes the piercing technique.',
           AppIcons.waves,
-          ['PIERCE', 'BARRAGE', element.toUpperCase()],
         ),
       };
       return CosmicSpecialInfo(
         subtitle: maneInfo.$1,
         description: maneInfo.$2,
         icon: maneInfo.$3,
-        tags: maneInfo.$4,
       );
     case 'Mask':
-      final decoyElement = [
-        'Earth',
-        'Lava',
-        'Crystal',
-        'Spirit',
-        'Dark',
-        'Water',
-        'Ice',
-        'Plant',
-        'Light',
-        'Blood',
-      ].contains(element);
-      final snareElement = [
-        'Dark',
-        'Mud',
-        'Steam',
-        'Poison',
-        'Air',
-        'Ice',
-      ].contains(element);
-      final reboundElement = [
-        'Lightning',
-        'Dust',
-        'Crystal',
-        'Light',
-      ].contains(element);
-      final followThrough = switch (element) {
-        'Earth' =>
-          'Earth uses the toughest monolith lure: it taunts, soaks hits, then breaks into a boulder punishment.',
-        'Lava' =>
-          'Lava drops volatile idols that drag attention before erupting into heavy molten bursts.',
-        'Crystal' =>
-          'Crystal uses prism decoys and bouncing shards to punish enemies that take the bait.',
-        'Spirit' =>
-          'Spirit sends phantom lures and phase seekers, splitting attention across several false targets.',
-        'Dark' =>
-          'Dark builds the strongest void well, pulling enemies into a snaring lure before execution pressure arrives.',
-        'Water' =>
-          'Water uses bubble decoys and guided splashes to pull pressure away from the ship.',
-        'Ice' =>
-          'Ice traps enemies in freezing lures, then follows with slow heavy shards.',
-        'Plant' =>
-          'Plant grows vine constructs that taunt enemies before thorn pods punish the cluster.',
-        'Light' =>
-          'Light creates beacon decoys and ricochet motes, a cleaner defensive misdirection pattern.',
-        'Blood' =>
-          'Blood plants a tougher obelisk lure backed by fewer, heavier blood punishers.',
-        'Fire' =>
-          'Fire skips durable decoys for an inferno bait burst: many fast seekers punish anything that turns toward the trap.',
-        'Lightning' =>
-          'Lightning turns the trap into a tesla chain, using fast bouncing seekers to scramble clustered enemies.',
-        'Steam' =>
-          'Steam relies more on pressure traps and slow vents than on raw seeker volume.',
-        'Mud' =>
-          'Mud is the bog-control trap, locking movement first and punishing escape attempts second.',
-        'Dust' =>
-          'Dust scatters caltrop motes, using fast ricochets to break enemy formation.',
-        'Poison' =>
-          'Poison establishes contamination traps first, then sends guided toxins through slowed targets.',
+      final description = switch (element) {
         'Air' =>
-          'Air uses gust lures to break formation, then dives wind blades onto displaced enemies.',
+          'Scatters air pads across the field. Each pad blows back enemies that touch it.',
+        'Dust' =>
+          'Wraps each alchemon in a dust shield that follows them around — absorbs incoming projectiles and damages enemies who collide.',
+        'Lava' => 'Drops lava pools that burn any enemy standing in them.',
+        'Poison' =>
+          'Scatters poison clouds. Enemies inside take damage over time.',
+        'Plant' =>
+          'Plants a single vine that never dies. Each cast feeds it — the vine grows larger and meaner, sprouting a new attacking tendril every 10 feeds (up to 10 tendrils at 100 feeds).',
+        'Blood' =>
+          'Places a blood blob. Enemies that pass through it are permanently drained — life leaches to all alchemons until that enemy dies.',
+        'Earth' =>
+          'Creates earth pools that heal the ship and alchemons standing inside.',
+        'Light' =>
+          'Plants a light void. Persists until an enemy touches it — that enemy is instantly killed.',
+        'Spirit' =>
+          'Scatters spirit wisps for the ship to collect. Every 6 collected wipe all non-boss enemies on the field.',
+        'Crystal' =>
+          'Throws large crystals. On contact each shatters into 3 smaller crystals that deal damage.',
+        'Fire' =>
+          'Throws fire balls. When a ball strikes an enemy it leaves a burning pool behind.',
+        'Lightning' =>
+          'Plants a lightning field. Each enemy it hits expands the field; damage ticks while enemies are inside.',
+        'Steam' =>
+          'Scatters mini geysers around the field that turret-fire at nearby enemies.',
+        'Dark' =>
+          'Opens a void hole. Enemies caught in its suction are yeeted out of the area; radius scales with stats.',
+        'Ice' =>
+          'Raises a giant ice pillar. Allies near it gain ~2–5× attack strength.',
+        'Mud' => 'Lays a mud pool that heavily slows enemies inside it.',
+        'Water' =>
+          'Scatters splash traps. Each enemy contact triggers area damage to nearby enemies.',
         _ =>
-          'Element changes the bait pattern, trap pressure, and punishment style.',
+          'Scatters element-tuned traps. Each placement triggers on enemy contact or aura.',
       };
       return CosmicSpecialInfo(
-        subtitle: decoyElement
-            ? 'Decoy Totem • Control setup'
-            : 'Seeker Swarm • Control setup',
-        description:
-            'Deploys $element misdirection pieces that make enemies choose bad '
-            'targets, bad paths, or bad timing. $followThrough',
-        icon: decoyElement ? AppIcons.sports_kabaddi : AppIcons.warning_amber,
-        tags: [
-          decoyElement ? 'DECOY' : 'SEEKERS',
-          if (snareElement) 'SNARE',
-          if (reboundElement) 'REBOUND',
-          decoyElement ? 'TAUNT' : 'CONTROL',
-          decoyElement ? 'EXPLODES' : 'REDIRECT',
-          element.toUpperCase(),
-        ],
+        subtitle: 'Trap Scatter • Field control',
+        description: description,
+        icon: AppIcons.gps_fixed,
       );
     case 'Kin':
-      final escortElement = ['Light', 'Water', 'Crystal'].contains(element);
-      final controlElement = [
-        'Air',
-        'Ice',
-        'Steam',
-        'Earth',
-        'Mud',
-        'Plant',
-        'Poison',
-      ].contains(element);
-      final pressureElement = [
-        'Dark',
-        'Fire',
-        'Lightning',
-        'Spirit',
-        'Lava',
-        'Blood',
-        'Dust',
-      ].contains(element);
-      final followThrough = switch (element) {
+      final description = switch (element) {
         'Light' =>
-          'Light is the pure guardian escort: long ship-orbiting wards '
-              'that intercept threats and provide the strongest healing.',
+          'Heal escort orbs orbit the caster, then migrate to the ship, intercepting projectiles and pulsing heals along their path.',
         'Water' =>
-          'Water keeps escort wards near the ship, adding steady healing, '
-              'interception, and soft turret pressure.',
-        'Crystal' =>
-          'Crystal deploys ship escort sentries that pierce and fire from '
-              'orbit while adding a small ship heal.',
+          'A rain cloud follows the ship, dripping healing onto allies under it.',
         'Air' =>
-          'Air transfers wind decoys to the fight, taunting and snaring '
-              'enemies away from the ship.',
+          'An updraft column travels with the ship — enemies that try to close are lifted up and flung away.',
         'Earth' =>
-          'Earth sends sturdy guardian stones forward as taunting decoys '
-              'with interception and slow turret pressure.',
-        'Mud' =>
-          'Mud creates forward bog guardians that taunt and slow enemies '
-              'for a longer control window.',
-        'Steam' =>
-          'Steam creates pressure decoys that hard-snare enemies while '
-              'venting small turret shots.',
-        'Ice' =>
-          'Ice places chill guardians that slow a target area and fire '
-              'slower control shots.',
+          'Plants a row of indestructible stone wall segments. Enemies bumping into them are shoved back; the wall times out instead of being destroyed.',
         'Plant' =>
-          'Plant grows vine guardians that taunt, lightly snare, and fire '
-              'guided support thorns.',
+          'Grows a healing garden at your feet. Allies inside are healed over time, and the garden periodically drops collectible HP flowers nearby.',
         'Poison' =>
-          'Poison sets contamination guardians that slow an area and feed '
-              'guided toxin shots.',
-        'Spirit' =>
-          'Spirit sends piercing phase guardians with strong homing support '
-              'fire.',
-        'Dark' =>
-          'Dark leans into offensive guardian hunters, transferring to the '
-              'fight and firing high-guidance shots.',
+          'Fires a radial swirl of homing poison darts that seek nearby enemies, applying stacking poison on hit.',
+        'Crystal' =>
+          'Equips the ship with orbiting refractor shards. Each absorbs an enemy projectile and refracts a damaging beam back at a nearby enemy.',
         'Fire' =>
-          'Fire creates aggressive guardian embers that transfer forward '
-              'and add rapid turret pressure.',
-        'Lightning' =>
-          'Lightning creates fast guardian sparks with high turret tempo.',
+          'Passive — no active cast. While deployed, the first time the orb dies it instantly revives at 25% HP, and from that point on the fire kin has a permanent orbiting flame aura that damages nearby enemies for the rest of the run.',
         'Lava' =>
-          'Lava deploys slower heavy guardians with bigger impact shots.',
-        'Blood' =>
-          'Blood uses sustain guardians that taunt, pierce, and pressure '
-              'while supporting self-heal.',
+          'Coats the team in reactive molten plate. Incoming hits splash burning lava back at nearby enemies.',
+        'Ice' =>
+          'Charges briefly, then releases an all-direction frost burst that slows enemies by 90%. Range scales with Beauty — at max stats it can sweep the entire field.',
+        'Steam' =>
+          'Engages the boiler. Damage taken by the team converts into stacking companion attack speed (up to 10 stacks). Stress becomes tempo.',
+        'Lightning' =>
+          'Channels a tesla coil. While the kin actively charges, every companion auto-attack chains lightning to a nearby enemy. Charge time equals buff time — hold longer for sustained chains.',
         'Dust' =>
-          'Dust sends lightweight distraction guardians that disrupt and '
-              'pepper the target area.',
-        _ =>
-          'Element changes whether the guardian pieces escort, intercept, '
-              'taunt, snare, heal, or pressure enemies.',
+          'Plants a persistent dust cloud at the target. Each cast adds another (up to 10); enemy projectiles passing through any cloud have a high chance to miss.',
+        'Mud' =>
+          'Slings mud onto the ship. The ship gains a temporary enchant that drops slowing mud patches behind it as it moves.',
+        'Spirit' =>
+          'Releases a wisp that orbits the kin. Enemies killed by the spirit kin\'s auto-attacks tier the wisp up — it gains taunting, then an auto-attack, then at max tier heals its caster from the damage it deals.',
+        'Dark' =>
+          'Cloaks every companion in void — enemies cannot target them and retarget to the ship or orb instead.',
+        'Blood' =>
+          'Seals a blood pact. While active, a portion of damage taken by any alchemon OR the ship is converted into healing shared across every other living member of the team.',
+        _ => 'Element changes the support utility.',
       };
       return CosmicSpecialInfo(
-        subtitle: 'Blessing Pulse • Guardian support',
-        description:
-            'A support cast that heals, blesses over time, and keeps guardian pieces active. '
-            '$followThrough',
+        subtitle: 'Rare Support • Charged laser auto',
+        description: description,
         icon: AppIcons.favorite,
-        tags: [
-          'HEAL',
-          'BLESSING',
-          if (escortElement) 'ESCORT',
-          if (controlElement) 'CONTROL',
-          if (pressureElement) 'PRESSURE',
-          element.toUpperCase(),
-        ],
       );
     case 'Mystic':
-      final (subtitle, desc, tags) = switch (element) {
+      final (subtitle, desc, _) = switch (element) {
         'Fire' => (
-          'Supernova Collapse • Beauty scales count • Long cooldown',
-          'Erupts an expanding ring of fire orbs that orbit outward, then '
-              'collapse inward with aggressive homing. A massive core orb '
-              'detonates at the center, splitting into cluster fragments. '
-              'Higher Beauty spawns more ring orbs for a bigger supernova.',
+          'Supernova Collapse • Beauty scales count',
+          'An expanding ring of fire orbs collapses inward, then a core orb detonates into fragments.',
           ['BURST', 'CLUSTER', 'HOMING'],
         ),
         'Lava' => (
-          'Cataclysm Moons • Strength scales count • Long cooldown',
-          'Launches massive slow-moving piercing boulders that plow through '
-              'everything in their path, leaving damaging lava trails and '
-              'splitting into cluster detonations on impact. '
-              'Higher Strength spawns more boulders.',
+          'Cataclysm Moons • Strength scales count',
+          'Launches slow piercing boulders that leave lava trails and split into cluster detonations.',
           ['PIERCING', 'TRAIL', 'CLUSTER'],
         ),
         'Lightning' => (
-          'Storm Lattice • Intelligence scales count • Long cooldown',
-          'Fires a fan of rapid zigzag bolts with extreme bounce counts that '
-              'chain through groups of enemies. Short-lived but fills the '
-              'screen with arcing electricity. '
-              'Higher Intelligence spawns more bolts.',
+          'Storm Lattice • Intelligence scales count',
+          'Fires rapid zigzag bolts with high bounce counts.',
           ['BOUNCE', 'CHAIN', 'HOMING'],
         ),
         'Water' => (
-          'Tidal Crescent • Beauty scales count • Long cooldown',
-          'Sweeps two crescent waves from both flanks that converge on the '
-              'target in a pincer formation. Each wave projectile homes in and '
-              'leaves trailing water damage. '
-              'Higher Beauty adds more projectiles per wave.',
+          'Tidal Crescent • Beauty scales count',
+          'Sweeps crescent waves from both flanks that home inward and leave water trails.',
           ['HOMING', 'TRAIL', 'PINCER'],
         ),
         'Ice' => (
-          'Glacier Crown • Intelligence scales count • Long cooldown',
-          'Forms a crown of ice pillars orbiting the caster as a defensive '
-              'barrier for 2 seconds, then launches them outward as piercing '
-              'lances that split into frost clusters. '
-              'Higher Intelligence adds more pillars.',
+          'Glacier Crown • Intelligence scales count',
+          'Forms orbiting ice pillars, then launches them as piercing lances that split into frost clusters.',
           ['PIERCING', 'CLUSTER', 'BARRIER'],
         ),
         'Steam' => (
-          'Whiteout Veil • Intelligence scales count • Long cooldown',
-          'Deploys a fog zone of stationary snare clouds that massively slow '
-              'enemies, plus turret orbs that orbit inside the fog and fire '
-              'homing shots. Area denial + sustained damage. '
-              'Higher Intelligence adds more fog nodes and turrets.',
+          'Whiteout Veil • Intelligence scales count',
+          'Deploys snare clouds plus turret orbs that fire homing shots.',
           ['SNARE', 'TURRET', 'AREA DENIAL'],
         ),
         'Earth' => (
-          'Monolith Constellation • Strength scales count • Long cooldown',
-          'Summons massive orbiting stone decoy pillars that taunt enemies '
-              'away from you. When destroyed, each pillar explodes into a ring '
-              'of shrapnel. A defensive powerhouse. '
-              'Higher Strength summons more pillars.',
+          'Monolith Constellation • Strength scales count',
+          'Summons stone decoy pillars that taunt enemies and explode into shrapnel when destroyed.',
           ['DECOY', 'TAUNT', 'EXPLODES'],
         ),
         'Mud' => (
-          'Mire Eclipse • Strength scales count • Long cooldown',
-          'Creates a massive stationary snare zone at the target, then '
-              'launches heavy homing mud slugs that pierce through enemies and '
-              'leave persistent slowing trails. Locks down an area. '
-              'Higher Strength sends more slugs.',
+          'Mire Eclipse • Strength scales count',
+          'Creates a snare zone, then launches homing mud slugs that pierce and leave slowing trails.',
           ['SNARE', 'PIERCING', 'TRAIL'],
         ),
         'Dust' => (
-          'Sirocco Halo • Beauty scales count • Long cooldown',
-          'Unleashes a golden spiral swarm of tiny fast projectiles that '
-              'bounce between enemies. Death by a thousand cuts — clears out '
-              'groups of smaller enemies. '
-              'Higher Beauty spawns a denser swarm.',
+          'Sirocco Halo • Beauty scales count',
+          'Unleashes a spiral swarm of fast projectiles that bounce between enemies.',
           ['SWARM', 'BOUNCE', 'HOMING'],
         ),
         'Crystal' => (
-          'Prism Cathedral • Beauty scales count • Long cooldown',
-          'Fires prismatic shards that pierce, bounce between enemies, and '
-              'split into cluster fragments on each hit — creating chain '
-              'reaction explosions that multiply through groups. '
-              'Higher Beauty launches more shards.',
+          'Prism Cathedral • Beauty scales count',
+          'Fires prismatic shards that pierce, bounce, and split into fragments on hit.',
           ['PIERCING', 'BOUNCE', 'CLUSTER'],
         ),
         'Air' => (
-          'Cyclone Halo • Intelligence scales count • Long cooldown',
-          'Deploys a ship-following orbital ring of interceptor orbs that '
-              'block enemy projectiles AND deal damage on contact. A defensive '
-              'and offensive shield that moves with you. '
-              'Higher Intelligence adds more interceptors.',
+          'Cyclone Halo • Intelligence scales count',
+          'Deploys ship-following interceptor orbs that block enemy projectiles and deal contact damage.',
           ['INTERCEPT', 'ORBITAL', 'DEFENSE'],
         ),
         'Plant' => (
-          'Verdant Procession • Strength scales count • Long cooldown',
-          'Plants a line of vine turrets toward the target. Each turret fires '
-              'homing thorns for the duration, creating a sustained DPS lane. '
-              'Higher Strength plants more turrets.',
+          'Verdant Procession • Strength scales count',
+          'Plants vine turrets that fire homing thorns at nearby enemies.',
           ['TURRET', 'HOMING', 'SUSTAINED'],
         ),
         'Poison' => (
-          'Venom Halo • Intelligence scales count • Long cooldown',
-          'Deploys orbiting poison clouds that follow your ship, snaring '
-              'enemies that pass through and leaving persistent toxic trails. '
-              'An area denial ring that poisons everything nearby. '
-              'Higher Intelligence adds more clouds.',
+          'Venom Halo • Intelligence scales count',
+          'Deploys ship-following poison clouds that snare enemies and leave toxic trails.',
           ['SNARE', 'TRAIL', 'AREA DENIAL'],
         ),
         'Spirit' => (
-          'Wraith Chorus • Intelligence scales count • Long cooldown',
-          'Launches piercing ghost bolts with extreme homing that '
-              'relentlessly chase targets through any obstacle, leaving '
-              'spectral trails. Pure single-target hunter DPS. '
-              'Higher Intelligence sends more wraiths.',
+          'Wraith Chorus • Intelligence scales count',
+          'Launches piercing ghost bolts with strong homing and spectral trails.',
           ['PIERCING', 'HOMING', 'HUNTER'],
         ),
         'Dark' => (
-          'Eclipse Procession • Strength scales count • Long cooldown',
-          'Places stationary void wells that taunt enemies inward like '
-              'gravitational traps, snare them in place, then detonate in '
-              'massive cluster explosions. '
-              'Higher Strength places more void wells.',
+          'Eclipse Procession • Strength scales count',
+          'Places void wells that taunt, snare, and detonate into cluster explosions.',
           ['TAUNT', 'SNARE', 'CLUSTER'],
         ),
         'Light' => (
-          'Radiant Crown • Beauty scales count • Long cooldown',
-          'Deploys ship-orbiting turret sentinels that auto-fire homing '
-              'light bolts AND intercept incoming enemy projectiles. The '
-              'ultimate defense + offense orbital. '
-              'Higher Beauty adds more sentinels.',
+          'Radiant Crown • Beauty scales count',
+          'Deploys ship-orbiting sentinels that fire homing light bolts and intercept enemy projectiles.',
           ['TURRET', 'INTERCEPT', 'ORBITAL'],
         ),
         'Blood' => (
-          'Crimson Coronation • Strength scales count • Long cooldown',
-          'Launches heavy homing blood orbs that split into clusters and '
-              'leave crimson trails, while granting a massive self-heal and a '
-              'blessing aura. Life-steal fantasy. '
-              'Higher Strength launches more orbs.',
+          'Crimson Coronation • Strength scales count',
+          'Launches heavy homing blood orbs that split into clusters and leave crimson trails, plus a self-heal and blessing aura on cast.',
           ['HOMING', 'HEAL', 'BLESSING'],
         ),
         _ => (
-          'Guardian Ultimate • Single-slot impact • Long cooldown',
-          'Calls a $element guardian ultimate built for single-slot impact. '
-              'Element decides whether it becomes a collapse, zone, sentinel '
-              'ring, trap, turret lane, heavy projectile, or hunter swarm.',
+          'Guardian Ultimate • Single-slot impact',
+          'Element changes the ultimate into a collapse, zone, sentinel ring, trap, turret lane, heavy projectile, or hunter swarm.',
           <String>['GUARDIAN', 'ULTIMATE'],
         ),
       };
@@ -2186,14 +1638,12 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         subtitle: subtitle,
         description: desc,
         icon: AppIcons.auto_awesome,
-        tags: [...tags, 'ULTIMATE', 'LONG CD', element.toUpperCase()],
       );
     default:
       return const CosmicSpecialInfo(
         subtitle: '30s cooldown',
         description:
-            'Unleashes a burst of elemental energy at 2× damage. '
-            'Cooldown is reduced by Speed.',
+            'Base: Unleashes a burst of elemental energy. Special: Cooldown is reduced by Speed.',
         icon: AppIcons.auto_awesome,
       );
   }

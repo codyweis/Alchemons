@@ -2883,6 +2883,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                   appliedPowerUps:
                                       companionHistory[index] ?? const [],
                                   powerUps: game.powerUps,
+                                  vineFeedCount:
+                                      game.maskPlantFeedCount(index),
                                   onPowerUpTap: (entry) => _showPowerUpInfo(
                                     entry.def,
                                     game.powerUps,
@@ -3304,6 +3306,47 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                         height: 1,
                       ),
                     ),
+                  ),
+                ),
+              // Mask+Plant vine feed badge (top-left). Shows current
+              // feeds/100 + active tendril count so the player can
+              // track vine growth without leaving the run.
+              if (isActive &&
+                  member.family.toLowerCase() == 'mask' &&
+                  member.element == 'Plant')
+                Positioned(
+                  top: -2,
+                  left: -2,
+                  child: Builder(
+                    builder: (_) {
+                      final feeds = game.maskPlantFeedCount(slotIndex);
+                      final tendrils = (1 + (feeds ~/ 10)).clamp(1, 10);
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: const Color(
+                              0xFF6FCB6F,
+                            ).withValues(alpha: 0.85),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          '$feeds·${tendrils}t',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               if (isTethered)
@@ -4128,6 +4171,9 @@ class _PauseCompanionCard extends StatelessWidget {
   final PowerUpState powerUps;
   final ValueChanged<AppliedPowerUp> onPowerUpTap;
   final VoidCallback onTap;
+  /// Mask+Plant only — current vine feed count for the slot
+  /// (0–100). Ignored for other families.
+  final int vineFeedCount;
 
   const _PauseCompanionCard({
     required this.member,
@@ -4136,6 +4182,7 @@ class _PauseCompanionCard extends StatelessWidget {
     required this.powerUps,
     required this.onPowerUpTap,
     required this.onTap,
+    this.vineFeedCount = 0,
   });
 
   @override
@@ -4278,6 +4325,31 @@ class _PauseCompanionCard extends StatelessWidget {
                 ),
               ],
             ),
+            // Mask+Plant: live vine growth readout — feed count,
+            // tendril count, and a horizontal progress bar toward
+            // the 100-feed max. Hidden for any other family/element.
+            if (member.family.toLowerCase() == 'mask' &&
+                member.element == 'Plant') ...[
+              const SizedBox(height: 8),
+              _PauseVineReadout(feeds: vineFeedCount),
+            ],
+            // Generic "Active State" panel — surfaces any live
+            // stacking / collecting / timer state the companion is
+            // currently tracking (Wing+Plant flowers, Pip+Spirit
+            // kills, Pip+Steam window, Kin+Steam stacks, Kin+Spirit
+            // wisp tier, Kin+Mud ship enchant timer, Kin+Dark cloak,
+            // Kin+Blood pact, Kin+Lava plate, Kin+Lightning charge,
+            // Kin+Ice charge, Kin+Fire phoenix-armed, etc.).
+            if (live != null) ...[
+              () {
+                final entries = _liveStateEntries(member, live);
+                if (entries.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: _PauseLiveStatePanel(entries: entries),
+                );
+              }(),
+            ],
             const SizedBox(height: 8),
             const Text(
               'ALCHEMON PERKS',
@@ -4333,6 +4405,207 @@ class _PauseCompanionCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Extract any live-state readouts to render in the pause card.
+/// Each entry is `(label, value)` — label is the metric, value is
+/// the live state ("3/10", "47/100 · 5t", "12s", "ARMED", etc.).
+/// Returns empty when nothing notable is active.
+List<(String, String)> _liveStateEntries(
+  CosmicPartyMember member,
+  CosmicSurvivalCompanion live,
+) {
+  final fam = member.family.toLowerCase();
+  final el = member.element;
+  final out = <(String, String)>[];
+
+  String timer(double t) => t > 0 ? '${t.toStringAsFixed(1)}s' : '—';
+
+  // Wing+Plant: flower count → beam-damage stacks (cap 50)
+  if (fam == 'wing' && el == 'Plant' && live.abilityKillStacks > 0) {
+    out.add(('Flowers collected', '${live.abilityKillStacks}/50'));
+  }
+  // Pip+Spirit: kill stacks toward empower
+  if (fam == 'pip' && el == 'Spirit') {
+    out.add(('Spirit stacks', '${live.abilityKillStacks}'));
+    if (live.pipSpiritEmpowerTimer > 0) {
+      out.add(('Empower window', timer(live.pipSpiritEmpowerTimer)));
+    }
+  }
+  // Pip+Steam: ramp window timer
+  if (fam == 'pip' && el == 'Steam' && live.pipSteamWindowTimer > 0) {
+    out.add(('Steam ramp', timer(live.pipSteamWindowTimer)));
+  }
+  // Mask+Spirit: collected wisp bank
+  if (fam == 'mask' && el == 'Spirit') {
+    out.add(('Wisp bank', '${live.maskSpiritWispBank}/6'));
+  }
+  // Kin+Steam boiler
+  if (fam == 'kin' && el == 'Steam') {
+    if (live.kinSteamBoilerTimer > 0) {
+      out.add(('Boiler', '${live.kinSteamBoilerStacks}/10 stacks'));
+      out.add(('Duration left', timer(live.kinSteamBoilerTimer)));
+    }
+  }
+  // Kin+Spirit wisp
+  if (fam == 'kin' && el == 'Spirit') {
+    out.add(('Wisp kills', '${live.kinSpiritWispKills}'));
+  }
+  // Kin+Mud ship enchant
+  if (fam == 'kin' && el == 'Mud' && live.kinMudShipEnchantTimer > 0) {
+    out.add(('Mud trail', timer(live.kinMudShipEnchantTimer)));
+  }
+  // Kin+Fire passive (always shown when alive)
+  if (fam == 'kin' && el == 'Fire') {
+    out.add((
+      'Phoenix guard',
+      live.kinFireOrbitalFlameActive ? 'FLAME (permanent)' : 'ARMED',
+    ));
+  }
+  // Kin+Dark cloak
+  if (fam == 'kin' && el == 'Dark' && live.kinDarkCloakTimer > 0) {
+    out.add(('Cloak', timer(live.kinDarkCloakTimer)));
+  }
+  // Kin+Blood pact
+  if (fam == 'kin' && el == 'Blood' && live.kinBloodPactTimer > 0) {
+    out.add(('Blood pact', timer(live.kinBloodPactTimer)));
+  }
+  // Kin+Lava plate
+  if (fam == 'kin' && el == 'Lava' && live.kinLavaPlateTimer > 0) {
+    out.add(('Molten plate', timer(live.kinLavaPlateTimer)));
+  }
+  // Kin+Ice charge
+  if (fam == 'kin' && el == 'Ice' && live.kinIceChargeTimer > 0) {
+    out.add(('Frost charge', timer(live.kinIceChargeTimer)));
+  }
+  // Kin+Lightning charge
+  if (fam == 'kin' &&
+      el == 'Lightning' &&
+      live.kinLightningChargeTimer > 0) {
+    out.add(('Tesla charge', timer(live.kinLightningChargeTimer)));
+  }
+  return out;
+}
+
+/// Generic key/value readout panel for the pause card's live state.
+class _PauseLiveStatePanel extends StatelessWidget {
+  final List<(String, String)> entries;
+  const _PauseLiveStatePanel({required this.entries});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ACTIVE STATE',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: _C.amberBright,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 14,
+          runSpacing: 4,
+          children: [
+            for (final entry in entries)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${entry.$1}: ',
+                    style: const TextStyle(
+                      color: _C.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    entry.$2,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Mask+Plant pause-menu vine readout: feeds/100 + tendril count
+/// header, plus a thin progress bar to show growth toward max.
+class _PauseVineReadout extends StatelessWidget {
+  final int feeds;
+  const _PauseVineReadout({required this.feeds});
+
+  @override
+  Widget build(BuildContext context) {
+    const maxFeeds = 100;
+    final clamped = feeds.clamp(0, maxFeeds);
+    final tendrils = (1 + (clamped ~/ 10)).clamp(1, 10);
+    final progress = clamped / maxFeeds;
+    const vineColor = Color(0xFF6FCB6F);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'VINE GROWTH',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: vineColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$clamped/$maxFeeds  ·  $tendrils tendril${tendrils == 1 ? '' : 's'}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: Container(
+            height: 5,
+            color: Colors.black.withValues(alpha: 0.55),
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: progress.clamp(0.0, 1.0).toDouble(),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: vineColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: vineColor.withValues(alpha: 0.55),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -4505,16 +4778,74 @@ class _InfoBlock extends StatelessWidget {
               ),
             ),
           if (value != null) const SizedBox(height: 2),
-          Text(
-            text,
-            style: const TextStyle(
-              color: _C.textSecondary,
-              fontSize: 12,
-              height: 1.35,
-            ),
-          ),
+          _PauseAbilityDescriptionText(text: text),
         ],
       ),
+    );
+  }
+}
+
+class _PauseAbilityDescriptionText extends StatelessWidget {
+  final String text;
+
+  const _PauseAbilityDescriptionText({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = cosmicAbilityDescriptionLines(text);
+    if (lines.length == 1 && lines.first.label.isEmpty) {
+      return Text(
+        lines.first.body,
+        style: const TextStyle(
+          color: _C.textSecondary,
+          fontSize: 12,
+          height: 1.35,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < lines.length; i++) ...[
+          if (i > 0) const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                constraints: const BoxConstraints(minWidth: 58),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _C.teal.withValues(alpha: 0.10),
+                  border: Border.all(color: _C.teal.withValues(alpha: 0.34)),
+                ),
+                child: Text(
+                  lines[i].label.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: _C.teal,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  lines[i].body,
+                  style: const TextStyle(
+                    color: _C.textSecondary,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

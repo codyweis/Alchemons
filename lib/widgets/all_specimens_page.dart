@@ -91,7 +91,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
             : null,
         backgroundColor: palette.bg1,
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
+          preferredSize: const Size.fromHeight(68),
           child: Container(
             decoration: BoxDecoration(
               color: palette.bg0,
@@ -104,7 +104,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                 child: Row(
                   children: [
                     if (widget.leadingIcon != null) ...[
@@ -115,26 +115,28 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
                         tooltip: widget.leadingTooltip,
                         onTap: widget.onLeadingTap ?? _closePage,
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                     ],
                     Expanded(
                       child: CustomPaint(
                         painter: BracketFramePainter(
-                          color: palette.line.withValues(alpha: 0.7),
+                          color: palette.line.withValues(alpha: 0.55),
                           bracketSize: 8,
-                          strokeWidth: 1.05,
+                          strokeWidth: 1.0,
                         ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
-                            vertical: 8,
+                            vertical: 9,
                           ),
-                          color: palette.surfaceMutedFill(),
+                          color: palette.isDark
+                              ? Colors.white.withValues(alpha: 0.03)
+                              : Colors.black.withValues(alpha: 0.025),
                           child: Row(
                             children: [
                               Icon(
                                 AppIcons.search_rounded,
-                                size: 16,
+                                size: 15,
                                 color: palette.muted,
                               ),
                               const SizedBox(width: 8),
@@ -166,51 +168,66 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
                                   },
                                 ),
                               ),
+                              // Inline clear icon — appears only when there's
+                              // text in the field. Replaces the always-visible
+                              // standalone "Clear" button.
+                              if (_searchText.isNotEmpty)
+                                GestureDetector(
+                                  onTap: () => setState(() {
+                                    _searchText = '';
+                                    _searchController.clear();
+                                  }),
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(left: 6),
+                                    child: Icon(
+                                      AppIcons.close_rounded,
+                                      size: 14,
+                                      color: palette.muted,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _searchText = '';
-                        _searchController.clear();
-                        _clearVersion++;
-                      }),
-                      child: CustomPaint(
-                        painter: BracketFramePainter(
-                          color: _hasResettableState
-                              ? activeAccent
-                              : palette.line.withValues(alpha: 0.6),
-                          bracketSize: 7,
-                          strokeWidth: _hasResettableState ? 1.2 : 1.0,
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 9,
+                    // Global "reset everything" button — sort, filters, search.
+                    // Only appears when there's something to reset.
+                    if (_hasResettableState) ...[
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: () => setState(() {
+                          _searchText = '';
+                          _searchController.clear();
+                          _clearVersion++;
+                        }),
+                        child: CustomPaint(
+                          painter: BracketFramePainter(
+                            color: activeAccent,
+                            bracketSize: 7,
+                            strokeWidth: 1.2,
                           ),
-                          color: _hasResettableState
-                              ? palette.accentWash(theme.accent)
-                              : palette.surfaceMutedFill(),
-                          child: Text(
-                            'Clear',
-                            style: bracketText(
-                              context,
-                              12,
-                              _hasResettableState
-                                  ? palette.ink
-                                  : palette.muted,
-                              weight: _hasResettableState
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
-                              letterSpacing: 0.6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            color: palette.accentWash(theme.accent),
+                            child: Text(
+                              'RESET',
+                              style: bracketText(
+                                context,
+                                11,
+                                palette.ink,
+                                weight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -286,17 +303,18 @@ class _HeaderSquareButton extends StatelessWidget {
       message: tooltip,
       child: GestureDetector(
         onTap: onTap,
+        behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           painter: BracketFramePainter(
-            color: displayAccent.withValues(alpha: 0.82),
+            color: displayAccent.withValues(alpha: 0.6),
             bracketSize: 7,
-            strokeWidth: 1.05,
+            strokeWidth: 1.0,
           ),
           child: Container(
-            width: 38,
-            height: 38,
+            width: 40,
+            height: 40,
             alignment: Alignment.center,
-            color: palette.surfaceFill(lightAlpha: 0.94),
+            color: Colors.transparent,
             child: Icon(icon, color: displayAccent, size: 16),
           ),
         ),

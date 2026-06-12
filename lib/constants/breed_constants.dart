@@ -84,8 +84,6 @@ class BreedConstants {
         return AppIcons.diamond_rounded;
       case 'Plant':
         return AppIcons.eco_rounded;
-      case 'Storm':
-        return AppIcons.thunderstorm_rounded;
       case 'Poison':
         return AppIcons.dangerous_rounded;
       case 'Spirit':

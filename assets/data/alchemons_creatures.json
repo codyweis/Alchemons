@@ -804,7 +804,7 @@
       "spriteData": {
         "frameWidth": 250,
         "frameHeight": 250,
-        "totalFrames": 6,
+        "totalFrames": 4,
         "frameDurationMs": 100
       }
     },

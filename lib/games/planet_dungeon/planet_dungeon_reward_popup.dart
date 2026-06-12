@@ -1,0 +1,678 @@
+// lib/games/planet_dungeon/planet_dungeon_reward_popup.dart
+//
+// End-of-run reward popup. Reveals the stars secured this expedition and
+// grants each star's reward (Star 3 is the player's choice of three —
+// highlight a card first, then confirm). Styled to match the dungeon HUD:
+// dark alchemical panel, bracket corners, monospace headings, amber glow.
+
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
+import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
+import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:flutter/material.dart';
+
+class _C {
+  static const bg = Color(0xFF080808);
+  static const bg2 = Color(0xFF111722);
+  static const panel = Color(0xFF14120E);
+  static const amber = Color(0xFFC4A35A);
+  static const amberBright = Color(0xFFE4C16A);
+  static const border = Color(0xFF74613A);
+  static const text = Color(0xFFE8DFC8);
+  static const muted = Color(0xFF9C9078);
+  static const cyan = Color(0xFF5BC8E8);
+}
+
+/// HUD-style corner brackets (mirrors the in-dungeon button chrome).
+
+class DungeonRewardPopup extends StatefulWidget {
+  const DungeonRewardPopup({
+    super.key,
+    required this.element,
+    required this.stars,
+    required this.db,
+    required this.onContinue,
+    this.onStarClaimed,
+  });
+
+  /// Planet element — drives the guardian-relic grant and its artwork.
+  final String element;
+
+  /// Pending star indices (subset of [0,1,2], ascending).
+  final List<int> stars;
+  final AlchemonsDatabase db;
+  final VoidCallback onContinue;
+
+  /// Called right after a star's reward is granted so the claim flag can be
+  /// persisted immediately (a force-quit mid-popup must not re-grant).
+  final Future<void> Function(int starIndex)? onStarClaimed;
+
+  @override
+  State<DungeonRewardPopup> createState() => _DungeonRewardPopupState();
+}
+
+class _DungeonRewardPopupState extends State<DungeonRewardPopup>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _intro;
+  final Map<int, List<String>> _lines = {};
+  Star3Choice? _choice;
+  Star3Choice? _highlighted;
+  bool _busy = false;
+  bool _relicIncoming = false;
+
+  bool get _needStar3 => widget.stars.contains(2);
+  bool get _star3Resolved => !_needStar3 || _choice != null;
+  bool get _autoDone =>
+      widget.stars.where((s) => s != 2).every(_lines.containsKey);
+  bool get _canContinue => _autoDone && _star3Resolved && !_busy;
+
+  @override
+  void initState() {
+    super.initState();
+    _intro = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+    _checkRelicIncoming();
+    _grantAuto();
+  }
+
+  Future<void> _checkRelicIncoming() async {
+    if (!_needStar3) return;
+    final traitKey = BossLootKeys.traitKeyForElement(widget.element);
+    final qty = await widget.db.inventoryDao.getItemQty(traitKey);
+    if (mounted && qty == 0) setState(() => _relicIncoming = true);
+  }
+
+  Future<void> _grantAuto() async {
+    for (final s in widget.stars) {
+      if (s == 2) continue;
+      final lines = await grantStarReward(
+        db: widget.db,
+        element: widget.element,
+        starIndex: s,
+      );
+      await widget.onStarClaimed?.call(s);
+      if (mounted) setState(() => _lines[s] = lines);
+    }
+  }
+
+  Future<void> _pickStar3(Star3Choice c) async {
+    if (_busy || _choice != null) return;
+    setState(() => _busy = true);
+    final lines = await grantStarReward(
+      db: widget.db,
+      element: widget.element,
+      starIndex: 2,
+      choice: c,
+    );
+    await widget.onStarClaimed?.call(2);
+    if (!mounted) return;
+    setState(() {
+      _choice = c;
+      _lines[2] = lines;
+      _busy = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _intro.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final curved = CurvedAnimation(parent: _intro, curve: Curves.easeOutBack);
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque, // absorb taps to the game behind
+        onTap: () {},
+        child: ColoredBox(
+          color: _C.bg.withValues(alpha: 0.78),
+          child: Center(
+            child: FadeTransition(
+              opacity: _intro,
+              child: ScaleTransition(
+                scale: Tween(begin: 0.85, end: 1.0).animate(curved),
+                child: _panel(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _panel() {
+    return CustomPaint(
+      painter: const DungeonBracketPainter(
+        color: _C.amberBright,
+        bracketSize: 12,
+      ),
+      child: Container(
+        width: 360,
+        constraints: const BoxConstraints(maxHeight: 560),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+        decoration: BoxDecoration(
+          color: _C.panel,
+          border: Border.all(color: _C.border, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: _C.amber.withValues(alpha: 0.16),
+              blurRadius: 30,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _header(),
+            const SizedBox(height: 14),
+            _starRow(),
+            const SizedBox(height: 16),
+            // The Star 3 CHOICE is the actionable block — pin it above the
+            // scroll area while unresolved so it can never hide below the
+            // fold behind the granted-reward lists.
+            if (_needStar3 && _choice == null) _rewardBlock(2),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (final s in widget.stars)
+                      if (!(s == 2 && _needStar3 && _choice == null))
+                        _rewardBlock(s),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _bottomButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _headerRule(),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: Icon(
+                Icons.star_rounded,
+                color: _C.amberBright,
+                size: 14,
+                shadows: [Shadow(color: _C.amberBright, blurRadius: 8)],
+              ),
+            ),
+            _headerRule(),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'EXPEDITION COMPLETE',
+          style: TextStyle(
+            color: _C.amberBright,
+            fontFamily: 'monospace',
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2.4,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${widget.stars.length} star${widget.stars.length == 1 ? '' : 's'} secured this run',
+          style: const TextStyle(
+            color: _C.muted,
+            fontSize: 11,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _headerRule() {
+    return Container(
+      width: 64,
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _C.border.withValues(alpha: 0.0),
+            _C.amber.withValues(alpha: 0.7),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _starRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < 3; i++)
+          ScaleTransition(
+            scale: CurvedAnimation(
+              parent: _intro,
+              curve: Interval(
+                0.15 + i * 0.18,
+                (0.55 + i * 0.18).clamp(0.0, 1.0),
+                curve: Curves.easeOutBack,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Icon(
+                widget.stars.contains(i)
+                    ? Icons.star_rounded
+                    : Icons.star_border_rounded,
+                color: widget.stars.contains(i) ? _C.amberBright : _C.border,
+                size: 38,
+                shadows: widget.stars.contains(i)
+                    ? const [Shadow(color: _C.amberBright, blurRadius: 14)]
+                    : null,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// The actual item art the rest of the game uses: the metallic gold coin,
+  /// the branded glowing powerup orbs, and the extractor artwork.
+  Widget _rewardArt(String line, double size) {
+    if (line.contains('Guardian Relic')) return _relicArt(size);
+    if (line.contains('Gold')) return CoinIcon.gold(size: size);
+    if (line.contains('Extractor')) {
+      return Image.asset(
+        'assets/images/ui/instantbreedicon.png',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+      );
+    }
+    final type = line.contains('Speed')
+        ? AlchemicalPowerupType.speed
+        : line.contains('Intelligence')
+        ? AlchemicalPowerupType.intelligence
+        : line.contains('Strength')
+        ? AlchemicalPowerupType.strength
+        : line.contains('Beauty')
+        ? AlchemicalPowerupType.beauty
+        : null;
+    if (type != null) return _powerupOrb(type, size);
+    return Icon(Icons.auto_awesome_rounded, size: size, color: _C.amberBright);
+  }
+
+  /// A powerup as it appears everywhere else: a glowing orb in its stat
+  /// colour with the branded glyph.
+  Widget _powerupOrb(AlchemicalPowerupType type, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          center: const Alignment(-0.3, -0.35),
+          colors: [
+            Color.lerp(type.color, Colors.white, 0.45)!,
+            type.color,
+            Color.lerp(type.color, Colors.black, 0.45)!,
+          ],
+          stops: const [0.0, 0.55, 1.0],
+        ),
+        boxShadow: [BoxShadow(color: type.glowColor, blurRadius: size * 0.45)],
+      ),
+      child: Icon(type.icon, size: size * 0.58, color: Colors.white),
+    );
+  }
+
+  /// The planet's relic artwork with an amber bloom — the headline reward.
+  Widget _relicArt(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: _C.amberBright.withValues(alpha: 0.55),
+            blurRadius: size * 0.6,
+          ),
+        ],
+      ),
+      child: Image.asset(
+        'assets/images/relics/${widget.element.toLowerCase()}relic.png',
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) =>
+            Icon(Icons.shield_moon_rounded, size: size, color: _C.amberBright),
+      ),
+    );
+  }
+
+  /// Shown above the Star-3 choice cards: the relic is guaranteed, the
+  /// choice is on top of it.
+  Widget _relicBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: _C.amberBright.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _C.amberBright.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          _relicArt(30),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  guardianRelicName(widget.element).toUpperCase(),
+                  style: const TextStyle(
+                    color: _C.amberBright,
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Guardian Relic — yours with any choice below',
+                  style: TextStyle(color: _C.muted, fontSize: 10.5),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rewardBlock(int star) {
+    final lines = _lines[star];
+    final needChoice = star == 2 && _choice == null;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _C.bg.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _C.border.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.star_rounded,
+                size: 12,
+                color: _C.amber.withValues(alpha: 0.9),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'STAR ${star + 1}',
+                style: const TextStyle(
+                  color: _C.amber,
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.6,
+                ),
+              ),
+              if (needChoice) ...[
+                const Spacer(),
+                Text(
+                  _highlighted == null ? 'PICK ONE' : 'CONFIRM BELOW',
+                  style: TextStyle(
+                    color: _C.cyan.withValues(alpha: 0.85),
+                    fontFamily: 'monospace',
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (needChoice) ...[
+            if (_relicIncoming) _relicBanner(),
+            _choiceCards(),
+          ] else
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              child: lines == null
+                  ? const SizedBox(
+                      key: ValueKey('wait'),
+                      height: 18,
+                      child: Text('…', style: TextStyle(color: _C.muted)),
+                    )
+                  : Column(
+                      key: const ValueKey('lines'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final l in lines)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Row(
+                              children: [
+                                _rewardArt(l, 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    l,
+                                    style: const TextStyle(
+                                      color: _C.text,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Choice-card art: the gold coin, a twin pair of powerup orbs, or the
+  /// extractor artwork — the items as the player knows them.
+  Widget _choiceArt(Star3Choice c, double size, {required bool selected}) {
+    final art = switch (c) {
+      Star3Choice.gold => CoinIcon.gold(size: size),
+      Star3Choice.extractors => Image.asset(
+        'assets/images/ui/instantbreedicon.png',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+      ),
+      Star3Choice.powerups => SizedBox(
+        width: size * 1.3,
+        height: size,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              top: size * 0.12,
+              child: _powerupOrb(AlchemicalPowerupType.speed, size * 0.74),
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: _powerupOrb(AlchemicalPowerupType.beauty, size * 0.74),
+            ),
+          ],
+        ),
+      ),
+    };
+    if (!selected) return art;
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: _C.amberBright.withValues(alpha: 0.45),
+            blurRadius: 16,
+          ),
+        ],
+      ),
+      child: art,
+    );
+  }
+
+  /// Star-3 choice cards. First tap highlights a card; the bottom button (or a
+  /// second tap on the same card) confirms — no accidental one-tap claims.
+  Widget _choiceCards() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final c in Star3Choice.values)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: _choiceCard(c),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _choiceCard(Star3Choice c) {
+    final selected = _highlighted == c;
+    return GestureDetector(
+      onTap: _busy
+          ? null
+          : () {
+              if (selected) {
+                _pickStar3(c); // second tap on the highlighted card confirms
+              } else {
+                setState(() => _highlighted = c);
+              }
+            },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: selected ? _C.bg2 : _C.panel,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? _C.amberBright : _C.border.withValues(alpha: 0.7),
+            width: selected ? 1.6 : 1.0,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: _C.amberBright.withValues(alpha: 0.22),
+                    blurRadius: 14,
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              height: 34,
+              child: Center(child: _choiceArt(c, 30, selected: selected)),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              star3ChoiceTitle(c),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: selected ? _C.amberBright : _C.text,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              star3ChoiceSubtitle(c),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: _C.muted, fontSize: 9),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Bottom button morphs through the flow:
+  ///   choose → highlight → CONFIRM (choice) → CONTINUE.
+  Widget _bottomButton() {
+    final awaitingChoice = _needStar3 && _choice == null;
+    final String label;
+    final bool enabled;
+    final VoidCallback? action;
+    if (awaitingChoice && _highlighted == null) {
+      label = 'SELECT A STAR 3 REWARD';
+      enabled = false;
+      action = null;
+    } else if (awaitingChoice) {
+      label = 'CONFIRM — ${star3ChoiceTitle(_highlighted!).toUpperCase()}';
+      enabled = !_busy;
+      action = () => _pickStar3(_highlighted!);
+    } else {
+      label = 'CONTINUE';
+      enabled = _canContinue;
+      action = widget.onContinue;
+    }
+    return GestureDetector(
+      onTap: enabled ? action : null,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: enabled ? 1.0 : 0.4,
+        child: CustomPaint(
+          painter: DungeonBracketPainter(
+            color: _C.amberBright.withValues(alpha: enabled ? 0.8 : 0.35),
+            bracketSize: 8,
+            strokeWidth: 1.2,
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            decoration: BoxDecoration(
+              color: _C.bg.withValues(alpha: 0.85),
+              border: Border.all(
+                color: _C.amberBright.withValues(alpha: enabled ? 0.9 : 0.4),
+                width: 1.2,
+              ),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _C.amberBright,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                letterSpacing: 1.6,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

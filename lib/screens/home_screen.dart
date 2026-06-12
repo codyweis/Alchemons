@@ -7,8 +7,7 @@ import 'package:alchemons/screens/pureblood_rite_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/navigation/world_transition.dart';
-import 'package:alchemons/screens/battle_mode_screen.dart';
-import 'package:alchemons/screens/boss/boss_intro_screen.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/cosmic/cosmic_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
@@ -16,10 +15,10 @@ import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_points_widget.dart';
 import 'package:alchemons/screens/mystic_altar/mystic_altar_screen.dart';
-import 'package:alchemons/data/boss_data.dart';
+import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/inventory.dart';
-import 'package:alchemons/providers/boss_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
@@ -570,6 +569,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _harvestNotificationStateHydrated = false;
 
   bool _isFieldTutorialActive = false;
+  bool _hasAnyRelic = false;
   bool _tutorialCheckInProgress =
       false; // prevents double-fire from didUpdateWidget + didPopNext
   bool _arcanePortalUnlocked = false;
@@ -947,7 +947,8 @@ class _HomeScreenState extends State<HomeScreen>
       final spawnService = context.read<WildernessSpawnService>();
 
       await _grantStarterIfNeeded(faction, spawnService);
-      await _seedMissingBossTraitKeys();
+      await _migrateLegacyBossRelics();
+      await _refreshHasAnyRelic();
 
       // Load featured hero
       final featuredInstance = await _loadFeaturedInstanceOrAuto();
@@ -1874,27 +1875,7 @@ class _HomeScreenState extends State<HomeScreen>
 
                         onBattle: _isFieldTutorialActive
                             ? () {}
-                            : () {
-                                HapticFeedback.mediumImpact();
-                                Navigator.push(
-                                  context,
-                                  CupertinoPageRoute(
-                                    builder: (_) => const GameModeScreen(),
-                                    fullscreenDialog: true,
-                                  ),
-                                );
-                              },
-                        onBoss: _isFieldTutorialActive
-                            ? () {}
-                            : () {
-                                HapticFeedback.mediumImpact();
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const BossBattleScreen(),
-                                  ),
-                                );
-                              },
+                            : () => async.unawaited(_openCosmicSurvival()),
                         onMysticAltar: null,
                       ),
                     ),
@@ -1938,10 +1919,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     ),
                                   ],
                                 ),
-                                if (context
-                                        .watch<BossProgressNotifier>()
-                                        .totalBossesDefeated >
-                                    0) ...[
+                                if (_hasAnyRelic) ...[
                                   const SizedBox(height: 4),
                                   GestureDetector(
                                     onTap: () {
@@ -2144,32 +2122,80 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// One-time migration: grant trait keys for bosses already beaten before
-  /// the Mystic Altar feature was introduced.
-  Future<void> _seedMissingBossTraitKeys() async {
+  /// One-time migration: saves that defeated turn-based gauntlet bosses
+  /// (feature removed) keep the relics those defeats earned.
+  Future<void> _migrateLegacyBossRelics() async {
     if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
-    final bossProgress = context.read<BossProgressNotifier>();
+    final done = await db.settingsDao.getSetting(
+      'legacy_boss_relic_migration_done',
+    );
+    if (done == '1') return;
 
-    // Wait for SharedPreferences to finish loading into the notifier
-    if (!bossProgress.isLoaded) {
-      await Future.doWhile(() async {
-        await Future.delayed(const Duration(milliseconds: 50));
-        return !bossProgress.isLoaded;
-      });
-    }
-
-    if (!mounted) return;
-
-    for (final boss in BossRepository.allBosses) {
-      if (!bossProgress.isBossDefeated(boss.id)) continue;
-      final traitKey = BossLootKeys.traitKeyForElement(boss.element);
-      final qty = await db.inventoryDao.getItemQty(traitKey);
-      if (qty == 0) {
-        await db.inventoryDao.addItemQty(traitKey, 1);
-        debugPrint('🔑 Seeded missing trait key: $traitKey (${boss.name})');
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('boss_progress');
+    if (raw != null && raw.isNotEmpty) {
+      final data = Uri.splitQueryString(raw);
+      for (final entry in kLegacyBossIdToElement.entries) {
+        final count = int.tryParse(data[entry.key] ?? '0') ?? 0;
+        if (count <= 0) continue;
+        final traitKey = BossLootKeys.traitKeyForElement(entry.value);
+        final qty = await db.inventoryDao.getItemQty(traitKey);
+        if (qty == 0) {
+          await db.inventoryDao.addItemQty(traitKey, 1);
+          debugPrint('🔑 Migrated legacy boss relic: $traitKey');
+        }
       }
     }
+    await db.settingsDao.setSetting('legacy_boss_relic_migration_done', '1');
+  }
+
+  /// The Mystic Altar shortcut shows once the player owns (or has placed)
+  /// any relic.
+  Future<void> _refreshHasAnyRelic() async {
+    if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
+    var found = false;
+    for (final entry in kAltarEntries) {
+      final qty = await db.inventoryDao.getItemQty(
+        BossLootKeys.traitKeyForElement(entry.element),
+      );
+      if (qty > 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      final placed = await db.altarDao.getRelicPlacedIds(
+        kAltarEntries.map((e) => e.id).toList(),
+      );
+      found = placed.isNotEmpty;
+    }
+    if (mounted && found != _hasAnyRelic) {
+      setState(() => _hasAnyRelic = found);
+    }
+  }
+
+  Future<void> _openCosmicSurvival() async {
+    HapticFeedback.mediumImpact();
+    final db = context.read<AlchemonsDatabase>();
+    final unlocked = await db.settingsDao.isCosmicSurvivalPortalDiscovered();
+    if (!mounted) return;
+    if (!unlocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Discover the cosmic portal to unlock Survival.'),
+        ),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (_) => const CosmicSurvivalScreen(),
+        fullscreenDialog: true,
+      ),
+    );
   }
 
   Future<void> _grantStarterIfNeeded(

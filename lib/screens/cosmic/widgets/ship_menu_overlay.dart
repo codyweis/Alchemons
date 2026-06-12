@@ -128,7 +128,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
       final qty = await db.inventoryDao.getItemQty(key);
       if (qty > 0) items[key] = qty;
     }
-    for (final key in [InvKeys.staminaPotion, InvKeys.bossRefresh]) {
+    for (final key in [InvKeys.staminaPotion, InvKeys.raidBeacon]) {
       final qty = await db.inventoryDao.getItemQty(key);
       if (qty > 0) items[key] = qty;
     }
