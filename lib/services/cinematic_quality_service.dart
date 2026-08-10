@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum CinematicQuality { balanced, performance }
+enum CinematicQuality { cinematic, performance }
 
 class CinematicQualityService {
   static const String _key = 'visual.cinematic_quality';
-  static const CinematicQuality _defaultQuality = CinematicQuality.performance;
+  static const CinematicQuality _defaultQuality = CinematicQuality.cinematic;
   static CinematicQuality? _cached;
   static bool _hydrated = false;
   static final ValueNotifier<CinematicQuality> qualityNotifier =

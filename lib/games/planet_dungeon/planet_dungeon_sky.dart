@@ -44,7 +44,58 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
     flowSpeed: 0.6,
     seed: 7.0,
   ),
-  // Other 16 elements: add config + built/<el>.frag to enable. Until then they
+  // Fire (Cinder Cathedral) — soot vault lit from below; ember highlights.
+  'Fire': DungeonSkyConfig(
+    colorA: Color(0xFF140A07), // soot-black vault
+    colorB: Color(0xFF452010), // ember dusk pooling low
+    colorC: Color(0xFFFFB46B), // flame highlight
+    intensity: 1.0,
+    noiseScale: 2.3,
+    flowSpeed: 0.55,
+    seed: 13.0,
+  ),
+  // Water (Mirror-Tide Temple) — drowned hall: caustics, god-rays, bubbles.
+  'Water': DungeonSkyConfig(
+    colorA: Color(0xFF050E18), // abyssal ceiling
+    colorB: Color(0xFF0E3644), // deep teal
+    colorC: Color(0xFF8FE0EC), // caustic highlight
+    intensity: 1.0,
+    noiseScale: 2.2,
+    flowSpeed: 0.6,
+    seed: 21.0,
+  ),
+  // Earth (Buried Giant) — sediment strata, seismic pulse, crystal glints.
+  'Earth': DungeonSkyConfig(
+    colorA: Color(0xFF0C0905), // packed dark earth
+    colorB: Color(0xFF2E2214), // strata mid
+    colorC: Color(0xFFD8B878), // bone-amber highlight
+    intensity: 1.0,
+    noiseScale: 2.4,
+    flowSpeed: 0.55,
+    seed: 34.0,
+  ),
+  // Lightning (Storm Circuit) — charged storm-dark veined with electric blue
+  // and arc-white; branching veins, sheet-flashes, rising charge motes.
+  'Lightning': DungeonSkyConfig(
+    colorA: Color(0xFF070C16), // packed storm-dark
+    colorB: Color(0xFF1E3A66), // charged blue
+    colorC: Color(0xFFBFE6FF), // arc-white highlight
+    intensity: 1.05,
+    noiseScale: 2.5,
+    flowSpeed: 0.7,
+    seed: 47.0,
+  ),
+  // Steam (Pressure Cathedral) — iron boiler gloom, rising mist, furnace embers.
+  'Steam': DungeonSkyConfig(
+    colorA: Color(0xFF0E1418), // iron dark
+    colorB: Color(0xFF8FA6B0), // steam grey-white
+    colorC: Color(0xFFFFB46B), // furnace ember
+    intensity: 1.0,
+    noiseScale: 2.3,
+    flowSpeed: 0.6,
+    seed: 58.0,
+  ),
+  // Other 11 elements: add config + built/<el>.frag to enable. Until then they
   // use the gradient fallback automatically.
 };
 

@@ -187,6 +187,7 @@ InteractionQuality evaluateInteraction(
 
 const Map<String, String> _dungeonRecipes = {
   'Air+Fire': 'Lightning',
+  'Earth+Fire': 'Lava',
   'Ice+Lava': 'Steam',
   'Fire+Water': 'Steam',
   'Plant+Fire': 'Dust',

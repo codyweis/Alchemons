@@ -298,5 +298,14 @@ void main() {
 
     expect(earned, [0, 1, 2], reason: 'stars bank in play order, once each');
     expect(game.starsEarnedCount, 3);
+
+    // ── The Lost Maxim: commune at the compass heart (easter egg) ──
+    teleport('hub', room('hub').bounds.center);
+    game.activateAbility();
+    expect(
+      discovered,
+      contains(kAirFirstWindEggId),
+      reason: 'the 3-star commune yields the maxim (screen pays 20 gold)',
+    );
   });
 }

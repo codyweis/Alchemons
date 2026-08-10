@@ -1,7 +1,7 @@
 name: alchemons
 description: "Creature collection RPG with elemental battles, breeding, and cosmic progression."
 publish_to: "none"
-version: 0.2.1+4
+version: 0.3.0+5
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
@@ -77,3 +77,8 @@ flutter:
   shaders:
   - assets/shaders/fire.frag
   - assets/shaders/dungeon/built/air.frag
+  - assets/shaders/dungeon/built/fire.frag
+  - assets/shaders/dungeon/built/water.frag
+  - assets/shaders/dungeon/built/earth.frag
+  - assets/shaders/dungeon/built/lightning.frag
+  - assets/shaders/dungeon/built/steam.frag

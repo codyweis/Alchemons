@@ -200,7 +200,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _wildernessEnabled = true;
   bool _extractionsEnabled = true;
   bool _notificationPrefsLoaded = false;
-  CinematicQuality _cinematicQuality = CinematicQuality.performance;
+  CinematicQuality _cinematicQuality = CinematicQuality.cinematic;
   bool _cinematicQualityLoaded = false;
   bool _saveTransferBusy = false;
   int _cosmicHintPage = 0;
@@ -1742,7 +1742,7 @@ class _CinematicQualitySelector extends StatelessWidget {
 
   String _labelFor(CinematicQuality quality) {
     return switch (quality) {
-      CinematicQuality.balanced => 'BALANCED',
+      CinematicQuality.cinematic => 'CINEMATIC',
       CinematicQuality.performance => 'PERFORMANCE',
     };
   }

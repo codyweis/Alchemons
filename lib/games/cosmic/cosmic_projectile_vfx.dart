@@ -4360,3 +4360,550 @@ void _drawLightCrown(
     );
   }
 }
+
+/// Sink for a single ambient zone-VFX particle. Each game adapts this to its
+/// own particle pool (survival `_VfxParticle`, cosmic `VfxParticle`, dungeon
+/// `_AlchemyParticle`). `arc` requests a lightning-zap render where the pool
+/// supports it (otherwise the particle just renders as a normal wisp).
+typedef ZoneVfxEmit =
+    void Function(
+      double x,
+      double y,
+      double vx,
+      double vy,
+      double size,
+      double life,
+      ui.Color color, {
+      bool arc,
+    });
+
+/// Single source of truth for the per-element ambient wisps that make a
+/// stationary zone/aura/trap projectile feel alive — embers off a Fire pool,
+/// bubbles off a Poison cloud, rain inside a kin Water cloud, updraft
+/// streamers for kin Air, etc. Lifted verbatim from Cosmic Survival (the
+/// canonical look) so survival, cosmic space, and dungeons all emit identical
+/// particles; each caller supplies [emit] to route into its own pool and is
+/// responsible for the per-frame spawn cadence + pool cap.
+void emitZoneParticles(Projectile p, Random rng, ZoneVfxEmit emit) {
+  final element = p.element ?? '';
+  final ec = elementColor(element);
+  final r = p.effectRadius;
+  if (r <= 0) return;
+
+  // Kin-specific directional overrides — ship-attached auras get dedicated
+  // visuals so they read as a rain cloud or updraft column instead of a
+  // generic puddle.
+  if (p.abilityFamily == 'kin' && p.attachedToSlot != -2) {
+    if (element == 'Water') {
+      // Rain drops: spawn near the top of the cloud and fall down.
+      if (rng.nextDouble() > 0.85) return;
+      final dx = (rng.nextDouble() - 0.5) * r * 1.4;
+      emit(
+        p.position.dx + dx,
+        p.position.dy - r * 0.6,
+        dx * 0.05,
+        100 + rng.nextDouble() * 80,
+        1.1 + rng.nextDouble() * 0.8,
+        0.45 + rng.nextDouble() * 0.25,
+        ui.Color.lerp(ec, const ui.Color(0xFFFFFFFF), 0.55)!,
+      );
+      return;
+    }
+    if (element == 'Air') {
+      // Updraft streamers: spawn at the bottom and shoot up.
+      if (rng.nextDouble() > 0.7) return;
+      final a = rng.nextDouble() * 2 * pi;
+      final rr = r * (0.30 + rng.nextDouble() * 0.60);
+      emit(
+        p.position.dx + cos(a) * rr,
+        p.position.dy + sin(a) * rr * 0.35,
+        cos(a) * (6 + rng.nextDouble() * 8),
+        -110 - rng.nextDouble() * 70,
+        1.0 + rng.nextDouble() * 1.0,
+        0.45 + rng.nextDouble() * 0.30,
+        ui.Color.lerp(ec, const ui.Color(0xFFFFFFFF), 0.55)!,
+      );
+      return;
+    }
+  }
+
+  // Skip-rate per element: most zones spawn a wisp every ~2-3 frames (gentle
+  // ambient shimmer). Fire/Lava/Lightning/Steam spawn more often.
+  const activeElements = {'Lava', 'Fire', 'Lightning', 'Steam'};
+  final spawnChance = activeElements.contains(element) ? 0.55 : 0.30;
+  if (rng.nextDouble() > spawnChance) return;
+
+  switch (element) {
+    case 'Lava':
+    case 'Fire':
+      // Ember pop drifting upward + slightly outward.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.20 + rng.nextDouble() * 0.60);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (8 + rng.nextDouble() * 12),
+        -25 - rng.nextDouble() * 30,
+        1.4 + rng.nextDouble() * 1.4,
+        0.45 + rng.nextDouble() * 0.35,
+        rng.nextBool()
+            ? const ui.Color(0xFFFFB060)
+            : const ui.Color(0xFFFFD080),
+      );
+      break;
+    case 'Poison':
+      // Bubble pops drifting upward, tinted poison.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.20 + rng.nextDouble() * 0.60);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (4 + rng.nextDouble() * 8),
+        -18 - rng.nextDouble() * 18,
+        1.3 + rng.nextDouble() * 1.2,
+        0.55 + rng.nextDouble() * 0.35,
+        ec,
+      );
+      break;
+    case 'Mud':
+      // Sloppy splat dot — drops a bit, settles. Subtle.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.15 + rng.nextDouble() * 0.55);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (2 + rng.nextDouble() * 6),
+        4 + rng.nextDouble() * 8,
+        1.4 + rng.nextDouble() * 1.0,
+        0.4 + rng.nextDouble() * 0.3,
+        ui.Color.lerp(ec, const ui.Color(0xFF221008), 0.45)!,
+      );
+      break;
+    case 'Water':
+      // Droplet flicker — small, drifts outward gently.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.40 + rng.nextDouble() * 0.55);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (12 + rng.nextDouble() * 14),
+        sin(a) * (12 + rng.nextDouble() * 14),
+        1.1 + rng.nextDouble() * 0.9,
+        0.35 + rng.nextDouble() * 0.3,
+        ui.Color.lerp(ec, const ui.Color(0xFFFFFFFF), 0.45)!,
+      );
+      break;
+    case 'Plant':
+      // Spore particle drifting upward + slightly random.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.20 + rng.nextDouble() * 0.55);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * 6,
+        -10 - rng.nextDouble() * 16,
+        1.2 + rng.nextDouble() * 1.0,
+        0.5 + rng.nextDouble() * 0.4,
+        const ui.Color(0xFFB0FFB0),
+      );
+      break;
+    case 'Crystal':
+      // Sparkle mote orbiting outward briefly.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.20 + rng.nextDouble() * 0.65);
+      final tang = ui.Offset(-sin(a), cos(a));
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        tang.dx * 18 + cos(a) * 6,
+        tang.dy * 18 + sin(a) * 6,
+        1.1 + rng.nextDouble() * 0.9,
+        0.35 + rng.nextDouble() * 0.3,
+        const ui.Color(0xFFFFFFFF),
+      );
+      break;
+    case 'Ice':
+      // Frost mote drifting outward + falling.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.25 + rng.nextDouble() * 0.55);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (6 + rng.nextDouble() * 10),
+        sin(a) * (6 + rng.nextDouble() * 10) + 6,
+        1.0 + rng.nextDouble() * 1.0,
+        0.5 + rng.nextDouble() * 0.35,
+        const ui.Color(0xFFFFFFFF),
+      );
+      break;
+    case 'Lightning':
+      // Arc flicker — bright zap that pops at a random position.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.15 + rng.nextDouble() * 0.80);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (15 + rng.nextDouble() * 25),
+        sin(a) * (15 + rng.nextDouble() * 25),
+        1.4 + rng.nextDouble() * 1.4,
+        0.25 + rng.nextDouble() * 0.25,
+        rng.nextBool() ? const ui.Color(0xFFFFFFFF) : ec,
+        arc: true,
+      );
+      break;
+    case 'Steam':
+      // Steam puff rising upward + slight outward drift.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.15 + rng.nextDouble() * 0.50);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (8 + rng.nextDouble() * 8),
+        -22 - rng.nextDouble() * 28,
+        1.8 + rng.nextDouble() * 1.5,
+        0.6 + rng.nextDouble() * 0.35,
+        ui.Color.lerp(ec, const ui.Color(0xFFFFFFFF), 0.55)!,
+      );
+      break;
+    case 'Earth':
+      // Dust kick — small earthy speck pops up from the ground.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.30 + rng.nextDouble() * 0.50);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (4 + rng.nextDouble() * 8),
+        -8 - rng.nextDouble() * 12,
+        1.2 + rng.nextDouble() * 0.8,
+        0.4 + rng.nextDouble() * 0.3,
+        ui.Color.lerp(ec, const ui.Color(0xFF4A362B), 0.40)!,
+      );
+      break;
+    case 'Dark':
+      // Inward suck fleck — flies INTO the zone from the rim.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.85 + rng.nextDouble() * 0.20);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        -cos(a) * (35 + rng.nextDouble() * 50),
+        -sin(a) * (35 + rng.nextDouble() * 50),
+        1.3 + rng.nextDouble() * 1.2,
+        0.4 + rng.nextDouble() * 0.3,
+        rng.nextBool()
+            ? const ui.Color(0xFFB89AFF)
+            : const ui.Color(0xFF1A0A2A),
+      );
+      break;
+    case 'Light':
+      // Outward shine sparkle from the dome rim.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.55 + rng.nextDouble() * 0.40);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * (10 + rng.nextDouble() * 14),
+        sin(a) * (10 + rng.nextDouble() * 14),
+        1.2 + rng.nextDouble() * 0.9,
+        0.4 + rng.nextDouble() * 0.3,
+        const ui.Color(0xFFFFFFFF),
+      );
+      break;
+    case 'Air':
+      // Leaf-wind drift — particle swirls tangentially.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.30 + rng.nextDouble() * 0.60);
+      final tang = ui.Offset(-sin(a), cos(a));
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        tang.dx * 25 + cos(a) * 8,
+        tang.dy * 25 + sin(a) * 8,
+        1.1 + rng.nextDouble() * 0.9,
+        0.45 + rng.nextDouble() * 0.30,
+        ui.Color.lerp(ec, const ui.Color(0xFFFFFFFF), 0.45)!,
+      );
+      break;
+    case 'Dust':
+      // Speck swirl — tangential drift like Air but tinted dust.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.20 + rng.nextDouble() * 0.65);
+      final tang = ui.Offset(-sin(a), cos(a));
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        tang.dx * 20 + cos(a) * 6,
+        tang.dy * 20 + sin(a) * 6,
+        1.0 + rng.nextDouble() * 0.8,
+        0.4 + rng.nextDouble() * 0.3,
+        ec,
+      );
+      break;
+    case 'Spirit':
+      // Ghost wisp drifting upward + sideways.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.20 + rng.nextDouble() * 0.55);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * 8 + (rng.nextDouble() - 0.5) * 14,
+        -10 - rng.nextDouble() * 18,
+        1.4 + rng.nextDouble() * 1.2,
+        0.55 + rng.nextDouble() * 0.35,
+        const ui.Color(0xFFE6E9FF),
+      );
+      break;
+    case 'Blood':
+      // Drip pulse — small dark-red drip falls.
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.25 + rng.nextDouble() * 0.50);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        cos(a) * 4,
+        4 + rng.nextDouble() * 10,
+        1.3 + rng.nextDouble() * 1.0,
+        0.45 + rng.nextDouble() * 0.30,
+        ec,
+      );
+      break;
+  }
+}
+
+/// One ambient ability particle (zone wisp, hit spark, burst fleck, …).
+/// Mirrors Cosmic Survival's `_VfxParticle` exactly — same fields, same 0.92
+/// drag, same `alpha` falloff — so it is the single canonical definition.
+class AbilityVfxParticle {
+  double x, y, vx, vy, size, life;
+  final double maxLife;
+  final ui.Color color;
+  AbilityVfxParticle({
+    required this.x,
+    required this.y,
+    required this.vx,
+    required this.vy,
+    required this.size,
+    required this.life,
+    required this.color,
+  }) : maxLife = life;
+  double get alpha => (life / maxLife * 2).clamp(0.0, 1.0);
+  bool get dead => life <= 0;
+  void update(double dt) {
+    x += vx * dt;
+    y += vy * dt;
+    vx *= 0.92;
+    vy *= 0.92;
+    life -= dt;
+  }
+}
+
+/// Shared pool + canonical render for combat-ability particles, so survival,
+/// cosmic space, and dungeons draw them identically. Each game owns one
+/// instance, calls [update]/[render] in its loop, and routes its ability
+/// emitters here (via [add]) instead of into its own flavor-VFX pool. The
+/// render is byte-for-byte survival's: a single soft circle, no glow/blur, so
+/// it matches the source of truth.
+class AbilityVfxPool {
+  final List<AbilityVfxParticle> particles = [];
+
+  int get length => particles.length;
+  bool get isEmpty => particles.isEmpty;
+
+  void add(
+    double x,
+    double y,
+    double vx,
+    double vy,
+    double size,
+    double life,
+    ui.Color color,
+  ) {
+    particles.add(
+      AbilityVfxParticle(
+        x: x,
+        y: y,
+        vx: vx,
+        vy: vy,
+        size: size,
+        life: life,
+        color: color,
+      ),
+    );
+  }
+
+  void update(double dt) {
+    for (final p in particles) {
+      p.update(dt);
+    }
+    particles.removeWhere((p) => p.dead);
+  }
+
+  /// Survival's exact particle render. [reduceAmbient] mirrors survival's
+  /// performance gate (skip every other particle).
+  void render(ui.Canvas canvas, {bool reduceAmbient = false}) {
+    for (var i = 0; i < particles.length; i++) {
+      final p = particles[i];
+      if (p.dead) continue;
+      if (reduceAmbient && i.isOdd) continue;
+      canvas.drawCircle(
+        ui.Offset(p.x, p.y),
+        p.size * p.alpha,
+        ui.Paint()..color = p.color.withValues(alpha: p.alpha * 0.8),
+      );
+    }
+  }
+}
+
+/// Mask+Plant "wormy tendrils" overlay — the writhing vines a Plant trap grows
+/// as it feeds, reaching toward nearby enemies to bite. Lifted verbatim from
+/// Cosmic Survival (the source of truth) so cosmic space + dungeons grow the
+/// exact same plant. The caller passes [time] and [targetsInReach]: enemy
+/// positions within the vine's reach, nearest-first (empty = idle sway).
+void drawMaskPlantWormyTendrils({
+  required ui.Canvas canvas,
+  required Projectile vine,
+  required ui.Color color,
+  required double time,
+  required List<ui.Offset> targetsInReach,
+}) {
+  final feeds = vine.effectStacks.clamp(0, 100);
+  final feedT = feeds / 100.0;
+  // Always at least 1 tendril once the vine exists, +1 per 10 feeds.
+  final tendrilCount = (1 + (feeds ~/ 10)).clamp(1, 10);
+
+  final t = time;
+  final reach = max(vine.snareRadius, vine.effectRadius);
+  final dark = ui.Color.lerp(color, const ui.Color(0xFF1F4F22), 0.45)!;
+  final bright = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
+  // Feed flash: abilityGrowthTimer is bumped to 1.0 on regular feeds and 2.0
+  // on tendril-unlock feeds. Pump stroke width + brightness briefly so the
+  // cast lands with weight.
+  final rawFlash = vine.abilityGrowthTimer;
+  final flash = rawFlash.clamp(0.0, 1.0);
+  final flashBoost = 1.0 + 0.55 * flash;
+  final strokeWidth = ((1.6 + 1.8 * feedT) * flashBoost)
+      .clamp(1.4, 6.0)
+      .toDouble();
+  final amplitude = ((6.0 + 10.0 * feedT) * (1.0 + 0.30 * flash))
+      .clamp(4.0, 24.0)
+      .toDouble();
+  // Idle tendril reach scales with the vine's visual radius so a bigger trunk
+  // sprouts longer idle limbs.
+  final idleReach = max(
+    26.0,
+    (vine.snareRadius > 0 ? vine.snareRadius * 0.55 : reach * 0.55),
+  );
+  const segs = 12;
+  // Stable per-tendril seed so each one keeps its identity across frames
+  // (idle direction, phase offset, target slot).
+  final rootSeed =
+      vine.position.dx.floor() * 7919 + vine.position.dy.floor() * 6113;
+
+  final tendril = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..strokeJoin = ui.StrokeJoin.round;
+  final tip = ui.Paint();
+
+  // Feed-flash root halo — brief expanding pulse around the root. Larger /
+  // brighter on tendril-unlock feeds (rawFlash > 1.0).
+  if (flash > 0.01) {
+    final isUnlock = rawFlash > 1.0;
+    final unlockBoost = isUnlock ? 1.6 : 1.0;
+    final pulseR =
+        (vine.snareRadius > 0 ? vine.snareRadius * 0.35 : 28.0) *
+        unlockBoost *
+        (1.0 + 0.8 * (1.0 - flash));
+    canvas.drawCircle(
+      vine.position,
+      pulseR,
+      ui.Paint()..color = bright.withValues(alpha: 0.18 * flash),
+    );
+    canvas.drawCircle(
+      vine.position,
+      pulseR * 0.55,
+      ui.Paint()
+        ..color = bright.withValues(alpha: (isUnlock ? 0.45 : 0.32) * flash),
+    );
+  }
+
+  for (var ti = 0; ti < tendrilCount; ti++) {
+    // Tendril identity: a stable angle around the root for idle pose, a stable
+    // phase offset for the wave.
+    final h = (rootSeed + ti * 211) & 0xFFFF;
+    final idleBaseAngle = (h % 360) * pi / 180;
+    final phaseOffset = ti * 1.31 + ((h >> 8) % 100) / 100.0;
+
+    // Pick this tendril's target by stable index — distributes tendrils across
+    // multiple enemies when several are in range.
+    ui.Offset endPoint;
+    bool attacking;
+    if (targetsInReach.isNotEmpty) {
+      endPoint = targetsInReach[ti % targetsInReach.length];
+      attacking = true;
+    } else {
+      // Idle: end point slowly drifts around the root.
+      final sway =
+          sin(t * 0.9 + phaseOffset * 2.7) * 0.45 +
+          sin(t * 1.7 + phaseOffset) * 0.25;
+      final pulse = 0.80 + 0.20 * sin(t * 1.3 + phaseOffset * 1.4);
+      final a = idleBaseAngle + sway;
+      endPoint =
+          vine.position + ui.Offset(cos(a), sin(a)) * idleReach * pulse;
+      attacking = false;
+    }
+
+    final delta = endPoint - vine.position;
+    final dist = delta.distance;
+    if (dist < 0.01) continue;
+    final perp = ui.Offset(-delta.dy / dist, delta.dx / dist);
+
+    // Wave amplitude: idle is gentler than attacking.
+    final ampScale = attacking ? 1.0 : 0.60;
+
+    final path = ui.Path();
+    for (var s = 0; s <= segs; s++) {
+      final tFrac = s / segs;
+      final base = vine.position + delta * tFrac;
+      // Envelope: 0 at root + tip, peak in middle (so the root stays anchored
+      // and the tip bites cleanly).
+      final env = sin(tFrac * pi);
+      final wave =
+          sin(tFrac * pi * 3.2 + t * (attacking ? 6.5 : 3.2) + phaseOffset) *
+              0.65 +
+          sin(tFrac * pi * 5.6 + t * (attacking ? 4.2 : 2.0) + phaseOffset) *
+              0.35;
+      final pt = base + perp * (wave * amplitude * env * ampScale);
+      if (s == 0) {
+        path.moveTo(pt.dx, pt.dy);
+      } else {
+        path.lineTo(pt.dx, pt.dy);
+      }
+    }
+
+    // Alpha lifts during the feed flash so the whole plant briefly glows
+    // brighter on cast.
+    final outerAlpha = (attacking ? 0.22 : 0.14) + 0.18 * flash;
+    final mainAlpha = (attacking ? 0.90 : 0.70) + 0.10 * flash;
+    final highlightAlpha = (attacking ? 0.60 : 0.42) + 0.35 * flash;
+    tendril
+      ..strokeWidth = strokeWidth * 2.2
+      ..color = dark.withValues(alpha: outerAlpha.clamp(0.0, 1.0));
+    canvas.drawPath(path, tendril);
+    tendril
+      ..strokeWidth = strokeWidth
+      ..color = dark.withValues(alpha: mainAlpha.clamp(0.0, 1.0));
+    canvas.drawPath(path, tendril);
+    tendril
+      ..strokeWidth = max(0.9, strokeWidth * 0.45)
+      ..color = bright.withValues(alpha: highlightAlpha.clamp(0.0, 1.0));
+    canvas.drawPath(path, tendril);
+
+    if (attacking) {
+      // Single pulsing fang at the enemy end.
+      final bite = 0.55 + 0.45 * sin(t * 9.0 + phaseOffset);
+      tip.color = bright.withValues(alpha: 0.55 * bite);
+      canvas.drawCircle(endPoint, 1.4 + 1.2 * feedT, tip);
+    }
+  }
+}

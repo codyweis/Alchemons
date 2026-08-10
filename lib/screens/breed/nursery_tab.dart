@@ -45,7 +45,7 @@ class _NurseryTabState extends State<NurseryTab> {
   final CinematicQualityService _qualityService = CinematicQualityService();
   bool _suspendNurseryAnimations = false;
   int _animationPauseHolds = 0;
-  CinematicQuality _cinematicQuality = CinematicQuality.performance;
+  CinematicQuality _cinematicQuality = CinematicQuality.cinematic;
   Offset? _swipeStartGlobalPosition;
   bool _fusionSwipeTriggered = false;
 

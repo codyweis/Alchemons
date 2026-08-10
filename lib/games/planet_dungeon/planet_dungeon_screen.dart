@@ -5,8 +5,6 @@
 // death overlay and an instant star-banked toast. Dark / alchemical chrome.
 
 import 'dart:async';
-import 'dart:math';
-import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -14,6 +12,7 @@ import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/raid_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_descent.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_reward_popup.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
@@ -121,6 +120,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   bool _showDeath = false;
   Timer? _deathTimer;
   String? _toast;
+  bool _toastVisible = false;
   Timer? _toastTimer;
   bool _showFullMap = false;
 
@@ -139,7 +139,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   // the loading screen (no spinner, no route gap).
   static const double _descentSeconds = 1.7;
   late final Ticker _introTicker;
-  double _introElapsed = 0;
+  // Drives ONLY the descent painter/title — a full setState per frame here
+  // used to rebuild the whole screen (including the live game) at 60fps.
+  final ValueNotifier<double> _introTime = ValueNotifier<double>(0);
   double? _introFadeStart;
   bool _showIntro = true;
 
@@ -157,18 +159,16 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         });
     _introTicker = createTicker((elapsed) {
       if (!mounted) return;
-      setState(() {
-        _introElapsed = elapsed.inMicroseconds / 1e6;
-        if (_introFadeStart == null &&
-            _introElapsed >= _descentSeconds &&
-            _ready) {
-          _introFadeStart = _introElapsed;
-        }
-        if (_introFadeStart != null && _introElapsed > _introFadeStart! + 0.5) {
-          _showIntro = false;
-          _introTicker.stop();
-        }
-      });
+      final secs = elapsed.inMicroseconds / 1e6;
+      if (_introFadeStart == null && secs >= _descentSeconds && _ready) {
+        _introFadeStart = secs;
+      }
+      if (_introFadeStart != null && secs > _introFadeStart! + 0.5) {
+        _introTicker.stop();
+        setState(() => _showIntro = false);
+        return;
+      }
+      _introTime.value = secs;
     })..start();
     _init();
   }
@@ -178,6 +178,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     final stars = PlanetStarState.deserialise(
       prefs.getString(_starPrefsKey) ?? '',
     );
+
+    // The campaign difficulty clock: every OTHER planet's fallen guardian
+    // hardens this run's enemies (and especially its guardian).
+    final cleared = stars.guardiansDefeated(excluding: widget.element);
 
     final game = _isRaid
         ? PlanetDungeonGame(
@@ -189,6 +193,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             onChanged: () => _tick.value++,
             raid: widget.raid,
             onRaidCleared: _onRaidCleared,
+            clearedGuardianCount: cleared,
             layoutOverride: buildRaidArenaLayout(widget.element),
           )
         : PlanetDungeonGame(
@@ -202,6 +207,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             onCloudDiscovered: _onCloudDiscovered,
             onPlayerDown: _onPlayerDown,
             onChanged: () => _tick.value++,
+            clearedGuardianCount: cleared,
           );
 
     if (!mounted) return;
@@ -284,6 +290,17 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       prefs.getString(_starPrefsKey) ?? '',
     ).withDiscoveredCloud(widget.element, cloudId);
     await prefs.setString(_starPrefsKey, state.serialise());
+    // Hidden maxims (easter eggs) pay out the moment they're found — and
+    // only once ever: a persisted discovery never re-fires this callback.
+    if (cloudId.startsWith('egg:') && mounted) {
+      await context.read<AlchemonsDatabase>().currencyDao.addGold(20);
+      _showToast('A lost maxim — +20 gold');
+    }
+    // Vault caches: the treasure room's bottled essence, once ever.
+    if (cloudId.startsWith('cache:') && mounted) {
+      await context.read<AlchemonsDatabase>().currencyDao.addGold(5);
+      _showToast('The vault yields — +5 gold');
+    }
   }
 
   void _onPlayerDown() {
@@ -297,10 +314,15 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
   void _showToast(String msg) {
     if (!mounted) return;
-    setState(() => _toast = msg);
+    setState(() {
+      _toast = msg;
+      _toastVisible = true;
+    });
     _toastTimer?.cancel();
     _toastTimer = Timer(const Duration(milliseconds: 1800), () {
-      if (mounted) setState(() => _toast = null);
+      // Fade out but KEEP the text: swapping the child mid-fade churns
+      // layout/semantics (it contributed to the exit-time assert spam).
+      if (mounted) setState(() => _toastVisible = false);
     });
   }
 
@@ -310,10 +332,28 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     setState(() => _showRaidReward = true);
   }
 
+  /// Quiesce everything that rebuilds on a timer/animation BEFORE popping the
+  /// route — a tick landing mid-pop leaves dirty semantics on a deactivated
+  /// subtree (the `!semantics.parentDataDirty` assert spam on exit).
+  void _prepareExit() {
+    _hudTimer?.cancel();
+    _hudTimer = null;
+    _toastTimer?.cancel();
+    _deathTimer?.cancel();
+    _flyCtrl.stop();
+    _introTicker.stop();
+  }
+
+  void _popDungeon(Object? result) {
+    if (!mounted) return;
+    _prepareExit();
+    Navigator.of(context).pop(result);
+  }
+
   Future<void> _endRun() async {
     if (_isRaid) {
       // Raids bank nothing on retreat; the window stays open for retries.
-      if (mounted) Navigator.of(context).pop(false);
+      _popDungeon(false);
       return;
     }
     final prefs = await SharedPreferences.getInstance();
@@ -322,7 +362,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     );
     final pending = state.pendingRewards(widget.element);
     if (pending.isEmpty) {
-      if (mounted) Navigator.of(context).pop(_game?.starMask ?? 0);
+      _popDungeon(_game?.starMask ?? 0);
       return;
     }
     // Show the reward popup; the game keeps rendering behind it.
@@ -342,12 +382,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       state = state.withClaimed(widget.element, s);
     }
     await prefs.setString(_starPrefsKey, state.serialise());
-    if (mounted) Navigator.of(context).pop(_game?.starMask ?? 0);
+    _popDungeon(_game?.starMask ?? 0);
   }
 
   @override
   void dispose() {
     _introTicker.dispose();
+    _introTime.dispose();
     _hudTimer?.cancel();
     _deathTimer?.cancel();
     _toastTimer?.cancel();
@@ -366,7 +407,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   Widget build(BuildContext context) {
     final game = _game;
     if (!_ready || game == null) {
-      return Scaffold(backgroundColor: _C.bg, body: _descentIntro(1.0));
+      return Scaffold(backgroundColor: _C.bg, body: _descentIntro());
     }
 
     return PopScope(
@@ -418,6 +459,25 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                         _C.amber,
                         () => game.regroup(),
                         icon: Icons.workspaces_rounded,
+                      ),
+                      // Restart this molten chamber from scratch (appears only
+                      // in the Steam puzzle rooms; reacts to room changes).
+                      ValueListenableBuilder<int>(
+                        valueListenable: _tick,
+                        builder: (_, __, ___) {
+                          if (!game.canRestartRoom) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: _pillButton(
+                              'RESTART ROOM',
+                              _C.cyan,
+                              () => game.restartRoom(),
+                              icon: Icons.restart_alt_rounded,
+                            ),
+                          );
+                        },
                       ),
                       if (kDebugMode && !_isRaid) ...[
                         const SizedBox(height: 6),
@@ -475,39 +535,41 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               child: SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 46, left: 24, right: 24),
-                  child: Center(
-                    child: ValueListenableBuilder<int>(
-                      valueListenable: _tick,
-                      builder: (_, __, ___) {
-                        final hint = game.hintText;
-                        return AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 220),
-                          child: hint == null
-                              ? const SizedBox.shrink()
-                              : Container(
-                                  key: ValueKey(hint),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 7,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _C.bg.withValues(alpha: 0.62),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    hint,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: _C.text.withValues(alpha: 0.92),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.3,
-                                      height: 1.3,
+                  child: ExcludeSemantics(
+                    child: Center(
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _tick,
+                        builder: (_, __, ___) {
+                          final hint = game.hintText;
+                          return AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: hint == null
+                                ? const SizedBox.shrink()
+                                : Container(
+                                    key: ValueKey(hint),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 7,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _C.bg.withValues(alpha: 0.62),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      hint,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: _C.text.withValues(alpha: 0.92),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: 0.3,
+                                        height: 1.3,
+                                      ),
                                     ),
                                   ),
-                                ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -537,41 +599,45 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 ),
               ),
 
-            // Event toast (e.g. "Star secured") — mid-screen, fades.
+            // Event toast (e.g. "Star secured") — mid-screen, fades. Kept
+            // out of the semantics tree (decorative) and structurally stable
+            // while fading: both matter for clean route pops.
             Positioned(
               bottom: 0,
               top: 0,
               left: 0,
               right: 0,
-              child: IgnorePointer(
-                child: Center(
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 250),
-                    opacity: _toast != null ? 1.0 : 0.0,
-                    child: _toast == null
-                        ? const SizedBox.shrink()
-                        : Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _C.bg.withValues(alpha: 0.7),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: _C.amberBright.withValues(alpha: 0.5),
+              child: ExcludeSemantics(
+                child: IgnorePointer(
+                  child: Center(
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 250),
+                      opacity: _toastVisible && _toast != null ? 1.0 : 0.0,
+                      child: _toast == null
+                          ? const SizedBox.shrink()
+                          : Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _C.bg.withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: _C.amberBright.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: Text(
+                                '✦  ${_toast ?? ''}',
+                                style: const TextStyle(
+                                  color: _C.amberBright,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.6,
+                                ),
                               ),
                             ),
-                            child: Text(
-                              '✦  ${_toast ?? ''}',
-                              style: const TextStyle(
-                                color: _C.amberBright,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ),
+                    ),
                   ),
                 ),
               ),
@@ -603,16 +669,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
             // Descent intro overlay — fades out once the dungeon is live.
             if (_showIntro)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: _descentIntro(
-                    _introFadeStart == null
-                        ? 1.0
-                        : (1.0 - (_introElapsed - _introFadeStart!) / 0.5)
-                              .clamp(0.0, 1.0),
-                  ),
-                ),
-              ),
+              Positioned.fill(child: IgnorePointer(child: _descentIntro())),
 
             // End-run reward popup.
             if (_rewardStars != null)
@@ -630,7 +687,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 element: widget.element,
                 db: context.read<AlchemonsDatabase>(),
                 onGranted: () async => widget.onRaidCleared?.call(),
-                onContinue: () => Navigator.of(context).pop(true),
+                onContinue: () => _popDungeon(true),
               ),
           ],
         ),
@@ -682,9 +739,21 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// The descent: diving through the planet's cloud deck — element-tinted
   /// cloud rings rushing past, converging wind lines, and the dungeon's
   /// title card in HUD chrome. Doubles as the loading screen.
-  Widget _descentIntro(double opacity) {
+  Widget _descentIntro() {
     final accent = elementColor(widget.element);
-    final reveal = (_introElapsed / _descentSeconds).clamp(0.0, 1.0);
+    return RepaintBoundary(
+      child: ValueListenableBuilder<double>(
+        valueListenable: _introTime,
+        builder: (_, elapsed, _) => _descentIntroFrame(elapsed, accent),
+      ),
+    );
+  }
+
+  Widget _descentIntroFrame(double elapsed, Color accent) {
+    final opacity = _introFadeStart == null
+        ? 1.0
+        : (1.0 - (elapsed - _introFadeStart!) / 0.5).clamp(0.0, 1.0);
+    final reveal = (elapsed / _descentSeconds).clamp(0.0, 1.0);
     final titleIn = ((reveal - 0.18) / 0.3).clamp(0.0, 1.0);
     return Opacity(
       opacity: opacity,
@@ -692,7 +761,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         fit: StackFit.expand,
         children: [
           CustomPaint(
-            painter: _DescentPainter(elapsed: _introElapsed, accent: accent),
+            painter: DescentPainter(
+              elapsed: elapsed,
+              element: widget.element,
+              accent: accent,
+            ),
           ),
           Center(
             child: Opacity(
@@ -711,9 +784,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                     ),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    'Zephyria Spire',
-                    style: TextStyle(
+                  Text(
+                    kPlanetDungeonLayouts[widget.element]?.descentTitle ??
+                        widget.element,
+                    style: const TextStyle(
                       color: _C.amberBright,
                       fontFamily: 'monospace',
                       fontSize: 17,
@@ -811,16 +885,18 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         return Positioned(
           left: pos.dx - 22,
           top: pos.dy - 22,
-          child: IgnorePointer(
-            child: Opacity(
-              opacity: opacity.clamp(0.0, 1.0),
-              child: Transform.scale(
-                scale: scale,
-                child: const Icon(
-                  Icons.star_rounded,
-                  color: _C.amberBright,
-                  size: 44,
-                  shadows: [Shadow(color: _C.amberBright, blurRadius: 20)],
+          child: ExcludeSemantics(
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: opacity.clamp(0.0, 1.0),
+                child: Transform.scale(
+                  scale: scale,
+                  child: const Icon(
+                    Icons.star_rounded,
+                    color: _C.amberBright,
+                    size: 44,
+                    shadows: [Shadow(color: _C.amberBright, blurRadius: 20)],
+                  ),
                 ),
               ),
             ),
@@ -1289,83 +1365,3 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 /// Cloud-dive painter: rings of element-tinted puffs scale outward past the
 /// camera while wind lines converge — the feel of falling through a cloud
 /// deck toward the spire.
-class _DescentPainter extends CustomPainter {
-  const _DescentPainter({required this.elapsed, required this.accent});
-
-  final double elapsed;
-  final Color accent;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height * 0.46);
-    final maxR = size.longestSide * 0.75;
-
-    // Deep sky, tinted toward the element at the edges.
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..shader = ui.Gradient.radial(c, maxR * 1.3, [
-          const Color(0xFF0A1322),
-          Color.lerp(const Color(0xFF060A12), accent, 0.12)!,
-        ]),
-    );
-
-    // Cloud rings rushing past (accelerating outward = diving in).
-    for (var ring = 0; ring < 9; ring++) {
-      final phase = ((elapsed * 0.55 + ring / 9) % 1.0);
-      final r = pow(phase, 1.7).toDouble() * maxR + 14;
-      final alpha = (1 - phase) * 0.35 * phase * 4;
-      if (alpha <= 0.01) continue;
-      final puffPaint = Paint()
-        ..color = Color.lerp(
-          const Color(0xFFBFD2E6),
-          accent,
-          0.35,
-        )!.withValues(alpha: alpha.clamp(0.0, 0.4))
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
-      for (var i = 0; i < 6; i++) {
-        final a = ring * 0.7 + i * pi / 3 + elapsed * 0.1;
-        canvas.drawCircle(
-          c + Offset(cos(a), sin(a)) * r,
-          18 + phase * 56,
-          puffPaint,
-        );
-      }
-    }
-
-    // Converging wind lines.
-    final line = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 16; i++) {
-      final a = i * pi / 8 + sin(elapsed * 0.6) * 0.08;
-      final phase = ((elapsed * 1.4 + i * 0.13) % 1.0);
-      final inner = maxR * (0.18 + phase * 0.5);
-      final outer = inner + 40 + phase * 90;
-      line.color = const Color(
-        0xFFBFD2E6,
-      ).withValues(alpha: 0.22 * (1 - phase));
-      canvas.drawLine(
-        c + Offset(cos(a), sin(a)) * inner,
-        c + Offset(cos(a), sin(a)) * outer,
-        line,
-      );
-    }
-
-    // Vignette.
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          c,
-          maxR * 1.15,
-          [const Color(0x00000000), const Color(0xCC000000)],
-          [0.55, 1.0],
-        ),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _DescentPainter old) => true;
-}

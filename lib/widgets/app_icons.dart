@@ -345,6 +345,9 @@ class AppIcons {
   static const IconData star_border_rounded = PhosphorIconsBold.star;
   static const IconData star_outline_rounded = PhosphorIconsBold.star;
   static const IconData star_rounded = PhosphorIconsBold.star;
+  // Solid/filled star — for "earned/completed" states that should read as
+  // filled in rather than the outline `star`/`star_rounded` glyph.
+  static const IconData star_filled = PhosphorIconsFill.star;
   static const IconData stars = PhosphorIconsBold.starFour;
   static const IconData stars_rounded = PhosphorIconsBold.starFour;
   static const IconData storefront = PhosphorIconsBold.storefront;

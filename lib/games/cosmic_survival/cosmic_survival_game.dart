@@ -9081,329 +9081,33 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
-  // Generic per-frame particles for stationary zone projectiles —
-  // Lava pools, Fire pools, Mud pools, Poison pools, etc. Each
-  // element gets a tuned wisp behavior so the painted blob reads
-  // as alive instead of a static seeded sprite. Throttled cheaply
-  // by the random-skip check below so a screen of zones doesn't
-  // saturate the global VFX pool.
+  /// Per-frame ambient zone wisps — the canonical look. The per-element
+  /// graphics live in [emitZoneParticles] (shared so cosmic space + dungeons
+  /// match); this routes them into survival's [_VfxParticle] pool. Caller
+  /// gates on the pool cap.
   void _spawnZoneParticles(Projectile p) {
-    final element = p.element ?? '';
-    final ec = elementColor(element);
-    final r = p.effectRadius;
-    if (r <= 0) return;
-    // Kin-specific directional overrides — ship-attached auras get
-    // dedicated visuals so they read as a rain cloud or updraft
-    // column instead of a generic puddle.
-    if (p.abilityFamily == 'kin' && p.attachedToSlot != -2) {
-      if (element == 'Water') {
-        // Rain drops: spawn near the top of the cloud and fall down.
-        if (_rng.nextDouble() > 0.85) return;
-        final dx = (_rng.nextDouble() - 0.5) * r * 1.4;
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + dx,
-            y: p.position.dy - r * 0.6,
-            vx: dx * 0.05,
-            vy: 100 + _rng.nextDouble() * 80,
-            size: 1.1 + _rng.nextDouble() * 0.8,
-            life: 0.45 + _rng.nextDouble() * 0.25,
-            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.55)!,
-          ),
-        );
-        return;
-      }
-      if (element == 'Air') {
-        // Updraft streamers: spawn at the bottom and shoot up.
-        if (_rng.nextDouble() > 0.7) return;
-        final a = _rng.nextDouble() * 2 * pi;
-        final rr = r * (0.30 + _rng.nextDouble() * 0.60);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * rr,
-            y: p.position.dy + sin(a) * rr * 0.35,
-            vx: cos(a) * (6 + _rng.nextDouble() * 8),
-            vy: -110 - _rng.nextDouble() * 70,
-            size: 1.0 + _rng.nextDouble() * 1.0,
-            life: 0.45 + _rng.nextDouble() * 0.30,
-            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.55)!,
-          ),
-        );
-        return;
-      }
-    }
-    // Skip-rate per element: most zones spawn 1 wisp every ~2-3 frames
-    // (gentle ambient shimmer). Fire/Lava spawn more often (they're
-    // the most active visually).
-    final activeElements = const {'Lava', 'Fire', 'Lightning', 'Steam'};
-    final spawnChance = activeElements.contains(element) ? 0.55 : 0.30;
-    if (_rng.nextDouble() > spawnChance) return;
-    switch (element) {
-      case 'Lava':
-      case 'Fire':
-        // Ember pop drifting upward + slightly outward.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.20 + _rng.nextDouble() * 0.60);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (8 + _rng.nextDouble() * 12),
-            vy: -25 - _rng.nextDouble() * 30,
-            size: 1.4 + _rng.nextDouble() * 1.4,
-            life: 0.45 + _rng.nextDouble() * 0.35,
-            color: _rng.nextBool()
-                ? const Color(0xFFFFB060)
-                : const Color(0xFFFFD080),
-          ),
-        );
-        break;
-      case 'Poison':
-        // Bubble pops drifting upward, tinted poison.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.20 + _rng.nextDouble() * 0.60);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (4 + _rng.nextDouble() * 8),
-            vy: -18 - _rng.nextDouble() * 18,
-            size: 1.3 + _rng.nextDouble() * 1.2,
-            life: 0.55 + _rng.nextDouble() * 0.35,
-            color: ec,
-          ),
-        );
-        break;
-      case 'Mud':
-        // Sloppy splat dot — drops a bit, settles. Subtle.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.15 + _rng.nextDouble() * 0.55);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (2 + _rng.nextDouble() * 6),
-            vy: 4 + _rng.nextDouble() * 8,
-            size: 1.4 + _rng.nextDouble() * 1.0,
-            life: 0.4 + _rng.nextDouble() * 0.3,
-            color: Color.lerp(ec, const Color(0xFF221008), 0.45)!,
-          ),
-        );
-        break;
-      case 'Water':
-        // Droplet flicker — small, drifts outward gently.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.40 + _rng.nextDouble() * 0.55);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (12 + _rng.nextDouble() * 14),
-            vy: sin(a) * (12 + _rng.nextDouble() * 14),
-            size: 1.1 + _rng.nextDouble() * 0.9,
-            life: 0.35 + _rng.nextDouble() * 0.3,
-            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.45)!,
-          ),
-        );
-        break;
-      case 'Plant':
-        // Spore particle drifting upward + slightly random.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.20 + _rng.nextDouble() * 0.55);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * 6,
-            vy: -10 - _rng.nextDouble() * 16,
-            size: 1.2 + _rng.nextDouble() * 1.0,
-            life: 0.5 + _rng.nextDouble() * 0.4,
-            color: const Color(0xFFB0FFB0),
-          ),
-        );
-        break;
-      case 'Crystal':
-        // Sparkle mote orbiting outward briefly.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.20 + _rng.nextDouble() * 0.65);
-        final tang = Offset(-sin(a), cos(a));
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: tang.dx * 18 + cos(a) * 6,
-            vy: tang.dy * 18 + sin(a) * 6,
-            size: 1.1 + _rng.nextDouble() * 0.9,
-            life: 0.35 + _rng.nextDouble() * 0.3,
-            color: const Color(0xFFFFFFFF),
-          ),
-        );
-        break;
-      case 'Ice':
-        // Frost mote drifting outward + falling.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.25 + _rng.nextDouble() * 0.55);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (6 + _rng.nextDouble() * 10),
-            vy: sin(a) * (6 + _rng.nextDouble() * 10) + 6,
-            size: 1.0 + _rng.nextDouble() * 1.0,
-            life: 0.5 + _rng.nextDouble() * 0.35,
-            color: const Color(0xFFFFFFFF),
-          ),
-        );
-        break;
-      case 'Lightning':
-        // Arc flicker — bright zap that pops at a random position.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.15 + _rng.nextDouble() * 0.80);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (15 + _rng.nextDouble() * 25),
-            vy: sin(a) * (15 + _rng.nextDouble() * 25),
-            size: 1.4 + _rng.nextDouble() * 1.4,
-            life: 0.25 + _rng.nextDouble() * 0.25,
-            color: _rng.nextBool() ? const Color(0xFFFFFFFF) : ec,
-          ),
-        );
-        break;
-      case 'Steam':
-        // Steam puff rising upward + slight outward drift.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.15 + _rng.nextDouble() * 0.50);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (8 + _rng.nextDouble() * 8),
-            vy: -22 - _rng.nextDouble() * 28,
-            size: 1.8 + _rng.nextDouble() * 1.5,
-            life: 0.6 + _rng.nextDouble() * 0.35,
-            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.55)!,
-          ),
-        );
-        break;
-      case 'Earth':
-        // Dust kick — small earthy speck pops up from the ground.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.30 + _rng.nextDouble() * 0.50);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (4 + _rng.nextDouble() * 8),
-            vy: -8 - _rng.nextDouble() * 12,
-            size: 1.2 + _rng.nextDouble() * 0.8,
-            life: 0.4 + _rng.nextDouble() * 0.3,
-            color: Color.lerp(ec, const Color(0xFF4A362B), 0.40)!,
-          ),
-        );
-        break;
-      case 'Dark':
-        // Inward suck fleck — flies INTO the zone from the rim.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.85 + _rng.nextDouble() * 0.20);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: -cos(a) * (35 + _rng.nextDouble() * 50),
-            vy: -sin(a) * (35 + _rng.nextDouble() * 50),
-            size: 1.3 + _rng.nextDouble() * 1.2,
-            life: 0.4 + _rng.nextDouble() * 0.3,
-            color: _rng.nextBool()
-                ? const Color(0xFFB89AFF)
-                : const Color(0xFF1A0A2A),
-          ),
-        );
-        break;
-      case 'Light':
-        // Outward shine sparkle from the dome rim.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.55 + _rng.nextDouble() * 0.40);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * (10 + _rng.nextDouble() * 14),
-            vy: sin(a) * (10 + _rng.nextDouble() * 14),
-            size: 1.2 + _rng.nextDouble() * 0.9,
-            life: 0.4 + _rng.nextDouble() * 0.3,
-            color: const Color(0xFFFFFFFF),
-          ),
-        );
-        break;
-      case 'Air':
-        // Leaf-wind drift — particle swirls tangentially.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.30 + _rng.nextDouble() * 0.60);
-        final tang = Offset(-sin(a), cos(a));
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: tang.dx * 25 + cos(a) * 8,
-            vy: tang.dy * 25 + sin(a) * 8,
-            size: 1.1 + _rng.nextDouble() * 0.9,
-            life: 0.45 + _rng.nextDouble() * 0.30,
-            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.45)!,
-          ),
-        );
-        break;
-      case 'Dust':
-        // Speck swirl — tangential drift like Air but tinted dust.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.20 + _rng.nextDouble() * 0.65);
-        final tang = Offset(-sin(a), cos(a));
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: tang.dx * 20 + cos(a) * 6,
-            vy: tang.dy * 20 + sin(a) * 6,
-            size: 1.0 + _rng.nextDouble() * 0.8,
-            life: 0.4 + _rng.nextDouble() * 0.3,
-            color: ec,
-          ),
-        );
-        break;
-      case 'Spirit':
-        // Ghost wisp drifting upward + sideways.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.20 + _rng.nextDouble() * 0.55);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * 8 + (_rng.nextDouble() - 0.5) * 14,
-            vy: -10 - _rng.nextDouble() * 18,
-            size: 1.4 + _rng.nextDouble() * 1.2,
-            life: 0.55 + _rng.nextDouble() * 0.35,
-            color: const Color(0xFFE6E9FF),
-          ),
-        );
-        break;
-      case 'Blood':
-        // Drip pulse — small dark-red drip falls.
-        final a = _rng.nextDouble() * 2 * pi;
-        final spawnR = r * (0.25 + _rng.nextDouble() * 0.50);
-        _vfx.add(
-          _VfxParticle(
-            x: p.position.dx + cos(a) * spawnR,
-            y: p.position.dy + sin(a) * spawnR,
-            vx: cos(a) * 4,
-            vy: 4 + _rng.nextDouble() * 10,
-            size: 1.3 + _rng.nextDouble() * 1.0,
-            life: 0.45 + _rng.nextDouble() * 0.30,
-            color: ec,
-          ),
-        );
-        break;
-    }
+    emitZoneParticles(p, _rng, (
+      x,
+      y,
+      vx,
+      vy,
+      size,
+      life,
+      color, {
+      arc = false,
+    }) {
+      _vfx.add(
+        _VfxParticle(
+          x: x,
+          y: y,
+          vx: vx,
+          vy: vy,
+          size: size,
+          life: life,
+          color: color,
+        ),
+      );
+    });
   }
 
   // Horn+Lightning chain blast — one-shot alchemical particle storm
@@ -12334,177 +12038,40 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     Projectile vine,
     Color color,
   ) {
-    final feeds = vine.effectStacks.clamp(0, 100);
-    final feedT = feeds / 100.0;
-    // Always at least 1 tendril once the vine exists, +1 per 10 feeds.
-    final tendrilCount = (1 + (feeds ~/ 10)).clamp(1, 10);
     final reach = max(vine.snareRadius, vine.effectRadius);
     final reachSq = reach * reach;
 
-    // Gather enemies in reach, sorted nearest-first, for active bites.
-    final candidates = <CosmicSurvivalEnemy>[];
+    // Gather enemies in reach, sorted nearest-first, for active bites. The
+    // draw itself lives in the shared module so cosmic + dungeons grow the
+    // exact same plant.
+    final targets = <Offset>[];
     if (reach > 10) {
       _visitEnemiesNear(vine.position, reach, (enemy) {
         if (enemy.isDead) return false;
         final dx = enemy.position.dx - vine.position.dx;
         final dy = enemy.position.dy - vine.position.dy;
         if (dx * dx + dy * dy > reachSq) return false;
-        candidates.add(enemy);
+        targets.add(enemy.position);
         return false;
       });
-      if (candidates.length > 1) {
-        candidates.sort((a, b) {
-          final da = (a.position - vine.position).distanceSquared;
-          final db = (b.position - vine.position).distanceSquared;
+      if (targets.length > 1) {
+        targets.sort((a, b) {
+          final da = (a - vine.position).distanceSquared;
+          final db = (b - vine.position).distanceSquared;
           return da.compareTo(db);
         });
       }
     }
 
-    final t = stats.timeElapsed;
-    final dark = Color.lerp(color, const Color(0xFF1F4F22), 0.45)!;
-    final bright = Color.lerp(color, const Color(0xFFFFFFFF), 0.55)!;
-    // Feed flash: abilityGrowthTimer is bumped to 1.0 on regular feeds
-    // and 2.0 on tendril-unlock feeds. Pump stroke width + brightness
-    // briefly so the cast lands with weight.
-    final rawFlash = vine.abilityGrowthTimer;
-    final flash = rawFlash.clamp(0.0, 1.0);
-    final flashBoost = 1.0 + 0.55 * flash;
-    final strokeWidth = ((1.6 + 1.8 * feedT) * flashBoost)
-        .clamp(1.4, 6.0)
-        .toDouble();
-    final amplitude = ((6.0 + 10.0 * feedT) * (1.0 + 0.30 * flash))
-        .clamp(4.0, 24.0)
-        .toDouble();
-    // Idle tendril reach scales with the vine's visual radius so a
-    // bigger trunk sprouts longer idle limbs.
-    final idleReach = max(
-      26.0,
-      (vine.snareRadius > 0 ? vine.snareRadius * 0.55 : reach * 0.55),
+    drawMaskPlantWormyTendrils(
+      canvas: canvas,
+      vine: vine,
+      color: color,
+      time: stats.timeElapsed,
+      targetsInReach: targets,
     );
-    const segs = 12;
-    // Stable per-tendril seed so each one keeps its identity across
-    // frames (idle direction, phase offset, target slot).
-    final rootSeed =
-        vine.position.dx.floor() * 7919 + vine.position.dy.floor() * 6113;
-
-    final tendril = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final tip = Paint();
-
-    // Feed-flash root halo — brief expanding pulse around the root.
-    // Larger / brighter on tendril-unlock feeds (rawFlash > 1.0).
-    if (flash > 0.01) {
-      final isUnlock = rawFlash > 1.0;
-      final unlockBoost = isUnlock ? 1.6 : 1.0;
-      final pulseR =
-          (vine.snareRadius > 0 ? vine.snareRadius * 0.35 : 28.0) *
-          unlockBoost *
-          (1.0 + 0.8 * (1.0 - flash));
-      // Expanding faint ring
-      canvas.drawCircle(
-        vine.position,
-        pulseR,
-        Paint()..color = bright.withValues(alpha: 0.18 * flash),
-      );
-      // Brighter inner pop
-      canvas.drawCircle(
-        vine.position,
-        pulseR * 0.55,
-        Paint()
-          ..color = bright.withValues(alpha: (isUnlock ? 0.45 : 0.32) * flash),
-      );
-    }
-
-    for (var ti = 0; ti < tendrilCount; ti++) {
-      // Tendril identity: a stable angle around the root for idle
-      // pose, a stable phase offset for the wave.
-      final h = (rootSeed + ti * 211) & 0xFFFF;
-      final idleBaseAngle = (h % 360) * pi / 180;
-      final phaseOffset = ti * 1.31 + ((h >> 8) % 100) / 100.0;
-
-      // Pick this tendril's target by stable index — distributes
-      // tendrils across multiple enemies when several are in range.
-      Offset endPoint;
-      bool attacking;
-      CosmicSurvivalEnemy? targetEnemy;
-      if (candidates.isNotEmpty) {
-        targetEnemy = candidates[ti % candidates.length];
-        endPoint = targetEnemy.position;
-        attacking = true;
-      } else {
-        // Idle: end point slowly drifts around the root.
-        final sway =
-            sin(t * 0.9 + phaseOffset * 2.7) * 0.45 +
-            sin(t * 1.7 + phaseOffset) * 0.25;
-        final pulse = 0.80 + 0.20 * sin(t * 1.3 + phaseOffset * 1.4);
-        final a = idleBaseAngle + sway;
-        endPoint = vine.position + Offset(cos(a), sin(a)) * idleReach * pulse;
-        attacking = false;
-      }
-
-      final delta = endPoint - vine.position;
-      final dist = delta.distance;
-      if (dist < 0.01) continue;
-      final perp = Offset(-delta.dy / dist, delta.dx / dist);
-
-      // Wave amplitude: idle is gentler than attacking.
-      final ampScale = attacking ? 1.0 : 0.60;
-
-      final path = Path();
-      for (var s = 0; s <= segs; s++) {
-        final tFrac = s / segs;
-        final base = vine.position + delta * tFrac;
-        // Envelope: 0 at root + tip, peak in middle (so the root
-        // stays anchored and the tip bites cleanly).
-        final env = sin(tFrac * pi);
-        final wave =
-            sin(tFrac * pi * 3.2 + t * (attacking ? 6.5 : 3.2) + phaseOffset) *
-                0.65 +
-            sin(tFrac * pi * 5.6 + t * (attacking ? 4.2 : 2.0) + phaseOffset) *
-                0.35;
-        final pt = base + perp * (wave * amplitude * env * ampScale);
-        if (s == 0) {
-          path.moveTo(pt.dx, pt.dy);
-        } else {
-          path.lineTo(pt.dx, pt.dy);
-        }
-      }
-
-      // Alpha lifts during the feed flash so the whole plant briefly
-      // glows brighter on cast.
-      final outerAlpha = (attacking ? 0.22 : 0.14) + 0.18 * flash;
-      final mainAlpha = (attacking ? 0.90 : 0.70) + 0.10 * flash;
-      final highlightAlpha = (attacking ? 0.60 : 0.42) + 0.35 * flash;
-      // Soft outer halo stroke
-      tendril
-        ..strokeWidth = strokeWidth * 2.2
-        ..color = dark.withValues(alpha: outerAlpha.clamp(0.0, 1.0));
-      canvas.drawPath(path, tendril);
-      // Main vine stroke
-      tendril
-        ..strokeWidth = strokeWidth
-        ..color = dark.withValues(alpha: mainAlpha.clamp(0.0, 1.0));
-      canvas.drawPath(path, tendril);
-      // Inner highlight stroke (thinner, brighter)
-      tendril
-        ..strokeWidth = max(0.9, strokeWidth * 0.45)
-        ..color = bright.withValues(alpha: highlightAlpha.clamp(0.0, 1.0));
-      canvas.drawPath(path, tendril);
-
-      if (attacking) {
-        // Single pulsing fang at the enemy end. One circle, not two —
-        // the bite reads from the tendril latching motion, not a
-        // pronounced glow pip.
-        final bite = 0.55 + 0.45 * sin(t * 9.0 + phaseOffset);
-        tip.color = bright.withValues(alpha: 0.55 * bite);
-        canvas.drawCircle(endPoint, 1.4 + 1.2 * feedT, tip);
-      }
-      // No idle tip pip — the swaying tendril stroke is enough.
-    }
   }
+
 
   void _spawnHitSpark(Offset pos, Color color) {
     if (_vfx.length >= 150) return;

@@ -802,8 +802,8 @@
       "image": "creatures/uncommon/MAN03_earthmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 250,
-        "frameHeight": 250,
+        "frameWidth": 512,
+        "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 100
       }

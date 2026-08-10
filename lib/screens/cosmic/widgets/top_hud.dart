@@ -22,6 +22,7 @@ class TopHud extends StatefulWidget {
     required this.onMiniMap,
     required this.onMeterTap,
     this.showMeter = true,
+    this.raidStrip,
     this.collapsed = false,
     this.onCollapsedChanged,
     this.zoomLevel = 0,
@@ -39,6 +40,8 @@ class TopHud extends StatefulWidget {
   final VoidCallback onMiniMap;
   final VoidCallback onMeterTap;
   final bool showMeter;
+  // A live-raid countdown strip, shown banded above the alchemical meter.
+  final Widget? raidStrip;
   final bool collapsed;
   final ValueChanged<bool>? onCollapsedChanged;
   final int zoomLevel;
@@ -215,6 +218,12 @@ class TopHudState extends State<TopHud> {
                   ),
                 ],
               ),
+
+              // Live-raid strip — banded directly above the meter.
+              if (widget.raidStrip != null) ...[
+                const SizedBox(height: 8),
+                widget.raidStrip!,
+              ],
 
               // Alchemical meter
               if (widget.showMeter) ...[

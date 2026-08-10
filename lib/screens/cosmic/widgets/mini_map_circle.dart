@@ -172,7 +172,9 @@ class _MiniCirclePainter extends CustomPainter {
       final p = toMini(poi.position);
       final isSurvivalPortal = poi.type == POIType.survivalPortal;
       final scannerNearby = isScanner && (p - center).distance <= viewR * 0.9;
-      if (!poi.discovered && !isMarket && !scannerNearby && !isSurvivalPortal) continue;
+      if (!poi.discovered && !isMarket && !scannerNearby && !isSurvivalPortal) {
+        continue;
+      }
       if ((p - center).distance > viewR + 8) continue;
 
       Color c;
@@ -376,7 +378,10 @@ class _MiniCirclePainter extends CustomPainter {
           ..lineTo(back.dx + perp.dx * 3.6, back.dy + perp.dy * 3.6)
           ..lineTo(back.dx - perp.dx * 3.6, back.dy - perp.dy * 3.6)
           ..close();
-        canvas.drawPath(tri, Paint()..color = targetColor.withValues(alpha: 0.9));
+        canvas.drawPath(
+          tri,
+          Paint()..color = targetColor.withValues(alpha: 0.9),
+        );
         canvas.drawCircle(
           edge,
           4.0 + pulse * 2.0,

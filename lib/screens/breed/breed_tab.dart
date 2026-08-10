@@ -38,6 +38,9 @@ class _BreedingTabState extends State<BreedingTab>
   CreatureInstance? selectedParent2;
   bool _isBreeding = false;
 
+  // Outcome banner captured during the fusion cinematic, surfaced once after.
+  _PendingToast? _pendingFusionToast;
+
   // Remember last breeding pair for quick repeat
   String? _lastParent1InstanceId;
   String? _lastParent2InstanceId;
@@ -55,6 +58,12 @@ class _BreedingTabState extends State<BreedingTab>
 
   late Animation<double> _orbScaleAnim;
   late Animation<double> _orbSpinSpeedAnim;
+
+  // Keys to capture on-screen chamber positions so the fusion cinematic can
+  // anchor itself to the live screen.
+  final GlobalKey _slot1AvatarKey = GlobalKey();
+  final GlobalKey _slot2AvatarKey = GlobalKey();
+  final GlobalKey _orbKey = GlobalKey();
 
   String _familyKeyForCreature(Creature c) {
     if (c.mutationFamily != null && c.mutationFamily!.isNotEmpty) {
@@ -407,6 +416,7 @@ class _BreedingTabState extends State<BreedingTab>
                 slotIndex: 1,
                 theme: theme,
                 controller: _slot1Controller,
+                avatarKey: _slot1AvatarKey,
               ),
             ),
             const SizedBox(width: 16),
@@ -418,6 +428,7 @@ class _BreedingTabState extends State<BreedingTab>
                 slotIndex: 2,
                 theme: theme,
                 controller: _slot2Controller,
+                avatarKey: _slot2AvatarKey,
               ),
             ),
           ],
@@ -427,11 +438,14 @@ class _BreedingTabState extends State<BreedingTab>
         Positioned.fill(
           child: IgnorePointer(
             child: Center(
-              child: _buildFusionIndicator(
-                theme: theme,
-                hasParents: hasParents,
-                leftColor: colorA,
-                rightColor: colorB,
+              child: KeyedSubtree(
+                key: _orbKey,
+                child: _buildFusionIndicator(
+                  theme: theme,
+                  hasParents: hasParents,
+                  leftColor: colorA,
+                  rightColor: colorB,
+                ),
               ),
             ),
           ),
@@ -447,6 +461,7 @@ class _BreedingTabState extends State<BreedingTab>
     required int slotIndex,
     required FactionTheme theme,
     required AnimationController controller,
+    GlobalKey? avatarKey,
   }) {
     final repo = context.read<CreatureCatalog>();
     final base = inst != null ? repo.getCreatureById(inst.baseId) : null;
@@ -488,6 +503,7 @@ class _BreedingTabState extends State<BreedingTab>
                     children: [
                       // SPRITE ZONE
                       Center(
+                        key: avatarKey,
                         child: isEmpty
                             ? _buildEmptyAvatar(theme)
                             : Opacity(
@@ -1106,6 +1122,66 @@ class _BreedingTabState extends State<BreedingTab>
     }
   }
 
+  // Resolve a keyed widget's bounds in global screen coordinates, so the
+  // fusion cinematic can anchor itself to the live chamber slots / orb.
+  Rect? _globalRectOf(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  // Map a breeding outcome to the cinematic's reveal flourish: standard
+  // fusion, a pure new element, a pure lineage, or both.
+  FusionRevealData _buildRevealData(
+    Creature? offspring,
+    PureBreedingInfo? pure,
+    Color colorA,
+    Color colorB,
+  ) {
+    final mix = Color.lerp(colorA, colorB, .5)!;
+    if (pure == null) {
+      return FusionRevealData(kind: FusionRevealKind.standard, accent: mix);
+    }
+
+    const gold = Color(0xFFFFC34D);
+    final isElement = pure.elementName != null;
+    final isSpecies = pure.familyName != null;
+    final element = offspring != null && offspring.types.isNotEmpty
+        ? offspring.types.first
+        : pure.elementName;
+    final elementColor = element != null
+        ? BreedConstants.getTypeColor(element)
+        : mix;
+    final elementUpper = (element ?? 'PURE').toUpperCase();
+
+    if (isElement && isSpecies) {
+      return FusionRevealData(
+        kind: FusionRevealKind.pureBoth,
+        accent: Color.lerp(gold, elementColor, .35)!,
+        element: element?.toLowerCase(),
+        foundedNewLine: pure.foundedNewLine,
+        caption: pure.foundedNewLine ? 'PURE LINE ESTABLISHED' : 'PURE SYNTHESIS',
+      );
+    }
+    if (isElement) {
+      return FusionRevealData(
+        kind: FusionRevealKind.pureElement,
+        accent: elementColor,
+        element: element?.toLowerCase(),
+        foundedNewLine: pure.foundedNewElementLine,
+        caption: pure.foundedNewElementLine
+            ? 'NEW $elementUpper LINEAGE'
+            : 'PURE $elementUpper',
+      );
+    }
+    return FusionRevealData(
+      kind: FusionRevealKind.pureSpecies,
+      accent: gold,
+      foundedNewLine: pure.foundedNewFamilyLine,
+      caption: pure.foundedNewFamilyLine ? 'NEW LINEAGE FOUNDED' : 'PURE LINEAGE',
+    );
+  }
+
   // ================== BREED HANDLER ==================
   Future<void> _performBreeding() async {
     if (selectedParent1 == null || selectedParent2 == null) return;
@@ -1161,13 +1237,19 @@ class _BreedingTabState extends State<BreedingTab>
       final leftSprite = spriteFor(selectedParent1!, speciesA);
       final rightSprite = spriteFor(selectedParent2!, speciesB);
       if (!mounted) return;
+      // Resolved mid-cinematic so the climax matches what was actually bred.
+      final outcomeNotifier = ValueNotifier<FusionRevealData?>(null);
       final didBreed = await showAlchemyFusionCinematic<bool>(
         context: context,
         leftSprite: leftSprite,
         rightSprite: rightSprite,
         leftColor: colorA,
         rightColor: colorB,
-        minDuration: const Duration(milliseconds: 1800),
+        leftSlotRect: _globalRectOf(_slot1AvatarKey),
+        rightSlotRect: _globalRectOf(_slot2AvatarKey),
+        coreRect: _globalRectOf(_orbKey),
+        outcome: outcomeNotifier,
+        minDuration: const Duration(milliseconds: 4350),
         task: () async {
           // Service now handles breeding + analysis in one go.
           final result = await breedingService.breedInstances(
@@ -1176,7 +1258,7 @@ class _BreedingTabState extends State<BreedingTab>
           );
 
           if (!result.success) {
-            _showToast(
+            _pendingFusionToast = _PendingToast(
               result.message ?? 'Breeding failed',
               icon: AppIcons.warning_rounded,
               color: Colors.orange,
@@ -1184,14 +1266,22 @@ class _BreedingTabState extends State<BreedingTab>
             return false;
           }
 
+          // Tell the cinematic what was created so it can play the right reveal.
+          outcomeNotifier.value = _buildRevealData(
+            repo.getCreatureById(result.creatureId ?? ''),
+            result.pureBreedingInfo,
+            colorA,
+            colorB,
+          );
+
           if (result.placement == EggPlacement.storage) {
-            _showToast(
+            _pendingFusionToast = _PendingToast(
               'Incubator full — specimen transferred to cold storage',
               icon: AppIcons.inventory_2_rounded,
               color: Colors.orange,
             );
           } else if (result.placement == EggPlacement.incubator) {
-            _showToast(
+            _pendingFusionToast = _PendingToast(
               'Specimen placed in incubation chamber ${(result.slotId ?? 0) + 1}',
               icon: AppIcons.science_rounded,
             );
@@ -1208,6 +1298,16 @@ class _BreedingTabState extends State<BreedingTab>
           return true;
         },
       );
+
+      outcomeNotifier.dispose();
+
+      // Surface the outcome once, after the cinematic, so it is actually
+      // visible (not hidden behind the overlay) and can't double-fire.
+      final pending = _pendingFusionToast;
+      _pendingFusionToast = null;
+      if (pending != null) {
+        _showToast(pending.message, icon: pending.icon, color: pending.color);
+      }
 
       if (didBreed != true) return;
       if (!mounted) return;
@@ -1404,6 +1504,11 @@ class _BreedingTabState extends State<BreedingTab>
     return false;
   }
 
+  // Guard against the same banner firing twice in quick succession (e.g. a
+  // toast queued during the fusion cinematic plus a follow-up call).
+  String? _lastToastMessage;
+  DateTime? _lastToastAt;
+
   void _showToast(
     String message, {
     IconData icon = AppIcons.info_rounded,
@@ -1411,6 +1516,14 @@ class _BreedingTabState extends State<BreedingTab>
     bool fromTop = false,
   }) {
     if (!mounted) return;
+    final now = DateTime.now();
+    if (_lastToastMessage == message &&
+        _lastToastAt != null &&
+        now.difference(_lastToastAt!) < const Duration(milliseconds: 1500)) {
+      return;
+    }
+    _lastToastMessage = message;
+    _lastToastAt = now;
     final theme = context.read<FactionTheme>();
     final accent = color ?? theme.accent;
     final messenger = ScaffoldMessenger.of(context);
@@ -1523,6 +1636,38 @@ class _BreedingTabState extends State<BreedingTab>
 
 // ================== CUSTOM PAINTERS ==================
 
+enum HalfSide { left, right }
+
+class _HalfCircleClipper extends CustomClipper<Path> {
+  final HalfSide side;
+  _HalfCircleClipper({required this.side});
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    if (side == HalfSide.left) {
+      path.addArc(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        math.pi / 2,
+        math.pi,
+      );
+    } else {
+      path.addArc(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        -math.pi / 2,
+        math.pi,
+      );
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _HalfCircleClipper oldClipper) {
+    return oldClipper.side != side;
+  }
+}
+
 class _DNAConnectionPainter extends CustomPainter {
   final double progress;
   final Color color;
@@ -1585,38 +1730,6 @@ class _ParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ParticlePainter oldDelegate) => true;
-}
-
-enum HalfSide { left, right }
-
-class _HalfCircleClipper extends CustomClipper<Path> {
-  final HalfSide side;
-  _HalfCircleClipper({required this.side});
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    if (side == HalfSide.left) {
-      path.addArc(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        math.pi / 2,
-        math.pi,
-      );
-    } else {
-      path.addArc(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        -math.pi / 2,
-        math.pi,
-      );
-    }
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant _HalfCircleClipper oldClipper) {
-    return oldClipper.side != side;
-  }
 }
 
 class _SummoningCirclePainter extends CustomPainter {
@@ -1803,4 +1916,12 @@ class _SummoningCirclePainter extends CustomPainter {
       old.showOrbit != showOrbit ||
       old.color != color ||
       old.accentColor != accentColor;
+}
+
+/// A toast captured during the fusion cinematic, shown once after it closes.
+class _PendingToast {
+  const _PendingToast(this.message, {required this.icon, this.color});
+  final String message;
+  final IconData icon;
+  final Color? color;
 }

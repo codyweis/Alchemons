@@ -1632,7 +1632,61 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // Air pilot: 2 verbs need Air (Wing flight) + Lightning (storm runes / Horn
   // channel) + Fire (air+fire→electricity combo). See `project-planet-dungeons`.
   'Air': ['Air', 'Lightning', 'Fire'],
+  // Cinder Cathedral: Fire (braziers / censers / hearth) + Air (gusts carry
+  // the vesper flame) + Plant (vines for the ash garden; Plant+Fire→Dust).
+  'Fire': ['Fire', 'Air', 'Plant'],
+  // Mirror-Tide Temple: Water (valves / fountain / tide) + Spirit (ghost
+  // currents, moon-truth; Spirit+Water→Ice) + Ice (freeze the moon-pools).
+  'Water': ['Water', 'Spirit', 'Ice'],
+  // Buried Giant: Earth (rib shoves / the lintel) + Lightning (arc the
+  // buried sockets; Earth+Lightning→Crystal) + Crystal (locks direct, reads
+  // the eye).
+  'Earth': ['Earth', 'Lightning', 'Crystal'],
+  // Storm Circuit (Voltara): Lightning (Horn charges the dead pylons + holds
+  // the channel) + Air (Wing herds the high storm-cells) + Fire (heats the
+  // anvil; Air+Fire→Lightning births the Thundercloud source).
+  'Lightning': ['Lightning', 'Air', 'Fire'],
+  // Molten Labyrinth (Vaporis): Steam (Pip cools running lava to standing rock
+  // and halts its creep) + Earth (Horn dams the flood with raised walls) + Fire
+  // (Earth+Fire→Lava melts rock to molten). Each room is a spreading-lava grid.
+  'Steam': ['Steam', 'Earth', 'Fire'],
 };
+
+/// Planets whose descent is planned but whose dungeon isn't built yet. They
+/// still carry the gate ritual — the player can complete the offering and
+/// unseal them — but instead of a DESCEND action they show a "descent coming
+/// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
+/// [kPlanetDungeonLayouts] once its dungeon is authored.
+const Set<String> kComingSoonDungeons = {
+  'Lava',
+  'Mud',
+  'Ice',
+  'Dust',
+  'Crystal',
+  'Plant',
+  'Poison',
+  'Spirit',
+  'Dark',
+  'Light',
+  'Blood',
+};
+
+/// True if [element]'s planet uses the gate ritual at all — whether its dungeon
+/// is built ([kCosmicPlanetEntry]) or merely coming soon ([kComingSoonDungeons]).
+/// Gate planets replace the normal summon/pathway flow with an unseal offering.
+bool isDungeonGatePlanet(String element) =>
+    kCosmicPlanetEntry.containsKey(element) ||
+    kComingSoonDungeons.contains(element);
+
+/// The campaign's terminal planet (Hemavorn). Its gate is the FINAL one: it
+/// only opens once every other planet's guardian has fallen, and entering its
+/// dungeon is the sole path to the Blood Mystic (Sanguorath) → the Blood Ring.
+const String kBloodPlanetElement = 'Blood';
+
+/// How many planets are NOT the Blood planet — i.e. how many guardians must
+/// fall before Hemavorn answers. Derived so it tracks the planet roster.
+final int kNonBloodPlanetCount =
+    kCosmicPlanetEntry.length + kComingSoonDungeons.length - 1;
 
 /// True if [party] (the orbiting roster) contains at least the multiset of
 /// elements in [required]. Extra creatures are fine; duplicates in [required]
@@ -1656,140 +1710,6 @@ bool cosmicPartySatisfiesEntry(
   return true;
 }
 
-// ─────────────────────────────────────────────────────────
-// RECIPE STATE PERSISTENCE
-// ─────────────────────────────────────────────────────────
-
-/// Tracks per-element recipe progression across 3 levels.
-class CosmicRecipeState {
-  final Map<String, int> unlockedLevels; // element -> max unlocked level (1..3)
-  final Map<String, int> completedMasks; // bit0=L1, bit1=L2, bit2=L3
-  final Map<String, int>
-  postMaxRollLevels; // element -> active random level 1..3
-
-  const CosmicRecipeState({
-    required this.unlockedLevels,
-    required this.completedMasks,
-    required this.postMaxRollLevels,
-  });
-
-  int unlockedLevelFor(String element) =>
-      (unlockedLevels[element] ?? 1).clamp(1, 3);
-
-  int completedMaskFor(String element) => completedMasks[element] ?? 0;
-
-  bool isLevelCompleted(String element, int level) {
-    final bit = 1 << (level.clamp(1, 3) - 1);
-    return (completedMaskFor(element) & bit) != 0;
-  }
-
-  bool isMaxMastered(String element) =>
-      (completedMaskFor(element) & 0x7) == 0x7;
-
-  int activeLevelFor(String element, {required int seed}) {
-    if (!isMaxMastered(element)) return unlockedLevelFor(element);
-    final rolled = postMaxRollLevels[element];
-    if (rolled != null && rolled >= 1 && rolled <= 3) return rolled;
-    final rng = Random(seed ^ element.hashCode ^ 0xA11CE);
-    return 1 + rng.nextInt(3);
-  }
-
-  CosmicRecipeState onRecipeSuccess(
-    String element,
-    int level, {
-    required Random rng,
-  }) {
-    final targetLevel = level.clamp(1, 3);
-    final updatedUnlocked = Map<String, int>.from(unlockedLevels);
-    final updatedMasks = Map<String, int>.from(completedMasks);
-    final updatedPostMax = Map<String, int>.from(postMaxRollLevels);
-
-    final bit = 1 << (targetLevel - 1);
-    final newMask = (updatedMasks[element] ?? 0) | bit;
-    updatedMasks[element] = newMask;
-
-    final currentUnlocked = (updatedUnlocked[element] ?? 1).clamp(1, 3);
-    if (targetLevel == currentUnlocked && currentUnlocked < 3) {
-      updatedUnlocked[element] = currentUnlocked + 1;
-    }
-
-    if ((newMask & 0x7) == 0x7) {
-      updatedPostMax[element] = 1 + rng.nextInt(3);
-    } else {
-      updatedPostMax.remove(element);
-    }
-
-    return CosmicRecipeState(
-      unlockedLevels: updatedUnlocked,
-      completedMasks: updatedMasks,
-      postMaxRollLevels: updatedPostMax,
-    );
-  }
-
-  String serialise() {
-    final keys = <String>{
-      ...unlockedLevels.keys,
-      ...completedMasks.keys,
-      ...postMaxRollLevels.keys,
-    }.toList()..sort();
-    return keys
-        .map((k) {
-          final unlocked = unlockedLevelFor(k);
-          final mask = completedMaskFor(k);
-          final roll = postMaxRollLevels[k] ?? 0;
-          return '$k=$unlocked|$mask|$roll';
-        })
-        .join(',');
-  }
-
-  factory CosmicRecipeState.deserialise(String raw) {
-    if (raw.isEmpty) {
-      return const CosmicRecipeState(
-        unlockedLevels: {},
-        completedMasks: {},
-        postMaxRollLevels: {},
-      );
-    }
-    final unlocked = <String, int>{};
-    final masks = <String, int>{};
-    final rolls = <String, int>{};
-    for (final part in raw.split(',')) {
-      if (part.contains('=')) {
-        final kv = part.split('=');
-        if (kv.length != 2) continue;
-        final key = kv[0];
-        final segs = kv[1].split('|');
-        final unlockedLevel = (int.tryParse(segs[0]) ?? 1).clamp(1, 3);
-        final mask = segs.length > 1 ? (int.tryParse(segs[1]) ?? 0) : 0;
-        final roll = segs.length > 2 ? (int.tryParse(segs[2]) ?? 0) : 0;
-        unlocked[key] = unlockedLevel;
-        masks[key] = mask & 0x7;
-        if (roll >= 1 && roll <= 3) rolls[key] = roll;
-      } else {
-        // Backward compatibility with old format: "element:version".
-        final kv = part.split(':');
-        if (kv.length != 2) continue;
-        final key = kv[0];
-        final version = int.tryParse(kv[1]) ?? 0;
-        final completed = version.clamp(0, 3);
-        final mask = completed <= 0 ? 0 : ((1 << completed) - 1);
-        unlocked[key] = (completed + 1).clamp(1, 3);
-        masks[key] = mask;
-      }
-    }
-    return CosmicRecipeState(
-      unlockedLevels: unlocked,
-      completedMasks: masks,
-      postMaxRollLevels: rolls,
-    );
-  }
-
-  factory CosmicRecipeState.fresh() => const CosmicRecipeState(
-    unlockedLevels: {},
-    completedMasks: {},
-    postMaxRollLevels: {},
-  );
-}
 
 // ─────────────────────────────────────────────────────────
 // PLANET STAR STATE PERSISTENCE
@@ -1835,6 +1755,18 @@ class PlanetStarState {
   bool hasClaimed(String element, int index) {
     if (index < 0 || index > 2) return false;
     return (claimedMaskFor(element) & (1 << index)) != 0;
+  }
+
+  /// How many planets' guardians (Star 3) have fallen — the campaign's
+  /// difficulty clock. [excluding] leaves out one element (pass the planet
+  /// being entered so its own past clear doesn't double-count itself).
+  int guardiansDefeated({String? excluding}) {
+    var n = 0;
+    for (final el in starMasks.keys) {
+      if (el == excluding) continue;
+      if (hasStar(el, 2)) n++;
+    }
+    return n;
   }
 
   /// Earned but not-yet-claimed star indices for [element].

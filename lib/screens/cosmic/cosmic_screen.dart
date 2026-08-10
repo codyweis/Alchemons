@@ -10,15 +10,14 @@ import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/services/raid_service.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_screen.dart';
 import 'package:alchemons/providers/audio_provider.dart';
-import 'package:alchemons/screens/cosmic/cosmic_summon_screen.dart';
 import 'package:alchemons/screens/cosmic/space_market_sheet.dart';
 import 'package:alchemons/screens/cosmic/cosmic_sell_sheet.dart';
 import 'package:alchemons/screens/cosmic/gold_conversion_sheet.dart';
-import 'package:alchemons/screens/scenes/scene_page.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
@@ -28,10 +27,6 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/inventory.dart';
-import 'package:alchemons/models/wilderness.dart';
-import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/models/scenes/valley/valley_scene.dart';
-import 'package:alchemons/models/scenes/poison/poison_scene.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
@@ -52,7 +47,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 
 // Scorched Forge design tokens
@@ -60,7 +54,6 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 
 // Local widget imports
 import 'models/map_marker.dart';
-import 'models/cosmic_summon_result.dart';
 import 'widgets/widgets.dart';
 import 'widgets/mini_map_circle.dart';
 import 'widgets/contest_arena_overlays.dart';
@@ -82,8 +75,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     with TickerProviderStateMixin {
   static const _prefsKey = 'cosmic_fog_state_v2';
   static const _seedKey = 'cosmic_world_seed_v2';
-  static const _planetPathwayIntroSeenKey =
-      'cosmic_planet_pathway_intro_seen_v1';
   static const _planetRecipeArrivalIntroSeenKey =
       'cosmic_planet_recipe_arrival_intro_seen_v1';
   static const _cosmicIntroPromptedKey = 'cosmic_intro_prompted_v1';
@@ -100,14 +91,14 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _showMiniMap = false;
   bool _showPinnedMiniMap = true;
   bool _topHudCollapsed = false;
+  // The persistent descent placard collapses to a compact pill on demand so
+  // the player can see the planet beneath it.
+  bool _descentPlacardMinimized = false;
   String? _pinnedRecipeElement;
-  CosmicSummonResult? _summonResult;
-  bool _arcaneUnlocked = false;
 
   // Recipe & storage state
   CosmicPlanet? _nearPlanet;
   bool _showingPlanetRecipeArrivalIntro = false;
-  CosmicRecipeState _recipeState = CosmicRecipeState.fresh();
 
   /// Dungeon-gated planets whose one-time element-recipe offering has been
   /// completed. Unsealing is permanent — the recipe never asks again.
@@ -446,19 +437,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     _world = CosmicWorld.generate(seed: _worldSeed);
 
-    // Check arcane unlock
-    if (mounted) {
-      final db = context.read<AlchemonsDatabase>();
-      final v = await db.settingsDao.getSetting('arcane_portal_unlocked');
-      _arcaneUnlocked = v == '1';
-    }
-
-    // Load recipe state
-    final recipeRaw = prefs.getString('cosmic_recipe_state');
-    if (recipeRaw != null) {
-      _recipeState = CosmicRecipeState.deserialise(recipeRaw);
-    }
-
     // Load planet star state (dungeon stars earned per planet)
     final starRaw = prefs.getString(_planetStarStatePrefsKey);
     if (starRaw != null) {
@@ -483,28 +461,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         setState(() {}); // countdown chip tick
       }
     });
-
-    // One-time cleanup: remove stale Poison pathway unlocks left from
-    // earlier debug entry modes so recipe gating behaves normally again.
-    const recipeDebugCleanupKey = 'cosmic_recipe_debug_cleanup_v1';
-    final didRecipeDebugCleanup = prefs.getBool(recipeDebugCleanupKey) ?? false;
-    if (!didRecipeDebugCleanup && _recipeState.isMaxMastered('Poison')) {
-      final unlocked = Map<String, int>.from(_recipeState.unlockedLevels)
-        ..remove('Poison');
-      final masks = Map<String, int>.from(_recipeState.completedMasks)
-        ..remove('Poison');
-      final rolls = Map<String, int>.from(_recipeState.postMaxRollLevels)
-        ..remove('Poison');
-      _recipeState = CosmicRecipeState(
-        unlockedLevels: unlocked,
-        completedMasks: masks,
-        postMaxRollLevels: rolls,
-      );
-      await prefs.setString('cosmic_recipe_state', _recipeState.serialise());
-    }
-    if (!didRecipeDebugCleanup) {
-      await prefs.setBool(recipeDebugCleanupKey, true);
-    }
 
     // Load element storage
     final storageRaw = prefs.getString('cosmic_element_storage');
@@ -1929,7 +1885,11 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (mounted && planet != _nearPlanet) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          setState(() => _nearPlanet = planet);
+          setState(() {
+            _nearPlanet = planet;
+            // A fresh gate always greets the player expanded.
+            _descentPlacardMinimized = false;
+          });
           // animate planet-meter in/out
           if (planet != null) {
             _planetMeterCtrl.forward(from: 0.0);
@@ -1949,7 +1909,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Once a dungeon gate is unsealed its recipe is gone for good — no
     // pattern left to whisper.
-    if (kCosmicPlanetEntry.containsKey(planet.element) &&
+    if (isDungeonGatePlanet(planet.element) &&
         _unsealedGates.contains(planet.element)) {
       return;
     }
@@ -1964,9 +1924,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     try {
       await LandscapeDialog.show(
         context,
-        title: 'The Planet Whispers a Pattern',
+        title: 'The Gate Whispers a Pattern',
         message:
-            'Something in this sphere remembers an older design. An alchemical recipe lies veiled here. Gather the essences it asks for, and when the pattern is whole, let the summon answer.',
+            'Something in this sphere remembers an older design. An alchemical seal lies veiled here. Gather the essences it asks for, and when the pattern is whole, the gate will open.',
         typewriter: true,
         kind: LandscapeDialogKind.info,
         showIcon: false,
@@ -4023,13 +3983,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final planetIntroSeen = prefs.getBool(_planetPathwayIntroSeenKey) ?? false;
-    if (!planetIntroSeen) {
-      _showQuote('Complete planetary recipes to unlock a sacrifice.');
-      return;
-    }
-
+    // The ring only answers to the Blood Mystic (Sanguorath), which is itself
+    // unlocked solely by entering the Blood planet — which in turn requires
+    // felling every other planet's guardian. So this single check enforces the
+    // whole endgame chain.
     if (_activeCompanionSlot == null) {
       _showQuote('Mystic Blood required.');
       return;
@@ -5873,10 +5830,11 @@ class _CosmicScreenState extends State<CosmicScreen>
     await prefs.setInt('cosmic_orbital_stockpile', _game!.orbitalStockpile);
   }
 
+  /// The gate OFFERING pattern for a planet. Every planet is a dungeon gate
+  /// now, so this is purely the one-time unseal recipe. Built dungeons derive
+  /// it from their authored entry trio; coming-soon planets generate one.
   PlanetRecipe _getRecipeForPlanet(CosmicPlanet planet) {
-    final level = _recipeState.activeLevelFor(planet.element, seed: _worldSeed);
-    // Dungeon-gated planets derive their recipe from the authored entry trio so
-    // the recipe reflects the creatures the player must bring.
+    const level = 1;
     final entry = kCosmicPlanetEntry[planet.element];
     if (entry != null) {
       return PlanetRecipe.fromEntryRequirement(
@@ -5892,6 +5850,15 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
+  /// The Blood planet (Hemavorn) is the campaign's terminal gate: it stays
+  /// sealed until every OTHER planet's guardian has fallen. Those Star-3 clears
+  /// are what drop the relics that summon the witness mystics, so this is the
+  /// in-world meaning of "you have entered every other planet." Naturally locked
+  /// until all dungeons are built and cleared.
+  bool get _bloodPlanetUnlocked =>
+      _planetStarState.guardiansDefeated(excluding: kBloodPlanetElement) >=
+      kNonBloodPlanetCount;
+
   /// Enter a gated planet's dungeon with every carried creature whose element
   /// the planet requires. Stars are persisted inside the dungeon (instant
   /// bank); we just reload star state on return.
@@ -5902,6 +5869,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     // The gate offering must have been completed once (permanently).
     if (!_unsealedGates.contains(planet.element)) return;
+    // Hemavorn never opens until the rest of the campaign is done — this is
+    // the final descent and the only path to the Blood Mystic. (Inert until
+    // the Blood dungeon is authored; harmless guard meanwhile.)
+    if (planet.element == kBloodPlanetElement && !_bloodPlanetUnlocked) return;
     final roster = _partyMembers
         .whereType<CosmicPartyMember>()
         .where((m) => req.contains(m.element))
@@ -6019,38 +5990,103 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// Compact "sealed" chip shown when near a dungeon-gated planet without the
   /// required element trio in the cosmic party. Checks off elements carried.
   /// Space-view raid alert: which planet is overrun and how long remains.
-  Widget _raidAlertChip() {
+  /// The live-raid countdown, shaped as a full-width strip that bands across
+  /// the top HUD card directly above the alchemical meter.
+  Widget _raidMeterStrip() {
     final raid = _raid!;
     final left = raid.remaining(DateTime.now().toUtc());
     String two(int v) => v.toString().padLeft(2, '0');
     final clock =
         '${two(left.inHours)}:${two(left.inMinutes % 60)}:${two(left.inSeconds % 60)}';
+    const ember = Color(0xFFE25544);
+    final elColor = elementColor(raid.element);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      height: 30,
+      padding: const EdgeInsets.fromLTRB(6, 0, 12, 0),
       decoration: BoxDecoration(
-        color: const Color(0xFF080808).withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFFE25544).withValues(alpha: 0.7),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            ember.withValues(alpha: 0.24),
+            ember.withValues(alpha: 0.05),
+          ],
         ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: ember.withValues(alpha: 0.7), width: 1.1),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.whatshot_rounded,
-            color: Color(0xFFE25544),
-            size: 13,
+          // Ember medallion — the raid's warning sigil.
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  ember.withValues(alpha: 0.6),
+                  ember.withValues(alpha: 0.12),
+                ],
+              ),
+              border: Border.all(color: ember.withValues(alpha: 0.9)),
+            ),
+            child: const Icon(
+              Icons.whatshot_rounded,
+              color: Color(0xFFFFE0D6),
+              size: 13,
+            ),
           ),
-          const SizedBox(width: 6),
-          Text(
-            'RAID — ${raid.element.toUpperCase()} — $clock',
-            style: const TextStyle(
-              color: Color(0xFFEDE3CF),
-              fontFamily: 'monospace',
+          const SizedBox(width: 8),
+          const Text(
+            'RAID',
+            style: TextStyle(
+              color: ember,
               fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.6,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: elColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: elColor.withValues(alpha: 0.7),
+                  blurRadius: 5,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            raid.element.toUpperCase(),
+            style: TextStyle(
+              color: const Color(0xFFEDE3CF).withValues(alpha: 0.8),
+              fontSize: 9.5,
               fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
+              letterSpacing: 1.6,
+            ),
+          ),
+          const Spacer(),
+          Icon(
+            Icons.timer_outlined,
+            size: 12,
+            color: const Color(0xFFEDE3CF).withValues(alpha: 0.55),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            clock,
+            style: const TextStyle(
+              color: Color(0xFFF3ECDC),
+              fontFamily: 'monospace',
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
             ),
           ),
         ],
@@ -6058,40 +6094,68 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  /// Bracketed planet-surface CTA (DESCEND / ENTER RAID / SUMMON RAID).
+  /// A soft, glowing planet-surface CTA (DESCEND / ENTER RAID / SUMMON RAID).
+  /// A translucent lozenge with a colored halo — meant to float over the scene
+  /// rather than sit in a hard-edged box.
   Widget _planetCta({
     required String label,
     required Color accent,
     required Color glow,
     required VoidCallback onTap,
+    IconData? icon,
     bool compact = false,
+    bool fullWidth = false,
   }) {
+    final fontSize = compact ? 12.0 : 13.5;
+    // Square, hard-edged alchemical plate with bracketed corners — matches the
+    // dungeon/raid popup chrome instead of the old rounded lozenge.
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 14 : 20,
-          vertical: compact ? 8 : 12,
+      child: CustomPaint(
+        foregroundPainter: DungeonBracketPainter(
+          color: accent.withValues(alpha: 0.9),
+          bracketSize: compact ? 8 : 10,
+          strokeWidth: 1.4,
         ),
-        decoration: BoxDecoration(
-          color: const Color(0xFF080808).withValues(alpha: 0.86),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: accent.withValues(alpha: 0.85), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: glow.withValues(alpha: 0.3),
-              blurRadius: 18,
-              spreadRadius: 1,
+        child: Container(
+          width: fullWidth ? double.infinity : null,
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 16 : 20,
+            vertical: compact ? 9 : 12,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF100E0C).withValues(alpha: 0.92),
+            border: Border.all(
+              color: accent.withValues(alpha: 0.7),
+              width: 1.2,
             ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: accent,
-            fontSize: compact ? 12 : 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.6,
+            boxShadow: [
+              BoxShadow(
+                color: glow.withValues(alpha: 0.35),
+                blurRadius: 16,
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: accent, size: fontSize + 3),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color: accent,
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -6124,8 +6188,152 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  Widget _buildSealedPlanetChip(CosmicPlanet planet, List<String> required) {
+  /// A thin gradient rule fading out toward [leftToRight]'s far side —
+  /// the placard's ornament line.
+  Widget _placardRule(Color color, {bool leftToRight = true}) {
+    return Container(
+      width: 34,
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: leftToRight ? Alignment.centerRight : Alignment.centerLeft,
+          end: leftToRight ? Alignment.centerLeft : Alignment.centerRight,
+          colors: [color.withValues(alpha: 0.75), color.withValues(alpha: 0)],
+        ),
+      ),
+    );
+  }
+
+  /// The dungeon's descent riddle: a verse that cryptically names the ideal
+  /// FAMILY for each entry slot — party-picking is a puzzle the player can
+  /// reason about, never a guess. [boxed] gives it its own soft backdrop for
+  /// standalone use; inline it melts into the placard.
+  Widget _dungeonRiddleCard(String element, Color accent, {bool boxed = true}) {
+    final riddle = kPlanetDungeonLayouts[element]?.riddle ?? const <String>[];
+    if (riddle.isEmpty) return const SizedBox.shrink();
+    final verse = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _placardRule(const Color(0xFFC4A35A)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                'THE PLANET WHISPERS',
+                style: TextStyle(
+                  color: const Color(0xFFC4A35A).withValues(alpha: 0.75),
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2.0,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
+                ),
+              ),
+            ),
+            _placardRule(const Color(0xFFC4A35A), leftToRight: false),
+          ],
+        ),
+        const SizedBox(height: 5),
+        for (final line in riddle)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 1.5),
+            child: Text(
+              line,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: const Color(0xFFE8DFC8).withValues(alpha: 0.85),
+                fontSize: 10.5,
+                fontStyle: FontStyle.italic,
+                height: 1.4,
+                shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+              ),
+            ),
+          ),
+      ],
+    );
+    if (!boxed) return verse;
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      constraints: const BoxConstraints(maxWidth: 330),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0805).withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: verse,
+    );
+  }
+
+  /// The persistent descent placard, shown whenever the player stands at an
+  /// unsealed dungeon gate. It carries the planet's name, stars, the carried
+  /// element trio and the whisper riddle — and, once the party is complete,
+  /// the DESCEND / SUMMON RAID actions themselves. A chevron at the bottom-left
+  /// collapses it to a compact pill so the planet beneath stays readable.
+  Widget _buildDescentPlacard(
+    CosmicPlanet planet, {
+    required List<String> required,
+    required bool descendReady,
+    required bool raidHere,
+    required bool canSummonRaidHere,
+    required bool showDebugRaid,
+  }) {
     final color = planet.color;
+    final planetTitle = (kPlanetDisplayName[planet.element] ?? planet.element)
+        .toUpperCase();
+
+    // Minimized: a soft glowing pill (name + stars) that taps back open.
+    if (_descentPlacardMinimized) {
+      return GestureDetector(
+        onTap: () => setState(() => _descentPlacardMinimized = false),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 8, 13, 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                color.withValues(alpha: 0.2),
+                const Color(0xFF0A0A0A).withValues(alpha: 0.5),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: color.withValues(alpha: 0.45)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.28),
+                blurRadius: 18,
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                planetTitle,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.8,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _planetStarRow(planet.element, size: 13),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.unfold_more_rounded,
+                size: 18,
+                color: color.withValues(alpha: 0.9),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final have = <String, int>{};
     for (final m in _partyMembers) {
       if (m != null) have[m.element] = (have[m.element] ?? 0) + 1;
@@ -6137,248 +6345,250 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     final dots = <Widget>[];
     need.forEach((el, count) {
-      if (dots.isNotEmpty) dots.add(const SizedBox(width: 10));
+      if (dots.isNotEmpty) dots.add(const SizedBox(width: 14));
       final met = (have[el] ?? 0) >= count;
       dots.add(
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // The element dot doubles as the "carried" check: hollow ring
+            // until the creature rides, filled and glowing once it does.
             Container(
-              width: 9,
-              height: 9,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(
-                color: elementColor(el),
+                color: met ? elementColor(el) : Colors.transparent,
                 shape: BoxShape.circle,
+                border: Border.all(
+                  color: elementColor(el).withValues(alpha: met ? 1.0 : 0.6),
+                  width: 1.4,
+                ),
+                boxShadow: met
+                    ? [
+                        BoxShadow(
+                          color: elementColor(el).withValues(alpha: 0.6),
+                          blurRadius: 7,
+                        ),
+                      ]
+                    : null,
               ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 5),
             Text(
               count > 1 ? '$count× $el' : el,
               style: TextStyle(
-                color: met ? Colors.white : Colors.white54,
+                color: met ? Colors.white : Colors.white60,
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+                shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
               ),
-            ),
-            const SizedBox(width: 3),
-            Icon(
-              met ? Icons.check_circle : Icons.radio_button_unchecked,
-              size: 11,
-              color: met ? const Color(0xFF7CFC9A) : Colors.white38,
             ),
           ],
         ),
       );
     });
 
+    final showRiddle =
+        !raidHere && _planetStarState.starsEarned(planet.element) < 3;
+    // Legibility over the bright planet without a hard-edged card: a soft dark
+    // vignette that fades to nothing, plus glow shadows on the text itself.
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      constraints: const BoxConstraints(maxWidth: 340),
+      padding: const EdgeInsets.fromLTRB(28, 16, 28, 18),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
+        gradient: RadialGradient(
+          radius: 0.85,
+          colors: [
+            Colors.black.withValues(alpha: 0.6),
+            Colors.black.withValues(alpha: 0.0),
+          ],
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Title + an inline minimize chevron, floating (no frame). A spacer
+          // mirroring the chevron's footprint sits on the left so the title
+          // stays optically centered rather than shoved over by the chevron.
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_open_rounded, size: 13, color: color),
-              const SizedBox(width: 6),
+              const SizedBox(width: 29),
               Text(
-                'GATE OPEN — DESCENT PARTY',
+                planetTitle,
                 style: TextStyle(
                   color: color,
-                  fontSize: 11,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
+                  letterSpacing: 3.0,
+                  shadows: [
+                    const Shadow(color: Colors.black, blurRadius: 8),
+                    Shadow(color: color.withValues(alpha: 0.6), blurRadius: 16),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 7),
+              GestureDetector(
+                onTap: () => setState(() => _descentPlacardMinimized = true),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Icon(
+                    Icons.unfold_less_rounded,
+                    size: 16,
+                    color: color.withValues(alpha: 0.7),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 5),
-          _planetStarRow(planet.element),
-          const SizedBox(height: 5),
-          Row(mainAxisSize: MainAxisSize.min, children: dots),
+          const SizedBox(height: 8),
+          _planetStarRow(planet.element, size: 16),
+          // The carried element trio — only while still assembling the party.
+          // Once the trio rides, the DESCEND action speaks for itself.
+          if (!descendReady) ...[
+            const SizedBox(height: 11),
+            Text(
+              'REQUIRED ALCHEMON TYPES',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.55),
+                fontSize: 8,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.8,
+                shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
+              ),
+            ),
+            const SizedBox(height: 7),
+            Row(mainAxisSize: MainAxisSize.min, children: dots),
+          ],
+          if (showRiddle) ...[
+            const SizedBox(height: 9),
+            // The descent riddle — which SPECIES each slot truly wants.
+            _dungeonRiddleCard(planet.element, color, boxed: false),
+          ],
+          // ── Actions — present once the trio rides ──
+          if (raidHere) ...[
+            const SizedBox(height: 14),
+            _planetCta(
+              label: 'ENTER RAID',
+              accent: const Color(0xFFE25544),
+              glow: const Color(0xFFE25544),
+              icon: Icons.whatshot_rounded,
+              fullWidth: true,
+              onTap: () => unawaited(_enterRaid(planet)),
+            ),
+          ] else if (descendReady) ...[
+            const SizedBox(height: 14),
+            _planetCta(
+              label: 'DESCEND',
+              accent: const Color(0xFFE4C16A),
+              glow: color,
+              icon: Icons.south_rounded,
+              fullWidth: true,
+              onTap: () => unawaited(_enterDungeon(planet)),
+            ),
+            if (canSummonRaidHere) ...[
+              const SizedBox(height: 7),
+              _planetCta(
+                label: 'SUMMON RAID  ·  $_raidBeaconQty',
+                accent: const Color(0xFFE25544),
+                glow: const Color(0xFFE25544),
+                icon: Icons.local_fire_department_rounded,
+                compact: true,
+                fullWidth: true,
+                onTap: () => unawaited(_summonRaid(planet)),
+              ),
+            ] else if (showDebugRaid) ...[
+              const SizedBox(height: 7),
+              _planetCta(
+                label: 'RAID (DEBUG)',
+                accent: const Color(0xFF5BC8E8),
+                glow: const Color(0xFF5BC8E8),
+                icon: Icons.local_fire_department_rounded,
+                compact: true,
+                fullWidth: true,
+                onTap: () => unawaited(_debugSummonRaid(planet)),
+              ),
+            ],
+          ],
         ],
       ),
     );
   }
 
-  /// How many of a planet's 3 recipe levels are complete (0..3).
-  int _completedRecipeLevelsForPlanet(CosmicPlanet planet) {
-    final mask = _recipeState.completedMaskFor(planet.element) & 0x7;
-    var count = 0;
-    for (var bit = 0; bit < 3; bit++) {
-      if ((mask & (1 << bit)) != 0) count++;
-    }
-    return count;
-  }
-
-  List<String> _rarityPoolForRecipeLevel(int level) {
-    return switch (level.clamp(1, 3)) {
-      1 => const ['Common', 'Uncommon'],
-      2 => const ['Uncommon', 'Rare'],
-      _ => const ['Rare'],
-    };
-  }
-
-  ({String sceneId, SceneDefinition scene}) _sceneForElement(String element) {
-    // Cosmic planet encounters are fully decoupled from wilderness scene defs.
-    // Use a single neutral scene layout and drive visuals via cosmic biomes.
-    return (sceneId: 'cosmic_planet', scene: poisonScene);
-  }
-
-  List<PartyMember> _buildCosmicEncounterParty() {
-    final members = <PartyMember>[];
-    final seen = <String>{};
-    for (final m in _partyMembers) {
-      if (m == null) continue;
-      if (!seen.add(m.instanceId)) continue;
-      members.add(PartyMember(instanceId: m.instanceId));
-    }
-    return members;
-  }
-
-  Future<void> _enterPlanetForElement(String element) async {
-    final game = _game;
-    game?.pauseEngine();
-    final prefs = await SharedPreferences.getInstance();
-    final introSeen = prefs.getBool(_planetPathwayIntroSeenKey) ?? false;
-    final shouldShowIntro = !introSeen;
-
-    final target = _sceneForElement(element);
-    final party = _buildCosmicEncounterParty();
-    final approachColor = _nearPlanet?.color ?? elementColor(element);
-    try {
-      if (shouldShowIntro) {
-        if (!mounted) return;
-        await LandscapeDialog.show(
-          context,
-          title: 'Beauty Obstructs Reality',
-          message: '',
-          typewriter: true,
-          kind: LandscapeDialogKind.info,
-          showIcon: false,
-          primaryLabel: 'Continue',
-        );
-      }
-
-      if (!mounted) return;
-      await Navigator.of(context).push<void>(
-        PageRouteBuilder(
-          opaque: false,
-          barrierDismissible: false,
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (_, __, ___) =>
-              _PlanetApproachTransitionPage(color: approachColor),
+  /// The placard shown at an unsealed gate whose dungeon isn't built yet. The
+  /// gate ritual is done, but the depths aren't carved — so instead of DESCEND
+  /// it tells the player the descent is on its way.
+  Widget _buildComingSoonPlacard(CosmicPlanet planet) {
+    final color = planet.color;
+    final planetTitle = (kPlanetDisplayName[planet.element] ?? planet.element)
+        .toUpperCase();
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 340),
+      padding: const EdgeInsets.fromLTRB(28, 16, 28, 18),
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          radius: 0.85,
+          colors: [
+            Colors.black.withValues(alpha: 0.6),
+            Colors.black.withValues(alpha: 0.0),
+          ],
         ),
-      );
-
-      await SystemChrome.setPreferredOrientations(const [
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-
-      if (shouldShowIntro) {
-        if (!mounted) return;
-        await Navigator.of(context).push<bool>(
-          PageRouteBuilder(
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
-            pageBuilder: (_, __, ___) => _PlanetPathwayDisintegrationPage(
-              targetScene: target.scene,
-              showDreamDialog: true,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            planetTitle,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 3.0,
+              shadows: [
+                const Shadow(color: Colors.black, blurRadius: 8),
+                Shadow(color: color.withValues(alpha: 0.6), blurRadius: 16),
+              ],
             ),
           ),
-        );
-
-        if (!introSeen) {
-          await prefs.setBool(_planetPathwayIntroSeenKey, true);
-        }
-      }
-
-      if (!mounted) return;
-      await Navigator.of(context).push<bool>(
-        PageRouteBuilder(
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (_, __, ___) => ScenePage(
-            scene: target.scene,
-            sceneId: target.sceneId,
-            party: party,
-            isCosmicPlanetEntry: true,
-            cosmicElementName: element,
-            showCosmicDesolationPopup: shouldShowIntro,
+          const SizedBox(height: 12),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.hourglass_top_rounded,
+                size: 15,
+                color: color.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                'DESCENT COMING SOON',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.6,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ],
           ),
-        ),
-      );
-    } finally {
-      await SystemChrome.setPreferredOrientations(const [
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-      ]);
-      if (mounted) {
-        game?.resumeEngine();
-      }
-    }
-  }
-
-  Future<bool> _applyRecipeSuccessProgress(String element, int level) async {
-    final firstTimeLevelClear = !_recipeState.isLevelCompleted(element, level);
-    final rng = Random();
-    _recipeState = _recipeState.onRecipeSuccess(element, level, rng: rng);
-    await _saveRecipeState();
-
-    final pathwayUnlocked =
-        firstTimeLevelClear &&
-        level == 3 &&
-        _recipeState.isMaxMastered(element);
-
-    if (pathwayUnlocked && mounted) {
-      await LandscapeDialog.show(
-        context,
-        title: 'Elemental pathway discovered.',
-        message:
-            'A new route has opened. Recipes now reveal how to enter the planet.',
-        typewriter: true,
-        kind: LandscapeDialogKind.success,
-        icon: AppIcons.auto_awesome,
-        primaryLabel: 'Enter',
-      );
-    }
-
-    if (!firstTimeLevelClear) return pathwayUnlocked;
-
-    final rewardAmount = switch (level.clamp(1, 3)) {
-      1 => 100.0,
-      2 => 200.0,
-      _ => 300.0,
-    };
-
-    _elementStorage.addAll({element: rewardAmount});
-    await _saveElementStorage();
-
-    if (_homePlanet != null) {
-      _homePlanet!.colorMix[element] =
-          (_homePlanet!.colorMix[element] ?? 0) + rewardAmount;
-      await _saveHomePlanet();
-    }
-
-    if (mounted) {
-      _showQuote(
-        '${planetName(element)} recipe Lv.$level cleared: +${rewardAmount.toStringAsFixed(0)} $element deposited!',
-      );
-    }
-
-    return pathwayUnlocked;
-  }
-
-  Future<void> _saveRecipeState() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('cosmic_recipe_state', _recipeState.serialise());
+          const SizedBox(height: 7),
+          Text(
+            'This planet’s depths are still being forged.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: const Color(0xFFE8DFC8).withValues(alpha: 0.8),
+              fontSize: 10.5,
+              fontStyle: FontStyle.italic,
+              height: 1.4,
+              shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ignore: unused_element
@@ -6398,29 +6608,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  Future<bool?> _openSummonEncounter({
-    required String speciesId,
-    required String rarity,
-    required String elementName,
-  }) async {
-    final game = _game;
-    game?.pauseEngine();
-    try {
-      return await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => CosmicSummonScreen(
-            speciesId: speciesId,
-            rarity: rarity,
-            elementName: elementName,
-            portalColor: elementColor(elementName),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) game?.resumeEngine();
-    }
-  }
-
   void _triggerScreenShakeAndSummon() {
     _screenShakeCtrl.forward(from: 0);
     Future.delayed(const Duration(milliseconds: 150), () {
@@ -6428,6 +6615,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     });
   }
 
+  /// Every planet is a dungeon gate: completing its one-time offering unseals
+  /// it permanently. There is no creature summon or pathway entry — the
+  /// dungeon (or its coming-soon placard) IS the planet's content.
   void _handleRecipeSummon() async {
     if (_game == null || _nearPlanet == null) return;
 
@@ -6435,96 +6625,32 @@ class _CosmicScreenState extends State<CosmicScreen>
     final recipe = _getRecipeForPlanet(planet);
     final targetElement = planet.element;
 
-    // ── Dungeon-gated planets: the recipe is a ONE-TIME gate offering ──
-    // Success unseals the planet permanently and reveals the descent-party
-    // requirements. No creature summon, no pathway encounter — the dungeon
-    // IS this planet's content.
-    if (kCosmicPlanetEntry.containsKey(targetElement) &&
-        kPlanetDungeonLayouts.containsKey(targetElement)) {
-      if (_unsealedGates.contains(targetElement)) return; // already open
-      if (recipe.matches(_game!.meter.breakdown, _game!.meter.total)) {
-        _playCosmicSfx(SoundCue.cosmicStarforgeActivate);
-        _game!.meter.reset();
-        _meterPulse.stop();
-        _meterPulse.value = 0;
-        await _unsealPlanetGate(targetElement);
-      } else {
-        // Mismatched offering — particles lost, as with any failed recipe.
-        _handleElementsCaptured();
-      }
+    if (_unsealedGates.contains(targetElement)) return; // already open
+
+    // Hemavorn is the campaign's final gate: it stays sealed until every
+    // OTHER planet's guardian has fallen (their relics summon the witness
+    // mystics — see the Mystic Altar). Naturally locked until all dungeons
+    // exist and are cleared.
+    if (targetElement == kBloodPlanetElement && !_bloodPlanetUnlocked) {
+      final left =
+          kNonBloodPlanetCount -
+          _planetStarState.guardiansDefeated(excluding: kBloodPlanetElement);
+      _showQuote(
+        '${planetName(targetElement)} will not answer yet — '
+        '$left guardian${left == 1 ? '' : 's'} still stand. '
+        'Fell every other planet first.',
+      );
+      // Offering preserved: the gate is locked, not failed.
       return;
     }
-
-    final pathwayUnlocked = _recipeState.isMaxMastered(targetElement);
-
-    if (pathwayUnlocked) {
-      await _enterPlanetForElement(targetElement);
-      return;
-    }
-
     if (recipe.matches(_game!.meter.breakdown, _game!.meter.total)) {
-      // ── SUCCESS: either summon creature OR enter planet pathway ──
-      final recipeLevel = recipe.level;
-      final sceneKey = ElementMeter.sceneKeyForElement(targetElement);
-
-      // Block arcane if not unlocked
-      if (sceneKey == 'arcane' && !_arcaneUnlocked) {
-        _handleElementsCaptured();
-        return;
-      }
       _playCosmicSfx(SoundCue.cosmicStarforgeActivate);
-
-      if (pathwayUnlocked) {
-        await _applyRecipeSuccessProgress(targetElement, recipeLevel);
-        _game?.meter.reset();
-        _meterPulse.stop();
-        _meterPulse.value = 0;
-        await _enterPlanetForElement(targetElement);
-      } else {
-        final catalog = context.read<CreatureCatalog>();
-        final creatures = catalog.byType(targetElement);
-        if (creatures.isEmpty) return;
-
-        final rng = Random();
-        final rarityPool = _rarityPoolForRecipeLevel(recipeLevel);
-        final targetRarity = rarityPool[rng.nextInt(rarityPool.length)];
-
-        var candidates = creatures
-            .where((c) => c.rarity == targetRarity)
-            .toList();
-        if (candidates.isEmpty) {
-          candidates = creatures
-              .where((c) => rarityPool.contains(c.rarity))
-              .toList();
-        }
-        if (candidates.isEmpty) candidates = creatures;
-        // Exclude Mystics
-        candidates = candidates
-            .where((c) => c.mutationFamily != 'Mystic')
-            .toList();
-        if (candidates.isEmpty) candidates = creatures;
-
-        final chosen = candidates[rng.nextInt(candidates.length)];
-
-        await _applyRecipeSuccessProgress(targetElement, recipeLevel);
-
-        // Reset meter
-        _game?.meter.reset();
-        _meterPulse.stop();
-        _meterPulse.value = 0;
-
-        final success = await _openSummonEncounter(
-          speciesId: chosen.id,
-          rarity: chosen.rarity,
-          elementName: targetElement,
-        );
-
-        if (success == true && mounted) {
-          _showQuote('${chosen.name} captured!');
-        }
-      }
+      _game!.meter.reset();
+      _meterPulse.stop();
+      _meterPulse.value = 0;
+      await _unsealPlanetGate(targetElement);
     } else {
-      // ── FAIL: recipe mismatch — particles lost ──
+      // Mismatched offering — particles lost, as with any failed recipe.
       _handleElementsCaptured();
     }
   }
@@ -6537,10 +6663,17 @@ class _CosmicScreenState extends State<CosmicScreen>
     await prefs.setString(_planetGatesPrefsKey, _unsealedGates.join(','));
     final req = kCosmicPlanetEntry[element] ?? const <String>[];
     final planetName = kPlanetDisplayName[element] ?? element;
-    _showQuote(
-      'The gate of $planetName stands unsealed! '
-      'Bring ${req.join(' + ')} alchemons to descend.',
-    );
+    if (kComingSoonDungeons.contains(element)) {
+      _showQuote(
+        'The gate of $planetName stands unsealed! '
+        'Its depths are still being forged — descent coming soon.',
+      );
+    } else {
+      _showQuote(
+        'The gate of $planetName stands unsealed! '
+        'Bring ${req.join(' + ')} alchemons to descend.',
+      );
+    }
   }
 
   void _handleElementsCaptured() {
@@ -6561,43 +6694,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     });
   }
 
-  void _handleCompleteSummon() async {
-    if (_summonResult == null) return;
-
-    final result = _summonResult!;
-    final recipeLevel = _recipeState.activeLevelFor(
-      result.resolvedElement,
-      seed: _worldSeed,
-    );
-    await _applyRecipeSuccessProgress(result.resolvedElement, recipeLevel);
-
-    // Reset meter for next summon
-    _game?.meter.reset();
-    _meterPulse.stop();
-    _meterPulse.value = 0;
-
-    // Dismiss the summon popup
-    setState(() => _summonResult = null);
-
-    final success = await _openSummonEncounter(
-      speciesId: result.speciesId,
-      rarity: result.rarity,
-      elementName: result.resolvedElement,
-    );
-
-    if (success == true && mounted) {
-      _showQuote('${result.speciesName} captured!');
-    }
-  }
-
-  void _handleReset() {
-    _game?.meter.reset();
-    _meterPulse.stop();
-    _meterPulse.value = 0;
-    setState(() {
-      _summonResult = null;
-    });
-  }
 
   void _handleMeterTap() {
     if (_homeBuildTutorialLock) {
@@ -6732,10 +6828,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       setState(() => _showElementsCaptured = false);
       return true;
     }
-    if (_summonResult != null) {
-      _handleReset();
-      return true;
-    }
     if (_showMiniMap || _miniMapCtrl.isAnimating) {
       _closeMiniMap();
       return true;
@@ -6817,30 +6909,27 @@ class _CosmicScreenState extends State<CosmicScreen>
         ? _planetForElement(_pinnedRecipeElement!)
         : null;
     final hasPinnedRecipe = pinnedPlanet != null;
-    final hudPlanet = hasPinnedRecipe ? pinnedPlanet : _nearPlanet;
-    // Dungeon-gated planets only reveal their recipe once the player is
-    // carrying the required element trio in the cosmic party.
-    final hudEntryReq = hudPlanet != null
-        ? kCosmicPlanetEntry[hudPlanet.element]
-        : null;
+    // A sealed gated planet's ONE-TIME offering outranks any pinned recipe:
+    // standing at the gate must always show the gate (a persisted pin used
+    // to hijack the HUD here, hiding new planets' offerings entirely).
+    final nearGatePending =
+        _nearPlanet != null &&
+        isDungeonGatePlanet(_nearPlanet!.element) &&
+        !_unsealedGates.contains(_nearPlanet!.element);
+    final hudPlanet = nearGatePending
+        ? _nearPlanet
+        : (hasPinnedRecipe ? pinnedPlanet : _nearPlanet);
+    // Whether the HUD planet runs the gate ritual — built dungeon OR
+    // coming-soon. Drives the UNSEAL GATE label and one-time offering.
+    final hudIsGate = hudPlanet != null && isDungeonGatePlanet(hudPlanet.element);
     final hudGateUnsealed =
         hudPlanet != null && _unsealedGates.contains(hudPlanet.element);
-    final hudEntrySatisfied = hudEntryReq == null
-        ? true
-        : cosmicPartySatisfiesEntry(_partyMembers, hudEntryReq);
     // Gated planets: the recipe HUD is the one-time gate OFFERING — shown
     // until the gate unseals, then never again. Ungated planets unchanged.
     final recipeHudVisible =
         hudPlanet != null &&
         !_isNearHome &&
-        (hudEntryReq == null || !hudGateUnsealed);
-    // Post-unseal: the revealed descent-party chip until the trio rides.
-    final recipeHudLocked =
-        hudPlanet != null &&
-        !_isNearHome &&
-        hudEntryReq != null &&
-        hudGateUnsealed &&
-        !hudEntrySatisfied;
+        (!hudIsGate || !hudGateUnsealed);
     // Dungeon descent: at an UNSEALED gated planet, carrying the trio.
     final nearEl = _nearPlanet?.element;
     final descendReady =
@@ -6859,13 +6948,30 @@ class _CosmicScreenState extends State<CosmicScreen>
         !_raidLive &&
         _raidBeaconQty > 0 &&
         _raidEligibleElements.contains(nearEl);
-    // The pathway/encounter flow never applies to dungeon-gated planets —
-    // their content IS the dungeon.
-    final hudPathwayUnlocked = hudPlanet != null && hudEntryReq == null
-        ? _recipeState.isMaxMastered(hudPlanet.element)
-        : false;
-    final hudCanAct =
-        _nearPlanet != null && (hudPathwayUnlocked || _game!.meter.isFull);
+    // The persistent descent placard rides at any gate the player stands on,
+    // unsealed — whether or not the trio is complete. Incomplete → it shows
+    // the required elements + riddle; complete → it carries the DESCEND action.
+    final atUnsealedDungeonGate =
+        nearEl != null &&
+        !_isNearHome &&
+        kPlanetDungeonLayouts.containsKey(nearEl) &&
+        kCosmicPlanetEntry.containsKey(nearEl) &&
+        _unsealedGates.contains(nearEl);
+    // A coming-soon planet whose gate is open: same persistent placard slot,
+    // but it announces the descent is still being forged instead of DESCEND.
+    final atUnsealedComingSoonGate =
+        nearEl != null &&
+        !_isNearHome &&
+        kComingSoonDungeons.contains(nearEl) &&
+        _unsealedGates.contains(nearEl);
+    final showDebugRaid =
+        kDebugMode &&
+        !_raidLive &&
+        nearEl != null &&
+        _raidEligibleElements.contains(nearEl);
+    // Every planet is a gate — the action is always the unseal offering, lit
+    // once the player has packed enough matching essence into the meter.
+    final hudCanAct = _nearPlanet != null && _game!.meter.isFull;
     const starDustTotal = 50;
     final baseMapColumnTop = 120.0 + (recipeHudVisible ? 240.0 : 0.0);
     final mapColumnTop = (_topHudCollapsed ? 0.0 : baseMapColumnTop)
@@ -6901,7 +7007,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _survivalGuidanceActive &&
                   !_survivalIntroCompleted &&
                   tutorialTargetPos != null &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned.fill(
@@ -6921,7 +7026,6 @@ class _CosmicScreenState extends State<CosmicScreen>
               if (showCosmicHud &&
                   _tapToShoot &&
                   !_anyOverlayOpen &&
-                  _summonResult == null &&
                   !_showMiniMap)
                 Positioned.fill(
                   child: Listener(
@@ -6935,7 +7039,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
               // ── Map button (hidden when pinned mini-map is active) ──
               if (showCosmicHud &&
-                  _summonResult == null &&
                   !_anyOverlayOpen &&
                   !_showPinnedMiniMap &&
                   !_awaitingShipMenuTap)
@@ -6998,7 +7101,6 @@ class _CosmicScreenState extends State<CosmicScreen>
               // ── Pinned mini-map replaces the map icon slot ──
               if (showCosmicHud &&
                   _showPinnedMiniMap &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 AnimatedPositioned(
@@ -7022,7 +7124,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _nearMarketPOI != null &&
                   _nearPlanet == null &&
                   !_isNearHome &&
-                  _summonResult == null &&
                   !_showElementsCaptured &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
@@ -7145,7 +7246,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
               // ── Virtual joystick (bottom-left) ──
               if (showJoystickControl &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned(
@@ -7164,7 +7264,6 @@ class _CosmicScreenState extends State<CosmicScreen>
               // ── Planet recipe HUD (moved to top safe-area, compact)
               if (showCosmicHud &&
                   recipeHudVisible &&
-                  _summonResult == null &&
                   !_showElementsCaptured &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
@@ -7302,40 +7401,18 @@ class _CosmicScreenState extends State<CosmicScreen>
                           planet: hudPlanet,
                           recipe: _getRecipeForPlanet(hudPlanet),
                           meter: _game!.meter,
-                          actionLabel: hudEntryReq != null
-                              ? 'UNSEAL GATE'
-                              : hudPathwayUnlocked
-                              ? 'ENTER PLANET'
-                              : 'SUMMON',
-                          hideLevel: hudPathwayUnlocked || hudEntryReq != null,
+                          actionLabel: 'UNSEAL GATE',
+                          hideLevel: true,
                           onSummon: hudCanAct
                               ? _triggerScreenShakeAndSummon
                               : null,
                           onTogglePin: () => _togglePinnedRecipe(hudPlanet),
                           isPinned: _pinnedRecipeElement == hudPlanet.element,
-                          showPinnedTag: hasPinnedRecipe,
+                          showPinnedTag:
+                              hasPinnedRecipe &&
+                              _pinnedRecipeElement == hudPlanet.element,
                         ),
                       ],
-                    ),
-                  ),
-                ),
-
-              // ── Sealed planet indicator (dungeon entry locked) ──
-              if (showCosmicHud &&
-                  recipeHudLocked &&
-                  _summonResult == null &&
-                  !_showElementsCaptured &&
-                  !_showMiniMap &&
-                  !_anyOverlayOpen)
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeOutCubic,
-                  top: 76,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    child: Center(
-                      child: _buildSealedPlanetChip(hudPlanet, hudEntryReq),
                     ),
                   ),
                 ),
@@ -7344,11 +7421,9 @@ class _CosmicScreenState extends State<CosmicScreen>
               if (kDebugMode &&
                   showCosmicHud &&
                   nearEl != null &&
-                  kCosmicPlanetEntry.containsKey(nearEl) &&
-                  kPlanetDungeonLayouts.containsKey(nearEl) &&
+                  isDungeonGatePlanet(nearEl) &&
                   !_unsealedGates.contains(nearEl) &&
                   !_isNearHome &&
-                  _summonResult == null &&
                   !_showElementsCaptured &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
@@ -7392,103 +7467,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
-              // ── Descend-into-dungeon CTA ──
-              if (showCosmicHud &&
-                  descendReady &&
-                  _summonResult == null &&
-                  !_showElementsCaptured &&
-                  !_showMiniMap &&
-                  !_anyOverlayOpen)
-                Positioned(
-                  bottom: 120,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF080808,
-                              ).withValues(alpha: 0.72),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(
-                                  0xFF74613A,
-                                ).withValues(alpha: 0.6),
-                              ),
-                            ),
-                            child: _planetStarRow(_nearPlanet!.element),
-                          ),
-                          const SizedBox(height: 7),
-                          if (raidHere)
-                            _planetCta(
-                              label: '⚔  ENTER RAID',
-                              accent: const Color(0xFFE25544),
-                              glow: const Color(0xFFE25544),
-                              onTap: () => unawaited(_enterRaid(_nearPlanet!)),
-                            )
-                          else ...[
-                            _planetCta(
-                              label: '⮟  DESCEND',
-                              accent: const Color(0xFFE4C16A),
-                              glow:
-                                  _nearPlanet?.color ?? const Color(0xFFE4C16A),
-                              onTap: () =>
-                                  unawaited(_enterDungeon(_nearPlanet!)),
-                            ),
-                            if (canSummonRaidHere) ...[
-                              const SizedBox(height: 7),
-                              _planetCta(
-                                label: '☄  SUMMON RAID  ·  $_raidBeaconQty',
-                                accent: const Color(0xFFE25544),
-                                glow: const Color(0xFFE25544),
-                                compact: true,
-                                onTap: () =>
-                                    unawaited(_summonRaid(_nearPlanet!)),
-                              ),
-                            ] else if (kDebugMode &&
-                                !_raidLive &&
-                                _raidEligibleElements.contains(
-                                  _nearPlanet!.element,
-                                )) ...[
-                              const SizedBox(height: 7),
-                              _planetCta(
-                                label: '☄  RAID (DEBUG)',
-                                accent: const Color(0xFF5BC8E8),
-                                glow: const Color(0xFF5BC8E8),
-                                compact: true,
-                                onTap: () =>
-                                    unawaited(_debugSummonRaid(_nearPlanet!)),
-                              ),
-                            ],
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // ── Raid alert chip (under the top HUD) ──
-              if (showCosmicHud && !_anyOverlayOpen && _raidLive)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    child: Padding(
-                      padding: EdgeInsets.only(top: _topHudCollapsed ? 12 : 64),
-                      child: Center(child: _raidAlertChip()),
-                    ),
-                  ),
-                ),
-
               // ── Top HUD ──
               if (showCosmicHud && !_anyOverlayOpen)
                 Positioned(
@@ -7510,6 +7488,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       onMiniMap: _toggleMiniMap,
                       onMeterTap: _handleMeterTap,
                       showMeter: !recipeHudVisible,
+                      raidStrip: _raidLive ? _raidMeterStrip() : null,
                       collapsed: _topHudCollapsed,
                       onCollapsedChanged: (collapsed) {
                         if (_topHudCollapsed == collapsed) return;
@@ -7520,6 +7499,47 @@ class _CosmicScreenState extends State<CosmicScreen>
                         _game!.cycleZoomLevel();
                         setState(() {});
                       },
+                    ),
+                  ),
+                ),
+
+              // ── Descent placard — floats low over the scene ──
+              if (showCosmicHud &&
+                  atUnsealedDungeonGate &&
+                  !_showElementsCaptured &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 132,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Center(
+                      child: _buildDescentPlacard(
+                        _nearPlanet!,
+                        required: kCosmicPlanetEntry[nearEl]!,
+                        descendReady: descendReady,
+                        raidHere: raidHere,
+                        canSummonRaidHere: canSummonRaidHere,
+                        showDebugRaid: showDebugRaid,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Coming-soon placard — unsealed gate, dungeon not built yet ──
+              if (showCosmicHud &&
+                  atUnsealedComingSoonGate &&
+                  !_showElementsCaptured &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 132,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Center(
+                      child: _buildComingSoonPlacard(_nearPlanet!),
                     ),
                   ),
                 ),
@@ -7558,7 +7578,17 @@ class _CosmicScreenState extends State<CosmicScreen>
                         game: _game!,
                         theme: theme,
                         markers: _mapMarkers,
-                        completedLevelsFor: _completedRecipeLevelsForPlanet,
+                        // Dungeon planets show their earned stars (amber) on
+                        // the carousel; the header tallies the campaign.
+                        dungeonStarsFor: (p) =>
+                            kPlanetDungeonLayouts.containsKey(p.element)
+                            ? _planetStarState.starsEarned(p.element)
+                            : null,
+                        dungeonStarTotal: [
+                          for (final el in kPlanetDungeonLayouts.keys)
+                            _planetStarState.starsEarned(el),
+                        ].fold(0, (a, b) => a + b),
+                        dungeonStarMax: kPlanetDungeonLayouts.length * 3,
                         tutorialTargetPos: tutorialTargetPos,
                         tutorialTargetColor: const Color(0xFF8B5CF6),
                         tutorialTargetLabel: 'SIGNAL',
@@ -7611,17 +7641,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                         },
                       ),
                     ),
-                  ),
-                ),
-
-              // ── Summon result popup ──
-              if (_summonResult != null)
-                Positioned.fill(
-                  child: SummonPopup(
-                    result: _summonResult!,
-                    theme: theme,
-                    onReset: _handleReset,
-                    onComplete: _handleCompleteSummon,
                   ),
                 ),
 
@@ -7804,7 +7823,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _game != null &&
                   _isNearRift &&
                   _game!.nearestRift != null &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Builder(
@@ -7862,7 +7880,6 @@ class _CosmicScreenState extends State<CosmicScreen>
               if (showCosmicHud &&
                   _game != null &&
                   _isNearBloodRing &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned(
@@ -7951,7 +7968,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _nearMarketPOI == null &&
                   !_isNearBattleRing &&
                   !_isNearBloodRing &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Builder(
@@ -8038,7 +8054,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _game != null &&
                   _isNearBattleRing &&
                   !_game!.battleRing.inBattle &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned(
@@ -8127,7 +8142,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _isNearNexus &&
                   !(_game!.inNexusPocket) &&
                   !_game!.elementalNexus.harvesterAwarded &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned(
@@ -8319,7 +8333,6 @@ class _CosmicScreenState extends State<CosmicScreen>
               // companion slot button below (no floating HUD).
               // ── Left action rail (ship, plus home actions when nearby) ──
               if (showCosmicHud &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned(
@@ -8348,7 +8361,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               // (Fuel & missiles now auto-refill at home — no buttons needed)
 
               // ── Combat buttons (right side) ──
-              if (_summonResult == null && !_showMiniMap && !_anyOverlayOpen)
+              if (!_showMiniMap && !_anyOverlayOpen)
                 Positioned(
                   bottom: 20,
                   right: 12,
@@ -8455,7 +8468,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
               if (showCosmicHud &&
                   _awaitingShipMenuTap &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned(
@@ -8503,7 +8515,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
               if (showCosmicHud &&
                   _awaitingSurvivalMapTap &&
-                  _summonResult == null &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
                 Positioned(
@@ -8548,8 +8559,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Companion column (stacked on right side) ──
-              if (_summonResult == null &&
-                  !_showMiniMap &&
+              if (!_showMiniMap &&
                   !_anyOverlayOpen &&
                   !_awaitingShipMenuTap)
                 AnimatedPositioned(
@@ -10207,358 +10217,6 @@ class _SettingsToggleRow extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _PlanetPathwayDisintegrationPage extends StatefulWidget {
-  const _PlanetPathwayDisintegrationPage({
-    required this.targetScene,
-    this.showDreamDialog = false,
-  });
-
-  final SceneDefinition targetScene;
-  final bool showDreamDialog;
-
-  @override
-  State<_PlanetPathwayDisintegrationPage> createState() =>
-      _PlanetPathwayDisintegrationPageState();
-}
-
-class _PlanetPathwayDisintegrationPageState
-    extends State<_PlanetPathwayDisintegrationPage>
-    with TickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final AnimationController _shakeController;
-  Timer? _dreamTimer;
-  bool _allowDissolve = false;
-  bool _showDreamPrompt = false;
-  bool _dissolveStarted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    );
-    _shakeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 560),
-    )..repeat();
-    _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _shakeController.stop();
-      }
-    });
-    // Hard lock: never auto-start dissolve from lifecycle.
-    // The only path is explicit user tap on the prompt button.
-    _dreamTimer = Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      setState(() => _showDreamPrompt = true);
-    });
-  }
-
-  Future<void> _startDissolve() async {
-    if (_dissolveStarted || !mounted) return;
-    _dissolveStarted = true;
-    _allowDissolve = true;
-    setState(() {});
-    await _controller.forward();
-    if (!mounted) return;
-    Navigator.of(context).pop();
-  }
-
-  @override
-  void dispose() {
-    _dreamTimer?.cancel();
-    _shakeController.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final dissolve = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOutCubic,
-    );
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: AnimatedBuilder(
-        animation: Listenable.merge([dissolve, _shakeController]),
-        builder: (context, _) {
-          final t = _allowDissolve ? dissolve.value.clamp(0.0, 1.0) : 0.0;
-          final phase = _shakeController.value * pi * 2;
-          final shakeStrength = 4.5 + 10.5 * t;
-          final shakeX =
-              sin(phase * 3.0) * shakeStrength +
-              cos(phase * 9.0) * (1.2 + 1.8 * t);
-          final shakeY =
-              cos(phase * 2.2) * (shakeStrength * 0.48) +
-              sin(phase * 6.4) * (0.8 + 1.4 * t);
-          final valleyOpacity = (1.0 - pow(t, 0.58)).clamp(0.0, 1.0);
-          final targetOpacity = Curves.easeOutCubic.transform(t);
-          final targetScale = 1.08 - (0.08 * t);
-          final valleyScale = 1.0 + (0.12 * t);
-          final glitchPulse =
-              (_allowDissolve ? (sin(phase * 13.0).abs() * 0.35 + 0.65) : 0.0) *
-              t;
-          final finaleFlash = t > 0.78
-              ? ((t - 0.78) / 0.22).clamp(0.0, 1.0)
-              : 0.0;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Opacity(
-                opacity: targetOpacity,
-                child: Transform.scale(
-                  scale: targetScale,
-                  child: _buildSceneLayers(widget.targetScene),
-                ),
-              ),
-              Opacity(
-                opacity: valleyOpacity,
-                child: Transform.translate(
-                  offset: Offset(shakeX, shakeY),
-                  child: Transform.scale(
-                    scale: valleyScale,
-                    child: _buildSceneLayers(valleySceneCorrected),
-                  ),
-                ),
-              ),
-              IgnorePointer(
-                child: AlchemicalParticleBackground(
-                  opacity: (0.25 + 0.75 * t).clamp(0.0, 1.0),
-                  backgroundColor: Colors.transparent,
-                  colors: const [
-                    Color(0xFF000000),
-                    Color(0xFF120014),
-                    Color(0xFF1A0A24),
-                    Color(0xFF2B0052),
-                    Color(0xFF4A148C),
-                  ],
-                ),
-              ),
-              IgnorePointer(
-                child: Container(
-                  color: const Color(
-                    0xFFE6D8FF,
-                  ).withValues(alpha: 0.10 * glitchPulse + 0.35 * finaleFlash),
-                ),
-              ),
-              IgnorePointer(
-                child: Container(
-                  color: const Color(
-                    0xFF8A2BE2,
-                  ).withValues(alpha: 0.08 * glitchPulse),
-                ),
-              ),
-              IgnorePointer(
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.35 + 0.52 * t),
-                ),
-              ),
-              if (_showDreamPrompt)
-                Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 620),
-                    margin: const EdgeInsets.symmetric(horizontal: 40),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        width: 1.4,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'AM I DREAMING?',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w300,
-                            letterSpacing: 2.5,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          'No, I am finally awake.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 14,
-                            height: 1.35,
-                            fontFamily: appFontFamily(context),
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        OutlinedButton(
-                          onPressed: () async {
-                            setState(() => _showDreamPrompt = false);
-                            await Future.delayed(
-                              const Duration(milliseconds: 120),
-                            );
-                            await _startDissolve();
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.7),
-                              width: 1.5,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 28,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          child: Text(
-                            'ENTER',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSceneLayers(SceneDefinition scene) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        for (final layer in scene.layers)
-          if (layer.imagePath.isNotEmpty)
-            Image.asset(
-              'assets/images/${layer.imagePath}',
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.low,
-            ),
-      ],
-    );
-  }
-}
-
-class _PlanetApproachTransitionPage extends StatefulWidget {
-  const _PlanetApproachTransitionPage({required this.color});
-
-  final Color color;
-
-  @override
-  State<_PlanetApproachTransitionPage> createState() =>
-      _PlanetApproachTransitionPageState();
-}
-
-class _PlanetApproachTransitionPageState
-    extends State<_PlanetApproachTransitionPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 520),
-    );
-    _controller.forward().whenComplete(() {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final curve = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInCubic,
-    );
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: AnimatedBuilder(
-        animation: curve,
-        builder: (context, _) {
-          final t = curve.value.clamp(0.0, 1.0);
-          return CustomPaint(
-            painter: _PlanetApproachPainter(color: widget.color, progress: t),
-            child: const SizedBox.expand(),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PlanetApproachPainter extends CustomPainter {
-  const _PlanetApproachPainter({required this.color, required this.progress});
-
-  final Color color;
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final t = progress.clamp(0.0, 1.0);
-    final center = Offset(size.width / 2, size.height / 2);
-    final maxRadius = size.longestSide * 0.78;
-    final radius = 18 + (maxRadius - 18) * t;
-
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = Colors.black.withValues(alpha: 0.58 + 0.42 * t),
-    );
-
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            color.withValues(alpha: 0.95),
-            color.withValues(alpha: 0.58),
-            color.withValues(alpha: 0.0),
-          ],
-          stops: const [0.0, 0.45, 1.0],
-        ).createShader(rect),
-    );
-
-    canvas.drawCircle(
-      center,
-      radius * 0.72,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..color = color.withValues(alpha: (1.0 - t) * 0.42),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _PlanetApproachPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.color != color;
   }
 }
 

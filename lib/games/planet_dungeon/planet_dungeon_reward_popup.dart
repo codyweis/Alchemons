@@ -174,14 +174,16 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
             const SizedBox(height: 14),
             _starRow(),
             const SizedBox(height: 16),
-            // The Star 3 CHOICE is the actionable block — pin it above the
-            // scroll area while unresolved so it can never hide below the
-            // fold behind the granted-reward lists.
-            if (_needStar3 && _choice == null) _rewardBlock(2),
             Flexible(
               child: SingleChildScrollView(
                 child: Column(
                   children: [
+                    // The Star 3 CHOICE leads the scroll while unresolved so
+                    // it sits at the top of the fold, never hidden under the
+                    // granted-reward lists. (It must live INSIDE the scroll
+                    // area — pinned outside it, its fixed height overflowed
+                    // the panel on small screens.)
+                    if (_needStar3 && _choice == null) _rewardBlock(2),
                     for (final s in widget.stars)
                       if (!(s == 2 && _needStar3 && _choice == null))
                         _rewardBlock(s),
@@ -542,17 +544,23 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   /// Star-3 choice cards. First tap highlights a card; the bottom button (or a
   /// second tap on the same card) confirms — no accidental one-tap claims.
   Widget _choiceCards() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final c in Star3Choice.values)
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: _choiceCard(c),
+    // IntrinsicHeight bounds the stretch: equal-height cards measured from
+    // the tallest. Without it the stretch meets the parent Column's
+    // unbounded height and the whole popup fails layout
+    // ("BoxConstraints forces an infinite height" on End Run).
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final c in Star3Choice.values)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: _choiceCard(c),
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -589,6 +597,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
               : null,
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(

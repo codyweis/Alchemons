@@ -121,14 +121,19 @@ class _Mote {
 }
 
 /// A bounded pool of drifting wind motes, rendered in one drawAtlas call.
+/// The default palette is the Air planet's; pass [palette] to retint (e.g.
+/// ember tones for the Cinder Cathedral).
 class AmbientWind {
-  AmbientWind({int? seed}) : _rng = Random(seed ?? 0x10E);
+  AmbientWind({int? seed, List<Color>? palette})
+    : _rng = Random(seed ?? 0x10E),
+      _palette = palette ?? _windPalette;
 
   final Random _rng;
   final List<_Mote> _motes = [];
+  final List<Color> _palette;
   Size _area = Size.zero;
 
-  static const List<Color> _palette = [
+  static const List<Color> _windPalette = [
     Color(0xFFE4C16A), // amber
     Color(0xFF5BC8E8), // teal
     Color(0xFFB9C7D6), // pale wind

@@ -15,6 +15,38 @@ bool isBloodbornPayload(Map<String, dynamic> payload) {
   return source == 'bloodborn';
 }
 
+/// True when the egg's recorded elemental lineage is a single element —
+/// the breeding system's definition of an elementally pure line (matches
+/// [InstancePurityStatus.isElementallyPure]). Drives the pure-element
+/// signature particle patterns in the cultivation chambers.
+bool isElementallyPurePayload(Map<String, dynamic> payload) {
+  if (pureElementFromPayload(payload) != null) return true;
+  // Payloads without a recorded element map (e.g. vial-sourced eggs) carry
+  // the breeding system's full-purity verdict directly.
+  final lineage = payload['lineage'] as Map<String, dynamic>?;
+  if (lineage == null) return false;
+  final elementLineage = lineage['elementLineage'] as Map<String, dynamic>?;
+  if (elementLineage != null && elementLineage.isNotEmpty) return false;
+  return lineage['isPure'] as bool? ?? false;
+}
+
+/// The single element of an elementally pure lineage, or null when the line
+/// is mixed (or no lineage is recorded). Mirrors the breeding system's
+/// purity rules: entries with value <= 0 are ignored (a pure Dust let bred
+/// from Air x Earth can carry zeroed ancestor keys).
+String? pureElementFromPayload(Map<String, dynamic> payload) {
+  final lineage = payload['lineage'] as Map<String, dynamic>?;
+  final elementLineage = lineage?['elementLineage'] as Map<String, dynamic>?;
+  if (elementLineage == null) return null;
+  String? pure;
+  for (final entry in elementLineage.entries) {
+    if (((entry.value as num?) ?? 0) <= 0) continue;
+    if (pure != null) return null; // second positive element -> mixed
+    pure = entry.key;
+  }
+  return pure;
+}
+
 /// Parse egg's JSON payload safely
 Map<String, dynamic> parseEggPayload(Egg egg) {
   try {

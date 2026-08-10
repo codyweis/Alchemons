@@ -1214,6 +1214,114 @@ class SkillNode extends PositionComponent with TapCallbacks {
   double _unlockBurstT = -1.0;
   static const double _unlockBurstDuration = 0.85;
 
+  // ---- Cached geometry + paints ----
+  // These depend only on locked/unlocked state, not on per-frame animation,
+  // so we build them once (and rebuild on state change) instead of allocating
+  // fresh gradient shaders every frame in render().
+  Path? _hexPath;
+  Path? _coreHexPath;
+  Path? _keystoneHexPath;
+  Paint? _glowPaint;
+  Paint? _auraPaint;
+  Paint? _orbitPaint;
+  Paint? _keystonePaint;
+  Paint? _borderPaint;
+  Paint? _corePaint;
+  Paint? _readyPaint;
+
+  void _rebuildVisualPaints() {
+    final center = (size / 2).toOffset();
+    _hexPath ??= _createHexagon(center, 35);
+    _coreHexPath ??= _createHexagon(center, 28);
+
+    final ringColor = _getRingColor();
+    final coreColor = _getCoreColor();
+    final availableColor = _getAvailableAccentColor();
+
+    if (isUnlocked) {
+      _glowPaint = Paint()
+        ..shader = ui.Gradient.radial(
+          center,
+          55.0,
+          [
+            Colors.white.withValues(alpha: 0.42),
+            Colors.white.withValues(alpha: 0.16),
+            Colors.transparent,
+          ],
+          [0.55, 0.78, 1.0],
+        );
+      _auraPaint = Paint()
+        ..shader = ui.Gradient.radial(
+          center,
+          62.0,
+          [
+            primaryColor.withValues(alpha: 0.32),
+            primaryColor.withValues(alpha: 0.10),
+            Colors.transparent,
+          ],
+          [0.0, 0.6, 1.0],
+        );
+      _orbitPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.14)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+    } else {
+      _glowPaint = null;
+      _auraPaint = null;
+      _orbitPaint = null;
+    }
+
+    if (isRootNode) {
+      _keystoneHexPath ??= _createHexagon(center, 46);
+      _keystonePaint = Paint()
+        ..color =
+            (isUnlocked
+                    ? Color.lerp(primaryColor, Colors.white, 0.4) ?? primaryColor
+                    : ringColor)
+                .withValues(alpha: isUnlocked ? 0.9 : 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4;
+    }
+
+    _borderPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        Offset(center.dx, center.dy - 35),
+        Offset(center.dx, center.dy + 35),
+        [ringColor, ringColor.withValues(alpha: 0.6)],
+      )
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = isRootNode ? 4.0 : 2.0;
+
+    if (isUnlocked || canUnlock) {
+      _corePaint = Paint()
+        ..shader = ui.Gradient.radial(
+          center,
+          28.0,
+          [
+            coreColor.withValues(alpha: isUnlocked ? 0.82 : 0.52),
+            coreColor.withValues(alpha: isUnlocked ? 0.38 : 0.18),
+            (canUnlock ? availableColor : coreColor).withValues(
+              alpha: isUnlocked ? 0.44 : 0.26,
+            ),
+          ],
+          [0.0, 0.5, 1.0],
+        )
+        ..style = PaintingStyle.fill;
+    } else {
+      _corePaint = null;
+    }
+
+    if (canUnlock && !isUnlocked) {
+      _readyPaint = Paint()
+        ..color = availableColor.withValues(alpha: 0.22)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+    } else {
+      _readyPaint = null;
+    }
+  }
+
   SkillNode({
     required this.tree,
     required this.skill,
@@ -1236,6 +1344,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
   Future<void> onLoad() async {
     await super.onLoad();
     _syncCostLabel();
+    _rebuildVisualPaints();
 
     // Initialize particle pool
     if (isUnlocked) {
@@ -1289,15 +1398,11 @@ class SkillNode extends PositionComponent with TapCallbacks {
     super.render(canvas);
 
     final center = size / 2;
-    final ringColor = _getRingColor();
-    final coreColor = _getCoreColor();
-    final availableColor = _getAvailableAccentColor();
-
-    final hexPath = _createHexagon(center.toOffset(), 35);
+    final centerOffset = center.toOffset();
 
     // Animated glow for available nodes — strong, breathing, "click me".
-    // Uses a radial gradient fill instead of MaskFilter.blur — visually
-    // near-identical, dramatically cheaper on lower-end GPUs.
+    // The halo pulses every frame (so its shader is rebuilt here), but it
+    // only applies to the handful of currently-unlockable nodes.
     if (canUnlock && !isUnlocked) {
       final pulseValue = (math.sin(_pulseTime * 2.5) + 1) / 2; // 0..1
       final accent = _getAvailableAccentColor();
@@ -1306,7 +1411,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
       final haloAlpha = (0.22 + pulseValue * 0.30).clamp(0.0, 1.0);
       final haloPaint = Paint()
         ..shader = ui.Gradient.radial(
-          center.toOffset(),
+          centerOffset,
           haloOuter,
           [
             accent.withValues(alpha: haloAlpha * 0.85),
@@ -1315,7 +1420,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
           ],
           [0.45, 0.7, 1.0],
         );
-      canvas.drawCircle(center.toOffset(), haloOuter, haloPaint);
+      canvas.drawCircle(centerOffset, haloOuter, haloPaint);
 
       // Inner crisp pulse ring on the hex itself
       final ringPaint = Paint()
@@ -1324,102 +1429,31 @@ class SkillNode extends PositionComponent with TapCallbacks {
         )
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
-      canvas.drawPath(hexPath, ringPaint);
+      canvas.drawPath(_hexPath!, ringPaint);
     }
 
-    // Outer glow + ambient orbit ring for unlocked nodes.
-    // Same blur → radial-gradient swap for perf.
+    // Outer glow + ambient orbit ring for unlocked nodes (cached paints).
     if (isUnlocked) {
-      final glowOuter = 55.0;
-      final glowPaint = Paint()
-        ..shader = ui.Gradient.radial(
-          center.toOffset(),
-          glowOuter,
-          [
-            Colors.white.withValues(alpha: 0.42),
-            Colors.white.withValues(alpha: 0.16),
-            Colors.transparent,
-          ],
-          [0.55, 0.78, 1.0],
-        );
-      canvas.drawCircle(center.toOffset(), glowOuter, glowPaint);
-
-      final auraOuter = 62.0;
-      final auraPaint = Paint()
-        ..shader = ui.Gradient.radial(
-          center.toOffset(),
-          auraOuter,
-          [
-            primaryColor.withValues(alpha: 0.32),
-            primaryColor.withValues(alpha: 0.10),
-            Colors.transparent,
-          ],
-          [0.0, 0.6, 1.0],
-        );
-      canvas.drawCircle(center.toOffset(), auraOuter, auraPaint);
-
-      // Faint orbital ring — quiet "alive" signal
-      final orbitPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.14)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
-      canvas.drawCircle(center.toOffset(), 48, orbitPaint);
+      canvas.drawCircle(centerOffset, 55.0, _glowPaint!);
+      canvas.drawCircle(centerOffset, 62.0, _auraPaint!);
+      canvas.drawCircle(centerOffset, 48, _orbitPaint!);
     }
 
-    // Root/keystone halo — outer double-ring marker
+    // Root/keystone halo — outer double-ring marker (cached)
     if (isRootNode) {
-      final keystoneOuter = Paint()
-        ..color =
-            (isUnlocked
-                    ? Color.lerp(primaryColor, Colors.white, 0.4) ??
-                          primaryColor
-                    : ringColor)
-                .withValues(alpha: isUnlocked ? 0.9 : 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4;
-      canvas.drawPath(_createHexagon(center.toOffset(), 46), keystoneOuter);
+      canvas.drawPath(_keystoneHexPath!, _keystonePaint!);
     }
 
-    // Main hexagon border
-    final borderWidth = isRootNode ? 4.0 : 2.0;
-    final borderPaint = Paint()
-      ..shader = ui.Gradient.linear(
-        Offset(center.x, center.y - 35),
-        Offset(center.x, center.y + 35),
-        [ringColor, ringColor.withValues(alpha: 0.6)],
-      )
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = borderWidth;
-    canvas.drawPath(hexPath, borderPaint);
+    // Main hexagon border (cached)
+    canvas.drawPath(_hexPath!, _borderPaint!);
 
-    // Inner hexagonal core
-    final coreHexPath = _createHexagon(center.toOffset(), 28);
-    final corePaint = Paint()
-      ..shader = ui.Gradient.radial(
-        center.toOffset(),
-        28,
-        [
-          coreColor.withValues(alpha: isUnlocked ? 0.82 : 0.52),
-          coreColor.withValues(alpha: isUnlocked ? 0.38 : 0.18),
-          (canUnlock ? availableColor : coreColor).withValues(
-            alpha: isUnlocked ? 0.44 : 0.26,
-          ),
-        ],
-        [0.0, 0.5, 1.0],
-      )
-      ..style = PaintingStyle.fill;
-
+    // Inner hexagonal core (cached)
     if (isUnlocked || canUnlock) {
-      canvas.drawPath(coreHexPath, corePaint);
+      canvas.drawPath(_coreHexPath!, _corePaint!);
     }
 
     if (canUnlock && !isUnlocked) {
-      final readyPaint = Paint()
-        ..color = availableColor.withValues(alpha: 0.22)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
-      canvas.drawPath(coreHexPath, readyPaint);
+      canvas.drawPath(_coreHexPath!, _readyPaint!);
     }
 
     // Identity icon — centered when unlocked (the cost is hidden); stacked
@@ -1597,6 +1631,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
     this.isUnlocked = isUnlocked;
     this.canUnlock = canUnlock;
     _syncCostLabel();
+    _rebuildVisualPaints();
 
     // Newly unlocked: fire celebration burst + spawn particles.
     if (isUnlocked && wasLocked) {
@@ -2105,9 +2140,9 @@ class StarfieldBackground extends Component
   final List<Star> stars = [];
   double _time = 0.0;
 
-  static const int _farLayerCount = 2080;
-  static const int _midLayerCount = 1520;
-  static const int _nearLayerCount = 320;
+  static const int _farLayerCount = 1664;
+  static const int _midLayerCount = 1216;
+  static const int _nearLayerCount = 256;
 
   StarfieldBackground({
     required this.primaryColor,

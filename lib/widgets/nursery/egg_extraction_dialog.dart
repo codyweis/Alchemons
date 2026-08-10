@@ -42,7 +42,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
   late AnimationController _enterCtrl;
   late Animation<double> _slideAnim;
   late Animation<double> _fadeAnim;
-  CinematicQuality _cinematicQuality = CinematicQuality.performance;
+  CinematicQuality _cinematicQuality = CinematicQuality.cinematic;
 
   @override
   void initState() {
@@ -367,7 +367,7 @@ class _ParticleBanner extends StatelessWidget {
     }
 
     final qualityMultiplier = switch (quality) {
-      CinematicQuality.balanced => 1.0,
+      CinematicQuality.cinematic => 1.0,
       CinematicQuality.performance => 0.4,
     };
     particleCount = (particleCount * qualityMultiplier).round().clamp(0, 110);

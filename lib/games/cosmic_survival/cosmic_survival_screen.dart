@@ -514,7 +514,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   SurvivalVisualQuality _toSurvivalVisualQuality(CinematicQuality quality) {
     return switch (quality) {
-      CinematicQuality.balanced => SurvivalVisualQuality.balanced,
+      CinematicQuality.cinematic => SurvivalVisualQuality.balanced,
       CinematicQuality.performance => SurvivalVisualQuality.performance,
     };
   }

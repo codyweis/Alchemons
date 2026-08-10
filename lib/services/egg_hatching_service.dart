@@ -556,6 +556,16 @@ class EggHatching {
       variantColor = _getVariantColor(actualVariantFaction);
     }
 
+    // Elementally pure lineage gets its own cinematic treatment (purity seal
+    // ring, element-colored burst, lineage caption).
+    String? pureElementTypeId;
+    if (instance != null) {
+      final purity = classifyInstancePurity(instance, species: offspring);
+      if (purity.isElementallyPure && purity.elementLineage.isNotEmpty) {
+        pureElementTypeId = purity.elementLineage.keys.first;
+      }
+    }
+
     final recipeDiscoveryFuture =
         AlchemicalEncyclopediaService.registerBreedingDiscovery(
           db: db,
@@ -574,9 +584,11 @@ class EggHatching {
         parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
         paletteMain: primaryHue,
         creatureSilhouette: silhouette,
-        totalDuration: const Duration(milliseconds: 4200), // Faster!
+        // Longer, more ceremonial build-up — skippable via the SKIP button.
+        totalDuration: const Duration(milliseconds: 7200),
         hintType: hintType,
         variantColor: variantColor,
+        pureElementTypeId: pureElementTypeId,
         quality: cinematicQuality,
       );
     } catch (e) {
@@ -788,7 +800,7 @@ class EggHatching {
     final shortestSide = media.size.shortestSide;
     final lowFxDevice = media.disableAnimations || shortestSide < 430;
     final dialogBlurSigma = switch (cinematicQuality) {
-      CinematicQuality.balanced => lowFxDevice ? 0.0 : 8.0,
+      CinematicQuality.cinematic => lowFxDevice ? 0.0 : 8.0,
       CinematicQuality.performance => 0.0,
     };
 
@@ -860,7 +872,7 @@ class EggHatching {
                                     key: scanAnimationKey,
                                     isNewDiscovery: isNewDiscovery,
                                     scanDuration: switch (cinematicQuality) {
-                                      CinematicQuality.balanced =>
+                                      CinematicQuality.cinematic =>
                                         const Duration(milliseconds: 1800),
                                       CinematicQuality.performance =>
                                         const Duration(milliseconds: 1000),

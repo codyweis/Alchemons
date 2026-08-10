@@ -31,6 +31,12 @@ import 'package:flame/game.dart';
 import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
 
+part 'planet_dungeon_game_fire.dart';
+part 'planet_dungeon_game_water.dart';
+part 'planet_dungeon_game_earth.dart';
+part 'planet_dungeon_game_lightning.dart';
+part 'planet_dungeon_game_steam.dart';
+
 /// One controllable creature in the dungeon.
 class DungeonCreature {
   DungeonCreature({required this.member});
@@ -38,6 +44,12 @@ class DungeonCreature {
   final CosmicPartyMember member;
   Offset position = Offset.zero;
   double angle = 0.0; // facing (radians); cos>0 ⇒ moving right
+
+  /// TRUE aim direction (radians), updated from the full joystick vector —
+  /// unlike [angle], which snaps to left/right for sprite flipping and can
+  /// never point up/down. Cell-targeted verbs (the Steam molten grid) aim
+  /// with this so the player can act on the square above or below them.
+  double aimAngle = 0.0;
   double hp = 100.0;
   double maxHp = 100.0;
 
@@ -50,6 +62,10 @@ class DungeonCreature {
   /// True once this creature's knock-out has been announced (burst + hint),
   /// so the down reaction fires exactly once per fall.
   bool downHandled = false;
+
+  /// Seconds until a downed creature revives (0 = not waiting). Set when it
+  /// falls; counted down each frame; on zero it rejoins the party.
+  double respawnTimer = 0;
 
   bool get alive => hp > 0;
   double get hpFraction => (maxHp <= 0) ? 0 : (hp / maxHp).clamp(0.0, 1.0);
@@ -122,6 +138,18 @@ class _KinBeamFx {
 
 /// One-shot "a door just unlocked" ring, shown in the door's room (on the
 /// next visit if the player isn't there when it flips).
+/// The guardian relic's victory ceremony: it drops from the fallen guardian,
+/// hovers glinting for a breath, then expands and dissolves into the player's
+/// keeping (the End Run popup re-presents it formally).
+class _RelicDropFx {
+  _RelicDropFx({required this.roomId, required this.position});
+  final String roomId;
+  final Offset position;
+  double t = 0;
+  static const double duration = 3.6;
+  bool get done => t >= duration;
+}
+
 class _DoorRevealFx {
   _DoorRevealFx({required this.roomId, required this.position});
 
@@ -165,6 +193,7 @@ class PlanetDungeonGame extends FlameGame {
     required this.onChanged,
     this.raid,
     this.onRaidCleared,
+    this.clearedGuardianCount = 0,
     DungeonLayout? layoutOverride,
   }) : layout = layoutOverride ?? kPlanetDungeonLayouts[element]! {
     discoveredClouds.addAll(initialDiscoveredCloudIds);
@@ -172,6 +201,8 @@ class PlanetDungeonGame extends FlameGame {
     // the moment the game object exists — long before Flame finishes the
     // async asset load — and reads currentRoom immediately.
     currentRoomId = layout.entranceRoomId;
+    // The Buried Giant's scale answer is rolled fresh per run.
+    _rollScaleSolution();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -191,6 +222,25 @@ class PlanetDungeonGame extends FlameGame {
   bool get isRaid => raid != null;
   int _raidPhaseIndex = 0;
 
+  /// The campaign's difficulty clock: how many OTHER planets' guardians have
+  /// already fallen (0..16). Creature stats run 0–5.0, so the curve must
+  /// stretch from "first dungeon, mid-bred trio" to "seventeenth dungeon,
+  /// near-perfect team": enemies and ESPECIALLY guardians scale with it.
+  final int clearedGuardianCount;
+
+  /// Guardian/wisp HP swells steeply with progress (final guardian ≈ 8×).
+  double get progressHpMul => 1.0 + 0.45 * clearedGuardianCount;
+
+  /// Damage climbs more gently (final ≈ 2.9×) — lethality should come from
+  /// the longer fight, not one-shots.
+  double get progressDmgMul => 1.0 + 0.12 * clearedGuardianCount;
+
+  /// Lull strikes needed to fell the guardian: 4 on a fresh save, 16 by the
+  /// last dungeon (the strike chunk is a fraction of max HP, so raw HP alone
+  /// wouldn't lengthen the strike path).
+  double get guardianStrikesNeeded =>
+      maxGuardianHp + clearedGuardianCount * 0.75;
+
   /// Synthetic discovery id for the entry passage reveal. Stored alongside
   /// cloud ids so the one-time entry puzzle stays solved across runs
   /// (knowledge persists, like cloud echoes).
@@ -207,6 +257,11 @@ class PlanetDungeonGame extends FlameGame {
   final List<_DungeonWingBeam> _activeWingBeams = [];
   final List<_KinBeamFx> _kinBeams = [];
   final List<_AlchemyParticle> _alchemyParticles = [];
+
+  /// Shared combat-ability particles (zone wisps, hit sparks, bursts). Kept
+  /// separate from the alchemy/puzzle flavor pool above so abilities render
+  /// identically to Cosmic Survival via the shared canonical renderer.
+  final AbilityVfxPool _abilityVfx = AbilityVfxPool();
 
   /// Seconds a kin holds still charging before its laser fires (survival's
   /// `_kinChargeTime`).
@@ -330,6 +385,311 @@ class PlanetDungeonGame extends FlameGame {
     return discoveredClouds.contains(cl.id) ? null : cl;
   }
 
+  // ── Fire (Cinder Cathedral) run-state ──
+  /// Next brazier order to light in the choir rite (resets on a wrong flame).
+  int ritualProgress = 0;
+
+  /// Insight tier from reading the scriptorium's soot mural (-1 = unread).
+  /// Knowledge, like cloud discoveries: it survives death within a session.
+  int choirRevealTier = -1;
+
+  /// Ash-garden bed states: VineBed.id → 0 barren · 1 overgrown · 2 revealed.
+  final Map<String, int> bedStates = {};
+
+  /// Ember bells rung this run (IncenseChain.id).
+  final Set<String> bellsRung = {};
+
+  /// Furthest censer index a chain's flame has reached (re-ignite checkpoint).
+  final Map<String, int> _chainCheckpoints = {};
+
+  /// Live vesper flames crawling their chains, by chain id.
+  final Map<String, _VesperFlame> _vesperFlames = {};
+
+  /// Recent grow/burn pulse per bed id (render accent).
+  final Map<String, double> _bedFx = {};
+  double _bellTollFx = 0;
+
+  /// Ember Epitaph easter egg (scriptorium): 0 hidden · 1 maxim written into
+  /// the floor by insight (animated) + garden bared · 2 planted · 3 lit.
+  /// [epitaphFans] = gusts fed to the flame (the third ignites the script).
+  /// Stage 1 is knowledge (survives death); the growth resets like any other
+  /// run-state. No hint popups: the floor-script IS the presentation.
+  int epitaphStage = 0;
+  int epitaphFans = 0;
+  double epitaphWriteT = 0; // seconds since the ground-script began writing
+  double epitaphBlazeT = 0; // seconds since the maxim caught fire
+  List<TextPainter>? _epitaphGhostLines; // cached — never built per frame
+  List<TextPainter>? _epitaphSootLines;
+  List<TextPainter>? _epitaphFireLines;
+
+  bool get _isCathedral => layout.element == 'Fire';
+
+  // ── Water (Mirror Tide) run-state ──
+  /// Settled/target tide stand (0 low · 1 mid · 2 high) and the ANIMATED
+  /// visual water fraction (0..1 = level/2) easing toward it — floods and
+  /// drains are watched, never teleported.
+  int tideLevel = 0;
+  double tideAnim = 0;
+
+  /// Sluice seals opened this run (Star 1) and the ghost-current progress
+  /// (Star 2, next eddy order to wade).
+  final Set<String> openedSeals = {};
+  int eddyProgress = 0;
+
+  /// Ghost-current visibility: seconds remaining + the insight tier that
+  /// revealed it (drives how much of the path shows).
+  double eddyRevealTimer = 0;
+  int eddyRevealTier = 0;
+
+  /// Moon-pool states (Star 3): MoonPool.id → 0 liquid · 1 frozen bridge.
+  final Map<String, int> poolStates = {};
+  final Map<String, double> _poolFx = {}; // freeze/shatter pulses
+
+  /// A sluggish (non-Pip) valve turn: the pipes answer after a delay.
+  double _valveDelay = 0;
+  int? _valvePendingLevel;
+
+  bool get _isTemple => layout.element == 'Water';
+  bool get tideSettled => (tideAnim - tideLevel / 2).abs() < 0.04;
+
+  /// Shared entry-rite reveal animation (ALL planets): 0 = unrevealed
+  /// (lintel fallen / hearth cold / bowl dry / runes dark) → 1 = revealed.
+  /// Eased up over ~1.6s when the entry rite is freshly performed; snapped to 1
+  /// when loaded already-open. [_entryRevealPrev] is last frame's value so
+  /// per-planet reveals can fire one-shot FX as the value crosses a threshold.
+  double _entryReveal = 0;
+  double _entryRevealPrev = 0;
+
+  void _updateEntryReveal(double dt) {
+    _entryRevealPrev = _entryReveal;
+    if (entryDoorRevealed && _entryReveal < 1.0) {
+      _entryReveal = (_entryReveal + dt / 1.6).clamp(0.0, 1.0);
+    }
+  }
+
+  // ── Smoothed camera follow ──
+  /// The point the camera is centred on (eased). Normal walking tracks tightly;
+  /// a character SWAP / death-swap / teleport triggers a quick PAN instead of a
+  /// snap; a room change snaps (different coordinate space).
+  Offset? _camFocus;
+  String? _camFocusRoom;
+  int _camActiveIndex = 0;
+  bool _camPanning = false;
+
+  /// Seconds a downed creature waits before reviving.
+  static const double respawnSeconds = 10.0;
+
+  Offset get _cameraFocus =>
+      _camFocus ?? (active?.position ?? currentRoom.bounds.center);
+
+  void _updateCamera(double dt) {
+    final target = active?.position ?? currentRoom.bounds.center;
+    // Room change → snap (the new room is a different coordinate space).
+    if (_camFocusRoom != currentRoomId || _camFocus == null) {
+      _camFocus = target;
+      _camFocusRoom = currentRoomId;
+      _camActiveIndex = activeIndex;
+      _camPanning = false;
+      return;
+    }
+    // A discontinuity (swap / death-swap / teleport) is bigger than any single
+    // frame of walking — pan to it; otherwise track tightly (no follow lag).
+    final jumped = activeIndex != _camActiveIndex ||
+        (_camFocus! - target).distance > 90;
+    _camActiveIndex = activeIndex;
+    if (jumped) _camPanning = true;
+    if (_camPanning) {
+      _camFocus = Offset.lerp(_camFocus!, target, 1 - exp(-dt / 0.12))!;
+      if ((_camFocus! - target).distance < 2) {
+        _camFocus = target;
+        _camPanning = false;
+      }
+    } else {
+      _camFocus = target;
+    }
+  }
+
+  /// Revive any downed creature whose timer has elapsed, back beside the party.
+  void _updateRespawns(double dt) {
+    for (final c in creatures) {
+      if (c.alive || c.respawnTimer <= 0) continue;
+      c.respawnTimer -= dt;
+      if (c.respawnTimer <= 0) _reviveCreature(c);
+    }
+  }
+
+  void _reviveCreature(DungeonCreature c) {
+    c.respawnTimer = 0;
+    c.downHandled = false;
+    c.hp = c.maxHp;
+    // Rejoin in the CURRENT room beside a living ally (their footing is safe).
+    final ally = creatures.firstWhere(
+      (o) => o.alive && !identical(o, c),
+      orElse: () => c,
+    );
+    final spot = identical(ally, c) ? currentRoom.bounds.center : ally.position;
+    c.position = spot;
+    c.lastSafe = spot;
+    _spawnAlchemyBurst(
+      spot,
+      producedElement: c.member.element,
+      particleCount: 20,
+      intensity: 0.9,
+    );
+    _setHint('${c.member.element} ${c.member.family} revives');
+    onChanged();
+  }
+
+  // ── Earth (Buried Giant) run-state ──
+
+  /// Settled notch per fossil rib (id → index; 0 = its starting notch).
+  final Map<String, int> ribNotches = {};
+
+  /// Live rib slides (track-notch shoves are ANIMATED grinds, never snaps).
+  final Map<String, _RibSlide> _ribSlides = {};
+
+  /// Crystal-locked pillar sockets (Star 2).
+  final Set<String> lockedPillars = {};
+
+  /// Per-pillar crystal-growth animation (id → 0..1): the lock shards GROW
+  /// out of the socket over ~0.6s instead of popping in.
+  final Map<String, double> _crystalGrow = {};
+
+  /// Sockets mid-charge (Star 2): a socket draws the storm over a charge
+  /// window — the consequence enemies spawn AT ONCE, so the player defends the
+  /// charge until it completes and the crystal lights. id → elapsed seconds,
+  /// and id → total charge duration (family-graded: Pip fast, off-family slow).
+  final Map<String, double> _pillarCharge = {};
+  final Map<String, double> _pillarChargeDur = {};
+
+  /// Gaze-prism build animation: the stone core rises (0..1) then the crystal
+  /// grows out of it (0..1), rather than each stage snapping into being.
+  double _prismCoreRise = 0;
+  double _prismGrow = 0;
+
+  /// Stone-scale state (Star 3): weight id → sits on the RIGHT pan.
+  final Map<String, bool> scalePanRight = {};
+  int scaleToggles = 0;
+  double _scaleTruthFlash = 0; // insight's glow on the true pans
+  double _scaleTiltShown = 0; // the beam eases toward its loaded tilt
+
+  /// The giant's eye pupil offset from the eye centre. While BLIND it tracks
+  /// the active creature (the giant watches you); once the prism stands it
+  /// locks onto the lens. Eased so the gaze glides rather than snaps.
+  Offset _eyeLook = Offset.zero;
+
+  /// The gaze prism in the eye's sightline: 0 bare plinth · 1 stone core
+  /// raised (Earth) · 2 the crystal prism stands (Lightning's arc, or
+  /// Crystal direct). The eye is BLIND — gives no readings — until it
+  /// stands, and then only speaks when communed with at the prism.
+  int prismStage = 0;
+
+  /// The scale's PER-RUN solution (weight id → true pan is RIGHT): the eye
+  /// remembers differently each burial, so deduction stays a puzzle forever
+  /// (a wiki can never spoil it). Always mixed — both pans used.
+  final Map<String, bool> scaleSolution = {};
+
+  void _rollScaleSolution() {
+    for (final room in layout.rooms.values) {
+      final scale = room.stoneScale;
+      if (scale == null) continue;
+      final rng = Random();
+      do {
+        for (final w in scale.weights) {
+          scaleSolution[w.id] = rng.nextBool();
+        }
+      } while (scaleSolution.values.toSet().length < 2);
+      return;
+    }
+  }
+
+  bool get _isBarrow => layout.element == 'Earth';
+
+  // ── Lightning (Storm Circuit) run-state ──
+  /// Source node id → seconds of charge left. A Lightning Horn channel sets a
+  /// full window; the charge DECAYS (the persistence-grammar tension). Latching
+  /// sources (storm-cell sockets) are parked at a huge value and never decay.
+  final Map<String, double> circuitCharge = {};
+
+  /// Source node id → its initial charge window (drives the drain-timer arc).
+  final Map<String, double> _circuitChargeMax = {};
+
+  /// Mirror node id → current orientation index (rotated on action, persists).
+  final Map<String, int> mirrorOrient = {};
+
+  /// Nodes the BFS found powered this frame (re-derived; never serialized).
+  final Set<String> _poweredNodes = {};
+
+  /// Read-only view of the live circuit nodes (for tests/diagnostics).
+  Set<String> get poweredNodes => _poweredNodes;
+
+  /// CellSocket ids fully energized this run (Star 2).
+  final Set<String> energizedSockets = {};
+
+  /// Anvil sockets that hold a cell but await a Fire creature's heat (Star 2).
+  final Set<String> _anvilCellWaiting = {};
+
+  /// A sluggish off-family circuit action: the grid answers after a delay.
+  double _circuitActDelay = 0;
+  VoidCallback? _circuitActPending;
+
+  /// The Thunderbolt egg's permanent over-charged glow once won.
+  double _thunderboltGlow = 0;
+
+  /// Storm-Spire beam puzzle: latched true once the lightning beam crowns the
+  /// tower (the gate to the core then stays open for the run); a small clock
+  /// that paces the conversion-arc sparks.
+  bool _beamLatched = false;
+  double _beamSparkT = 0;
+
+  /// Star 1 pylon-beam: latched on once a Lightning creature charges the pylon
+  /// (kept across death once the star is banked; re-derived in reset).
+  bool pylonBeamOn = false;
+
+  bool get _isCircuit => layout.element == 'Lightning';
+
+  // ── Steam (the Molten Labyrinth) run-state ──
+  /// Mutable cell grid per room (roomId → rows of codes: 0 open · 1 wall ·
+  /// 2 bedrock · 3 lava). Re-derived from the authored grid on reset; the trio
+  /// melts/cools/dams it and the lava creeps each beat.
+  final Map<String, List<List<int>>> moltenCells = {};
+
+  /// Seconds until the next lava-creep beat.
+  double moltenBeat = _kMoltenBeat;
+
+  /// Rooms whose flood has WOKEN — the molten sleeps until Fire first breaks
+  /// rock in that room; only woken rooms creep on the beat.
+  final Set<String> wokeRooms = {};
+
+  /// Steam's cooling-breath charges (max [kSteamBreathMax]); one is spent per
+  /// cooled cell and one returns with each creep beat — so a wide flood can't
+  /// be out-cooled, only dammed.
+  int steamBreath = kSteamBreathMax;
+
+  /// Times any creature's footing was swallowed by lava this run (scalds).
+  /// Ending the rite with zero scalds earns the Hidden Harmony egg.
+  int moltenScalds = 0;
+
+  /// Set once the engine-room rite grid's pedestal is reached (wakes Boilrog).
+  bool moltenRiteDone = false;
+
+  /// A free-running clock for molten ember/pedestal pulses.
+  double _moltenPulse = 0;
+
+  /// The ring-main's boiler pressure head (Steam): the run's ONE budget.
+  /// Junction seals spend it, cooling condenses some back, Fire stokes it,
+  /// and the burst-disc vault demands most of it dumped at once.
+  int boilerPressure = kSteamStartPressure;
+
+  /// Paid junction seals, keyed by sorted room-pair ('a|b'). Per-run — a
+  /// death re-clamps the ring (puzzle state, like every other rite).
+  final Set<String> unclampedSeals = {};
+
+  /// Whether the burst-disc has been blown this run (vault passage open).
+  bool burstDiscBlown = false;
+
+  bool get _isVapor => layout.element == 'Steam';
+
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
   final Map<String, double> _conduitMaxEnergy = {};
@@ -357,9 +717,65 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
+    // MYS01 sheet verified 3072×512 — 6 frames of 512×512, one row.
+    'Simurgh': SpriteSheetDef(
+      path: 'creatures/mystic/MYS01_firemystic_spritesheet.png',
+      totalFrames: 6,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+    // MYS02 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Leviathan': SpriteSheetDef(
+      path: 'creatures/mystic/MYS02_watermystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+    // MYS03 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Terradon': SpriteSheetDef(
+      path: 'creatures/mystic/MYS03_earthmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+    // MYS07 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Raikuma': SpriteSheetDef(
+      path: 'creatures/mystic/MYS07_lightningmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+    // MYS05 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Boilrog': SpriteSheetDef(
+      path: 'creatures/mystic/MYS05_steammystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+  };
+
+  /// Half-HP escalation copy, per mystic.
+  static const Map<String, String> _guardianEnrageHints = {
+    'Roc': 'The Roc screeches — the storm tightens!',
+    'Simurgh': 'The Simurgh shrieks — its flame burns black!',
+    'Leviathan': 'The Leviathan coils — the deep crushes inward!',
+    'Terradon': 'Terradon heaves — the whole barrow shudders!',
+    'Raikuma': 'Raikuma roars — the whole circuit overloads white!',
+    'Boilrog': 'Boilrog bellows — the pressure spikes to a scream!',
   };
   SpriteAnimationTicker? _guardianTicker;
   double _guardianSpriteScale = 1.0;
+
+  /// The planet's relic artwork (`assets/images/relics/<el>relic.png`) for
+  /// the victory drop; null = procedural star-glyph fallback.
+  ui.Image? _relicImage;
+  _RelicDropFx? _relicFx;
+  bool get relicDropActive => _relicFx != null;
 
   String? hintText;
   double _hintTtl = 0;
@@ -383,7 +799,39 @@ class PlanetDungeonGame extends FlameGame {
   double _skyMood = 0.5;
   final DungeonFxAssets _fx = DungeonFxAssets();
   final DungeonSky _sky = DungeonSky();
-  final AmbientWind _ambient = AmbientWind();
+  late final AmbientWind _ambient = AmbientWind(
+    palette: _isCathedral
+        ? const [
+            Color(0xFFFFB46B), // ember
+            Color(0xFFE4C16A), // candle amber
+            Color(0xFF8A5A48), // drifting ash
+          ]
+        : _isTemple
+        ? const [
+            Color(0xFF8FE0EC), // pearl shimmer
+            Color(0xFF4A8AB8), // deep current
+            Color(0xFFE4C16A), // sunken gold
+          ]
+        : _isBarrow
+        ? const [
+            Color(0xFFD8B878), // bone dust
+            Color(0xFF8A6E48), // old earth
+            Color(0xFFB8E0D8), // crystal glint
+          ]
+        : _isCircuit
+        ? const [
+            Color(0xFFBFE6FF), // arc-white spark
+            Color(0xFF6BA8FF), // charged blue
+            Color(0xFFE9D27A), // brass conductor
+          ]
+        : _isVapor
+        ? const [
+            Color(0xFFCFE0E6), // steam white
+            Color(0xFF8FA6B0), // iron grey
+            Color(0xFFFFB46B), // furnace ember
+          ]
+        : null,
+  );
   final List<Offset> _glideTrail = [];
   final List<Offset> _carryTrail = []; // wind wake behind a carried echo
   final Map<String, _IslandGeometry> _islandCache = {};
@@ -434,9 +882,20 @@ class PlanetDungeonGame extends FlameGame {
     return '${c.specialCooldown.ceil()}s';
   }
 
-  /// The single star a room awards (spire/loom/altar), or null for the hub.
+  /// The single star a room awards (spire/loom/altar/ritual/garden), or null
+  /// for connective rooms.
   int? _roomStarIndex(DungeonRoom room) =>
-      room.summit?.starIndex ?? room.loomStarIndex ?? room.guardian?.starIndex;
+      room.summit?.starIndex ??
+      room.loomStarIndex ??
+      room.brazierStarIndex ??
+      room.vineStarIndex ??
+      room.sealStarIndex ??
+      room.eddyStarIndex ??
+      room.ribStarIndex ??
+      room.pillarStarIndex ??
+      room.circuitStarIndex ??
+      room.molten?.starIndex ??
+      room.guardian?.starIndex;
 
   /// True once this room's star is earned — its objectives/obstacles are then
   /// hidden and inert (nothing here is shared between Air's stars).
@@ -463,7 +922,7 @@ class PlanetDungeonGame extends FlameGame {
     if (!guardianRiteUnlocked) {
       _setHint(
         'The pylon swallows the offering — it answers only to a bearer of '
-        'both the Wind and Loom stars',
+        'both the ${layout.starName(0)} and ${layout.starName(1)}',
       );
       return;
     }
@@ -499,6 +958,8 @@ class PlanetDungeonGame extends FlameGame {
       if ((starMask & (1 << i)) != 0) _earnedStars.add(i);
     }
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
+    _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
+    _entryRevealPrev = _entryReveal;
     currentRoomId = layout.entranceRoomId;
 
     for (final m in party) {
@@ -533,6 +994,14 @@ class PlanetDungeonGame extends FlameGame {
         _guardianTicker = null; // missing asset → procedural fallback
       }
       break;
+    }
+    // The guardian relic's artwork for the victory drop (optional asset).
+    try {
+      _relicImage = await images.load(
+        'relics/${layout.element.toLowerCase()}relic.png',
+      );
+    } catch (_) {
+      _relicImage = null; // missing art → procedural star-glyph fallback
     }
     _placeAtEntrance();
     _setHint(
@@ -598,9 +1067,11 @@ class PlanetDungeonGame extends FlameGame {
     for (final c in creatures) {
       c.hp = c.maxHp;
       c.downHandled = false;
+      c.respawnTimer = 0;
     }
     activeIndex = 0;
     _doorCooldown = 0.4;
+    _camFocus = null; // snap the camera to the fresh spawn (no pan)
   }
 
   void _spreadCreaturesAround(Offset anchor) {
@@ -637,6 +1108,8 @@ class PlanetDungeonGame extends FlameGame {
     summitOpen = false;
     // Knowledge persists across death: the entry passage stays revealed.
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
+    _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
+    _entryRevealPrev = _entryReveal;
     carriedCloudId = null;
     carriedCloudType = null;
     filledAnchors.clear();
@@ -666,6 +1139,12 @@ class PlanetDungeonGame extends FlameGame {
     combatEnemies.clear();
     combatProjectiles.clear();
     _activeWingBeams.clear();
+    _relicFx = null;
+    _resetCathedralState();
+    _resetTempleState();
+    _resetBarrowState();
+    _resetCircuitState();
+    _resetPressureState();
   }
 
   void _resetRun() {
@@ -680,7 +1159,12 @@ class PlanetDungeonGame extends FlameGame {
   void setActive(int index) {
     if (index < 0 || index >= creatures.length) return;
     if (!creatures[index].alive) {
-      _setHint('That creature is down until the next run');
+      final secs = creatures[index].respawnTimer.ceil();
+      _setHint(
+        secs > 0
+            ? 'That creature is down — reviving in ${secs}s'
+            : 'That creature is down',
+      );
       onChanged();
       return;
     }
@@ -737,9 +1221,15 @@ class PlanetDungeonGame extends FlameGame {
     if (_guardianStrikeCooldown > 0) _guardianStrikeCooldown -= dt;
     if (revealFlash > 0) revealFlash -= dt;
     if (guardianHitFlash > 0) guardianHitFlash -= dt;
+    final relicFx = _relicFx;
+    if (relicFx != null) {
+      relicFx.t += dt;
+      if (relicFx.done) _relicFx = null;
+    }
     _ambient.update(dt);
     _skyMood += (_skyMoodTarget - _skyMood) * min(1.0, dt * 1.1);
     _updateAlchemyParticles(dt);
+    _abilityVfx.update(dt);
     for (final c in creatures) {
       c.ticker?.update(dt);
     }
@@ -773,7 +1263,10 @@ class PlanetDungeonGame extends FlameGame {
     final castLocked =
         activeCombat != null && _castLocksMovement(activeCombat!);
     final dir = joystickDirection;
-    final moveSpeed = flightActive ? _speed * _flightSpeedMul : _speed;
+    // Swimming: flooded temple water slows everyone but Water itself.
+    final moveSpeed =
+        (flightActive ? _speed * _flightSpeedMul : _speed) *
+        (_isTemple ? _templeSpeedMul(a) : 1.0);
     if (dir.distanceSquared > 0.0001 && !castLocked) {
       final airborneWalker =
           !flightActive &&
@@ -786,6 +1279,7 @@ class PlanetDungeonGame extends FlameGame {
         a.position = _moveWithCollision(a.position, dir * moveSpeed * dt, room);
       }
       if (dir.dx.abs() > 0.01) a.angle = dir.dx >= 0 ? 0 : pi;
+      a.aimAngle = atan2(dir.dy, dir.dx);
     }
     if (updraft != null) {
       final sway = sin(_time * 2.1) * 16 * dt;
@@ -825,12 +1319,20 @@ class PlanetDungeonGame extends FlameGame {
     } else if (_glideTrail.isNotEmpty) {
       _glideTrail.removeAt(0);
     }
+    _updateEntryReveal(dt);
+    _updateCamera(dt);
+    _updateRespawns(dt);
     _updateFlight(a, room, dt);
     _updateSpire(a, room);
     _updateWonderTrials(a, room, dt);
     _updateLoom(a, room);
     _updateAltar(a, room, dt);
     _updateMercyShrine(a, room);
+    _updateCathedral(a, room, dt);
+    _updateTemple(a, room, dt);
+    _updateBarrow(a, room, dt);
+    _updateCircuit(a, room, dt);
+    _updatePressure(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -838,6 +1340,7 @@ class PlanetDungeonGame extends FlameGame {
     _checkDoors(a);
     _checkHazards(a, dt);
     _checkStars(a);
+    _checkVaultCache(a);
     // Door-reveal rings play out only while their room is on screen.
     for (final fx in _doorRevealFx) {
       if (fx.roomId != currentRoomId) continue;
@@ -927,8 +1430,8 @@ class PlanetDungeonGame extends FlameGame {
       if ((a.position - c.position).distance > 54) continue;
       if (!guardianRiteUnlocked) {
         _setAmbientHint(
-          'The twin pylons sleep — the Wind and Loom stars must be claimed '
-          'first',
+          'The twin pylons sleep — the ${layout.starName(0)} and '
+          '${layout.starName(1)} must be claimed first',
         );
       } else if (c.preferred == null) {
         _setAmbientHint('This conductor wants an elemental arc, not a hold');
@@ -965,6 +1468,12 @@ class PlanetDungeonGame extends FlameGame {
         return;
       }
     }
+
+    if (_isCathedral) _cathedralAmbientHint(a, room);
+    if (_isTemple) _templeAmbientHint(a, room);
+    if (_isBarrow) _barrowAmbientHint(a, room);
+    if (_isCircuit) _circuitAmbientHint(a, room);
+    if (_isVapor) _steamAmbientHint(a, room);
   }
 
   void _setAmbientHint(String msg) {
@@ -1057,6 +1566,25 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
+  /// Per-frame ambient zone wisps. Graphics are defined once in
+  /// [emitZoneParticles] (Cosmic Survival is the source of truth); this just
+  /// routes them into the dungeon's [_AlchemyParticle] pool. Caller gates on
+  /// the pool cap.
+  void _spawnZoneParticles(Projectile p) {
+    emitZoneParticles(p, _combatRng, (
+      x,
+      y,
+      vx,
+      vy,
+      size,
+      life,
+      color, {
+      arc = false,
+    }) {
+      _abilityVfx.add(x, y, vx, vy, size, life, color);
+    });
+  }
+
   void _spawnUtilitySignature(DungeonCreature a) {
     final element = a.member.element;
     final unstable = element == 'Lightning' || element == 'Lava';
@@ -1119,8 +1647,11 @@ class PlanetDungeonGame extends FlameGame {
           onChanged();
         }
       }
-    } else if (_onSolidGround(a.position, room)) {
-      // On solid ground: remember it and refill the glide reserve.
+    } else if (_onSolidGround(a.position, room) &&
+        !(_isTemple && _templeOverLedge(a.position, room))) {
+      // On solid ground: remember it and refill the glide reserve. Swimming
+      // over a submerged tide-ledge is NOT safe footing — when the water
+      // falls away the ledge becomes a wall, so lastSafe must stay off it.
       a.lastSafe = a.position;
       flightMeter = flightMax;
     }
@@ -1584,32 +2115,35 @@ class PlanetDungeonGame extends FlameGame {
           !_guardianEnemy!.isDead &&
           _guardianHpFraction < 0.5) {
         _rocEnraged = true;
-        _setHint('The Roc screeches — the storm tightens!', 3.2);
+        _setHint(
+          _guardianEnrageHints[g.encounter?.mysticId] ??
+              'The guardian\'s fury redoubles!',
+          3.2,
+        );
         _spawnAlchemyBurst(
           stormCenter,
-          producedElement: 'Air',
-          reagentElements: const ['Lightning'],
+          producedElement: layout.element,
           unstable: true,
           particleCount: 26,
           intensity: 1.2,
         );
         spawnWispWave(
-          element: 'Air',
+          element: layout.element,
           center: stormCenter,
           count: 2,
           announce: false,
         );
       }
       if (!guardianVulnerable && (a.position - stormCenter).distance < 90) {
-        a.hp = max(0, a.hp - _guardianHazardDps * dt);
+        a.hp = max(0, a.hp - _guardianHazardDps * progressDmgMul * dt);
       }
     }
   }
 
-  /// The storm altar's mercy: approaching it once per run fully mends the
-  /// party — a breath before the finale.
+  /// The finale shrine's mercy: approaching it once per run fully mends the
+  /// party — a breath before the guardian.
   void _updateMercyShrine(DungeonCreature a, DungeonRoom room) {
-    if (room.id != 'storm_altar' || _altarBlessingUsed) return;
+    if (room.id != layout.mercyShrineRoomId || _altarBlessingUsed) return;
     if ((a.position - room.bounds.center).distance > 70) return;
     if (!creatures.any((c) => c.alive && c.hp < c.maxHp - 0.5)) return;
     _altarBlessingUsed = true;
@@ -1620,7 +2154,7 @@ class PlanetDungeonGame extends FlameGame {
     _spawnAlchemyBurst(
       room.bounds.center,
       producedElement: 'Light',
-      reagentElements: const ['Air'],
+      reagentElements: [layout.element],
       particleCount: 24,
       intensity: 1.0,
     );
@@ -1675,16 +2209,21 @@ class PlanetDungeonGame extends FlameGame {
     for (final c in creatures) {
       if (c.alive) {
         c.downHandled = false;
+        c.respawnTimer = 0;
         anyAlive = true;
       } else if (!c.downHandled) {
         c.downHandled = true;
+        c.respawnTimer = respawnSeconds; // revives in 10s (_updateRespawns)
         _spawnAlchemyBurst(
           c.position,
           producedElement: c.member.element,
           particleCount: 18,
           intensity: 0.8,
         );
-        _setHint('${c.member.element} ${c.member.family} is down');
+        _setHint(
+          '${c.member.element} ${c.member.family} is down — '
+          'reviving in ${respawnSeconds.round()}s',
+        );
         onChanged();
       }
     }
@@ -2182,6 +2721,11 @@ class PlanetDungeonGame extends FlameGame {
         if (p.tickTimer >= 0.35) {
           p.tickTimer -= 0.35;
           _applyProjectileAreaEffect(p, p.tickEffect);
+        }
+        // Ambient per-element wisps so the painted zone feels alive (embers,
+        // bubbles, rain, etc.). Pool-capped so it never floods the frame.
+        if (_abilityVfx.length < 130) {
+          _spawnZoneParticles(p);
         }
       }
 
@@ -2835,8 +3379,13 @@ class PlanetDungeonGame extends FlameGame {
     count = min(count, 10 - liveWisps);
     if (count <= 0) return;
     final wave = unstable ? 5 : 3;
-    final hpScale = CosmicSurvivalBalance.enemyWaveHpScale(wave);
-    final damageScale = CosmicSurvivalBalance.enemyWaveDamageScale(wave);
+    // Wisps ride the campaign clock too, a touch gentler than guardians.
+    final hpScale =
+        CosmicSurvivalBalance.enemyWaveHpScale(wave) *
+        (1.0 + 0.22 * clearedGuardianCount);
+    final damageScale =
+        CosmicSurvivalBalance.enemyWaveDamageScale(wave) *
+        (1.0 + 0.07 * clearedGuardianCount);
     final speedScale = CosmicSurvivalBalance.enemyWaveSpeedScale(wave);
     for (var i = 0; i < count; i++) {
       final a = i * pi * 2 / max(1, count) + _combatRng.nextDouble() * 0.45;
@@ -2871,9 +3420,13 @@ class PlanetDungeonGame extends FlameGame {
     // in the frame) must not be replaced by a fresh guardian.
     if (_guardianEnemy != null && _guardianEnemy!.isDead) return;
     final hpScale =
-        CosmicSurvivalBalance.enemyWaveHpScale(7) * (raid?.hpMul ?? 1.0);
+        CosmicSurvivalBalance.enemyWaveHpScale(7) *
+        (raid?.hpMul ?? 1.0) *
+        progressHpMul;
     final damageScale =
-        CosmicSurvivalBalance.enemyWaveDamageScale(7) * (raid?.dmgMul ?? 1.0);
+        CosmicSurvivalBalance.enemyWaveDamageScale(7) *
+        (raid?.dmgMul ?? 1.0) *
+        progressDmgMul;
     _guardianEnemy = CosmicSurvivalEnemy(
       position: g.position,
       hp: 220 * hpScale,
@@ -2889,10 +3442,11 @@ class PlanetDungeonGame extends FlameGame {
       isElite: true,
     );
     combatEnemies.add(_guardianEnemy!);
+    final mysticName = g.encounter?.mysticId ?? 'The guardian';
     _setHint(
       isRaid
           ? 'The raid-maddened guardian descends — bring it down!'
-          : 'Roc descends — use Auto Attack and Ability',
+          : '$mysticName descends — use Auto Attack and Ability',
     );
   }
 
@@ -2906,8 +3460,12 @@ class PlanetDungeonGame extends FlameGame {
     final frac = g.maxHp <= 0 ? 0.0 : (g.hp / g.maxHp).clamp(0.0, 1.0);
     if (frac > cfg.addPhaseThresholds[_raidPhaseIndex]) return;
     _raidPhaseIndex++;
-    final hpScale = CosmicSurvivalBalance.enemyWaveHpScale(7);
-    final damageScale = CosmicSurvivalBalance.enemyWaveDamageScale(7);
+    final hpScale =
+        CosmicSurvivalBalance.enemyWaveHpScale(7) *
+        (1.0 + 0.22 * clearedGuardianCount);
+    final damageScale =
+        CosmicSurvivalBalance.enemyWaveDamageScale(7) *
+        (1.0 + 0.07 * clearedGuardianCount);
     final rng = Random(combatEnemies.length * 31 + _raidPhaseIndex);
     for (var i = 0; i < 4; i++) {
       final angle = (i / 4) * pi * 2 + rng.nextDouble() * 0.8;
@@ -5103,6 +5661,35 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // Cinder Cathedral interactions (hearth, braziers, garden, vesper).
+    if (_tryCathedral(a)) {
+      onChanged();
+      return;
+    }
+    // Mirror-Tide Temple interactions (fountain, valves, seals, currents,
+    // moon-pools, the frozen moon).
+    if (_tryTemple(a)) {
+      onChanged();
+      return;
+    }
+    // Buried Giant interactions (lintel, ribs, sockets, the stone scale,
+    // the open palm).
+    if (_tryBarrow(a)) {
+      onChanged();
+      return;
+    }
+    // Storm Circuit interactions (charge pylons, rotate conductor mirrors,
+    // herd/heat storm-cells, the breaker maze, the Thunderbolt egg).
+    if (_tryCircuit(a)) {
+      onChanged();
+      return;
+    }
+    // Pressure Cathedral interactions (vents/seals steer the clock, boiler
+    // pack+ignite, the escapement, the entry vent).
+    if (_tryPressure(a)) {
+      onChanged();
+      return;
+    }
     // Wonder-cloud trials (ring conjunction, anvil shell, veil pinning) —
     // checked before the generic Fire ignite so trial-specific recipe uses
     // (Fire arcing the anvil shell) win over the flavour spark.
@@ -5111,9 +5698,11 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
     // The secret: with all three stars, commune at the compass's heart.
+    // Air's lost maxim — finding it pays out once (screen-side, 20 gold).
     if (currentRoomId == 'hub' &&
         starsEarnedCount >= 3 &&
         (a.position - currentRoom.bounds.center).distance < 34) {
+      _discoverCloud(kAirFirstWindEggId);
       _setHint(
         'The compass stills. Long before the storm, the Roc wove the first '
         'wind through this loom — the planet remembers, and now it rests.',
@@ -5189,6 +5778,26 @@ class PlanetDungeonGame extends FlameGame {
 
   void _doReveal(DungeonCreature a) {
     final room = currentRoom;
+    if (_isCathedral) {
+      _cathedralReveal(a, room);
+      return;
+    }
+    if (_isTemple) {
+      _templeReveal(a, room);
+      return;
+    }
+    if (_isBarrow) {
+      _barrowReveal(a, room);
+      return;
+    }
+    if (_isCircuit) {
+      _circuitReveal(a, room);
+      return;
+    }
+    if (_isVapor) {
+      _steamReveal(a, room);
+      return;
+    }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
       // The rune hall: insight completes the mural's diagram.
       if (room.id == 'storm_rune_hall') {
@@ -5509,11 +6118,12 @@ class PlanetDungeonGame extends FlameGame {
     _guardianStrikeCooldown = 1.2;
     final e = _guardianEnemy;
     if (e != null && !e.isDead) {
-      e.hp -= e.maxHp / maxGuardianHp;
+      e.hp -= e.maxHp / guardianStrikesNeeded;
       e.hitFlash = 0.3;
       if (e.hp <= 0) e.isDead = true; // _updateCombat banks the star
     } else {
-      guardianHp -= 1; // fallback pool if the combat body never spawned
+      // Fallback pool if the combat body never spawned — same strike count.
+      guardianHp -= maxGuardianHp / guardianStrikesNeeded;
     }
     guardianHitFlash = 0.3;
     if (_guardianHpFraction <= 0 || guardianHp <= 0) {
@@ -5554,6 +6164,17 @@ class PlanetDungeonGame extends FlameGame {
 
   bool _hitsWall(Offset center, DungeonRoom room) {
     if (_hitsWallRect(center, room)) return true;
+    // Tide ledges: solid stone until the water climbs high enough to swim
+    // over them.
+    if (_isTemple && _templeLedgeBlocks(center, room)) return true;
+    // Fossil ribs (solid except settled in the chasm groove) + the marrow
+    // chasm itself (impassable until bridged).
+    if (_isBarrow && _barrowBlocksAt(center, room)) return true;
+    // Powered barriers: solid while their node is UNPOWERED (the overload
+    // maze — powered doors open, unpowered close).
+    if (_isCircuit && _circuitBlocksAt(center, room)) return true;
+    // Pistons: footing only where a piston is extended in the current phase.
+    if (_isVapor && _steamBlocksAt(center, room)) return true;
     // When walking, you can't leave solid ground (gaps / open sky block you).
     if (!flightActive && !_onSolidGround(center, room)) return true;
     return false;
@@ -5585,10 +6206,7 @@ class PlanetDungeonGame extends FlameGame {
       if (isDoorLocked(currentRoom, d)) {
         // Sealed: the door refuses passage and explains its key.
         if (d.rect.inflate(14).contains(a.position)) {
-          _setStatHint(
-            'The storm door is sealed — it parts only for both the Wind and '
-            'Loom stars',
-          );
+          _setStatHint(_lockedDoorHint(currentRoom, d));
         }
         continue;
       }
@@ -5610,28 +6228,65 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   /// Hidden doors don't exist yet — no render, no transition, no map mark.
-  ///  • The entry passage hides until the Air+Fire ignition reveals it.
-  ///  • The summit↔loom shortcut hides until the Wind Star (Star 1) is
-  ///    claimed: it's a reward EXIT from the climb, never a way to stroll
-  ///    to the top of it.
-  bool isDoorHidden(DungeonRoom room, DungeonDoor door) =>
-      (room.id == 'entry' &&
-          door.targetRoomId == 'hub' &&
-          !entryDoorRevealed) ||
-      (room.id == 'spire_summit' &&
-          door.targetRoomId == 'sky_loom' &&
-          !hasStar(0)) ||
-      (room.id == 'sky_loom' &&
-          door.targetRoomId == 'spire_summit' &&
-          !hasStar(0));
+  /// The layout declares them:
+  ///  • [DungeonLayout.entranceRevealDoor] hides until the entry puzzle.
+  ///  • Each star spec's `revealDoors` hide until that star is claimed
+  ///    (e.g. Air's summit↔loom shortcut is a reward EXIT from the climb,
+  ///    never a way to stroll to the top of it).
+  bool isDoorHidden(DungeonRoom room, DungeonDoor door) {
+    final entryRef = layout.entranceRevealDoor;
+    if (entryRef != null && entryRef.matches(room, door) && !entryDoorRevealed) {
+      return true;
+    }
+    for (var i = 0; i < layout.stars.length; i++) {
+      if (hasStar(i)) continue;
+      for (final ref in layout.stars[i].revealDoors) {
+        if (ref.matches(room, door)) return true;
+      }
+    }
+    // The Steam vault shaft stays hidden until the burst-disc is blown.
+    if (_isVapor &&
+        !burstDiscBlown &&
+        room.burstDisc != null &&
+        door.targetRoomId == room.burstDisc!.targetRoomId) {
+      return true;
+    }
+    return false;
+  }
 
-  /// Star-gated doors: the storm wing stays sealed until the loom's relic
-  /// (Star 2) is woven, so the guardian reads as a true finale. Stars 1 and
-  /// 2 remain freely interleavable — this is the dungeon's only lock.
-  bool isDoorLocked(DungeonRoom room, DungeonDoor door) =>
-      room.id == 'sky_loom' &&
-      door.targetRoomId == 'storm_rune_hall' &&
-      !guardianRiteUnlocked;
+  /// Star-gated doors: the layout's finale wing stays sealed until both of
+  /// the first two stars are banked, so the guardian reads as a true finale.
+  /// Stars 1 and 2 remain freely interleavable. The Mirror Tide adds
+  /// tide-gated passages (drowned or dry until the water stands right).
+  bool isDoorLocked(DungeonRoom room, DungeonDoor door) {
+    final ref = layout.finaleDoor;
+    if (ref != null && ref.matches(room, door) && !guardianRiteUnlocked) {
+      return true;
+    }
+    if (_isVapor && _sealBlocked(room, door)) return true;
+    return _isTemple && _tideDoorBlocked(room, door);
+  }
+
+  /// What a locked door says when touched. The finale hint is PROGRESS-AWARE:
+  /// the full thematic line while both keys are missing, narrowing to name
+  /// only the star still owed once the first of the pair is banked.
+  String _lockedDoorHint(DungeonRoom room, DungeonDoor door) {
+    if (_isTemple && _tideDoorBlocked(room, door)) {
+      return _tideDoorHint(room, door);
+    }
+    if (_isVapor && _sealBlocked(room, door)) {
+      return _sealDoorHint(room, door);
+    }
+    final need0 = !hasStar(0);
+    final need1 = !hasStar(1);
+    if (need0 && need1) {
+      return layout.finaleSealedHint ??
+          'The door is sealed — it parts only for both the '
+              '${layout.starName(0)} and ${layout.starName(1)}';
+    }
+    final remaining = need0 ? layout.starName(0) : layout.starName(1);
+    return 'The seal holds — it wants only the $remaining now';
+  }
 
   /// Wisps pursue the party through doors: re-place them in a loose ring
   /// around the arrival point (in the NEW room's coordinates) so they swoop
@@ -5657,6 +6312,11 @@ class PlanetDungeonGame extends FlameGame {
   String? _roomObjectiveHint(String roomId) {
     final room = layout.rooms[roomId];
     if (room == null || _roomCleared(room)) return null;
+    if (_isCathedral) return _cathedralObjectiveHint(room);
+    if (_isTemple) return _templeObjectiveHint(room);
+    if (_isBarrow) return _barrowObjectiveHint(room);
+    if (_isCircuit) return _circuitObjectiveHint(room);
+    if (_isVapor) return _steamObjectiveHint(room);
     if (room.summit != null) {
       return 'Wind Spire — glide through the rings in order, then reach the top';
     }
@@ -5720,6 +6380,53 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
+  /// The vault cache discovery id for this planet ('cache:' rides the same
+  /// persistence channel as the entry rune and the lost maxims).
+  String get _vaultCacheId => 'cache:${layout.element.toLowerCase()}_vault';
+
+  /// Every dungeon's treasure room holds the planet's bottled essence:
+  /// reaching it once makes it FIZZLE into the air and grants 5 gold
+  /// (granted screen-side, once ever — a persisted discovery never refires).
+  void _checkVaultCache(DungeonCreature a) {
+    final pos = currentRoom.vaultCache;
+    if (pos == null) return;
+    if (discoveredClouds.contains(_vaultCacheId)) return;
+    // Reach matches the bigger beacon visual.
+    if ((a.position - pos).distance > 52) return;
+    _discoverCloud(_vaultCacheId); // the screen pays the gold
+    _spawnFizzleBurst(pos, layout.element);
+    _setHint(
+      'The vault\'s essence fizzles into the air — an offering for its '
+      'finder',
+      3.2,
+    );
+  }
+
+  /// A mystical fizzle: the element's motes drift UP and fade — no blast,
+  /// just essence escaping into the air. Reuses the alchemy particle pool.
+  void _spawnFizzleBurst(Offset center, String element) {
+    final color = elementColor(element);
+    for (var i = 0; i < 26; i++) {
+      final spread = (_combatRng.nextDouble() - 0.5) * 56;
+      _alchemyParticles.add(
+        _AlchemyParticle(
+          position: center + Offset(spread, _combatRng.nextDouble() * 14 - 4),
+          velocity: Offset(
+            (_combatRng.nextDouble() - 0.5) * 26,
+            -55 - _combatRng.nextDouble() * 90,
+          ),
+          color: Color.lerp(color, Colors.white, 0.2 + i % 3 * 0.12)!,
+          maxLife: 0.7 + _combatRng.nextDouble() * 0.9,
+          size: 1.8 + _combatRng.nextDouble() * 2.6,
+          arc: false,
+        ),
+      );
+    }
+    while (_alchemyParticles.length > 180) {
+      _alchemyParticles.removeAt(0);
+    }
+  }
+
   /// World position of the most recently earned star (the player is always
   /// at/near it when it banks) — the screen uses it to launch the fly-up
   /// animation from where the star was actually won.
@@ -5728,10 +6435,7 @@ class PlanetDungeonGame extends FlameGame {
   /// Map a world position to screen coordinates (GameWidget fills the screen,
   /// so screen space == viewport space).
   Offset worldToScreen(Offset world) {
-    final cam = _cameraTopLeft(
-      currentRoom,
-      active?.position ?? currentRoom.bounds.center,
-    );
+    final cam = _cameraTopLeft(currentRoom, _cameraFocus);
     return world - cam;
   }
 
@@ -5759,7 +6463,7 @@ class PlanetDungeonGame extends FlameGame {
     _spawnAlchemyBurst(
       lastStarEarnPosition,
       producedElement: 'Light',
-      reagentElements: const ['Air'],
+      reagentElements: [layout.element],
       particleCount: 26,
       intensity: 1.1,
     );
@@ -5771,23 +6475,37 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
     onStarEarned(starIndex);
-    // Unlock announcements: each star opens something.
-    if (starIndex == 0) {
-      _setHint(
-        'The Wind Star is yours — a passage to the Sky Loom parts below',
-        4.2,
+    // Star 3: the guardian relic drops on the spot — hovers, then expands
+    // away into the player's keeping (End Run re-presents it formally).
+    if (starIndex == 2) {
+      final g = currentRoom.guardian;
+      _relicFx = _RelicDropFx(
+        roomId: currentRoomId,
+        position: g != null ? g.position : lastStarEarnPosition,
       );
-      _queueDoorReveal('spire_summit', 'sky_loom');
-      _queueDoorReveal('sky_loom', 'spire_summit');
     }
-    // The storm wing opens when the SECOND of the first two stars lands —
+    // Unlock announcements + door reveals come from the layout's star specs.
+    final spec = starIndex < layout.stars.length
+        ? layout.stars[starIndex]
+        : null;
+    if (spec != null) {
+      if (spec.earnAnnouncement != null) {
+        _setHint(spec.earnAnnouncement!, 4.2);
+      }
+      for (final ref in spec.revealDoors) {
+        _queueDoorReveal(ref.roomId, ref.targetRoomId);
+      }
+    }
+    // The finale wing opens when the SECOND of the first two stars lands —
     // either order.
     if (starIndex <= 1 && guardianRiteUnlocked && !hasStar(2)) {
-      _setHint(
-        'Wind and Loom sing in accord — the storm door in the loom parts',
-        4.2,
-      );
-      _queueDoorReveal('sky_loom', 'storm_rune_hall');
+      if (layout.riteAnnouncement != null) {
+        _setHint(layout.riteAnnouncement!, 4.2);
+      }
+      final finale = layout.finaleDoor;
+      if (finale != null) {
+        _queueDoorReveal(finale.roomId, finale.targetRoomId);
+      }
     }
     onChanged();
   }
@@ -5799,17 +6517,60 @@ class PlanetDungeonGame extends FlameGame {
     super.render(canvas);
     final vp = Size(size.x, size.y);
     final room = currentRoom;
-    final a = active;
-    final cam = _cameraTopLeft(room, a?.position ?? room.bounds.center);
+    final cam = _cameraTopLeft(room, _cameraFocus);
 
     // Screen-space atmosphere. Background = elemental shader, else gradient.
     if (_sky.ready) {
       _sky.paint(canvas, vp, _time, mood: _skyMood);
+    } else if (_isCathedral) {
+      _drawCathedralFallbackSky(canvas, vp); // warm gradient fallback
+    } else if (_isTemple) {
+      _drawTempleFallbackSky(canvas, vp); // deep-sea gradient fallback
+    } else if (_isBarrow) {
+      _drawBarrowFallbackSky(canvas, vp); // buried-strata gradient fallback
     } else {
       drawSky(canvas, vp); // gradient fallback
     }
-    drawDriftingClouds(canvas, vp, _time); // soft faction-style clouds
-    _drawWindStreaks(canvas, vp); // the air itself, always moving
+    if (_isCathedral) {
+      // Incense smoke instead of sky clouds; embers instead of wind streaks.
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF4A3A32),
+        secondary: const Color(0xFF6E4A38),
+        count: 6,
+        maxAlpha: 0.11,
+      );
+      _drawEmberDrift(canvas, vp);
+    } else if (_isTemple) {
+      // Silt veils instead of sky clouds; rising bubbles instead of wind.
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF2A4A58),
+        secondary: const Color(0xFF3A6070),
+        count: 6,
+        maxAlpha: 0.10,
+      );
+      _drawBubbleDrift(canvas, vp);
+    } else if (_isBarrow) {
+      // Dust veils instead of sky clouds; sifting grave-dust instead of wind.
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF4A3A28),
+        secondary: const Color(0xFF5E4C34),
+        count: 6,
+        maxAlpha: 0.10,
+      );
+      _drawDustSift(canvas, vp);
+    } else {
+      drawDriftingClouds(canvas, vp, _time); // soft faction-style clouds
+      _drawWindStreaks(canvas, vp); // the air itself, always moving
+    }
     _ambient.ensure(vp);
     if (_fx.ready) {
       _ambient.render(canvas, _fx.mote!, _time);
@@ -5819,9 +6580,15 @@ class PlanetDungeonGame extends FlameGame {
     canvas.translate(-cam.dx, -cam.dy);
 
     _renderIslandAndVoid(canvas, room);
+    if (_isCathedral) _renderCathedral(canvas, room);
+    if (_isTemple) _renderTemple(canvas, room);
+    if (_isBarrow) _renderBarrow(canvas, room);
+    if (_isCircuit) _renderCircuit(canvas, room);
+    if (_isVapor) _renderSteam(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
+    _abilityVfx.render(canvas);
     _renderHazards(canvas, room);
     _renderWalls(canvas, room);
     _renderDoors(canvas, room);
@@ -5838,11 +6605,203 @@ class PlanetDungeonGame extends FlameGame {
     _renderCombatEnemies(canvas);
     _renderCreatures(canvas);
     _renderCarriedCloud(canvas);
+    _renderRelicDrop(canvas);
+    _renderVaultCacheGlow(canvas, room);
 
     canvas.restore();
 
     // Screen-space framing.
+    if (_isTemple) _drawTideGauge(canvas, vp);
+    if (_isVapor) _drawSteamPhaseHud(canvas, vp);
     drawVignette(canvas, vp);
+  }
+
+  /// The guardian relic's victory ceremony: drops from the fallen guardian,
+  /// hovers glinting, then expands and dissolves. Real relic art when the
+  /// asset loaded; procedural star-glyph otherwise.
+  void _renderRelicDrop(Canvas canvas) {
+    final fx = _relicFx;
+    if (fx == null || fx.roomId != currentRoomId) return;
+    final t = fx.t;
+    double rise, scale, alpha;
+    if (t < 0.7) {
+      // Drop: falls in from above, easing to a halt.
+      final u = t / 0.7;
+      final e = 1 - pow(1 - u, 3).toDouble();
+      rise = -70 * (1 - e);
+      scale = 0.75 + 0.25 * e;
+      alpha = (u * 2).clamp(0.0, 1.0);
+    } else if (t < 2.6) {
+      // Hover: a gentle bob with a breathing glint.
+      rise = sin((t - 0.7) * 2.6) * 6;
+      scale = 1.0 + 0.04 * sin(t * 3.4);
+      alpha = 1;
+    } else {
+      // Claim: expands away and dissolves.
+      final u = ((t - 2.6) / 1.0).clamp(0.0, 1.0);
+      rise = -34 * u;
+      scale = 1.0 + 2.4 * Curves.easeIn.transform(u);
+      alpha = 1 - u;
+    }
+    final c = fx.position + Offset(0, rise - 26);
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        62 * scale,
+        elementColor(layout.element).withValues(alpha: 0.30 * alpha),
+      );
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        36 * scale,
+        const Color(0xFFE4C16A).withValues(alpha: 0.38 * alpha),
+      );
+    }
+    final img = _relicImage;
+    if (img != null) {
+      final sz = 58.0 * scale;
+      canvas.drawImageRect(
+        img,
+        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+        Rect.fromCenter(center: c, width: sz, height: sz),
+        Paint()
+          ..filterQuality = FilterQuality.low
+          ..color = Color.fromRGBO(255, 255, 255, alpha.clamp(0.0, 1.0)),
+      );
+    } else {
+      _drawStarGlyph(
+        canvas,
+        c,
+        16 * scale,
+        const Color(0xFFE4C16A).withValues(alpha: alpha.clamp(0.0, 1.0)),
+      );
+    }
+    // Hovering glints orbiting the relic.
+    if (t >= 0.7 && t < 2.6 && _fx.ready) {
+      for (var i = 0; i < 3; i++) {
+        final a = _time * 1.8 + i * 2.094;
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          c + Offset(cos(a), sin(a) * 0.5) * 34,
+          4,
+          const Color(0xFFFFE9B0).withValues(
+            alpha: 0.4 + 0.2 * sin(_time * 5 + i),
+          ),
+        );
+      }
+    }
+  }
+
+  /// The unclaimed vault essence: a soft element-tinted shimmer breathing
+  /// over the shrine, with three slow orbit-motes — gone for good once
+  /// claimed. 4 glow blits per frame, vault rooms only.
+  /// The bottled essence as a proper TREASURE BEACON: a light pillar you can
+  /// read from across the room, a levitating white-hot essence orb, expanding
+  /// ground rings and a bright mote orbit. All baked-glow blits + plain
+  /// draws — no per-frame shader allocations.
+  void _renderVaultCacheGlow(Canvas canvas, DungeonRoom room) {
+    final pos = room.vaultCache;
+    if (pos == null) return;
+    if (discoveredClouds.contains(_vaultCacheId)) return;
+    final color = elementColor(layout.element);
+    final bright = Color.lerp(color, Colors.white, 0.45)!;
+    final pulse = 0.5 + 0.5 * sin(_time * 2.4);
+    final bob = sin(_time * 1.6) * 5.0;
+    final core = pos + Offset(0, -20 + bob);
+
+    // Beacon pillar: stacked glow blits climbing and fading upward — the
+    // "come collect me" call, visible from the room's far side.
+    if (_fx.ready) {
+      for (var i = 0; i < 5; i++) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          pos + Offset(0, -26.0 - i * 34),
+          30 - i * 3.5,
+          color.withValues(
+            alpha: (0.22 + 0.08 * pulse) * (1.0 - i / 5.5),
+          ),
+        );
+      }
+    }
+
+    // Expanding ground rings: the floor itself announces the shrine.
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    for (var k = 0; k < 2; k++) {
+      final ringT = ((_time * 0.7) + k * 0.5) % 1.0;
+      ringPaint.color =
+          bright.withValues(alpha: (1.0 - ringT) * (0.38 - 0.1 * k));
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: pos + const Offset(0, 8),
+          width: 30 + ringT * 66,
+          height: 13 + ringT * 26,
+        ),
+        ringPaint,
+      );
+    }
+
+    // The essence orb: big halo, hot core, white heart.
+    if (_fx.ready) {
+      drawGlow(canvas, _fx.glow!, core, 74,
+          color.withValues(alpha: 0.30 + 0.14 * pulse));
+      drawGlow(canvas, _fx.glow!, core, 40,
+          bright.withValues(alpha: 0.45 + 0.15 * pulse));
+    }
+    canvas.drawCircle(
+        core, 11.5 + pulse * 1.5, Paint()..color = bright.withValues(alpha: 0.9));
+    canvas.drawCircle(
+        core, 5.5, Paint()..color = Colors.white.withValues(alpha: 0.95));
+
+    // A slow four-point glint over the core.
+    final glint = Paint()
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.5 + 0.3 * pulse);
+    final ga = _time * 0.6;
+    for (var k = 0; k < 2; k++) {
+      final a = ga + k * pi / 2;
+      canvas.drawLine(core - Offset(cos(a), sin(a)) * (16 + 3 * pulse),
+          core + Offset(cos(a), sin(a)) * (16 + 3 * pulse), glint);
+    }
+
+    // Bright mote orbit — doubled and enlarged from the old whisper.
+    for (var i = 0; i < 6; i++) {
+      final a = _time * 1.3 + i * 1.047;
+      final mote = pos + Offset(cos(a) * 30, sin(a) * 13 - 14);
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          mote,
+          6.5,
+          Color.lerp(color, Colors.white, 0.35)!.withValues(
+            alpha: 0.5 + 0.3 * sin(_time * 4 + i),
+          ),
+        );
+      }
+    }
+
+    // Wisps of essence rising off the orb — a taste of the fizzle to come.
+    if (_fx.ready) {
+      for (var i = 0; i < 3; i++) {
+        final riseT = ((_time * 0.55) + i / 3) % 1.0;
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          core +
+              Offset(sin(_time * 2 + i * 2.1) * 9, -14 - riseT * 34),
+          4.5,
+          bright.withValues(alpha: (1.0 - riseT) * 0.5),
+        );
+      }
+    }
   }
 
   /// Ambient wind: a handful of thin streaks sliding across the viewport on
@@ -5913,6 +6872,11 @@ class PlanetDungeonGame extends FlameGame {
   /// (all three stars).
   double get _skyMoodTarget {
     if (starsEarnedCount >= 3) return 0.95;
+    if (_isCathedral) return _cathedralMoodTarget;
+    if (_isTemple) return _templeMoodTarget;
+    if (_isBarrow) return _barrowMoodTarget;
+    if (_isCircuit) return _circuitMoodTarget;
+    if (_isVapor) return _steamMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||
@@ -5934,7 +6898,15 @@ class PlanetDungeonGame extends FlameGame {
         break;
       case _AirRoomTheme.hub:
         _drawHubProgressCompass(canvas, room);
-        _drawRunePillars(canvas, b.center, 235, 4);
+        // Once the First Wind wakes, even the rune pillars ride it — a slow
+        // perpetual orbit of the hub.
+        _drawRunePillars(
+          canvas,
+          b.center,
+          235,
+          4,
+          drift: _firstWindWoken ? _time * 0.05 : 0,
+        );
         break;
       case _AirRoomTheme.ascent:
         _drawVerticalSpireGhost(canvas, b);
@@ -6023,6 +6995,46 @@ class PlanetDungeonGame extends FlameGame {
     canvas.drawPath(path, p);
   }
 
+  /// True once Air's lost maxim (First Wind) has been found — persisted with
+  /// the discovery, so the hub stays alive forever after.
+  bool get _firstWindWoken =>
+      layout.element == 'Air' &&
+      discoveredClouds.contains(kAirFirstWindEggId);
+
+  /// The First Wind made visible: three gust-heads endlessly circling the
+  /// compass, each trailing a short arc streak — the hub's permanent proof
+  /// the maxim was found. 3 arcs + 3 glow blits per frame.
+  void _drawFirstWindRibbon(Canvas canvas, Offset c) {
+    final streak = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 3; i++) {
+      final a = _time * 0.55 + i * pi * 2 / 3;
+      final r = 206.0 + 6 * sin(_time * 1.3 + i * 2.1);
+      const sweep = 0.6;
+      streak.color = const Color(0xFF8FE6FF).withValues(
+        alpha: 0.16 + 0.06 * sin(_time * 2.4 + i),
+      );
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        a - sweep,
+        sweep,
+        false,
+        streak,
+      );
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          c + Offset(cos(a), sin(a)) * r,
+          5,
+          const Color(0xFFBFD2E6).withValues(alpha: 0.5),
+        );
+      }
+    }
+  }
+
   void _drawHubProgressCompass(Canvas canvas, DungeonRoom room) {
     final c = room.bounds.center;
     final windProgress = hasStar(0)
@@ -6033,9 +7045,10 @@ class PlanetDungeonGame extends FlameGame {
               .clamp(0.0, 0.72)
               .toDouble();
     // Only true cloud echoes count toward loom progress (synthetic discovery
-    // ids like the entry-door reveal use the same persistence channel).
+    // ids — 'rune:' reveals and 'egg:' maxims — share the persistence
+    // channel).
     final discoveredCloudCount = discoveredClouds
-        .where((id) => !id.startsWith('rune:'))
+        .where((id) => !id.contains(':'))
         .length
         .clamp(0, 5);
     final loomAnchorCount = layout.rooms['sky_loom']?.anchors.length ?? 1;
@@ -6062,7 +7075,11 @@ class PlanetDungeonGame extends FlameGame {
       windProgress: windProgress,
       loomProgress: loomProgress,
       stormProgress: stormProgress,
+      // First Wind found: the compass turns for good — the whole mechanism
+      // breathes again, permanently (persisted with the maxim discovery).
+      spin: _firstWindWoken ? _time * 0.18 : 0,
     );
+    if (_firstWindWoken) _drawFirstWindRibbon(canvas, c);
     // Pacified planet: the compass projects a slow constellation — the
     // dungeon's quiet acknowledgement of a 3-star clear.
     if (starsEarnedCount >= 3) {
@@ -6158,20 +7175,23 @@ class PlanetDungeonGame extends FlameGame {
     final door = room.doors.isNotEmpty
         ? room.doors.first.rect.center
         : const Offset(708, 275);
-    final lit = entryDoorRevealed;
+    // IGNITE ramp (shared _entryReveal): the rune-ring brightens, the stream
+    // accelerates and electrifies, and the door-veil dissolves — all eased,
+    // instead of snapping from dark to lit.
+    final ignite = _entryReveal.clamp(0.0, 1.0);
     final cyan = const Color(0xFF5BC8E8);
     final gold = const Color(0xFFE4C16A);
     final lightning = const Color(0xFFFFFF8A);
-    final pulse = 0.55 + 0.45 * sin(_time * (lit ? 5.5 : 2.0)).abs();
-    final ringColor = lit ? lightning : cyan;
+    final pulse = 0.55 + 0.45 * sin(_time * (2.0 + 3.5 * ignite)).abs();
+    final ringColor = Color.lerp(cyan, lightning, ignite)!;
 
     if (_fx.ready) {
       drawGlow(
         canvas,
         _fx.glow!,
         gust,
-        lit ? 132 : 82,
-        ringColor.withValues(alpha: lit ? 0.24 : 0.10),
+        82 + 50 * ignite,
+        ringColor.withValues(alpha: 0.10 + 0.14 * ignite),
       );
     }
 
@@ -6179,21 +7199,21 @@ class PlanetDungeonGame extends FlameGame {
       canvas,
       gust,
       56,
-      ringColor.withValues(alpha: lit ? 0.82 + 0.16 * pulse : 0.34),
-      active: lit,
+      ringColor.withValues(alpha: 0.34 + (0.48 + 0.16 * pulse) * ignite),
+      active: ignite > 0.3,
     );
     _drawRuneCircle(
       canvas,
       gust,
       86,
-      (lit ? gold : cyan).withValues(alpha: lit ? 0.38 : 0.14),
+      Color.lerp(cyan, gold, ignite)!.withValues(alpha: 0.14 + 0.24 * ignite),
     );
 
     final streamPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = lit ? 2.0 : 1.2
-      ..color = (lit ? lightning : cyan).withValues(alpha: lit ? 0.52 : 0.12);
+      ..strokeWidth = 1.2 + 0.8 * ignite
+      ..color = ringColor.withValues(alpha: 0.12 + 0.40 * ignite);
     final path = Path()
       ..moveTo(gust.dx + 62, gust.dy)
       ..cubicTo(
@@ -6206,30 +7226,29 @@ class PlanetDungeonGame extends FlameGame {
       );
     canvas.drawPath(path, streamPaint);
 
-    for (var i = 0; i < (lit ? 10 : 5); i++) {
-      final t = ((_time * (lit ? 0.75 : 0.28) + i / 10) % 1.0).toDouble();
+    for (var i = 0; i < 10; i++) {
+      final t = ((_time * (0.28 + 0.47 * ignite) + i / 10) % 1.0).toDouble();
       final a = Offset.lerp(gust + const Offset(62, 0), door, t)!;
       final wobble = Offset(
-        sin(_time * 4 + i) * (lit ? 9 : 5),
-        cos(_time * 3 + i * 1.4) * (lit ? 6 : 3),
+        sin(_time * 4 + i) * (5 + 4 * ignite),
+        cos(_time * 3 + i * 1.4) * (3 + 3 * ignite),
       );
       canvas.drawCircle(
         a + wobble,
-        lit ? 2.4 : 1.6,
+        1.6 + 0.8 * ignite,
         Paint()
-          ..color = Color.lerp(
-            ringColor,
-            Colors.white,
-            lit ? 0.55 : 0.30,
-          )!.withValues(alpha: lit ? 0.58 : 0.22),
+          ..color = Color.lerp(ringColor, Colors.white, 0.30 + 0.25 * ignite)!
+              .withValues(alpha: 0.22 + 0.36 * ignite),
       );
     }
 
     final veil = Rect.fromCenter(center: door, width: 76, height: 124);
-    if (!lit) {
+    // The sealing veil dissolves as it ignites…
+    if (ignite < 1.0) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(veil, const Radius.circular(20)),
-        Paint()..color = const Color(0xFF0B111D).withValues(alpha: 0.86),
+        Paint()
+          ..color = const Color(0xFF0B111D).withValues(alpha: 0.86 * (1 - ignite)),
       );
       for (var i = 0; i < 5; i++) {
         final x = door.dx - 25 + i * 12.5;
@@ -6249,20 +7268,22 @@ class PlanetDungeonGame extends FlameGame {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.3
             ..strokeCap = StrokeCap.round
-            ..color = cyan.withValues(alpha: 0.16),
+            ..color = cyan.withValues(alpha: 0.16 * (1 - ignite)),
         );
       }
-    } else {
+    }
+    // …and the charged threshold glow fades in behind it.
+    if (ignite > 0.0) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(veil, const Radius.circular(18)),
-        Paint()..color = cyan.withValues(alpha: 0.11 + 0.05 * pulse),
+        Paint()..color = cyan.withValues(alpha: (0.11 + 0.05 * pulse) * ignite),
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(veil, const Radius.circular(18)),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.2
-          ..color = lightning.withValues(alpha: 0.68 + 0.20 * pulse),
+          ..color = lightning.withValues(alpha: (0.68 + 0.20 * pulse) * ignite),
       );
     }
   }
@@ -6463,6 +7484,7 @@ class PlanetDungeonGame extends FlameGame {
     double windProgress = 0,
     double loomProgress = 0,
     double stormProgress = 0,
+    double spin = 0,
   }) {
     _drawRuneCircle(
       canvas,
@@ -6476,7 +7498,7 @@ class PlanetDungeonGame extends FlameGame {
       ..strokeCap = StrokeCap.round
       ..color = const Color(0xFF5BC8E8).withValues(alpha: 0.32);
     for (var i = 0; i < 8; i++) {
-      final a = i * pi / 4;
+      final a = i * pi / 4 + spin;
       final p1 = c + Offset(cos(a), sin(a)) * r * 0.18;
       final p2 = c + Offset(cos(a), sin(a)) * r * (i.isEven ? 0.95 : 0.62);
       canvas.drawLine(p1, p2, p);
@@ -6565,9 +7587,15 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
-  void _drawRunePillars(Canvas canvas, Offset c, double radius, int count) {
+  void _drawRunePillars(
+    Canvas canvas,
+    Offset c,
+    double radius,
+    int count, {
+    double drift = 0,
+  }) {
     for (var i = 0; i < count; i++) {
-      final a = i * pi * 2 / count + pi / 4;
+      final a = i * pi * 2 / count + pi / 4 + drift;
       final pos = c + Offset(cos(a), sin(a)) * radius;
       final rect = Rect.fromCenter(center: pos, width: 34, height: 64);
       canvas.save();
@@ -8744,9 +9772,22 @@ class PlanetDungeonGame extends FlameGame {
     }
 
     // Plain rooms: a translucent, soft-edged sky-island so the shader sky
-    // shows through and around it (no boxy slab).
+    // shows through and around it (no boxy slab). The cathedral lays stone
+    // flags instead of a floating island.
     if (room.gaps.isEmpty) {
-      _renderPlainFloor(canvas, b, room.id == layout.entranceRoomId);
+      if (_isCathedral) {
+        _renderCathedralFloor(canvas, room);
+      } else if (_isTemple) {
+        _renderTempleFloor(canvas, room);
+      } else if (_isBarrow) {
+        _renderBarrowFloor(canvas, room);
+      } else if (_isCircuit) {
+        _renderCircuitFloor(canvas, room);
+      } else if (_isVapor) {
+        _renderSteamFloor(canvas, room);
+      } else {
+        _renderPlainFloor(canvas, b, room.id == layout.entranceRoomId);
+      }
       return;
     }
 
@@ -9099,38 +10140,113 @@ class PlanetDungeonGame extends FlameGame {
     for (final d in room.doors) {
       if (isDoorHidden(room, d)) continue;
       final r = d.rect;
-      // Sealed star-gated door: a dark slab with an amber lock rune — no
-      // veil, no motes, no "this way" language.
+      // Sealed star-gated door: a dark slab. The FINALE door reads as a
+      // barred ritual seal that SHOWS PROGRESS — one star gem per required
+      // star (Star 1 + Star 2), lit gold when banked, dim when not — so the
+      // player sees "1 of 2" at a glance. Tide / other locks keep a plain rune.
       if (isDoorLocked(room, d)) {
         final rrLocked = RRect.fromRectAndRadius(r, const Radius.circular(5));
         canvas.drawRRect(
           rrLocked,
-          Paint()..color = const Color(0xFF0B0F18).withValues(alpha: 0.88),
+          Paint()..color = const Color(0xFF0B0F18).withValues(alpha: 0.9),
         );
         canvas.drawRRect(
           rrLocked,
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.3
-            ..color = amber.withValues(alpha: 0.5),
+            ..strokeWidth = 1.4
+            ..color = amber.withValues(alpha: 0.55),
         );
+        final horizontal = r.width >= r.height;
         final lockPulse = 0.5 + 0.25 * sin(_time * 1.8);
-        canvas.drawCircle(
-          r.center,
-          7,
-          Paint()
+        final isFinale = layout.finaleDoor?.matches(room, d) ?? false;
+
+        if (isFinale) {
+          // Heavy stone bars across the passage.
+          final barFill = Paint()
+            ..color = const Color(0xFF2A2416).withValues(alpha: 0.95);
+          final barEdge = Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..color = amber.withValues(alpha: lockPulse),
-        );
-        canvas.drawLine(
-          r.center + const Offset(0, -3),
-          r.center + const Offset(0, 3),
-          Paint()
-            ..strokeWidth = 1.4
-            ..strokeCap = StrokeCap.round
-            ..color = amber.withValues(alpha: lockPulse),
-        );
+            ..strokeWidth = 1.0
+            ..color = amber.withValues(alpha: 0.4);
+          for (final t in const [0.32, 0.68]) {
+            final bar = horizontal
+                ? Rect.fromLTWH(r.left + 3, r.top + r.height * t - 2.5,
+                    r.width - 6, 5)
+                : Rect.fromLTWH(r.left + r.width * t - 2.5, r.top + 3, 5,
+                    r.height - 6);
+            final rb = RRect.fromRectAndRadius(bar, const Radius.circular(2));
+            canvas.drawRRect(rb, barFill);
+            canvas.drawRRect(rb, barEdge);
+          }
+          // The TWO keys that open it, shown right on the door: one star gem
+          // per required star, lit gold when banked. (Two stars unlock it.)
+          const gap = 18.0;
+          for (var i = 0; i < 2; i++) {
+            final delta = i == 0 ? -gap : gap;
+            final gp = horizontal
+                ? r.center + Offset(delta, 0)
+                : r.center + Offset(0, delta);
+            final lit = hasStar(i);
+            final col =
+                lit ? const Color(0xFFE8C56A) : const Color(0xFF49391F);
+            if (_fx.ready && lit) {
+              drawGlow(canvas, _fx.glow!, gp, 12,
+                  col.withValues(alpha: 0.5 + 0.15 * sin(_time * 2.4 + i)));
+            }
+            _drawStarGlyph(
+              canvas,
+              gp,
+              6.5,
+              col.withValues(alpha: lit ? 0.98 : 0.55),
+            );
+          }
+          // Central keyhole medallion.
+          canvas.drawCircle(
+            r.center,
+            6.5,
+            Paint()..color = const Color(0xFF0B0F18).withValues(alpha: 0.92),
+          );
+          canvas.drawCircle(
+            r.center,
+            6.5,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.3
+              ..color = amber.withValues(alpha: lockPulse),
+          );
+          canvas.drawCircle(
+            r.center + const Offset(0, -1),
+            1.6,
+            Paint()..color = amber.withValues(alpha: lockPulse),
+          );
+          canvas.drawLine(
+            r.center + const Offset(0, 0.5),
+            r.center + const Offset(0, 3.5),
+            Paint()
+              ..strokeWidth = 1.4
+              ..strokeCap = StrokeCap.round
+              ..color = amber.withValues(alpha: lockPulse),
+          );
+        } else {
+          // Tide / other simple lock: a single amber lock rune.
+          canvas.drawCircle(
+            r.center,
+            7,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4
+              ..color = amber.withValues(alpha: lockPulse),
+          );
+          canvas.drawLine(
+            r.center + const Offset(0, -3),
+            r.center + const Offset(0, 3),
+            Paint()
+              ..strokeWidth = 1.4
+              ..strokeCap = StrokeCap.round
+              ..color = amber.withValues(alpha: lockPulse),
+          );
+        }
         continue;
       }
       final horizontal = r.width >= r.height; // opening in a top/bottom edge
@@ -9564,6 +10680,10 @@ class PlanetDungeonGame extends FlameGame {
             color: color,
             time: _time,
           )) {
+        if (projectile.abilityFamily == 'mask' &&
+            projectile.element == 'Plant') {
+          _drawMaskPlantTendrils(canvas, projectile, color);
+        }
         return true;
       }
       _drawSurvivalMysticOrbital(canvas, projectile, color);
@@ -9607,6 +10727,9 @@ class PlanetDungeonGame extends FlameGame {
           time: _time,
         );
     if (drawn) {
+      if (projectile.abilityFamily == 'mask' && projectile.element == 'Plant') {
+        _drawMaskPlantTendrils(canvas, projectile, color);
+      }
       drawProjectileRoleOverlay(
         canvas: canvas,
         projectile: projectile,
@@ -9616,6 +10739,40 @@ class PlanetDungeonGame extends FlameGame {
       );
     }
     return drawn;
+  }
+
+  /// Mask+Plant traps grow writhing tendrils toward nearby enemies — the same
+  /// authored overlay survival draws. Gathers in-reach enemies nearest-first
+  /// and hands off to the shared renderer.
+  void _drawMaskPlantTendrils(
+    Canvas canvas,
+    Projectile vine,
+    Color color,
+  ) {
+    final reach = max(vine.snareRadius, vine.effectRadius);
+    final reachSq = reach * reach;
+    final targets = <Offset>[];
+    if (reach > 10) {
+      for (final e in combatEnemies) {
+        if (e.isDead) continue;
+        if ((e.position - vine.position).distanceSquared > reachSq) continue;
+        targets.add(e.position);
+      }
+      if (targets.length > 1) {
+        targets.sort(
+          (a, b) => (a - vine.position).distanceSquared.compareTo(
+            (b - vine.position).distanceSquared,
+          ),
+        );
+      }
+    }
+    drawMaskPlantWormyTendrils(
+      canvas: canvas,
+      vine: vine,
+      color: color,
+      time: _time,
+      targetsInReach: targets,
+    );
   }
 
   void _drawSurvivalMysticOrbital(

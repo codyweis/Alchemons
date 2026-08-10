@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -30,7 +31,9 @@ class MiniMapOverlay extends StatefulWidget {
     required this.onGoHome,
     required this.onClose,
     required this.onMarkersChanged,
-    this.completedLevelsFor,
+    this.dungeonStarsFor,
+    this.dungeonStarTotal = 0,
+    this.dungeonStarMax = 0,
     this.tutorialTargetPos,
     this.tutorialTargetColor,
     this.tutorialTargetLabel,
@@ -43,8 +46,15 @@ class MiniMapOverlay extends StatefulWidget {
   final FactionTheme theme;
   final List<MapMarker> markers;
   final bool hasHomePlanet;
-  /// Returns 0..3 — how many recipe levels are complete for a planet.
-  final int Function(CosmicPlanet planet)? completedLevelsFor;
+
+  /// Returns 0..3 dungeon stars for a built-dungeon planet, or null for
+  /// coming-soon planets (whose card shows no earned stars yet).
+  final int? Function(CosmicPlanet planet)? dungeonStarsFor;
+
+  /// Campaign star tally for the header chip (hidden when [dungeonStarMax]
+  /// is 0).
+  final int dungeonStarTotal;
+  final int dungeonStarMax;
   final void Function(Offset worldPos) onTeleport;
   final void Function(CosmicPlanet planet) onNavigatePlanet;
   final VoidCallback onGoHome;
@@ -494,6 +504,8 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
               hasHomePlanet: widget.hasHomePlanet,
               discoveredCount: _discoveredPlanets.length,
               markerCount: widget.markers.length,
+              starTotal: widget.dungeonStarTotal,
+              starMax: widget.dungeonStarMax,
               onGoHome: () => _runAfterBuild(widget.onGoHome),
               onClose: widget.onClose,
             ),
@@ -522,7 +534,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                   planets: _discoveredPlanets,
                   selectedIndex: _planetIndex,
                   scrollController: _planetScrollCtrl,
-                  completedLevelsFor: widget.completedLevelsFor,
+                  dungeonStarsFor: widget.dungeonStarsFor,
                   onChanged: (i) {
                     setState(() => _planetIndex = i);
                     HapticFeedback.selectionClick();
@@ -608,6 +620,8 @@ class _Header extends StatelessWidget {
     required this.hasHomePlanet,
     required this.discoveredCount,
     required this.markerCount,
+    this.starTotal = 0,
+    this.starMax = 0,
     required this.onGoHome,
     required this.onClose,
   });
@@ -615,6 +629,8 @@ class _Header extends StatelessWidget {
   final bool hasHomePlanet;
   final int discoveredCount;
   final int markerCount;
+  final int starTotal;
+  final int starMax;
   final VoidCallback onGoHome;
   final VoidCallback onClose;
 
@@ -714,30 +730,63 @@ class _Header extends StatelessWidget {
             const SizedBox(height: 10),
 
             // ── Stats row ────────────────────────────────────────────────────
+            // Overflow-proof: the chip cluster scales down on narrow phones
+            // and the decorative LY readout is the first thing to clip.
             Row(
               children: [
-                _StatChip(
-                  icon: AppIcons.public_rounded,
-                  label: '$discoveredCount PLANETS',
-                  color: CosmicScreenStyles.amber,
+                // The chip cluster keeps its natural size whenever it fits
+                // (flex 5 of 7); only genuinely narrow screens scale it.
+                Flexible(
+                  flex: 5,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _StatChip(
+                          icon: AppIcons.public_rounded,
+                          label: '$discoveredCount PLANETS',
+                          color: CosmicScreenStyles.amber,
+                        ),
+                        const SizedBox(width: 8),
+                        _StatChip(
+                          icon: AppIcons.push_pin_rounded,
+                          label: '$markerCount MARKERS',
+                          color: CosmicScreenStyles.teal,
+                        ),
+                        if (starMax > 0) ...[
+                          const SizedBox(width: 8),
+                          // Campaign star tally across every dungeon planet.
+                          _StatChip(
+                            icon: AppIcons.star_rounded,
+                            label: '$starTotal/$starMax STARS',
+                            color: const Color(0xFFE4C16A),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                _StatChip(
-                  icon: AppIcons.push_pin_rounded,
-                  label: '$markerCount MARKERS',
-                  color: CosmicScreenStyles.teal,
-                ),
-                const Spacer(),
-                // Tiny coordinate-style decoration
-                Text(
-                  '${DateTime.now().millisecondsSinceEpoch % 9999 + 1000} LY',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.amber.withValues(alpha: 0.38),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.4,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                // Gap so the LY readout never crowds the STARS badge.
+                const SizedBox(width: 12),
+                // Tiny coordinate-style decoration — clipped when tight.
+                Flexible(
+                  flex: 2,
+                  child: Text(
+                    '${DateTime.now().millisecondsSinceEpoch % 9999 + 1000} LY',
+                    textAlign: TextAlign.end,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.fade,
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
+                      color: CosmicScreenStyles.amber.withValues(alpha: 0.38),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.4,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ),
               ],
@@ -770,15 +819,32 @@ class _IconBtn extends StatelessWidget {
         HapticFeedback.lightImpact();
         onTap();
       },
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: CosmicScreenStyles.bg2,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: accent.withValues(alpha: 0.35), width: 1.0),
+      child: CustomPaint(
+        foregroundPainter: DungeonBracketPainter(
+          color: accent.withValues(alpha: 0.9),
+          bracketSize: 8,
+          strokeWidth: 1.3,
         ),
-        child: Icon(icon, color: accent.withValues(alpha: 0.88), size: 20),
+        child: Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: CosmicScreenStyles.bg2,
+            border: Border.all(
+              color: accent.withValues(alpha: 0.4),
+              width: 1.1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.14),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Icon(icon, color: accent.withValues(alpha: 0.88), size: 20),
+        ),
       ),
     );
   }
@@ -797,29 +863,35 @@ class _StatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withValues(alpha: 0.2), width: 1.0),
+    return CustomPaint(
+      foregroundPainter: DungeonBracketPainter(
+        color: color.withValues(alpha: 0.85),
+        bracketSize: 6,
+        strokeWidth: 1.0,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color.withValues(alpha: 0.7), size: 11),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: color.withValues(alpha: 0.75),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          border: Border.all(color: color.withValues(alpha: 0.32), width: 1.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color.withValues(alpha: 0.85), size: 11),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: appFontFamily(context),
+                color: color.withValues(alpha: 0.9),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -868,7 +940,7 @@ class _MarkerToolbar extends StatelessWidget {
                 color: markerMode
                     ? CosmicScreenStyles.amber.withValues(alpha: 0.18)
                     : CosmicScreenStyles.bg2,
-                borderRadius: BorderRadius.circular(3),
+                shape: BoxShape.circle,
                 border: Border.all(
                   color: markerMode
                       ? MapMarker.colors[selectedColor].withValues(alpha: 0.95)
@@ -924,12 +996,12 @@ class _MarkerToolbar extends StatelessWidget {
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
+                  horizontal: 13,
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
                   color: CosmicScreenStyles.bg2,
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(999),
                   border: Border.all(color: CosmicScreenStyles.borderMid),
                 ),
                 child: Text(
@@ -960,14 +1032,14 @@ class _PlanetCarousel extends StatefulWidget {
     required this.selectedIndex,
     required this.scrollController,
     required this.onChanged,
-    this.completedLevelsFor,
+    this.dungeonStarsFor,
   });
 
   final List<CosmicPlanet> planets;
   final int selectedIndex;
   final ScrollController scrollController;
   final ValueChanged<int> onChanged;
-  final int Function(CosmicPlanet planet)? completedLevelsFor;
+  final int? Function(CosmicPlanet planet)? dungeonStarsFor;
 
   @override
   State<_PlanetCarousel> createState() => _PlanetCarouselState();
@@ -1045,8 +1117,7 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
               child: _PlanetCard(
                 planet: planet,
                 isSelected: isSelected,
-                completedLevels:
-                    widget.completedLevelsFor?.call(planet) ?? 0,
+                dungeonStars: widget.dungeonStarsFor?.call(planet),
                 onTap: () => widget.onChanged(index),
               ),
             );
@@ -1063,13 +1134,16 @@ class _PlanetCard extends StatelessWidget {
   const _PlanetCard({
     required this.planet,
     required this.isSelected,
-    required this.completedLevels,
+    this.dungeonStars,
     required this.onTap,
   });
 
   final CosmicPlanet planet;
   final bool isSelected;
-  final int completedLevels;
+
+  /// Non-null for built-dungeon planets: earned dungeon stars (0..3) shown in
+  /// amber. Null for coming-soon planets (no stars earned yet).
+  final int? dungeonStars;
   final VoidCallback onTap;
 
   @override
@@ -1125,25 +1199,37 @@ class _PlanetCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            // Recipe completion stars
+            // Dungeon stars (built-dungeon planets, amber); coming-soon
+            // planets show dim placeholders. Earned = solid + glowing.
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(3, (i) {
-                final filled = i < completedLevels;
+                final isDungeon = dungeonStars != null;
+                final filled = i < (dungeonStars ?? 0);
+                final fillColor = isDungeon
+                    ? const Color(0xFFE4C16A)
+                    : planet.color;
                 return Padding(
                   padding: EdgeInsets.only(right: i == 2 ? 0 : 2),
                   child: Icon(
-                    filled
-                        ? AppIcons.star_rounded
-                        : AppIcons.star_outline_rounded,
-                    size: 11,
+                    // Earned stars render solid/filled; unearned stay outline.
+                    filled ? AppIcons.star_filled : AppIcons.star_rounded,
+                    size: 12,
                     color: filled
-                        ? planet.color.withValues(
-                            alpha: isSelected ? 1.0 : 0.6,
-                          )
+                        ? fillColor.withValues(alpha: isSelected ? 1.0 : 0.85)
                         : CosmicScreenStyles.textMuted.withValues(
-                            alpha: isSelected ? 0.5 : 0.3,
+                            alpha: isSelected ? 0.28 : 0.16,
                           ),
+                    shadows: filled
+                        ? [
+                            Shadow(
+                              color: fillColor.withValues(
+                                alpha: isSelected ? 0.8 : 0.4,
+                              ),
+                              blurRadius: 7,
+                            ),
+                          ]
+                        : null,
                   ),
                 );
               }),
@@ -1173,31 +1259,44 @@ class _NavigateButton extends StatelessWidget {
           HapticFeedback.lightImpact();
           onTap();
         },
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: col.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: col.withValues(alpha: 0.4), width: 1.0),
+        child: CustomPaint(
+          foregroundPainter: DungeonBracketPainter(
+            color: col.withValues(alpha: 0.9),
+            bracketSize: 9,
+            strokeWidth: 1.3,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(AppIcons.navigation_rounded, color: col, size: 12),
-              const SizedBox(width: 6),
-              Text(
-                'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: col,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
+          child: Container(
+            height: 34,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              border: Border.all(color: col.withValues(alpha: 0.5), width: 1.1),
+              boxShadow: [
+                BoxShadow(
+                  color: col.withValues(alpha: 0.18),
+                  blurRadius: 14,
+                  spreadRadius: 1,
                 ),
-              ),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(AppIcons.navigation_rounded, color: col, size: 12),
+                const SizedBox(width: 6),
+                Text(
+                  'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    color: col,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1429,43 +1528,64 @@ class _MapViewState extends State<_MapView> {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: CosmicScreenStyles.bg1,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: CosmicScreenStyles.borderMid),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: CosmicScreenStyles.borderMid.withValues(alpha: 0.9),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CosmicScreenStyles.amber.withValues(alpha: 0.05),
+                      blurRadius: 24,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTapDown: (d) => widget.onTapDown(d, scale),
-                    onTapUp: (d) => widget.onTapUp(d, scale),
-                    onLongPressStart: (d) => widget.onLongPress(d, scale),
-                    child: InteractiveViewer(
-                      transformationController: widget.transformCtrl,
-                      minScale: 1.0,
-                      maxScale: 8.0,
-                      boundaryMargin: EdgeInsets.zero,
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          isComplex: true,
-                          size: Size(fitSize, fitSize),
-                          painter: _MiniMapPainter(
-                            world: widget.world,
-                            game: widget.game,
-                            scale: scale,
-                            shipPos: widget.game.ship.pos,
-                            revealedCellCount: widget.game.revealedCells.length,
-                            discoveredPlanetCount: discoveredPlanetCount,
-                            showAllContestArenasOnMap:
-                                widget.showAllContestArenas,
-                            markers: widget.markers,
-                            tutorialTargetPos: widget.tutorialTargetPos,
-                            tutorialTargetColor: widget.tutorialTargetColor,
-                            tutorialTargetLabel: widget.tutorialTargetLabel,
-                            pulseTick: _pulseTick,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapDown: (d) => widget.onTapDown(d, scale),
+                        onTapUp: (d) => widget.onTapUp(d, scale),
+                        onLongPressStart: (d) => widget.onLongPress(d, scale),
+                        child: InteractiveViewer(
+                          transformationController: widget.transformCtrl,
+                          minScale: 1.0,
+                          maxScale: 8.0,
+                          boundaryMargin: EdgeInsets.zero,
+                          child: RepaintBoundary(
+                            child: CustomPaint(
+                              isComplex: true,
+                              size: Size(fitSize, fitSize),
+                              painter: _MiniMapPainter(
+                                world: widget.world,
+                                game: widget.game,
+                                scale: scale,
+                                shipPos: widget.game.ship.pos,
+                                revealedCellCount:
+                                    widget.game.revealedCells.length,
+                                discoveredPlanetCount: discoveredPlanetCount,
+                                showAllContestArenasOnMap:
+                                    widget.showAllContestArenas,
+                                markers: widget.markers,
+                                tutorialTargetPos: widget.tutorialTargetPos,
+                                tutorialTargetColor: widget.tutorialTargetColor,
+                                tutorialTargetLabel: widget.tutorialTargetLabel,
+                                pulseTick: _pulseTick,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      // Star-chart chrome on top of the map, under no
+                      // gestures: corner brackets, range rings, cardinal
+                      // ticks and an edge vignette.
+                      const IgnorePointer(
+                        child: CustomPaint(painter: _ChartFramePainter()),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1475,6 +1595,70 @@ class _MapViewState extends State<_MapView> {
       ),
     );
   }
+}
+
+/// Star-chart chrome over the map: amber corner brackets, faint range rings
+/// with cardinal tick marks, and an edge vignette — purely decorative,
+/// painted once per frame with a handful of strokes.
+class _ChartFramePainter extends CustomPainter {
+  const _ChartFramePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    const amber = Color(0xFFE4C16A);
+
+    // Edge vignette so the chart melts into the console.
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = RadialGradient(
+          radius: 0.85,
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.35)],
+          stops: const [0.72, 1.0],
+        ).createShader(Offset.zero & size),
+    );
+
+    // Range rings + cardinal ticks.
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = amber.withValues(alpha: 0.07);
+    for (final f in const [0.28, 0.52, 0.76]) {
+      canvas.drawCircle(c, size.width * f * 0.5, ring);
+    }
+    final tick = Paint()
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round
+      ..color = amber.withValues(alpha: 0.22);
+    for (var i = 0; i < 4; i++) {
+      final a = i * pi / 2;
+      final dir = Offset(cos(a), sin(a));
+      final r = size.width * 0.76 * 0.5;
+      canvas.drawLine(c + dir * (r - 6), c + dir * (r + 6), tick);
+    }
+
+    // Corner brackets — the game-map frame.
+    final bracket = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..color = amber.withValues(alpha: 0.55);
+    const inset = 10.0;
+    const arm = 16.0;
+    void corner(Offset p, double sx, double sy) {
+      canvas.drawLine(p, p + Offset(arm * sx, 0), bracket);
+      canvas.drawLine(p, p + Offset(0, arm * sy), bracket);
+    }
+
+    corner(const Offset(inset, inset), 1, 1);
+    corner(Offset(size.width - inset, inset), -1, 1);
+    corner(Offset(inset, size.height - inset), 1, -1);
+    corner(Offset(size.width - inset, size.height - inset), -1, -1);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChartFramePainter oldDelegate) => false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -652,7 +652,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           rightSprite: wildSprite(),
           leftColor: colorA,
           rightColor: colorB,
-          minDuration: const Duration(milliseconds: 1800),
+          minDuration: const Duration(milliseconds: 4350),
           task: () async {
             return _breedWithWild(ctx, instance, speciesB, breedingService);
           },

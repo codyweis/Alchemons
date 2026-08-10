@@ -10,6 +10,7 @@ import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/faction_picker.dart';
+import 'package:alchemons/screens/onboarding/first_launch_account_flow.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/account_service.dart';
@@ -197,6 +198,16 @@ class _AppGateState extends State<AppGate> {
 
     // If we already have a faction, it's not first launch; nothing to do
     if (factionSvc.current != null) {
+      return;
+    }
+
+    // 0) Ask returning players if they want to sign in and restore a cloud
+    // backup. If they do, the restored save brings its own faction/progress,
+    // so we skip the story intro and faction picker entirely.
+    final restored = await runFirstLaunchAccountRestore(context);
+    if (!mounted) return;
+    if (restored) {
+      await factionSvc.loadId();
       return;
     }
 

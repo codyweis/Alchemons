@@ -7,12 +7,45 @@
 import 'dart:math' as math;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flutter/material.dart';
 
 /// Short display labels per room — shared by the full map nodes and the
 /// minimap caption.
 const Map<String, String> kDungeonRoomLabels = {
+  // Earth — The Buried Giant.
+  'barrow_gate': 'BARROW',
+  'sternum_court': 'STERNUM',
+  'rib_hall': 'RIBS',
+  'marrow_vault': 'MARROW',
+  'pillar_crypt': 'CRYPT',
+  'palm_hollow': 'PALM',
+  'skull_antechamber': 'SKULL',
+  'eye_chamber': 'EYE',
+  'heart_chamber': 'HEART',
+  // Water — Mirror-Tide Temple.
+  'tide_gate': 'TIDE GATE',
+  'drowned_court': 'COURT',
+  'tide_works': 'SLUICES',
+  'ghost_gallery': 'CURRENTS',
+  'pearl_vault': 'PEARL',
+  'reflection_court': 'MIRROR',
+  'moon_hall': 'MOON HALL',
+  'moon_well': 'WELL',
+  'leviathan_depths': 'DEPTHS',
+  // Fire — Cinder Cathedral.
+  'narthex': 'NARTHEX',
+  'nave': 'NAVE',
+  'scriptorium': 'MURAL',
+  'choir': 'CHOIR',
+  'cloister': 'GARDEN',
+  'reliquary': 'RELIQUARY',
+  'vestry': 'VESTRY',
+  'bell_gallery': 'BELLS',
+  'high_altar': 'ALTAR',
+  'sanctum': 'SANCTUM',
+  // Air — Wind-Crown Spire.
   'entry': 'ENTRY',
   'hub': 'HUB',
   'spiral_cloud': 'SPIRAL',
@@ -34,34 +67,166 @@ const Map<String, String> kDungeonRoomLabels = {
 
 const Size _fullMapCanvasSize = Size(880, 980);
 const double _fullMapPadding = 8;
-const Map<String, Offset> _airFullMapNodePositions = {
-  // These positions are an authored atlas, not an auto-layout graph. They
-  // follow the room-door geography closely enough that the full map feels
-  // like the dungeon the player is walking through.
-  'entry': Offset(0.10, 0.26),
-  'hub': Offset(0.28, 0.26),
-  'spiral_cloud': Offset(0.21, 0.09),
-  'ring_cloud': Offset(0.36, 0.09),
-  'lower_spire': Offset(0.48, 0.28),
-  'feather_cloud': Offset(0.36, 0.43),
-  'crosswind_hall': Offset(0.66, 0.18),
-  'cloud_platforms': Offset(0.83, 0.18),
-  'spire_summit': Offset(0.83, 0.06),
-  'sky_loom': Offset(0.63, 0.52),
-  'anvil_cloud': Offset(0.47, 0.67),
-  'veil_cloud': Offset(0.73, 0.67),
-  'relic_chamber': Offset(0.86, 0.46),
-  'storm_rune_hall': Offset(0.82, 0.62),
-  'twin_conduit': Offset(0.94, 0.70),
-  'storm_altar': Offset(0.94, 0.88),
-  'guardian_summit': Offset(0.80, 0.82),
+
+/// Authored full-map atlases per planet element — hand-placed, not an
+/// auto-layout graph. They follow each dungeon's room-door geography closely
+/// enough that the full map feels like the dungeon the player is walking
+/// through.
+const Map<String, Map<String, Offset>> _fullMapNodePositionsByElement = {
+  'Air': {
+    'entry': Offset(0.10, 0.26),
+    'hub': Offset(0.28, 0.26),
+    'spiral_cloud': Offset(0.21, 0.09),
+    'ring_cloud': Offset(0.36, 0.09),
+    'lower_spire': Offset(0.48, 0.28),
+    'feather_cloud': Offset(0.36, 0.43),
+    'crosswind_hall': Offset(0.66, 0.18),
+    'cloud_platforms': Offset(0.83, 0.18),
+    'spire_summit': Offset(0.83, 0.06),
+    'sky_loom': Offset(0.63, 0.52),
+    'anvil_cloud': Offset(0.47, 0.67),
+    'veil_cloud': Offset(0.73, 0.67),
+    'relic_chamber': Offset(0.86, 0.46),
+    'storm_rune_hall': Offset(0.82, 0.62),
+    'twin_conduit': Offset(0.94, 0.70),
+    'storm_altar': Offset(0.94, 0.88),
+    'guardian_summit': Offset(0.80, 0.82),
+  },
+  'Fire': {
+    'narthex': Offset(0.10, 0.56),
+    'nave': Offset(0.34, 0.56),
+    'scriptorium': Offset(0.22, 0.34),
+    'choir': Offset(0.58, 0.64),
+    'cloister': Offset(0.38, 0.80),
+    'reliquary': Offset(0.60, 0.86),
+    'vestry': Offset(0.44, 0.32),
+    'bell_gallery': Offset(0.66, 0.22),
+    'high_altar': Offset(0.86, 0.30),
+    'sanctum': Offset(0.86, 0.10),
+  },
+  'Water': {
+    'tide_gate': Offset(0.10, 0.54),
+    'drowned_court': Offset(0.34, 0.54),
+    'tide_works': Offset(0.26, 0.30),
+    'ghost_gallery': Offset(0.60, 0.62),
+    'pearl_vault': Offset(0.84, 0.66),
+    'reflection_court': Offset(0.40, 0.80),
+    'moon_hall': Offset(0.48, 0.28),
+    'moon_well': Offset(0.70, 0.20),
+    'leviathan_depths': Offset(0.86, 0.08),
+  },
+  'Earth': {
+    'barrow_gate': Offset(0.10, 0.54),
+    'sternum_court': Offset(0.34, 0.54),
+    'rib_hall': Offset(0.28, 0.28),
+    'marrow_vault': Offset(0.50, 0.16),
+    'pillar_crypt': Offset(0.62, 0.62),
+    'palm_hollow': Offset(0.40, 0.80),
+    'skull_antechamber': Offset(0.52, 0.32),
+    'eye_chamber': Offset(0.74, 0.22),
+    'heart_chamber': Offset(0.88, 0.08),
+  },
+  'Lightning': {
+    'arc_gate': Offset(0.10, 0.52),
+    'dynamo_court': Offset(0.34, 0.52),
+    'pylon_hall': Offset(0.28, 0.26),
+    'capacitor_vault': Offset(0.46, 0.14),
+    'cloud_works': Offset(0.58, 0.62),
+    'mirror_gallery': Offset(0.44, 0.82),
+    'overload_maze': Offset(0.66, 0.30),
+    'storm_core': Offset(0.88, 0.16),
+  },
+  // The Steam full map draws its true topology: a RING around the crucible.
+  'Steam': {
+    'boiler_gate': Offset(0.08, 0.82),
+    'manifold_south': Offset(0.50, 0.82),
+    'ember_causeway': Offset(0.22, 0.48),
+    'manifold_north': Offset(0.50, 0.14),
+    'cinder_forge': Offset(0.78, 0.48),
+    'crucible': Offset(0.50, 0.46),
+    'boiler_heart': Offset(0.50, 0.64),
+    'burst_vault': Offset(0.78, 0.86),
+  },
 };
 
-Offset _fullMapNodePoint(String roomId, Size size) {
-  final normalised =
-      _airFullMapNodePositions[roomId] ??
-      _airFullMapNodePositions['hub'] ??
-      const Offset(0.5, 0.5);
+/// Full-map section auras (wing groupings) per planet element.
+const Map<String, List<(List<String>, Color)>> _fullMapSectionsByElement = {
+  'Air': [
+    (
+      ['lower_spire', 'crosswind_hall', 'cloud_platforms', 'spire_summit'],
+      Color(0xFF5BC8E8),
+    ),
+    (
+      [
+        'spiral_cloud',
+        'ring_cloud',
+        'feather_cloud',
+        'sky_loom',
+        'anvil_cloud',
+        'veil_cloud',
+        'relic_chamber',
+      ],
+      Color(0xFFE4C16A),
+    ),
+    (
+      ['storm_rune_hall', 'twin_conduit', 'storm_altar', 'guardian_summit'],
+      Color(0xFFFFFF8A),
+    ),
+  ],
+  'Fire': [
+    // The ritual wing (Ember Star).
+    (['scriptorium', 'choir'], Color(0xFFFF8A50)),
+    // The ash garden (Ash Star).
+    (['cloister', 'reliquary'], Color(0xFF9CCC65)),
+    // The vesper wing beyond the chancel gate (Pyre Star).
+    (
+      ['vestry', 'bell_gallery', 'high_altar', 'sanctum'],
+      Color(0xFFFFD27A),
+    ),
+  ],
+  'Water': [
+    // The tide-works (Tide Star).
+    (['tide_works'], Color(0xFF4AB8D8)),
+    // The ghost wing (Current Star).
+    (['ghost_gallery', 'pearl_vault'], Color(0xFFB8D8E8)),
+    // Beyond the mirror gate (Deep Star).
+    (
+      ['moon_hall', 'moon_well', 'leviathan_depths'],
+      Color(0xFFDCE8F0),
+    ),
+  ],
+  'Earth': [
+    // The rib hall + its vault (Marrow Star).
+    (['rib_hall', 'marrow_vault'], Color(0xFFD8B878)),
+    // The pillar crypt (Crystal Star).
+    (['pillar_crypt'], Color(0xFFB8E0D8)),
+    // Beyond the skull's jaw (Heart Star).
+    (
+      ['skull_antechamber', 'eye_chamber', 'heart_chamber'],
+      Color(0xFFE4A86A),
+    ),
+  ],
+  'Lightning': [
+    // The pylon hall + capacitor vault (Circuit Star).
+    (['pylon_hall', 'capacitor_vault'], Color(0xFF6BA8FF)),
+    // The cloud works + mirror gallery (Storm Star).
+    (['cloud_works', 'mirror_gallery'], Color(0xFFBFE6FF)),
+    // Beyond the breaker gate (Overload Star).
+    (['overload_maze', 'storm_core'], Color(0xFFE9D27A)),
+  ],
+  'Steam': [
+    // The west arc (Causeway Star).
+    (['ember_causeway'], Color(0xFF8FE0EC)),
+    // The east arc (Cinder Star).
+    (['cinder_forge'], Color(0xFFFFB46B)),
+    // The ring's centre — the rite and the heart (Crucible Star).
+    (['crucible', 'boiler_heart'], Color(0xFFD8B878)),
+  ],
+};
+
+Offset _fullMapNodePoint(String element, String roomId, Size size) {
+  final atlas = _fullMapNodePositionsByElement[element] ?? const {};
+  final normalised = atlas[roomId] ?? const Offset(0.5, 0.5);
   final chart = (Offset.zero & size).deflate(_fullMapPadding);
   return Offset(
     chart.left + chart.width * normalised.dx,
@@ -211,6 +376,131 @@ class _DungeonMiniMapPainter extends CustomPainter {
       objective = room.conduits.first.position;
     } else if (room.rings.isNotEmpty && !game.hasStar(0)) {
       objective = room.rings.first.position;
+    } else if (room.braziers.isNotEmpty &&
+        room.brazierStarIndex == null &&
+        !game.entryDoorRevealed) {
+      objective = room.braziers.first.position; // the cold narthex hearth
+    } else if (room.brazierStarIndex != null &&
+        !game.hasStar(room.brazierStarIndex!)) {
+      // The next brazier in the remembered order.
+      for (final b in room.braziers) {
+        if (b.order == game.ritualProgress) {
+          objective = b.position;
+          break;
+        }
+      }
+    } else if (room.vineStarIndex != null &&
+        !game.hasStar(room.vineStarIndex!)) {
+      for (final bed in room.vineBeds) {
+        if ((game.bedStates[bed.id] ?? 0) != 2) {
+          objective = bed.position;
+          break;
+        }
+      }
+    } else if (room.incenseChains.isNotEmpty && !game.hasStar(2)) {
+      for (final chain in room.incenseChains) {
+        if (game.bellsRung.contains(chain.id)) continue;
+        objective =
+            game.vesperFlamePosition(chain.id) ??
+            game.chainIgnitionPoint(chain);
+        break;
+      }
+    } else if (room.sealStarIndex != null &&
+        !game.hasStar(room.sealStarIndex!)) {
+      for (final seal in room.tideSeals) {
+        if (game.openedSeals.contains(seal.id)) continue;
+        objective = seal.position;
+        break;
+      }
+    } else if (room.eddyStarIndex != null &&
+        !game.hasStar(room.eddyStarIndex!)) {
+      for (final eddy in room.ghostEddies) {
+        if (eddy.order == game.eddyProgress) {
+          objective = eddy.position;
+          break;
+        }
+      }
+    } else if (room.moonPools.isNotEmpty && !game.hasStar(2)) {
+      for (final pool in room.moonPools) {
+        if (pool.isTrue && (game.poolStates[pool.id] ?? 0) != 1) {
+          objective = pool.position;
+          break;
+        }
+      }
+    } else if (room.ribStarIndex != null &&
+        !game.hasStar(room.ribStarIndex!)) {
+      for (final rib in room.fossilRibs) {
+        if ((game.ribNotches[rib.id] ?? 0) < rib.notches.length - 1) {
+          objective = rib.notches[(game.ribNotches[rib.id] ?? 0)];
+          break;
+        }
+      }
+      objective ??= room.sternumPlate?.center; // bridged — go claim it
+    } else if (room.pillarStarIndex != null &&
+        !game.hasStar(room.pillarStarIndex!)) {
+      for (final pillar in room.fossilPillars) {
+        if (!game.lockedPillars.contains(pillar.id)) {
+          objective = pillar.position;
+          break;
+        }
+      }
+    } else if (room.stoneScale != null && !game.hasStar(2)) {
+      objective = room.stoneScale!.position;
+    } else if (room.cellSockets.isNotEmpty &&
+        room.circuitStarIndex != null &&
+        !game.hasStar(room.circuitStarIndex!)) {
+      // Storm Star: the next un-energized socket.
+      for (final sock in room.cellSockets) {
+        if (game.energizedSockets.contains(sock.id)) continue;
+        objective = sock.position;
+        break;
+      }
+    } else if (room.beamEmitters.isNotEmpty &&
+        room.circuitStarIndex != null &&
+        !game.hasStar(room.circuitStarIndex!)) {
+      // Circuit Star (pylon beam): the pylon to charge + route from.
+      objective = room.beamEmitters.first.position;
+    } else if (room.circuitStarIndex != null &&
+        !game.hasStar(room.circuitStarIndex!)) {
+      // Circuit Star: the source pylon to charge.
+      for (final n in room.circuitNodes) {
+        if (n.kind == CircuitNodeKind.source) {
+          objective = n.position;
+          break;
+        }
+      }
+    } else if (room.poweredBarriers.isNotEmpty && !game.hasStar(2)) {
+      // Overload maze: the maze pylon to charge + route.
+      for (final n in room.circuitNodes) {
+        if (n.kind == CircuitNodeKind.source) {
+          objective = n.position;
+          break;
+        }
+      }
+    } else if (room.stormCells.isNotEmpty) {
+      // Mirror gallery: the next hidden storm-cell to bare.
+      for (final cell in room.stormCells) {
+        if (game.discoveredClouds.contains(cell.id)) continue;
+        objective = cell.position;
+        break;
+      }
+    } else if (room.molten != null) {
+      // Molten Labyrinth: the goal pedestal, until the room is solved.
+      final g = room.molten!;
+      final done = g.starIndex != null
+          ? game.hasStar(g.starIndex!)
+          : game.moltenRiteDone;
+      if (!done) {
+        for (var r = 0; r < g.rowCount; r++) {
+          final i = g.rows[r].indexOf('P');
+          if (i < 0) continue;
+          final cw = room.bounds.width / g.cols;
+          final ch = room.bounds.height / g.rowCount;
+          objective = Offset(room.bounds.left + (i + 0.5) * cw,
+              room.bounds.top + (r + 0.5) * ch);
+          break;
+        }
+      }
     }
     if (objective != null) {
       final p = map(objective);
@@ -278,7 +568,11 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final scale = (viewport.width / 540).clamp(0.56, 0.78).toDouble();
-      final node = _fullMapNodePoint(roomId, _fullMapCanvasSize);
+      final node = _fullMapNodePoint(
+        widget.game.layout.element,
+        roomId,
+        _fullMapCanvasSize,
+      );
       final tx = viewport.width / 2 - node.dx * scale;
       final ty = viewport.height / 2 - node.dy * scale;
       _mapController.value = Matrix4.identity()
@@ -316,10 +610,10 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'WIND-CROWN SPIRE',
-                  style: TextStyle(
+                  widget.game.layout.title,
+                  style: const TextStyle(
                     color: Color(0xFFE8DFC8),
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -453,10 +747,12 @@ class _DungeonFullMapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
+    final element = game.layout.element;
+    final atlas = _fullMapNodePositionsByElement[element] ?? const {};
     final positions = {
-      for (final entry in _airFullMapNodePositions.entries)
+      for (final entry in atlas.entries)
         if (game.layout.rooms.containsKey(entry.key))
-          entry.key: _fullMapNodePoint(entry.key, size),
+          entry.key: _fullMapNodePoint(element, entry.key, size),
     };
 
     final background = Paint()
@@ -470,27 +766,11 @@ class _DungeonFullMapPainter extends CustomPainter {
       background,
     );
 
-    _drawSectionAura(canvas, positions, const [
-      'lower_spire',
-      'crosswind_hall',
-      'cloud_platforms',
-      'spire_summit',
-    ], const Color(0xFF5BC8E8));
-    _drawSectionAura(canvas, positions, const [
-      'spiral_cloud',
-      'ring_cloud',
-      'feather_cloud',
-      'sky_loom',
-      'anvil_cloud',
-      'veil_cloud',
-      'relic_chamber',
-    ], const Color(0xFFE4C16A));
-    _drawSectionAura(canvas, positions, const [
-      'storm_rune_hall',
-      'twin_conduit',
-      'storm_altar',
-      'guardian_summit',
-    ], const Color(0xFFFFFF8A));
+    final sections =
+        _fullMapSectionsByElement[element] ?? const <(List<String>, Color)>[];
+    for (final (ids, color) in sections) {
+      _drawSectionAura(canvas, positions, ids, color);
+    }
 
     _drawEdges(canvas, positions);
     for (final id in positions.keys) {
@@ -580,6 +860,12 @@ class _DungeonFullMapPainter extends CustomPainter {
     final star =
         room.summit?.starIndex ??
         room.loomStarIndex ??
+        room.brazierStarIndex ??
+        room.vineStarIndex ??
+        room.sealStarIndex ??
+        room.eddyStarIndex ??
+        room.ribStarIndex ??
+        room.pillarStarIndex ??
         room.guardian?.starIndex;
     final starDone = star != null && game.hasStar(star);
     final cloudTouched =

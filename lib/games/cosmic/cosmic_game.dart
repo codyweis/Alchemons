@@ -499,6 +499,12 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // Visual effects
   final List<VfxParticle> vfxParticles = [];
+
+  /// Shared combat-ability particles (zone wisps, hit sparks, bursts). Kept
+  /// separate from [vfxParticles] (which also holds ship/celebration flavor
+  /// VFX) so abilities render identically to Cosmic Survival via the shared
+  /// canonical renderer.
+  final AbilityVfxPool _abilityVfx = AbilityVfxPool();
   final List<VfxShockRing> vfxRings = [];
 
   // Camera offset (ship is always centred; camera follows ship)
@@ -4997,6 +5003,11 @@ class CosmicGame extends FlameGame with PanDetector {
           p.tickTimer -= 0.35;
           applyKinAuraTick(p);
         }
+        // Ambient per-element wisps so the painted zone feels alive (embers,
+        // bubbles, rain, etc.). Pool-capped so it never floods the frame.
+        if (_abilityVfx.length < 130) {
+          _spawnZoneParticles(p);
+        }
       }
 
       // Cluster fragmentation: split into sub-projectiles at half-life
@@ -6027,6 +6038,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── update VFX particles & rings ──
+    _abilityVfx.update(dt);
     for (var i = vfxParticles.length - 1; i >= 0; i--) {
       vfxParticles[i].update(dt);
       if (vfxParticles[i].dead) vfxParticles.removeAt(i);
@@ -6510,6 +6522,55 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // ── periodic save ──
     onPeriodicSave?.call();
+  }
+
+  /// Per-frame ambient zone wisps. Graphics are defined once in
+  /// [emitZoneParticles] (Cosmic Survival is the source of truth); this just
+  /// routes them into cosmic space's [VfxParticle] pool. Caller gates on the
+  /// pool cap.
+  void _spawnZoneParticles(Projectile p) {
+    emitZoneParticles(p, _rng, (
+      x,
+      y,
+      vx,
+      vy,
+      size,
+      life,
+      color, {
+      arc = false,
+    }) {
+      _abilityVfx.add(x, y, vx, vy, size, life, color);
+    });
+  }
+
+  /// Plant wards grow writhing tendrils toward nearby enemies — the same
+  /// authored overlay survival draws. Gathers in-reach enemies nearest-first
+  /// and hands off to the shared renderer.
+  void _drawMaskPlantTendrils(Canvas canvas, Projectile vine, Color color) {
+    final reach = max(vine.snareRadius, vine.effectRadius);
+    final reachSq = reach * reach;
+    final targets = <Offset>[];
+    if (reach > 10) {
+      for (final e in enemies) {
+        if (e.dead) continue;
+        if ((e.position - vine.position).distanceSquared > reachSq) continue;
+        targets.add(e.position);
+      }
+      if (targets.length > 1) {
+        targets.sort(
+          (a, b) => (a - vine.position).distanceSquared.compareTo(
+            (b - vine.position).distanceSquared,
+          ),
+        );
+      }
+    }
+    drawMaskPlantWormyTendrils(
+      canvas: canvas,
+      vine: vine,
+      color: color,
+      time: _elapsed,
+      targetsInReach: targets,
+    );
   }
 
   // ── render ─────────────────────────────────────────────
@@ -9785,9 +9846,14 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
 
-      // Kin wards render as rich per-element ground zones (poison pool,
-      // ice field, gravity void, etc.) via the shared zone renderer.
-      if (cp.abilityFamily == 'kin' &&
+      // ALL stationary trap/ground zones — any family (mask traps, kin wards,
+      // pip pools/wells, mud trails, etc.) — render as rich per-element ground
+      // zones (poison pool, ice field, vine trap, gravity void, etc.) via the
+      // shared zone renderer, exactly like survival + dungeons. The renderer
+      // self-guards on sigil style + a ground-zone/trap signal, so non-zone
+      // sigils fall through. Decoys are excluded so they keep cosmic's
+      // dedicated lure art below.
+      if (!cp.decoy &&
           drawMaskElementalProjectileVisual(
             canvas: canvas,
             projectile: cp,
@@ -9795,6 +9861,9 @@ class CosmicGame extends FlameGame with PanDetector {
             color: projColor,
             time: _elapsed,
           )) {
+        if (cp.abilityFamily == 'mask' && cp.element == 'Plant') {
+          _drawMaskPlantTendrils(canvas, cp, projColor);
+        }
         drawProjectileRoleOverlay(
           canvas: canvas,
           projectile: cp,
@@ -11614,6 +11683,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── VFX particles ──
+    _abilityVfx.render(canvas);
     for (final p in vfxParticles) {
       final a = p.alpha;
       final sz = p.size * a;

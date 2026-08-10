@@ -20,6 +20,9 @@ class AlchemyParticle {
   // a Color alloc + withValues() call in the hot draw path every frame.
   Color drawnColor;
 
+  // Pre-baked soft-halo color (same lifecycle as drawnColor).
+  Color glowColor;
+
   AlchemyParticle({
     required this.position,
     required this.velocity,
@@ -31,10 +34,13 @@ class AlchemyParticle {
     this.rotationSpeed = 0,
     this.life = 1.0,
     this.energy = 1.0,
-  }) : drawnColor = color.withValues(alpha: opacity);
+  }) : drawnColor = color.withValues(alpha: opacity),
+       glowColor = color.withValues(alpha: opacity * 0.22);
 
   void bakeColor() {
-    drawnColor = color.withValues(alpha: (opacity * life).clamp(0.0, 1.0));
+    final a = (opacity * life).clamp(0.0, 1.0);
+    drawnColor = color.withValues(alpha: a);
+    glowColor = color.withValues(alpha: a * 0.22);
   }
 }
 
@@ -113,15 +119,16 @@ class ElementalConfigs {
     shape: ParticleShape.circle,
   );
 
+  // Tumbling grit and pebbles — wide size spread reads as organic soil.
   static const earth = ElementConfig(
     elementId: 'T003',
     colors: [Color(0xFF94502B), Color(0xFFB45309), Color(0xFFE7C9B0)],
-    minSize: 4.0,
-    maxSize: 9.0,
+    minSize: 2.5,
+    maxSize: 8.5,
     minSpeed: 0.3,
     maxSpeed: 1.0,
     movement: ParticleMovementPattern.falling,
-    shape: ParticleShape.square,
+    shape: ParticleShape.circle,
   );
 
   static const air = ElementConfig(
@@ -157,15 +164,17 @@ class ElementalConfigs {
     shape: ParticleShape.circle,
   );
 
+  // Small, fast, yellow — circles so the velocity-stretch renders them as
+  // tiny streaking sparks / micro-bolts.
   static const lightning = ElementConfig(
     elementId: 'T007',
     colors: [Color(0xFFE3B325), Color(0xFFFEF08A), Color(0xFFFDE047)],
-    minSize: 2.0,
-    maxSize: 4.0,
+    minSize: 1.5,
+    maxSize: 3.5,
     minSpeed: 3.0,
-    maxSpeed: 6.0,
+    maxSpeed: 6.5,
     movement: ParticleMovementPattern.crackling,
-    shape: ParticleShape.diamond,
+    shape: ParticleShape.circle,
   );
 
   static const mud = ElementConfig(
@@ -245,36 +254,40 @@ class ElementalConfigs {
     shape: ParticleShape.circle,
   );
 
+  // Big, slow curling smoke wisps in deep violet — the old near-black greys
+  // were invisible against the dark card fill.
   static const dark = ElementConfig(
     elementId: 'T015',
-    colors: [Color(0xFF111827), Color(0xFF1F2937), Color(0xFF4B5563)],
-    minSize: 4.0,
-    maxSize: 9.0,
-    minSpeed: 0.5,
-    maxSpeed: 1.8,
+    colors: [Color(0xFF211A33), Color(0xFF433061), Color(0xFF7C5CBF)],
+    minSize: 5.0,
+    maxSize: 12.0,
+    minSpeed: 0.3,
+    maxSpeed: 1.2,
+    movement: ParticleMovementPattern.swirling,
+    shape: ParticleShape.circle,
+  );
+
+  // Soft golden motes; the pulsing pattern makes them twinkle organically.
+  static const light = ElementConfig(
+    elementId: 'T016',
+    colors: [Color(0xFFFFF1B7), Color(0xFFFFF7ED), Color(0xFFFCD34D)],
+    minSize: 1.5,
+    maxSize: 5.0,
+    minSpeed: 1.0,
+    maxSpeed: 3.0,
     movement: ParticleMovementPattern.pulsing,
     shape: ParticleShape.circle,
   );
 
-  static const light = ElementConfig(
-    elementId: 'T016',
-    colors: [Color(0xFFFFF1B7), Color(0xFFFFF7ED), Color(0xFFFCD34D)],
-    minSize: 2.0,
-    maxSize: 6.0,
-    minSpeed: 1.0,
-    maxSpeed: 3.0,
-    movement: ParticleMovementPattern.pulsing,
-    shape: ParticleShape.star,
-  );
-
+  // Heavy dripping droplets — slower and larger than water.
   static const blood = ElementConfig(
     elementId: 'T017',
     colors: [Color(0xFFB91C1C), Color(0xFFEF4444), Color(0xFFFCA5A5)],
-    minSize: 3.0,
-    maxSize: 7.0,
-    minSpeed: 0.4,
-    maxSpeed: 1.5,
-    movement: ParticleMovementPattern.flowing,
+    minSize: 3.5,
+    maxSize: 8.5,
+    minSpeed: 0.3,
+    maxSpeed: 1.0,
+    movement: ParticleMovementPattern.falling,
     shape: ParticleShape.circle,
   );
 
@@ -351,6 +364,9 @@ class AlchemyBrewingPainter extends CustomPainter {
   final _sparkGlowPaint = Paint()..style = PaintingStyle.fill;
   final _sparkCorePaint = Paint()..style = PaintingStyle.fill;
   final _strokePaint = Paint()..style = PaintingStyle.stroke;
+  final _trailPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
 
   AlchemyBrewingPainter({
     required this.particles,
@@ -475,12 +491,17 @@ class AlchemyBrewingPainter extends CustomPainter {
   }
 
   void _drawParticle(Canvas canvas, AlchemyParticle particle) {
-    // Use pre-baked color — no withValues() alloc here
+    // Use pre-baked colors — no withValues() alloc here
     _particlePaint.color = particle.drawnColor;
+    _glowPaint.color = particle.glowColor;
 
     final config = particle.elementType == 'parentA'
         ? config1
         : (config2 ?? config1);
+
+    // Soft halo behind every particle: a larger low-alpha disc. Layered under
+    // the core it reads as a glow without any blur/saveLayer cost.
+    canvas.drawCircle(particle.position, particle.size * 2.1, _glowPaint);
 
     // Circle fast-path: skip save/translate/rotate/restore entirely.
     // drawCircle accepts a world-space center directly and circles are
@@ -488,7 +509,26 @@ class AlchemyBrewingPainter extends CustomPainter {
     // air, steam, lava, mud, dust, poison, spirit, dark, blood — the
     // majority of real element combinations.
     if (config.shape == ParticleShape.circle) {
-      canvas.drawCircle(particle.position, particle.size, _particlePaint);
+      // Liquid look: stretch the core along its apparent motion. A drawLine
+      // with a round cap is a capsule — one call, no transform needed.
+      final vx = particle.velocity.dx;
+      final vy = particle.velocity.dy;
+      final speed2 = vx * vx + vy * vy;
+      final effSpeed2 = speed2 * speedMultiplier * speedMultiplier;
+      if (effSpeed2 > 0.2) {
+        final speed = sqrt(speed2);
+        final stretch = min(particle.size * 3.0, speed * speedMultiplier * 3.0);
+        final tail = Offset(
+          particle.position.dx - vx / speed * stretch,
+          particle.position.dy - vy / speed * stretch,
+        );
+        _trailPaint
+          ..color = particle.drawnColor
+          ..strokeWidth = particle.size * 2;
+        canvas.drawLine(tail, particle.position, _trailPaint);
+      } else {
+        canvas.drawCircle(particle.position, particle.size, _particlePaint);
+      }
       return;
     }
 
@@ -878,6 +918,15 @@ class AlchemyBrewingParticleSystem extends StatefulWidget {
   /// When true, slows particles and plays a one-shot fusion glyph animation.
   final bool fusion;
 
+  /// The single element of an elementally pure lineage (per the breeding
+  /// system's purity logic), or null for mixed lines. When set, the brew
+  /// swaps the generic center-swirl for THAT element's signature pattern —
+  /// water drips, fire rises, dust vortexes, light breathes — and every
+  /// particle follows it, even parent-ingredient particles of other types
+  /// (a pure Dust let brewed from Air x Earth shows air and earth motes
+  /// dancing the dust vortex together).
+  final String? pureElementTypeId;
+
   final bool useSimpleFusion;
   final FactionTheme? theme;
   final bool fromCinematic;
@@ -889,6 +938,7 @@ class AlchemyBrewingParticleSystem extends StatefulWidget {
     this.particleCount = 60,
     this.speedMultiplier = 1.0,
     this.fusion = false,
+    this.pureElementTypeId,
     this.useSimpleFusion = false,
     this.theme,
     this.fromCinematic = false,
@@ -1260,6 +1310,9 @@ class _AlchemyBrewingParticleSystemState
   double _idleAngle = 0.0;
   double _lastControllerValue = 0.0;
 
+  // Clock driving the liquid-churn flow field (wall-clock-ish seconds).
+  double _flowTime = 0.0;
+
   double get _continuousIdleAngle => _idleAngle;
 
   @override
@@ -1320,6 +1373,9 @@ class _AlchemyBrewingParticleSystemState
     if (delta < 0) delta += 1.0;
     // Scale: controller period is 3s, one full rotation every 24s → factor 3/24
     _idleAngle += delta * 2 * pi * (3.0 / 24.0);
+    // Advance the liquid-churn clock (delta * 3.0 = wall-clock seconds).
+    // Churn quickens a little as the brew matures.
+    _flowTime += delta * 3.0 * (0.4 + 0.3 * widget.speedMultiplier);
     _lastControllerValue = currentValue;
 
     final width = _lastSize.width;
@@ -1419,16 +1475,67 @@ class _AlchemyBrewingParticleSystemState
     final fusionDamp = widget.fusion ? 0.35 : 1.0;
     final speedMult = baseMult * fusionDamp;
 
+    // Pure-bred brews (elementally pure lineage, per the breeding system's
+    // purity logic) trade the generic center-swirl for the PURE element's
+    // signature pattern — and every particle follows it, even ingredient
+    // particles of other types (air + earth motes dancing the dust vortex).
+    final pureConfig = widget.pureElementTypeId != null
+        ? ElementalConfigs.getConfig(widget.pureElementTypeId!)
+        : null;
+    final isPure = pureConfig != null;
+
+    // Per-element flow character. Mixed brews: each parent's own character
+    // (blood sinks heavily, dust rides the currents, lightning darts).
+    // Pure brews: the pure element choreographs everyone.
+    final profA = isPure
+        ? _flowProfileFor(pureConfig, true)
+        : _flowProfileFor(_configA, false);
+    final profB = isPure
+        ? profA
+        : (_configB != null ? _flowProfileFor(_configB!, false) : profA);
+
     // FIX 2 (trig hoist): Compute swirl rotation constants once outside the
     // loop. The old code called atan2+cos+sin per particle per frame.
     // A 2D rotation matrix only needs cos/sin of the delta angle — computed
     // once here, then applied with pure multiplies inside the loop.
-    final swirlDelta = (widget.fusion ? 0.01 : 0.03) * speedMult;
+    var swirlDelta = (widget.fusion ? 0.01 : 0.03) * speedMult;
+    var pullStrength = widget.fusion ? 0.12 : 0.02;
+    var pureBreathe = 0.0;
+    if (isPure && !widget.fusion) {
+      switch (pureConfig.movement) {
+        case ParticleMovementPattern.swirling:
+          // Vortex: tighter orbit, faster spin.
+          swirlDelta *= 2.2;
+          pullStrength = 0.035;
+          break;
+        case ParticleMovementPattern.pulsing:
+          // Radial breathe: the whole cloud inhales and exhales.
+          pullStrength = 0.0;
+          pureBreathe = 0.05 * sin(_flowTime * 1.8);
+          break;
+        default:
+          // Directional signatures (drip/rise/drift) shouldn't fight the
+          // center pull.
+          pullStrength = 0.004;
+      }
+    }
     final swirlCos = cos(swirlDelta);
     final swirlSin = sin(swirlDelta);
-
-    final pullStrength = widget.fusion ? 0.12 : 0.02;
     final rotSpeedMult = speedMult; // named for clarity
+
+    // Liquid churn: velocity field derived from a moving stream function
+    // (psi = sin(kx·x + t1)·sin(ky·y + t2)). Its curl is divergence-free,
+    // which is what makes the motion read as fluid — particles ride smooth
+    // rolling cells instead of drifting in straight lines. Constants hoisted;
+    // per-particle cost is 4 trig calls.
+    final flowT1 = _flowTime;
+    final flowT2 = _flowTime * 0.8 + 1.7;
+    final flowKx = 2 * pi / max(width, 1.0) * 1.6;
+    final flowKy = 2 * pi / max(height, 1.0) * 1.6;
+    final flowAmp = 0.05 * (0.5 + 0.5 * speedMult);
+    // Gentle damping bounds the energy the field adds, so equilibrium speed
+    // stays comparable to the elements' configured speeds.
+    const flowDamp = 0.985;
 
     final boundLeft = -30.0;
     final boundRight = width + 30.0;
@@ -1454,9 +1561,12 @@ class _AlchemyBrewingParticleSystemState
       if (dist2 > 36) {
         // FIX 2: One sqrt, only when the pull is actually needed
         final invDist = 1.0 / sqrt(dist2);
+        // pureBreathe oscillates negative/positive so a pure pulsing brew
+        // (light, poison) exhales outward and inhales back.
+        final pull = pullStrength + pureBreathe;
         p.velocity += Offset(
-          toCenterDx * invDist * pullStrength,
-          toCenterDy * invDist * pullStrength,
+          toCenterDx * invDist * pull,
+          toCenterDy * invDist * pull,
         );
       }
 
@@ -1466,6 +1576,30 @@ class _AlchemyBrewingParticleSystemState
       p.velocity = Offset(
         vx * swirlCos - vy * swirlSin,
         vx * swirlSin + vy * swirlCos,
+      );
+
+      // Ride the liquid-churn field, shaped by the element's character: how
+      // strongly it responds to the currents (airy vs heavy), its buoyancy
+      // (rises vs sinks/drips), and crackle jitter (lightning darts).
+      final prof = p.elementType == 'parentA' ? profA : profB;
+      final churn = flowAmp * prof.churn;
+      var jx = 0.0, jy = 0.0;
+      if (prof.jitter > 0 && _random.nextDouble() < 0.2) {
+        jx = (_random.nextDouble() - 0.5) * prof.jitter;
+        jy = (_random.nextDouble() - 0.5) * prof.jitter;
+      }
+      final px = p.position.dx;
+      final py = p.position.dy;
+      p.velocity = Offset(
+        (p.velocity.dx +
+                sin(flowKx * px + flowT1) * cos(flowKy * py + flowT2) * churn +
+                jx) *
+            flowDamp,
+        (p.velocity.dy -
+                cos(flowKx * px + flowT1) * sin(flowKy * py + flowT2) * churn +
+                prof.buoyancy +
+                jy) *
+            flowDamp,
       );
 
       if (config.movement == ParticleMovementPattern.pulsing) {
@@ -1488,6 +1622,10 @@ class _AlchemyBrewingParticleSystemState
             _random.nextDouble() * width,
             _random.nextBool() ? -20 : height + 20,
           );
+        } else if (isPure) {
+          // Spawn pattern follows the pure element, not the particle's own
+          // type — all ingredients enter the way the pure line dictates.
+          _applyPureSpawn(p, pureConfig, width, height);
         }
       }
     }
@@ -1524,6 +1662,80 @@ class _AlchemyBrewingParticleSystemState
 
     // FIX 3: Tick frame counter so shouldRepaint can detect real changes
     _frameCount++;
+  }
+
+  /// Flow character per movement pattern: `buoyancy` is a constant vertical
+  /// force (negative = rises, positive = sinks/drips), `churn` scales how
+  /// strongly the particle rides the liquid flow field (airy vs heavy), and
+  /// `jitter` adds random dart impulses (lightning crackle). Pure-bred brews
+  /// exaggerate the signature (e.g. flowing water goes from a gentle sink to
+  /// a full drip). With flowDamp 0.985 the equilibrium speed of a constant
+  /// force is roughly buoyancy / 0.015 px per frame.
+  ({double buoyancy, double churn, double jitter}) _flowProfileFor(
+    ElementConfig config,
+    bool pure,
+  ) {
+    switch (config.movement) {
+      case ParticleMovementPattern.rising:
+        return (buoyancy: pure ? -0.030 : -0.016, churn: 0.8, jitter: 0.0);
+      case ParticleMovementPattern.falling:
+        return (buoyancy: pure ? 0.032 : 0.022, churn: 0.55, jitter: 0.0);
+      case ParticleMovementPattern.flowing:
+        return (buoyancy: pure ? 0.028 : 0.006, churn: 1.15, jitter: 0.0);
+      case ParticleMovementPattern.swirling:
+        return (buoyancy: pure ? 0.0 : -0.004, churn: 1.8, jitter: 0.0);
+      case ParticleMovementPattern.crackling:
+        return (buoyancy: 0.0, churn: 0.5, jitter: 0.5);
+      case ParticleMovementPattern.floating:
+        return (buoyancy: pure ? 0.006 : -0.003, churn: 1.1, jitter: 0.0);
+      case ParticleMovementPattern.growing:
+        return (buoyancy: pure ? -0.022 : -0.010, churn: 0.8, jitter: 0.0);
+      case ParticleMovementPattern.pulsing:
+        return (buoyancy: 0.0, churn: 1.0, jitter: 0.0);
+    }
+  }
+
+  /// Pure-bred signature spawns: directional patterns need particles to
+  /// re-enter from the matching edge — flames from below, drips from above.
+  void _applyPureSpawn(
+    AlchemyParticle p,
+    ElementConfig config,
+    double width,
+    double height,
+  ) {
+    switch (config.movement) {
+      case ParticleMovementPattern.rising:
+      case ParticleMovementPattern.growing:
+        // Flame column / growth: enter along the bottom, heading up.
+        p.position = Offset(_random.nextDouble() * width, height + 8);
+        p.velocity = Offset(
+          (_random.nextDouble() - 0.5) * 0.4,
+          -(0.4 + _random.nextDouble() * 0.8),
+        );
+        break;
+      case ParticleMovementPattern.falling:
+      case ParticleMovementPattern.flowing:
+        // Drip lanes: droplets bead up along a few fixed columns and fall,
+        // rather than raining uniformly. Near-zero start speed so gravity
+        // does the acceleration — that's what reads as a drip.
+        final lane = (0.5 + _random.nextInt(4)) / 4.0;
+        p.position = Offset(
+          width * lane + (_random.nextDouble() - 0.5) * width * 0.06,
+          -8,
+        );
+        p.velocity = Offset((_random.nextDouble() - 0.5) * 0.1, 0.05);
+        break;
+      case ParticleMovementPattern.floating:
+        // Snow drift: enter from the top with sideways sway.
+        p.position = Offset(_random.nextDouble() * width, -8);
+        p.velocity = Offset(
+          (_random.nextDouble() - 0.5) * 0.6,
+          0.15 + _random.nextDouble() * 0.2,
+        );
+        break;
+      default:
+        break; // vortex / breathe / storm keep the generic spawn
+    }
   }
 
   void _createReactionSpark(Offset position, Color color1, Color color2) {

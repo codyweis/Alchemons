@@ -29,7 +29,7 @@ class NurseryBrewingCard extends StatefulWidget {
     this.progress,
     this.useSimpleFusion = false,
     this.theme,
-    this.quality = CinematicQuality.performance,
+    this.quality = CinematicQuality.cinematic,
   });
 
   @override
@@ -38,6 +38,7 @@ class NurseryBrewingCard extends StatefulWidget {
 
 class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
   List<String>? _parentTypes;
+  String? _pureElementTypeId;
 
   @override
   void initState() {
@@ -59,6 +60,17 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
         ? const ['blood', 'dark']
         : extractParticleTypeIdsFromPayload(payload);
     _parentTypes = types.isEmpty ? null : types;
+
+    // Elementally pure line: that element choreographs the whole brew.
+    var pure = pureElementFromPayload(payload);
+    if (pure == null &&
+        types.length == 1 &&
+        isElementallyPurePayload(payload)) {
+      // Verdict without an element map (e.g. vial eggs): infer from the
+      // single particle type.
+      pure = types.first;
+    }
+    _pureElementTypeId = pure;
   }
 
   double _ease(double p, {double gamma = 2.0}) {
@@ -97,23 +109,23 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
     final shortestSide = media.size.shortestSide;
     int particleCount;
     if (shortestSide < 380) {
-      particleCount = 28;
+      particleCount = 42;
     } else if (shortestSide < 430) {
-      particleCount = 38;
+      particleCount = 56;
     } else {
-      particleCount = 48;
+      particleCount = 72;
     }
 
     // Ready state gets a slight boost for a livelier finished look.
     if (widget.isReady) {
-      particleCount += 8;
+      particleCount += 12;
     }
 
     final qualityMultiplier = switch (widget.quality) {
-      CinematicQuality.balanced => 1.0,
+      CinematicQuality.cinematic => 1.0,
       CinematicQuality.performance => 0.6,
     };
-    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 96);
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 128);
 
     if (deferEffects) {
       particleCount = math.min(particleCount, 12);
@@ -197,6 +209,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
                         particleCount: particleCount,
                         speedMultiplier: _speedFromProgress,
                         fusion: widget.isReady,
+                        pureElementTypeId: _pureElementTypeId,
                         useSimpleFusion: widget.useSimpleFusion,
                         theme: widget.theme,
                       ),

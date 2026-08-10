@@ -325,175 +325,99 @@ class _AlchemicalEncyclopediaScreenState
                   _hasAnimatedIn = true;
                 }
 
-                return _StaggeredEntrance(
-                  children: [
-                    _ForgeTopBar(
-                      completion: completion,
-                      onBack: () => Navigator.of(context).pop(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-                      child: _OverviewPanel(
-                        totalDiscovered: totalDiscovered,
-                        totalRecipes: totalRecipes,
-                        discoveredFamily: discoveredFamily,
-                        totalFamily: data.familyRecipes.length,
-                        discoveredElement: discoveredElement,
-                        totalElement: data.elementRecipes.length,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: _FilterPanel(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        hasSearchQuery: _searchQuery.isNotEmpty,
-                        showKnownOnly: _showKnownOnly,
-                        isFocused: _searchFocused,
-                        onToggleKnownOnly: () {
-                          HapticFeedback.lightImpact();
-                          setState(() => _showKnownOnly = !_showKnownOnly);
-                        },
-                        onClearSearch: () {
-                          _searchController.clear();
-                          HapticFeedback.selectionClick();
-                        },
-                      ),
-                    ),
-                    _RecipeTabBar(
-                      controller: _tabController,
-                      familyCount: visibleFamily.length,
-                      elementCount: visibleElement.length,
-                      natureCount: visibleNature.length,
-                      showNatureTab: hasNatureTab,
-                    ),
-                    const SizedBox(height: 6),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
+                return NestedScrollView(
+                  headerSliverBuilder: (context, innerScrolled) => [
+                    // Scroll-away: title bar + progress overview.
+                    SliverToBoxAdapter(
+                      child: Column(
                         children: [
-                          _RecipeTabList(
-                            key: _familyListKey,
-                            kind: EncyclopediaRecipeKind.family,
-                            recipes: visibleFamily,
-                            discoveredKeys: data.discoveredFamilyKeys,
-                            discoveredOutcomeKeys:
-                                data.discoveredFamilyOutcomeKeys,
-                            query: _searchQuery,
-                            knownOnly: _showKnownOnly,
+                          _ForgeTopBar(
+                            completion: completion,
+                            onBack: () => Navigator.of(context).pop(),
                           ),
-                          _RecipeTabList(
-                            key: _elementListKey,
-                            kind: EncyclopediaRecipeKind.element,
-                            recipes: visibleElement,
-                            discoveredKeys: data.discoveredElementKeys,
-                            discoveredOutcomeKeys:
-                                data.discoveredElementOutcomeKeys,
-                            query: _searchQuery,
-                            knownOnly: _showKnownOnly,
-                          ),
-                          if (hasNatureTab)
-                            _NatureTabList(
-                              key: _natureListKey,
-                              entries: visibleNature,
-                              query: _searchQuery,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                            child: _OverviewPanel(
+                              totalDiscovered: totalDiscovered,
+                              totalRecipes: totalRecipes,
+                              discoveredFamily: discoveredFamily,
+                              totalFamily: data.familyRecipes.length,
+                              discoveredElement: discoveredElement,
+                              totalElement: data.elementRecipes.length,
                             ),
+                          ),
                         ],
                       ),
                     ),
+                    // Docked: search + filter + tabs stay pinned to the top.
+                    SliverOverlapAbsorber(
+                      handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
+                        context,
+                      ),
+                      sliver: SliverPersistentHeader(
+                        pinned: true,
+                        delegate: _DockHeaderDelegate(
+                          extent: _kDockHeight,
+                          child: _DockedControls(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            hasSearchQuery: _searchQuery.isNotEmpty,
+                            showKnownOnly: _showKnownOnly,
+                            isFocused: _searchFocused,
+                            onToggleKnownOnly: () {
+                              HapticFeedback.lightImpact();
+                              setState(() => _showKnownOnly = !_showKnownOnly);
+                            },
+                            onClearSearch: () {
+                              _searchController.clear();
+                              HapticFeedback.selectionClick();
+                            },
+                            tabController: _tabController,
+                            familyCount: visibleFamily.length,
+                            elementCount: visibleElement.length,
+                            natureCount: visibleNature.length,
+                            showNatureTab: hasNatureTab,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
+                  body: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _RecipeTabList(
+                        key: _familyListKey,
+                        kind: EncyclopediaRecipeKind.family,
+                        recipes: visibleFamily,
+                        discoveredKeys: data.discoveredFamilyKeys,
+                        discoveredOutcomeKeys: data.discoveredFamilyOutcomeKeys,
+                        query: _searchQuery,
+                        knownOnly: _showKnownOnly,
+                      ),
+                      _RecipeTabList(
+                        key: _elementListKey,
+                        kind: EncyclopediaRecipeKind.element,
+                        recipes: visibleElement,
+                        discoveredKeys: data.discoveredElementKeys,
+                        discoveredOutcomeKeys:
+                            data.discoveredElementOutcomeKeys,
+                        query: _searchQuery,
+                        knownOnly: _showKnownOnly,
+                      ),
+                      if (hasNatureTab)
+                        _NatureTabList(
+                          key: _natureListKey,
+                          entries: visibleNature,
+                          query: _searchQuery,
+                        ),
+                    ],
+                  ),
                 );
               },
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─── Staggered entrance animation for top-level sections ───────────────────
-
-class _StaggeredEntrance extends StatefulWidget {
-  final List<Widget> children;
-  const _StaggeredEntrance({required this.children});
-
-  @override
-  State<_StaggeredEntrance> createState() => _StaggeredEntranceState();
-}
-
-class _StaggeredEntranceState extends State<_StaggeredEntrance>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final List<Animation<double>> _fadeAnims;
-  late final List<Animation<Offset>> _slideAnims;
-
-  @override
-  void initState() {
-    super.initState();
-    final count = widget.children.length;
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 320 + count * 60),
-    );
-
-    _fadeAnims = List.generate(count, (i) {
-      final start = (i * 0.12).clamp(0.0, 0.7);
-      final end = (start + 0.35).clamp(0.0, 1.0);
-      return CurvedAnimation(
-        parent: _ctrl,
-        curve: Interval(start, end, curve: Curves.easeOut),
-      );
-    });
-
-    _slideAnims = List.generate(count, (i) {
-      final start = (i * 0.12).clamp(0.0, 0.7);
-      final end = (start + 0.35).clamp(0.0, 1.0);
-      return Tween<Offset>(
-        begin: const Offset(0, 0.04),
-        end: Offset.zero,
-      ).animate(
-        CurvedAnimation(
-          parent: _ctrl,
-          curve: Interval(start, end, curve: Curves.easeOutCubic),
-        ),
-      );
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (int i = 0; i < widget.children.length; i++)
-          widget.children[i] is Expanded
-              ? Expanded(
-                  child: FadeTransition(
-                    opacity: _fadeAnims[i],
-                    child: SlideTransition(
-                      position: _slideAnims[i],
-                      child: (widget.children[i] as Expanded).child,
-                    ),
-                  ),
-                )
-              : FadeTransition(
-                  opacity: _fadeAnims[i],
-                  child: SlideTransition(
-                    position: _slideAnims[i],
-                    child: widget.children[i],
-                  ),
-                ),
-      ],
     );
   }
 }
@@ -725,7 +649,10 @@ class _ForgeTopBar extends StatelessWidget {
                 'BACK',
                 style: _T
                     .label(context)
-                    .copyWith(fontSize: 12, color: _C.of(context).textSecondary),
+                    .copyWith(
+                      fontSize: 12,
+                      color: _C.of(context).textSecondary,
+                    ),
               ),
             ),
           ),
@@ -1163,9 +1090,14 @@ class _AnimatedCompletionBarState extends State<_AnimatedCompletionBar>
   );
 }
 
-// ─── Filter panel ────────────────────────────────────────────────────────────
+// ─── Docked controls (search + filter + tabs, pinned to top) ─────────────────
 
-class _FilterPanel extends StatelessWidget {
+/// Fixed height of the pinned header. Kept in sync with [_DockedControls]'
+/// layout below; the column is laid out top-aligned so a few px of slack here
+/// is harmless, but it must never be *smaller* than the content.
+const double _kDockHeight = 116;
+
+class _DockedControls extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool hasSearchQuery;
@@ -1173,8 +1105,11 @@ class _FilterPanel extends StatelessWidget {
   final bool isFocused;
   final VoidCallback onToggleKnownOnly;
   final VoidCallback onClearSearch;
+  final TabController tabController;
+  final int familyCount, elementCount, natureCount;
+  final bool showNatureTab;
 
-  const _FilterPanel({
+  const _DockedControls({
     required this.controller,
     required this.focusNode,
     required this.hasSearchQuery,
@@ -1182,102 +1117,179 @@ class _FilterPanel extends StatelessWidget {
     required this.isFocused,
     required this.onToggleKnownOnly,
     required this.onClearSearch,
+    required this.tabController,
+    required this.familyCount,
+    required this.elementCount,
+    required this.natureCount,
+    required this.showNatureTab,
   });
 
   @override
   Widget build(BuildContext context) {
-    return _PlateFrame(
-      accentColor: _C.of(context).borderAccent,
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        children: [
-          // Search bar with animated focus border
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _C.of(context).bg1,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(
-                color: isFocused
-                    ? _C.of(context).amberBright.withValues(alpha: .7)
-                    : _C.of(context).borderDim,
-                width: isFocused ? 1.5 : 1.0,
-              ),
-              boxShadow: isFocused
-                  ? [
-                      BoxShadow(
-                        color: _C.of(context).amber.withValues(alpha: .12),
-                        blurRadius: 10,
-                        spreadRadius: 0,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              style: TextStyle(color: _C.of(context).textPrimary, fontSize: 13),
-              cursorColor: _C.of(context).amberBright,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Search known formulas, results, or natures',
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                hintStyle: TextStyle(
-                  color: _C.of(context).textMuted.withValues(alpha: .75),
-                  fontSize: 12,
-                ),
-                suffixIcon: hasSearchQuery
-                    ? Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: TextButton(
-                          style: TextButton.styleFrom(
-                            minimumSize: const Size(0, 0),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          onPressed: onClearSearch,
-                          child: Text(
-                            'CLEAR',
-                            style: _T
-                                .label(context)
-                                .copyWith(
-                                  fontSize: 12,
-                                  color: _C.of(context).textSecondary,
-                                ),
-                          ),
-                        ),
-                      )
-                    : null,
-                suffixIconConstraints: const BoxConstraints(
-                  minWidth: 0,
-                  minHeight: 0,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(
             children: [
+              Expanded(
+                child: _SearchField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  hasSearchQuery: hasSearchQuery,
+                  isFocused: isFocused,
+                  onClearSearch: onClearSearch,
+                ),
+              ),
+              const SizedBox(width: 8),
               _ToggleChip(
-                label: 'Known only',
+                label: 'Known',
                 enabled: showKnownOnly,
                 onTap: onToggleKnownOnly,
               ),
             ],
           ),
-        ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: _RecipeTabBar(
+            controller: tabController,
+            familyCount: familyCount,
+            elementCount: elementCount,
+            natureCount: natureCount,
+            showNatureTab: showNatureTab,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool hasSearchQuery;
+  final bool isFocused;
+  final VoidCallback onClearSearch;
+
+  const _SearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.hasSearchQuery,
+    required this.isFocused,
+    required this.onClearSearch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      height: 40,
+      decoration: BoxDecoration(
+        color: _C.of(context).bg1,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(
+          color: isFocused
+              ? _C.of(context).amberBright.withValues(alpha: .7)
+              : _C.of(context).borderDim,
+          width: isFocused ? 1.5 : 1.0,
+        ),
+        boxShadow: isFocused
+            ? [
+                BoxShadow(
+                  color: _C.of(context).amber.withValues(alpha: .12),
+                  blurRadius: 10,
+                  spreadRadius: 0,
+                ),
+              ]
+            : null,
+      ),
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        style: TextStyle(color: _C.of(context).textPrimary, fontSize: 13),
+        cursorColor: _C.of(context).amberBright,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          hintText: 'Search formulas, results, natures',
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+          hintStyle: TextStyle(
+            color: _C.of(context).textMuted.withValues(alpha: .75),
+            fontSize: 12,
+          ),
+          suffixIcon: hasSearchQuery
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: onClearSearch,
+                    child: Text(
+                      'CLEAR',
+                      style: _T
+                          .label(context)
+                          .copyWith(
+                            fontSize: 12,
+                            color: _C.of(context).textSecondary,
+                          ),
+                    ),
+                  ),
+                )
+              : null,
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 0,
+            minHeight: 0,
+          ),
+        ),
       ),
     );
   }
+}
+
+// ─── Pinned header delegate ──────────────────────────────────────────────────
+
+class _DockHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double extent;
+  final Widget child;
+
+  _DockHeaderDelegate({required this.extent, required this.child});
+
+  @override
+  double get minExtent => extent;
+
+  @override
+  double get maxExtent => extent;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    // Opaque background so list items scrolling underneath are occluded.
+    return Container(
+      color: _C.of(context).bg0,
+      alignment: Alignment.topCenter,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _DockHeaderDelegate old) =>
+      old.extent != extent || old.child != child;
 }
 
 // ─── Tab bar ─────────────────────────────────────────────────────────────────
@@ -1298,7 +1310,6 @@ class _RecipeTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.symmetric(horizontal: 16),
     decoration: BoxDecoration(
       color: _C.of(context).bg1,
       borderRadius: BorderRadius.circular(3),
@@ -1317,23 +1328,64 @@ class _RecipeTabBar extends StatelessWidget {
       labelColor: _C.of(context).amberBright,
       unselectedLabelColor: _C.of(context).textSecondary,
       dividerColor: Colors.transparent,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
       labelStyle: const TextStyle(
         fontFamily: 'monospace',
         fontSize: 12,
         fontWeight: FontWeight.w800,
-        letterSpacing: 1.4,
+        letterSpacing: 0.8,
       ),
       unselectedLabelStyle: const TextStyle(
         fontFamily: 'monospace',
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        letterSpacing: 1.4,
+        letterSpacing: 0.8,
       ),
       tabs: [
-        Tab(text: 'SPECIES ($familyCount)'),
-        Tab(text: 'ELEMENT ($elementCount)'),
-        if (showNatureTab) Tab(text: 'NATURE ($natureCount)'),
+        _CountTab(label: 'SPECIES', count: familyCount),
+        _CountTab(label: 'ELEMENT', count: elementCount),
+        if (showNatureTab) _CountTab(label: 'NATURE', count: natureCount),
       ],
+    ),
+  );
+}
+
+/// A tab whose label and count never clip: the name inherits the [TabBar]'s
+/// animated selected/unselected style, the count rides alongside in a smaller
+/// dimmed badge, and the whole thing scales down on narrow screens instead of
+/// truncating mid-word.
+class _CountTab extends StatelessWidget {
+  final String label;
+  final int count;
+  const _CountTab({required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) => Tab(
+    height: 44,
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label),
+          const SizedBox(width: 6),
+          Builder(
+            builder: (context) {
+              final color = DefaultTextStyle.of(context).style.color;
+              return Text(
+                '$count',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                  color: color?.withValues(alpha: 0.65),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -1364,7 +1416,6 @@ class _RecipeTabList extends StatefulWidget {
 
 class _RecipeTabListState extends State<_RecipeTabList>
     with SingleTickerProviderStateMixin {
-  final ScrollController _scrollController = ScrollController();
   final Map<String, GlobalKey> _rowKeys = <String, GlobalKey>{};
   late final AnimationController _focusController;
   String? _activePairKey;
@@ -1388,7 +1439,6 @@ class _RecipeTabListState extends State<_RecipeTabList>
   void dispose() {
     _focusController.removeListener(_onFocusTick);
     _focusController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -1428,24 +1478,29 @@ class _RecipeTabListState extends State<_RecipeTabList>
   }
 
   Future<void> _scrollToIndex(int index, String pairKey) async {
-    if (!_scrollController.hasClients) {
-      await Future<void>.delayed(const Duration(milliseconds: 16));
+    // Inside a NestedScrollView the active tab's list attaches to the
+    // coordinated PrimaryScrollController; use it to get near the target so the
+    // (lazily-built) row exists, then ensureVisible for the precise landing.
+    final controller = PrimaryScrollController.maybeOf(context);
+    if (controller != null) {
+      if (!controller.hasClients) {
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+      if (controller.hasClients) {
+        const estimatedItemExtent = 120.0;
+        final estimatedOffset = (index * estimatedItemExtent).toDouble().clamp(
+          0.0,
+          controller.position.maxScrollExtent,
+        );
+        await controller.animateTo(
+          estimatedOffset,
+          duration: const Duration(milliseconds: 620),
+          curve: Curves.easeInOutCubic,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 32));
+      }
     }
-    if (!_scrollController.hasClients) return;
 
-    const estimatedItemExtent = 144.0;
-    final estimatedOffset = (index * estimatedItemExtent).toDouble().clamp(
-      0.0,
-      _scrollController.position.maxScrollExtent,
-    );
-
-    await _scrollController.animateTo(
-      estimatedOffset,
-      duration: const Duration(milliseconds: 620),
-      curve: Curves.easeInOutCubic,
-    );
-
-    await Future<void>.delayed(const Duration(milliseconds: 32));
     final targetContext = _rowKeys[pairKey]?.currentContext;
     if (targetContext == null || !mounted) return;
     if (!targetContext.mounted) return;
@@ -1516,11 +1571,24 @@ class _RecipeTabListState extends State<_RecipeTabList>
 
   @override
   Widget build(BuildContext context) {
+    final injector = SliverOverlapInjector(
+      handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+    );
+
     if (widget.recipes.isEmpty) {
-      return _EmptyTabState(
-        kind: widget.kind,
-        query: widget.query,
-        knownOnly: widget.knownOnly,
+      return CustomScrollView(
+        key: PageStorageKey<String>('recipes-${widget.kind.name}'),
+        slivers: [
+          injector,
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _EmptyTabState(
+              kind: widget.kind,
+              query: widget.query,
+              knownOnly: widget.knownOnly,
+            ),
+          ),
+        ],
       );
     }
 
@@ -1528,25 +1596,28 @@ class _RecipeTabListState extends State<_RecipeTabList>
         .where((e) => widget.discoveredKeys.contains(e.pairKey))
         .length;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-          child: Row(
-            children: [
-              Text(
-                '$knownCount discovered • ${widget.recipes.length} shown',
-                style: _T.label(context),
-              ),
-              const Spacer(),
-              _KindTag(kind: widget.kind),
-            ],
+    return CustomScrollView(
+      key: PageStorageKey<String>('recipes-${widget.kind.name}'),
+      slivers: [
+        injector,
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            child: Row(
+              children: [
+                Text(
+                  '$knownCount discovered • ${widget.recipes.length} shown',
+                  style: _T.label(context),
+                ),
+                const Spacer(),
+                _KindTag(kind: widget.kind),
+              ],
+            ),
           ),
         ),
-        Expanded(
-          child: ListView.separated(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          sliver: SliverList.separated(
             itemCount: widget.recipes.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
@@ -1683,6 +1754,12 @@ class _RecipeCard extends StatelessWidget {
     final fs = focusState;
     final glow = fs.glow.clamp(0.0, 1.0);
     final flash = fs.flash.clamp(0.0, 1.0);
+    // The plate rests as quiet bronze and blooms into the result's element
+    // colour only while the unlock animation fires, so colour reads as an
+    // event rather than constant noise.
+    final bloom = glow > flash ? glow : flash;
+    final frameAccent =
+        Color.lerp(_C.of(context).amber, accent, bloom) ?? accent;
     final isElementRecipe = recipe.kind == EncyclopediaRecipeKind.element;
     final discoveredOutcomes = recipe.outcomes
         .where(
@@ -1710,87 +1787,98 @@ class _RecipeCard extends StatelessWidget {
         children: [
           // ── Base plate with amplified glow ──────────────────────────────
           _PlateFrame(
-            accentColor: unlocked ? accent : accent.withValues(alpha: .38),
+            accentColor: unlocked ? frameAccent : accent.withValues(alpha: .38),
             highlight: unlocked || fs.isActive,
             glowBoost: glow,
+            calm: true,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        pairText,
-                        style: TextStyle(
-                          color: unlocked
-                              ? Color.lerp(
-                                  _C.of(context).textPrimary,
-                                  Colors.white,
-                                  flash * 0.45,
-                                )
-                              : accent.withValues(alpha: .65),
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (outcomeText != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
+            child: isElementRecipe
+                ? _ElementEquation(
+                    recipe: recipe,
+                    unlocked: unlocked,
+                    discoveredOutcomes: discoveredOutcomes,
+                    hiddenOutcomeCount: hiddenOutcomeCount,
+                    flash: flash,
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          outcomeText,
-                          style: _T
-                              .body(context)
-                              .copyWith(
-                                fontSize: 12,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              pairText,
+                              style: TextStyle(
                                 color: unlocked
-                                    ? _C.of(context).textSecondary
-                                    : _C.of(context).textMuted,
+                                    ? Color.lerp(
+                                        _C.of(context).textPrimary,
+                                        Colors.white,
+                                        flash * 0.45,
+                                      )
+                                    : accent.withValues(alpha: .65),
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2,
                               ),
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
+                      if (outcomeText != null) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                outcomeText,
+                                style: _T
+                                    .body(context)
+                                    .copyWith(
+                                      fontSize: 12,
+                                      color: unlocked
+                                          ? _C.of(context).textSecondary
+                                          : _C.of(context).textMuted,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      SizedBox(height: outcomeText != null ? 10 : 8),
+                      unlocked
+                          ? Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final outcome in discoveredOutcomes)
+                                  _OutcomeChip(
+                                    label: outcome.result,
+                                    weight: outcome.weight,
+                                    color: accent,
+                                    flash: flash,
+                                    emphasized:
+                                        recipe.kind ==
+                                        EncyclopediaRecipeKind.element,
+                                  ),
+                                for (var i = 0; i < hiddenOutcomeCount; i++)
+                                  _OutcomeChip.hidden(
+                                    color: accent,
+                                    emphasized:
+                                        recipe.kind ==
+                                        EncyclopediaRecipeKind.element,
+                                  ),
+                              ],
+                            )
+                          : Text(
+                              '???',
+                              style: TextStyle(
+                                color: accent.withValues(alpha: .58),
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: .8,
+                                fontSize: 16,
+                              ),
+                            ),
                     ],
                   ),
-                ],
-                SizedBox(height: outcomeText != null ? 10 : 8),
-                unlocked
-                    ? Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final outcome in discoveredOutcomes)
-                            _OutcomeChip(
-                              label: outcome.result,
-                              weight: outcome.weight,
-                              color: accent,
-                              flash: flash,
-                              emphasized:
-                                  recipe.kind == EncyclopediaRecipeKind.element,
-                            ),
-                          for (var i = 0; i < hiddenOutcomeCount; i++)
-                            _OutcomeChip.hidden(
-                              color: accent,
-                              emphasized:
-                                  recipe.kind == EncyclopediaRecipeKind.element,
-                            ),
-                        ],
-                      )
-                    : Text(
-                        '???',
-                        style: TextStyle(
-                          color: accent.withValues(alpha: .58),
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .8,
-                          fontSize: 16,
-                        ),
-                      ),
-              ],
-            ),
           ),
 
           // ── Flash burst overlay (phase 0) ───────────────────────────────
@@ -1921,6 +2009,213 @@ class _RecipeCard extends StatelessWidget {
   }
 }
 
+// ─── Element equation (compact icon layout for element recipes) ──────────────
+
+class _ElementEquation extends StatelessWidget {
+  final EncyclopediaRecipeEntry recipe;
+  final bool unlocked;
+  final List<EncyclopediaOutcomeEntry> discoveredOutcomes;
+  final int hiddenOutcomeCount;
+  final double flash;
+
+  const _ElementEquation({
+    required this.recipe,
+    required this.unlocked,
+    required this.discoveredOutcomes,
+    required this.hiddenOutcomeCount,
+    required this.flash,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final opColor = _C.of(context).textSecondary;
+    // Operators stay bronze so colour discipline holds: parents read neutral,
+    // the join/yields marks are gilt, only the result chip carries its element
+    // colour.
+    final arrowColor = unlocked
+        ? _C.of(context).amber
+        : _C.of(context).textMuted;
+
+    final results = <Widget>[
+      if (unlocked) ...[
+        for (final outcome in discoveredOutcomes)
+          _ResultToken(
+            result: outcome.result,
+            weight: outcome.weight,
+            flash: flash,
+          ),
+        for (var i = 0; i < hiddenOutcomeCount; i++)
+          const _ResultToken.hidden(),
+      ] else
+        const _ResultToken.hidden(),
+    ];
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Parents take the left half, left-aligned (scaled down only if long).
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ElementToken(name: unlocked ? recipe.parentA : null),
+                _EqGlyph('⊕', opColor), // ⊕ conjunction
+                _ElementToken(name: unlocked ? recipe.parentB : null),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Arrow stays centered across every row.
+        _EqGlyph('⟶', arrowColor), // ⟶ yields
+        const SizedBox(width: 8),
+        // Result(s) take the right half, right-aligned so they line up.
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(mainAxisSize: MainAxisSize.min, children: results),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A tinted parent element pill (icon + name); shows "?" when locked.
+class _ElementToken extends StatelessWidget {
+  final String? name;
+  const _ElementToken({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final known = name != null;
+    final color = known
+        ? BreedConstants.getTypeColor(name!)
+        : _C.of(context).textMuted;
+    final icon = known ? BreedConstants.getTypeIcon(name!) : null;
+    // Inscribed, not buttoned: bare sigil + letter-spaced caps so the parents
+    // read as a quiet incantation. Only the result keeps a plated chip.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            known ? name!.toUpperCase() : '?',
+            style: TextStyle(
+              color: known
+                  ? _C.of(context).textPrimary.withValues(alpha: .92)
+                  : color,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The result element pill (icon + NAME + weight%), tinted by its own type.
+class _ResultToken extends StatelessWidget {
+  final String result;
+  final int? weight;
+  final double flash;
+  final bool hidden;
+
+  const _ResultToken({
+    required this.result,
+    required this.weight,
+    required this.flash,
+  }) : hidden = false;
+
+  const _ResultToken.hidden()
+    : result = '???',
+      weight = null,
+      flash = 0,
+      hidden = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = hidden
+        ? _C.of(context).textMuted
+        : BreedConstants.getTypeColor(result);
+    final chipColor = Color.lerp(color, Colors.white, flash * 0.45) ?? color;
+    final icon = hidden ? null : BreedConstants.getTypeIcon(result);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: chipColor.withValues(alpha: hidden ? 0.06 : 0.16),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(
+          color: chipColor.withValues(alpha: hidden ? 0.2 : 0.5),
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 15, color: chipColor),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            result.toUpperCase(),
+            style: TextStyle(
+              color: hidden
+                  ? _C.of(context).textMuted
+                  : _C.of(context).textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              letterSpacing: 0.6,
+            ),
+          ),
+          if (weight != null) ...[
+            const SizedBox(width: 7),
+            Text(
+              '$weight%',
+              style: TextStyle(
+                color: chipColor,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Small "+"/"→" operator glyph between equation tokens.
+class _EqGlyph extends StatelessWidget {
+  final String glyph;
+  final Color color;
+  const _EqGlyph(this.glyph, this.color);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: Text(
+      glyph,
+      style: TextStyle(
+        color: color.withValues(alpha: 0.7),
+        fontWeight: FontWeight.w500,
+        fontSize: 16,
+      ),
+    ),
+  );
+}
+
 // ─── Diagonal shimmer sweep painter ──────────────────────────────────────────
 
 class _ShimmerSweepPainter extends CustomPainter {
@@ -1984,48 +2279,68 @@ class _NatureTabList extends StatefulWidget {
 class _NatureTabListState extends State<_NatureTabList> {
   @override
   Widget build(BuildContext context) {
+    final injector = SliverOverlapInjector(
+      handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+    );
+
     if (widget.entries.isEmpty) {
-      return _NatureEmptyState(query: widget.query);
+      return CustomScrollView(
+        key: const PageStorageKey<String>('natures'),
+        slivers: [
+          injector,
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _NatureEmptyState(query: widget.query),
+          ),
+        ],
+      );
     }
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-          child: Row(
-            children: [
-              Text(
-                '${widget.entries.length} discovered • ${widget.entries.length} shown',
-                style: _T.label(context),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: _natureAccentColor(context).withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(
-                    color: _natureAccentColor(context).withValues(alpha: .45),
-                    width: 0.8,
+    return CustomScrollView(
+      key: const PageStorageKey<String>('natures'),
+      slivers: [
+        injector,
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            child: Row(
+              children: [
+                Text(
+                  '${widget.entries.length} discovered • ${widget.entries.length} shown',
+                  style: _T.label(context),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _natureAccentColor(context).withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(2),
+                    border: Border.all(
+                      color: _natureAccentColor(context).withValues(alpha: .45),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    'BEHAVIOR LOG',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: _natureAccentColor(context),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
                   ),
                 ),
-                child: Text(
-                  'BEHAVIOR LOG',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: _natureAccentColor(context),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          sliver: SliverList.separated(
             itemCount: widget.entries.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, index) => _AnimatedCardEntrance(
@@ -2064,6 +2379,8 @@ class _NatureCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   entry.nature.id,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: _C.of(context).textPrimary,
                     fontWeight: FontWeight.w800,
@@ -2110,12 +2427,18 @@ class _NatureSummaryRow extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       SizedBox(
-        width: 64,
+        width: 84,
         child: Text(
           label.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: _T
               .label(context)
-              .copyWith(fontSize: 12, color: _natureLabelColor(context)),
+              .copyWith(
+                fontSize: 12,
+                letterSpacing: 1.0,
+                color: _natureLabelColor(context),
+              ),
         ),
       ),
       const SizedBox(width: 8),
@@ -2638,20 +2961,31 @@ class _PlateFrame extends StatelessWidget {
   final bool highlight;
   final double glowBoost;
 
+  /// When true the resting border is a quiet hairline and there is no idle
+  /// glow — colour only blooms in via [glowBoost] during the unlock animation.
+  /// Used by list rows so the page reads as a calm ledger, not a stack of lit
+  /// buttons.
+  final bool calm;
+
   const _PlateFrame({
     required this.child,
     this.padding = const EdgeInsets.all(14),
     this.accentColor = const Color(0xFFD97706),
     this.highlight = false,
     this.glowBoost = 0,
+    this.calm = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final boostedGlow = glowBoost.clamp(0.0, 1.0).toDouble();
-    final borderAlpha = highlight ? (0.6 + boostedGlow * 0.4) : 0.18;
-    final borderWidth = highlight ? (1.4 + boostedGlow * 1.2) : 1.0;
-    final baseShadowAlpha = highlight ? 0.12 : 0.0;
+    final borderAlpha = highlight
+        ? ((calm ? 0.30 : 0.6) + boostedGlow * (calm ? 0.7 : 0.4))
+        : 0.18;
+    final borderWidth = highlight
+        ? ((calm ? 1.0 : 1.4) + boostedGlow * 1.2)
+        : 1.0;
+    final baseShadowAlpha = (highlight && !calm) ? 0.12 : 0.0;
     final shadowAlpha = baseShadowAlpha + boostedGlow * 0.45;
     final shadowBlur = 18 + boostedGlow * 40;
     final shadowSpread = boostedGlow * 4;

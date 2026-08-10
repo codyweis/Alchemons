@@ -39,10 +39,11 @@ Future<void> playHatchingCinematicAlchemy({
   String? parentBTypeId,
   required Color paletteMain,
   ImageProvider? creatureSilhouette,
-  Duration totalDuration = const Duration(milliseconds: 4200), // Faster!
+  Duration totalDuration = const Duration(milliseconds: 7200),
   HatchHintType hintType = HatchHintType.normal,
   Color? variantColor, // For variant hints
-  CinematicQuality quality = CinematicQuality.performance,
+  String? pureElementTypeId, // Elementally pure lineage -> purity treatment
+  CinematicQuality quality = CinematicQuality.cinematic,
 }) async {
   await Navigator.of(context).push(
     PageRouteBuilder(
@@ -58,6 +59,7 @@ Future<void> playHatchingCinematicAlchemy({
         totalDuration: totalDuration,
         hintType: hintType,
         variantColor: variantColor,
+        pureElementTypeId: pureElementTypeId,
         quality: quality,
       ),
     ),
@@ -72,6 +74,7 @@ class _HatchingCinematicPage extends StatefulWidget {
   final Duration totalDuration;
   final HatchHintType hintType;
   final Color? variantColor;
+  final String? pureElementTypeId;
   final CinematicQuality quality;
 
   const _HatchingCinematicPage({
@@ -79,10 +82,11 @@ class _HatchingCinematicPage extends StatefulWidget {
     required this.paletteMain,
     this.parentBTypeId,
     this.creatureSilhouette,
-    this.totalDuration = const Duration(milliseconds: 4200),
+    this.totalDuration = const Duration(milliseconds: 7200),
     this.hintType = HatchHintType.normal,
     this.variantColor,
-    this.quality = CinematicQuality.performance,
+    this.pureElementTypeId,
+    this.quality = CinematicQuality.cinematic,
   });
 
   @override
@@ -109,6 +113,17 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   late final _geoCache = _GeoCache();
   double _fxScale = 1.0;
   bool _reducedEffects = false;
+
+  // Element tint for the purity treatment (null = not an elementally pure
+  // lineage). Resolved once from the shared element configs so it matches
+  // the chamber particles.
+  late final Color? _pureColor = () {
+    final id = widget.pureElementTypeId;
+    if (id == null) return null;
+    final cfg = ElementalConfigs.getConfig(id);
+    if (cfg == null || cfg.colors.isEmpty) return widget.paletteMain;
+    return cfg.colors.length > 1 ? cfg.colors[1] : cfg.colors.first;
+  }();
 
   // Track hint jolt triggers
   int _hintJoltCount = 0;
@@ -237,7 +252,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     }
 
     final qualityMultiplier = switch (widget.quality) {
-      CinematicQuality.balanced => 1.0,
+      CinematicQuality.cinematic => 1.0,
       CinematicQuality.performance => 1.0,
     };
 
@@ -437,6 +452,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                           particleCount: baseParticleCount,
                           speedMultiplier: speed,
                           fusion: true,
+                          pureElementTypeId: widget.pureElementTypeId,
                           fromCinematic: true,
                         ),
                       ),
@@ -474,6 +490,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                               hintType: widget.hintType,
                               hintJoltT: _hintJoltAnim.value,
                               variantColor: widget.variantColor,
+                              pureColor: _pureColor,
                               reducedEffects: _reducedEffects,
                               highQualityEffects: highQualityEffects,
                             ),
@@ -496,6 +513,38 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                               glowColor: widget.paletteMain,
                               hintType: widget.hintType,
                               variantColor: widget.variantColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Pure lineage caption, revealed with the silhouette
+                  if (widget.pureElementTypeId != null && t > 0.80)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 110,
+                      child: IgnorePointer(
+                        child: Opacity(
+                          opacity: _intervalValue(t, 0.82, 0.90, Curves.easeOut),
+                          child: Center(
+                            child: Text(
+                              '✦ PURE ${widget.pureElementTypeId!.toUpperCase()} LINEAGE ✦',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: _pureColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 3.0,
+                                shadows: [
+                                  Shadow(
+                                    color: (_pureColor ?? widget.paletteMain)
+                                        .withValues(alpha: 0.8),
+                                    blurRadius: 14,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -609,7 +658,32 @@ class _SilhouetteReveal extends StatelessWidget {
       );
     }
 
-    return child;
+    // Soft aura behind the silhouette so it emerges out of light instead of
+    // floating on flat black (gradient, not blur — no saveLayer cost).
+    final haloColor = hintType == HatchHintType.variant
+        ? (variantColor ?? glowColor)
+        : glowColor;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: size * 1.6,
+          height: size * 1.6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                haloColor.withValues(alpha: 0.32),
+                haloColor.withValues(alpha: 0.10),
+                haloColor.withValues(alpha: 0.0),
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
   }
 }
 
@@ -632,6 +706,10 @@ class _CoreAndGeometryPainter extends CustomPainter {
   final HatchHintType hintType;
   final double hintJoltT;
   final Color? variantColor;
+
+  // Purity treatment: non-null for elementally pure lineages.
+  final Color? pureColor;
+
   final bool reducedEffects;
   final bool highQualityEffects;
 
@@ -662,15 +740,45 @@ class _CoreAndGeometryPainter extends CustomPainter {
     this.hintType = HatchHintType.normal,
     this.hintJoltT = 0,
     this.variantColor,
+    this.pureColor,
     this.reducedEffects = false,
     this.highQualityEffects = false,
   }) : _flowerPic = flowerPic,
        _cubePic = cubePic;
 
+  // Cheap deterministic hash for star mote placement (no allocations).
+  static double _hash(int n) {
+    final v = sin(n * 127.1) * 43758.5453;
+    return v - v.floorToDouble();
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final base = palette;
+
+    // Background star motes: sparse twinkling points that give the black
+    // void depth. Fixed positions (hashed), sin flicker, fade out at whiteout.
+    // Cheap (plain circles), so phones get a thinned count rather than none.
+    if (whiteout < 1.0) {
+      final envelope =
+          _intervalValue(t, 0.02, 0.18, Curves.easeOut) * (1.0 - whiteout);
+      if (envelope > 0.01) {
+        final moteCount = highQualityEffects ? 42 : (reducedEffects ? 16 : 26);
+        final motePaint = Paint()..style = PaintingStyle.fill;
+        for (int i = 0; i < moteCount; i++) {
+          final mx = _hash(i * 3 + 1) * size.width;
+          final my = _hash(i * 3 + 2) * size.height;
+          final tw = 0.5 + 0.5 * sin(t * 4 * pi + i * 1.7);
+          motePaint.color = Color.lerp(
+            Colors.white,
+            base,
+            0.35,
+          )!.withValues(alpha: (0.08 + 0.20 * tw) * envelope);
+          canvas.drawCircle(Offset(mx, my), 0.7 + 1.1 * tw, motePaint);
+        }
+      }
+    }
 
     // Vignette
     if (vignette > 0) {
@@ -735,6 +843,54 @@ class _CoreAndGeometryPainter extends CustomPainter {
       }
     }
 
+    // Purity seal: a slow counter-rotating ticked ring with three triangle
+    // seals, in the pure element's color, framing the sacred geometry.
+    if (pureColor != null && geoOpacity > 0.01) {
+      final sealR = size.shortestSide * 0.31;
+      final rot = -t * 2 * pi * 0.55;
+      final sealAlpha = 0.55 * geoOpacity;
+      final ringPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = pureColor!.withValues(alpha: sealAlpha * 0.7);
+      canvas.drawCircle(center, sealR, ringPaint);
+
+      final tickPaint = Paint()
+        ..strokeWidth = 1.0
+        ..strokeCap = StrokeCap.round
+        ..color = pureColor!.withValues(alpha: sealAlpha);
+      for (int i = 0; i < 24; i++) {
+        final a = rot + i * 2 * pi / 24;
+        final len = i % 6 == 0 ? 7.0 : 3.0;
+        final ca = cos(a);
+        final sa = sin(a);
+        canvas.drawLine(
+          center + Offset(ca * sealR, sa * sealR),
+          center + Offset(ca * (sealR + len), sa * (sealR + len)),
+          tickPaint,
+        );
+      }
+
+      // Three outward-pointing triangle seals (alchemical purity marks).
+      final sealPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = pureColor!.withValues(alpha: sealAlpha);
+      for (int k = 0; k < 3; k++) {
+        final a = rot + k * 2 * pi / 3;
+        final tip = center + Offset(cos(a), sin(a)) * (sealR + 14);
+        final baseL =
+            center + Offset(cos(a - 0.045), sin(a - 0.045)) * (sealR + 4);
+        final baseR =
+            center + Offset(cos(a + 0.045), sin(a + 0.045)) * (sealR + 4);
+        final tri = Path()
+          ..moveTo(tip.dx, tip.dy)
+          ..lineTo(baseL.dx, baseL.dy)
+          ..lineTo(baseR.dx, baseR.dy)
+          ..close();
+        canvas.drawPath(tri, sealPaint);
+      }
+    }
+
     // Core Orb
     if (coreOpacity > 0 || coreScale > 0) {
       final radiusBase = size.shortestSide * 0.08;
@@ -774,6 +930,36 @@ class _CoreAndGeometryPainter extends CustomPainter {
           stops: const [0.5, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: r));
       canvas.drawCircle(center, r, orb);
+
+      // Ember orbiters: small motes circling the charging core with short
+      // trails — makes the charge-up feel alive instead of a static glow.
+      if (t < 0.66 && coreOpacity > 0.05) {
+        final orbCount = reducedEffects ? 5 : 9;
+        final fadeOut = 1.0 - _intervalValue(t, 0.58, 0.66, Curves.easeIn);
+        final emberPaint = Paint()..style = PaintingStyle.fill;
+        for (int i = 0; i < orbCount; i++) {
+          final a = t * 2 * pi * (2.0 + (i % 3) * 0.8) + i * 2 * pi / orbCount;
+          final orbR = r * (1.45 + 0.45 * sin(i * 2.1 + t * 10));
+          emberPaint.color = base.withValues(
+            alpha: 0.75 * coreOpacity * fadeOut,
+          );
+          canvas.drawCircle(
+            center + Offset(cos(a) * orbR, sin(a) * orbR),
+            1.5 + (i % 3) * 0.5,
+            emberPaint,
+          );
+          // trailing mote
+          final ta = a - 0.20;
+          emberPaint.color = base.withValues(
+            alpha: 0.30 * coreOpacity * fadeOut,
+          );
+          canvas.drawCircle(
+            center + Offset(cos(ta) * orbR, sin(ta) * orbR),
+            1.0,
+            emberPaint,
+          );
+        }
+      }
 
       // Rays near peak
       if (coreScale > 1.0) {
@@ -826,6 +1012,45 @@ class _CoreAndGeometryPainter extends CustomPainter {
         0.24,
       );
     }
+    // Pure lineages ride an extra element-colored wave out of the burst.
+    if (pureColor != null) {
+      _drawShockwave(
+        canvas,
+        size,
+        center,
+        pureColor!,
+        secondaryShockwaveT,
+        0.66,
+        3,
+        0.6,
+        0.5,
+      );
+    }
+
+    // Radial speed-lines at the burst: quick anime-style accents that sell
+    // the impact, gone by explosionT 0.6. Cheap lines — phones get a thinned
+    // count rather than none.
+    if (explosionT > 0 && explosionT < 0.6) {
+      final lineAlpha = (1.0 - explosionT / 0.6) * 0.45;
+      final linePaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round
+        ..color = palette.withValues(alpha: lineAlpha);
+      final n = highQualityEffects ? 20 : (reducedEffects ? 10 : 14);
+      final r1 = size.shortestSide * (0.10 + 0.45 * explosionT);
+      final r2 = r1 + size.shortestSide * 0.11 * (1.0 - explosionT);
+      for (int i = 0; i < n; i++) {
+        final a = i * 2 * pi / n + 0.35;
+        final ca = cos(a);
+        final sa = sin(a);
+        canvas.drawLine(
+          center + Offset(ca * r1, sa * r1),
+          center + Offset(ca * r2, sa * r2),
+          linePaint,
+        );
+      }
+    }
 
     // Explosion particles
     if (explosionT > 0 && explosionT < 0.75) {
@@ -853,10 +1078,16 @@ class _CoreAndGeometryPainter extends CustomPainter {
       }
     }
 
-    // Whiteout
+    // Whiteout — tinted faintly toward the palette (or pure element) so the
+    // flash feels like the creature's light, not a camera flash.
     if (whiteout > 0) {
+      final tint = pureColor ?? palette;
       final paint = Paint()
-        ..color = Colors.white.withValues(alpha: whiteout * 0.9);
+        ..color = Color.lerp(
+          Colors.white,
+          tint,
+          0.12,
+        )!.withValues(alpha: whiteout * 0.9);
       canvas.drawRect(Offset.zero & size, paint);
     }
   }
@@ -1000,6 +1231,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
         hintType != old.hintType ||
         hintJoltT != old.hintJoltT ||
         variantColor != old.variantColor ||
+        pureColor != old.pureColor ||
         reducedEffects != old.reducedEffects ||
         highQualityEffects != old.highQualityEffects;
   }
