@@ -464,6 +464,49 @@ class CellSocket {
   });
 }
 
+/// A fulminate vat (S1's negative constraint): a cauldron of volatile
+/// charge-salts the pylon-hall bolt must NEVER cross. A beam lying on a vat
+/// cooks it — after a short seething fuse it detonates (spark wisps) and the
+/// dynamo TRIPS dark for safety. The vats are what make the four-conductor
+/// threading provably unique (a brute-force solver in the layout test
+/// asserts exactly one satisfying orientation set).
+class FulminateVat {
+  final String id;
+  final Offset position;
+  const FulminateVat({required this.id, required this.position});
+}
+
+/// One selectable output trunk of the ZERO-SUM dynamo (Lightning rework,
+/// docs §6.3): the dynamo feeds exactly ONE trunk at a time. Charging a
+/// trunk's breaker at the dynamo latches its wing live and de-latches every
+/// other — powered barriers, lights and door states follow, and unpowered
+/// wings stay walkable but dark (spark wisps prowl the dead segments).
+class DynamoTrunk {
+  final String id;
+
+  /// Short all-caps label for the progress readout ('PYLON TRUNK').
+  final String name;
+
+  /// The breaker pylon's position in the dynamo room (room-local).
+  final Offset breakerPosition;
+
+  /// The wing rooms this trunk lights.
+  final List<String> roomIds;
+
+  /// Once this star banks the wing freezes LIT forever (solved is solved —
+  /// the same rule the circuit rooms already obey). Null = never freezes
+  /// (the vault trunk stays zero-sum for good).
+  final int? freezeLitStarIndex;
+
+  const DynamoTrunk({
+    required this.id,
+    required this.name,
+    required this.breakerPosition,
+    required this.roomIds,
+    this.freezeLitStarIndex,
+  });
+}
+
 // ── Steam (the Molten Labyrinth): a spreading-lava containment puzzle ────────
 // The Steam planet's signature. Each star room is a tile grid the trio reshapes:
 //   • FIRE melts a rock wall → LAVA. This IS the Earth+Fire→Lava braid — a
@@ -572,6 +615,15 @@ class DungeonRoom {
   final List<Offset> beamConverters; // Fire-converter spots (only some on a path)
   final Offset? beamReceiver; // the Storm Tower (lit only by the lightning beam)
   final List<Offset> beamReceivers; // S1 terminals: ALL must lie on the beam
+  final List<FulminateVat> fulminateVats; // S1 negative constraints
+  /// The vault bolt (zero-sum rework): a barrier that stands while this
+  /// room's trunk is POWERED and falls open in the dark — the treasury
+  /// answers only to a dead trunk, walked in the dark.
+  final Rect? vaultBolt;
+  /// The grounding spike (storm core): a Lightning creature grounds the
+  /// core trunk here mid-fight — Raikuma FEEDS on its powered trunk and
+  /// only offers the lull while the trunk is dead.
+  final Offset? coreBreaker;
   // Steam (the Molten Labyrinth) authored content:
   final MoltenGrid? molten; // a star room's spreading-lava grid
   final Offset? steamVent; // the entry-gate relief vent (Steam cracks it)
@@ -627,6 +679,9 @@ class DungeonRoom {
     this.beamConverters = const [],
     this.beamReceiver,
     this.beamReceivers = const [],
+    this.fulminateVats = const [],
+    this.vaultBolt,
+    this.coreBreaker,
     this.molten,
     this.steamVent,
     this.pressureSeals = const [],
@@ -719,6 +774,17 @@ class DungeonLayout {
   /// descent panel.
   final List<DungeonFamilyGate> familyGates;
 
+  /// Zero-sum dynamo (Lightning): the hub room holding the trunk breakers.
+  final String? dynamoRoomId;
+
+  /// The dynamo's selectable trunks (empty = no zero-sum system; the raid
+  /// arena and every other planet leave this empty, so all rooms read lit).
+  final List<DynamoTrunk> dynamoTrunks;
+
+  /// The trunk fed when a run begins (the treasury hoards the storm by
+  /// default — every star wing starts dark).
+  final String? initialTrunkId;
+
   const DungeonLayout({
     required this.element,
     required this.rooms,
@@ -734,6 +800,9 @@ class DungeonLayout {
     this.mercyShrineRoomId,
     this.riddle = const [],
     this.familyGates = const [],
+    this.dynamoRoomId,
+    this.dynamoTrunks = const [],
+    this.initialTrunkId,
   });
 
   DungeonRoom get entranceRoom => rooms[entranceRoomId]!;
@@ -2204,20 +2273,66 @@ const DungeonLayout _earthLayout = DungeonLayout(
   },
 );
 
-/// Lightning layout: VOLTARA — the Storm Circuit. The dungeon is a living
-/// power graph. A Lightning Horn charges dead pylons (a DECAYING window); the
-/// charge floods across conductive links and rotatable conductor mirrors route
-/// it to sinks, sockets, and the overload maze's powered doors. S1 routes power
-/// to three terminals; S2 herds storm-cells onto sockets + heats the anvil
-/// (Air+Fire→Lightning) to birth Thundercloud sources; S3 routes a charge pulse
-/// through the maze so a path of powered doors opens before the window dies →
-/// Raikuma. Egg = power EVERY maze door at once inside one window (Thunderbolt).
+/// Lightning layout: VOLTARA — the Storm Circuit, reworked to the ZERO-SUM
+/// DYNAMO (docs §6.3 REWORK / §9.1 item 1). The dungeon is a living circuit
+/// with ONE heart: the hub dynamo feeds exactly one trunk at a time. Charging
+/// a trunk breaker (any Lightning, element-only) routes the whole output down
+/// that wing — and darkens every other wing (walkable but dark, spark wisps
+/// prowling). The run-long question: where does the power go, and what must
+/// be done in the dark?
+///  • S1 (pylon_hall): with its trunk fed, one bolt must thread ALL THREE
+///    terminals via FOUR conductor mirrors — and never cross a fulminate vat
+///    (a cooked vat detonates and trips the dynamo dark). Provably unique.
+///  • S2 (cloud_works): storm-cells bared in the mirror gallery are herded
+///    onto sockets; the anvil socket needs Fire heat (Air+Fire→Lightning).
+///    The works only sing — and the star only banks — while their trunk burns.
+///  • Vault (capacitor_vault): the bolt holds while the trunk is POWERED and
+///    falls open in the dark — cut the very trunk you stand in, walk back in
+///    the dark, and the treasury is yours.
+///  • S3 (overload_maze): element stationing — Air on the true vent, Fire in
+///    the beam's path, Lightning turning the conductors — lights the Storm
+///    Tower (one dead-aligned decoy pair is geometrically impossible: no
+///    conductor waits beyond its converter). Beyond: Raikuma FEEDS on the
+///    powered core trunk — ground it at the spike to force the lull.
+/// Egg = light the tower with a Lightning HORN among the conductors
+/// (Thunderbolt, Heraclitus).
 const DungeonLayout _lightningLayout = DungeonLayout(
   element: 'Lightning',
   entranceRoomId: 'arc_gate',
   entranceSpawn: Offset(170, 270),
   title: 'STORM CIRCUIT',
   descentTitle: 'Voltara Circuit',
+  dynamoRoomId: 'dynamo_court',
+  initialTrunkId: 'trunk_vault',
+  dynamoTrunks: [
+    DynamoTrunk(
+      id: 'trunk_pylon',
+      name: 'PYLON TRUNK',
+      breakerPosition: Offset(360, 250),
+      roomIds: ['pylon_hall'],
+      freezeLitStarIndex: 0,
+    ),
+    DynamoTrunk(
+      id: 'trunk_cloud',
+      name: 'CLOUD TRUNK',
+      breakerPosition: Offset(620, 440),
+      roomIds: ['cloud_works', 'mirror_gallery'],
+      freezeLitStarIndex: 1,
+    ),
+    DynamoTrunk(
+      id: 'trunk_vault',
+      name: 'VAULT TRUNK',
+      breakerPosition: Offset(640, 290),
+      roomIds: ['capacitor_vault'],
+    ),
+    DynamoTrunk(
+      id: 'trunk_core',
+      name: 'CORE TRUNK',
+      breakerPosition: Offset(505, 235),
+      roomIds: ['overload_maze', 'storm_core'],
+      freezeLitStarIndex: 2,
+    ),
+  ],
   stars: [
     DungeonStarSpec(
       name: 'Circuit Star',
@@ -2315,12 +2430,16 @@ const DungeonLayout _lightningLayout = DungeonLayout(
       ],
     ),
 
-    // Room C — Pylon Hall. Star 1 (a gentle intro to the mirror beam): a
-    // Lightning creature charges the pylon, firing a single bolt-beam that
-    // bounces 90° off the conductor mirrors ('/' or '\\'). Turn the mirrors so
-    // that ONE beam threads through ALL THREE terminals at once → Circuit Star.
-    // (Distinct from the Storm Spire: multi-target, no Fire conversion.)
-    // Intended solution: pa='\\', pb='\\', pc='/'.
+    // Room C — Pylon Hall. Star 1 (zero-sum rework): the hall's emitter is
+    // live only while the PYLON TRUNK is fed. One bolt must thread ALL THREE
+    // terminals via FOUR conductor mirrors ('/' or '\\') — and it must NEVER
+    // cross a fulminate vat (a cooked vat detonates + trips the dynamo dark).
+    // Geometry (solver-proven unique — see the layout test's brute force):
+    //   E(140,150)→ pa'\\'(520,150) ↓ T1 → pd'\\'(520,560) → T2 →
+    //   pc'/'(960,560) ↑ T3 → pb'/'(960,150) → out right.
+    // The tempting alternative pb='\\' (back along the top) crosses vat A —
+    // the vat is the constraint that makes the threading unique; vat B
+    // punishes the wrong turn at pd (down→left runs straight over it).
     'pylon_hall': DungeonRoom(
       id: 'pylon_hall',
       bounds: Rect.fromLTWH(0, 0, 1040, 720),
@@ -2336,18 +2455,28 @@ const DungeonLayout _lightningLayout = DungeonLayout(
       ],
       beamMirrors: [
         BeamMirror(id: 'pa', position: Offset(520, 150)), // right→down ('\')
-        BeamMirror(id: 'pb', position: Offset(520, 560)), // down→right ('\')
+        BeamMirror(id: 'pb', position: Offset(960, 150)), // up→right   ('/')
         BeamMirror(id: 'pc', position: Offset(960, 560)), // right→up   ('/')
+        BeamMirror(id: 'pd', position: Offset(520, 560)), // down→right ('\')
       ],
       beamReceivers: [
-        Offset(520, 360), // T1 — on the down leg (A→B)
-        Offset(760, 560), // T2 — on the right leg (B→C)
-        Offset(960, 340), // T3 — on the up leg (C→out)
+        Offset(520, 360), // T1 — on the down leg (pa→pd)
+        Offset(760, 560), // T2 — on the right leg (pd→pc)
+        Offset(960, 360), // T3 — on the up leg (pc→pb)
+      ],
+      fulminateVats: [
+        FulminateVat(id: 'vat_a', position: Offset(740, 150)),
+        FulminateVat(id: 'vat_b', position: Offset(300, 560)),
       ],
       circuitStarIndex: 0,
     ),
 
-    // Room D — Capacitor Vault. The charged treasury (reward space + cache).
+    // Room D — Capacitor Vault (the §5.5 vault re-hide, delivered). The
+    // treasury sits inside an inner sanctum whose only mouth is barred by the
+    // VAULT BOLT — a breaker that holds while the vault trunk is POWERED and
+    // falls open in the dark. The dynamo starts latched to this trunk (the
+    // treasury hoards the storm), so the player must deliberately route the
+    // power AWAY and walk the dead segment in the dark to claim the cache.
     'capacitor_vault': DungeonRoom(
       id: 'capacitor_vault',
       bounds: Rect.fromLTWH(0, 0, 640, 560),
@@ -2358,6 +2487,15 @@ const DungeonLayout _lightningLayout = DungeonLayout(
           targetSpawn: Offset(745, 110),
         ),
       ],
+      // The sanctum: a walled cell around the cache with one south mouth.
+      walls: [
+        Rect.fromLTWH(180, 160, 24, 240), // west wall
+        Rect.fromLTWH(436, 160, 24, 240), // east wall
+        Rect.fromLTWH(180, 160, 280, 24), // north wall
+        Rect.fromLTWH(180, 376, 80, 24), // south wall, west stub
+        Rect.fromLTWH(380, 376, 80, 24), // south wall, east stub
+      ],
+      vaultBolt: Rect.fromLTWH(260, 376, 120, 24),
       vaultCache: Offset(320, 280),
     ),
 
@@ -2484,6 +2622,12 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     // through converter FA → tower. Mirror solution A='\\' B='/' C='\\' D='\\'
     // E='/' (three flipped off the default '/'). The Thunderbolt egg lights it
     // with a Lightning Horn among the conductors.
+    // DECOY PAIR (rework): vent VD + converter FD stand dead-aligned on the
+    // east wall — the only vent/converter pair that line up perfectly, and a
+    // lie: no conductor waits beyond FD on that column, so the born bolt can
+    // only die in the ceiling. Its elimination is pure mirror-geometry
+    // reasoning (the layout test brute-forces all 32 orientations to prove
+    // it impossible).
     'overload_maze': DungeonRoom(
       id: 'overload_maze',
       bounds: Rect.fromLTWH(0, 0, 1120, 720),
@@ -2512,11 +2656,14 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         BeamEmitter(position: Offset(160, 160), dir: Offset(1, 0)), // VA: viable
         BeamEmitter(position: Offset(160, 460), dir: Offset(1, 0)), // VB: → pillar
         BeamEmitter(position: Offset(560, 640), dir: Offset(0, -1)), // VC: → ceiling
+        // VD: the DECOY — dead-aligned with FD, but no conductor beyond it.
+        BeamEmitter(position: Offset(1000, 640), dir: Offset(0, -1)),
       ],
       beamConverters: [
         Offset(260, 420), // FA: on the viable beam path (the last leg)
         Offset(700, 200), // FB: off any path
         Offset(500, 560), // FC: off the viable path
+        Offset(1000, 300), // FD: the decoy pair's converter (see above)
       ],
       beamMirrors: [
         BeamMirror(id: 'A', position: Offset(900, 160)), // right→down ('\')
@@ -2533,8 +2680,12 @@ const DungeonLayout _lightningLayout = DungeonLayout(
       ],
     ),
 
-    // Room H — Storm Core. Raikuma coils at the heart of the grid; the core's
-    // mercy mends the party once per run.
+    // Room H — Storm Core. Raikuma coils at the heart of the grid — and
+    // FEEDS on the powered core trunk (docs §7): while the trunk burns it
+    // never offers the lull. The grounding spike by the west door cuts the
+    // trunk (Lightning only) and forces the vulnerability window; Raikuma
+    // seizes the trunk back when the window closes. The core's mercy mends
+    // the party once per run.
     'storm_core': DungeonRoom(
       id: 'storm_core',
       bounds: Rect.fromLTWH(0, 0, 820, 700),
@@ -2545,6 +2696,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
           targetSpawn: Offset(255, 545),
         ),
       ],
+      coreBreaker: Offset(170, 545),
       guardian: GuardianNode(
         position: Offset(410, 300),
         starIndex: 2,

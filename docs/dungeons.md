@@ -522,21 +522,35 @@ not as soft modifiers.
    defeat). Egg: Thunderbolt. Vault cache: capacitor_vault. Tests:
    `planet_dungeon_lightning_full_run_test.dart` + circuit-graph layout
    integrity.
-   **REWORK (planned 2026-08-10 — deliver the strategic question):** the
-   shipped hub stays (the ring-topology claim is retired — Steam owns the
-   ring; §5.5 row amended) but the circuit becomes ZERO-SUM: the dynamo
-   feeds ONE trunk at a time, so routing power to a wing DARKENS the others
-   — powered barriers, lights, and door states follow, and the run-long
-   question becomes "where does the power go, and what must I do in the
-   dark". Dead segments stay walkable but unlit, with spark wisps prowling.
-   VAULT RE-HIDE (the side-room cache is retired): capacitor_vault only
-   opens UNPOWERED — you must cut the very trunk you are standing in and
-   walk the dead segment in the dark (the §5.5 trick, finally delivered).
-   S1 threading grows teeth: 4 mirrors + fulminate vats the beam must NOT
-   cross (negative constraints), with the solution authored provably unique
-   — add a brute-force solver check to the layout test. S3 keeps the
-   stationing shape; add one decoy-pad pair whose elimination requires
-   reasoning from the mirror geometry, not trial-and-error.
+   **REWORK BUILT 2026-08-10 — the zero-sum dynamo:** the shipped hub stays
+   (the ring-topology claim is retired — Steam owns the ring; §5.5 row
+   amended) and the circuit is now ZERO-SUM: four TRUNK BREAKERS ring the
+   hub dynamo (`DynamoTrunk` on the layout; pylon / cloud / vault / core
+   wings), any Lightning throws one (element-only) and the dynamo feeds
+   THAT trunk alone — the others darken (eased tint overlay under the
+   entity layer, `_trunkDark`), and powered barriers/lights/door states
+   follow. The run STARTS on the vault trunk (the treasury hoards the
+   storm), so every star wing begins dark. Dead segments stay walkable but
+   unlit, spark wisps prowling (capped 2, ~7s top-up). VAULT RE-HIDE
+   delivered: capacitor_vault's cache sits in a walled sanctum behind the
+   VAULT BOLT (`vaultBolt`), which holds while the trunk is POWERED and
+   slides open (eased) in the dark — cut the very trunk you stand in and
+   walk back in the dark. S1: 4 mirrors + 2 fulminate vats (negative
+   constraints — a bolt cooking a vat detonates it and TRIPS the dynamo
+   dark); the threading is PROVABLY UNIQUE (a brute-force solver over all
+   16 orientations, run against the real beam engine in the layout test;
+   vat A is the load-bearing constraint that kills the second solution).
+   S3 keeps the stationing shape + one dead-aligned decoy vent/converter
+   pair (VD+FD) that is geometrically impossible (no conductor beyond FD;
+   solver-proven 0/32) — eliminated by reasoning, tiered into Mask insight.
+   Raikuma §7 retrofit: it SEIZES the dynamo on wake and FEEDS on the core
+   trunk — no lull while it drinks; the GROUNDING SPIKE (`coreBreaker`,
+   Lightning-only) cuts the trunk and forces the vulnerability window, and
+   Raikuma seizes the trunk back when the window shuts. Banked wings freeze
+   LIT (solved is solved); no hard family gate declared — Lightning stays
+   element-only at full power. Prose to the §5.6 standard (objectives =
+   goals, method tiered into insight, one-clause BLOCKED refusals) and the
+   terminal/socket/dynamo state lives in the `DungeonProgressReadout` chip.
 4. **Water — Mirror-Tide Temple** · Water+Spirit+Ice ·
    Waterpip/Spiritmask/Icemane · *every chamber answers one temple-wide tide —
    and the tide MOVES (animated floods/drains, never a teleport).* **(BUILT)**
@@ -1129,6 +1143,17 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   heat, S3 element-stationing deduction arena → Raikuma (sheet + raids +
   enrage). Thunderbolt egg + capacitor vault cache. Lightning shader.
   Full-run + circuit-graph layout tests.
+- ✅ **Lightning §9.1 rework — the ZERO-SUM DYNAMO built** (2026-08-10, see
+  §6 entry 3 REWORK BUILT block): trunk breakers at the hub (one trunk fed
+  at a time, run starts on the vault trunk), dark walkable dead segments +
+  capped spark-wisp prowl, vault-only-unpowered re-hide behind the eased
+  vault bolt, S1 four-mirror threading with fulminate vats (solver-proven
+  unique, 1/16; vat detonation trips the dynamo), S3 decoy pair VD+FD
+  (solver-proven impossible, 0/32), Raikuma feeds-on-power retrofit with
+  the grounding spike, §5.6 prose pass (objectives de-leaked, insight
+  tiered, BLOCKED one-clause refusals) + terminal/socket/dynamo progress
+  readout. No hard family gate declared. Tests rewritten Steam-style
+  (14 focused tests) + 3 new layout/solver tests — 256 dungeon/raid green.
 - ✅ **Steam — The Molten Labyrinth built** (see §6 entry 6): first planet
   under the §5.5 mandate — pressure RING-MAIN topology (no hub), global
   pressure economy (40 start / 15 junctions / +4 condense / +20 stoke),
@@ -1327,9 +1352,10 @@ Lightning get depth reworks, specced in full in their §6 REWORK blocks.
 Each pass = v2 interaction conversion + the redesign + guardian retrofit
 (§7 principle) + test rewrite. Order (cheapest big win first):
 
-1. **Lightning** — zero-sum dynamo, dark dead segments, vault re-hide,
+1. ✅ **Lightning** — zero-sum dynamo, dark dead segments, vault re-hide,
    negative-constraint threading w/ solver-checked uniqueness, Raikuma
-   feeds-on-power retrofit (§6.3 REWORK).
+   feeds-on-power retrofit (§6.3 REWORK — BUILT 2026-08-10, the template
+   for the remaining three passes).
 2. **Water** — S2 spin/flow-graph deduction; Leviathan tide-turn retrofit
    (§6.4 REWORK).
 3. **Fire** — S1 forensic rite rolled per run, S3 route choice; Simurgh

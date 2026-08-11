@@ -259,6 +259,9 @@ class PlanetDungeonGame extends FlameGame {
     // the moment the game object exists — long before Flame finishes the
     // async asset load — and reads currentRoom immediately.
     currentRoomId = layout.entranceRoomId;
+    // The zero-sum dynamo idles into its authored initial trunk from the
+    // first frame (Lightning; null everywhere else).
+    activeTrunk = layout.initialTrunkId;
     // The Buried Giant's scale answer is rolled fresh per run.
     _rollScaleSolution();
     // Raids skip the altar puzzle: the guardian is already rampaging.
@@ -704,9 +707,31 @@ class PlanetDungeonGame extends FlameGame {
   bool _beamLatched = false;
   double _beamSparkT = 0;
 
-  /// Star 1 pylon-beam: latched on once a Lightning creature charges the pylon
-  /// (kept across death once the star is banked; re-derived in reset).
-  bool pylonBeamOn = false;
+  /// ZERO-SUM DYNAMO (rework §9.1): the trunk the dynamo currently feeds
+  /// (null = grounded — every trunk dark). Selected at the hub breakers;
+  /// Raikuma seizes it while feeding.
+  String? activeTrunk;
+
+  /// Eased per-room darkness (0 lit … 1 dark) for the zero-sum trunk wings.
+  final Map<String, double> _trunkDark = {};
+
+  /// The vault bolt's eased openness (0 shut … 1 fallen open in the dark).
+  double _vaultBoltOpen = 0;
+
+  /// Eased dynamo re-route swing (0 just thrown … 1 settled).
+  double _dynamoSwing = 1.0;
+
+  /// Fulminate vats: vat id → seconds the live bolt has been cooking it.
+  final Map<String, double> _vatFuse = {};
+
+  /// Dark dead segments: spark-wisp prowl clock + last-room edge detector.
+  double _darkWispTimer = 0;
+  String? _circuitPrevRoomId;
+
+  /// Raikuma feeds on the powered core trunk (no lull while feeding); the
+  /// grounding spike cuts the trunk and opens a timed vulnerability window.
+  bool _raikumaFed = false;
+  double _raikumaLullLeft = 0;
 
   bool get _isCircuit => layout.element == 'Lightning';
 
@@ -1013,12 +1038,14 @@ class PlanetDungeonGame extends FlameGame {
   /// count. Progress is state the player checks at will, never a fading line.
   ///
   /// Air's spire ascent is the reference implementation; Fire's braziers,
-  /// Earth's judged stones and Air's loom anchors follow it. The canvas
-  /// gauges (Steam's pressure head, Water's tide stand) already render as
-  /// their own HUDs and stay there. Lightning's terminals are still owed.
+  /// Earth's judged stones, Air's loom anchors and Lightning's circuit
+  /// counters follow it. The canvas gauges (Steam's pressure head, Water's
+  /// tide stand) already render as their own HUDs and stay there.
   DungeonProgressReadout? get progressReadout {
     if (_isCathedral) return _cathedralProgressReadout;
     if (_isBarrow) return _barrowProgressReadout;
+    // Lightning: terminal/socket counters + the dynamo's trunk state.
+    if (_isCircuit) return _circuitProgressReadout();
     final total = _totalSpireRings;
     if (total > 0 && !hasStar(0)) {
       final room = currentRoom;
@@ -2384,6 +2411,10 @@ class PlanetDungeonGame extends FlameGame {
       _maybeSpawnGuardianCombat(room); // safe to call every frame (guarded)
       _guardianCycle += dt;
       guardianVulnerable = (_guardianCycle % 6.0) < (_rocEnraged ? 2.2 : 3.0);
+      // Raikuma feeds on the powered core trunk (§7): while it drinks there
+      // is NO lull; grounding the trunk forces the window. Lightning-only
+      // hook — every other guardian keeps the shared cycle untouched.
+      if (_isCircuit) _applyRaikumaFeed(room, dt);
       final stormCenter = _guardianPosition(g);
       // Half-HP escalation: one screech — feather-wisps rise, lulls tighten.
       if (!_rocEnraged &&
@@ -5945,6 +5976,13 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // Storm Circuit: the grounding spike outranks the guardian's own catch —
+    // the spike IS the fight's verb (§7: Raikuma feeds on powered trunks),
+    // and it sits inside the guardian's interaction radius.
+    if (_isCircuit && _tryCoreBreaker(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -6916,6 +6954,10 @@ class PlanetDungeonGame extends FlameGame {
     _renderHazards(canvas, room);
     _renderWalls(canvas, room);
     _renderDoors(canvas, room);
+    // Zero-sum darkness: dead trunk wings dim under a cheap eased tint —
+    // drawn over the room fabric but UNDER every living thing, so the party,
+    // the wisps and the glows stay readable in the dark.
+    if (_isCircuit) _renderCircuitDarkness(canvas, room);
     _renderDoorRevealFx(canvas);
     _renderRingsAndSummit(canvas, room);
     _renderClouds(canvas, room);
