@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/raid_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -127,6 +128,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   Timer? _toastTimer;
   bool _showFullMap = false;
 
+  // Guardian-intro banner (§5.6): the mystic's arrival gets real chrome, but
+  // combat is already starting — so it never blocks input and dismisses
+  // itself. Same fade discipline as the toast: keep the text while fading.
+  String? _guardianIntroName;
+  String? _guardianIntroLine;
+  bool _guardianIntroVisible = false;
+  Timer? _guardianIntroTimer;
+
   // Star-earn fly animation.
   late final AnimationController _flyCtrl;
   int? _flyStar;
@@ -192,6 +201,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             party: widget.party,
             initialStarMask: 0,
             onStarEarned: (_) {},
+            onGuardianIntro: _onGuardianIntro,
             onPlayerDown: _onPlayerDown,
             onChanged: () => _tick.value++,
             raid: widget.raid,
@@ -208,6 +218,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             ),
             onStarEarned: _onStarEarned,
             onCloudDiscovered: _onCloudDiscovered,
+            onGuardianIntro: _onGuardianIntro,
             onPlayerDown: _onPlayerDown,
             onChanged: () => _tick.value++,
             clearedGuardianCount: cleared,
@@ -304,6 +315,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       await context.read<AlchemonsDatabase>().currencyDao.addGold(5);
       _showToast('The vault yields — +5 gold');
     }
+    // Family-gate stamps ("the seal remembers", §4): pure acknowledgement,
+    // no gold — the reward IS the permanent chip on the descent panel.
+    if (cloudId.startsWith('gate:') && mounted) {
+      _showToast('The seal remembers — its need is etched at the gate');
+    }
   }
 
   void _onPlayerDown() {
@@ -329,6 +345,21 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     });
   }
 
+  /// The mystic's arrival banner: brief, chrome-styled, and NON-BLOCKING —
+  /// combat is starting, so it ignores pointers and dismisses itself.
+  void _onGuardianIntro(String mysticName, String line) {
+    if (!mounted) return;
+    setState(() {
+      _guardianIntroName = mysticName;
+      _guardianIntroLine = line;
+      _guardianIntroVisible = true;
+    });
+    _guardianIntroTimer?.cancel();
+    _guardianIntroTimer = Timer(const Duration(milliseconds: 3200), () {
+      if (mounted) setState(() => _guardianIntroVisible = false);
+    });
+  }
+
   void _onRaidCleared() {
     if (!mounted || _showRaidReward) return;
     _game?.pauseEngine();
@@ -342,6 +373,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     _hudTimer?.cancel();
     _hudTimer = null;
     _toastTimer?.cancel();
+    _guardianIntroTimer?.cancel();
     _deathTimer?.cancel();
     _flyCtrl.stop();
     _introTicker.stop();
@@ -395,6 +427,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     _hudTimer?.cancel();
     _deathTimer?.cancel();
     _toastTimer?.cancel();
+    _guardianIntroTimer?.cancel();
     _flyCtrl.dispose();
     _tick.dispose();
     super.dispose();
@@ -405,6 +438,68 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// Screen-space centre of star slot [i] (0..2) in the top tracker.
   Offset _slotOffset(Size screen, double topInset, int i) =>
       Offset(screen.width / 2 + (i - 1) * _starSlotSpacing, topInset + 21);
+
+  /// The shared §5.6 popup chrome at banner scale: bracket corners over a
+  /// dark parchment panel. The reward popups carry the full modal version of
+  /// this language; toasts, the guardian intro and the death overlay carry
+  /// this compact one. No blur, no glow — restrained by design.
+  Widget _chromeBanner({
+    required Widget child,
+    Color accent = _C.amberBright,
+    EdgeInsets padding = const EdgeInsets.symmetric(
+      horizontal: 18,
+      vertical: 10,
+    ),
+  }) {
+    return CustomPaint(
+      foregroundPainter: DungeonBracketPainter(
+        color: accent,
+        bracketSize: 9,
+        strokeWidth: 1.4,
+      ),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: _C.panel.withValues(alpha: 0.92),
+          border: Border.all(color: _C.border, width: 1.1),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  /// The mystic's calling card: its name over its one arrival line.
+  Widget _guardianIntroBanner() {
+    return _chromeBanner(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            (_guardianIntroName ?? '').toUpperCase(),
+            style: const TextStyle(
+              color: _C.amberBright,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2.6,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            _guardianIntroLine ?? '',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _C.text.withValues(alpha: 0.88),
+              fontSize: 11.5,
+              fontStyle: FontStyle.italic,
+              letterSpacing: 0.4,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -559,22 +654,30 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               ),
             ),
 
-            // Death overlay.
+            // Death overlay — same chrome language as every other popup
+            // occasion (§5.6), same behavior as before (brief, non-blocking).
             if (_showDeath)
-              const Positioned.fill(
+              Positioned.fill(
                 child: IgnorePointer(
                   child: ColoredBox(
-                    color: Color(0x66100000),
+                    color: const Color(0x66100000),
                     child: Center(
-                      child: Text(
-                        'YOU FELL\nRESTARTING AT THE GATE',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: _C.text,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.4,
-                          height: 1.5,
+                      child: _chromeBanner(
+                        accent: _C.ember,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 26,
+                          vertical: 18,
+                        ),
+                        child: const Text(
+                          'YOU FELL\nRESTARTING AT THE GATE',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: _C.text,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.4,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     ),
@@ -598,18 +701,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                       opacity: _toastVisible && _toast != null ? 1.0 : 0.0,
                       child: _toast == null
                           ? const SizedBox.shrink()
-                          : Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _C.bg.withValues(alpha: 0.7),
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: _C.amberBright.withValues(alpha: 0.5),
-                                ),
-                              ),
+                          : _chromeBanner(
                               child: Text(
                                 '✦  ${_toast ?? ''}',
                                 style: const TextStyle(
@@ -620,6 +712,42 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                                 ),
                               ),
                             ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Guardian-intro banner (§5.6): the mystic's arrival, in the
+            // shared chrome — brief, auto-dismissing, and NEVER blocking
+            // (combat is starting underneath it). Sits below the hint
+            // capsule, above the fray.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    top: 104,
+                    left: 24,
+                    right: 24,
+                  ),
+                  child: ExcludeSemantics(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 300),
+                          opacity:
+                              _guardianIntroVisible &&
+                                  _guardianIntroName != null
+                              ? 1.0
+                              : 0.0,
+                          child: _guardianIntroName == null
+                              ? const SizedBox.shrink()
+                              : _guardianIntroBanner(),
+                        ),
+                      ),
                     ),
                   ),
                 ),
