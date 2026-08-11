@@ -239,13 +239,24 @@ void main() {
     game.activateAbility();
     expect(game.prismStage, 2, reason: 'the prism stands; the eye can see');
 
-    // Communing at the prism is the ONLY reading (stones stay silent).
+    // Communing at the prism is the ONLY reading (stones stay silent). The
+    // count itself is STATE (§5.6): it snapshots into the progress readout,
+    // never the capsule.
+    expect(
+      game.progressReadout,
+      isNull,
+      reason: 'the eye has not judged yet — no readout before a communion',
+    );
     game.activateAbility();
     expect(
       game.hintText,
-      contains('sit true'),
-      reason: 'the eye speaks its count through the prism',
+      isNot(contains('sit true')),
+      reason: 'the capsule keeps the communing, never the count',
     );
+    final judged = game.progressReadout;
+    expect(judged, isNotNull, reason: 'the communion snapshots the judgment');
+    expect(judged!.label, 'STONES');
+    expect(judged.value, contains('of ${eye.weights.length} true'));
 
     // The solution is PER-RUN (the eye remembers differently each burial):
     // solve from the run's own answer. Stones start on the left pan.

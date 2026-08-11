@@ -642,6 +642,12 @@ class PlanetDungeonGame extends FlameGame {
   /// (a wiki can never spoil it). Always mixed — both pans used.
   final Map<String, bool> scaleSolution = {};
 
+  /// The eye's LAST spoken judgment ("n stones sit true"), shown in the
+  /// progress readout. A SNAPSHOT, not a live count — the eye judges only
+  /// when communed with at its prism, so moving stones stales the number
+  /// rather than betraying the answer move by move.
+  int? _scaleJudged;
+
   void _rollScaleSolution() {
     for (final room in layout.rooms.values) {
       final scale = room.stoneScale;
@@ -999,11 +1005,13 @@ class PlanetDungeonGame extends FlameGame {
   /// beside the star tracker, or null when this planet/room has nothing to
   /// count. Progress is state the player checks at will, never a fading line.
   ///
-  /// Wired for Air's spire ascent as the reference implementation; the other
-  /// planets' counters (Earth's stones, Lightning's terminals, Fire's
-  /// braziers, and the Steam/Water gauges this generalizes) still speak
-  /// through the capsule and move here in the follow-up pass.
+  /// Air's spire ascent is the reference implementation; Fire's braziers,
+  /// Earth's judged stones and Air's loom anchors follow it. The canvas
+  /// gauges (Steam's pressure head, Water's tide stand) already render as
+  /// their own HUDs and stay there. Lightning's terminals are still owed.
   DungeonProgressReadout? get progressReadout {
+    if (_isCathedral) return _cathedralProgressReadout;
+    if (_isBarrow) return _barrowProgressReadout;
     final total = _totalSpireRings;
     if (total > 0 && !hasStar(0)) {
       final room = currentRoom;
@@ -1018,6 +1026,16 @@ class PlanetDungeonGame extends FlameGame {
           fraction: _ringProgress / total,
         );
       }
+    }
+    // The Sky Loom: anchors filled, glanceable while the weave is live.
+    final loomRoom = currentRoom;
+    final loomStar = loomRoom.loomStarIndex;
+    if (loomStar != null && !hasStar(loomStar) && loomRoom.anchors.isNotEmpty) {
+      return DungeonProgressReadout(
+        label: 'ANCHORS',
+        value: '${filledAnchors.length}/${loomRoom.anchors.length}',
+        fraction: filledAnchors.length / loomRoom.anchors.length,
+      );
     }
     return null;
   }
@@ -1060,9 +1078,10 @@ class PlanetDungeonGame extends FlameGame {
   /// Energize a conduit and remember its initial hold for the drain arc.
   void _energizeConduit(String id, double seconds) {
     if (!guardianRiteUnlocked) {
-      _setHint(
-        'The pylon swallows the offering — it answers only to a bearer of '
-        'both the ${layout.starName(0)} and ${layout.starName(1)}',
+      // A refused offering — the attempt is the edge (§5.6 BLOCKED).
+      _setBlockedHint(
+        'The pylon refuses the offering — it answers only a bearer of the '
+        '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return;
     }
@@ -1597,34 +1616,56 @@ class PlanetDungeonGame extends FlameGame {
   /// The upward current carrying [a], if any. Strong columns still respect
   /// the Speed stat gate (same rule gliders face).
   WindCurrent? _updraftAt(DungeonCreature a, DungeonRoom room) {
-    for (final cur in room.currents) {
+    final refusing = <String>{};
+    WindCurrent? riding;
+    for (var i = 0; i < room.currents.length; i++) {
+      final cur = room.currents[i];
       if (cur.strength <= 0) continue;
       final len = cur.dir.distance;
       if (len <= 0 || cur.dir.dy / len > -0.5) continue; // not an updraft
       if (!cur.rect.contains(a.position)) continue;
       if (cur.requiredSpeed > 0 && a.member.statSpeed < cur.requiredSpeed) {
-        _setStatHint('This thermal is too fierce — more Speed to ride it');
+        // The failure moment: the thermal rejects this creature. Refused
+        // ONCE per attempt (§5.6 BLOCKED), re-armed when it steps out.
+        final key = '$_updraftBlockPrefix${room.id}#$i';
+        refusing.add(key);
+        _setBlockedHintOnce(key, 'The thermal casts you off — needs more Speed');
         continue;
       }
-      return cur;
+      riding ??= cur;
     }
-    return null;
+    _releaseBlockedExcept(_updraftBlockPrefix, refusing);
+    return riding;
   }
 
+  static const String _updraftBlockPrefix = 'updraft:';
+  static const String _currentBlockPrefix = 'current:';
+
   void _applyCurrents(DungeonCreature a, DungeonRoom room, double dt) {
-    if (!flightActive) return;
-    for (final cur in room.currents) {
-      if (cur.strength <= 0 || !cur.rect.contains(a.position)) continue;
-      final len = cur.dir.distance;
-      if (len <= 0) continue;
-      var push = (cur.dir / len) * cur.strength * dt;
-      // Too slow to ride a strong current → it overpowers and shoves back.
-      if (cur.requiredSpeed > 0 && a.member.statSpeed < cur.requiredSpeed) {
-        push = -push * 1.2;
-        _setStatHint('Needs more Speed to ride this stronger current');
+    final resisting = <String>{};
+    if (flightActive) {
+      for (var i = 0; i < room.currents.length; i++) {
+        final cur = room.currents[i];
+        if (cur.strength <= 0 || !cur.rect.contains(a.position)) continue;
+        final len = cur.dir.distance;
+        if (len <= 0) continue;
+        var push = (cur.dir / len) * cur.strength * dt;
+        // Too slow to ride a strong current → it overpowers and shoves back.
+        // The shove IS the failure moment: the refusal speaks once per
+        // attempt (§5.6 BLOCKED) and re-arms when the flier leaves it.
+        if (cur.requiredSpeed > 0 && a.member.statSpeed < cur.requiredSpeed) {
+          push = -push * 1.2;
+          final key = '$_currentBlockPrefix${room.id}#$i';
+          resisting.add(key);
+          _setBlockedHintOnce(
+            key,
+            'The current throws you back — needs more Speed',
+          );
+        }
+        a.position = _moveWithCollision(a.position, push, room);
       }
-      a.position = _moveWithCollision(a.position, push, room);
     }
+    _releaseBlockedExcept(_currentBlockPrefix, resisting);
   }
 
   void _updateEnvironmentalHints(DungeonCreature a, DungeonRoom room) {
@@ -1633,9 +1674,9 @@ class PlanetDungeonGame extends FlameGame {
     for (final cur in room.currents) {
       if (!cur.rect.inflate(8).contains(a.position)) continue;
       if (a.member.element == 'Fire') {
-        _setAmbientHint('Fire is catching in the Air current');
+        _setAmbientHint('Your flame streams sideways, hungry for the wind');
       } else {
-        _setAmbientHint('Air elements are gusting through this strip');
+        _setAmbientHint('The wind here never rests');
       }
       return;
     }
@@ -1643,12 +1684,11 @@ class PlanetDungeonGame extends FlameGame {
     for (final c in room.conduits) {
       if ((a.position - c.position).distance > 54) continue;
       if (!guardianRiteUnlocked) {
-        _setAmbientHint(
-          'The twin pylons sleep — the ${layout.starName(0)} and '
-          '${layout.starName(1)} must be claimed first',
-        );
+        // Pure atmosphere — the gate itself states its keys on a refused
+        // offering (see _energizeConduit), never on proximity.
+        _setAmbientHint('The twin pylons sleep');
       } else if (c.requiredFamily == null) {
-        _setAmbientHint('This conductor wants an elemental arc, not a hold');
+        _setAmbientHint('The air prickles around this conductor');
       } else {
         // Flavour only: under v2 a gated conduit answers one family, so any
         // "hold it longer" phrasing would be a lie to everyone else standing
@@ -1664,8 +1704,8 @@ class PlanetDungeonGame extends FlameGame {
         (a.position - _guardianPosition(guardian)).distance <= 105) {
       _setAmbientHint(
         guardianVulnerable
-            ? 'The guardian\'s rage thins; a soothing presence could reach it'
-            : 'The guardian is all storm right now; wait for the lull',
+            ? 'The storm about the guardian thins'
+            : 'The guardian is all storm',
       );
       return;
     }
@@ -1675,8 +1715,8 @@ class PlanetDungeonGame extends FlameGame {
           !discoveredClouds.contains(cl.id)) {
         _setAmbientHint(
           room.anchors.isEmpty
-              ? 'The echo sleeps, sealed — this chamber asks something of you'
-              : 'A sleeping echo — its trial waits in a branch chamber',
+              ? 'The echo sleeps, sealed'
+              : 'A sleeping echo — it dreams of somewhere else',
         );
         return;
       }
@@ -2179,10 +2219,9 @@ class PlanetDungeonGame extends FlameGame {
           return true;
         }
         if (nearShell || inCurrent) {
-          _setHint(
-            'The shell answers only storm-charge — strike it with Lightning, '
-            'or braid Fire through the wind',
-          );
+          // A refused strike — the method itself is Mask-insight content
+          // (see _wonderInsight), so the refusal only names what's missing.
+          _setBlockedHint('The shell answers only storm-charge');
           return true;
         }
         return false;
@@ -6034,12 +6073,19 @@ class PlanetDungeonGame extends FlameGame {
         _setInsightHint('The mural completes — BOTH pylons must sing at once');
         return;
       }
-      // At the altar, a Mask reads the storm runes (sync hint).
+      // At the conduits, a Mask reads the storm runes — tiered (§5.6):
+      // tier 1 narrows the method, tier 2 names element and order.
       if (room.conduits.isNotEmpty) {
+        revealFlash = 0.6;
+        revealTier = revealHintTier(a.member.statIntelligence);
         _setInsightHint(
-          'Storm runes: light BOTH conduits at once — '
-          'channel A, then arc B before A fades',
-          2.4,
+          revealTier >= 2
+              ? 'The runes bare the rite — channel A with Lightning, then '
+                    'arc B with Fire through the wind before A fades'
+              : revealTier >= 1
+              ? 'Storm runes: both conduits must sing at once — one asks '
+                    'a channel, the other an arc'
+              : 'The storm runes writhe — more Intelligence would still them',
         );
       } else {
         _setInsightHint('Nothing hidden stirs here', 2.4);
@@ -6578,12 +6624,12 @@ class PlanetDungeonGame extends FlameGame {
     // Wonder trial chambers (until their echo is earned).
     if (_sealedWonderCloud(room) != null) {
       return switch (roomId) {
-        'spiral_cloud' => 'Gale Eye — ride the three eddies, outermost inward',
+        // WHAT, never HOW (§5.6): the eddy order and the storm-charge braid
+        // are Mask-insight content (_wonderInsight), not room-entry copy.
+        'spiral_cloud' => 'Gale Eye — three eddies turn the gale',
         'ring_cloud' =>
           'The Conjunction — seal the orbit when the three reagents gather',
-        'anvil_cloud' =>
-          'Storm Forge — crack the shell with storm-charge, '
-              'then best its guardians',
+        'anvil_cloud' => 'Storm Forge — a shell nothing plain can mark',
         'feather_cloud' =>
           'The Moult — catch three falling plumes before they settle',
         'veil_cloud' => 'The Shroud — pin each fold while it breathes',
@@ -6595,9 +6641,9 @@ class PlanetDungeonGame extends FlameGame {
       return switch (roomId) {
         'storm_rune_hall' =>
           'The rune hall murmurs — a Mask can read the storm\'s order ahead',
-        'twin_conduit' =>
-          'Twin conduits — channel A with Lightning; arc B with Fire '
-              'through the wind, or Lightning\'s own touch',
+        // Goal only — which element wakes which conduit is the runes'
+        // earned reading (_doReveal), never free room-entry copy.
+        'twin_conduit' => 'The twin conduits sleep',
         'storm_altar' => 'The altar sleeps until its twin conduits sing',
         _ => null,
       };

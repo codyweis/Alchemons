@@ -104,14 +104,16 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     return !unclampedSeals.contains(_sealKey(room.id, seal.targetRoomId));
   }
 
+  /// One BLOCKED clause naming what's missing (§5.6) — how to RAISE the
+  /// main (condensate, the firebox) is the manifold's earned reading
+  /// (_steamReveal), never a door refusal.
   String _sealDoorHint(DungeonRoom room, DungeonDoor door) {
     final seal = _sealFor(room, door)!;
     if (boilerPressure >= seal.cost) {
-      return 'A clamped junction — throw the release beside it to spend '
-          '${seal.cost} pressure and open the ring';
+      return 'Clamped — the release beside it asks ${seal.cost} of the main';
     }
-    return 'The clamp wants ${seal.cost} pressure — the main holds only '
-        '$boilerPressure. Cool molten for condensate, or stoke a firebox';
+    return 'The clamp wants ${seal.cost} — the main holds only '
+        '$boilerPressure';
   }
 
   /// Whether the current room is a molten puzzle that can be restarted.
@@ -436,8 +438,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
       boilerPressure -= seal.cost;
       unclampedSeals.add(_sealKey(room.id, seal.targetRoomId));
-      _setHint('The main surges into the clamp — the junction hisses open '
-          '(−${seal.cost} pressure)');
+      // The gauge carries the number (§5.6 — state is not speech).
+      _setHint('The main surges into the clamp — the junction hisses open');
       _spawnAlchemyBurst(
         door.rect.center,
         producedElement: 'Steam',
@@ -459,8 +461,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         return true;
       }
       boilerPressure = min(kSteamPressureMax, boilerPressure + kSteamStokeGain);
-      _setHint('Fire roars in the box — the main surges '
-          '(+$kSteamStokeGain pressure) — and something stirs at the noise');
+      _setHint('Fire roars in the box — the main surges, and something '
+          'stirs at the noise');
       spawnWispWave(
         element: 'Steam',
         center: port,
@@ -485,11 +487,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             'the main holds only $boilerPressure. The valve refuses');
         return true;
       }
-      final dumped = boilerPressure;
       boilerPressure = 0;
       burstDiscBlown = true;
-      _setHint('You vent the whole main — $dumped pressure in one surge — '
-          'and the burst-disc BLOWS. The vault shaft stands open', 4.5);
+      _setHint('You vent the whole main in one surge — the burst-disc '
+          'BLOWS, and the vault shaft stands open', 4.5);
       _spawnAlchemyBurst(
         disc.position,
         producedElement: 'Steam',
@@ -550,7 +551,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           boilerPressure += gained;
           _setHint(gained > 0
               ? 'Steam cools the molten to standing stone — condensate '
-                  'returns to the main (+$gained pressure)'
+                  'returns to the main'
               : 'Steam cools the molten to standing stone');
           _spawnAlchemyBurst(at,
               producedElement: 'Steam', particleCount: 16, intensity: 0.8);
@@ -614,8 +615,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         _setHint(
             'The main starts with $kSteamStartPressure and each junction '
             'drinks 15 — the whole ring cannot be bought. Cooled molten '
-            'condenses back (+$kSteamCondensateGain a cell); the burst-disc '
-            'yields only to a surge of 60',
+            'condenses back (+$kSteamCondensateGain a cell), a stoked '
+            'firebox feeds it more; the burst-disc yields only to a '
+            'surge of 60',
             5.5);
         return;
       }
@@ -668,7 +670,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   void _steamAmbientHint(DungeonCreature a, DungeonRoom room) {
     final vent = room.steamVent;
     if (vent != null && !entryDoorRevealed && (a.position - vent).distance < 70) {
-      _setAmbientHint('A clamped relief vent — a Steam creature can crack it');
+      _setAmbientHint('A clamped relief vent hisses at its rivets');
       return;
     }
     for (final door in room.doors) {
@@ -676,26 +678,22 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       if (seal != null &&
           _sealBlocked(room, door) &&
           (a.position - door.rect.center).distance < _kPressureReach) {
-        _setAmbientHint(
-            'A clamped ring junction — the release drinks ${seal.cost} '
-            'of the main');
+        _setAmbientHint('A clamped ring junction, wound tight');
         return;
       }
     }
     final port = room.stokePort;
     if (port != null && (a.position - port).distance < _kPressureReach) {
-      _setAmbientHint(
-          'A firebox — Fire stokes the main (+$kSteamStokeGain), but the '
-          'roar wakes what sleeps');
+      _setAmbientHint('A firebox — cold iron, breathing old soot');
       return;
     }
     final disc = room.burstDisc;
     if (disc != null &&
         !burstDiscBlown &&
         (a.position - disc.position).distance < _kPressureReach) {
-      _setAmbientHint(
-          'A riveted burst-disc, etched "${disc.threshold}" — it yields only '
-          'to the whole main vented at once');
+      // The etching is diegetic — the yield condition is the manifold's
+      // earned reading (_steamReveal), not proximity copy.
+      _setAmbientHint('A riveted burst-disc, etched "${disc.threshold}"');
       return;
     }
     final g = room.molten;
@@ -705,13 +703,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final grid = _moltenFor(room);
     switch (grid[target.$2][target.$1]) {
       case _mWall:
+        // The glow/quiet reading IS the dam-wall's authored clue layer —
+        // observation only; the breach method is Mask's (_steamReveal).
         _setAmbientHint(_wallIsWet(grid, g, target.$1, target.$2)
             ? 'The rock glows hot — something molten presses against its far side'
-            : 'Cool, quiet rock — it sounds hollow beyond; Fire can break it');
+            : 'Cool, quiet rock — it sounds hollow beyond');
       case _mLava:
-        _setAmbientHint('Molten — Steam cools it to standing stone');
-      case _mOpen:
-        _setAmbientHint('Open ground — Earth can raise a wall here to dam the flood');
+        _setAmbientHint('The molten crawls, slow and bright');
     }
   }
 
@@ -722,8 +720,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         return 'Furnace Heart — face Boilrog: calm it, or strike in its lulls';
       }
       if (room.id == 'manifold_south') {
-        return 'South Manifold — the ring main: junctions west and east are '
-            'clamped, and the main holds only so much. Spend it well';
+        return 'South Manifold — the ring main runs through clamped '
+            'junctions';
       }
       if (room.id == 'manifold_north') {
         return 'North Manifold — the crucible gate drops from this arc of '
@@ -734,13 +732,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
       return null;
     }
+    // WHAT, never HOW (§5.6): where to breach, when to dam, and how to
+    // thread the flood are the foundry's earned readings (_steamReveal).
     return switch (g.starIndex) {
-      0 => 'Ember Causeway — the wall is a dam: some stone glows with what '
-          'presses behind it; breach where it is dark and quiet',
-      1 => 'Cinder Forge — the pedestal hides behind a meltable gate; dam the '
-          'gate mouth before you break it, for melting wakes every cistern',
-      _ => 'The Crucible — bunker a gate, break through, and thread the woken '
-          'flood to the pedestal to wake the guardian',
+      0 => 'Ember Causeway — a dam of old stone bars the way',
+      1 => 'Cinder Forge — the pedestal waits behind walled fire',
+      _ => 'The Crucible — the pedestal stands past the sleeping flood',
     };
   }
 

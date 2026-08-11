@@ -408,11 +408,11 @@ extension CinderCathedral on PlanetDungeonGame {
       if (ritualProgress >= room.braziers.length) {
         earnStar(star); // the spec's announcement covers the copy
       } else {
-        _setHint(
-          'The flame takes — $ritualProgress of ${room.braziers.length} '
-          'fires remembered',
-        );
+        // The count is STATE — it lives in the progress readout (§5.6);
+        // the capsule keeps only the rite's answer.
+        _setHint('The flame takes its remembered turn');
       }
+      onChanged();
     } else {
       ritualProgress = 0;
       _spawnAlchemyBurst(
@@ -692,9 +692,12 @@ extension CinderCathedral on PlanetDungeonGame {
             .length;
         _setHint(
           hidden > 0
-              ? 'Insight: $hidden bed${hidden == 1 ? '' : 's'} still '
-                    'hide${hidden == 1 ? 's' : ''} a sigil — grow them green, '
-                    'then give them to flame'
+              ? (revealTier >= 1
+                    ? 'Insight: $hidden bed${hidden == 1 ? '' : 's'} still '
+                          'hide${hidden == 1 ? 's' : ''} a sigil — grow them '
+                          'green, then give them to flame'
+                    : 'The soot whispers of sigils beneath the beds — more '
+                          'Intelligence would read how they bare themselves')
               : 'Every groove burns — the garden has told all it knows',
           3.8,
         );
@@ -760,6 +763,19 @@ extension CinderCathedral on PlanetDungeonGame {
 
   // ── Ambient hints / objectives / mood ───────────────────
 
+  /// The choir rite's progress, glanceable beside the star tracker (§5.6):
+  /// live only while the braziers are the room's business.
+  DungeonProgressReadout? get _cathedralProgressReadout {
+    final room = currentRoom;
+    final star = room.brazierStarIndex;
+    if (star == null || hasStar(star) || room.braziers.isEmpty) return null;
+    return DungeonProgressReadout(
+      label: 'BRAZIERS',
+      value: '$ritualProgress/${room.braziers.length}',
+      fraction: ritualProgress / room.braziers.length,
+    );
+  }
+
   void _cathedralAmbientHint(DungeonCreature a, DungeonRoom room) {
     // Braziers (hearth + choir).
     for (final b in room.braziers) {
@@ -769,7 +785,7 @@ extension CinderCathedral on PlanetDungeonGame {
           _setAmbientHint(
             a.member.element == 'Fire'
                 ? 'The cold hearth leans toward your flame'
-                : 'The great hearth is cold — flame would wake it',
+                : 'The great hearth lies cold under old ash',
           );
         }
         return;
@@ -778,7 +794,7 @@ extension CinderCathedral on PlanetDungeonGame {
       _setAmbientHint(
         a.member.element == 'Fire'
             ? 'The brazier waits for its remembered turn'
-            : 'Ritual braziers answer Fire alone',
+            : 'Cold ritual iron, kept in its old order',
       );
       return;
     }
@@ -791,13 +807,13 @@ extension CinderCathedral on PlanetDungeonGame {
           _setAmbientHint(
             a.member.element == 'Plant'
                 ? 'The scorched bed tugs at your green'
-                : 'A scorched bed — something must grow before anything burns',
+                : 'A scorched bed, bare to the soot',
           );
         } else if (state == 1) {
           _setAmbientHint(
             a.member.element == 'Fire'
                 ? 'The vines lean toward your flame'
-                : 'Overgrown — flame would render it to ash',
+                : 'The vines crowd thick over the bed',
           );
         }
         return;
@@ -810,20 +826,18 @@ extension CinderCathedral on PlanetDungeonGame {
         if (flame != null) {
           final pos = _chainPoint(chain, flame.segment, flame.t);
           if ((a.position - pos).distance <= 95) {
-            _setAmbientHint(
-              'The flame starves between censers — a gust would bear it on',
-            );
+            _setAmbientHint('The flame gutters low between censers');
             return;
           }
           continue;
         }
         if (bellsRung.contains(chain.id)) continue;
         if ((a.position - chainIgnitionPoint(chain)).distance <= 60) {
-          _setAmbientHint('A cold censer — the vesper begins with flame');
+          _setAmbientHint('A cold censer, dark with old incense');
           return;
         }
         if ((a.position - chain.bellPosition).distance <= 60) {
-          _setAmbientHint('An ember bell — only the flame\'s arrival rings it');
+          _setAmbientHint('An ember bell hangs silent');
           return;
         }
       }
@@ -844,7 +858,9 @@ extension CinderCathedral on PlanetDungeonGame {
         return 'Choir — the floor mural walks the order; light the six '
             'braziers as the fire remembers';
       case 'cloister':
-        return 'Cloister — grow the beds, burn them to ash, read the grooves';
+        // WHAT, never HOW (§5.6): the grow-burn-read rite is Mask-insight
+        // content (_cathedralReveal), not room-entry copy.
+        return 'Cloister — the scorched beds keep their sigils';
       case 'vestry':
         return hasStar(2)
             ? null

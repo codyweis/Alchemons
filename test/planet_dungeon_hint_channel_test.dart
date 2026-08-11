@@ -211,6 +211,15 @@ void main() {
       },
     );
 
+    test('the loom anchors are a readout while the weave is live', () {
+      final game = _buildGame();
+      game.currentRoomId = 'sky_loom';
+      final readout = game.progressReadout;
+      expect(readout, isNotNull);
+      expect(readout!.label, 'ANCHORS');
+      expect(readout.value, startsWith('0/'));
+    });
+
     test('the ring count is a readout, not a hint line', () {
       final game = _buildGame();
       final ringRoom = game.layout.rooms.values.firstWhere(
@@ -237,6 +246,124 @@ void main() {
 
       expect(game.progressReadout!.value, startsWith('1/'));
       expect(game.hintText, isNot(contains('Ring 1')));
+    });
+  });
+
+  group('objectives state WHAT, never HOW (the solution-leak rule)', () {
+    test('entering twin_conduit no longer hands over the method', () {
+      final game = _buildGame();
+      game.currentRoomId = 'storm_rune_hall';
+      final door = game.currentRoom.doors.firstWhere(
+        (d) => d.targetRoomId == 'twin_conduit',
+      );
+      game.creatures[game.activeIndex].position = door.rect.center;
+      _step(game, 0.2);
+
+      expect(game.currentRoomId, 'twin_conduit');
+      expect(game.hintChannel, DungeonHintChannel.objective);
+      expect(game.hintText, contains('sleep'));
+      expect(game.hintText, isNot(contains('Lightning')));
+      expect(game.hintText, isNot(contains('Fire')));
+      expect(game.hintText, isNot(contains('arc B')));
+    });
+
+    test('the conduit method is earned through Mask insight, tiered', () {
+      final game = _buildGame();
+      game.currentRoomId = 'twin_conduit';
+      game.setActive(1); // the Crystal mask (Int 3 → tier 1)
+      // Stand clear of the conduits so the reading, not a channel attempt,
+      // answers the press.
+      game.creatures[1].position = game.currentRoom.bounds.center;
+      game.activateAbility();
+
+      expect(game.hintChannel, DungeonHintChannel.insight);
+      // Tier 1 narrows the method without naming the elements…
+      expect(game.hintText, contains('sing at once'));
+      expect(game.hintText, isNot(contains('Lightning')));
+
+      // …tier 2 (a sharper mask) names element and order.
+      final sharp = _member(slot: 1, element: 'Crystal', family: 'mask');
+      final sharper = CosmicPartyMember(
+        instanceId: sharp.instanceId,
+        baseId: sharp.baseId,
+        displayName: sharp.displayName,
+        element: sharp.element,
+        family: sharp.family,
+        level: sharp.level,
+        statSpeed: sharp.statSpeed,
+        statIntelligence: 5,
+        statStrength: sharp.statStrength,
+        statBeauty: sharp.statBeauty,
+        slotIndex: sharp.slotIndex,
+        staminaBars: sharp.staminaBars,
+        staminaMax: sharp.staminaMax,
+      );
+      final game2 = _buildGame();
+      game2.creatures[1] = DungeonCreature(member: sharper)
+        ..position = game2.layout.entranceSpawn
+        ..lastSafe = game2.layout.entranceSpawn;
+      game2.currentRoomId = 'twin_conduit';
+      game2.setActive(1);
+      game2.creatures[1].position = game2.currentRoom.bounds.center;
+      game2.activateAbility();
+      expect(game2.hintChannel, DungeonHintChannel.insight);
+      expect(game2.hintText, contains('Lightning'));
+    });
+  });
+
+  group('stat nags speak on the failure moment, once per attempt', () {
+    test('a too-fierce thermal refuses a walker once, not per frame', () {
+      final game = _buildGame();
+      game.currentRoomId = 'cloud_platforms';
+      // The upper thermal wants Speed 3.5; the party walks with 3.
+      final walker = game.creatures[game.activeIndex];
+      walker.position = const Offset(420, 280); // platform inside the column
+      walker.lastSafe = walker.position;
+      _step(game, 0.2);
+
+      expect(game.hintText, contains('Speed'));
+      expect(game.hintChannel, DungeonHintChannel.blocked);
+
+      // Keep standing in it: the refusal fades and must NOT re-latch.
+      _step(game, 5.0);
+      expect(game.hintText, isNot(contains('Speed')));
+
+      // Step out and back in: a new attempt, so it speaks again.
+      walker.position = const Offset(480, 630);
+      walker.lastSafe = walker.position;
+      _step(game, 0.2);
+      walker.position = const Offset(420, 280);
+      walker.lastSafe = walker.position;
+      _step(game, 0.2);
+      expect(game.hintText, contains('Speed'));
+      expect(game.hintChannel, DungeonHintChannel.blocked);
+    });
+
+    test('a strong current refuses a flier once, on the shove-back', () {
+      final game = _buildGame();
+      game.currentRoomId = 'cloud_platforms';
+      final flier = game.creatures[0];
+      game.setActive(0);
+      game.flightMax = 999;
+      game.flightMeter = 999;
+      game.flightActive = true;
+
+      // Fly INTO the Speed-3.5 column, pinning position each frame (the
+      // joystick fighting the shove) so the creature stays inside it.
+      const inColumn = Offset(420, 300);
+      for (var i = 0; i < 12; i++) {
+        flier.position = inColumn;
+        game.update(1 / 60);
+      }
+      expect(game.hintText, contains('Speed'));
+      expect(game.hintChannel, DungeonHintChannel.blocked);
+
+      // Keep fighting it well past the line's lifetime: spoken once.
+      for (var i = 0; i < 300; i++) {
+        flier.position = inColumn;
+        game.update(1 / 60);
+      }
+      expect(game.hintText, isNot(contains('Speed')));
     });
   });
 }
