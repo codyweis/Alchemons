@@ -597,13 +597,19 @@ extension MirrorTide on PlanetDungeonGame {
         );
         return;
       case 'moon_well':
-        if (revealTier >= 1) {
+        // Tiered (§5.6): tier 1 narrows the method, tier 2 marks the answer.
+        if (revealTier >= 2) {
           eddyRevealTier = max(eddyRevealTier, revealTier);
           _poolFx['truth'] = 3.0 + revealTier * 1.5; // true pools glow
           _setHint(
             'The moon rides the northwest and southeast pools — the '
             'others lie',
             4.2,
+          );
+        } else if (revealTier >= 1) {
+          _setHint(
+            'At the settled middle water, only the true pools take the ice',
+            3.8,
           );
         } else {
           _setHint(
@@ -646,11 +652,10 @@ extension MirrorTide on PlanetDungeonGame {
       if ((a.position - valve.position).distance > 64) continue;
       _setAmbientHint(
         valve.pipOnly
-            ? 'A narrow pipe-mouth breathes brine — something small could '
-                  'slip in'
+            ? 'A narrow pipe-mouth breathes brine'
             : a.member.element == 'Water'
             ? 'The valve hums against your current'
-            : 'A great tide-valve — it answers Water',
+            : 'A great tide-valve, crusted with salt',
       );
       return;
     }
@@ -658,7 +663,7 @@ extension MirrorTide on PlanetDungeonGame {
       for (final seal in room.tideSeals) {
         if ((a.position - seal.position).distance > 64) continue;
         if (openedSeals.contains(seal.id)) return;
-        _setAmbientHint('A sluice seal — it yields to one stand of water');
+        _setAmbientHint('A sluice seal, shut fast beneath the brine');
         return;
       }
     }
@@ -669,7 +674,7 @@ extension MirrorTide on PlanetDungeonGame {
         _setAmbientHint(
           a.member.element == 'Ice'
               ? 'The pool\'s surface leans toward your cold'
-              : 'A moon-pool — ice would hold what it reflects',
+              : 'A moon-pool, still as dark glass',
         );
         return;
       }
@@ -701,8 +706,9 @@ extension MirrorTide on PlanetDungeonGame {
             ? null
             : 'Moon Hall — the tide-mural diagrams the rite ahead';
       case 'moon_well':
-        return 'Moon Well — at the middle water, freeze the pools that '
-            'truly hold the moon';
+        // WHAT, never HOW (§5.6): the tide condition and pool-truth are the
+        // tide-mural's earned reading (_templeReveal), not room-entry copy.
+        return 'Moon Well — the moon rides the water here, unheld';
       case 'leviathan_depths':
         return guardianAwake
             ? 'The Depths — the Leviathan rises'

@@ -88,6 +88,7 @@ extension BuriedGiant on PlanetDungeonGame {
     _scaleTiltShown = 0;
     _eyeLook = Offset.zero;
     prismStage = 0;
+    _scaleJudged = null;
     _prismCoreRise = 0;
     _prismGrow = 0;
     // The solution itself persists for the run — death doesn't reroll it.
@@ -398,11 +399,12 @@ extension BuriedGiant on PlanetDungeonGame {
           particleCount: 10,
           intensity: 0.6,
         );
-        _setHint(
-          'The eye gazes through the prism — $correct of '
-          '${scale.weights.length} stones sit true',
-          4.0,
-        );
+        // The count is STATE, not speech — the eye's judgment snapshots
+        // into the progress readout (§5.6); the capsule keeps only the
+        // communing itself.
+        _scaleJudged = correct;
+        _setHint('The eye gazes through the prism, and judges', 4.0);
+        onChanged();
         return true;
     }
   }
@@ -703,8 +705,11 @@ extension BuriedGiant on PlanetDungeonGame {
         return;
       case 'pillar_crypt':
         _setHint(
-          'Four sockets sleep beneath the pillars — storm-spark wakes '
-          'them as crystal',
+          revealTier >= 1
+              ? 'Four sockets sleep beneath the pillars — storm-spark '
+                    'wakes them as crystal'
+              : 'Four sockets sleep beneath the pillars — more '
+                    'Intelligence would read what wakes them',
           3.8,
         );
         return;
@@ -780,6 +785,21 @@ extension BuriedGiant on PlanetDungeonGame {
 
   // ── Ambient hints / objectives / mood ───────────────────
 
+  /// The eye's last spoken judgment, glanceable beside the star tracker
+  /// (§5.6). A snapshot of the LAST communion — never live, so the scale
+  /// stays a batched Mastermind deduction, not a hot-cold meter.
+  DungeonProgressReadout? get _barrowProgressReadout {
+    final scale = currentRoom.stoneScale;
+    if (scale == null || hasStar(2) || prismStage < 2) return null;
+    final judged = _scaleJudged;
+    if (judged == null) return null;
+    return DungeonProgressReadout(
+      label: 'STONES',
+      value: '$judged of ${scale.weights.length} true',
+      fraction: judged / scale.weights.length,
+    );
+  }
+
   void _barrowAmbientHint(DungeonCreature a, DungeonRoom room) {
     // A leaning bone-mark recording one scale-stone's true pan.
     if (!hasStar(2) && !guardianAwake) {
@@ -801,9 +821,10 @@ extension BuriedGiant on PlanetDungeonGame {
           final stoneName = stoneId.startsWith('w_')
               ? stoneId.substring(2)
               : stoneId;
+          // The authored clue layer: the mark itself is the world's reading
+          // — state the observation, let the player draw the conclusion.
           _setAmbientHint(
-            'The $stoneName-mark leans ${right ? 'right' : 'left'} here — '
-            'set the stone bearing that sigil on the ${right ? 'right' : 'left'} pan',
+            'The $stoneName-mark leans ${right ? 'right' : 'left'} here',
           );
           return;
         }
@@ -815,9 +836,8 @@ extension BuriedGiant on PlanetDungeonGame {
         if (!_ribRect(rib).inflate(52).contains(a.position)) continue;
         _setAmbientHint(
           a.member.element == 'Earth'
-              ? 'The rib sits loose in its track — a shove would move it'
-              : 'A fossil rib in a carved track — it answers earthen '
-                    'strength',
+              ? 'The rib sits loose in its carved track'
+              : 'A fossil rib, seated in a carved track',
         );
         return;
       }
@@ -829,7 +849,7 @@ extension BuriedGiant on PlanetDungeonGame {
         _setAmbientHint(
           a.member.element == 'Lightning'
               ? 'The buried socket hums against your charge'
-              : 'A buried socket — storm-spark or crystal would seal it',
+              : 'A buried socket, dark beneath the pillar',
         );
         return;
       }
@@ -839,24 +859,20 @@ extension BuriedGiant on PlanetDungeonGame {
       if ((a.position - scale.plinth).distance <= 60 && prismStage < 2) {
         _setAmbientHint(
           prismStage == 0
-              ? 'A bare plinth in the eye\'s sightline — it wants stone'
-              : 'The stone core waits for the storm, or for crystal',
+              ? 'A bare plinth stands in the eye\'s sightline'
+              : 'Raw stone rests on the plinth, unfinished',
         );
         return;
       }
       for (final w in scale.weights) {
         if ((a.position - w.position).distance > 60) continue;
-        _setAmbientHint(
-          prismStage < 2
-              ? 'A scale-stone — but the eye is blind; it cannot judge yet'
-              : 'A scale-stone — the eye judges only at its prism',
-        );
+        _setAmbientHint('A scale-stone, graven with an old sigil');
         return;
       }
     }
     if (room.id == 'barrow_gate' && !entryDoorRevealed) {
       if ((a.position - kBarrowLintel).distance <= 70) {
-        _setAmbientHint('The fallen lintel waits to be raised');
+        _setAmbientHint('The fallen lintel lies broken across the way');
       }
     }
   }
@@ -871,7 +887,9 @@ extension BuriedGiant on PlanetDungeonGame {
       case 'rib_hall':
         return 'Rib Hall — shove the three ribs home and bridge the marrow';
       case 'pillar_crypt':
-        return 'Pillar Crypt — arc the four buried sockets into crystal';
+        // WHAT, never HOW (§5.6): the storm-into-crystal method is the
+        // bone-mural's earned reading (_barrowReveal).
+        return 'Pillar Crypt — something sleeps beneath the four pillars';
       case 'palm_hollow':
         return null; // the egg keeps its silence
       case 'skull_antechamber':
