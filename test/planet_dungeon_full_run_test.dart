@@ -10,7 +10,48 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+PlanetDungeonGame _harness(List<CosmicPartyMember> party) {
+  final game = PlanetDungeonGame(
+    element: 'Air',
+    party: party,
+    initialStarMask: 0,
+    onStarEarned: (_) {},
+    onPlayerDown: () {},
+    onChanged: () {},
+  );
+  game.currentRoomId = game.layout.entranceRoomId;
+  for (final m in party) {
+    final c = DungeonCreature(member: m)
+      ..position = game.layout.entranceSpawn
+      ..lastSafe = game.layout.entranceSpawn;
+    game.creatures.add(c);
+    final stats = deriveCosmicSurvivalCompanionStats(member: m);
+    game.combatCompanions.add(
+      CosmicSurvivalCompanion(
+        member: m,
+        slotIndex: m.slotIndex,
+        position: c.position,
+        anchor: c.position,
+        maxHp: stats.maxHp,
+        currentHp: stats.maxHp,
+        physAtk: stats.physAtk,
+        elemAtk: stats.elemAtk,
+        physDef: stats.physDef,
+        elemDef: stats.elemDef,
+        cooldownReduction: stats.cooldownReduction,
+        critChance: stats.critChance,
+        attackRange: stats.attackRange,
+        specialAbilityRange: stats.specialAbilityRange,
+        tethered: false,
+        invincibleTimer: 0,
+      ),
+    );
+  }
+  return game;
+}
 
 CosmicPartyMember _member(int slot, String element, String family) {
   return CosmicPartyMember(
@@ -306,6 +347,66 @@ void main() {
       discovered,
       contains(kAirFirstWindEggId),
       reason: 'the 3-star commune yields the maxim (screen pays 20 gold)',
+    );
+  });
+
+  // v2: conduit A is a HARD GATE (Lightning + Horn). No other family gets a
+  // half-hold consolation prize; they get a clean refusal.
+  test('the storm-altar conduit is a hard gate: only a Lightning horn '
+      'channels it', () {
+    double channel(PlanetDungeonGame game) {
+      game.starMask = (1 << 0) | (1 << 1); // the altar waits on the rite
+      final conduit = game.layout.rooms['twin_conduit']!.conduits
+          .firstWhere((c) => c.id == 'A');
+      game.currentRoomId = 'twin_conduit';
+      game.creatures.single
+        ..position = conduit.position
+        ..lastSafe = conduit.position;
+      game.activateAbility();
+      return game.conduitEnergy['A'] ?? 0;
+    }
+
+    // Right element, wrong family: refused — never a fraction of the hold.
+    for (final family in const ['pip', 'mane', 'mask', 'wing', 'kin']) {
+      expect(
+        channel(_harness([_member(0, 'Lightning', family)])),
+        0,
+        reason: 'a Lightning $family must not channel the conduit at all',
+      );
+    }
+    // Right family, wrong element: also refused.
+    expect(channel(_harness([_member(0, 'Air', 'horn')])), 0,
+        reason: 'the conduit hums with Lightning alone');
+    // The one creature the gate names channels at FULL hold.
+    expect(
+      channel(_harness([_member(0, 'Lightning', 'horn')])),
+      channelHoldSeconds(3),
+      reason: 'the Horn gets the whole hold, scaled only by Strength',
+    );
+  });
+
+  test('the Ring trial window is family-neutral', () {
+    // The old Mask-only widened tolerance is retired: whoever stands in the
+    // ring reads the same rhythm, so alignment is identical for every family.
+    final alignments = <String, List<bool>>{};
+    for (final family in const [
+      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
+    ]) {
+      final game = _harness([_member(0, 'Air', family)]);
+      game.currentRoomId = 'ring_cloud';
+      final samples = <bool>[];
+      for (var i = 0; i < 900; i++) {
+        game.update(1 / 60);
+        if (i % 10 == 0) samples.add(game.ringMotesAligned);
+      }
+      alignments[family] = samples;
+      expect(samples.any((s) => s), isTrue,
+          reason: 'an Air $family must still catch the conjunction');
+    }
+    expect(
+      alignments.values.map((s) => s.join()).toSet().length,
+      1,
+      reason: 'every family sees exactly the same window',
     );
   });
 }

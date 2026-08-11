@@ -310,26 +310,28 @@ class StoneScale {
 
 // ── Star 3: Storm Altar ────────────────────────────────────
 
-/// A conduit that must be energized. [id] 'A' = channelled (Perfect: Lightning
-/// Horn; Valid: any Lightning, slower); 'B' = arc-lit by a Fire creature acting
+/// A conduit that must be energized. [id] 'A' = channelled behind a HARD GATE
+/// (Lightning + Horn, nothing else); 'B' = arc-lit by a Fire creature acting
 /// inside the crossing wind current (the Air+Fire→Lightning recipe).
 class Conduit {
   final String id;
   final Offset position;
   final String requireElement;
-  final DungeonAbility?
-  preferred; // best family ability (null = arc/recipe only)
+
+  /// Family the conduit gates on. null = not channelled at all (arc/recipe
+  /// only) — those conduits are skipped by the channel verb.
+  final DungeonAbility? requiredFamily;
   const Conduit({
     required this.id,
     required this.position,
     required this.requireElement,
-    this.preferred,
+    this.requiredFamily,
   });
 
   DungeonInteractionRequirement get requirement =>
       DungeonInteractionRequirement(
         element: requireElement,
-        preferred: preferred,
+        requiredFamily: requiredFamily,
       );
 }
 
@@ -354,8 +356,8 @@ class GuardianNode {
 
 /// What a [CircuitNode] does in the power graph.
 enum CircuitNodeKind {
-  /// A pylon. Charged by a Lightning Horn channel (perfect) — holds a DECAYING
-  /// charge window; while charged it floods power into its links.
+  /// A pylon. Charged by any Lightning creature (element-only) — holds a
+  /// DECAYING charge window; while charged it floods power into its links.
   source,
 
   /// A relay; always conducts all its links.
@@ -1243,7 +1245,8 @@ const DungeonLayout _airLayout = DungeonLayout(
           id: 'A',
           position: Offset(230, 330),
           requireElement: 'Lightning',
-          preferred: DungeonAbility.heavyForce, // best: Lightning Horn
+          // HARD GATE: only a Lightning Horn holds this current.
+          requiredFamily: DungeonAbility.heavyForce,
         ),
         Conduit(
           id: 'B',

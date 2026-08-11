@@ -8,18 +8,18 @@
 // SOURCE pylons across conductive links every tick; rotatable conductor MIRRORS
 // route it (only the links of their current orientation conduct); SINKS light;
 // powered doors open while unpowered ones close.
-//  • Entry — the way in is a dead bus. A Lightning Horn charges the gate pylon
+//  • Entry — the way in is a dead bus. Any Lightning charges the gate pylon
 //    and, once power reaches the sink, the passage lights open (one-time, kept
 //    across death like the other planets' entry rites).
-//  • Star 1 (Circuit) — the pylon hall: a Lightning Horn charges the source
-//    (a DECAYING window — perfect & silent for a Horn, short & loud for any
-//    other Lightning), then two conductor mirrors must be turned so power
-//    reaches all THREE terminals at once.
+//  • Star 1 (Circuit) — the pylon hall: any Lightning charges the source (a
+//    DECAYING window, the same length for every family — the pylon is
+//    ELEMENT-ONLY), then two conductor mirrors must be turned so power reaches
+//    all THREE terminals at once.
 //  • Star 2 (Storm) — the cloud works: storm-cell echoes (bared by insight in
 //    the mirror gallery) are herded onto sockets; the anvil socket ignites only
 //    when a Fire creature heats its cell (Air+Fire→Lightning → a Thundercloud
 //    source). Every energized socket feeds the grid; all three banks the star.
-//  • Star 3 (Overload) — behind the breaker gate: a Lightning Horn charges the
+//  • Star 3 (Overload) — behind the breaker gate: any Lightning charges the
 //    maze pylon, a mirror routes the pulse so one corridor's doors open — cross
 //    to the storm core before the charge dies → Raikuma (calm or defeat).
 //  • Lost Maxim — the THUNDERBOLT: power EVERY maze door at once inside a single
@@ -38,10 +38,9 @@ const String kLightningThunderboltMaxim =
 /// works can herd. Their staging order maps to the staging slots.
 const List<String> _kCircuitCellIds = ['cell_spark', 'cell_veil', 'cell_anvil'];
 
-/// Charge windows: a Lightning HORN holds the pylon clean and long; any other
-/// Lightning family can only scrape a brief, loud charge (FAMILY-QUALITY RULE).
-const double _kChargePerfect = 8.0;
-const double _kChargeValid = 4.0;
+/// How long a charged pylon holds. ELEMENT-ONLY: every Lightning family gets
+/// the same full window.
+const double _kChargeWindow = 8.0;
 
 extension StormCircuit on PlanetDungeonGame {
   // ── Lifecycle ────────────────────────────────────────────
@@ -57,8 +56,6 @@ extension StormCircuit on PlanetDungeonGame {
     _beamLatched = false;
     // The pylon beam stays on once its star is banked (knowledge persists).
     pylonBeamOn = hasStar(0);
-    _circuitActDelay = 0;
-    _circuitActPending = null;
     // The Thunderbolt's permanent glow survives death (it's a found secret).
     _thunderboltGlow = discoveredClouds.contains(kLightningThunderboltEggId)
         ? 1.0
@@ -143,29 +140,16 @@ extension StormCircuit on PlanetDungeonGame {
         return true;
       }
       if (!pylonBeamOn) {
+        // ELEMENT-ONLY: any Lightning wakes the pylon, cleanly and in full.
         pylonBeamOn = true;
-        final perfect = a.ability == DungeonAbility.heavyForce;
         _spawnAlchemyBurst(
           pylon,
           producedElement: 'Lightning',
           unstable: true,
-          particleCount: perfect ? 24 : 16,
-          intensity: perfect ? 1.2 : 0.9,
+          particleCount: 24,
+          intensity: 1.2,
         );
-        _setHint(
-          perfect
-              ? 'The Horn wakes the pylon — a bolt leaps from it'
-              : 'The pylon sputters alight — sparks scatter loose',
-        );
-        if (!perfect) {
-          spawnWispWave(
-            element: 'Lightning',
-            center: pylon,
-            count: 2,
-            unstable: true,
-            announce: false,
-          );
-        }
+        _setHint('The dead pylon wakes — a bolt leaps from it');
       } else {
         _setHint('The pylon already burns — turn the conductors');
       }
@@ -517,16 +501,6 @@ extension StormCircuit on PlanetDungeonGame {
   void _updateCircuit(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isCircuit) return;
 
-    // A pending off-family action lands after its groaning delay.
-    if (_circuitActDelay > 0) {
-      _circuitActDelay -= dt;
-      if (_circuitActDelay <= 0) {
-        final pending = _circuitActPending;
-        _circuitActPending = null;
-        pending?.call();
-      }
-    }
-
     // The overload maze is a beam-reflection puzzle — handled separately.
     if (room.beamEmitters.isNotEmpty) {
       _updateBeamMaze(room, dt);
@@ -790,30 +764,17 @@ extension StormCircuit on PlanetDungeonGame {
       _setHint('Only a Lightning creature wakes the dead iron');
       return true;
     }
-    final perfect = a.ability == DungeonAbility.heavyForce;
-    final window = perfect ? _kChargePerfect : _kChargeValid;
-    circuitCharge[node.id] = window;
-    _circuitChargeMax[node.id] = window;
+    // ELEMENT-ONLY: every Lightning drives the same full, clean charge.
+    circuitCharge[node.id] = _kChargeWindow;
+    _circuitChargeMax[node.id] = _kChargeWindow;
     _spawnAlchemyBurst(
       node.position,
       producedElement: 'Lightning',
       unstable: true,
-      particleCount: perfect ? 26 : 18,
-      intensity: perfect ? 1.2 : 0.9,
+      particleCount: 26,
+      intensity: 1.2,
     );
-    if (perfect) {
-      _setHint('The Horn drives a full, clean charge into the pylon');
-    } else {
-      _setHint('The charge won\'t hold — only the strongest grip steadies it');
-      // Off-family is slow AND loud — the spark wakes wisps.
-      spawnWispWave(
-        element: 'Lightning',
-        center: node.position,
-        count: 2,
-        unstable: true,
-        announce: false,
-      );
-    }
+    _setHint('A full, clean charge drives into the pylon');
     return true;
   }
 
@@ -832,7 +793,6 @@ extension StormCircuit on PlanetDungeonGame {
 
   bool _depositCell(DungeonCreature a, CellSocket sock) {
     final cellId = carriedCloudId!;
-    final isWing = a.ability == DungeonAbility.aerialTraversal;
     placedClouds.add(cellId);
     carriedCloudId = null;
     carriedCloudType = null;
@@ -850,16 +810,7 @@ extension StormCircuit on PlanetDungeonGame {
       energizedSockets.add(sock.id);
       _setHint('The storm-cell socket latches live');
     }
-    // Off-family herding is loud — the rough push wakes wisps.
-    if (!isWing) {
-      spawnWispWave(
-        element: 'Lightning',
-        center: sock.position,
-        count: 2,
-        unstable: true,
-        announce: false,
-      );
-    }
+    // ELEMENT-ONLY: whoever herds the cell seats it just as quietly.
     return true;
   }
 

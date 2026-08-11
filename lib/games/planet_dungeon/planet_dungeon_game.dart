@@ -357,10 +357,10 @@ class PlanetDungeonGame extends FlameGame {
     return min(d, pi * 2 - d);
   }
 
-  /// True while the Ring trial's three orbit motes are gathered. A Mask in
-  /// the active slot widens the window (insight reads the rhythm).
+  /// True while the Ring trial's three orbit motes are gathered. The window is
+  /// family-neutral — whoever stands in the ring reads the same rhythm.
   bool get ringMotesAligned {
-    final tolerance = activeAbility == DungeonAbility.insight ? 0.72 : 0.45;
+    const tolerance = 0.6;
     final a0 = _ringMoteAngle(0);
     final a1 = _ringMoteAngle(1);
     final a2 = _ringMoteAngle(2);
@@ -444,10 +444,6 @@ class PlanetDungeonGame extends FlameGame {
   /// Moon-pool states (Star 3): MoonPool.id → 0 liquid · 1 frozen bridge.
   final Map<String, int> poolStates = {};
   final Map<String, double> _poolFx = {}; // freeze/shatter pulses
-
-  /// A sluggish (non-Pip) valve turn: the pipes answer after a delay.
-  double _valveDelay = 0;
-  int? _valvePendingLevel;
 
   bool get _isTemple => layout.element == 'Water';
   bool get tideSettled => (tideAnim - tideLevel / 2).abs() < 0.04;
@@ -558,7 +554,7 @@ class PlanetDungeonGame extends FlameGame {
   /// Sockets mid-charge (Star 2): a socket draws the storm over a charge
   /// window — the consequence enemies spawn AT ONCE, so the player defends the
   /// charge until it completes and the crystal lights. id → elapsed seconds,
-  /// and id → total charge duration (family-graded: Pip fast, off-family slow).
+  /// and id → total charge duration (element-only: every Lightning is equal).
   final Map<String, double> _pillarCharge = {};
   final Map<String, double> _pillarChargeDur = {};
 
@@ -628,10 +624,6 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Anvil sockets that hold a cell but await a Fire creature's heat (Star 2).
   final Set<String> _anvilCellWaiting = {};
-
-  /// A sluggish off-family circuit action: the grid answers after a delay.
-  double _circuitActDelay = 0;
-  VoidCallback? _circuitActPending;
 
   /// The Thunderbolt egg's permanent over-charged glow once won.
   double _thunderboltGlow = 0;
@@ -1433,7 +1425,7 @@ class PlanetDungeonGame extends FlameGame {
           'The twin pylons sleep — the ${layout.starName(0)} and '
           '${layout.starName(1)} must be claimed first',
         );
-      } else if (c.preferred == null) {
+      } else if (c.requiredFamily == null) {
         _setAmbientHint('This conductor wants an elemental arc, not a hold');
       } else if (a.member.element == c.requireElement) {
         _setAmbientHint(
@@ -5644,8 +5636,8 @@ class PlanetDungeonGame extends FlameGame {
     final a = active;
     if (a == null) return;
     _spawnUtilitySignature(a);
-    // Object-driven interactions first (graded Perfect/Valid/Weak/Failed),
-    // so any creature near a conduit can attempt it (not just a Horn).
+    // Object-driven interactions first, so any creature near a conduit can
+    // attempt it — the object itself decides whether it answers.
     if (_tryChannel(a)) {
       onChanged();
       return;
@@ -5882,18 +5874,18 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   /// Try to channel a conduit the active creature is standing on. Returns true
-  /// if a conduit was nearby (action consumed). Quality-graded:
-  /// Perfect (right element + Horn) = full hold; Valid (right element, any
-  /// family) = half hold; otherwise a hint about what's needed.
+  /// if a conduit was nearby (action consumed). Conduit A is a HARD GATE
+  /// (Lightning + Horn): whoever clears it channels at FULL hold — Strength
+  /// only scales how long that hold lasts. Everyone else is refused cleanly.
   bool _tryChannel(DungeonCreature a) {
     for (final c in currentRoom.conduits) {
-      if (c.preferred == null) continue; // arc-only conduits (e.g. B)
+      if (c.requiredFamily == null) continue; // arc-only conduits (e.g. B)
       if ((a.position - c.position).distance > 34) continue;
-      final q = evaluateInteraction(a.member, c.requirement);
-      final hold = channelHoldSeconds(a.member.statStrength);
-      switch (q) {
-        case InteractionQuality.perfect:
-          _energizeConduit(c.id, hold);
+      final r = evaluateInteraction(a.member, c.requirement);
+      switch (r) {
+        case InteractionResult.passed:
+        case InteractionResult.passedViaRecipe:
+          _energizeConduit(c.id, channelHoldSeconds(a.member.statStrength));
           _setHint('Channeling conduit ${c.id}');
           _spawnAlchemyBurst(
             c.position,
@@ -5901,22 +5893,18 @@ class PlanetDungeonGame extends FlameGame {
             reagentElements: [a.member.element],
           );
           break;
-        case InteractionQuality.valid:
-          _energizeConduit(c.id, hold * 0.5);
-          _setHint(
-            'Channeling slowly — more Strength may hold this current longer',
-          );
+        case InteractionResult.blockedFamily:
+          _setHint('Only a ${c.requireElement} horn\'s grip holds this current');
           _spawnAlchemyBurst(
             c.position,
             producedElement: c.requireElement,
             reagentElements: [a.member.element],
+            unstable: true,
           );
           break;
-        case InteractionQuality.weak:
-        case InteractionQuality.failed:
-          _setHint(
-            'Conduit ${c.id} hums with ${c.requireElement}; more Strength may be needed to hold it',
-          );
+        case InteractionResult.blockedElement:
+        case InteractionResult.blockedStat:
+          _setHint('Conduit ${c.id} answers ${c.requireElement} alone');
           _spawnAlchemyBurst(
             c.position,
             producedElement: c.requireElement,
@@ -6041,7 +6029,7 @@ class PlanetDungeonGame extends FlameGame {
     }
     // Arc-only conduits (B): a direct touch replaces the Fire-in-wind braid.
     for (final c in room.conduits) {
-      if (c.preferred != null) continue; // channelled conduits use _tryChannel
+      if (c.requiredFamily != null) continue; // channelled conduits use _tryChannel
       if ((a.position - c.position).distance > 34) continue;
       _energizeConduit(c.id, 4.0);
       _setHint('The conduit drinks the arc — ${c.id} hums alive');

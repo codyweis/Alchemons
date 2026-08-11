@@ -573,19 +573,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         }
         if (code == _mOpen && !onPed) {
           grid[r][c] = _mWall;
-          // FAMILY-QUALITY: a Horn's heavy force sets the dam clean; any other
-          // Earth raises it loud and rough — the noise draws consequence wisps.
-          if (a.ability == DungeonAbility.heavyForce) {
-            _setHint('The horn drives the wall home — the flood is dammed');
-          } else {
-            _setHint('Earth heaves a rough wall up — the racket draws wisps');
-            spawnWispWave(
-              element: 'Steam',
-              center: at,
-              count: 2,
-              announce: false,
-            );
-          }
+          // ELEMENT-ONLY: any Earth drives the wall home, clean and silent.
+          _setHint('The wall drives home — the flood is dammed');
           _spawnAlchemyBurst(at,
               producedElement: 'Earth', particleCount: 14, intensity: 0.7);
         } else {

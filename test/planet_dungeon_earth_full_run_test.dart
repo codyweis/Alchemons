@@ -287,36 +287,86 @@ void main() {
     expect(game.starsEarnedCount, 3);
   });
 
-  test('off-family rib shoves are slow AND loud (wrong-family penalty)', () {
-    final game = _harness([_member(0, 'Earth', 'mane')]); // wrong family
-    final hall = game.layout.rooms['rib_hall']!;
-    final rib = hall.fossilRibs.first;
-    game.currentRoomId = 'rib_hall';
-    game.creatures.single
-      ..position = rib.notches.first - const Offset(110, 0)
-      ..lastSafe = rib.notches.first - const Offset(110, 0);
+  // v2: the rib is a HARD GATE (Earth + Horn). There is no off-family shove to
+  // grade — the wrong family is refused, and every shove that happens is clean.
+  test('the ribs are a hard gate: the wrong family is refused outright', () {
+    void shove(PlanetDungeonGame game) {
+      final rib = game.layout.rooms['rib_hall']!.fossilRibs.first;
+      game.currentRoomId = 'rib_hall';
+      game.creatures.single
+        ..position = rib.notches.first - const Offset(110, 0)
+        ..lastSafe = rib.notches.first - const Offset(110, 0);
+      game.activateAbility();
+      for (var i = 0; i < 180; i++) {
+        game.update(1 / 60);
+        game.creatures.single.hp = game.creatures.single.maxHp;
+      }
+    }
 
-    game.activateAbility();
+    // Right element, wrong family: nothing moves, and nothing is roused —
+    // a refusal is not a penalty.
+    for (final family in const ['mane', 'pip', 'mask', 'wing', 'kin']) {
+      final blocked = _harness([_member(0, 'Earth', family)]);
+      final ribId = blocked.layout.rooms['rib_hall']!.fossilRibs.first.id;
+      shove(blocked);
+      expect(
+        blocked.ribNotches[ribId] ?? 0,
+        0,
+        reason: 'an Earth $family must not shift the giant\'s bone',
+      );
+      expect(
+        blocked.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'a clean refusal never rouses the marrow',
+      );
+    }
+
+    // Right element AND family: one clean shove, no consequence wave.
+    final horn = _harness([_member(0, 'Earth', 'horn')]);
+    final ribId = horn.layout.rooms['rib_hall']!.fossilRibs.first.id;
+    shove(horn);
+    expect(horn.ribNotches[ribId], 1, reason: 'the Horn lands the shove');
     expect(
-      game.combatEnemies.where((e) => !e.isDead),
-      isNotEmpty,
-      reason: 'the slow grind wakes the marrow at once',
+      horn.combatEnemies.where((e) => !e.isDead),
+      isEmpty,
+      reason: 'a clean shove is silent',
     );
-    // The sluggish grind takes ~2.4s (a Horn lands it in 0.9).
-    for (var i = 0; i < 80; i++) {
-      game.update(1 / 60);
-      game.creatures.single.hp = game.creatures.single.maxHp;
+  });
+
+  test('the buried socket is element-only: every Lightning family charges it '
+      'identically', () {
+    // (framesToLight, wispsRoused) per family — must be one and the same.
+    final results = <String, (int, int)>{};
+    for (final family in const ['pip', 'mane', 'horn', 'mask', 'wing', 'kin']) {
+      final game = _harness([_member(0, 'Lightning', family)]);
+      final pillar = game.layout.rooms['pillar_crypt']!.fossilPillars.first;
+      game.currentRoomId = 'pillar_crypt';
+      game.creatures.single
+        ..position = pillar.position
+        ..lastSafe = pillar.position;
+      game.activateAbility();
+      // The defend-the-socket wave is a PUZZLE consequence: it comes for
+      // EVERYONE, and it is the same size for everyone.
+      final roused = game.combatEnemies.where((e) => !e.isDead).length;
+      expect(roused, greaterThan(0), reason: 'the charge wakes the marrow');
+      var frames = 0;
+      while (!game.lockedPillars.contains(pillar.id) && frames++ < 600) {
+        game.update(1 / 60);
+        game.creatures.single.hp = game.creatures.single.maxHp;
+      }
+      expect(
+        game.lockedPillars,
+        contains(pillar.id),
+        reason: 'a Lightning $family must light the socket',
+      );
+      results[family] = (frames, roused);
     }
     expect(
-      game.ribNotches[rib.id] ?? 0,
-      0,
-      reason: '1.3s in, the off-family grind is still going',
+      results.values.toSet().length,
+      1,
+      reason: 'no family charges faster, slower, or louder than another: '
+          '$results',
     );
-    for (var i = 0; i < 90; i++) {
-      game.update(1 / 60);
-      game.creatures.single.hp = game.creatures.single.maxHp;
-    }
-    expect(game.ribNotches[rib.id], 1, reason: 'the sluggish shove lands');
   });
 
   test('every scale stone has a body-mark recorded in a real room', () {

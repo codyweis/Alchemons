@@ -271,19 +271,81 @@ void main() {
     expect(game.starsEarnedCount, 3);
   });
 
-  test('off-family pylon charge is loud (wrong-family penalty)', () {
-    final game = _harness([_member(0, 'Lightning', 'mane')]); // not a Horn
-    final pylon = game.layout.rooms['pylon_hall']!;
-    game.currentRoomId = 'pylon_hall';
-    game.creatures.single
-      ..position = pylon.beamEmitters.first.position
-      ..lastSafe = pylon.beamEmitters.first.position;
+  // v2: the pylon is ELEMENT-ONLY. Every Lightning family wakes it at full
+  // strength and in silence — the old off-family "sputter + wisps" tax is gone.
+  test('the pylon is element-only: every Lightning family wakes it '
+      'identically', () {
+    for (final family in const [
+      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
+    ]) {
+      final game = _harness([_member(0, 'Lightning', family)]);
+      final pylon = game.layout.rooms['pylon_hall']!.beamEmitters.first;
+      game.currentRoomId = 'pylon_hall';
+      game.creatures.single
+        ..position = pylon.position
+        ..lastSafe = pylon.position;
 
-    game.activateAbility(); // an off-family Lightning sputters the pylon alight
+      game.activateAbility();
+      expect(
+        game.pylonBeamOn,
+        isTrue,
+        reason: 'a Lightning $family must wake the pylon',
+      );
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'a Lightning $family wakes it SILENTLY — no scattered sparks',
+      );
+    }
+
+    // Wrong element is still refused (that gate never moved).
+    final wrong = _harness([_member(0, 'Water', 'horn')]);
+    final pylon = wrong.layout.rooms['pylon_hall']!.beamEmitters.first;
+    wrong.currentRoomId = 'pylon_hall';
+    wrong.creatures.single
+      ..position = pylon.position
+      ..lastSafe = pylon.position;
+    wrong.activateAbility();
+    expect(wrong.pylonBeamOn, isFalse,
+        reason: 'only Lightning wakes the dead iron');
+  });
+
+  test('the ring circuit is element-only: every Lightning family charges a '
+      'node to the same window', () {
+    final windows = <String, double>{};
+    for (final family in const [
+      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
+    ]) {
+      final game = _harness([_member(0, 'Lightning', family)]);
+      final room = game.layout.rooms.values.firstWhere(
+        (r) => r.circuitNodes.any(
+          (n) => n.kind == CircuitNodeKind.source && !n.latching,
+        ),
+      );
+      final node = room.circuitNodes.firstWhere(
+        (n) => n.kind == CircuitNodeKind.source && !n.latching,
+      );
+      game.currentRoomId = room.id;
+      game.creatures.single
+        ..position = node.position
+        ..lastSafe = node.position;
+      game.activateAbility();
+      windows[family] = game.circuitCharge[node.id] ?? 0;
+      expect(
+        windows[family],
+        greaterThan(0.0),
+        reason: 'a Lightning $family must charge the node',
+      );
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'a Lightning $family charges it SILENTLY',
+      );
+    }
     expect(
-      game.combatEnemies.where((e) => !e.isDead),
-      isNotEmpty,
-      reason: 'the loud spark wakes wisps at once',
+      windows.values.toSet().length,
+      1,
+      reason: 'no family holds the charge longer than another: $windows',
     );
   });
 

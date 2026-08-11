@@ -432,6 +432,55 @@ void main() {
         reason: 'cooling condenses pressure back to the main');
   });
 
+  // v2: damming is ELEMENT-ONLY. Any Earth drives the wall home clean — the
+  // old "a Horn sets it clean, everyone else raises a racket that draws wisps"
+  // split is gone.
+  test('the molten dam is element-only: every Earth family walls identically',
+      () {
+    for (final family in const [
+      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
+    ]) {
+      final game = _harness([_member(0, 'Earth', family)]);
+      final room = game.layout.rooms['ember_causeway']!;
+      final g = room.molten!;
+      game.currentRoomId = 'ember_causeway';
+      game.update(1 / 60);
+      final cells = game.moltenCells['ember_causeway']!;
+
+      // Find open ground with open ground to its left to stand on.
+      int? tc, tr;
+      for (var r = 0; r < cells.length && tc == null; r++) {
+        for (var c = 1; c < cells[r].length; c++) {
+          if (cells[r][c] == 0 && cells[r][c - 1] == 0) {
+            tc = c;
+            tr = r;
+            break;
+          }
+        }
+      }
+      expect(tc, isNotNull, reason: 'the causeway must have open ground');
+
+      game.setActive(0);
+      game.creatures.single
+        ..position = _center(room, g, tc! - 1, tr!)
+        ..lastSafe = _center(room, g, tc - 1, tr)
+        ..angle = 0
+        ..aimAngle = 0; // facing right at the open cell
+      game.activateAbility();
+
+      expect(
+        cells[tr][tc],
+        1,
+        reason: 'an Earth $family must raise the dam wall',
+      );
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'an Earth $family raises it CLEAN — no racket, no wisps',
+      );
+    }
+  });
+
   test('every molten-room door is passable on foot (not just by teleport)', () {
     final game = _harness([_member(0, 'Steam', 'pip')]);
     // Geometry test, not economy: pre-pay every ring junction.

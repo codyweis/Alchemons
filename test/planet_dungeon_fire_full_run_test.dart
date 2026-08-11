@@ -32,6 +32,46 @@ CosmicPartyMember _member(int slot, String element, String family) {
   );
 }
 
+PlanetDungeonGame _harness(List<CosmicPartyMember> party) {
+  final game = PlanetDungeonGame(
+    element: 'Fire',
+    party: party,
+    initialStarMask: 0,
+    onStarEarned: (_) {},
+    onPlayerDown: () {},
+    onChanged: () {},
+  );
+  game.currentRoomId = game.layout.entranceRoomId;
+  for (final m in party) {
+    final c = DungeonCreature(member: m)
+      ..position = game.layout.entranceSpawn
+      ..lastSafe = game.layout.entranceSpawn;
+    game.creatures.add(c);
+    final stats = deriveCosmicSurvivalCompanionStats(member: m);
+    game.combatCompanions.add(
+      CosmicSurvivalCompanion(
+        member: m,
+        slotIndex: m.slotIndex,
+        position: c.position,
+        anchor: c.position,
+        maxHp: stats.maxHp,
+        currentHp: stats.maxHp,
+        physAtk: stats.physAtk,
+        elemAtk: stats.elemAtk,
+        physDef: stats.physDef,
+        elemDef: stats.elemDef,
+        cooldownReduction: stats.cooldownReduction,
+        critChance: stats.critChance,
+        attackRange: stats.attackRange,
+        specialAbilityRange: stats.specialAbilityRange,
+        tethered: false,
+        invincibleTimer: 0,
+      ),
+    );
+  }
+  return game;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -309,56 +349,73 @@ void main() {
     expect(game.starsEarnedCount, 3);
   });
 
-  test('off-family vine growth is loud (wrong-family penalty)', () {
-    final party = [_member(0, 'Plant', 'pip')]; // right element, wrong family
-    final game = PlanetDungeonGame(
-      element: 'Fire',
-      party: party,
-      initialStarMask: 0,
-      onStarEarned: (_) {},
-      onPlayerDown: () {},
-      onChanged: () {},
-    );
-    game.currentRoomId = game.layout.entranceRoomId;
-    for (final m in party) {
-      final c = DungeonCreature(member: m)
-        ..position = game.layout.entranceSpawn
-        ..lastSafe = game.layout.entranceSpawn;
-      game.creatures.add(c);
-      final stats = deriveCosmicSurvivalCompanionStats(member: m);
-      game.combatCompanions.add(
-        CosmicSurvivalCompanion(
-          member: m,
-          slotIndex: m.slotIndex,
-          position: c.position,
-          anchor: c.position,
-          maxHp: stats.maxHp,
-          currentHp: stats.maxHp,
-          physAtk: stats.physAtk,
-          elemAtk: stats.elemAtk,
-          physDef: stats.physDef,
-          elemDef: stats.elemDef,
-          cooldownReduction: stats.cooldownReduction,
-          critChance: stats.critChance,
-          attackRange: stats.attackRange,
-          specialAbilityRange: stats.specialAbilityRange,
-          tethered: false,
-          invincibleTimer: 0,
-        ),
+  // v2: the ash-garden bed is ELEMENT-ONLY. Any Plant lays the growth, and
+  // lays it CLEAN — there is no rustling tax on the wrong family.
+  test('the vine bed is element-only: every Plant family grows it '
+      'identically', () {
+    for (final family in const [
+      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
+    ]) {
+      final game = _harness([_member(0, 'Plant', family)]);
+      final bed = game.layout.rooms['cloister']!.vineBeds.first;
+      game.currentRoomId = 'cloister';
+      game.creatures.single
+        ..position = bed.position
+        ..lastSafe = bed.position;
+
+      game.activateAbility();
+      expect(
+        game.bedStates[bed.id],
+        1,
+        reason: 'a Plant $family must overgrow the bed',
+      );
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'a Plant $family grows CLEAN — the ash sleeps through it',
       );
     }
-    final bed = game.layout.rooms['cloister']!.vineBeds.first;
-    game.currentRoomId = 'cloister';
-    game.creatures.single
-      ..position = bed.position
-      ..lastSafe = bed.position;
+  });
 
-    game.activateAbility();
-    expect(game.bedStates[bed.id], 1, reason: 'the bed still overgrows');
+  test('the vesper gust is element-only: every Air family carries the flame '
+      'the same distance', () {
+    final landings = <String, Offset>{};
+    for (final family in const [
+      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
+    ]) {
+      final game = _harness([
+        _member(0, 'Fire', 'mask'),
+        _member(1, 'Air', family),
+      ]);
+      game.starMask = (1 << 0) | (1 << 1); // the vesper waits on the rite
+      final chain = game.layout.rooms['bell_gallery']!.incenseChains.first;
+      game.currentRoomId = 'bell_gallery';
+      // Fire lights the chain, then the Air creature gusts the live flame.
+      final ignition = game.chainIgnitionPoint(chain);
+      for (final c in game.creatures) {
+        c
+          ..position = ignition
+          ..lastSafe = ignition;
+      }
+      game.setActive(0);
+      game.activateAbility();
+      final before = game.vesperFlamePosition(chain.id);
+      expect(before, isNotNull, reason: 'Fire must light the chain first');
+      game.setActive(1);
+      game.creatures[1]
+        ..position = before!
+        ..lastSafe = before;
+      game.activateAbility();
+      final after = game.vesperFlamePosition(chain.id);
+      expect(after, isNotNull);
+      expect(after, isNot(before),
+          reason: 'an Air $family must move the flame');
+      landings[family] = after!;
+    }
     expect(
-      game.combatEnemies.where((e) => !e.isDead),
-      isNotEmpty,
-      reason: 'off-family rustling wakes the ash (a Mane grows clean)',
+      landings.values.toSet().length,
+      1,
+      reason: 'no Air family gusts the flame further than another: $landings',
     );
   });
 }

@@ -33,6 +33,77 @@ CosmicPartyMember _member(int slot, String element, String family) {
   );
 }
 
+PlanetDungeonGame _harness(List<CosmicPartyMember> party) {
+  final game = PlanetDungeonGame(
+    element: 'Water',
+    party: party,
+    initialStarMask: 0,
+    onStarEarned: (_) {},
+    onPlayerDown: () {},
+    onChanged: () {},
+  );
+  game.currentRoomId = game.layout.entranceRoomId;
+  for (final m in party) {
+    final c = DungeonCreature(member: m)
+      ..position = game.layout.entranceSpawn
+      ..lastSafe = game.layout.entranceSpawn;
+    game.creatures.add(c);
+    final stats = deriveCosmicSurvivalCompanionStats(member: m);
+    game.combatCompanions.add(
+      CosmicSurvivalCompanion(
+        member: m,
+        slotIndex: m.slotIndex,
+        position: c.position,
+        anchor: c.position,
+        maxHp: stats.maxHp,
+        currentHp: stats.maxHp,
+        physAtk: stats.physAtk,
+        elemAtk: stats.elemAtk,
+        physDef: stats.physDef,
+        elemDef: stats.elemDef,
+        cooldownReduction: stats.cooldownReduction,
+        critChance: stats.critChance,
+        attackRange: stats.attackRange,
+        specialAbilityRange: stats.specialAbilityRange,
+        tethered: false,
+        invincibleTimer: 0,
+      ),
+    );
+  }
+  return game;
+}
+
+/// A moon-well harness with the rite unlocked and the tide settled MID — the
+/// only state in which the pools take ice. Slot 0 is a Water Pip (it works the
+/// pipe-mouth); [m] is the creature under test, left active in slot 1.
+PlanetDungeonGame _moonWellAtMidTide(CosmicPartyMember m) {
+  final game = _harness([_member(0, 'Water', 'pip'), m]);
+  game.starMask = (1 << 0) | (1 << 1); // the pools wait on the rite
+  game.currentRoomId = 'moon_well';
+  final mouth = game.layout.rooms['moon_well']!.tideValves.single;
+  for (final c in game.creatures) {
+    c
+      ..position = mouth.position
+      ..lastSafe = mouth.position;
+  }
+  game.setActive(0);
+  var guard = 0;
+  while (game.tideLevel != 1 && guard++ < 6) {
+    game.activateAbility();
+  }
+  expect(game.tideLevel, 1, reason: 'the pipe-mouth must reach mid water');
+  guard = 0;
+  while (!game.tideSettled && guard++ < 900) {
+    game.update(1 / 60);
+    for (final c in game.creatures) {
+      c.hp = c.maxHp;
+    }
+  }
+  expect(game.tideSettled, isTrue, reason: 'the tide must settle');
+  game.setActive(1);
+  return game;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -314,67 +385,119 @@ void main() {
     expect(game.starsEarnedCount, 3);
   });
 
-  test('a non-Pip valve turn is slow AND loud (wrong-family penalty)', () {
-    final party = [_member(0, 'Water', 'mane')]; // right element, wrong family
-    final game = PlanetDungeonGame(
-      element: 'Water',
-      party: party,
-      initialStarMask: 0,
-      onStarEarned: (_) {},
-      onPlayerDown: () {},
-      onChanged: () {},
-    );
-    game.currentRoomId = game.layout.entranceRoomId;
-    for (final m in party) {
-      final c = DungeonCreature(member: m)
-        ..position = game.layout.entranceSpawn
-        ..lastSafe = game.layout.entranceSpawn;
-      game.creatures.add(c);
-      final stats = deriveCosmicSurvivalCompanionStats(member: m);
-      game.combatCompanions.add(
-        CosmicSurvivalCompanion(
-          member: m,
-          slotIndex: m.slotIndex,
-          position: c.position,
-          anchor: c.position,
-          maxHp: stats.maxHp,
-          currentHp: stats.maxHp,
-          physAtk: stats.physAtk,
-          elemAtk: stats.elemAtk,
-          physDef: stats.physDef,
-          elemDef: stats.elemDef,
-          cooldownReduction: stats.cooldownReduction,
-          critChance: stats.critChance,
-          attackRange: stats.attackRange,
-          specialAbilityRange: stats.specialAbilityRange,
-          tethered: false,
-          invincibleTimer: 0,
-        ),
+  // v2: the master wheels are ELEMENT-ONLY — every Water family sets the stand
+  // at once, silently. The old "the wrong family waits on groaning pipes AND
+  // draws the brine" tax is gone.
+  test('the master valve is element-only: every Water family sets the stand '
+      'identically', () {
+    for (final family in const [
+      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
+    ]) {
+      final game = _harness([_member(0, 'Water', family)]);
+      final valve = game.layout.rooms['tide_works']!.tideValves
+          .firstWhere((v) => v.level == 1);
+      game.currentRoomId = 'tide_works';
+      game.creatures.single
+        ..position = valve.position
+        ..lastSafe = valve.position;
+
+      game.activateAbility();
+      expect(
+        game.tideLevel,
+        1,
+        reason: 'a Water $family turns the wheel INSTANTLY — no waiting',
+      );
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'a Water $family turns the wheel SILENTLY — no brine',
       );
     }
-    final works = game.layout.rooms['tide_works']!;
-    final valve = works.tideValves.firstWhere((v) => v.level == 1);
-    game.currentRoomId = 'tide_works';
-    game.creatures.single
-      ..position = valve.position
-      ..lastSafe = valve.position;
+  });
 
-    game.activateAbility();
-    expect(
-      game.tideLevel,
-      0,
-      reason: 'the wrong family waits on the groaning pipes',
-    );
-    expect(
-      game.combatEnemies.where((e) => !e.isDead),
-      isNotEmpty,
-      reason: 'the groan draws the brine at once',
-    );
-    // ~5 seconds later the pipes finally answer.
-    for (var i = 0; i < 320; i++) {
-      game.update(1 / 60);
-      game.creatures.single.hp = game.creatures.single.maxHp;
+  test('the pipe-mouth is a hard gate: only a Water pip cycles the tide', () {
+    // Right element, wrong family: refused outright — the tide does not move,
+    // now or later, and nothing is roused by the refusal.
+    for (final family in const ['mane', 'horn', 'mask', 'wing', 'kin']) {
+      final game = _harness([_member(0, 'Water', family)]);
+      final mouth = game.layout.rooms['moon_well']!.tideValves.single;
+      game.currentRoomId = 'moon_well';
+      game.creatures.single
+        ..position = mouth.position
+        ..lastSafe = mouth.position;
+      final before = game.tideLevel;
+      game.activateAbility();
+      for (var i = 0; i < 400; i++) {
+        game.update(1 / 60);
+        game.creatures.single.hp = game.creatures.single.maxHp;
+      }
+      expect(
+        game.tideLevel,
+        before,
+        reason: 'a Water $family must never reach down the pipe-mouth',
+      );
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'a clean refusal is not a penalty — no brine rises',
+      );
     }
-    expect(game.tideLevel, 1, reason: 'the sluggish turn lands after ~5s');
+
+    // A Water Pip cycles it at once.
+    final pip = _harness([_member(0, 'Water', 'pip')]);
+    final mouth = pip.layout.rooms['moon_well']!.tideValves.single;
+    pip.currentRoomId = 'moon_well';
+    pip.creatures.single
+      ..position = mouth.position
+      ..lastSafe = mouth.position;
+    final before = pip.tideLevel;
+    pip.activateAbility();
+    expect(pip.tideLevel, (before + 1) % 3, reason: 'the Pip rides the pipes');
+    expect(
+      pip.combatEnemies.where((e) => !e.isDead),
+      isEmpty,
+      reason: 'the Pip rides the pipes silently',
+    );
+  });
+
+  test('the moon-pool is element-only, but the recipe keeps its downside', () {
+    // Every ICE family freezes a true pool clean and SILENT…
+    for (final family in const [
+      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
+    ]) {
+      final game = _moonWellAtMidTide(_member(1, 'Ice', family));
+      final pool = game.layout.rooms['moon_well']!.moonPools
+          .firstWhere((p) => p.isTrue);
+      game.creatures[1]
+        ..position = pool.position
+        ..lastSafe = pool.position;
+      game.activateAbility();
+      expect(
+        game.poolStates[pool.id],
+        1,
+        reason: 'an Ice $family must freeze the pool',
+      );
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'ice laid DIRECT is silent for every family ($family)',
+      );
+    }
+
+    // …while the Spirit+Water→Ice RECIPE still rouses the brine. That is the
+    // braid's cost, not a family penalty.
+    final spirit = _moonWellAtMidTide(_member(1, 'Spirit', 'mane'));
+    final pool = spirit.layout.rooms['moon_well']!.moonPools
+        .firstWhere((p) => p.isTrue);
+    spirit.creatures[1]
+      ..position = pool.position
+      ..lastSafe = pool.position;
+    spirit.activateAbility();
+    expect(spirit.poolStates[pool.id], 1, reason: 'the braid freezes it too');
+    expect(
+      spirit.combatEnemies.where((e) => !e.isDead),
+      isNotEmpty,
+      reason: 'the recipe keeps its wisps',
+    );
   });
 }

@@ -12,15 +12,14 @@
 //    Shoves are TRACK-NOTCH slides (animated grinds, never snaps, never free
 //    physics): a rib is a solid wall anywhere on its track EXCEPT settled in
 //    the chasm groove (its last notch), where it drops in and becomes
-//    walkway. An Earth Horn shoves clean and fast; other Earth families
-//    grind slowly AND loudly (bone wisps); the marrow chasm is impassable
-//    until bridged, and the sternum plate beyond banks the star once all
-//    three ribs lie true.
+//    walkway. Shoving is a HARD GATE — an Earth HORN and nothing else, one
+//    clean grind per notch; the marrow chasm is impassable until bridged, and
+//    the sternum plate beyond banks the star once all three ribs lie true.
 //  • Star 2 (Crystal) — the pillar crypt: four buried sockets. Lightning
-//    arcs them and the lock grows as crystal (Earth+Lightning→Crystal); a
-//    Pip slips the arc in clean, other Lightning families charge slowly and
-//    loudly. PARITY: a Crystal creature sets the lock directly. Every lock
-//    cracks loose bone wisps (the consequence layer).
+//    arcs them and the lock grows as crystal (Earth+Lightning→Crystal) —
+//    ELEMENT-ONLY, so every Lightning family drives the same clean, fast
+//    charge. PARITY: a Crystal creature sets the lock directly. Every lock
+//    cracks loose bone wisps (the consequence layer, for everyone).
 //  • Star 3 (Heart) — behind the rite-shut jaw: the giant's crystal eye
 //    watches a stone scale. Each weight sits on a left or right pan; only
 //    the giant's remembered arrangement balances it. The eye gives counting
@@ -68,9 +67,8 @@ const Map<String, String> kScaleClueRooms = {
   'w_seed': 'pillar_crypt',
 };
 
-// Shove tunables: a clean Horn grind vs the slow loud off-family one.
+// Shove tunable: the rib is a HARD Earth+Horn gate, so every shove is clean.
 const double _kRibSlideClean = 0.9;
-const double _kRibSlideSluggish = 2.4;
 
 extension BuriedGiant on PlanetDungeonGame {
   // ── State helpers ───────────────────────────────────────
@@ -442,8 +440,8 @@ extension BuriedGiant on PlanetDungeonGame {
     return true;
   }
 
-  /// Star 1: shove a rib one notch along its track. Direction follows which
-  /// side of the rib the shover stands on.
+  /// Star 1: shove a rib one notch along its track. A HARD GATE — Earth+Horn
+  /// and nothing else. Direction follows which side of the rib you stand on.
   bool _tryRib(DungeonCreature a, DungeonRoom room) {
     final star = room.ribStarIndex;
     if (room.fossilRibs.isEmpty || star == null || hasStar(star)) {
@@ -459,7 +457,19 @@ extension BuriedGiant on PlanetDungeonGame {
         _setHint('This rib lies true in its groove');
         return true;
       }
-      if (a.member.element != 'Earth') {
+      // HARD GATE: the giant's ribs are Earth + Horn. Nothing else shifts bone.
+      final r = evaluateInteraction(
+        a.member,
+        const DungeonInteractionRequirement(
+          element: 'Earth',
+          requiredFamily: DungeonAbility.heavyForce,
+        ),
+      );
+      if (r == InteractionResult.blockedFamily) {
+        _setHint('Only an Earth horn\'s force shifts this bone');
+        return true;
+      }
+      if (!interactionSucceeded(r)) {
         _setHint('The giant\'s bones move only for earthen strength');
         return true;
       }
@@ -476,18 +486,10 @@ extension BuriedGiant on PlanetDungeonGame {
         _setHint('The rib will not grind further that way');
         return true;
       }
-      final q = evaluateInteraction(
-        a.member,
-        const DungeonInteractionRequirement(
-          element: 'Earth',
-          preferred: DungeonAbility.heavyForce,
-        ),
-      );
-      final clean = q == InteractionQuality.perfect;
       _ribSlides[rib.id] = _RibSlide(
         from: cur,
         to: target,
-        dur: clean ? _kRibSlideClean : _kRibSlideSluggish,
+        dur: _kRibSlideClean,
       );
       _spawnAlchemyBurst(
         _ribRect(rib).center,
@@ -496,32 +498,16 @@ extension BuriedGiant on PlanetDungeonGame {
         particleCount: 14,
         intensity: 0.8,
       );
-      if (clean) {
-        _setHint('One clean shove — the rib grinds along its track');
-      } else {
-        // Slow AND loud: the long grind wakes the marrow.
-        spawnWispWave(
-          element: 'Earth',
-          center: _ribRect(rib).center,
-          count: 2,
-          announce: false,
-        );
-        _setHint(
-          'The rib grinds slowly under your shoulder — and the marrow '
-          'hears it',
-          3.0,
-        );
-      }
+      _setHint('One clean shove — the rib grinds along its track');
       return true;
     }
     return false;
   }
 
   /// Star 2: arc a buried socket. The socket must CHARGE before the crystal
-  /// lights — and the charge wakes the marrow AT ONCE, so the player defends
-  /// the socket until it fills. Family grades the charge: Lightning Pip charges
-  /// fastest with the lightest wave; off-family Lightning crawls AND rouses a
-  /// heavier one; Crystal sets it on a fast direct charge (parity).
+  /// lights — and the charge wakes the marrow AT ONCE, for EVERYONE, so the
+  /// player defends the socket until it fills. ELEMENT-ONLY: any Lightning
+  /// charges it; Crystal sets it direct (parity).
   bool _tryPillar(DungeonCreature a, DungeonRoom room) {
     final star = room.pillarStarIndex;
     if (room.fossilPillars.isEmpty || star == null || hasStar(star)) {
@@ -549,25 +535,11 @@ extension BuriedGiant on PlanetDungeonGame {
         unstable = false;
         hint = 'Crystal floods the socket — guard it while it sets';
       } else if (element == 'Lightning') {
-        final q = evaluateInteraction(
-          a.member,
-          const DungeonInteractionRequirement(
-            element: 'Lightning',
-            preferred: DungeonAbility.smallAccess,
-          ),
-        );
-        if (q == InteractionQuality.perfect) {
-          dur = 2.0;
-          waveCount = 2;
-          unstable = false;
-          hint = 'The spark slips clean into the socket — defend its charge';
-        } else {
-          // Slow AND loud: the long charge rattles the crypt awake.
-          dur = 4.5;
-          waveCount = 3;
-          unstable = true;
-          hint = 'The arc crawls slowly into the socket — and the crypt wakes';
-        }
+        // ELEMENT-ONLY: any Lightning drives the same clean, fast charge.
+        dur = 2.0;
+        waveCount = 2;
+        unstable = false;
+        hint = 'The spark slips clean into the socket — defend its charge';
       } else {
         _setHint('A buried socket — storm-spark would wake it, or crystal '
             'seal it outright');

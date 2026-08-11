@@ -1,13 +1,22 @@
 // lib/games/planet_dungeon/planet_dungeon_verbs.dart
 //
 // Dungeon interaction framework: Element = power, Family = method, Stats =
-// quality, Recipe = alternate solution. See docs/dungeons.md.
+// magnitude, Recipe = alternate ELEMENT. See docs/dungeons.md.
 //
 //  • DungeonAbility   — the family's interaction METHOD (one per family).
 //  • DungeonInteractionRequirement — what a puzzle object wants.
-//  • InteractionQuality (Perfect/Valid/Weak/Failed) — how well the active
-//    creature satisfies a requirement.
+//  • InteractionResult — pass / pass-via-recipe / a NAMED refusal.
 //  • recipe table — element-combo alternate solutions.
+//
+// THE v2 RULE (no quality ladder): every puzzle object is exactly one of two
+// shapes.
+//   ELEMENT-ONLY  (`requiredFamily == null`) — any family of the right element
+//                 acts at FULL power. No off-family timer, wisp or half-hold.
+//   HARD GATE     (`requiredFamily != null`) — right element AND right family,
+//                 else a clean refusal. There is no middle tier, and a recipe
+//                 never buys past a family gate.
+// Recipes substitute a missing ELEMENT only. Stats never gate the ladder (there
+// is none) — they scale OUTPUT MAGNITUDE through the pure tunables below.
 //
 // All maths are pure (unit-tested without the engine).
 
@@ -47,7 +56,7 @@ DungeonAbility abilityForFamily(String family) {
   }
 }
 
-/// Which stat scales an ability's quality/power.
+/// Which stat scales an ability's output magnitude.
 CosmicContestTrait? statForAbility(DungeonAbility a) {
   switch (a) {
     case DungeonAbility.aerialTraversal:
@@ -103,24 +112,48 @@ String abilityLabel(DungeonAbility a) {
   }
 }
 
-// ── Interaction quality ─────────────────────────────────────
+// ── Interaction result ──────────────────────────────────────
 
-enum InteractionQuality { perfect, valid, weak, failed }
+/// The outcome of testing a creature against a puzzle object. A refusal always
+/// names WHAT is missing — [blockedFamily] in particular is kept distinct so a
+/// hard gate can say so in its own words (and stamp its own UI chip).
+enum InteractionResult {
+  /// Acts at FULL power. There is no lesser success.
+  passed,
 
-/// What a puzzle object requires. [preferred] null = any family of [element]
-/// is Perfect. The `min*` stats are soft gates: quality (element/family) and
-/// stat-sufficiency ([meetsStats]) are checked separately — a creature can be
-/// the right element+family yet still need more of a stat to act at full power
-/// (e.g. a strong current needs Speed; a heavy seal needs Strength). Output
-/// magnitude (glide length, hint tier, channel hold…) is scaled by the pure
-/// tunables below, NOT gated here.
+  /// The element was missing but an element-combo stood in for it. Full power;
+  /// a puzzle may still attach its own recipe downside (that is not a penalty
+  /// for the family — it is the cost of the braid).
+  passedViaRecipe,
+
+  /// Wrong element, and no recipe was available/allowed.
+  blockedElement,
+
+  /// Right element, wrong family, at a HARD GATE.
+  blockedFamily,
+
+  /// Element and family are right, but a `min*` stat gate is unmet.
+  blockedStat,
+}
+
+/// What a puzzle object requires.
+///
+///  • [requiredFamily] `null` → ELEMENT-ONLY: every family of [element] passes
+///    at full power.
+///  • [requiredFamily] non-null → HARD GATE: only that family passes; everyone
+///    else is refused outright ([InteractionResult.blockedFamily]). A recipe
+///    does NOT open a family gate.
+///  • [allowRecipe] lets an element-combo stand in for the missing ELEMENT.
+///
+/// The `min*` stats (1..5; 0 = none) are the one remaining hard requirement
+/// beyond element/family. Output MAGNITUDE (glide length, hint tier, channel
+/// hold…) is scaled by the pure tunables below, never gated here.
 class DungeonInteractionRequirement {
   final String element;
-  final DungeonAbility? preferred;
-  final bool allowWrongFamily; // element-match but wrong family → Valid
-  final bool allowRecipe; // recipe combo → Weak
+  final DungeonAbility? requiredFamily;
+  final bool allowRecipe;
 
-  // Soft stat gates (1..5). 0 = no requirement.
+  // Stat gates (1..5). 0 = no requirement.
   final double minSpeed;
   final double minIntelligence;
   final double minStrength;
@@ -128,14 +161,16 @@ class DungeonInteractionRequirement {
 
   const DungeonInteractionRequirement({
     required this.element,
-    this.preferred,
-    this.allowWrongFamily = true,
+    this.requiredFamily,
     this.allowRecipe = false,
     this.minSpeed = 0,
     this.minIntelligence = 0,
     this.minStrength = 0,
     this.minBeauty = 0,
   });
+
+  /// True when this object gates on a family (vs. element-only).
+  bool get isHardGate => requiredFamily != null;
 
   /// Whether [m] clears all of this requirement's stat gates.
   bool meetsStats(CosmicPartyMember m) =>
@@ -162,26 +197,32 @@ class GuardianEncounterRequirement {
   });
 }
 
-/// Grade how well [m] satisfies [req]. [recipeAvailable] = a valid element-combo
-/// is set up (puzzle-specific; e.g. fire fired through a wind current).
-InteractionQuality evaluateInteraction(
+/// Test [m] against [req]. [recipeAvailable] = a valid element-combo is set up
+/// (puzzle-specific; e.g. fire fired through a wind current) — it can supply a
+/// missing ELEMENT, never a missing family.
+InteractionResult evaluateInteraction(
   CosmicPartyMember m,
   DungeonInteractionRequirement req, {
   bool recipeAvailable = false,
 }) {
-  final sameElement = m.element == req.element;
-  final ability = abilityForFamily(m.family);
-  if (sameElement && (req.preferred == null || ability == req.preferred)) {
-    return InteractionQuality.perfect;
+  final viaRecipe = m.element != req.element;
+  if (viaRecipe && !(req.allowRecipe && recipeAvailable)) {
+    return InteractionResult.blockedElement;
   }
-  if (sameElement && req.allowWrongFamily) {
-    return InteractionQuality.valid;
+  // A family gate stands whether the element came direct or from a braid.
+  final family = req.requiredFamily;
+  if (family != null && abilityForFamily(m.family) != family) {
+    return InteractionResult.blockedFamily;
   }
-  if (req.allowRecipe && recipeAvailable) {
-    return InteractionQuality.weak;
-  }
-  return InteractionQuality.failed;
+  if (!req.meetsStats(m)) return InteractionResult.blockedStat;
+  return viaRecipe
+      ? InteractionResult.passedViaRecipe
+      : InteractionResult.passed;
 }
+
+/// Convenience: did [r] let the creature act at all (at full power)?
+bool interactionSucceeded(InteractionResult r) =>
+    r == InteractionResult.passed || r == InteractionResult.passedViaRecipe;
 
 // ── Recipe table (element-combo alternate solutions) ────────
 

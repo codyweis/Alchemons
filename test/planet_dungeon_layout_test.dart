@@ -494,7 +494,7 @@ void main() {
         test('arc-only conduits share a room with a wind current', () {
           for (final room in layout.rooms.values) {
             for (final c in room.conduits) {
-              if (c.preferred != null) continue; // channelled, not arc-lit
+              if (c.requiredFamily != null) continue; // channelled, not arc-lit
               expect(
                 room.currents,
                 isNotEmpty,

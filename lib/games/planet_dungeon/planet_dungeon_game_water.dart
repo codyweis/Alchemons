@@ -11,15 +11,16 @@
 //  • Entry — a Water creature fills the temple's dry offering-bowl and the
 //    inner doors part (one-time reveal, persisted like the other planets').
 //  • Star 1 (Tide) — the tide-works: three master valves command the water
-//    (any Water creature; a Pip is instant, others sluggish — and pipe-mouth
-//    valves elsewhere answer ONLY a Pip). Three sluice seals each yield at
-//    exactly one stand: drained floor, mid walkway, swum-over high ledge.
+//    (ELEMENT-ONLY: any Water creature, instantly — while the pipe-mouth
+//    valve elsewhere is a HARD GATE that answers ONLY a Water Pip). Three
+//    sluice seals each yield at exactly one stand: drained floor, mid
+//    walkway, swum-over high ledge.
 //  • Star 2 (Current) — the ghost gallery: an invisible current; a Spirit
-//    creature's insight bares it (Mask = longest, Int-tiered detail) and its
+//    creature's insight bares it (any family, Int-tiered detail) and its
 //    five eddies must be waded in order. A wrong eddy scatters the current
 //    and the ghost-water rises angry.
 //  • Star 3 (Deep) — beyond the mirror gate: at MID tide the two TRUE
-//    moon-pools take the ice (Ice directly — Mane = cleanest — or a Spirit
+//    moon-pools take the ice (any Ice family, clean — or a Spirit
 //    creature acting in the water: Spirit+Water→Ice, the recipe's downside
 //    being roused brine). Freezing a false pool SHATTERS. Both true pools
 //    bridged → Leviathan stirs in the depths.
@@ -59,8 +60,6 @@ extension MirrorTide on PlanetDungeonGame {
     eddyRevealTier = 0;
     poolStates.clear();
     _poolFx.clear();
-    _valveDelay = 0;
-    _valvePendingLevel = null;
   }
 
   /// Visual flood threshold for a zone (floodedAt 1 → 0.47 · 2 → 0.97).
@@ -158,15 +157,6 @@ extension MirrorTide on PlanetDungeonGame {
 
   void _updateTemple(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isTemple) return;
-
-    // A sluggish (non-Pip) valve turn lands after its delay.
-    if (_valveDelay > 0) {
-      _valveDelay -= dt;
-      if (_valveDelay <= 0 && _valvePendingLevel != null) {
-        _setTide(_valvePendingLevel!);
-        _valvePendingLevel = null;
-      }
-    }
 
     // The ANIMATED tide: ease the visual water toward the target stand.
     final target = tideLevel / 2;
@@ -301,15 +291,24 @@ extension MirrorTide on PlanetDungeonGame {
     return true;
   }
 
-  /// Tide valves: masters set a stand outright; pipe-mouths cycle (Pip only).
+  /// Tide valves. The master wheels are ELEMENT-ONLY: any Water creature sets
+  /// a stand outright. The pipe-mouth is a HARD GATE — Water + Pip, nothing
+  /// else fits down the pipes.
   bool _tryTideValve(DungeonCreature a, DungeonRoom room) {
     for (final valve in room.tideValves) {
       if ((a.position - valve.position).distance > 46) continue;
-      if (valve.pipOnly && a.ability != DungeonAbility.smallAccess) {
-        _setHint('A narrow pipe-mouth — only something small slips inside');
+      final r = evaluateInteraction(
+        a.member,
+        DungeonInteractionRequirement(
+          element: 'Water',
+          requiredFamily: valve.pipOnly ? DungeonAbility.smallAccess : null,
+        ),
+      );
+      if (r == InteractionResult.blockedFamily) {
+        _setHint('Only a Water pip slips down this pipe-mouth');
         return true;
       }
-      if (a.member.element != 'Water') {
+      if (!interactionSucceeded(r)) {
         _setHint('The valve answers Water alone');
         return true;
       }
@@ -321,13 +320,6 @@ extension MirrorTide on PlanetDungeonGame {
         );
         return true;
       }
-      final q = evaluateInteraction(
-        a.member,
-        const DungeonInteractionRequirement(
-          element: 'Water',
-          preferred: DungeonAbility.smallAccess,
-        ),
-      );
       _spawnAlchemyBurst(
         valve.position,
         producedElement: 'Water',
@@ -335,28 +327,7 @@ extension MirrorTide on PlanetDungeonGame {
         particleCount: 14,
         intensity: 0.8,
       );
-      if (q == InteractionQuality.perfect || valve.pipOnly) {
-        // A Pip rides the pipes: instant, and SILENT.
-        _valvePendingLevel = null;
-        _valveDelay = 0;
-        _setTide(targetLevel);
-      } else {
-        // Valid: the pipes answer slowly AND loudly — the wrong family pays
-        // in time and in noise (the groan draws the brine).
-        _valvePendingLevel = targetLevel;
-        _valveDelay = 5.0;
-        spawnWispWave(
-          element: 'Water',
-          center: valve.position,
-          count: 2,
-          announce: false,
-        );
-        _setHint(
-          'The valve GROANS — the deep pipes answer slowly, and the brine '
-          'hears it',
-          3.2,
-        );
-      }
+      _setTide(targetLevel);
       return true;
     }
     return false;
@@ -414,8 +385,8 @@ extension MirrorTide on PlanetDungeonGame {
     return false;
   }
 
-  /// Star 2's reveal: ANY Spirit creature bares the ghost current (Mask =
-  /// longest sight, Intelligence widens what shows).
+  /// Star 2's reveal: ANY Spirit creature bares the ghost current, at full
+  /// sight — Intelligence alone decides how long and how much shows.
   bool _tryGhostReveal(DungeonCreature a, DungeonRoom room) {
     if (room.ghostEddies.isEmpty) return false;
     if (a.member.element != 'Spirit') return false;
@@ -424,17 +395,8 @@ extension MirrorTide on PlanetDungeonGame {
       _setHint('The current rests — its course is run');
       return true;
     }
-    final q = evaluateInteraction(
-      a.member,
-      const DungeonInteractionRequirement(
-        element: 'Spirit',
-        preferred: DungeonAbility.insight,
-      ),
-    );
     eddyRevealTier = revealHintTier(a.member.statIntelligence);
-    eddyRevealTimer =
-        (4.0 + 6.0 * normStat(a.member.statIntelligence)) *
-        (q == InteractionQuality.perfect ? 1.0 : 0.6);
+    eddyRevealTimer = 4.0 + 6.0 * normStat(a.member.statIntelligence);
     revealFlash = 0.6;
     _spawnAlchemyBurst(
       a.position,
@@ -474,16 +436,16 @@ extension MirrorTide on PlanetDungeonGame {
         );
         return true;
       }
-      final q = evaluateInteraction(
+      final r = evaluateInteraction(
         a.member,
         const DungeonInteractionRequirement(
           element: 'Ice',
-          preferred: DungeonAbility.terrainTrail,
           allowRecipe: true,
         ),
         recipeAvailable: a.member.element == 'Spirit',
       );
-      if (q == InteractionQuality.failed) {
+      final viaRecipe = r == InteractionResult.passedViaRecipe;
+      if (!interactionSucceeded(r)) {
         _setHint('Ice would take this pool — or Spirit standing in the water');
         return true;
       }
@@ -514,15 +476,16 @@ extension MirrorTide on PlanetDungeonGame {
       _spawnAlchemyBurst(
         pool.position,
         producedElement: 'Ice',
-        reagentElements: q == InteractionQuality.weak
+        reagentElements: viaRecipe
             ? const ['Spirit', 'Water']
             : [a.member.element],
         particleCount: 22,
         intensity: 1.0,
       );
-      if (q != InteractionQuality.perfect) {
-        // Only a Mane lays the ice CLEAN. Off-family ice takes roughly and
-        // the recipe's braid is louder still — both rouse the brine.
+      if (viaRecipe) {
+        // The RECIPE's downside (not a family penalty): braiding Spirit through
+        // the water is a loud way to make ice, and the brine hears it. Ice laid
+        // direct — by ANY family — is silent.
         spawnWispWave(
           element: 'Water',
           center: pool.position,
@@ -550,10 +513,8 @@ extension MirrorTide on PlanetDungeonGame {
         );
       } else {
         _setHint(
-          q == InteractionQuality.weak
+          viaRecipe
               ? 'Spirit and Water braid into ice — and the brine stirs at it'
-              : q == InteractionQuality.valid
-              ? 'The ice takes, roughly — the noise carries through the water'
               : 'The pool takes the ice clean — the moon stands frozen in it',
           3.2,
         );

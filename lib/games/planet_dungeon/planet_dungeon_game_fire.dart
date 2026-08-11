@@ -22,8 +22,9 @@
 //  • Star 3 (Pyre) — flame is carried along hanging incense chains: Fire
 //    lights a censer (the ash rises to smother it AT ONCE — the rite is
 //    tended under attack), the flame crawls but starves between censers,
-//    gusts of Air (Wing = strongest) bear it on; a starved flame spawns a
-//    fury wave. Each flame reaching its ember bell rings it; three tolls
+//    gusts of Air (ELEMENT-ONLY: any family, Speed-scaled) bear it on; a
+//    starved flame spawns a fury wave. Each flame reaching its bell rings
+//    it; three tolls
 //    wake the black-flame Simurgh in the sanctum.
 
 part of 'planet_dungeon_game.dart';
@@ -459,29 +460,8 @@ extension CinderCathedral on PlanetDungeonGame {
     if (element == 'Plant' && state == 0) {
       bedStates[bed.id] = 1;
       _bedFx[bed.id] = 1.2;
-      final q = evaluateInteraction(
-        a.member,
-        const DungeonInteractionRequirement(
-          element: 'Plant',
-          preferred: DungeonAbility.terrainTrail,
-        ),
-      );
-      if (q == InteractionQuality.perfect) {
-        // A Mane lays the growth CLEAN and silent.
-        _setHint('Vines surge across the bed in one green breath');
-      } else {
-        // Off-family growth is slow and LOUD — the rustling wakes the ash.
-        spawnWispWave(
-          element: 'Fire',
-          center: bed.position,
-          count: 2,
-          announce: false,
-        );
-        _setHint(
-          'Vines creep slowly over the bed — and the rustling wakes the ash',
-          3.0,
-        );
-      }
+      // ELEMENT-ONLY: any Plant lays the growth clean and silent.
+      _setHint('Vines surge across the bed in one green breath');
       _spawnAlchemyBurst(
         bed.position,
         producedElement: 'Plant',
@@ -611,24 +591,16 @@ extension CinderCathedral on PlanetDungeonGame {
       }
     }
 
-    // Air: gust a live flame onward (Wing = the strongest bearer).
+    // Air: gust a live flame onward. ELEMENT-ONLY — every Air carries it the
+    // same distance; Speed alone decides how far.
     if (element == 'Air') {
       for (final chain in room.incenseChains) {
         final flame = _vesperFlames[chain.id];
         if (flame == null) continue;
         final pos = _chainPoint(chain, flame.segment, flame.t);
         if ((a.position - pos).distance > _kGustRadius) continue;
-        final q = evaluateInteraction(
-          a.member,
-          const DungeonInteractionRequirement(
-            element: 'Air',
-            preferred: DungeonAbility.aerialTraversal,
-          ),
-        );
         final speedT = normStat(a.member.statSpeed);
-        final push = q == InteractionQuality.perfect
-            ? 120.0 + 70.0 * speedT
-            : 70.0 + 40.0 * speedT;
+        final push = 120.0 + 70.0 * speedT;
         flame.life = max(flame.life, _kFlameLife);
         _spawnAlchemyBurst(
           pos,
@@ -637,11 +609,7 @@ extension CinderCathedral on PlanetDungeonGame {
           particleCount: 12,
           intensity: 0.7,
         );
-        _setHint(
-          q == InteractionQuality.perfect
-              ? 'The gust bears the flame down the chain'
-              : 'Your gust nudges the flame along — a Wing would carry it far',
-        );
+        _setHint('The gust bears the flame down the chain');
         _advanceFlame(room, chain, flame, push);
         return true;
       }
