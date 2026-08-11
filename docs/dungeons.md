@@ -39,17 +39,51 @@ Special-case only Kin, Mystic guardians, and signature planet puzzles.
 | **Kin** | `ancientStabilize` | ancient machines, cores, relic vaults, guardian seals (rare, not mandatory) |
 | **Mystic** | `guardianRelic` | planet guardian / optional boss / relic protector (NOT a normal tool) |
 
-## 4. Interaction Quality System
+## 4. Interaction model v2 — ELEMENT OPENS, FAMILY UNLOCKS
 
-Every puzzle object evaluates the active Alchemon:
+**(DIRECTION CHANGE 2026-08-10 — supersedes the Perfect/Valid/Weak/Failed
+quality ladder. v1 shipped in the first six planets; §9.0 is the refit.)**
 
-- **Perfect** = correct element **and** correct family (instant / best).
-- **Valid** = correct element, wrong family (works, slower/weaker).
-- **Weak** = recipe workaround (element combo) — works but with a downside
-  (spawns wisps, raises a hazard meter, etc.).
-- **Failed** = no valid element / family / recipe.
+The old ladder made family half-matter: any same-element creature could do
+almost anything, just "slower and louder". That muddied both identities —
+family requirements read as suggestions, and element identity got buried
+under family-penalty noise. The new rule separates them cleanly:
 
-This keeps clears flexible while rewarding breeding the ideal mon.
+- **ELEMENT interactions (the default — most objects).** The object needs an
+  element, and ANY family of that element performs it identically, at full
+  power. No off-family speed penalty, no off-family wisp noise, no "sluggish"
+  animations. Element is the star of the show: valves answer Water, braziers
+  answer Fire, sockets answer Lightning — whoever carries it.
+- **FAMILY-GATED interactions (the marquee locks — rare and ABSOLUTE).** The
+  object needs element + family (e.g. a Lightning HORN). Wrong family = clean
+  refusal with one clear line — no slow path, no half-strength workaround.
+  If a puzzle says Horn, only the correct Horn passes. These are the
+  breeding hooks; there is no halfway.
+- **RECIPES substitute for a missing ELEMENT, never a family.** An element
+  combo (Air+Fire→Lightning) can stand in where an element is called for —
+  with its authored downside (wisps, hazard meter) as the price of the
+  workaround. A family gate can never be recipe'd around.
+- **STATS scale magnitude; they don't create pass/fail middle grounds.**
+  Glide length, hint tier, channel duration, charm threshold — quality of
+  outcome, not a mushy second way to succeed. Hard `min*` stat gates are
+  allowed on family-gated objects only, and failure must be surfaced.
+- **Kin & Mystic unchanged.** Kin calm is an alternate RESOLUTION (defeat
+  always exists), not a gate; Mystics stay out of the model entirely.
+
+**Family-gate budget + discoverability (the anti-frustration contract):**
+
+- Max ONE family gate per star, 1–3 per planet, each tied to one of the
+  planet's three entry slots — the §6 ideal team is exactly the trio that
+  clears everything.
+- At least one star per planet must be earnable by ANY trio of the correct
+  elements, so a first descent always progresses.
+- **THE SEAL REMEMBERS:** first contact with a family gate permanently stamps
+  the requirement onto the planet's descent panel as an explicit chip
+  (element + family badge, e.g. ⚡ HORN). You learn it in-world once and the
+  ship remembers it forever — no wiki, no blind re-runs. The verse riddle
+  stays as flavor above the chips, never as the only signal.
+- At the gate itself, refusal is one clear line ("Only a horn's force can
+  shift this") — see §5.6 hint standard.
 
 **THE DESCENT RIDDLE (built):** species choice is REASONED, never guessed —
 every layout carries a `riddle` (one verse line per entry slot). AUTHORING
@@ -63,17 +97,69 @@ that paves a road behind it" (the trail) · Pip = "what my smallest doors
 admit". Shown at the planet ("— the planet whispers —" card) on the
 descent-party chip and above DESCEND until the planet is 3-starred.
 Layout-test enforced (riddle length == entry slots). Author one for every
-planet.
+planet. **v2 note:** the riddle is FLAVOR, not the requirement UI — the
+explicit descent chips (element always; family badge once discovered via
+"the seal remembers") are the canonical signal.
 
-**PERFECT IS CLEAN, VALID IS SLOW AND LOUD (built):** the right family acts
-instantly and silently; the wrong family pays in TIME and in NOISE — the
-consequence layer hears it. Built examples: a non-Pip tide-valve turn waits
-~5s on groaning pipes AND draws brine wisps at once (a Pip is instant +
-silent); off-family vine growth rustles the ash awake (a Mane grows clean);
-off-family/recipe pool-freezes rouse the brine (a Mane lays ice clean); a
-non-Horn conduit channel holds only HALF as long. Kin's one-touch guardian
-calm and Wing's traversal dominance are INTENTIONAL — Kins and Wings are
-legendary creatures; their power is the rarity payoff, never nerf-target.
+**RETIRED (v1): "Perfect is clean, Valid is slow and loud."** The shipped
+slow-and-loud penalty layer is exactly the half-assery v2 removes. The §9.0
+refit converts every shipped instance to one of the two clean kinds —
+**routine / repeated mechanics → element-only (full power for any family;
+penalties deleted)** · **the one marquee lock per star → hard family gate
+(refusal, stamped chip)**.
+
+### The verified conversion inventory — 13 sites
+
+**CODE-AUDITED 2026-08-10** (an earlier hand-written list here was ~43%
+wrong on numbers/locations and missed 5 sites; this table replaces it and is
+the authority). 8 sites go through `evaluateInteraction`; 5 are hardcoded
+`ability ==` checks that bypass the framework entirely — the refit must
+catch both kinds.
+
+| # | Planet / star / object | Today (v1) | → v2 |
+|---|---|---|---|
+| 1 | **Air** S3 Storm Altar conduit A — `planet_dungeon_game.dart:5888` | Lightning Horn full hold; any other Lightning `hold * 0.5` | **HARD GATE** Lightning+Horn |
+| 2 | **Earth** S1 marrow rib shove — `planet_dungeon_game_earth.dart:479` | Horn 0.9s clean; other Earth 2.4s + 2 bone wisps | **HARD GATE** Earth+Horn |
+| 3 | **Water** S1 master valves — `_water.dart:305` | Pip instant; other Water **5.0s** delay (`_valveDelay`, NOT 1.4s) + 2 wisps | element-only, instant |
+| 3b | **Water** pipe-mouth valve — `_water.dart:308` | already a clean hard Pip check, no fallback | **KEEP as HARD GATE** Water+Pip (the temple's stamped gate) |
+| 4 | **Water** S2 ghost-eddy reveal — `_water.dart:417` | Mask full timer; other Spirit `* 0.6` | element-only (Int still scales) |
+| 5 | **Water** S3 moon-pool freeze — `_water.dart:454` | ⚠ off-family Ice AND the Spirit+Water recipe share ONE `q != perfect` wisp branch | **SPLIT the branch**: recipe keeps its wisps (v2-legal), off-family Ice loses them |
+| 6 | **Earth** S2 socket charge — `_earth.dart:525` | Pip 2.0s/2 wisps; other Lightning 4.5s/3 unstable | element-only, one 2.0s charge; defend-wave stays for everyone |
+| 7 | **Fire** S2 vine bed — `_fire.dart:462` | off-family Plant spawns 2 wisps | element-only; the Fire-burn wisp ramp stays (unconditional) |
+| 8 | **Fire** S3 vesper gust — `_fire.dart:621` | Wing push 120–190; other Air 70–110 | element-only, use the Wing formula |
+| 9 | **Lightning** S1 pylon wake — `_lightning.dart:137` | Horn clean; other Lightning fewer particles + 2 unstable wisps | element-only |
+| 10 | **Lightning** entry rite charge — `_lightning.dart:788` | Horn 8s window; other Lightning 4s + wisps | element-only, one 8s window |
+| 11 | **Lightning** S2 cell deposit — `_lightning.dart:833` | non-Wing deposit spawns 2 unstable wisps | element-only |
+| 12 | **Steam** Earth dam-wall raise — `_steam.dart:576` | self-labeled `// FAMILY-QUALITY`: Horn clean, other Earth "rough + racket draws wisps" | element-only |
+| 13 | **Air** Ring wonder-trial — `planet_dungeon_game.dart:360` | Mask seal tolerance 0.72 rad vs 0.45 | element-only — *or moot*, this trial retires in Air's §9.1 rework |
+
+**Citation caveat:** the line numbers above are from the pre-refit tree and
+drift by 2–10 in several files; the identifications were all correct. One
+audit claim was wrong: `planet_dungeon_game.dart:3786` ("the kin hums with
+storm-charge") is a COMBAT special-ability hint, not an interaction-quality
+branch — it was left alone.
+
+**Corrections worth remembering** (the doc was wrong before the audit): the
+Water valve penalty is **5.0s, not 1.4s**; Lightning's famous "8s Horn / 4s
+other" decay gates the **entry rite** (`arc_gate`), *not* Star 1 — Star 1 is
+a separate non-decaying latch (row 9), and the entry-rite window is **not** a
+hidden Horn gate (220px to cross at 150px/s — 4s is ample), so it converts
+cleanly; Fire's **brazier rite has no family logic at all** and needs no
+conversion.
+
+**Resulting gate budget — all planets legal:** Air 1 (S3) · Earth 1 (S1) ·
+Water 1 (S1 pipe-mouth) · Fire 0 · Lightning 0 (its marquee gate is authored
+during the §9.1 rework) · Steam 0. Every planet keeps at least one star
+earnable by any correct-element trio.
+
+**INTENTIONAL family exclusives — do NOT convert:** Kin's one-touch guardian
+calm (`planet_dungeon_game.dart:6080`) · Wing's `_tryStabilize` conduit
+refresh (`:5869`, the solo-sync aid that keeps Air's gated altar solvable) ·
+Mask's passive lava-creep forecast in Steam (informational only, gates
+nothing). Kins and Wings are legendary; their power is the rarity payoff,
+never a nerf target. Note the shape these share: a family-exclusive *bonus*
+that no puzzle requires — that is always legal in v2; a family-exclusive
+*penalty* never is.
 
 ## 5. Implementation model
 
@@ -93,14 +179,17 @@ enum DungeonAbility {            // family interaction method
   none,
 }
 
+// v2 TARGET (refit §9.0) — `preferred`/`allowWrongFamily` are retired:
 class DungeonInteractionRequirement {
-  final String element;             // required element
-  final DungeonAbility? preferred;  // best family (null = any family = Perfect)
-  final bool allowWrongFamily;      // element ok, wrong family → Valid
-  final bool allowRecipe;           // element-combo → Weak
-  // Soft stat gates (1..5; 0 = none). Quality (element/family) and stat-
-  // sufficiency are separate: a creature can be the right element+family yet
-  // still need more of a stat to act at full power.
+  final String element;                 // required element (always)
+  final DungeonAbility? requiredFamily; // null  = element-only: ANY family of
+                                        //         [element] acts at FULL power
+                                        // non-null = HARD gate: this family or
+                                        //         clean refusal. No middle tier.
+  final bool allowRecipe;               // element-combo may substitute the
+                                        // ELEMENT (never the family)
+  // Hard stat gates (1..5; 0 = none) — family-gated objects only; failure
+  // must be surfaced ("needs more Strength").
   final double minSpeed, minIntelligence, minStrength, minBeauty;
   bool meetsStats(CosmicPartyMember m);
 }
@@ -114,17 +203,20 @@ class GuardianEncounterRequirement {
 }
 ```
 `evaluateInteraction(member, req, {recipeAvailable})` returns
-`Perfect | Valid | Weak | Failed` (element/family). **Stats are orthogonal:**
-`meetsStats` gates, and the pure tunables (`glideSeconds`, `revealHintTier`,
-`channelHoldSeconds`, `charmOk`, …) scale OUTPUT magnitude
-(low-Int Mask = vague clue → high-Int = ghost outline; low-Str Horn = slow →
-high = instant; high-Speed Wing = longer glide). Recipes = `dungeonRecipeResult`
-table of element-combo results.
+`passed | passedViaRecipe | blockedElement | blockedFamily | blockedStat`
+(v1's Perfect/Valid/Weak/Failed ladder is retired — a `blockedFamily` result
+is what fires the refusal line AND stamps the descent chip). **Stats scale
+OUTPUT magnitude** via the pure tunables (`glideSeconds`, `revealHintTier`,
+`channelHoldSeconds`, `charmOk`, …): low-Int Mask = vague clue → high-Int =
+ghost outline; high-Speed Wing = longer glide. Recipes = `dungeonRecipeResult`
+table of element-combo results — element substitutes only.
 
-> **Status:** built — `planet_dungeon_verbs.dart` has `DungeonAbility` (7),
-> `evaluateInteraction`, the recipe table, the `min*` stat gates, and
-> `GuardianEncounterRequirement`. Air is wired through it (conduit channel is
-> quality-graded; guardian = Roc encounter).
+> **Status:** what's BUILT is the v1 ladder (`planet_dungeon_verbs.dart`:
+> `InteractionQuality`, `allowWrongFamily`, quality-graded conduits, and
+> slow-and-loud penalties across six planets). The §9.0 refit rewrites the
+> enum + requirement to the shape above, converts every shipped interaction
+> per the §4 inventory, and rewrites the tests that assert slow-and-loud
+> behavior. `GuardianEncounterRequirement` is unchanged.
 
 ## 5.5 STRUCTURAL UNIQUENESS — the anti-template mandate
 
@@ -171,6 +263,12 @@ Everything else is the sentence — and must be written fresh each planet.
   keep that ledger growing), and what does this planet own that they don't?
 - Which structural convention are we deliberately breaking this time
   (no hub? no wings? no static rooms? no fixed star locations?)
+- Which mechanic-ledger rows are already claimed (see below), which fresh
+  archetypes does this planet take, and what is each one's distinct visual
+  grammar?
+- Which 1–3 HARD FAMILY GATES does this planet declare (§4 — which star,
+  which object, which element+family), and which star stays earnable by any
+  trio of the right elements?
 
 ### Structural assignment table — all 17
 
@@ -185,7 +283,7 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Earth** (built) | The map IS a body — anatomy as architecture | hunt the scale's answer through rooms you've walked | beyond the chasm, needs the ribs (shipped) |
 | **Steam** (built) | Pressure ring-main: NO hub — a clamped boiler loop spending one global pressure budget | junctions cost 15 from a head of 40 — pick a direction; cooling condenses fuel back, stoking pays in wisps | vent the WHOLE main (≥60) into a burst-disc — the sacrifice must be whole (shipped) |
 | Lava | Foundry line: one long production line the player re-routes | limited molten pours — what do you cast, in what order | cast a key whose mold is hidden elsewhere on the line |
-| Lightning | Ring circuit: rooms wired in a literal loop; door states follow circuit state | powering one arc of the ring unpowers the other — where do you break the circuit | walk the DEAD segment in the dark (only reachable unpowered) |
+| **Lightning** (built; rework §9.1) | Hub dynamo + zero-sum branch circuit (the "ring" claim is retired — it shipped as a hub and Steam owns the ring; the loop promise is honored LOGICALLY: door states follow circuit state) | powering one trunk darkens the others — where does the power go, and what must you do in the dark | walk the DEAD segment in the dark: the vault only opens unpowered (rework) |
 | Mud | Shifting field: one huge open bog, no fixed rooms — islands whose connections you terraform | every path you harden sinks another — shape the map you'll have to live with | let the vault knoll SINK, ride it down to the drowned level |
 | Ice | Vertical shaft: descending is one-way slides; ascending must be engineered | plan the descent so you can climb back — refrozen slides are your only ladder | visible only in a mirror; enterable only from a slide you can't repeat |
 | Dust | Buried city, two Z-layers: streets above, excavation below; digging swaps layers | conservation of dust — uncovering one thing buries another | a fully buried building visible only as a roof bump on the streets |
@@ -197,9 +295,156 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | Light | One great hall: no corridors — light beams partition the space into moving "rooms" | aiming light builds paths AND exposes you — illuminate as little as possible | stands in plain sight; reachable only through un-lit ground |
 | Blood | Systole loop: a figure-eight of veins around the heart; surges circle it on the beat | move WITH the pulse or against it — timing is the map | reachable only in the flatline window between beats |
 
+### Mechanic ledger — core star mechanics, claimed
+
+Topology diversity (above) isn't enough on its own: the star PUZZLES must
+also draw from different mechanic archetypes. A new star's CORE mechanic may
+not repeat a ledger row — family/stat/consequence dressing does not count as
+new. The ledger grows with every build:
+
+| Claimed by | Core mechanics owned |
+|---|---|
+| **Air** | flow traversal (currents/updrafts) · set-collection constellation matching · *(rework)* irreversible wind-authoring (woken gales help AND hinder; order is the puzzle) · storm-steering by height-ranking (tallest rod takes the bolt) |
+| **Fire** | sequence-execution / order-memory ritual under attack (CLAIMED — no other planet may hand a sequence to execute) · flame-relay escort between checkpoints · *(rework)* forensic-evidence deduction at the object itself (rolled per run) |
+| **Water** | global state machine (tide) that regates SPACE itself · *(rework)* flow-graph ordering deduced from spin (read the system, derive the sequence) |
+| **Earth** | track-notch sokoban shoves · clue-hunt logic deduction (answers carved into REMOTE architecture, rolled per run — the treasure-hunt variant; Fire's forensic variant reads the object itself) |
+| **Lightning** | beam routing/reflection via rotatable mirrors (+ *(rework)* negative constraints, provably unique) · element STATIONING pads · decoy-pad deduction · *(rework)* zero-sum power routing (power here = dark there) |
+| **Steam** | global resource economy (spend/condense/stoke one shared budget) · sacrifice-the-whole-budget vault |
+| **Nexus** (reserved) | RULE MANIPULATION — transmutation circles rewriting element bindings (the Baba Is You seat; no planet may touch it) |
+
+**Open archetype pool for the remaining 11** (match against the §6 matrix;
+each planet claims patterns no ledger row owns): rhythm/timing windows
+(Blood) · light-cone occlusion + exposure management (Light) · state-flip
+maze inversion (Dark) · two-overlaid-worlds layer swap (Spirit, Dust) ·
+scale shift tiny/huge (Plant) · one-way-descent route planning (Ice) ·
+irreversible sacrifice choice (Poison, Mud) · production-line re-routing +
+mold casting (Lava) · self-rearranging map / sliding rooms (Crystal) ·
+conservation (uncovering one thing buries another — Dust).
+
+**VISUAL GRAMMAR RULE:** every core mechanic gets its own rendering language,
+distinct from every prior planet that shares a surface resemblance. Light's
+soft volumetric cones must read NOTHING like Lightning's jagged bolts; Mud's
+dragged/flowing terrain nothing like Steam's tile floods; Crystal's sliding
+rooms nothing like Water's tide regating. If a new mechanic would look like
+an old one in a screenshot, restyle it — or redesign it.
+
+## 5.6 Hint & popup standard — one voice, element-first
+
+The shipped hint layer grew organically (proximity ambient lines + stat nags
++ per-planet objective lines + toasts) and reads cluttered. This standard is
+applied in the §9.0 refit and is MANDATORY for every new planet:
+
+**AUDITED 2026-08-10 — ~280 surfaces, 265 of them direct hint calls.** Two
+findings rewrote this standard: (1) roughly **80 of the 265 calls are not
+narrative at all** — they are progress counters and control feedback that the
+original three channels had no home for; (2) the OBJECTIVE channel is
+currently leaking **complete solutions** (see the rule below). The standard
+now separates the capsule from the readouts.
+
+### THE CAPSULE CARRIES NARRATIVE ONLY — four prioritized channels
+
+Everything that is *state* rather than *speech* leaves the capsule entirely
+(next subsection). What remains is narrative, in **four** channels where
+higher interrupts lower and nothing ever stacks:
+
+> **BLOCKED > INSIGHT > OBJECTIVE > AMBIENT.** (An earlier draft of this
+> section said "three channels" while simultaneously requiring Mask insight
+> to be priority-protected — which makes it a channel. It is four. Built
+> that way in `DungeonHintChannel`.)
+
+1. **BLOCKED** — fires ONLY on a failed interaction ATTEMPT, never on
+   proximity, and is **attempt-edged**: it speaks once per attempt and
+   remembers it has spoken, so standing against a sealed door never
+   repeats the same refusal. (Correction to an earlier draft: `_checkDoors`
+   did not re-fire *every frame* — it used `_setStatHint`, whose 3.5s
+   self-cooldown made it re-latch every 3.5s. The on-screen effect — an
+   endlessly repeating refusal — was as described; the mechanism wasn't.)
+   **Known limit:** a sealed door has no attempt event at all today — the
+   only available signal IS proximity, so attempt-edging (speak once per
+   approach, re-arm on leaving) is the closest honest approximation. A true
+   attempt edge needs doors routed through a verb; revisit once the
+   interaction refit lands. One short clause naming exactly
+   what's missing, element-first: "Only a horn's force can shift this" ·
+   "This seal answers Lightning" · "Needs more Strength to hold". Never two
+   sentences, and never a how-to-fix method (Steam's seal refusal currently
+   breaks both). This is also the moment a family gate stamps itself onto
+   the descent panel (§4 "the seal remembers"). Stat nags obey the same
+   rule — on the failure moment, never while riding a current or standing
+   near a conduit.
+2. **INSIGHT** — Mask's earned how-to, and the only channel allowed to teach
+   method. Priority-protected: a revealed answer must never be stomped
+   mid-read by flavor or a room line.
+3. **OBJECTIVE** — on room entry, one line, WHAT not HOW. Stops showing
+   once the room's star is banked.
+4. **AMBIENT** — rare atmospheric flavor only. NO mechanics, NO stats, NO
+   family names, NO element requirements, hard cooldown. If a line teaches
+   anything, it belongs to Mask insight, not ambience. All 36 current
+   ambient lines fire on proximity and most of them teach — this channel is
+   the largest single rewrite in the pass.
+
+**Ordering note:** the three continuous stat nags (`:1392`, `:1410`,
+`:1439`) are semantically refusals, but they fire per-frame while riding a
+current — promoting them to BLOCKED before giving them a failure-moment edge
+would let a continuous nag repeatedly stomp INSIGHT, which is strictly worse
+than leaving them where they are. Fix the edge first, then re-channel.
+
+**THE SOLUTION-LEAK RULE (the audit's worst finding — 9 sites):** an
+OBJECTIVE line may state the goal but must never state the method. Today
+Air's `twin_conduit` room entry reads *"channel A with Lightning; arc B with
+Fire through the wind, or Lightning's own touch"* — the complete answer,
+free, to every player, before they have looked at anything. Lightning's
+Storm Spire is worse (a full step-by-step). These become goals ("The twin
+conduits sleep"), and the method moves behind Mask insight where it was
+always supposed to live.
+
+**Mask insight is the how-to engine — mechanics knowledge is EARNED:** tier 0
+= the objective only · tier 1 = the method, narrowed · tier 2 = ghost outline
+/ marked answer. Tier-1+ content must never leak through ambient or objective
+lines. Insight output is also **priority-protected** — today it writes to the
+same field as everything else and can be stomped mid-read by a stray ambient
+line.
+
+### STATE LEAVES THE CAPSULE — two non-narrative surfaces
+
+About 80 current hint calls are not speech and must stop competing for the
+capsule. They split cleanly, and both destinations already have precedent in
+the codebase (Steam's pressure gauge, Water's tide gauge):
+
+- **PROGRESS READOUT** — persistent and glanceable, beside the star tracker:
+  "Rings 2/5" · "Stones 2 of 4 true" · "Pressure 40". Progress is STATE the
+  player wants to check at will, not a sentence that fades after 2.4s.
+  Generalize the existing gauges into one per-planet readout slot.
+- **CONTROL FEEDBACK** — on the control itself. "Ability cooling down"
+  belongs on the ability button as a cooldown ring, not as a line of prose
+  that evicts whatever the room was telling you.
+
+### Popups — four occasions, one chrome
+
+Banked star · first discovery (cache/egg/cloud) · end-run rewards · guardian
+intro. All through `dungeon_popup_chrome.dart`. **Today only end-run rewards
+(plus its raid variant) actually is one**: star-banked and both discovery
+types are plain unstyled toasts, ordinary cloud discoveries get nothing at
+all, and **the guardian intro has no popup whatsoever** — a mystic's arrival
+currently reads as a 2.4s status line indistinguishable from "Ability cooling
+down". The death overlay is a fifth ad-hoc full-screen surface that should
+adopt the same chrome. NEVER a mid-puzzle tutorial popup; the world and Mask
+do the teaching.
+
+**Language rules:** the element is named with its color accent; a family is
+named ONLY at its hard gate; verse/riddle voice is reserved for the descent
+card and the Lost Maxims; hint lines are one short clause, no stacked
+sentences.
+
 ## 6. Per-planet matrix
 
 Format: **Entry** · ideal team · *world rule*; Star 1 / Star 2 / Star 3; key recipe.
+
+**v2 AUTHORING RULE:** before building, each planet's entry here must also
+declare its HARD FAMILY GATES (1–3, max one per star, per §4) — which star,
+which object, which element+family. Everything else is element-only at full
+power. Unbuilt entries below still describe v1-era "familyX does Y" flavor;
+read their family mentions as *candidate* gates to be declared at build time,
+not as soft modifiers.
 
 1. **Fire — Cinder Cathedral** · Fire+Air+Plant · Firemask/Airwing/Plantmane ·
    *fire remembers the order it was lit.* **(BUILT)**
@@ -222,16 +467,76 @@ Format: **Entry** · ideal team · *world rule*; Star 1 / Star 2 / Star 3; key r
    sanctum. Mercy shrine = high altar. Rooms: narthex, nave (hub, rose window
    + star vigil lights), scriptorium, choir, cloister, reliquary, vestry,
    bell_gallery, high_altar, sanctum.
+   **REWORK (planned 2026-08-10 — S1 lookup→deduction):** the rite's order
+   is no longer read off a key; it is INFERRED from evidence — the fire
+   remembers, and so does the wax. The order is ROLLED PER RUN (Earth's
+   precedent: wikis can never spoil it) and each brazier carries generated
+   physical testimony of the last rite: wax melted lowest = lit first,
+   burned longest · soot shadows lean AWAY from the neighbor that was
+   already burning · ash drifts pile downwind of the sequence. A patient
+   player deduces the full order from the braziers alone; Mask insight
+   tiers mark the readable evidence (t1) and annotate one deduced link
+   (t2). The scriptorium mural demotes to CONFIRMATION (it shows two of the
+   six positions, never the answer); the choir's ember-walk stays as
+   flavor. Wrong flame still snuffs the rite + wisps. S3 gains one
+   DECISION: two censer routes to the bells — short through the ash-storm
+   nave (flame starves faster, heavier wisps) or long through the calm
+   cloister (two extra censers to keep alive). Choose, then commit.
 2. **Lava — Molten Reliquary** · Lava+Earth+Ice · Lavahorn/Earthmask/Icemane ·
-   *lava can be cast into keys/bridges/monsters.*
-   S1 Lavahorn casts the right key shape per gate. S2 Icemane cools lava paths;
-   **Ice+Lava→Steam** powers vault pistons (timed: platforms crack). S3 Earthmask
-   reads tectonic runes to seal vents → lava-pressure maze.
-3. **Lightning — Storm Circuit** · Lightning+Air+Fire · Lightninghorn/Airwing/Firepip ·
-   *the dungeon is a living circuit.*
-   S1 Lightninghorn charges pylons; rotate conductor mirrors to route power. S2
-   Airwing moves cloud echoes + Firepip heats Anvil (**Air+Fire→Lightning**) →
-   Thundercloud. S3 overload maze (powered doors open/unpowered close) → guardian.
+   *the foundry line still runs — program it, and the metal becomes what
+   the line makes of it.* (Re-authored 2026-08-10 from the §5.5 row;
+   supersedes key-shape matching.)
+   One long production line snakes the whole map (§5.5 topology): tap →
+   channels → stations → molds. A POUR is finite and irreversible — the
+   crucible holds only so many. Switch-tracks route each pour past STATIONS
+   that transform it (chiller hardens it early into a bridge where it
+   stands · stamper keys it · vent-pass gasses it into a drifting hazard);
+   the puzzle is PROGRAMMING the line so the pour ARRIVES as the thing you
+   need, where you need it — Opus Magnum by way of Zelda, and deeply
+   alchemical. S1 (Bridge or Key): too few pours to cast every bridge AND
+   every gate key — route and allocate (the strategic question). S2 (the
+   Hidden Mold): the vault key's mold exists but is installed somewhere
+   ELSE on the line — find it (Earthmask reads the foundry's tectonic
+   manifest), then re-route a pour the long way around to fill it (§5.5
+   vault trick). S3 Magmara wakes IN the line and rides the conveyors —
+   fight it by casting against it: chill its path, stamp barriers ahead of
+   it. Candidate family gates (declare at build, §4 budget): Lavahorn opens
+   the crucible tap (S1) · Icemane manual mid-channel chill (S2). Key
+   recipe **Ice+Lava→Steam** drives the piston stations.
+3. **Lightning — Storm Circuit (Voltara)** · Lightning+Air+Fire ·
+   Lightninghorn/Airwing/Firemask · *the dungeon is a living circuit —
+   charge decays, mirrors route it.* **(BUILT)**
+   8 rooms: arc_gate → dynamo_court (hub) → pylon_hall / capacitor_vault /
+   cloud_works / mirror_gallery + rite-shut breaker → storm arena →
+   storm_core. Living-circuit engine: `CircuitNode` graph (source / bus /
+   mirror w/ per-orientation conducting links / sink, latching), per-frame
+   BFS power propagation, `PoweredBarrier` doors, DECAYING charge (~8s;
+   Horn-clean channel — refit per §4 inventory). S1 (pylon_hall): thread ONE
+   beam through all three terminals by rotating conductor mirrors
+   (multi-target routing). S2 (cloud_works): storm-cells bared in the
+   mirror_gallery, herded onto sockets; the anvil socket needs Fire heat
+   (**Air+Fire→Lightning**) → Thundercloud. S3 Storm Spire: open arena,
+   element STATIONING — park Air + Fire creatures on the right pads among
+   decoy pads (deduction), flip the conductor mirrors, the converted beam
+   renders as a jagged bolt and lights the Storm Tower → Raikuma (calm or
+   defeat). Egg: Thunderbolt. Vault cache: capacitor_vault. Tests:
+   `planet_dungeon_lightning_full_run_test.dart` + circuit-graph layout
+   integrity.
+   **REWORK (planned 2026-08-10 — deliver the strategic question):** the
+   shipped hub stays (the ring-topology claim is retired — Steam owns the
+   ring; §5.5 row amended) but the circuit becomes ZERO-SUM: the dynamo
+   feeds ONE trunk at a time, so routing power to a wing DARKENS the others
+   — powered barriers, lights, and door states follow, and the run-long
+   question becomes "where does the power go, and what must I do in the
+   dark". Dead segments stay walkable but unlit, with spark wisps prowling.
+   VAULT RE-HIDE (the side-room cache is retired): capacitor_vault only
+   opens UNPOWERED — you must cut the very trunk you are standing in and
+   walk the dead segment in the dark (the §5.5 trick, finally delivered).
+   S1 threading grows teeth: 4 mirrors + fulminate vats the beam must NOT
+   cross (negative constraints), with the solution authored provably unique
+   — add a brute-force solver check to the layout test. S3 keeps the
+   stationing shape; add one decoy-pad pair whose elimination requires
+   reasoning from the mirror geometry, not trial-and-error.
 4. **Water — Mirror-Tide Temple** · Water+Spirit+Ice ·
    Waterpip/Spiritmask/Icemane · *every chamber answers one temple-wide tide —
    and the tide MOVES (animated floods/drains, never a teleport).* **(BUILT)**
@@ -255,6 +560,15 @@ Format: **Entry** · ideal team · *world rule*; Star 1 / Star 2 / Star 3; key r
    passage. Rooms: tide_gate, drowned_court (hub, moon + star vigil),
    tide_works, ghost_gallery, pearl_vault, reflection_court (egg), moon_hall,
    moon_well, leviathan_depths.
+   **REWORK (planned 2026-08-10 — S2 Simon-says→deduction):** the eddies'
+   order is no longer handed over as pips; it is DERIVED. Spirit insight
+   bares each eddy's SPIN, and spin tells flow — an eddy turns the way its
+   upstream feeder drives it. Read the spins, reconstruct the flow graph,
+   then wade it SOURCE→SEA (a topological ordering the player reasons out).
+   Int tiers re-cut: t0 = spins only · t1 = flow arrows between adjacent
+   eddies · t2 = the deduced order pips (today's baseline becomes the
+   high-Int reward, not the default). Mid-sequence mistakes still scatter
+   the sequence + ghost wisps.
 5. **Ice — Frozen Observatory** · Ice+Light+Air · Icemane/Lightmask/Airwing ·
    *the solution is visible only through reflection.*
    S1 Icemane freezes floors; slide star-blocks into orbit sockets. S2 Lightmask
@@ -340,10 +654,23 @@ Format: **Entry** · ideal team · *world rule*; Star 1 / Star 2 / Star 3; key r
    soften ground for roots, firm for walking. S3 mud maze: reshape walls (Water
    softens / roots harden) to 3 altars; **Plant+Mud→Poison** dissolves seals.
 9. **Dust — Ruins of Time** · Dust+Air+Earth · Dustmask/Airwing/Earthhorn ·
-   *dust reveals the past and buries the present.*
-   S1 Dustmask reads runes; rotate hourglass statues into locks. S2 **Air+Earth→Dust**
-   reveals footprints/buried locks; Earthhorn breaks false walls. S3 four sinking
-   obelisks → Hourglass Core opens → escape the collapse (dust wisps chase).
+   *nothing perishes here — dig, and the dust must go somewhere.*
+   (Re-authored 2026-08-10 from the §5.5 row; supersedes hourglass-statue
+   rotation.)
+   Two Z-layers — streets above, excavation below — under CONSERVATION:
+   every cell you clear pours its spoil onto a square you choose, so
+   uncovering one thing always buries another, and buried = sealed for the
+   run. S1 (the Three Seals): expose all three street-seals AT ONCE when
+   every spoil placement wants to land on one of them — a 15-puzzle played
+   in earth; plan the dig, then live in the map you made. S2 (the
+   Observatory): the buried observatory below is the prize — but its roof
+   is the street's only bridge; excavating the one deletes the other
+   (decide; Airwing can cross what the dig destroyed). S3 Ashdjinn rides a
+   rolling sandstorm that RE-buries your work — hold the excavation open
+   under pressure. Candidate family gates: Earthhorn breaks the false
+   walls (S1) · Airwing the roofless crossing (S2). Recipe
+   **Air+Earth→Dust** lays spoil remotely. Vault: the building that never
+   unburies, visible only as a roof bump on the streets (§5.5).
 10. **Crystal — Prism Labyrinth** · Crystal+Lightning+Spirit · Crystalmask/Lightninghorn/Spiritpip ·
     *rooms can be rearranged.*
     S1 Crystalmask rotates prisms to match beam colors. S2 Spiritpip enters mirror
@@ -365,16 +692,47 @@ Format: **Entry** · ideal team · *world rule*; Star 1 / Star 2 / Star 3; key r
     the carried Anvil, the storm shell). S3 Storm Altar: Lightninghorn channels, Airwing
     stabilizes wind, Firemask reads storm-rune order; sync conduits → storm
     wisps + guardian (Roc).
+    **REWORK (planned 2026-08-10 — the pilot grows up; biggest pass):**
+    S1 (execution→planning): the spire is born CALM — winds are WOKEN, not
+    found. Gust shrines each wake one current PERMANENTLY for the run, and
+    a woken gale pushes everything, friend and foe — both ladder and
+    obstacle. Wake them in the wrong order and an early gale guards the
+    ledge to a later shrine (blown off = fall + climb back; never a
+    softlock — death resets the winds). The puzzle is the waking ORDER +
+    reading which ledges each current will help or bar; the joy is riding
+    a wind you authored. Sky rings retire (sequence-execution — Fire owns
+    it). S2 unchanged. S3 (timer-sync→steering): conduit A keeps the
+    Lightninghorn channel (v2 hard gate). Conduit B is struck by the STORM
+    ITSELF: a live storm-cell orbits the altar, and its bolt always lands
+    on the TALLEST conductor in its path — raise/lower the field of
+    storm-rods (any Air creature) so conduit B stands tallest where the
+    cell will pass, and herd the cell with gusts (S2's own verb, reused).
+    Mis-ranked rods = wild strikes + storm wisps. The insight is height
+    ordering + storm prediction, not decay-timer luck; Airwing stabilize
+    retires with the timers.
 12. **Plant — Verdant Crypt** · Plant+Light+Mud · Plantmane/Lightmask/Mudpip ·
     *tiny and huge scale states.*
     S1 Plantmane grows vine bridges toward redirected Light. S2 *Tiny-Huge Island*
     growth altar; relic needs both scales (**Mud+Light→Plant**). S3 **Plant+Mud→Poison**
     blooms dissolve cursed roots; Light purifies the central flower before it spreads.
 13. **Poison — Venom Monastery** · Poison+Lava+Mud · Poisonmask/Lavahorn/Mudmane ·
-    *every poison has a matching antidote.*
-    S1 Poisonmask matches venom pools to doors. S2 Lavahorn melts seals, Mudmane
-    carries venom (**Lava+Mud→Poison**) → corrodes vault (spreading hazard). S3
-    antidote maze in fog; activate altars in order, Poisonmask spots real portals.
+    *every strain BEHAVES — behavior is the diagnosis; and one ward cannot
+    be saved.* (Re-authored 2026-08-10 from the §5.5 row; supersedes
+    pool-to-door matching.)
+    The monastery is sealed into quarantine WARDS; opening one lets its
+    contagion meet you. Each strain is identified by BEHAVIOR, never by
+    color — one pulses on a rhythm, one creeps along walls, one leaps
+    between hosts, one plays dead until touched. S1 (Diagnosis): observe a
+    ward's strain, then brew the matching antidote at the apothecary (the
+    monastery's own recipe rite); a wrong brew FEEDS it. S2 (Triage): the
+    doses are finite and the wards outnumber them — the strategic question
+    is which ward you SURRENDER; cured wards open their sacristies, the
+    surrendered ward seals for the run. S3 Blightfang is patient zero,
+    fought inside the ward you chose to lose, among everything you didn't
+    save. Vault: inside the surrendered ward (§5.5) — you may only loot
+    what you sacrificed. Candidate family gates: Mudmane carries live
+    venom uninfected (S2) · Lavahorn burns a breach into a sealed ward
+    (S1). Recipe **Lava+Mud→Poison** brews the counter-strains.
 14. **Spirit — Echo Grave** · Spirit+Water+Crystal · Spiritmask/Waterpip/Crystalwing ·
     *the past replays but can't be changed directly.*
     S1 Spiritmask reveals a ghost route to memorize/follow. S2 *Phantom-Hourglass
@@ -387,15 +745,44 @@ Format: **Entry** · ideal team · *world rule*; Star 1 / Star 2 / Star 3; key r
     (Spirit reveals destinations, Poisonpip unlocks anchors). S3 extinguish every
     light (**Poison+Spirit→Dark**) → final door in total darkness.
 16. **Light — Beacon Archive** · Light+Crystal+Spirit · Lightmask/Crystalmask/Spiritpip ·
-    *light reveals truth but also exposes danger.*
-    S1 Lightmask reveals truth/lie statues → pick the true door. S2 Crystalmask
-    splits Light into bridges, Spiritpip activates machines. S3 blinding maze:
-    reveal only the correct parts (**Crystal+Spirit→Light**).
+    *the statues lie; their shadows cannot — and every lumen you spend is
+    seen.* (Re-authored 2026-08-10 from the §5.5 row; supersedes truth/lie
+    statue-picking.)
+    One great hall, no corridors: aimed beams PARTITION the space into
+    moving rooms of light (§5.5 topology), and the archive keeps an
+    EXPOSURE meter — light builds your paths AND wakes the moth-wardens.
+    The run-long question: how little can you afford to see? S1 (the
+    Shadow Court): statues claim doors, but a statue's SHADOW shows its
+    true shape — aim a beam, compare silhouette to stone, follow what the
+    shadow says (Crystalmask splits one beam to throw two shadows at
+    once and compare). S2 (the Dark Stacks): route light-bridges through
+    the archive while staying under the exposure threshold — every beam is
+    both road and alarm. S3 Solarin is wounded light: it BLINDS wherever
+    it looks — fight it from inside its own shadows. Vault: stands in
+    plain sight, reachable only across un-lit ground (§5.5) — approach
+    with everything dark, which is also how the egg is earned. Candidate
+    family gates: Spiritpip walks the unlit dark (S2) · Crystalmask the
+    beam-split (S1). Recipe **Crystal+Spirit→Light** kindles remote
+    beacons.
 17. **Blood — Sanguine Orrery** · Blood+Dark+Light · Bloodkin/Darkmask/Lightmask ·
     *the dungeon is alive and beats on a rhythm.*
     S1 Bloodkin stabilizes heartbeat doors (time movement). S2 route life-flow
     through correct veins (Darkmask reveals, Lightmask flags corrupted). S3
     **Dark+Light→Blood**: balance dark/light beams around the heart → guardian wave.
+18. **The Nexus — The Great Work** (endgame; beyond the 4-relic gate —
+    designed 2026-08-10, RESERVED, build LAST).
+    The rule-manipulation dungeon the 17 planets never touch — the Baba Is
+    You seat, and for a game about alchemy it is the thesis:
+    TRANSMUTATION. Transmutation circles rewrite element BINDINGS for the
+    whole floor — inscribe "FIRE is WATER" and every brazier douses, every
+    basin burns, and the party's own elements answer the rewritten law
+    too. Rooms are impossible under the standing rules BY CONSTRUCTION;
+    the aha is always "which law do I rewrite — and what else breaks when
+    I do." Circles are found and carried, and hold one binding at a time.
+    It must remix objects the player already knows from many planets
+    (braziers, valves, conduits, vines), so it grows richer the more
+    planets exist — hence build last. Guardian: the Magnum Opus (design
+    open — a mirror of the player's own trio is the candidate). No raid.
 
 ### Mystic guardian roster (Star-3 boss + raid boss per planet)
 Verified against `assets/data/alchemons_creatures.json`; spritesheets in
@@ -458,8 +845,10 @@ and the maxim itself is the fanfare (long hint, public-domain quote).
 4. **Ice — Star-Walker:** align every telescope on the unmarked 13th star —
    visible only in reflection. *"When I trace the circling courses of the
    stars, my feet no longer touch the earth."* (Ptolemy)
-5. **Lightning — Thunderbolt:** power EVERY door of the overload maze inside
-   one charge window. *"The thunderbolt steers all things."* (Heraclitus)
+5. **Lightning — Thunderbolt (BUILT):** light the Storm Tower with a
+   Lightning HORN standing among the conductors (`egg:lightning_thunderbolt`,
+   permanent tower glow). *"The thunderbolt steers all things."*
+   (Heraclitus)
 6. **Steam — Hidden Harmony (BUILT):** finish the whole labyrinth — the rite
    included — without the molten ever swallowing your footing: zero scalds,
    one run. *"The hidden harmony is better than the obvious."* (Heraclitus)
@@ -500,11 +889,13 @@ and the maxim itself is the fanfare (long hint, public-domain quote).
     life."* (Stoker)
 
 ### Signature mechanic summary
-Fire=ritual order · Lava=cast/cool · Lightning=living circuit · Water=tide states ·
-Ice=reflection · Steam=molten flood containment · Earth=buried giant · Mud=reshaping maze ·
-Dust=buried/revealed · Crystal=sliding rooms · Air=cloud constellation ·
-Plant=tiny/huge · Poison=venom/antidote · Spirit=memory/minimap stamp ·
-Dark=shadow portals · Light=truth/danger · Blood=heartbeat rhythm.
+Fire=ritual forensics · Lava=production-line casting · Lightning=zero-sum living
+circuit · Water=tide states · Ice=reflection · Steam=pressure economy ·
+Earth=buried giant · Mud=reshaping maze · Dust=conservation dig ·
+Crystal=sliding rooms · Air=authored winds + cloud constellation ·
+Plant=tiny/huge · Poison=diagnosis/triage · Spirit=memory/minimap stamp ·
+Dark=shadow portals · Light=shadow-truth/exposure · Blood=heartbeat rhythm ·
+Nexus=transmutation (rule manipulation).
 
 ## 7. Star / reward loop (built)
 
@@ -566,6 +957,19 @@ puzzles**, and the guardian rite is engine-gated behind both of them:
 keeps the altar conduits inert and the storm door sealed until the pair is
 banked, with hints naming the missing keys. The storm-door reveal fires when
 the SECOND of the pair lands, whichever it is.
+
+### Guardian authoring principle — the guardian fights WITH the planet's rule
+Seventeen finales must not be seventeen copies of one fight. The
+lull/strike/calm grammar stays engine-shared, but every mystic WEAPONIZES
+its planet's signature mechanic so no two encounters play alike:
+Leviathan turns the tide mid-fight (the arena floods and drains on its
+roar) · Raikuma FEEDS on powered trunks — cut its power to force the lull ·
+Simurgh re-lights the rite braziers as attack telegraphs (the order IS the
+bullet pattern) · Boilrog vents the main (your own budget becomes its
+weapon) · Terradon's tremors knock the scale loose · Roc drags the
+storm-cell across the rod field · Magmara rides the conveyors (§6.2).
+AUTHORING RULE: every unbuilt planet's §6 entry declares its guardian
+twist; retrofits for built guardians ride each planet's §9.1 rework pass.
 
 ### Star authoring principle — keep each star FOCUSED
 One **core mechanic** + one **consequence** + a **success**. Family/stat quality
@@ -719,9 +1123,27 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   guardian+relic, off-family slow-and-loud penalty) — 163 dungeon tests
   green. **The Nexus 4-relic gate (Air/Fire/Water/Earth) is now fully
   buildable in-game.**
+- ✅ **Lightning — Storm Circuit (Voltara) built** (see §6 entry 3): living
+  circuit graph (per-frame BFS power, mirrors, powered barriers, decaying
+  charge), S1 multi-target beam threading, S2 storm-cell herding + anvil
+  heat, S3 element-stationing deduction arena → Raikuma (sheet + raids +
+  enrage). Thunderbolt egg + capacitor vault cache. Lightning shader.
+  Full-run + circuit-graph layout tests.
+- ✅ **Steam — The Molten Labyrinth built** (see §6 entry 6): first planet
+  under the §5.5 mandate — pressure RING-MAIN topology (no hub), global
+  pressure economy (40 start / 15 junctions / +4 condense / +20 stoke),
+  burst-disc (≥60) vault sacrifice, molten tile grids (Earth+Fire→Lava,
+  Steam cools, Earth dams). Boilrog. Hidden Harmony egg. Full-run +
+  ring-economy layout tests. 228 dungeon/raid tests green at time of build.
+- ⬜ **§9.0 INTERACTION REFIT v2 + hint/popup cleanup** — convert all six
+  built planets to the §4 element-first / hard-family-gate model, implement
+  "the seal remembers" descent chips, apply the §5.6 hint standard, rewrite
+  the slow-and-loud tests. NEXT UP before any new planet.
+- ⬜ Device tuning pending: Air, Fire, Lightning, Steam (timings/feel — user
+  playtest; Water + Earth already device-tested good).
 - ⬜ More Mystic guardian sprites for future planets (map in
   `_guardianSheets`, enroll in `kRaidGuardianIds`; roster in §6).
-- ⬜ The other 13 planets' signature mechanics.
+- ⬜ The other 11 planets' signature mechanics (+ their shaders).
 
 ## 8.5 Ability parity with survival — status
 
@@ -762,12 +1184,178 @@ the `_damageEnemyDirect` funnel so every damage source fires kill verbs.
 
 ## 9. Roadmap
 
+### §9.0 Interaction Refit v2 + hint/popup cleanup
+
+**STATUS 2026-08-10 — steps 1, 2, 5 DONE and step 4's architecture DONE, all
+on branches, none merged to master:**
+- `feature/v2-interaction-refit` (`642c508`) — ladder retired, all 13 sites
+  converted, tests rewritten.
+- `feature/dungeon-hint-channels` (`9eec907`) — the 4-channel resolver,
+  control feedback on buttons, progress readout.
+- `integration/dungeon-v2` (`06b69a7`) — both merged (no conflicts) plus a
+  follow-up fix. **`flutter analyze` clean; 248 dungeon/raid tests green**
+  (up from 231). NOTE: ~12–16 failures in `cosmic_balance` /
+  `economy_balance` / `cosmic_survival_balance` are PRE-EXISTING on master —
+  verified independently, unrelated to this work.
+- STILL OPEN here: step 3 (seal-remembers chips) and the step-4 PROSE pass
+  (36 ambient lines, 9 solution leaks, 3 stat-nag edges, popup chrome).
+
+Original scope, in build order:
+
+1. **`planet_dungeon_verbs.dart` rewrite:** retire `InteractionQuality` /
+   `allowWrongFamily`; new requirement shape + result enum per §5. Update
+   `evaluateInteraction` call sites in the engine + all six part files
+   (~20 `InteractionQuality.` references across 4 files).
+2. **Convert all 13 sites** in the §4 verified inventory: 10 → element-only
+   (delete the timers, wisp spawns and half-holds), 3 → hard family gates
+   (Air conduit A, Earth rib, Water pipe-mouth — the last is already a clean
+   check and only needs the stamp). **Do not trust `evaluateInteraction`
+   call sites alone** — 5 of the 13 are hardcoded `ability ==` checks that
+   bypass the framework (rows 9–13). Preserve every player-agnostic
+   consequence (Earth's defend-wave, Fire's burn-ramp) and split Water's
+   entangled moon-pool branch (row 5) so the recipe keeps its downside while
+   off-family Ice loses its penalty.
+3. **"The seal remembers"** — SCOPED 2026-08-10, plumbing verified, no new
+   storage needed:
+   - Gates ride the existing one-time discovery channel: `_discoverCloud`
+     (`planet_dungeon_game.dart:1490`, idempotent `Set<String>.add`) →
+     `onCloudDiscovered` → `_onCloudDiscovered`
+     (`planet_dungeon_screen.dart:287`) → `PlanetStarState` under the
+     `cosmic_planet_stars` prefs key that the overworld already reads.
+     Precedent for a silent non-reward id already exists (`rune:entry_door`).
+     Id form `gate:<element>_<family>` (e.g. `gate:earth_horn`) — MUST avoid
+     `,` `=` `.` `|`, which are `PlanetStarState`'s separators
+     (`cosmic_data.dart:1817`). Add a layout test asserting that.
+   - Declare gates in data: `DungeonFamilyGate {objectId, element, family,
+     hintLine}` + `familyGates` on `DungeonLayout` (beside `riddle`), so the
+     UI can name a gate without importing engine internals.
+   - Stamp at the refusal: a new `_stampFamilyGate(gate)` beside
+     `_discoverCloud` fires the §5.6 BLOCKED line and the one-time discovery.
+   - Chip row: `_buildDescentPlacard` (`cosmic_screen.dart:6273`), inserted
+     between the riddle card and the action buttons (~line 6469). Renders
+     **unconditionally** and does NOT vanish at 3 stars (unlike the riddle) —
+     it is permanent by design. No family art exists in the app; use a text
+     badge from `FamilyColors` (`lib/utils/color_util.dart:3`) + the element
+     dot from `elementColor`, matching the "⚡ HORN" example.
+   - Screen adds a third `gate:`-prefix branch in `_onCloudDiscovered`:
+     acknowledgement toast, **no gold**.
+   - **SAVE-COMPAT RULING (decided 2026-08-10):** auto-stamp a planet's gates
+     only when it is **fully cleared (all 3 stars)** at load. Rationale: a
+     solved puzzle short-circuits before the interaction check
+     (`_tryRib`'s `hasStar(star)` early return, `_earth.dart:449`), so a
+     veteran can never re-trigger the stamp in-world and would otherwise
+     carry a permanently emptier panel than a new player — and there is
+     nothing left to spoil on a planet they have finished. Partial clears do
+     NOT auto-stamp: those gates are still live content to discover.
+   - First commit = the full vertical slice on ONE planet (Earth's rib:
+     smallest blast radius), proving channel + stamp + chip end-to-end.
+4. **Hint/popup pass to the §5.6 standard** — AUDITED 2026-08-10; bigger
+   than it looked, and it needs an architecture change before any line is
+   rewritten:
+   - **There is no channel concept in the code at all.** `hintText` /
+     `_hintTtl` (`planet_dungeon_game.dart:780`) is ONE flat string that
+     `_setHint` (`:945`) overwrites unconditionally — no source, no
+     priority, no memory. ~120 of the 265 call sites have zero gating; the
+     only cross-source guard in the entire system is
+     `_updateEnvironmentalHints`'s self-check (`:1417`). Whichever `_update*`
+     runs last in a frame wins the capsule. The render side
+     (`planet_dungeon_screen.dart:540`) is equally channel-blind — every
+     string gets the same amber pill.
+     → **Build the resolver first**: tag every emission with a channel,
+     resolve by priority (BLOCKED > insight > OBJECTIVE > AMBIENT), give
+     BLOCKED attempt-edged once-per-attempt memory, and protect insight
+     output from interruption.
+   - **Move state out of the capsule** (~80 calls): progress counters → the
+     persistent readout; "Ability cooling down" → the button. Do this
+     BEFORE re-channelling prose, since it removes ~30% of the traffic.
+   - **Rewrite the 9 solution leaks** in the objective channel (worst:
+     `planet_dungeon_game.dart:6356` Air twin-conduit,
+     `_lightning.dart:1008` Storm Spire) — goal stays, method moves behind
+     Mask insight.
+   - **De-mechanize all 36 ambient lines** (`_updateEnvironmentalHints` +
+     the 5 per-planet delegates) — flavor only.
+   - **Fix the 3 continuous stat nags** (`:1392`, `:1410`, `:1439`) to fire
+     on the failure moment.
+   - **The 5 family-naming lines** (`game.dart:3786`, `_fire.dart:640`,
+     `_lightning.dart:155,805`, `_steam.dart:579`) all sit on
+     `InteractionQuality` success branches that step 2 deletes — do step 2
+     first and they disappear with it.
+   - **Chrome the 3 unchromed popup occasions** + give the guardian intro a
+     real one; consider the death overlay too.
+5. **Tests** — BLAST RADIUS MAPPED 2026-08-10, and it is small. The bar is
+   **231 green** across 14 dungeon/raid files.
+   - **Only 10 tests must be rewritten.** Six are the ladder tests
+     themselves (`planet_dungeon_verbs_test.dart:47-95`); the other four are
+     one "off-family penalty" test each in the Fire (`:312`), Water (`:317`),
+     Earth (`:290`) and Lightning (`:274`) full-run files. Note Earth's
+     converts in the OPPOSITE direction from the rest — it becomes a hard
+     gate, not element-only. Air and Steam have no such test.
+   - **~185 tests are invariant guards that must keep passing untouched** —
+     all of `planet_dungeon_layout_test.dart` (123), plus gating, scaling,
+     reward-popup and both raid files (the guardian model is unchanged in
+     v2). **Riskiest to break by accident:** the door-reciprocity /
+     no-gap-spawn / star-3-is-guardian checks (`layout_test.dart:341-459`)
+     run over every planet via `kPlanetDungeonLayouts.forEach`, so one
+     data-shape slip fails six times and reads like an interaction bug when
+     it is really a layout regression. Suspect layout first.
+   - **~36 full-run/combat tests are incidentally coupled but need NO edits
+     to compile** — they drive only the game's public surface. Their risk is
+     behavioural drift during the §9.1 redesigns, not §9.0.
+   - **Copy this precedent:** Water's pipe-mouth hard-Pip gate is already
+     v2-shaped (clean refusal, no middle tier) at
+     `planet_dungeon_water_full_run_test.dart:230-234`.
+   - **Best template for re-authoring a planet's run test:**
+     `planet_dungeon_steam_full_run_test.dart` — no ladder debt, and split
+     into 11 focused per-mechanic tests instead of one monolith.
+   - **Fixture debt (fix opportunistically):** there is no shared test
+     harness — the `_member`/`_companion`/`_step` pattern is copy-pasted in
+     8+ files. `planet_dungeon_combat_test.dart:16-97` is the fullest copy
+     and the one the raid test mirrors; consolidate there if touching it.
+   - ADD per-planet: "hard gate refuses the wrong family and stamps the
+     chip" + "element-only object treats every family identically".
+
+Scope note: §9.0 items 1/3/4 are global; the per-planet v2 conversion
+(item 2) is done immediately for Steam + Earth (no redesign — conversion
+only), while Air/Fire/Water/Lightning bundle their conversion into their
+§9.1 rework pass so each planet (and its tests) is touched exactly once.
+
+### §9.1 Puzzle-depth reworks — one pass per planet, after §9.0
+
+The 2026-08-10 design review (benchmarks: Zelda / Baba Is You / Mario 64)
+ranked the built six: Earth and Steam stand; Air, Fire, Water-S2 and
+Lightning get depth reworks, specced in full in their §6 REWORK blocks.
+Each pass = v2 interaction conversion + the redesign + guardian retrofit
+(§7 principle) + test rewrite. Order (cheapest big win first):
+
+1. **Lightning** — zero-sum dynamo, dark dead segments, vault re-hide,
+   negative-constraint threading w/ solver-checked uniqueness, Raikuma
+   feeds-on-power retrofit (§6.3 REWORK).
+2. **Water** — S2 spin/flow-graph deduction; Leviathan tide-turn retrofit
+   (§6.4 REWORK).
+3. **Fire** — S1 forensic rite rolled per run, S3 route choice; Simurgh
+   brazier-telegraph retrofit (§6.1 REWORK).
+4. **Air** — S1 wake-the-winds, S3 storm-rod steering (rings + stabilize
+   retire); Roc storm-cell retrofit (§6.11 REWORK). Biggest pass — the
+   pilot finally meets the bar the later planets set.
+5. **Kinesthetic verb pass** (any time after §9.0): Pip smallAccess
+   becomes real movement — vent rat-run tunnels between rooms (squeeze
+   animation, Pip-only shortcuts; retrofittable one per planet); Mane
+   terrainTrail becomes an actual dash that lays its trail, not a
+   stationary ACT press.
+
+New-planet building resumes AFTER §9.1 items 1–4 (the kinesthetic pass can
+overlap). Next up then: Dust or Mud or Lava — all three §6 entries are
+current (Lava/Dust re-authored 2026-08-10).
+
+### Milestones
+
 1. ✅ **Framework:** `DungeonAbility` (7) + `DungeonInteractionRequirement`
    (+ `min*` stats) + quality eval + recipe table + `GuardianEncounterRequirement`.
+   *(v1 — superseded by the §9.0 refit target in §5.)*
 2. ✅ **Air polished** on the framework (quality-graded conduits, Airwing
    stabilize, Firemask read, Roc guardian calm/defeat, room hints).
-3. ⏳ **Device tuning of Air** — the proof. Verify spire traversal, timers,
-   animation feel. (Only thing between Air and "100%".)
+3. ⏳ **Device tuning** — pending for Air, Fire, Lightning, Steam (timers,
+   traversal feel, animation feel; Water + Earth device-tested good).
 4. ✅ **Enemy/wisp spawning** — the shared "consequence" layer (storm wisps
    etc.) with floaty hover/dive AI, idle auto-attacks and down handling.
 5. ✅ **Genericize the Air-hardcoded engine bits** — done (see §8): layouts
@@ -777,7 +1365,8 @@ the `_damageEnemyDirect` funnel so every damage source fires kill verbs.
 6. **Planets one at a time**, reusing the framework; each adds its signature
    mechanic. ✅ **Fire (Cinder Cathedral)** · ✅ **Water (Mirror-Tide
    Temple)** · ✅ **Earth (Buried Giant)** — the Nexus 4-relic gate is
-   complete. NEXT: Lightning/Dust/Steam/Mud →
+   complete — · ✅ **Lightning (Storm Circuit)** · ✅ **Steam (Molten
+   Labyrinth)**. NEXT (after §9.0 + the §9.1 reworks): Dust/Mud/Lava →
    Plant/Poison/Ice → Crystal/Spirit/Dark/Light/Blood (hard). When building
    the next planet, follow Fire's pattern: new data verbs in
    planet_dungeon_data.dart, a `part` file for the planet's logic/rendering
@@ -788,8 +1377,14 @@ the `_damageEnemyDirect` funnel so every damage source fires kill verbs.
    kindle-style reveal (see §8 ANIMATED-STATE RULE) — no instant pops.**
    **AND: before any layout code, complete the §5.5 anti-template checklist —
    claim the planet's topology from the structural assignment table, name its
-   strategic question, and design a novel vault trick. `gate → hub → three
+   strategic question, design a novel vault trick, AND claim fresh mechanic
+   archetypes from the §5.5 ledger (a star's core mechanic may not repeat a
+   claimed row; give it its own visual grammar). `gate → hub → three
    wings → vault → finale → heart` is retired as a default.**
+   **AND (v2): declare the planet's 1–3 HARD FAMILY GATES in its §6 entry
+   before building — which star, which object, which element+family;
+   everything else is element-only at full power, and hints/popups follow
+   §5.6 from day one.**
 7. **Combat-core extraction (before the kin specials port / next ability
    batch):** the per-hit resolver layer exists as near-identical copies in
    survival and the dungeon (and open space has its own variant). Extract to
