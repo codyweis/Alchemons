@@ -37,6 +37,63 @@ part 'planet_dungeon_game_earth.dart';
 part 'planet_dungeon_game_lightning.dart';
 part 'planet_dungeon_game_steam.dart';
 
+/// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
+///
+/// The capsule carries SPEECH ONLY — one line, never stacked — and every
+/// emission declares which voice it speaks in. The resolver
+/// ([PlanetDungeonGame._emitHint]) picks by PRIORITY, not by call order, so a
+/// stray flavor line can no longer stomp a refusal or a hard-won insight
+/// reading just because its `_update*` ran later in the frame.
+///
+/// State that is not speech (progress counters, control feedback) does not
+/// belong here at all — see [DungeonProgressReadout] and the cooldown
+/// affordances on the combat buttons.
+enum DungeonHintChannel {
+  /// Rare atmospheric flavor. Never mechanics, never stats, hard cooldown.
+  ambient(0),
+
+  /// What the room wants, on entry — the goal, never the method. Also the
+  /// default for untagged legacy emissions (world-response speech).
+  objective(1),
+
+  /// Mask insight: the earned how-to. Priority-protected — nothing below
+  /// BLOCKED may interrupt a reading mid-read.
+  insight(2),
+
+  /// A refused ATTEMPT, one short clause naming what's missing. Attempt-edged:
+  /// it speaks once per attempt and remembers, so leaning on a sealed door
+  /// states the refusal once instead of flickering it every frame.
+  blocked(3);
+
+  const DungeonHintChannel(this.priority);
+
+  /// Higher wins. Equal-or-higher may evict a live line; lower never may.
+  final int priority;
+}
+
+/// A persistent, glanceable progress counter shown beside the star tracker.
+///
+/// Progress is STATE the player checks at will ("Rings 2/5", "Stones 2 of 4
+/// true", "Pressure 40") — not a sentence that fades after 2.4s. This is the
+/// generalized form of the per-planet gauges (Steam's pressure head, Water's
+/// tide stand); planets fill it from [PlanetDungeonGame.progressReadout].
+class DungeonProgressReadout {
+  const DungeonProgressReadout({
+    required this.label,
+    required this.value,
+    this.fraction,
+  });
+
+  /// Short all-caps noun for the thing being counted ("RINGS").
+  final String label;
+
+  /// The count itself, already formatted ("2/5", "2 of 4 true", "40").
+  final String value;
+
+  /// Optional 0..1 completion, drawn as a hairline fill under the value.
+  final double? fraction;
+}
+
 /// One controllable creature in the dungeon.
 class DungeonCreature {
   DungeonCreature({required this.member});
@@ -769,8 +826,26 @@ class PlanetDungeonGame extends FlameGame {
   _RelicDropFx? _relicFx;
   bool get relicDropActive => _relicFx != null;
 
+  // ── Hint capsule (§5.6) ─────────────────────────────────
+  // One line, one channel, resolved by priority. See [DungeonHintChannel].
+
   String? hintText;
   double _hintTtl = 0;
+
+  /// The channel the live capsule line is speaking in — the render side
+  /// styles by this so a refusal never looks like flavor.
+  DungeonHintChannel hintChannel = DungeonHintChannel.objective;
+
+  /// Set while a scoped emitter owns the capsule (see [_inHintChannel]) so
+  /// every `_setHint` inside a Mask reading is tagged insight without having
+  /// to touch each per-planet reveal delegate.
+  DungeonHintChannel? _hintChannelOverride;
+
+  /// Attempt-edge memory for the BLOCKED channel: object key → the exact
+  /// refusal already spoken for it. A refusal repeats only when the player
+  /// leaves (key released) or the state changes (different refusal text).
+  final Map<String, String> _blockedSpoken = {};
+
   double _ambientHintCooldown = 0;
   double _statHintCooldown = 0;
   double _loomRejectCooldown = 0;
@@ -874,6 +949,79 @@ class PlanetDungeonGame extends FlameGame {
     return '${c.specialCooldown.ceil()}s';
   }
 
+  String get autoCooldownLabel {
+    final c = activeCombat;
+    if (c == null || c.basicCooldown <= 0.05) return 'ATTACK';
+    return '${c.basicCooldown.ceil()}s';
+  }
+
+  // ── Control feedback (§5.6: state lives on the control) ──
+  // A refused press pulses its own button instead of writing prose into the
+  // hint capsule. Both decay in [update].
+
+  static const double _deniedFlashSeconds = 0.36;
+
+  /// Seconds remaining on the auto-attack button's "refused" pulse.
+  double autoDeniedFlash = 0;
+
+  /// Seconds remaining on the special button's "refused" pulse.
+  double abilityDeniedFlash = 0;
+
+  double get autoDeniedPulse =>
+      (autoDeniedFlash / _deniedFlashSeconds).clamp(0.0, 1.0);
+
+  double get abilityDeniedPulse =>
+      (abilityDeniedFlash / _deniedFlashSeconds).clamp(0.0, 1.0);
+
+  /// True when the active specimen's special has no manual cast at all — the
+  /// button says so permanently instead of a hint line saying it on each tap.
+  bool get abilityIsPassive {
+    final c = activeCombat;
+    if (c == null) return false;
+    return isPassiveOnlyCosmicAbility(c.member.family, c.member.element);
+  }
+
+  /// The auto-attack control is live only when something can actually fire.
+  bool get autoAttackReady {
+    final c = activeCombat;
+    final a = active;
+    return c != null && a != null && a.alive && c.basicCooldown <= 0;
+  }
+
+  /// The special control is live only when it is castable right now.
+  bool get abilityReady {
+    final c = activeCombat;
+    if (c == null || abilityIsPassive) return false;
+    return c.specialCooldown <= 0;
+  }
+
+  /// PROGRESS READOUT (§5.6) — the persistent, glanceable counter shown
+  /// beside the star tracker, or null when this planet/room has nothing to
+  /// count. Progress is state the player checks at will, never a fading line.
+  ///
+  /// Wired for Air's spire ascent as the reference implementation; the other
+  /// planets' counters (Earth's stones, Lightning's terminals, Fire's
+  /// braziers, and the Steam/Water gauges this generalizes) still speak
+  /// through the capsule and move here in the follow-up pass.
+  DungeonProgressReadout? get progressReadout {
+    final total = _totalSpireRings;
+    if (total > 0 && !hasStar(0)) {
+      final room = currentRoom;
+      // Only while the ascent is the live business: in a ring room, or
+      // mid-sequence, or standing under an opened crown.
+      final onSpire =
+          room.rings.isNotEmpty || room.summit != null || _ringProgress > 0;
+      if (onSpire) {
+        return DungeonProgressReadout(
+          label: 'RINGS',
+          value: '$_ringProgress/$total',
+          fraction: _ringProgress / total,
+        );
+      }
+    }
+    return null;
+  }
+
   /// The single star a room awards (spire/loom/altar/ritual/garden), or null
   /// for connective rooms.
   int? _roomStarIndex(DungeonRoom room) =>
@@ -934,9 +1082,76 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
-  void _setHint(String msg, [double ttl = 2.4]) {
+  /// Legacy entry point — kept so the existing call sites keep working. An
+  /// untagged line speaks on OBJECTIVE (world-response speech), unless a
+  /// scope is active (see [_inHintChannel]), which is how Mask readings get
+  /// their channel without editing every per-planet delegate.
+  void _setHint(String msg, [double ttl = 2.4]) =>
+      _emitHint(msg, _hintChannelOverride ?? DungeonHintChannel.objective, ttl);
+
+  /// THE RESOLVER. Priority decides, not call order: a lower channel never
+  /// evicts a higher one that is still on screen; an equal-or-higher one may.
+  /// Returns true when the line actually took the capsule.
+  bool _emitHint(String msg, DungeonHintChannel channel, [double ttl = 2.4]) {
+    final live = hintText != null && _hintTtl > 0;
+    if (live && channel.priority < hintChannel.priority) return false;
     hintText = msg;
+    hintChannel = channel;
     _hintTtl = ttl;
+    return true;
+  }
+
+  /// Room-entry goal line — WHAT, never HOW.
+  void _setObjectiveHint(String msg, [double ttl = 4.5]) =>
+      _emitHint(msg, DungeonHintChannel.objective, ttl);
+
+  /// Run [body] with every hint it emits tagged [channel]. Used to make the
+  /// whole Mask-insight call tree (`_doReveal` + the five per-planet
+  /// `_*Reveal` delegates) speak on the protected insight channel.
+  T _inHintChannel<T>(DungeonHintChannel channel, T Function() body) {
+    final prev = _hintChannelOverride;
+    _hintChannelOverride = channel;
+    try {
+      return body();
+    } finally {
+      _hintChannelOverride = prev;
+    }
+  }
+
+  /// A refused attempt that is inherently edge-triggered (a button press, a
+  /// one-shot interaction) — the input already happened once, so it speaks.
+  bool _setBlockedHint(String msg, [double ttl = 3.0]) =>
+      _emitHint(msg, DungeonHintChannel.blocked, ttl);
+
+  /// A refused attempt driven by a CONTINUOUS condition (standing against a
+  /// sealed door, overlapping a gate every frame). [key] identifies the
+  /// object; the refusal text carries its state. It speaks once and then stays
+  /// quiet until [_releaseBlockedExcept] drops the key (the player left) or the
+  /// object hands it a different refusal (the state changed).
+  bool _setBlockedHintOnce(String key, String msg, [double ttl = 3.0]) {
+    if (_blockedSpoken[key] == msg) return false;
+    _blockedSpoken[key] = msg;
+    return _emitHint(msg, DungeonHintChannel.blocked, ttl);
+  }
+
+  /// Forget every attempt-edge in a family except the ones still live this
+  /// frame — the generic "player left the object" reset.
+  void _releaseBlockedExcept(String prefix, Set<String> keep) {
+    _blockedSpoken.removeWhere(
+      (k, _) => k.startsWith(prefix) && !keep.contains(k),
+    );
+  }
+
+  /// Mask insight output, priority-protected against ambient/objective chatter.
+  bool _setInsightHint(String msg, [double ttl = 3.6]) =>
+      _emitHint(msg, DungeonHintChannel.insight, ttl);
+
+  /// Wipe the capsule and all attempt memory (room reset, party wipe, debug).
+  void _clearHints() {
+    hintText = null;
+    _hintTtl = 0;
+    hintChannel = DungeonHintChannel.objective;
+    _blockedSpoken.clear();
   }
 
   // ── Lifecycle ───────────────────────────────────────────
@@ -1092,6 +1307,9 @@ class PlanetDungeonGame extends FlameGame {
   /// Reset puzzle progress (death or re-enter), but keep earned stars and
   /// discovered clouds (knowledge persists; per the design death only restarts).
   void _resetPuzzleState() {
+    // A reset invalidates every attempt-edge (§5.6): the world the refusals
+    // referred to no longer exists.
+    _clearHints();
     flightActive = false;
     flightMeter = 0;
     _fallRecovering = false;
@@ -1152,10 +1370,12 @@ class PlanetDungeonGame extends FlameGame {
     if (index < 0 || index >= creatures.length) return;
     if (!creatures[index].alive) {
       final secs = creatures[index].respawnTimer.ceil();
-      _setHint(
+      // A refused swap — attempt-edged by the tap itself.
+      _setBlockedHint(
         secs > 0
             ? 'That creature is down — reviving in ${secs}s'
             : 'That creature is down',
+        2.4,
       );
       onChanged();
       return;
@@ -1208,6 +1428,8 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_ambientHintCooldown > 0) _ambientHintCooldown -= dt;
     if (_statHintCooldown > 0) _statHintCooldown -= dt;
+    if (autoDeniedFlash > 0) autoDeniedFlash -= dt;
+    if (abilityDeniedFlash > 0) abilityDeniedFlash -= dt;
     if (_loomRejectCooldown > 0) _loomRejectCooldown -= dt;
     if (_cloudPickupCooldown > 0) _cloudPickupCooldown -= dt;
     if (_guardianStrikeCooldown > 0) _guardianStrikeCooldown -= dt;
@@ -1468,9 +1690,13 @@ class PlanetDungeonGame extends FlameGame {
     if (_isVapor) _steamAmbientHint(a, room);
   }
 
+  /// Atmospheric flavor — the lowest channel. It can never take the capsule
+  /// from a refusal, a reading or a live objective, and it burns its cooldown
+  /// only when it actually spoke.
   void _setAmbientHint(String msg) {
-    _setHint(msg, 2.0);
-    _ambientHintCooldown = 4.0;
+    if (_emitHint(msg, DungeonHintChannel.ambient, 2.0)) {
+      _ambientHintCooldown = 4.0;
+    }
   }
 
   void _setStatHint(String msg) {
@@ -1666,10 +1892,11 @@ class PlanetDungeonGame extends FlameGame {
           _ringProgress++;
           if (_ringProgress >= _totalSpireRings) {
             summitOpen = true;
-            _setHint('The spire crown opens above');
-          } else {
-            _setHint('Ring $_ringProgress / $_totalSpireRings');
+            _setObjectiveHint('The spire crown opens above', 2.4);
           }
+          // The count itself is STATE, not speech — it lives in the
+          // persistent readout beside the star tracker (§5.6), so a ring
+          // never evicts what the room was telling you.
           onChanged();
         } else if (ring.order > _ringProgress && _ringProgress != 0) {
           _ringProgress = 0;
@@ -3498,7 +3725,10 @@ class PlanetDungeonGame extends FlameGame {
     final creature = active;
     if (comp == null || creature == null || !creature.alive) return false;
     if (comp.basicCooldown > 0) {
-      _setHint('Auto attack cooling down');
+      // CONTROL FEEDBACK, not speech (§5.6): the button answers for itself
+      // with its cooldown ring and a refusal pulse — the capsule keeps
+      // whatever the room was saying.
+      autoDeniedFlash = _deniedFlashSeconds;
       onChanged();
       return false;
     }
@@ -3589,13 +3819,16 @@ class PlanetDungeonGame extends FlameGame {
     final comp = activeCombat;
     final creature = active;
     if (comp == null || creature == null) return false;
+    // CONTROL FEEDBACK, not speech (§5.6). A passive special reads as a
+    // permanently-passive button; a cooling one as its ring plus a refusal
+    // pulse. Neither evicts the room's line.
     if (isPassiveOnlyCosmicAbility(comp.member.family, comp.member.element)) {
-      _setHint('This specimen\'s special works passively in combat');
+      abilityDeniedFlash = _deniedFlashSeconds;
       onChanged();
       return false;
     }
     if (comp.specialCooldown > 0) {
-      _setHint('Ability cooling down');
+      abilityDeniedFlash = _deniedFlashSeconds;
       onChanged();
       return false;
     }
@@ -5727,7 +5960,10 @@ class PlanetDungeonGame extends FlameGame {
         _toggleGlide(a);
         break;
       case DungeonAbility.insight:
-        _doReveal(a);
+        // Everything a Mask reading says — here and in the five per-planet
+        // delegates — speaks on the protected insight channel, so a revealed
+        // answer cannot be stomped mid-read by stray flavor.
+        _inHintChannel(DungeonHintChannel.insight, () => _doReveal(a));
         break;
       case DungeonAbility.heavyForce:
         _setHint('${a.member.element} force ripples outward');
@@ -5760,7 +5996,8 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
     if (!_onSolidGround(a.position, currentRoom)) {
-      _setHint('Launch from solid ground');
+      // A refused launch — the press is the attempt edge.
+      _setBlockedHint('Launch from solid ground', 2.4);
       return;
     }
     flightMax = glideSeconds(a.member.statSpeed);
@@ -5795,17 +6032,18 @@ class PlanetDungeonGame extends FlameGame {
       if (room.id == 'storm_rune_hall') {
         revealFlash = 0.6;
         revealTier = revealHintTier(a.member.statIntelligence);
-        _setHint('The mural completes — BOTH pylons must sing at once', 3.6);
+        _setInsightHint('The mural completes — BOTH pylons must sing at once');
         return;
       }
       // At the altar, a Mask reads the storm runes (sync hint).
       if (room.conduits.isNotEmpty) {
-        _setHint(
+        _setInsightHint(
           'Storm runes: light BOTH conduits at once — '
           'channel A, then arc B before A fades',
+          2.4,
         );
       } else {
-        _setHint('Nothing hidden stirs here');
+        _setInsightHint('Nothing hidden stirs here', 2.4);
       }
       return;
     }
@@ -5814,10 +6052,10 @@ class PlanetDungeonGame extends FlameGame {
     // In a trial chamber, insight reads the TRIAL (it never bypasses it).
     final sealed = _sealedWonderCloud(room);
     if (sealed != null) {
-      _setHint(_wonderInsight(room.id, revealTier), 3.6);
+      _setInsightHint(_wonderInsight(room.id, revealTier));
       return;
     }
-    _setHint(
+    _setInsightHint(
       revealTier >= 2
           ? 'The anchors show ghost outlines'
           : revealTier >= 1
@@ -6189,12 +6427,19 @@ class PlanetDungeonGame extends FlameGame {
 
   void _checkDoors(DungeonCreature a) {
     if (_doorCooldown > 0) return;
+    // Doors the player is leaning on THIS frame; everything else forgets it
+    // was refused, so walking away and coming back speaks again.
+    final leaning = <String>{};
     for (final d in currentRoom.doors) {
       if (isDoorHidden(currentRoom, d)) continue;
       if (isDoorLocked(currentRoom, d)) {
-        // Sealed: the door refuses passage and explains its key.
+        // Sealed: the door refuses passage and names its key — ONCE per
+        // attempt (§5.6 BLOCKED is attempt-edged). The refusal text doubles
+        // as the state signature: re-key the lock and it speaks again.
         if (d.rect.inflate(14).contains(a.position)) {
-          _setStatHint(_lockedDoorHint(currentRoom, d));
+          final key = _doorBlockKey(currentRoom, d);
+          leaning.add(key);
+          _setBlockedHintOnce(key, _lockedDoorHint(currentRoom, d));
         }
         continue;
       }
@@ -6206,14 +6451,25 @@ class PlanetDungeonGame extends FlameGame {
         carriedCloudId = null;
         carriedCloudType = null;
         _doorCooldown = 0.5;
+        // A new room is a new subject: the previous room's line (and every
+        // attempt edge that referred to its objects) is void, so the entry
+        // objective is never swallowed by a refusal you already walked away
+        // from.
+        _clearHints();
         final hint = _roomObjectiveHint(currentRoomId);
-        if (hint != null) _setHint(hint, 4.5);
+        if (hint != null) _setObjectiveHint(hint);
         _maybeSpawnGuardianCombat(currentRoom);
         onChanged();
         return;
       }
     }
+    _releaseBlockedExcept(_doorBlockPrefix, leaning);
   }
+
+  static const String _doorBlockPrefix = 'door:';
+
+  String _doorBlockKey(DungeonRoom room, DungeonDoor d) =>
+      '$_doorBlockPrefix${room.id}>${d.targetRoomId}';
 
   /// Hidden doors don't exist yet — no render, no transition, no map mark.
   /// The layout declares them:
@@ -6676,9 +6932,9 @@ class PlanetDungeonGame extends FlameGame {
           _fx.mote!,
           c + Offset(cos(a), sin(a) * 0.5) * 34,
           4,
-          const Color(0xFFFFE9B0).withValues(
-            alpha: 0.4 + 0.2 * sin(_time * 5 + i),
-          ),
+          const Color(
+            0xFFFFE9B0,
+          ).withValues(alpha: 0.4 + 0.2 * sin(_time * 5 + i)),
         );
       }
     }
@@ -6710,9 +6966,7 @@ class PlanetDungeonGame extends FlameGame {
           _fx.glow!,
           pos + Offset(0, -26.0 - i * 34),
           30 - i * 3.5,
-          color.withValues(
-            alpha: (0.22 + 0.08 * pulse) * (1.0 - i / 5.5),
-          ),
+          color.withValues(alpha: (0.22 + 0.08 * pulse) * (1.0 - i / 5.5)),
         );
       }
     }
@@ -6723,8 +6977,9 @@ class PlanetDungeonGame extends FlameGame {
       ..strokeWidth = 2.0;
     for (var k = 0; k < 2; k++) {
       final ringT = ((_time * 0.7) + k * 0.5) % 1.0;
-      ringPaint.color =
-          bright.withValues(alpha: (1.0 - ringT) * (0.38 - 0.1 * k));
+      ringPaint.color = bright.withValues(
+        alpha: (1.0 - ringT) * (0.38 - 0.1 * k),
+      );
       canvas.drawOval(
         Rect.fromCenter(
           center: pos + const Offset(0, 8),
@@ -6737,15 +6992,31 @@ class PlanetDungeonGame extends FlameGame {
 
     // The essence orb: big halo, hot core, white heart.
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, core, 74,
-          color.withValues(alpha: 0.30 + 0.14 * pulse));
-      drawGlow(canvas, _fx.glow!, core, 40,
-          bright.withValues(alpha: 0.45 + 0.15 * pulse));
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        core,
+        74,
+        color.withValues(alpha: 0.30 + 0.14 * pulse),
+      );
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        core,
+        40,
+        bright.withValues(alpha: 0.45 + 0.15 * pulse),
+      );
     }
     canvas.drawCircle(
-        core, 11.5 + pulse * 1.5, Paint()..color = bright.withValues(alpha: 0.9));
+      core,
+      11.5 + pulse * 1.5,
+      Paint()..color = bright.withValues(alpha: 0.9),
+    );
     canvas.drawCircle(
-        core, 5.5, Paint()..color = Colors.white.withValues(alpha: 0.95));
+      core,
+      5.5,
+      Paint()..color = Colors.white.withValues(alpha: 0.95),
+    );
 
     // A slow four-point glint over the core.
     final glint = Paint()
@@ -6755,8 +7026,11 @@ class PlanetDungeonGame extends FlameGame {
     final ga = _time * 0.6;
     for (var k = 0; k < 2; k++) {
       final a = ga + k * pi / 2;
-      canvas.drawLine(core - Offset(cos(a), sin(a)) * (16 + 3 * pulse),
-          core + Offset(cos(a), sin(a)) * (16 + 3 * pulse), glint);
+      canvas.drawLine(
+        core - Offset(cos(a), sin(a)) * (16 + 3 * pulse),
+        core + Offset(cos(a), sin(a)) * (16 + 3 * pulse),
+        glint,
+      );
     }
 
     // Bright mote orbit — doubled and enlarged from the old whisper.
@@ -6769,9 +7043,11 @@ class PlanetDungeonGame extends FlameGame {
           _fx.mote!,
           mote,
           6.5,
-          Color.lerp(color, Colors.white, 0.35)!.withValues(
-            alpha: 0.5 + 0.3 * sin(_time * 4 + i),
-          ),
+          Color.lerp(
+            color,
+            Colors.white,
+            0.35,
+          )!.withValues(alpha: 0.5 + 0.3 * sin(_time * 4 + i)),
         );
       }
     }
@@ -7001,9 +7277,9 @@ class PlanetDungeonGame extends FlameGame {
       final a = _time * 0.55 + i * pi * 2 / 3;
       final r = 206.0 + 6 * sin(_time * 1.3 + i * 2.1);
       const sweep = 0.6;
-      streak.color = const Color(0xFF8FE6FF).withValues(
-        alpha: 0.16 + 0.06 * sin(_time * 2.4 + i),
-      );
+      streak.color = const Color(
+        0xFF8FE6FF,
+      ).withValues(alpha: 0.16 + 0.06 * sin(_time * 2.4 + i));
       canvas.drawArc(
         Rect.fromCircle(center: c, radius: r),
         a - sweep,
@@ -7225,8 +7501,11 @@ class PlanetDungeonGame extends FlameGame {
         a + wobble,
         1.6 + 0.8 * ignite,
         Paint()
-          ..color = Color.lerp(ringColor, Colors.white, 0.30 + 0.25 * ignite)!
-              .withValues(alpha: 0.22 + 0.36 * ignite),
+          ..color = Color.lerp(
+            ringColor,
+            Colors.white,
+            0.30 + 0.25 * ignite,
+          )!.withValues(alpha: 0.22 + 0.36 * ignite),
       );
     }
 
@@ -7236,7 +7515,9 @@ class PlanetDungeonGame extends FlameGame {
       canvas.drawRRect(
         RRect.fromRectAndRadius(veil, const Radius.circular(20)),
         Paint()
-          ..color = const Color(0xFF0B111D).withValues(alpha: 0.86 * (1 - ignite)),
+          ..color = const Color(
+            0xFF0B111D,
+          ).withValues(alpha: 0.86 * (1 - ignite)),
       );
       for (var i = 0; i < 5; i++) {
         final x = door.dx - 25 + i * 12.5;
@@ -10159,10 +10440,18 @@ class PlanetDungeonGame extends FlameGame {
             ..color = amber.withValues(alpha: 0.4);
           for (final t in const [0.32, 0.68]) {
             final bar = horizontal
-                ? Rect.fromLTWH(r.left + 3, r.top + r.height * t - 2.5,
-                    r.width - 6, 5)
-                : Rect.fromLTWH(r.left + r.width * t - 2.5, r.top + 3, 5,
-                    r.height - 6);
+                ? Rect.fromLTWH(
+                    r.left + 3,
+                    r.top + r.height * t - 2.5,
+                    r.width - 6,
+                    5,
+                  )
+                : Rect.fromLTWH(
+                    r.left + r.width * t - 2.5,
+                    r.top + 3,
+                    5,
+                    r.height - 6,
+                  );
             final rb = RRect.fromRectAndRadius(bar, const Radius.circular(2));
             canvas.drawRRect(rb, barFill);
             canvas.drawRRect(rb, barEdge);
@@ -10732,11 +11021,7 @@ class PlanetDungeonGame extends FlameGame {
   /// Mask+Plant traps grow writhing tendrils toward nearby enemies — the same
   /// authored overlay survival draws. Gathers in-reach enemies nearest-first
   /// and hands off to the shared renderer.
-  void _drawMaskPlantTendrils(
-    Canvas canvas,
-    Projectile vine,
-    Color color,
-  ) {
+  void _drawMaskPlantTendrils(Canvas canvas, Projectile vine, Color color) {
     final reach = max(vine.snareRadius, vine.effectRadius);
     final reachSq = reach * reach;
     final targets = <Offset>[];
