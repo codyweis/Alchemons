@@ -15,22 +15,25 @@
 //    shrine wakes one gale PERMANENTLY, and a woken gale pushes everything —
 //    you, the wisps, the storm — so it is simultaneously the ladder to a ledge
 //    footing could never reach and the wind that scours the walkway beside it.
-//    The puzzle is the ORDER: wake the ridge riser before the first breath and
-//    you walk up the stair; wake them the other way round and the stair is
-//    scoured, and the only road back to the ridge is a scoured slide that costs
-//    a fall. NO ORDER CAN EVER STRAND YOU — every ledge keeps a way in under
-//    every possible set of woken gales, proved exhaustively by
-//    `solveWindWaking()` — and death resets the winds besides.
+//    The puzzle is the ORDER: wake the Ridge Riser before the First Breath and
+//    you walk up the stair; wake them the other way round and the First
+//    Breath's spill has scoured that stair away, and the ridge shrine is only
+//    reachable the long way — up the thermal and back along the ledgewalk,
+//    grinding into the same wind. NO ORDER CAN EVER STRAND YOU: every state
+//    the player can reach still has a next move, proved exhaustively by
+//    `solveWindWaking()` (`strandable == 0`) — and death resets the winds
+//    besides, as redundancy rather than as the mechanism.
 //  • Star 2 (Loom) — unchanged: the five wonder-cloud trials and the Sky Loom.
 //  • Star 3 (Storm) — STORM-ROD STEERING. Conduit A keeps its hard
 //    Lightning+Horn gate and now LATCHES (the decay timers are gone, and with
 //    them the Wing-only stabilize that existed only to beat them). Conduit B is
 //    struck by the storm itself: a live cell circles the altar, and when it
-//    discharges its leader climbs from conductor to conductor — always to the
-//    TALLEST within reach that stands STRICTLY TALLER than the one it is on.
-//    Rank the rod field into a staircase that ends at B and the storm lights it
-//    for you. Rank it wrong and the bolt dies on a rod: wild strike, storm
-//    wisps. Gusts herd the cell so you choose where the climb begins.
+//    discharges its leader climbs the rod field — leaping to the tallest iron
+//    in reach that stands exactly ONE RANK above the iron it is on (see
+//    `stormLeaderFrom` for why that clause is what makes it a puzzle). Rank the
+//    field into a staircase that ends at B and the storm lights it for you.
+//    Rank it wrong and the bolt dies on a rod: wild strike, storm wisps. Gusts
+//    herd the cell so you choose where the climb begins.
 //  • The Roc (§7) — the guardian DRAGS the cell across its own rod field. The
 //    shared lull still turns, but only a bolt led into the bird opens a full
 //    window: the fight is Star 3's vocabulary, played against something that
@@ -116,6 +119,7 @@ extension WindCrownSpire on PlanetDungeonGame {
     // belt-and-braces behind `solveWindWaking()`'s no-strand proof.
     wokenGales.clear();
     galeRamp.clear();
+    totalGales = allGaleIds.length;
     summitOpen = false;
     _galeRiding = false;
     rodHeight.clear();
@@ -412,7 +416,7 @@ extension WindCrownSpire on PlanetDungeonGame {
       particleCount: 26,
       intensity: 1.0,
     );
-    if (wokenGales.length >= allGaleIds.length && !summitOpen) {
+    if (wokenGales.length >= totalGales && !summitOpen) {
       summitOpen = true;
       _setObjectiveHint('Every wind blows — the crown stands open', 3.4);
     }
@@ -488,7 +492,9 @@ extension WindCrownSpire on PlanetDungeonGame {
   Offset? stormCellPosition(DungeonRoom room) {
     final orbit = room.stormOrbit;
     if (orbit == null) return null;
-    final centre = room.guardian != null ? _rocLeash : orbit.center;
+    final centre = (room.guardian != null && _rocLeash != Offset.zero)
+        ? _rocLeash
+        : orbit.center;
     return centre +
         Offset(cos(stormCellAngle) * orbit.radius,
             sin(stormCellAngle) * orbit.radius);
@@ -698,7 +704,9 @@ extension WindCrownSpire on PlanetDungeonGame {
       return true;
     }
     final orbit = room.stormOrbit!;
-    final centre = room.guardian != null ? _rocLeash : orbit.center;
+    final centre = (room.guardian != null && _rocLeash != Offset.zero)
+        ? _rocLeash
+        : orbit.center;
     // Shove it the way it is already leaning away from the gust.
     final toCell = cell - a.position;
     final tangent = Offset(-(cell - centre).dy, (cell - centre).dx);
@@ -866,7 +874,10 @@ extension WindCrownSpire on PlanetDungeonGame {
           ? 'The crown stands open'
           : 'The crown waits on every wind';
     }
-    if (room.stormRods.isNotEmpty && room.guardian == null) {
+    if (room.guardian != null) {
+      return hasStar(2) ? null : 'Something enormous is riding the storm';
+    }
+    if (room.stormRods.isNotEmpty) {
       return 'The twin conduits sleep';
     }
     return null;
@@ -925,7 +936,7 @@ extension WindCrownSpire on PlanetDungeonGame {
   DungeonProgressReadout? _spireProgressReadout() {
     final room = currentRoom;
     // The winds: the RINGS counter's replacement (the ring sequence retired).
-    final total = allGaleIds.length;
+    final total = totalGales;
     if (total > 0 && !hasStar(0)) {
       final onSpire = room.gustShrines.isNotEmpty ||
           room.summit != null ||
@@ -1121,7 +1132,9 @@ extension WindCrownSpire on PlanetDungeonGame {
     final cell = stormCellPosition(room);
     if (cell == null || _roomCleared(room)) return;
     final orbit = room.stormOrbit!;
-    final centre = room.guardian != null ? _rocLeash : orbit.center;
+    final centre = (room.guardian != null && _rocLeash != Offset.zero)
+        ? _rocLeash
+        : orbit.center;
     // The ring the cell rides — a thin, honest circle: prediction needs it.
     canvas.drawCircle(
       centre,

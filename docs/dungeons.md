@@ -131,7 +131,7 @@ catch both kinds.
 | 10 | **Lightning** entry rite charge — `_lightning.dart:788` | Horn 8s window; other Lightning 4s + wisps | element-only, one 8s window |
 | 11 | **Lightning** S2 cell deposit — `_lightning.dart:833` | non-Wing deposit spawns 2 unstable wisps | element-only |
 | 12 | **Steam** Earth dam-wall raise — `_steam.dart:576` | self-labeled `// FAMILY-QUALITY`: Horn clean, other Earth "rough + racket draws wisps" | element-only |
-| 13 | **Air** Ring wonder-trial — `planet_dungeon_game.dart:360` | Mask seal tolerance 0.72 rad vs 0.45 | element-only — *or moot*, this trial retires in Air's §9.1 rework |
+| 13 | **Air** Ring wonder-trial — `planet_dungeon_game.dart:360` | Mask seal tolerance 0.72 rad vs 0.45 | element-only (SHIPPED). **The "or moot" note was wrong** — this is a Star 2 wonder-trial and Air's §9.1 rework left Star 2 alone; only Star 1's `SkyRing` sequence retired. Same word, different mechanic. |
 
 **Citation caveat:** the line numbers above are from the pre-refit tree and
 drift by 2–10 in several files; the identifications were all correct. One
@@ -153,10 +153,14 @@ during the §9.1 rework) · Steam 0. Every planet keeps at least one star
 earnable by any correct-element trio.
 
 **INTENTIONAL family exclusives — do NOT convert:** Kin's one-touch guardian
-calm (`planet_dungeon_game.dart:6080`) · Wing's `_tryStabilize` conduit
-refresh (`:5869`, the solo-sync aid that keeps Air's gated altar solvable) ·
-Mask's passive lava-creep forecast in Steam (informational only, gates
-nothing). Kins and Wings are legendary; their power is the rarity payoff,
+calm (`planet_dungeon_game.dart:6080`) · ~~Wing's `_tryStabilize` conduit
+refresh (`:5869`, the solo-sync aid that keeps Air's gated altar solvable)~~
+**— SUPERSEDED 2026-08-11 by Air's §9.1 rework: `_tryStabilize` is DELETED.**
+It existed only to make a pair of DECAYING conduit timers beatable solo, and
+the rework retired the timers (conduits latch; conduit B is struck by the
+storm). Nothing else depended on it, and an exclusive that holds nothing up is
+not an exclusive. · Mask's passive lava-creep forecast in Steam (informational
+only, gates nothing). Kins and Wings are legendary; their power is the rarity payoff,
 never a nerf target. Note the shape these share: a family-exclusive *bonus*
 that no puzzle requires — that is always legal in v2; a family-exclusive
 *penalty* never is.
@@ -277,7 +281,7 @@ keep what shipped; **Steam is flagged for a structural pass.**
 
 | Planet | Topology (claimed) | Strategic question | Vault trick |
 |---|---|---|---|
-| **Air** (built) | Vertical spire, hub-and-spokes | which trial order suits my trio | behind the loom (shipped) |
+| **Air** (built) | Vertical spire, hub-and-spokes | *(rework)* in what ORDER do I wake the winds — each one is permanent, and each is somebody's ladder and somebody's wall | behind the loom (shipped) |
 | **Fire** (built) | Linear procession w/ side chapels | interpret the rite's order from two hint layers | reliquary behind the rite (shipped) |
 | **Water** (built) | Hub + wings, but rooms CHANGE with tide state | which tide stand to settle, and when | low-tide-only passage (shipped) |
 | **Earth** (built) | The map IS a body — anatomy as architecture | hunt the scale's answer through rooms you've walked | beyond the chasm, needs the ribs (shipped) |
@@ -304,7 +308,7 @@ new. The ledger grows with every build:
 
 | Claimed by | Core mechanics owned |
 |---|---|
-| **Air** | flow traversal (currents/updrafts) · set-collection constellation matching · *(rework)* irreversible wind-authoring (woken gales help AND hinder; order is the puzzle) · storm-steering by height-ranking (tallest rod takes the bolt) |
+| **Air** | flow traversal (currents/updrafts) · set-collection constellation matching · **irreversible wind-authoring** (BUILT: gust shrines wake permanent gales that help AND hinder; the waking ORDER is the puzzle — CLAIMED: no other planet may hand the player a permanent world-edit whose ordering is the whole question) · **storm-steering by height-ranking** (BUILT: the bolt climbs one rank at a time, so the rod field must be a staircase) |
 | **Fire** | sequence-execution / order-memory ritual under attack (CLAIMED — no other planet may hand a sequence to execute) · flame-relay escort between checkpoints · *(rework)* forensic-evidence deduction at the object itself (rolled per run) |
 | **Water** | global state machine (tide) that regates SPACE itself · flow-graph ordering deduced from spin (read the system, derive the sequence — CLAIMED: no other planet may reveal a sequence as evidence-to-reconstruct) |
 | **Earth** | track-notch sokoban shoves · clue-hunt logic deduction (answers carved into REMOTE architecture, rolled per run — the treasure-hunt variant; Fire's forensic variant reads the object itself) |
@@ -735,7 +739,8 @@ not as soft modifiers.
     cracks → reflection layer reveals doors. S3 *sliding 3×3 room grid* (Sky Keep):
     **Lightning+Crystal→Spirit**, **Crystal+Spirit→Light** awakens the prism guardian.
 11. **Air — Wind-Crown Spire** · Air+Fire+Lightning · Airwing/Firemask/Lightninghorn ·
-    *clouds are puzzle pieces.* **(PILOT — built; tuning pending)**
+    *clouds are puzzle pieces — and the winds are yours to wake.*
+    **(PILOT — built; §9.1 rework BUILT 2026-08-11; DEVICE TUNING still owed)**
     S1 Airwing rides updrafts/crosswinds/wind rings to the spire top (movement). S2
     Sky Loom: EARN the wonder-clouds via per-chamber elemental trials —
     Spiral: ride 3 gale eddies in order (Air-friendly) · Ring: seal the orbit
@@ -750,24 +755,109 @@ not as soft modifiers.
     the carried Anvil, the storm shell). S3 Storm Altar: Lightninghorn channels, Airwing
     stabilizes wind, Firemask reads storm-rune order; sync conduits → storm
     wisps + guardian (Roc).
-    **REWORK (planned 2026-08-10 — the pilot grows up; biggest pass):**
-    S1 (execution→planning): the spire is born CALM — winds are WOKEN, not
-    found. Gust shrines each wake one current PERMANENTLY for the run, and
-    a woken gale pushes everything, friend and foe — both ladder and
-    obstacle. Wake them in the wrong order and an early gale guards the
-    ledge to a later shrine (blown off = fall + climb back; never a
-    softlock — death resets the winds). The puzzle is the waking ORDER +
-    reading which ledges each current will help or bar; the joy is riding
-    a wind you authored. Sky rings retire (sequence-execution — Fire owns
-    it). S2 unchanged. S3 (timer-sync→steering): conduit A keeps the
-    Lightninghorn channel (v2 hard gate). Conduit B is struck by the STORM
-    ITSELF: a live storm-cell orbits the altar, and its bolt always lands
-    on the TALLEST conductor in its path — raise/lower the field of
-    storm-rods (any Air creature) so conduit B stands tallest where the
-    cell will pass, and herd the cell with gusts (S2's own verb, reused).
-    Mis-ranked rods = wild strikes + storm wisps. The insight is height
-    ordering + storm prediction, not decay-timer luck; Airwing stabilize
-    retires with the timers.
+    **REWORK BUILT 2026-08-11 — the pilot grows up (biggest pass):**
+    *(The planned block from 2026-08-10 is superseded. Where the plan and the
+    code disagreed, the code and the reasons are recorded here — see "spec
+    corrections" at the end.)*
+
+    **S1 — WAKE THE WINDS (execution → planning).** The spire is born CALM.
+    Four **gust shrines** each wake one **gale** PERMANENTLY for the run
+    (`GustShrine.wakesGale` → `WindCurrent.galeId`; no timers, eased swell over
+    `_kGaleWakeSeconds`, never a snap). A woken gale pushes EVERYTHING — the
+    active walker (`_applyGaleToWalker`), gliders, and the wisps
+    (`_applyGalesToEnemies`, applied *after* the steering AI so pathing can't
+    quietly undo the wind) — so it is at once the ladder to a ledge footing
+    could never reach and the wind that scours the walkway beside it. The
+    marquee case: the **First Breath**'s spill runs down the ridge stair at
+    strength 150 against a 150px/s walk, so you can walk straight *into* it and
+    win slowly (the ledgewalk) but cannot climb *across* it (the stair). Wake it
+    before the Ridge Riser and the stair is gone — the ridge shrine is then only
+    reachable the long way, up the thermal and back along the scoured ledgewalk.
+    **The wind graph is authored data** (`WindLedge` / `WindRoute` /
+    `GustShrine`), the collision map is built from the same rects, and a layout
+    test asserts they agree (a swept route's path must lie inside the sweeping
+    gale's rects; a ride's gale must actually touch both ledges; no shrine may
+    stand inside a gale in its own room). Sky rings **retired** with the
+    sequence-execution ascent; the `RINGS` readout became `WINDS n/4`.
+      - **Proof (`solveWindWaking()`, public, walks the real graph):** of 24
+        wake orders, 8 are achievable and **exactly 1 is fall-free**
+        (ridge → first → crown → span). **`strandable == 0`**: every state the
+        player can reach always has a next move, and the crown is reachable at
+        the end — checked exhaustively, not assumed. Death resetting the winds
+        is the belt and braces, not the mechanism.
+    **S2 — unchanged** (the five wonder-cloud trials and the Sky Loom). The
+    "Ring" wonder-trial is untouched; only Star 1's `SkyRing` retired.
+
+    **S3 — STORM-ROD STEERING (timer-sync → prediction).** The decay timers are
+    gone. **Conduit A** keeps its hard Lightning+Horn gate and its stamped chip,
+    and now **LATCHES**. **Conduit B answers no hand at all** — not Fire's braid,
+    not Lightning's own arc; a hand on it gets one clause ("This pylon waits on
+    the storm, not on a hand"). A live **storm-cell** circles the altar; every
+    `strikeInterval` it discharges a **leader** that climbs the rod field.
+      - **THE LEADER RULE:** the bolt leaps to the tallest conductor within
+        `kStormHopReach` **that stands exactly one rank above the one it is on**,
+        nearest first; it begins on rank-0 iron and stops where nothing one rank
+        higher is in reach. Rods rank 0–3 (any Air creature cranks them —
+        element-only); conduit B stands at rank 4.
+      - **Proof (`solveRodRanking()`, public, uses the real
+        `stormLeaderFrom`):** authored as a **FAMILY**, not a unique answer —
+        of 1024 rankings × 72 cell positions, **21 rankings (2%)** route the bolt
+        to B from some position. The two mis-rankings the design names fail from
+        EVERY position: all rods down (nothing to climb, 0 hits) and all rods up
+        (a plateau the leader cannot start on, 0 hits). Cheapest valid ranking
+        costs 6 cranks. Anything else dies on a rod: wild strike + storm wisps.
+      - **Gusts herd the cell** (Air-only, `_kCellGustReach`), so the player
+        chooses where the climb begins.
+    **Roc (§7 retrofit):** the guardian **drags the cell on a leash**
+    (`_kRocLeash`, always further than one leap from the bird) across a ring of
+    eight perch-rods at radius 150. The shared lull/strike cycle is untouched;
+    a bolt **led into the bird** forces a full window (`_kRocStun`). Raids are
+    exempt — a generated arena has no rods.
+
+    **SPEC CORRECTIONS (where the 2026-08-10 plan met the code):**
+      1. *"herd the cell with gusts (S2's own verb, reused)"* — **S2 has no
+         gust verb.** Air's Star 2 is five trials (ride / seal / crack / catch /
+         pin); the gust verb in this codebase is Fire S3's element-only Air gust
+         (`_kGustRadius`). The herd gust is built in that shape, and it now
+         shares its vocabulary with Star 1's shrines instead.
+      2. *"its bolt always lands on the TALLEST conductor in its path"* — as
+         written this is **not a puzzle**: conduit B outranks every rod, so any
+         rod adjacent to B hands the storm the conduit for free whatever the
+         rest of the field does (verified: 2 of 2 flat-field angles routed). The
+         rule needed the **one-rank-at-a-time** clause above to become a
+         staircase problem. The "tallest" language survives; the reach does not.
+      3. *"never a softlock — death resets the winds"* — relying on death is not
+         a design, and a player wedged on a ledge with no hazards **cannot
+         die**. The build makes no-strand **structural** (every ledge keeps a
+         way in under every reachable woken-set, solver-proved) and keeps the
+         death reset as redundancy.
+      4. *"blown off = fall + climb back"* — a plain walkway is physically
+         symmetric, so one-way "drops" are not implementable without a new
+         mechanic. Cost is instead carried by **swept** routes (closed) and
+         **costly** routes (open, but you grind into the wind and can be shoved
+         off), which is the same feeling with an honest implementation.
+      5. §4's conversion inventory row 13 ("Air Ring wonder-trial … *or moot*,
+         this trial retires") — **it does not retire.** The Ring wonder-cloud
+         trial is Star 2 and was left alone; only Star 1's ring SEQUENCE went.
+         Its family-neutral window shipped in §9.0 and is still tested.
+      6. `_tryStabilize` retired (see §4's superseded exclusives note). Nothing
+         else depended on it; the Wing keeps its glide, and Air's slot no longer
+         carries a family requirement anywhere in the planet — so the descent
+         riddle's first verse was re-cut from "those the ground cannot keep"
+         (which promised flight was the road) to "my crown is woken, never
+         climbed — send one who shepherds the wind".
+      7. One **optional** Speed-3.5 wind (the east *flue*) is authored in
+         `lower_spire`: it is not part of the wind graph and the crown never
+         needs it, so its threshold scales a BONUS, not progress — which is the
+         only shape §4 permits for a hard stat gate off a family-gated object.
+    **DEVICE-TUNABLE KNOBS** (this planet has never been device-tuned; all in
+    `planet_dungeon_game_air.dart`): `_kGaleWakeSeconds` · `_kShrineReach` ·
+    `_kGaleWalkerScale` · `_kGaleEnemyScale` · `_kGaleCoyote` ·
+    `_kCellGustReach` · `_kCellGustShove` · `_kRodReach` · `_kRodEaseSeconds` ·
+    `_kLeaderFlashSeconds` · `_kWildStrikeWisps` · `_kRocLeash` ·
+    `_kRocLeashSpeed` · `_kRocStrikeReach` · `_kRocStun` / `_kRocStunEnraged`;
+    plus `kStormRodMaxHeight` · `kStormHopReach` in `planet_dungeon_data.dart`,
+    and each gale's `strength` in the layout.
 12. **Plant — Verdant Crypt** · Plant+Light+Mud · Plantmane/Lightmask/Mudpip ·
     *tiny and huge scale states.*
     S1 Plantmane grows vine bridges toward redirected Light. S2 *Tiny-Huge Island*
@@ -1050,8 +1140,14 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
 - ✅ **Element+Family ability framework**: 7 `DungeonAbility`, interaction-quality
   eval (Perfect/Valid/Weak/Failed), `min*` stat gates, recipe table,
   `GuardianEncounterRequirement`.
-- ✅ Air pilot puzzles wired on the framework; quality-graded conduits;
-  guardian = Roc (calm or defeat); cleared-star hiding; onboarding/room hints.
+- ✅ Air pilot puzzles wired on the framework; guardian = Roc (calm or
+  defeat); cleared-star hiding; onboarding/room hints. **§9.1 REWORKED
+  2026-08-11** — Star 1 is now wake-the-winds (permanent gales, order is the
+  puzzle, `strandable == 0` proved), Star 3 is storm-rod steering (latching
+  conduits; the storm strikes B up a ranked staircase), and Air's logic finally
+  lives in its own part file (`planet_dungeon_game_air.dart`) like the other
+  five. The quality-graded conduits are gone: A is a hard gate, B answers no
+  hand at all.
 - ✅ Progression: Stars 1+2 freely interleavable (Mario-64 style); **the
   guardian rite is engine-gated behind BOTH of them** (`guardianRiteUnlocked`:
   altar conduits inert + storm door sealed until stars 1+2 are banked, hints
@@ -1420,18 +1516,24 @@ Each pass = v2 interaction conversion + the redesign + guardian retrofit
    channels, solver-guaranteed unique, Mask-optional), S3 nave/cloister
    censer-route decision, Simurgh brazier-telegraph retrofit (§6.1 REWORK —
    BUILT 2026-08-11).
-4. **Air** — S1 wake-the-winds, S3 storm-rod steering (rings + stabilize
-   retire); Roc storm-cell retrofit (§6.11 REWORK). Biggest pass — the
-   pilot finally meets the bar the later planets set.
+4. ✅ **Air** — S1 wake-the-winds (four permanent gales, one fall-free wake
+   order, `strandable == 0` proved exhaustively), S3 storm-rod steering (the
+   leader climbs one rank at a time; 21 of 1024 rankings route, flat and
+   plateau fail everywhere), sky rings + `_tryStabilize` + the conduit decay
+   timers retired, Roc cell-drag retrofit, Air's logic extracted to
+   `planet_dungeon_game_air.dart` (§6.11 REWORK — BUILT 2026-08-11). Biggest
+   pass; §9.1 is complete. DEVICE TUNING still owed on Air/Fire/Lightning/Steam.
 5. **Kinesthetic verb pass** (any time after §9.0): Pip smallAccess
    becomes real movement — vent rat-run tunnels between rooms (squeeze
    animation, Pip-only shortcuts; retrofittable one per planet); Mane
    terrainTrail becomes an actual dash that lays its trail, not a
    stationary ACT press.
 
-New-planet building resumes AFTER §9.1 items 1–4 (the kinesthetic pass can
-overlap). Next up then: Dust or Mud or Lava — all three §6 entries are
-current (Lava/Dust re-authored 2026-08-10).
+**§9.1 items 1–4 are DONE (2026-08-11).** New-planet building resumes now (the
+kinesthetic pass can overlap). Next up: Dust or Mud or Lava — all three §6
+entries are current (Lava/Dust re-authored 2026-08-10). The reworked six are
+still owed a DEVICE PLAYTEST, Air most of all: it is the only planet whose feel
+constants have never been touched on hardware.
 
 ### Milestones
 
@@ -1441,7 +1543,8 @@ current (Lava/Dust re-authored 2026-08-10).
 2. ✅ **Air polished** on the framework (quality-graded conduits, Airwing
    stabilize, Firemask read, Roc guardian calm/defeat, room hints).
 3. ⏳ **Device tuning** — pending for Air, Fire, Lightning, Steam (timers,
-   traversal feel, animation feel; Water + Earth device-tested good).
+   traversal feel, animation feel; Water + Earth device-tested good). Air's
+   rework named every knob it depends on — see the §6 entry 11 list.
 4. ✅ **Enemy/wisp spawning** — the shared "consequence" layer (storm wisps
    etc.) with floaty hover/dive AI, idle auto-attacks and down handling.
 5. ✅ **Genericize the Air-hardcoded engine bits** — done (see §8): layouts

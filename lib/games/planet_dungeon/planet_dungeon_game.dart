@@ -374,6 +374,11 @@ class PlanetDungeonGame extends FlameGame {
   /// Per-gale eased build, 0 → 1. A wind swells; it never snaps on.
   final Map<String, double> galeRamp = {};
 
+  /// How many gales the spire has in total. Cached at reset: `progressReadout`
+  /// and the hub compass both read it every frame, and rebuilding the set each
+  /// time would allocate in the render loop for no reason.
+  int totalGales = 0;
+
   /// True while a gale is carrying the active WALKER (not a thermal).
   bool _galeRiding = false;
 
@@ -1692,10 +1697,12 @@ class PlanetDungeonGame extends FlameGame {
     _updateRespawns(dt);
     _updateFlight(a, room, dt);
     _updateWinds(a, room, dt);
-    _updateStormCell(a, room, dt);
     _updateWonderTrials(a, room, dt);
     _updateLoom(a, room);
     _updateAltar(a, room, dt);
+    // AFTER the altar: the Roc's leash is settled there, and the cell hangs
+    // from the leash.
+    _updateStormCell(a, room, dt);
     _updateMercyShrine(a, room);
     _updateCathedral(a, room, dt);
     _updateTemple(a, room, dt);
@@ -6448,7 +6455,7 @@ class PlanetDungeonGame extends FlameGame {
     for (final c in room.conduits) {
       if (!c.struckByStorm) continue;
       if ((a.position - c.position).distance > 34) continue;
-      _setBlockedHint('This pylon waits on the storm, not on a hand');
+      _setBlockedHint('This pylon answers the storm, not a hand');
       return true;
     }
     // A carried Anvil: electrify the cloud directly, no wind needed.
@@ -6743,9 +6750,6 @@ class PlanetDungeonGame extends FlameGame {
     if (room.loomStarIndex != null) {
       return 'Sky Loom — each anchor whispers a riddle up close; '
           'match it with the echo it describes';
-    }
-    if (room.guardian != null) {
-      return 'The altar sleeps, and something above it does not';
     }
     // Wonder trial chambers (until their echo is earned).
     if (_sealedWonderCloud(room) != null) {
@@ -7480,7 +7484,7 @@ class PlanetDungeonGame extends FlameGame {
         ? 1.0
         : summitOpen
         ? 0.82
-        : (wokenGales.length / max(1, allGaleIds.length))
+        : (wokenGales.length / max(1, totalGales))
               .clamp(0.0, 0.72)
               .toDouble();
     // Only true cloud echoes count toward loom progress (synthetic discovery
@@ -8399,7 +8403,7 @@ class PlanetDungeonGame extends FlameGame {
         break;
       case 'Anvil':
         _drawStormFloor(canvas, room.bounds);
-        _drawStormRods(canvas, c, 170, 4, dim: true);
+        _drawAnvilLightningRods(canvas, c, 170, 4, dim: true);
         break;
       case 'Feather':
         _drawFeatherRune(
@@ -9023,7 +9027,11 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
-  void _drawStormRods(
+  /// The Anvil cloud's decorative lightning-rod crown. NOT the Star-3 rod
+  /// FIELD (`_drawStormRodField`, in the Air part file) — different mechanic,
+  /// deliberately different grammar: these are a thin radiating crown, the
+  /// real rods are notched iron that visibly ranks.
+  void _drawAnvilLightningRods(
     Canvas canvas,
     Offset c,
     double r,
@@ -9050,7 +9058,7 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _drawStormAltar(Canvas canvas, Offset c, {required bool active}) {
-    _drawStormRods(canvas, c, 170, 8, dim: !active);
+    _drawAnvilLightningRods(canvas, c, 170, 8, dim: !active);
     final col = active ? const Color(0xFF5BC8E8) : const Color(0xFF74613A);
     if (_fx.ready) {
       drawGlow(
