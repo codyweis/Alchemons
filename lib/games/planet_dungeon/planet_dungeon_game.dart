@@ -1649,11 +1649,10 @@ class PlanetDungeonGame extends FlameGame {
         );
       } else if (c.requiredFamily == null) {
         _setAmbientHint('This conductor wants an elemental arc, not a hold');
-      } else if (a.member.element == c.requireElement) {
-        _setAmbientHint(
-          '${c.requireElement} gathers here; more Strength may hold it longer',
-        );
       } else {
+        // Flavour only: under v2 a gated conduit answers one family, so any
+        // "hold it longer" phrasing would be a lie to everyone else standing
+        // here. What it takes is the gate's own refusal line and Mask insight.
         _setAmbientHint('${c.requireElement} gathers inside this pylon');
       }
       return;
