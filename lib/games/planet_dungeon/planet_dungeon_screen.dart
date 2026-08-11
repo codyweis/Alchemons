@@ -34,6 +34,9 @@ class _C {
   static const border = Color(0xFF74613A);
   static const text = Color(0xFFE8DFC8);
   static const danger = Color(0xFFC0392B);
+
+  /// Refusal accent — a banked ember: firmer than amber, never alarm-red.
+  static const ember = Color(0xFFD07A4A);
 }
 
 class _HudBracketPainter extends CustomPainter {
@@ -527,7 +530,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               ),
             ),
 
-            // Contextual hint line (top-center, below the star tracker).
+            // The hint capsule (top-center, below the star tracker). One
+            // capsule, one line, ever — styled by its channel (§5.6).
             Positioned(
               top: 0,
               left: 0,
@@ -545,28 +549,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                             duration: const Duration(milliseconds: 220),
                             child: hint == null
                                 ? const SizedBox.shrink()
-                                : Container(
-                                    key: ValueKey(hint),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 7,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _C.bg.withValues(alpha: 0.62),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      hint,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: _C.text.withValues(alpha: 0.92),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: 0.3,
-                                        height: 1.3,
-                                      ),
-                                    ),
-                                  ),
+                                : _hintCapsule(hint, game.hintChannel),
                           );
                         },
                       ),
@@ -654,8 +637,20 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                   child: Center(
                     child: ValueListenableBuilder<int>(
                       valueListenable: _tick,
-                      builder: (_, __, ___) =>
-                          _isRaid ? _raidChip() : _starTracker(game),
+                      builder: (_, __, ___) {
+                        if (_isRaid) return _raidChip();
+                        // Star tracker + the planet's progress readout, one
+                        // glanceable row (§5.6: counters are state, not
+                        // speech, so they never touch the capsule).
+                        final readout = game.progressReadout;
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _starTracker(game),
+                            if (readout != null) _progressReadout(readout),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -831,6 +826,139 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     );
   }
 
+  /// The hint capsule, styled by channel (§5.6). Restraint is the point:
+  /// same pill, same size, same place — only the accent (a hairline rule and
+  /// a small glyph) and the text weight change, so a refusal reads as a
+  /// refusal and flavor stays in the background. Never stacks.
+  Widget _hintCapsule(String hint, DungeonHintChannel channel) {
+    final (Color accent, IconData? glyph, double textAlpha) = switch (channel) {
+      // A refusal: ember-warm, glyphed, the firmest of the four.
+      DungeonHintChannel.blocked => (_C.ember, Icons.block_flipped, 0.96),
+      // A Mask reading: the same cold light the reveal pulse uses.
+      DungeonHintChannel.insight => (_C.cyan, Icons.visibility_outlined, 0.96),
+      // What the room wants: the house amber, unglyphed.
+      DungeonHintChannel.objective => (_C.amber, null, 0.92),
+      // Flavor: no rule, no glyph, sits back.
+      DungeonHintChannel.ambient => (Colors.transparent, null, 0.74),
+    };
+    final ruled = channel != DungeonHintChannel.ambient;
+    return Container(
+      key: ValueKey('${channel.name}:$hint'),
+      padding: EdgeInsets.only(
+        left: glyph == null ? 14 : 11,
+        right: 14,
+        top: 7,
+        bottom: 7,
+      ),
+      decoration: BoxDecoration(
+        color: _C.bg.withValues(
+          alpha: channel == DungeonHintChannel.ambient ? 0.5 : 0.68,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: ruled
+            ? Border.all(
+                color: accent.withValues(
+                  alpha: channel == DungeonHintChannel.blocked ? 0.6 : 0.4,
+                ),
+                width: 1,
+              )
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (glyph != null) ...[
+            Icon(glyph, size: 12, color: accent.withValues(alpha: 0.9)),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              hint,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _C.text.withValues(alpha: textAlpha),
+                fontSize: 12,
+                fontWeight: channel == DungeonHintChannel.blocked
+                    ? FontWeight.w600
+                    : FontWeight.w500,
+                letterSpacing: 0.3,
+                height: 1.3,
+                fontStyle: channel == DungeonHintChannel.ambient
+                    ? FontStyle.italic
+                    : FontStyle.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// PROGRESS READOUT (§5.6) — a persistent, glanceable counter riding
+  /// alongside the star tracker. Generalized from the per-planet gauges, so
+  /// counters never have to borrow the hint capsule to be seen.
+  Widget _progressReadout(DungeonProgressReadout r) {
+    return Container(
+      margin: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: _C.bg.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.border.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                r.label,
+                style: TextStyle(
+                  color: _C.amber.withValues(alpha: 0.7),
+                  fontFamily: 'monospace',
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                r.value,
+                style: const TextStyle(
+                  color: _C.amberBright,
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.6,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+          if (r.fraction != null) ...[
+            const SizedBox(height: 3),
+            SizedBox(
+              width: 48,
+              height: 2,
+              child: ColoredBox(
+                color: _C.border.withValues(alpha: 0.35),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: r.fraction!.clamp(0.0, 1.0),
+                  heightFactor: 1,
+                  child: const ColoredBox(color: _C.amberBright),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _starTracker(PlanetDungeonGame game) {
     // Compact pill — sized so it clears the minimap (left) and the action
     // pills (right) on narrow phones instead of colliding with them.
@@ -994,21 +1122,36 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // CONTROL FEEDBACK lives here, not in the hint capsule (§5.6):
+            // the ring shows the wait, the countdown names it, and a refused
+            // press pulses the button that refused.
             _combatButton(
               label: 'ATTACK',
               icon: Icons.gps_fixed_rounded,
+              cooldownText: game.autoCooldownFraction > 0.02
+                  ? game.autoCooldownLabel
+                  : null,
               cooldownFraction: game.autoCooldownFraction,
+              deniedPulse: game.autoDeniedPulse,
               color: _C.cyan,
               onTap: game.activateAutoAttack,
             ),
             const SizedBox(width: 10),
             _combatButton(
-              label: 'SPECIAL',
-              icon: Icons.auto_awesome_rounded,
+              label: game.abilityIsPassive ? 'PASSIVE' : 'SPECIAL',
+              icon: game.abilityIsPassive
+                  ? Icons.all_inclusive_rounded
+                  : Icons.auto_awesome_rounded,
               cooldownText: game.abilityCooldownFraction > 0.02
                   ? game.abilityCooldownLabel
                   : null,
-              cooldownFraction: game.abilityCooldownFraction,
+              // A passive special has no cast: the button reads spent, not
+              // waiting — no ring, permanently dimmed.
+              cooldownFraction: game.abilityIsPassive
+                  ? 0
+                  : game.abilityCooldownFraction,
+              dimmed: game.abilityIsPassive,
+              deniedPulse: game.abilityDeniedPulse,
               color: _C.amberBright,
               onTap: game.activateCombatAbility,
             ),
@@ -1088,15 +1231,28 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     required Color color,
     required VoidCallback onTap,
     String? cooldownText,
+    double deniedPulse = 0,
+    bool dimmed = false,
   }) {
     final cooling = cooldownFraction > 0.02;
+    final spent = cooling || dimmed;
+    // A refused press: the bracket flares warm for a beat and settles. This
+    // is the whole of the feedback — no prose, no capsule.
+    final denied = deniedPulse.clamp(0.0, 1.0);
+    final bracketColor = denied > 0
+        ? Color.lerp(
+            color.withValues(alpha: spent ? 0.38 : 0.78),
+            _C.ember,
+            denied,
+          )!
+        : color.withValues(alpha: spent ? 0.38 : 0.78);
     return GestureDetector(
       onTap: onTap,
       child: CustomPaint(
         painter: _HudBracketPainter(
-          color: color.withValues(alpha: cooling ? 0.38 : 0.78),
-          bracketSize: 8,
-          strokeWidth: cooling ? 1.0 : 1.35,
+          color: bracketColor,
+          bracketSize: 8 + 2 * denied,
+          strokeWidth: (spent ? 1.0 : 1.35) + 0.8 * denied,
         ),
         child: ClipRect(
           child: Stack(
@@ -1107,12 +1263,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 decoration: BoxDecoration(
                   color: _C.bg2.withValues(alpha: 0.88),
                   border: Border.all(
-                    color: color.withValues(alpha: cooling ? 0.28 : 0.55),
+                    color: color.withValues(alpha: spent ? 0.28 : 0.55),
                     width: 1,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: color.withValues(alpha: cooling ? 0.04 : 0.18),
+                      color: color.withValues(alpha: spent ? 0.04 : 0.18),
                       blurRadius: 18,
                     ),
                   ],
@@ -1123,9 +1279,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                   children: [
                     Icon(
                       icon,
-                      color: cooling ? _C.text.withValues(alpha: 0.42) : color,
+                      color: spent ? _C.text.withValues(alpha: 0.42) : color,
                       size: 22,
-                      shadows: cooling
+                      shadows: spent
                           ? null
                           : [
                               Shadow(
@@ -1138,7 +1294,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                     Text(
                       label,
                       style: TextStyle(
-                        color: cooling
+                        color: spent
                             ? _C.text.withValues(alpha: 0.52)
                             : Colors.white.withValues(alpha: 0.92),
                         fontFamily: 'monospace',
