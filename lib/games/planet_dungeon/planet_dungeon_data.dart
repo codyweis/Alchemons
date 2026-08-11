@@ -7,6 +7,7 @@
 // doorways, a test hazard, and placeholder star pickups. Slice 3 replaces the
 // placeholders with each planet's bespoke puzzles. See `project-planet-dungeons`.
 
+import 'dart:math' show cos, sin;
 import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
@@ -75,35 +76,188 @@ class DungeonGap {
   const DungeonGap(this.rect);
 }
 
-/// Directional wind that carries gliding creatures. If the glider's Speed is
-/// below [requiredSpeed] the current overpowers them (net push backwards).
+/// Directional wind that carries creatures — gliders always, and (once woken)
+/// walkers and enemies alike. If the rider's Speed is below [requiredSpeed] the
+/// current overpowers them (net push backwards).
+///
+/// **§9.1 AIR REWORK — GALES.** A current carrying a [galeId] is one of the
+/// spire's sleeping GALES: it is inert until its gust shrine wakes it, and then
+/// it blows for the rest of the run (no timers). Several currents may share one
+/// [galeId] — one shrine, one wind, however many rects it takes to draw it.
+/// A current with a null [galeId] is plain scenery-wind and always blows.
 class WindCurrent {
   final Rect rect;
   final Offset dir; // normalised
   final double strength; // px/sec
   final double requiredSpeed; // 1..5 stat threshold (0 = no gate)
+  /// The gale this current belongs to (null = always-on ambient wind).
+  final String? galeId;
   const WindCurrent({
     required this.rect,
     required this.dir,
     this.strength = 90,
     this.requiredSpeed = 0,
+    this.galeId,
   });
 }
 
-/// A hoop flown through in [order] (0,1,2…) to advance the spire sequence.
-class SkyRing {
-  final int order;
-  final Offset position;
-  const SkyRing({required this.order, required this.position});
-}
-
-/// Star 1 completion zone — entering while gliding (after the ring sequence)
-/// earns [starIndex].
+/// Star 1 completion zone — the spire crown. Reachable once every gale blows;
+/// standing in it earns [starIndex].
 class SpireSummit {
   final Rect rect;
   final int starIndex;
   const SpireSummit({required this.rect, required this.starIndex});
 }
+
+// ── Air Star 1: WAKE THE WINDS (§6.11 REWORK / §9.1 item 4) ─
+// The spire is born CALM. Gust shrines wake its gales one at a time and
+// PERMANENTLY; a woken gale is simultaneously a ladder (it carries you where
+// footing never could) and an obstacle (it scours the walkways it crosses).
+// The puzzle is the waking ORDER — read which ledges each current will help or
+// bar BEFORE you wake it.
+//
+// The traversal graph below is authored DATA, not engine knowledge: ledges are
+// named footing, routes are the ways between them, and `PlanetDungeonGame`'s
+// public `solveWindWaking()` walks this same graph to prove (a) no wake order
+// can ever strand the player and (b) which orders are fall-free.
+
+/// A named piece of footing in the spire's wind graph. Ledges are real
+/// platforms: the engine adds every ledge rect to the room's standable ground,
+/// so the graph and the collision map can never disagree.
+class WindLedge {
+  final String id;
+  final Rect rect;
+  const WindLedge({required this.id, required this.rect});
+  Offset get center => rect.center;
+}
+
+/// One traversal between two [WindLedge]s.
+///
+///  • [ridesGale] null → plain footing: a stair, a catwalk, a ledge-hop. The
+///    [path] rect is real standable ground.
+///  • [ridesGale] non-null → the wind carries you, and only downwind: the route
+///    exists only while that gale blows, and is one-way by nature.
+///  • [sweptBy] → gales that, once woken, scour this route away. A swept walk
+///    is authored so its [path] lies INSIDE the sweeping gale's rects, so the
+///    physics (the wind lifts you off the catwalk) produces exactly what the
+///    graph claims.
+///  • [costly] → the scoured fall-back. It always exists, but taking it means
+///    being blown off and climbing back. This is what makes a wrong wake order
+///    expensive without ever making it fatal.
+class WindRoute {
+  final String id;
+  final String from;
+  final String to;
+  final String? ridesGale;
+  final List<String> sweptBy;
+  final bool twoWay;
+  final bool costly;
+
+  /// The corridor the route occupies — walkable footing for a plain route, the
+  /// carried corridor for a gale ride.
+  final Rect path;
+
+  const WindRoute({
+    required this.id,
+    required this.from,
+    required this.to,
+    required this.path,
+    this.ridesGale,
+    this.sweptBy = const [],
+    this.twoWay = false,
+    this.costly = false,
+  });
+
+  /// Is this route travelable with [woken] gales blowing?
+  bool openWith(Set<String> woken) {
+    for (final g in sweptBy) {
+      if (woken.contains(g)) return false;
+    }
+    final rides = ridesGale;
+    return rides == null || woken.contains(rides);
+  }
+}
+
+/// A gust shrine. Communing at one wakes exactly one gale — for good.
+class GustShrine {
+  final String id;
+
+  /// The wind this shrine wakes, spoken in the shrine's own voice.
+  final String name;
+
+  /// The ledge the shrine stands on (its approach is what a rival gale bars).
+  final String ledgeId;
+  final Offset position;
+  final String wakesGale;
+
+  const GustShrine({
+    required this.id,
+    required this.name,
+    required this.ledgeId,
+    required this.position,
+    required this.wakesGale,
+  });
+}
+
+// ── Air Star 3: STORM-ROD STEERING (§6.11 REWORK) ──────────
+// The twin conduits no longer race a decay timer. Conduit A keeps its hard
+// Lightning+Horn gate and LATCHES. Conduit B is struck by the storm itself: a
+// live cell circles the altar, and when it discharges its leader climbs from
+// conductor to conductor — always to the TALLEST one within reach that stands
+// STRICTLY TALLER than the one it is on. Rank the rod field into a staircase
+// that ends at conduit B and the storm lights it for you; rank it wrong and the
+// bolt dies on a rod (wild strike + storm wisps).
+
+/// A storm-rod: raised and lowered by any Air creature (ELEMENT-ONLY — §4).
+/// Height cycles 0 → [kStormRodMaxHeight] → 0.
+class StormRod {
+  final String id;
+  final Offset position;
+  final int initialHeight;
+  const StormRod({
+    required this.id,
+    required this.position,
+    this.initialHeight = 0,
+  });
+}
+
+/// The live storm-cell's circuit around the altar. The cell is always aloft;
+/// gusts shove it along the ring, which is how the leader's starting point —
+/// and therefore the staircase it must climb — is chosen.
+class StormCellOrbit {
+  final Offset center;
+  final double radius;
+
+  /// Seconds for one full revolution (the cell drifts; gusts hurry it).
+  final double period;
+
+  /// Where the cell sits at run start, in radians.
+  final double startAngle;
+
+  /// Seconds between discharges.
+  final double strikeInterval;
+
+  const StormCellOrbit({
+    required this.center,
+    required this.radius,
+    this.period = 26.0,
+    this.startAngle = 0,
+    this.strikeInterval = 4.6,
+  });
+
+  Offset positionAt(double angle) =>
+      center + Offset(cos(angle) * radius, sin(angle) * radius);
+}
+
+/// Rods rank 0..3; conduit B (and the guardian) stand above every rod, so the
+/// staircase always ENDS on a conduit — if the leader can climb that far.
+const int kStormRodMaxHeight = 3;
+
+/// How far a leader may leap from one conductor to the next.
+const double kStormHopReach = 165.0;
+
+/// The conductor rank of a struck conduit — above every rod by one.
+const int kConduitConductorHeight = kStormRodMaxHeight + 1;
 
 // ── Star 2: Sky Loom ───────────────────────────────────────
 
@@ -394,21 +548,28 @@ class StoneScale {
 // ── Star 3: Storm Altar ────────────────────────────────────
 
 /// A conduit that must be energized. [id] 'A' = channelled behind a HARD GATE
-/// (Lightning + Horn, nothing else); 'B' = arc-lit by a Fire creature acting
-/// inside the crossing wind current (the Air+Fire→Lightning recipe).
+/// (Lightning + Horn, nothing else) and LATCHES once held; 'B' is not channelled
+/// by hand at all — the storm strikes it, if the rod field is ranked so the
+/// leader can climb that far (§6.11 REWORK).
 class Conduit {
   final String id;
   final Offset position;
   final String requireElement;
 
-  /// Family the conduit gates on. null = not channelled at all (arc/recipe
-  /// only) — those conduits are skipped by the channel verb.
+  /// Family the conduit gates on. null = not channelled at all — those conduits
+  /// are skipped by the channel verb and answer the storm instead.
   final DungeonAbility? requiredFamily;
+
+  /// True for a conduit the storm-cell's leader may terminate on (conduit B).
+  /// Struck conduits stand at [kConduitConductorHeight] — above every rod.
+  final bool struckByStorm;
+
   const Conduit({
     required this.id,
     required this.position,
     required this.requireElement,
     this.requiredFamily,
+    this.struckByStorm = false,
   });
 
   DungeonInteractionRequirement get requirement =>
@@ -650,8 +811,14 @@ class DungeonRoom {
   // Open-sky rooms: solid landing islands; everything else is sky (fly-only).
   final List<Rect> platforms;
   final List<WindCurrent> currents;
-  final List<SkyRing> rings;
+  // Air Star 1 (WAKE THE WINDS): the wind graph + its shrines.
+  final List<WindLedge> windLedges;
+  final List<WindRoute> windRoutes;
+  final List<GustShrine> gustShrines;
   final SpireSummit? summit;
+  // Air Star 3 (STORM-ROD STEERING): the rod field + the cell's circuit.
+  final List<StormRod> stormRods;
+  final StormCellOrbit? stormOrbit;
   final List<HiddenCloud> clouds;
   final List<LoomAnchor> anchors;
   final int? loomStarIndex; // star awarded when all anchors are satisfied
@@ -727,8 +894,12 @@ class DungeonRoom {
     this.gaps = const [],
     this.platforms = const [],
     this.currents = const [],
-    this.rings = const [],
+    this.windLedges = const [],
+    this.windRoutes = const [],
+    this.gustShrines = const [],
     this.summit,
+    this.stormRods = const [],
+    this.stormOrbit,
     this.clouds = const [],
     this.anchors = const [],
     this.loomStarIndex,
@@ -972,9 +1143,12 @@ const DungeonLayout _airLayout = DungeonLayout(
       'Loom stars',
   mercyShrineRoomId: 'storm_altar',
   // Ideal: Airwing · Firemask · Lightninghorn — hinted by VERB, never by
-  // body part: flight, insight, the strength to hold a charge.
+  // body part. §9.1 NOTE: the crown is no longer climbed on wings — a woken
+  // gale carries walkers just as well — so the first verse now names the
+  // WIND-WORK, not flight, and no longer promises the ground-shy a private
+  // road.
   riddle: [
-    'My crown belongs to those the ground cannot keep;',
+    'My crown is woken, never climbed — send one who shepherds the wind;',
     'my storm-walls confide only in sight that pierces the hidden;',
     'and my thunder stays only where the grip is strongest.',
   ],
@@ -1042,7 +1216,10 @@ const DungeonLayout _airLayout = DungeonLayout(
       ],
     ),
 
-    // Room C — Lower Spire Path.
+    // Room C — Lower Spire Path. The spire's FIRST BREATH and its RIDGE.
+    // Two gales sleep here: the thermal that lifts the west perch (and, once
+    // woken, scours the ridge stair) and the riser that carries the ridge to
+    // the spire's shoulder.
     'lower_spire': DungeonRoom(
       id: 'lower_spire',
       bounds: Rect.fromLTWH(0, 0, 760, 980),
@@ -1060,38 +1237,112 @@ const DungeonLayout _airLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(560, 70, 120, 30),
           targetRoomId: 'crosswind_hall',
-          targetSpawn: Offset(90, 300),
+          targetSpawn: Offset(120, 300),
         ),
       ],
+      // Footing = the wind graph's ledges, then its PLAIN walkways. A gale
+      // ride is wind, not stone, and lays no footing.
       platforms: [
-        Rect.fromLTWH(140, 820, 260, 110),
-        Rect.fromLTWH(95, 620, 210, 80),
-        Rect.fromLTWH(415, 430, 210, 80),
-        Rect.fromLTWH(485, 70, 220, 95),
+        Rect.fromLTWH(140, 820, 260, 110), // l_base
+        Rect.fromLTWH(430, 600, 230, 90), // l_ridge
+        Rect.fromLTWH(45, 400, 225, 90), // l_perch
+        Rect.fromLTWH(470, 70, 235, 95), // l_high
+        Rect.fromLTWH(370, 600, 120, 280), // r_stair
+        Rect.fromLTWH(250, 440, 200, 250), // r_ledgewalk
+      ],
+      windLedges: [
+        WindLedge(id: 'l_base', rect: Rect.fromLTWH(140, 820, 260, 110)),
+        WindLedge(id: 'l_ridge', rect: Rect.fromLTWH(430, 600, 230, 90)),
+        WindLedge(id: 'l_perch', rect: Rect.fromLTWH(45, 400, 225, 90)),
+        WindLedge(id: 'l_high', rect: Rect.fromLTWH(470, 70, 235, 95)),
+      ],
+      windRoutes: [
+        // The ridge stair — plain stone, hanging over open sky on both sides.
+        // Once the First Breath blows, its spill shoves anything climbing the
+        // stair straight off the west lip: the stair is CLOSED, and the ridge
+        // shrine behind it must be taken the long way.
+        WindRoute(
+          id: 'r_stair',
+          from: 'l_base',
+          to: 'l_ridge',
+          path: Rect.fromLTWH(370, 600, 120, 280),
+          sweptBy: ['g_thermal'],
+          twoWay: true,
+        ),
+        // The thermal itself: the west perch's only ladder.
+        WindRoute(
+          id: 'r_column',
+          from: 'l_base',
+          to: 'l_perch',
+          path: Rect.fromLTWH(150, 470, 120, 370),
+          ridesGale: 'g_thermal',
+        ),
+        // The shoulder ledgewalk. Its east end runs through the SAME spill,
+        // but there the wind only pushes you back along stone — so it stays
+        // passable, and stays expensive. This is the long way to the ridge.
+        WindRoute(
+          id: 'r_ledgewalk',
+          from: 'l_perch',
+          to: 'l_ridge',
+          path: Rect.fromLTWH(250, 440, 200, 250),
+          costly: true,
+          twoWay: true,
+        ),
+        // The ridge riser — the spire's shoulder has no other road.
+        WindRoute(
+          id: 'r_riser',
+          from: 'l_perch',
+          to: 'l_high',
+          path: Rect.fromLTWH(160, 150, 350, 290),
+          ridesGale: 'g_ramp',
+        ),
+      ],
+      gustShrines: [
+        GustShrine(
+          id: 'shrine_first',
+          name: 'the First Breath',
+          ledgeId: 'l_base',
+          position: Offset(225, 878),
+          wakesGale: 'g_thermal',
+        ),
+        GustShrine(
+          id: 'shrine_ridge',
+          name: 'the Ridge Riser',
+          ledgeId: 'l_ridge',
+          position: Offset(575, 645),
+          wakesGale: 'g_ramp',
+        ),
       ],
       currents: [
+        // g_thermal — the west column: the perch's only ladder…
         WindCurrent(
-          rect: Rect.fromLTWH(205, 610, 220, 300),
+          rect: Rect.fromLTWH(150, 470, 120, 370),
           dir: Offset(0, -1),
-          strength: 70,
+          strength: 92,
+          galeId: 'g_thermal',
         ),
+        // …and the same breath, spilling WEST across the ridge stair and the
+        // ledgewalk's east end. 150 is chosen against the 150px/s walk: you
+        // can walk straight into it and win slowly (the ledgewalk), but you
+        // cannot climb ACROSS it (the stair) — the diagonal loses.
         WindCurrent(
-          rect: Rect.fromLTWH(170, 410, 360, 180),
-          dir: Offset(0.5, -1),
-          strength: 78,
+          rect: Rect.fromLTWH(360, 440, 140, 450),
+          dir: Offset(-1, -0.2),
+          strength: 150,
+          galeId: 'g_thermal',
         ),
-        // Thermal column up the west face: walkers ride it from platform 1
-        // to the feather-chamber door (which floats over open sky).
+        // g_ramp — the riser off the perch to the spire's shoulder.
         WindCurrent(
-          rect: Rect.fromLTWH(50, 430, 130, 430),
-          dir: Offset(0, -1),
-          strength: 85,
+          rect: Rect.fromLTWH(160, 150, 350, 290),
+          dir: Offset(0.85, -1),
+          strength: 96,
+          galeId: 'g_ramp',
         ),
       ],
-      rings: [SkyRing(order: 0, position: Offset(310, 735))],
     ),
 
-    // Room D — Crosswind Hall.
+    // Room D — Crosswind Hall. The middle pillar stands ABOVE the crosswind's
+    // river; the catwalk to it dips through the wind.
     'crosswind_hall': DungeonRoom(
       id: 'crosswind_hall',
       bounds: Rect.fromLTWH(0, 0, 980, 560),
@@ -1108,29 +1359,83 @@ const DungeonLayout _airLayout = DungeonLayout(
         ),
       ],
       platforms: [
-        Rect.fromLTWH(55, 255, 180, 85),
-        Rect.fromLTWH(285, 235, 180, 85),
-        Rect.fromLTWH(520, 270, 180, 85),
-        Rect.fromLTWH(760, 245, 180, 85),
+        Rect.fromLTWH(20, 240, 210, 110), // x_west
+        Rect.fromLTWH(400, 150, 180, 110), // x_mid
+        Rect.fromLTWH(750, 235, 180, 110), // x_east
+        Rect.fromLTWH(215, 215, 200, 60), // r_catwalk
+        Rect.fromLTWH(575, 175, 180, 95), // r_scarp
+      ],
+      windLedges: [
+        WindLedge(id: 'x_west', rect: Rect.fromLTWH(20, 240, 210, 110)),
+        WindLedge(id: 'x_mid', rect: Rect.fromLTWH(400, 150, 180, 110)),
+        WindLedge(id: 'x_east', rect: Rect.fromLTWH(750, 235, 180, 110)),
+      ],
+      windRoutes: [
+        // The catwalk sags into the river's line — once the crosswind blows,
+        // nothing walks it in either direction.
+        WindRoute(
+          id: 'r_catwalk',
+          from: 'x_west',
+          to: 'x_mid',
+          path: Rect.fromLTWH(215, 215, 200, 60),
+          sweptBy: ['g_cross'],
+          twoWay: true,
+        ),
+        // The river: it carries you clean past the middle pillar to the east.
+        WindRoute(
+          id: 'r_river',
+          from: 'x_west',
+          to: 'x_east',
+          path: Rect.fromLTWH(200, 210, 590, 150),
+          ridesGale: 'g_cross',
+        ),
+        // Stepping off the pillar downwind is free.
+        WindRoute(
+          id: 'r_river_mid',
+          from: 'x_mid',
+          to: 'x_east',
+          path: Rect.fromLTWH(400, 210, 390, 150),
+          ridesGale: 'g_cross',
+        ),
+        // The scarp: claw back up the pillar's east face out of the wind. It
+        // always exists; it always costs.
+        WindRoute(
+          id: 'r_scarp',
+          from: 'x_east',
+          to: 'x_mid',
+          path: Rect.fromLTWH(575, 175, 180, 95),
+          costly: true,
+        ),
+      ],
+      gustShrines: [
+        GustShrine(
+          id: 'shrine_span',
+          name: 'the Crosswind',
+          ledgeId: 'x_west',
+          position: Offset(105, 296),
+          wakesGale: 'g_cross',
+        ),
+        GustShrine(
+          id: 'shrine_crown',
+          name: 'the Crownwind',
+          ledgeId: 'x_mid',
+          position: Offset(490, 186),
+          wakesGale: 'g_crown',
+        ),
       ],
       currents: [
+        // g_cross — the crosswind river, running below the middle pillar's
+        // crown and straight over the catwalk.
         WindCurrent(
-          rect: Rect.fromLTWH(210, 120, 610, 110),
-          dir: Offset(1, 0.1),
-          strength: 92,
-          requiredSpeed: 2.5,
-        ),
-        WindCurrent(
-          rect: Rect.fromLTWH(180, 360, 640, 95),
-          dir: Offset(-1, -0.1),
-          strength: 88,
-          requiredSpeed: 2.5,
+          rect: Rect.fromLTWH(200, 210, 590, 150),
+          dir: Offset(1, 0.05),
+          strength: 110,
+          galeId: 'g_cross',
         ),
       ],
-      rings: [SkyRing(order: 1, position: Offset(490, 280))],
     ),
 
-    // Room E — Cloud Platform Room.
+    // Room E — Cloud Platform Room. The last climb: scree, step, crown.
     'cloud_platforms': DungeonRoom(
       id: 'cloud_platforms',
       bounds: Rect.fromLTWH(0, 0, 720, 940),
@@ -1147,27 +1452,48 @@ const DungeonLayout _airLayout = DungeonLayout(
         ),
       ],
       platforms: [
-        Rect.fromLTWH(150, 780, 210, 90),
-        Rect.fromLTWH(420, 600, 170, 76),
-        Rect.fromLTWH(100, 430, 185, 76),
-        Rect.fromLTWH(380, 240, 170, 76),
-        Rect.fromLTWH(315, 60, 220, 86),
+        Rect.fromLTWH(150, 780, 210, 110), // c_low
+        Rect.fromLTWH(100, 430, 200, 100), // c_step
+        Rect.fromLTWH(315, 55, 220, 100), // c_crown
+        Rect.fromLTWH(180, 510, 140, 290), // r_scree
+        Rect.fromLTWH(280, 140, 160, 300), // r_crown_drop
+      ],
+      windLedges: [
+        WindLedge(id: 'c_low', rect: Rect.fromLTWH(150, 780, 210, 110)),
+        WindLedge(id: 'c_step', rect: Rect.fromLTWH(100, 430, 200, 100)),
+        WindLedge(id: 'c_crown', rect: Rect.fromLTWH(315, 55, 220, 100)),
+      ],
+      windRoutes: [
+        WindRoute(
+          id: 'r_scree',
+          from: 'c_low',
+          to: 'c_step',
+          path: Rect.fromLTWH(180, 510, 140, 290),
+          twoWay: true,
+        ),
+        WindRoute(
+          id: 'r_crownwind',
+          from: 'c_step',
+          to: 'c_crown',
+          path: Rect.fromLTWH(180, 140, 190, 320),
+          ridesGale: 'g_crown',
+        ),
+        WindRoute(
+          id: 'r_crown_drop',
+          from: 'c_crown',
+          to: 'c_step',
+          path: Rect.fromLTWH(280, 140, 160, 300),
+        ),
       ],
       currents: [
+        // g_crown — the last riser, woken far below in the crosswind hall.
         WindCurrent(
-          rect: Rect.fromLTWH(255, 535, 240, 300),
-          dir: Offset(0, -1),
-          strength: 105,
-          requiredSpeed: 3.0,
-        ),
-        WindCurrent(
-          rect: Rect.fromLTWH(245, 155, 260, 300),
-          dir: Offset(0, -1),
-          strength: 130,
-          requiredSpeed: 3.5,
+          rect: Rect.fromLTWH(180, 140, 190, 320),
+          dir: Offset(0.35, -1),
+          strength: 118,
+          galeId: 'g_crown',
         ),
       ],
-      rings: [SkyRing(order: 2, position: Offset(420, 205))],
     ),
 
     // Room F — Spire Summit.
@@ -1268,7 +1594,7 @@ const DungeonLayout _airLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(730, 250, 30, 100),
           targetRoomId: 'lower_spire',
-          targetSpawn: Offset(505, 470),
+          targetSpawn: Offset(120, 452),
         ),
       ],
       platforms: [Rect.fromLTWH(80, 215, 575, 95)],
@@ -1457,28 +1783,38 @@ const DungeonLayout _airLayout = DungeonLayout(
           targetSpawn: Offset(100, 350),
         ),
       ],
-      currents: [
-        // The stream crossing conduit B — a Fire creature acting here lights
-        // the arc.
-        WindCurrent(
-          rect: Rect.fromLTWH(570, 285, 210, 90),
-          dir: Offset(-1, 0),
-          strength: 0,
-        ),
-      ],
       conduits: [
         Conduit(
           id: 'A',
-          position: Offset(230, 330),
+          position: Offset(140, 330),
           requireElement: 'Lightning',
-          // HARD GATE: only a Lightning Horn holds this current.
+          // HARD GATE: only a Lightning Horn holds this current. It LATCHES.
           requiredFamily: DungeonAbility.heavyForce,
         ),
         Conduit(
           id: 'B',
-          position: Offset(670, 330),
-          requireElement: 'Fire', // arc-lit by Fire in the wind current
+          position: Offset(770, 330),
+          // Nothing channels B by hand — the storm strikes it, or nothing does.
+          requireElement: 'Lightning',
+          struckByStorm: true,
         ),
+      ],
+      // The cell's circuit never brings it within a leader's leap of conduit B
+      // (nearest approach 180 > kStormHopReach): the bolt only ever arrives up
+      // a staircase the player ranked.
+      stormOrbit: StormCellOrbit(
+        center: Offset(420, 330),
+        radius: 170,
+        period: 26,
+        startAngle: 3.14159,
+        strikeInterval: 4.6,
+      ),
+      stormRods: [
+        StormRod(id: 'rod_low', position: Offset(590, 250)),
+        StormRod(id: 'rod_deep', position: Offset(585, 425)),
+        StormRod(id: 'rod_north', position: Offset(680, 200)),
+        StormRod(id: 'rod_axis', position: Offset(665, 335)),
+        StormRod(id: 'rod_south', position: Offset(685, 455)),
       ],
     ),
 
@@ -1521,6 +1857,24 @@ const DungeonLayout _airLayout = DungeonLayout(
           canDefeat: true,
         ),
       ),
+      // §7 retrofit: the Roc DRAGS the storm-cell across this rod field. The
+      // orbit's centre is a leash behind the bird, so the cell can never reach
+      // it unaided — rank the rods into a staircase and the storm strikes its
+      // own guardian, which is the only thing that opens a full lull.
+      stormOrbit: StormCellOrbit(
+        center: Offset(410, 300),
+        radius: 90,
+        period: 14,
+        strikeInterval: 3.6,
+      ),
+      stormRods: [
+        StormRod(id: 'perch_nw', position: Offset(255, 240)),
+        StormRod(id: 'perch_n', position: Offset(410, 200)),
+        StormRod(id: 'perch_ne', position: Offset(565, 240)),
+        StormRod(id: 'perch_sw', position: Offset(255, 460)),
+        StormRod(id: 'perch_s', position: Offset(410, 500)),
+        StormRod(id: 'perch_se', position: Offset(565, 460)),
+      ],
     ),
   },
 );

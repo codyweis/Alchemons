@@ -31,6 +31,7 @@ import 'package:flame/game.dart';
 import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
 
+part 'planet_dungeon_game_air.dart';
 part 'planet_dungeon_game_fire.dart';
 part 'planet_dungeon_game_water.dart';
 part 'planet_dungeon_game_earth.dart';
@@ -358,9 +359,40 @@ class PlanetDungeonGame extends FlameGame {
   bool updraftRiding = false;
   double _updraftCoyote = 0; // grace to steer onto a ledge after the column
 
-  int _ringProgress = 0; // next sky-ring order to fly through
+  // ── Air (Wind-Crown Spire) run-state — §9.1 item 4 ──
+  // Logic lives in planet_dungeon_game_air.dart; the fields sit here because
+  // Dart extensions cannot declare them (same shape as the other five).
+  bool get _isSpire => layout.element == 'Air';
+
+  /// Gales WOKEN this run. Permanent until death — no timers (§6.11 REWORK).
+  final Set<String> wokenGales = {};
+
+  /// Per-gale eased build, 0 → 1. A wind swells; it never snaps on.
+  final Map<String, double> galeRamp = {};
+
+  /// True while a gale is carrying the active WALKER (not a thermal).
+  bool _galeRiding = false;
+
   bool summitOpen = false;
   bool entryDoorRevealed = false;
+
+  /// Storm-rod ranks, by rod id (0..kStormRodMaxHeight).
+  final Map<String, int> rodHeight = {};
+
+  /// Eased visual rank per rod — rods grind, they do not teleport.
+  final Map<String, double> _rodRaise = {};
+
+  /// The live storm-cell's angle on its ring, and its discharge clock.
+  double stormCellAngle = 0;
+  double stormStrikeTimer = 0;
+
+  /// The conductor ids the last leader climbed (rendering + tests).
+  final List<String> lastLeaderPath = [];
+  double _leaderFlash = 0;
+
+  /// The Roc's dragged leash — the centre its stolen storm-cell circles.
+  Offset _rocLeash = Offset.zero;
+  double _rocStunLeft = 0;
 
   final Set<String> discoveredClouds = {}; // cloud ids (kept across death)
   String? carriedCloudId;
@@ -1130,31 +1162,9 @@ class PlanetDungeonGame extends FlameGame {
     // Water: the sluice tally and the wade, out of the capsule at last. The
     // tide gauge is a canvas HUD of its own and stays there.
     if (_isTemple) return _templeProgressReadout();
-    final total = _totalSpireRings;
-    if (total > 0 && !hasStar(0)) {
-      final room = currentRoom;
-      // Only while the ascent is the live business: in a ring room, or
-      // mid-sequence, or standing under an opened crown.
-      final onSpire =
-          room.rings.isNotEmpty || room.summit != null || _ringProgress > 0;
-      if (onSpire) {
-        return DungeonProgressReadout(
-          label: 'RINGS',
-          value: '$_ringProgress/$total',
-          fraction: _ringProgress / total,
-        );
-      }
-    }
-    // The Sky Loom: anchors filled, glanceable while the weave is live.
-    final loomRoom = currentRoom;
-    final loomStar = loomRoom.loomStarIndex;
-    if (loomStar != null && !hasStar(loomStar) && loomRoom.anchors.isNotEmpty) {
-      return DungeonProgressReadout(
-        label: 'ANCHORS',
-        value: '${filledAnchors.length}/${loomRoom.anchors.length}',
-        fraction: filledAnchors.length / loomRoom.anchors.length,
-      );
-    }
+    // Air: WINDS (the RINGS counter's replacement — the ring sequence retired
+    // with the §9.1 rework), then the loom's anchors, then the conduits.
+    if (_isSpire) return _spireProgressReadout();
     return null;
   }
 
@@ -1193,8 +1203,10 @@ class PlanetDungeonGame extends FlameGame {
   double get flightFraction =>
       flightMax <= 0 ? 0 : (flightMeter / flightMax).clamp(0.0, 1.0);
 
-  /// Energize a conduit and remember its initial hold for the drain arc.
-  void _energizeConduit(String id, double seconds) {
+  /// Energize a conduit. §9.1 REWORK: conduits LATCH. The decay timers are
+  /// retired, and with them the whole race that made the altar a test of
+  /// tempo rather than of understanding.
+  void _energizeConduit(String id) {
     if (!guardianRiteUnlocked) {
       // A refused offering — the attempt is the edge (§5.6 BLOCKED).
       _setBlockedHint(
@@ -1203,8 +1215,8 @@ class PlanetDungeonGame extends FlameGame {
       );
       return;
     }
-    conduitEnergy[id] = seconds;
-    _conduitMaxEnergy[id] = seconds;
+    conduitEnergy[id] = double.infinity;
+    _conduitMaxEnergy[id] = double.infinity;
   }
 
   void _queueDoorReveal(String roomId, String targetRoomId) {
@@ -1451,8 +1463,6 @@ class PlanetDungeonGame extends FlameGame {
     flightMeter = 0;
     _fallRecovering = false;
     _fallTimer = 0;
-    _ringProgress = 0;
-    summitOpen = false;
     // Knowledge persists across death: the entry passage stays revealed.
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
@@ -1487,6 +1497,7 @@ class PlanetDungeonGame extends FlameGame {
     combatProjectiles.clear();
     _activeWingBeams.clear();
     _relicFx = null;
+    _resetSpireState();
     _resetCathedralState();
     _resetTempleState();
     _resetBarrowState();
@@ -1634,9 +1645,11 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (updraft != null) {
       final sway = sin(_time * 2.1) * 16 * dt;
+      // A waking gale lifts with an eased swell — never a snap (§8).
+      final swell = _isSpire ? _galeFactor(updraft) : 1.0;
       a.position = _moveDashing(
         a.position,
-        Offset(sway, -updraft.strength * 0.95 * dt),
+        Offset(sway, -updraft.strength * 0.95 * swell * dt),
         room,
       );
     } else if (!flightActive && _updraftCoyote > 0) {
@@ -1663,8 +1676,8 @@ class PlanetDungeonGame extends FlameGame {
     } else if (_carryTrail.isNotEmpty) {
       _carryTrail.removeAt(0);
     }
-    // Glide wind trail (also while riding a thermal).
-    if (flightActive || updraftRiding) {
+    // Glide wind trail (also while riding a thermal, or carried by a gale).
+    if (flightActive || updraftRiding || _galeRiding) {
       _glideTrail.add(a.position);
       if (_glideTrail.length > 16) _glideTrail.removeAt(0);
     } else if (_glideTrail.isNotEmpty) {
@@ -1674,7 +1687,8 @@ class PlanetDungeonGame extends FlameGame {
     _updateCamera(dt);
     _updateRespawns(dt);
     _updateFlight(a, room, dt);
-    _updateSpire(a, room);
+    _updateWinds(a, room, dt);
+    _updateStormCell(a, room, dt);
     _updateWonderTrials(a, room, dt);
     _updateLoom(a, room);
     _updateAltar(a, room, dt);
@@ -1739,6 +1753,8 @@ class PlanetDungeonGame extends FlameGame {
     for (var i = 0; i < room.currents.length; i++) {
       final cur = room.currents[i];
       if (cur.strength <= 0) continue;
+      // A sleeping gale is not a wind yet (§6.11 REWORK).
+      if (cur.galeId != null && !_currentLive(cur)) continue;
       final len = cur.dir.distance;
       if (len <= 0 || cur.dir.dy / len > -0.5) continue; // not an updraft
       if (!cur.rect.contains(a.position)) continue;
@@ -1765,9 +1781,11 @@ class PlanetDungeonGame extends FlameGame {
       for (var i = 0; i < room.currents.length; i++) {
         final cur = room.currents[i];
         if (cur.strength <= 0 || !cur.rect.contains(a.position)) continue;
+        final swell = _isSpire ? _galeFactor(cur) : 1.0;
+        if (swell <= 0.01) continue; // a sleeping gale is not a wind yet
         final len = cur.dir.distance;
         if (len <= 0) continue;
-        var push = (cur.dir / len) * cur.strength * dt;
+        var push = (cur.dir / len) * cur.strength * swell * dt;
         // Too slow to ride a strong current → it overpowers and shoves back.
         // The shove IS the failure moment: the refusal speaks once per
         // attempt (§5.6 BLOCKED) and re-arms when the flier leaves it.
@@ -1782,7 +1800,13 @@ class PlanetDungeonGame extends FlameGame {
         }
         a.position = _moveWithCollision(a.position, push, room);
       }
+    } else {
+      // §6.11 REWORK: a woken gale pushes EVERYTHING — walkers included. This
+      // is what makes a gale a ladder rather than a flier's shortcut, and it is
+      // the same wind that scours the walkways it crosses.
+      _applyGaleToWalker(a, room, dt);
     }
+    _applyGalesToEnemies(room, dt);
     _releaseBlockedExcept(_currentBlockPrefix, resisting);
   }
 
@@ -1791,6 +1815,11 @@ class PlanetDungeonGame extends FlameGame {
 
     for (final cur in room.currents) {
       if (!cur.rect.inflate(8).contains(a.position)) continue;
+      // A sleeping gale is a hollow in the air, not a wind (§9.1 Air rework).
+      if (_isSpire && cur.galeId != null && !_currentLive(cur)) {
+        _setAmbientHint('Something long and cold is not moving here');
+        return;
+      }
       if (a.member.element == 'Fire') {
         _setAmbientHint('Your flame streams sideways, hungry for the wind');
       } else {
@@ -1840,6 +1869,7 @@ class PlanetDungeonGame extends FlameGame {
       }
     }
 
+    if (_isSpire) _spireAmbientHint(a, room);
     if (_isCathedral) _cathedralAmbientHint(a, room);
     if (_isTemple) _templeAmbientHint(a, room);
     if (_isBarrow) _barrowAmbientHint(a, room);
@@ -2041,45 +2071,6 @@ class PlanetDungeonGame extends FlameGame {
       // falls away the ledge becomes a wall, so lastSafe must stay off it.
       a.lastSafe = a.position;
       flightMeter = flightMax;
-    }
-  }
-
-  /// Rings authored across the whole spire ascent (one per room) — the summit
-  /// only opens once the FULL sequence is flown, not the current room's share.
-  int get _totalSpireRings =>
-      layout.rooms.values.fold(0, (n, r) => n + r.rings.length);
-
-  void _updateSpire(DungeonCreature a, DungeonRoom room) {
-    if (_roomCleared(room)) return;
-    // The ring sequence belongs to Star 1 — inert once that star is banked.
-    if (room.rings.isNotEmpty &&
-        (flightActive || updraftRiding) &&
-        !hasStar(0)) {
-      for (final ring in room.rings) {
-        if ((a.position - ring.position).distance > 34) continue;
-        if (ring.order == _ringProgress) {
-          _ringProgress++;
-          if (_ringProgress >= _totalSpireRings) {
-            summitOpen = true;
-            _setObjectiveHint('The spire crown opens above', 2.4);
-          }
-          // The count itself is STATE, not speech — it lives in the
-          // persistent readout beside the star tracker (§5.6), so a ring
-          // never evicts what the room was telling you.
-          onChanged();
-        } else if (ring.order > _ringProgress && _ringProgress != 0) {
-          _ringProgress = 0;
-          _setHint('Out of order — the winds reset');
-          onChanged();
-        }
-      }
-    }
-    final summit = room.summit;
-    if (summit != null &&
-        summitOpen &&
-        summit.rect.contains(a.position) &&
-        !hasStar(summit.starIndex)) {
-      earnStar(summit.starIndex);
     }
   }
 
@@ -2454,24 +2445,12 @@ class PlanetDungeonGame extends FlameGame {
   void _updateAltar(DungeonCreature a, DungeonRoom room, double dt) {
     if (room.conduits.isEmpty && room.guardian == null) return;
     if (_roomCleared(room)) return;
-    // Conduits are timed only until synchronization. Once both are live and the
-    // altar opens, they stay visibly locked until death/reset or star clear.
-    if (!altarOpen) {
-      final dead = <String>[];
-      conduitEnergy.updateAll((k, v) => v - dt);
-      conduitEnergy.forEach((k, v) {
-        if (v <= 0) dead.add(k);
-      });
-      for (final k in dead) {
-        conduitEnergy.remove(k);
-      }
-    }
+    // §9.1 REWORK: conduits LATCH. Nothing decays here any more — the altar is
+    // a question about the storm's route, not about how fast you can run.
     final aLive = (conduitEnergy['A'] ?? 0) > 0;
     final bLive = (conduitEnergy['B'] ?? 0) > 0;
     if (aLive && bLive && !altarOpen) {
       altarOpen = true;
-      conduitEnergy['A'] = double.infinity;
-      conduitEnergy['B'] = double.infinity;
       guardianAwake = true;
       guardianHp = maxGuardianHp;
       _setHint('Both conduits sing — the altar wakes its guardian');
@@ -2508,6 +2487,11 @@ class PlanetDungeonGame extends FlameGame {
       // the bullet pattern. Reads the shared lull/strike cycle, never rewrites
       // it — and the generated raid arena has no braziers to re-light.
       if (_isCathedral) _applySimurghTelegraph(a, room, dt);
+      // The Roc drags the storm-cell across its own rod field (§7): the shared
+      // cycle still turns, but a bolt LED INTO the bird — up a staircase of
+      // rods, Star 3's own vocabulary — forces a window the cycle never would.
+      // Air-only, and raids have no rod field to rank.
+      if (_isSpire) _applyRocDrag(room, dt);
       final stormCenter = _guardianPosition(g);
       // Half-HP escalation: one screech — feather-wisps rise, lulls tighten.
       if (!_rocEnraged &&
@@ -6063,9 +6047,11 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
-    // Airwing steadies the storm — extends energized conduit timers so the
-    // dual-conduit sync is achievable solo.
-    if (_tryStabilize(a)) {
+    // Wind-Crown Spire: wake a gust shrine (Star 1), crank a storm-rod or
+    // shove the storm-cell (Star 3 and the Roc's own fight). The rods sit
+    // inside the guardian's radius, so — like Lightning's grounding spike —
+    // they are checked BEFORE the guardian's catch.
+    if (_isSpire && (_tryGustShrine(a) || _tryStormRod(a) || _tryHerdCell(a))) {
       onChanged();
       return;
     }
@@ -6223,27 +6209,28 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
+      // Star 1: the shrines' own reading — WHICH walks a sleeping wind will
+      // scour is the whole planning layer, and it is EARNED here (§5.6).
+      if (room.gustShrines.isNotEmpty || room.windRoutes.isNotEmpty) {
+        revealFlash = 0.6;
+        revealTier = revealHintTier(a.member.statIntelligence);
+        _setInsightHint(_spireWindInsight(room, revealTier));
+        return;
+      }
       // The rune hall: insight completes the mural's diagram.
       if (room.id == 'storm_rune_hall') {
         revealFlash = 0.6;
         revealTier = revealHintTier(a.member.statIntelligence);
-        _setInsightHint('The mural completes — BOTH pylons must sing at once');
+        _setInsightHint(
+          'The mural completes — one pylon is HELD, the other is STRUCK',
+        );
         return;
       }
-      // At the conduits, a Mask reads the storm runes — tiered (§5.6):
-      // tier 1 narrows the method, tier 2 names element and order.
-      if (room.conduits.isNotEmpty) {
+      // At the altar, a Mask reads how the storm picks its iron — tiered.
+      if (room.conduits.isNotEmpty || room.stormRods.isNotEmpty) {
         revealFlash = 0.6;
         revealTier = revealHintTier(a.member.statIntelligence);
-        _setInsightHint(
-          revealTier >= 2
-              ? 'The runes bare the rite — channel A with Lightning, then '
-                    'arc B with Fire through the wind before A fades'
-              : revealTier >= 1
-              ? 'Storm runes: both conduits must sing at once — one asks '
-                    'a channel, the other an arc'
-              : 'The storm runes writhe — more Intelligence would still them',
-        );
+        _setInsightHint(_spireStormInsight(room, revealTier));
       } else {
         _setInsightHint('Nothing hidden stirs here', 2.4);
       }
@@ -6296,37 +6283,25 @@ class PlanetDungeonGame extends FlameGame {
     _ => 'Something here waits to be earned',
   };
 
-  /// Aerial-control role at the altar: refresh energized conduits so both can
-  /// be lit in time. Returns true if it did something. Speed scales the bonus.
-  bool _tryStabilize(DungeonCreature a) {
-    if (a.ability != DungeonAbility.aerialTraversal) return false;
-    if (currentRoom.conduits.isEmpty) return false;
-    if (!conduitEnergy.values.any((v) => v > 0)) return false;
-    final bonus = 2.0 + 3.0 * normStat(a.member.statSpeed);
-    conduitEnergy.updateAll((k, v) => v > 0 ? v + bonus : v);
-    _setHint('Aerial control steadies the storm currents');
-    _spawnAlchemyBurst(
-      a.position,
-      producedElement: 'Air',
-      reagentElements: const ['Air', 'Lightning'],
-    );
-    return true;
-  }
-
   /// Try to channel a conduit the active creature is standing on. Returns true
   /// if a conduit was nearby (action consumed). Conduit A is a HARD GATE
-  /// (Lightning + Horn): whoever clears it channels at FULL hold — Strength
-  /// only scales how long that hold lasts. Everyone else is refused cleanly.
+  /// (Lightning + Horn) and the hold now LATCHES — the decay it used to race
+  /// retired with the timers (§9.1). Everyone else is refused cleanly.
+  ///
+  /// (`_tryStabilize`, the Wing-only conduit refresh, retired with those same
+  /// timers: it existed solely to make a decaying two-conduit sync solvable
+  /// solo, and there is nothing left for it to hold up. §4's "intentional
+  /// family exclusives" entry is superseded — see docs/dungeons.md §4.)
   bool _tryChannel(DungeonCreature a) {
     for (final c in currentRoom.conduits) {
-      if (c.requiredFamily == null) continue; // arc-only conduits (e.g. B)
+      if (c.requiredFamily == null) continue; // storm-struck conduits (e.g. B)
       if ((a.position - c.position).distance > 34) continue;
       final r = evaluateInteraction(a.member, c.requirement);
       switch (r) {
         case InteractionResult.passed:
         case InteractionResult.passedViaRecipe:
-          _energizeConduit(c.id, channelHoldSeconds(a.member.statStrength));
-          _setHint('Channeling conduit ${c.id}');
+          _energizeConduit(c.id);
+          _setHint('Conduit ${c.id} takes the charge and holds it');
           _spawnAlchemyBurst(
             c.position,
             producedElement: c.requireElement,
@@ -6396,22 +6371,6 @@ class PlanetDungeonGame extends FlameGame {
         );
         return true;
       }
-      // Altar conduit B: light the arc.
-      for (final c in room.conduits) {
-        if (c.id == 'B' && c.requireElement == 'Fire') {
-          _energizeConduit('B', 4.0);
-          _setHint(
-            'Air and Fire braid into Lightning — conduit B arcs to life',
-          );
-          _spawnAlchemyBurst(
-            a.position,
-            producedElement: 'Lightning',
-            reagentElements: const ['Air', 'Fire'],
-            unstable: true,
-          );
-          return true;
-        }
-      }
       // Loom: charge a carried Anvil into a Thundercloud.
       if (carriedCloudType == 'Anvil') {
         carriedCloudType = 'Thundercloud';
@@ -6476,17 +6435,13 @@ class PlanetDungeonGame extends FlameGame {
         return true;
       }
     }
-    // Arc-only conduits (B): a direct touch replaces the Fire-in-wind braid.
+    // Conduit B no longer answers a hand at all — the storm strikes it, up a
+    // staircase of rods, or nothing does (§6.11 REWORK). A Lightning creature
+    // standing on it says so plainly.
     for (final c in room.conduits) {
-      if (c.requiredFamily != null) continue; // channelled conduits use _tryChannel
+      if (!c.struckByStorm) continue;
       if ((a.position - c.position).distance > 34) continue;
-      _energizeConduit(c.id, 4.0);
-      _setHint('The conduit drinks the arc — ${c.id} hums alive');
-      _spawnAlchemyBurst(
-        c.position,
-        producedElement: 'Lightning',
-        unstable: true,
-      );
+      _setBlockedHint('This pylon waits on the storm, not on a hand');
       return true;
     }
     // A carried Anvil: electrify the cloud directly, no wind needed.
@@ -6772,20 +6727,18 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) return _barrowObjectiveHint(room);
     if (_isCircuit) return _circuitObjectiveHint(room);
     if (_isVapor) return _steamObjectiveHint(room);
-    if (room.summit != null) {
-      return 'Wind Spire — glide through the rings in order, then reach the top';
+    // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
+    // the storm chooses its iron are all Mask-insight content.
+    if (_isSpire) {
+      final spire = _spireObjectiveHint(room);
+      if (spire != null) return spire;
     }
     if (room.loomStarIndex != null) {
       return 'Sky Loom — each anchor whispers a riddle up close; '
           'match it with the echo it describes';
     }
     if (room.guardian != null) {
-      return 'Storm Altar — light both conduits at once, then face the guardian';
-    }
-    // Star-1 ascent rooms: the ring path is live until the star banks.
-    if (room.rings.isNotEmpty && !hasStar(0)) {
-      return 'A sky-ring of the ascent turns here — glide through it, '
-          'or ride the thermals up';
+      return 'The altar sleeps, and something above it does not';
     }
     // Wonder trial chambers (until their echo is earned).
     if (_sealedWonderCloud(room) != null) {
@@ -7052,7 +7005,7 @@ class PlanetDungeonGame extends FlameGame {
     // the wisps and the glows stay readable in the dark.
     if (_isCircuit) _renderCircuitDarkness(canvas, room);
     _renderDoorRevealFx(canvas);
-    _renderRingsAndSummit(canvas, room);
+    if (_isSpire) _renderSpireWinds(canvas, room);
     _renderClouds(canvas, room);
     _renderAnchors(canvas, room);
     _renderConduitsAndGuardian(canvas, room);
@@ -7520,7 +7473,7 @@ class PlanetDungeonGame extends FlameGame {
         ? 1.0
         : summitOpen
         ? 0.82
-        : (_ringProgress / max(1, _totalSpireRings))
+        : (wokenGales.length / max(1, allGaleIds.length))
               .clamp(0.0, 0.72)
               .toDouble();
     // Only true cloud echoes count toward loom progress (synthetic discovery
@@ -9159,97 +9112,6 @@ class PlanetDungeonGame extends FlameGame {
           tint.withValues(alpha: (0.18 + 0.5 * fade).clamp(0.0, 0.8)),
         );
       }
-    }
-  }
-
-  void _renderRingsAndSummit(Canvas canvas, DungeonRoom room) {
-    if (_roomCleared(room)) return; // star earned — objectives gone
-    // Ring rooms don't own a star, so hide their rings once Star 1 banks.
-    if (hasStar(0)) return;
-    for (final ring in room.rings) {
-      final done = ring.order < _ringProgress;
-      final next = ring.order == _ringProgress;
-      final col = done
-          ? const Color(0xFF22C55E)
-          : next
-          ? const Color(0xFFE4C16A)
-          : const Color(0xFF74613A);
-      final pulse = next ? 0.7 + 0.3 * sin(_time * 4) : 1.0;
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          ring.position,
-          30,
-          col.withValues(alpha: 0.45 * pulse),
-        );
-      }
-      _drawWindRing(
-        canvas,
-        ring.position,
-        24,
-        col.withValues(alpha: 0.9 * pulse),
-        active: next,
-      );
-    }
-    final summit = room.summit;
-    if (summit != null) {
-      if (room.id == 'spire_summit') return;
-      final open = summitOpen;
-      final col = open ? const Color(0xFFE4C16A) : const Color(0xFF3A352B);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(summit.rect, const Radius.circular(6)),
-        Paint()..color = col.withValues(alpha: open ? 0.16 : 0.08),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(summit.rect, const Radius.circular(6)),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = col.withValues(alpha: open ? 0.9 : 0.4),
-      );
-      if (open) _drawStarGlyph(canvas, summit.rect.center, 11, col);
-    }
-  }
-
-  void _drawWindRing(
-    Canvas canvas,
-    Offset c,
-    double r,
-    Color color, {
-    required bool active,
-  }) {
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round
-      ..color = color;
-    final rect = Rect.fromCircle(center: c, radius: r);
-    final rot = active ? _time * 1.35 : _time * 0.18;
-    for (var i = 0; i < 4; i++) {
-      canvas.drawArc(rect, rot + i * pi / 2, pi * 0.34, false, ringPaint);
-    }
-    final tickPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..color = color.withValues(alpha: color.a * 0.72);
-    for (var i = 0; i < 12; i++) {
-      final a = -rot * 0.7 + i * pi * 2 / 12;
-      final p1 = c + Offset(cos(a), sin(a)) * (r + 5);
-      final p2 = c + Offset(cos(a), sin(a)) * (r + (i % 3 == 0 ? 14 : 10));
-      canvas.drawLine(p1, p2, tickPaint);
-    }
-    if (!active) return;
-    final streakPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFBFD2E6).withValues(alpha: 0.28);
-    for (var i = 0; i < 5; i++) {
-      final y = c.dy - 16 + i * 8.0;
-      final x = c.dx - 20 + ((_time * 52 + i * 17) % 40);
-      canvas.drawLine(Offset(x - 18, y), Offset(x + 14, y - 4), streakPaint);
     }
   }
 
