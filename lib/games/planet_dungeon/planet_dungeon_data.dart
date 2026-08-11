@@ -139,9 +139,15 @@ class LoomAnchor {
 // ── Fire Star 1: Ritual of First Flame ─────────────────────
 
 /// A ritual brazier. The cathedral remembers the order its fires were first
-/// lit: braziers must be ignited in [order] (0,1,2…). A wrong brazier snuffs
-/// the whole rite (and the ash answers). The order is NOT spatial — a soot
-/// mural elsewhere diagrams it for a Mask to read.
+/// lit; a wrong brazier snuffs the whole rite (and the ash answers).
+///
+/// **REWORK (§6.1 / §9.1 item 3):** [order] is now only the AUTHORED FALLBACK.
+/// The live rite order is ROLLED PER RUN (`PlanetDungeonGame.riteOrder`) so no
+/// wiki can ever spoil it, and each brazier carries generated physical
+/// testimony of the last rite — melted wax, a leaning soot shadow, an ash
+/// drift — from which the whole order can be DEDUCED without any Mask. A
+/// standalone hearth (a room with braziers but no `brazierStarIndex`) keeps
+/// using [order] as plain identity.
 class RitualBrazier {
   final int order;
   final Offset position;
@@ -174,6 +180,48 @@ class IncenseChain {
     required this.id,
     required this.nodes,
     required this.bellPosition,
+  });
+}
+
+/// One of the two ways the vesper flame can be carried to the bells (§6.1
+/// REWORK — "S3 gains one DECISION"). The bells never move; only the CENSER
+/// RUN between them does, and each run trades differently:
+///
+///  • the short run through the ash-storm nave — fewer censers, so the flame
+///    starves faster between them ([flameLifeScale] < 1) and the ash comes
+///    heavier at every ignition ([igniteWisps] / [unstableWisps]);
+///  • the long run round the calm cloister — two extra censers to keep alight,
+///    but every gap is a single comfortable gust and the ash stays quiet.
+///
+/// A Fire creature lights the route's [standPosition] to declare it. The
+/// choice stays open until the first censer of the run takes flame; after that
+/// the vesper is COMMITTED (the rite has begun).
+class VesperRoute {
+  final String id;
+  final String name;
+
+  /// The censer stand a Fire creature lights to declare this run.
+  final Offset standPosition;
+
+  /// Censers per chain id — the run's own path to that chain's bell. A chain
+  /// with no entry here keeps its authored [IncenseChain.nodes].
+  final Map<String, List<Offset>> chainNodes;
+
+  /// Multiplier on the flame's seconds-per-feeding (< 1 starves faster).
+  final double flameLifeScale;
+
+  /// Ash roused at each ignition, and whether it comes up unstable.
+  final int igniteWisps;
+  final bool unstableWisps;
+
+  const VesperRoute({
+    required this.id,
+    required this.name,
+    required this.standPosition,
+    required this.chainNodes,
+    this.flameLifeScale = 1.0,
+    this.igniteWisps = 2,
+    this.unstableWisps = false,
   });
 }
 
@@ -582,6 +630,9 @@ class DungeonRoom {
   final List<VineBed> vineBeds;
   final int? vineStarIndex; // star awarded when every bed's sigil is revealed
   final List<IncenseChain> incenseChains;
+  /// The two censer runs the vesper flame may take to those same bells (§6.1
+  /// REWORK). Empty = the chains' authored nodes are the only path.
+  final List<VesperRoute> vesperRoutes;
   // Water (Mirror Tide) authored interactables:
   final List<TideValve> tideValves;
   final List<TideSeal> tideSeals;
@@ -653,6 +704,7 @@ class DungeonRoom {
     this.vineBeds = const [],
     this.vineStarIndex,
     this.incenseChains = const [],
+    this.vesperRoutes = const [],
     this.tideValves = const [],
     this.tideSeals = const [],
     this.sealStarIndex,
@@ -1549,10 +1601,13 @@ const DungeonLayout _fireLayout = DungeonLayout(
     ),
 
     // Room D — Choir. Star 1: six ritual braziers around the choir stalls.
-    // Their remembered order is deliberately NOT spatial: the rite walks the
-    // floor like a flame dancing between the stalls. A cryptic soot mural on
-    // the choir floor diagrams it (a faint ember walks the true order); the
-    // scriptorium's mural is the explicit key (Mask reads it whole).
+    // Their remembered order is deliberately NOT spatial, and (REWORK §6.1) it
+    // is ROLLED PER RUN — so it can only be DEDUCED, from the physical
+    // testimony the last rite left on the iron: wax melted lowest burned
+    // longest, soot shadows lean away from whichever neighbour was already
+    // alight, and the ash has drifted downwind of the whole sequence. The six
+    // positions below are spread wide and unevenly on purpose: the soot leans
+    // must point at ONE unmistakable neighbour each.
     'choir': DungeonRoom(
       id: 'choir',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
@@ -1638,6 +1693,13 @@ const DungeonLayout _fireLayout = DungeonLayout(
     // the gallery, each ending at an ember bell. Fire lights a chain's first
     // censer; gusts of Air carry the crawling flame censer to censer; the
     // flame reaching the bell rings it. Three tolls wake the sanctum.
+    //
+    // REWORK (§6.1): the bells stand where they always did, but the CENSER RUN
+    // between them is now a choice — the short run out over the ash-storm nave
+    // arcade, or the long way round the calm cloister walk. Both stands sit by
+    // the vestry door; a Fire creature lights one to declare the run, and the
+    // choice locks the moment the first censer takes flame. The authored
+    // [incenseChains] nodes ARE the nave run (the route just names them).
     'bell_gallery': DungeonRoom(
       id: 'bell_gallery',
       bounds: Rect.fromLTWH(0, 0, 1000, 760),
@@ -1656,18 +1718,68 @@ const DungeonLayout _fireLayout = DungeonLayout(
       incenseChains: [
         IncenseChain(
           id: 'chain_low',
-          nodes: [Offset(180, 615), Offset(330, 655), Offset(480, 620)],
+          nodes: [Offset(160, 660), Offset(400, 655)],
           bellPosition: Offset(625, 590),
         ),
         IncenseChain(
           id: 'chain_mid',
-          nodes: [Offset(200, 385), Offset(360, 335), Offset(520, 375)],
+          nodes: [Offset(180, 400), Offset(430, 380)],
           bellPosition: Offset(680, 335),
         ),
         IncenseChain(
           id: 'chain_high',
-          nodes: [Offset(220, 155), Offset(400, 115), Offset(580, 155)],
+          nodes: [Offset(200, 150), Offset(460, 130)],
           bellPosition: Offset(755, 180),
+        ),
+      ],
+      vesperRoutes: [
+        // THE SHORT RUN — two censers per chain, wide gaps, and the ash-storm
+        // nave takes the flame's breath (it starves faster) and comes up
+        // angry at every ignition.
+        VesperRoute(
+          id: 'route_nave',
+          name: 'NAVE',
+          standPosition: Offset(105, 250),
+          chainNodes: {},
+          // ~1.4s per feeding. One gust never clears a nave gap, so the flame
+          // must SURVIVE the walk to the next gust — dawdle and it gutters
+          // back to a censer two hundred pixels behind you. Speed pays here.
+          flameLifeScale: 0.55,
+          igniteWisps: 3,
+          unstableWisps: true,
+        ),
+        // THE LONG RUN — two extra censers per chain to keep alight, but every
+        // gap is one comfortable gust and the cloister air stays still.
+        VesperRoute(
+          id: 'route_cloister',
+          name: 'CLOISTER',
+          standPosition: Offset(105, 510),
+          chainNodes: {
+            'chain_low': [
+              Offset(160, 660),
+              Offset(280, 710),
+              Offset(400, 715),
+              Offset(520, 660),
+            ],
+            'chain_mid': [
+              Offset(180, 400),
+              Offset(300, 450),
+              Offset(430, 450),
+              Offset(560, 390),
+            ],
+            'chain_high': [
+              Offset(200, 150),
+              Offset(330, 90),
+              Offset(460, 85),
+              Offset(600, 130),
+            ],
+          },
+          // Full 2.6s per feeding — and every cloister gap is short enough
+          // that ONE gust carries the flame clean onto the next censer, so it
+          // never has to survive a wait at all. The cost is the walking.
+          flameLifeScale: 1.0,
+          igniteWisps: 2,
+          unstableWisps: false,
         ),
       ],
     ),

@@ -4,30 +4,104 @@
 // planet_dungeon_game.dart (shares the engine's private state the same way
 // the Air pilot's inline code does, without growing the main file).
 //
-// World rule: *fire remembers the order it was lit.*
+// World rule: *fire remembers the order it was lit — and so does the wax.*
 //  • Entry — the narthex's great hearth is cold; a Fire creature rekindles it
 //    and the inner doors part (one-time reveal, persisted like Air's rune).
-//  • Star 1 (Ember) — the choir's SIX braziers must be lit in the order the
-//    cathedral remembers. The order is NOT spatial. Two hint layers: a
-//    cryptic soot mural on the choir floor (a faint ember slowly walks the
-//    true order — decodable by patient watching; Mask insight brightens it)
-//    and the scriptorium's mural, the explicit key (Mask reads it whole
-//    there; choir reading caps at a partial tier). A wrong flame snuffs the
-//    rite and the ash rises angry (consequence).
+//  • Star 1 (Ember) — THE FORENSIC RITE (§6.1 REWORK / §9.1 item 3). The
+//    choir's SIX braziers must be lit in the order the cathedral remembers,
+//    and that order is ROLLED PER RUN — there is no key to read, only
+//    EVIDENCE to reason from. Each brazier wears the physical testimony of
+//    the last rite:
+//       WAX  — melted lowest = lit first, burned longest (three legible
+//              tiers: guttered · half-spent · barely touched);
+//       SOOT — the shadow leans AWAY from the neighbour that was already
+//              burning when this one caught. The brazier lit FIRST had no
+//              neighbour to lean from: its soot lies in an even collar;
+//       ASH  — the drift piles downwind of the whole sequence, one compass
+//              direction streaked across the choir floor.
+//    Each channel alone is ambiguous; together they pin the rite down to
+//    exactly one answer — GUARANTEED, because every roll is re-rolled until
+//    `solveRiteOrder()` (the same evidence the game draws) returns 1. A
+//    patient player solves it with NO Mask in the party. Mask insight only
+//    ASSISTS: t1 marks which evidence is readable, t2 annotates ONE deduced
+//    link. The scriptorium mural is CONFIRMATION — two of the six positions,
+//    never the order. The choir floor's ember-walk is a labyrinth: flavour,
+//    signalling nothing. A wrong flame still snuffs the rite + ash wisps.
 //  • Star 2 (Ash) — the cloister's scorched beds: Plant grows vines, Fire
 //    burns them (Plant+Fire→Dust), the settling ash reveals the sigil cut in
 //    the groove beneath; each burn breathes out cinder wisps, angrier as the
 //    garden bares. PARITY RULE: anything the Plant+Fire braid renders to
 //    ash, a Dust creature lays directly.
-//  • Star 3 (Pyre) — flame is carried along hanging incense chains: Fire
-//    lights a censer (the ash rises to smother it AT ONCE — the rite is
-//    tended under attack), the flame crawls but starves between censers,
-//    gusts of Air (ELEMENT-ONLY: any family, Speed-scaled) bear it on; a
-//    starved flame spawns a fury wave. Each flame reaching its bell rings
-//    it; three tolls
-//    wake the black-flame Simurgh in the sanctum.
+//  • Star 3 (Pyre) — THE ROUTE DECISION. The three ember bells never move,
+//    but the censer run to them is a choice made at two stands: the SHORT run
+//    over the ash-storm nave (two censers, wide gaps — the flame starves
+//    faster and the ash comes up unstable at every ignition) or the LONG way
+//    round the calm cloister (two extra censers to keep alight, but every gap
+//    is one comfortable gust). Declare it, then the first censer to take
+//    flame commits it. Underneath, the relay is unchanged: Fire lights,
+//    the flame crawls and starves, Air gusts (ELEMENT-ONLY, Speed-scaled)
+//    bear it on, a starved flame spawns a fury wave, three tolls wake the
+//    black-flame Simurgh in the sanctum.
+//  • The guardian (§7) — Simurgh RE-LIGHTS the rite braziers as it strikes:
+//    phantom iron rings the roost in the choir's own arrangement, and it
+//    walks THIS RUN'S rolled order, one flare-then-pillar per beat. The order
+//    is the bullet pattern; Star 1's knowledge is Star 3's footwork.
 
 part of 'planet_dungeon_game.dart';
+
+/// The physical testimony one brazier carries from the last rite (§6.1). This
+/// is the SINGLE source of truth for both the renderer and `solveRiteOrder()`,
+/// so the proof of solvability can never drift from what the player sees.
+class BrazierTestimony {
+  BrazierTestimony({
+    required this.brazierIndex,
+    required this.waxTier,
+    required this.sootLean,
+  });
+
+  /// Index into the choir room's `braziers` list.
+  final int brazierIndex;
+
+  /// 0 guttered (one of the first pair lit) · 1 half-spent · 2 barely touched.
+  /// Deliberately COARSE: two braziers share every tier, so wax alone narrows
+  /// the rite to eight candidates and never hands over the answer.
+  final int waxTier;
+
+  /// The unit direction the soot shadow leans — away from whichever brazier
+  /// was already burning nearest when this one caught. `null` on the brazier
+  /// lit FIRST: nothing was alight, so its soot lies in an even collar.
+  final Offset? sootLean;
+
+  /// The wax's drawn height fraction. A pure function of [waxTier] — two
+  /// braziers in one tier must be visually IDENTICAL, or the tier leaks rank.
+  double get waxFill => switch (waxTier) { 0 => 0.16, 1 => 0.54, _ => 1.0 };
+}
+
+/// The rite's evidence is read to about this precision (radians ≈ 23°) — a
+/// soot plume is a smudge, not a protractor. The roll re-rolls until the
+/// evidence is unique AT THIS TOLERANCE, so uniqueness is a promise about
+/// human eyes and not about floating point.
+const double _kSootTolerance = 0.40;
+
+/// Seconds the rite's own fire takes to eat a brazier's old testimony.
+const double _kTestimonyFade = 0.9;
+
+/// Seconds insight's marking takes to bloom over the evidence.
+const double _kTestimonyMarkSeconds = 0.7;
+
+/// Seconds the two censer runs take to swap over (eased, never a snap).
+const double _kRouteSwapSeconds = 0.8;
+
+// ── Simurgh's brazier telegraph (§7 retrofit) ──────────────
+/// Seconds between re-lightings while the guardian strikes.
+const double _kTelegraphBeat = 1.15;
+
+/// Of that beat, the share spent flaring (the wind-up you may read and flee).
+const double _kTelegraphWindup = 0.62;
+
+/// The flame pillar's reach and its damage per second (progress-scaled).
+const double _kTelegraphRadius = 66.0;
+const double _kTelegraphDps = 5.5;
 
 /// A live vesper flame crawling its incense chain (Star 3). Lives in
 /// [PlanetDungeonGame._vesperFlames]; advanced by `_updateCathedral`.
@@ -93,6 +167,196 @@ const double _kEpitaphBurnPerLine = 1.6; // the fire takes its time
 const double _kEpitaphBurnStagger = 1.2;
 
 extension CinderCathedral on PlanetDungeonGame {
+  // ── The rite: rolled per run, proved solvable ───────────
+
+  /// The choir — the room whose braziers carry a star (null off Fire, and in
+  /// the generated raid arena).
+  DungeonRoom? get _choirRoom {
+    for (final r in layout.rooms.values) {
+      if (r.brazierStarIndex != null && r.braziers.length >= 2) return r;
+    }
+    return null;
+  }
+
+  /// Roll THIS RUN'S rite and plant its evidence. The order is random, but the
+  /// evidence is never noise: a candidate order is kept only when
+  /// [solveRiteOrder] can reconstruct it — and reconstruct ONLY it — from the
+  /// testimony alone. A wiki cannot spoil the answer; the braziers always can.
+  void _rollRiteOrder() {
+    final room = _choirRoom;
+    if (room == null) return;
+    final n = room.braziers.length;
+    final rng = Random();
+    final candidate = List<int>.generate(n, (i) => i);
+    for (var attempt = 0; attempt < 400; attempt++) {
+      candidate.shuffle(rng);
+      _plantTestimony(room, candidate);
+      if (solveRiteOrder().satisfying == 1) return;
+    }
+    // Unreachable in practice (≈39% of orders qualify — see the Fire test's
+    // seed sweep). Fall back to the authored order so the rite is never
+    // unplayable, evidence and all.
+    final authored = [...room.braziers]..sort((a, b) => a.order - b.order);
+    _plantTestimony(room, [
+      for (final b in authored) room.braziers.indexOf(b),
+    ]);
+  }
+
+  /// Generate the testimony an [order] would have LEFT BEHIND, and install it.
+  void _plantTestimony(DungeonRoom room, List<int> order) {
+    riteOrder
+      ..clear()
+      ..addAll(order);
+    final leans = List<Offset?>.filled(order.length, null);
+    final tiers = List<int>.filled(order.length, 0);
+    for (var rank = 0; rank < order.length; rank++) {
+      final idx = order[rank];
+      // WAX: two braziers per tier — coarse on purpose.
+      tiers[idx] = rank ~/ 2;
+      if (rank == 0) continue;
+      // SOOT: leans away from the NEAREST brazier already burning.
+      final pred = _nearestAmong(room, idx, order.sublist(0, rank));
+      final d = room.braziers[idx].position - room.braziers[pred].position;
+      final len = d.distance;
+      leans[idx] = len < 1e-6 ? const Offset(1, 0) : d / len;
+    }
+    riteTestimony
+      ..clear()
+      ..addAll([
+        for (var i = 0; i < order.length; i++)
+          BrazierTestimony(brazierIndex: i, waxTier: tiers[i], sootLean: leans[i]),
+      ]);
+    // ASH: the whole sequence's downwind, quantised to a compass point.
+    riteAshDrift = _quantiseDrift(
+      room.braziers[order.last].position - room.braziers[order.first].position,
+    );
+    // The mural CONFIRMS two ranks — never adjacent, so it can never hand over
+    // a step of the sequence.
+    final rng = Random();
+    final a = rng.nextInt(order.length);
+    var b = rng.nextInt(order.length);
+    var guard = 0;
+    while ((b - a).abs() < 2 && guard++ < 40) {
+      b = rng.nextInt(order.length);
+    }
+    riteMuralRanks = [a, b]..sort();
+  }
+
+  /// The member of [pool] physically nearest brazier [idx].
+  int _nearestAmong(DungeonRoom room, int idx, List<int> pool) {
+    var best = pool.first;
+    var bestD = double.infinity;
+    for (final j in pool) {
+      final d = (room.braziers[idx].position - room.braziers[j].position)
+          .distance;
+      if (d < bestD) {
+        bestD = d;
+        best = j;
+      }
+    }
+    return best;
+  }
+
+  /// Snap a drift vector to one of eight compass points (the ash piles in a
+  /// direction, not on a bearing).
+  Offset _quantiseDrift(Offset v) {
+    if (v.distance < 1e-6) return const Offset(1, 0);
+    final step = (atan2(v.dy, v.dx) / (pi / 4)).round() * (pi / 4);
+    return Offset(cos(step), sin(step));
+  }
+
+  double _angleBetween(Offset a, Offset b) {
+    final dot = (a.dx * b.dx + a.dy * b.dy).clamp(-1.0, 1.0);
+    return acos(dot);
+  }
+
+  /// Brute-force the forensic rite over EVERY ordering of the choir's braziers,
+  /// reading only the testimony the game actually renders (wax tiers, soot
+  /// leans, the ash drift). An ordering SATISFIES when all three channels
+  /// agree with it. The Fire test asserts exactly ONE satisfying ordering
+  /// across many rolled seeds — the §6.1 "consistent and sufficient" promise,
+  /// checked against the same data the braziers wear, so proof and gameplay
+  /// cannot drift apart.
+  ///
+  /// This is also the deduction a player performs, in the same order: the even
+  /// soot collar names the first fire; each later fire's soot points back at
+  /// the nearest one already burning; the wax says which pair a fire belongs
+  /// to; the ash says which way the whole rite ran.
+  ({int searched, int satisfying, List<int>? solution}) solveRiteOrder() {
+    final room = _choirRoom;
+    if (room == null || riteTestimony.length != room.braziers.length) {
+      return (searched: 0, satisfying: 0, solution: null);
+    }
+    final n = room.braziers.length;
+    var searched = 0;
+    var satisfying = 0;
+    List<int>? solution;
+
+    final current = <int>[];
+    final used = List<bool>.filled(n, false);
+
+    void walk() {
+      if (current.length == n) {
+        searched++;
+        // ASH: the drift must match the sequence's own downwind.
+        final drift = _quantiseDrift(
+          room.braziers[current.last].position -
+              room.braziers[current.first].position,
+        );
+        if ((drift - riteAshDrift).distance < 1e-6) {
+          satisfying++;
+          solution = [...current];
+        }
+        return;
+      }
+      final rank = current.length;
+      for (var idx = 0; idx < n; idx++) {
+        if (used[idx]) continue;
+        final t = riteTestimony[idx];
+        // WAX: this brazier's tier must be the tier this rank burns in.
+        if (t.waxTier != rank ~/ 2) continue;
+        if (rank == 0) {
+          // SOOT: only the even collar can be the first fire.
+          if (t.sootLean != null) continue;
+        } else {
+          if (t.sootLean == null) continue;
+          // SOOT: the lean must point away from the nearest already-lit.
+          final pred = _nearestAmong(room, idx, current);
+          final d = room.braziers[idx].position - room.braziers[pred].position;
+          final len = d.distance;
+          if (len < 1e-6) continue;
+          if (_angleBetween(d / len, t.sootLean!) > _kSootTolerance) continue;
+        }
+        used[idx] = true;
+        current.add(idx);
+        walk();
+        current.removeLast();
+        used[idx] = false;
+      }
+    }
+
+    walk();
+    return (searched: searched, satisfying: satisfying, solution: solution);
+  }
+
+  /// The rank at which brazier [index] is remembered (0 = lit first).
+  int riteRankOf(int index) {
+    final r = riteOrder.indexOf(index);
+    return r < 0 ? index : r;
+  }
+
+  /// The brazier index the rite lights at [rank].
+  int riteBrazierAt(int rank) =>
+      (rank >= 0 && rank < riteOrder.length) ? riteOrder[rank] : rank;
+
+  /// The testimony brazier [index] wears, or null before the roll lands.
+  BrazierTestimony? testimonyFor(int index) =>
+      (index >= 0 && index < riteTestimony.length) ? riteTestimony[index] : null;
+
+  /// The ONE link a tier-2 reading has drawn out (null = none yet). Read-only,
+  /// for tests/diagnostics.
+  int? get testimonyLinkRank => _testimonyLinkRank;
+
   // ── Update ──────────────────────────────────────────────
 
   void _resetCathedralState() {
@@ -103,6 +367,18 @@ extension CinderCathedral on PlanetDungeonGame {
     _vesperFlames.clear();
     _bedFx.clear();
     _bellTollFx = 0;
+    // The rite ORDER and its evidence persist: they are the cathedral's
+    // memory of a rite long finished, not this run's progress. Death re-lays
+    // the fires, never the history — so a deduction already made still holds.
+    _testimonyFade.clear();
+    _testimonyMark = _testimonyMarked ? 1.0 : 0.0;
+    // Star 3's decision re-opens with the rite (the bells are cold again).
+    vesperRouteId = null;
+    vesperCommitted = false;
+    _routeSwapT = 1.0;
+    _simurghRank = 0;
+    _simurghBeat = 0;
+    _simurghPillars.clear();
     // choirRevealTier survives: the mural, once read, stays read (knowledge
     // persists across death, like cloud discoveries). Same for the bared
     // epitaph planter — but its growth restarts.
@@ -110,12 +386,65 @@ extension CinderCathedral on PlanetDungeonGame {
     epitaphFans = 0;
   }
 
+  // ── Star 3's decision: which censer run carries the flame ──
+
+  /// The declared censer run in [room] (null until a stand is lit).
+  VesperRoute? vesperRouteIn(DungeonRoom room) {
+    final id = vesperRouteId;
+    if (id == null) return null;
+    for (final r in room.vesperRoutes) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
+  VesperRoute? get _vesperRoute {
+    final id = vesperRouteId;
+    if (id == null) return null;
+    for (final room in layout.rooms.values) {
+      for (final r in room.vesperRoutes) {
+        if (r.id == id) return r;
+      }
+    }
+    return null;
+  }
+
+  /// The censers [chain] actually hangs on THIS run — the declared route's own
+  /// path, or the authored nodes (which are the nave run) before one is
+  /// declared. Everything downstream (flame travel, checkpoints, ignition,
+  /// rendering, the minimap beacon) reads the chain through here.
+  List<Offset> chainNodes(IncenseChain chain) =>
+      _vesperRoute?.chainNodes[chain.id] ?? chain.nodes;
+
+  /// Seconds a flame holds per feeding on the declared run.
+  double get _flameLife => _kFlameLife * (_vesperRoute?.flameLifeScale ?? 1.0);
+
+  /// True once the vesper has BEGUN — the run is committed for this attempt.
+  bool get _vesperUnderway =>
+      vesperCommitted || bellsRung.isNotEmpty || _vesperFlames.isNotEmpty;
+
   void _updateCathedral(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isCathedral) return;
     if (_bellTollFx > 0) _bellTollFx -= dt;
     if (_bedFx.isNotEmpty) {
       _bedFx.updateAll((k, v) => v - dt);
       _bedFx.removeWhere((k, v) => v <= 0);
+    }
+    // ANIMATED STATE: insight's marking blooms, a lit brazier's testimony is
+    // eaten by its own fire, and a re-declared censer run swings over. Three
+    // scalar eases — no allocation, no per-frame geometry.
+    if (_testimonyMarked && _testimonyMark < 1.0) {
+      _testimonyMark = (_testimonyMark + dt / _kTestimonyMarkSeconds)
+          .clamp(0.0, 1.0);
+    }
+    if (_testimonyFade.isNotEmpty) {
+      for (final k in _testimonyFade.keys.toList()) {
+        final v = _testimonyFade[k]! - dt / _kTestimonyFade;
+        _testimonyFade[k] = v <= 0 ? 0 : v;
+      }
+    }
+    if (_routeSwapT < 1.0) {
+      _routeSwapT = (_routeSwapT + dt / _kRouteSwapSeconds).clamp(0.0, 1.0);
     }
     // Epitaph animation clocks (capped — a fresh session that already owns
     // the maxim skips straight to the settled, fully-lit script).
@@ -157,16 +486,17 @@ extension CinderCathedral on PlanetDungeonGame {
     }
   }
 
-  /// World position along [chain]: nodes, then the bell as the final point.
+  /// World position along [chain]: censers, then the bell as the final point.
   Offset _chainPoint(IncenseChain chain, int segment, double t) {
-    final from = chain.nodes[segment];
-    final to = segment + 1 < chain.nodes.length
-        ? chain.nodes[segment + 1]
+    final nodes = chainNodes(chain);
+    final from = nodes[segment.clamp(0, nodes.length - 1)];
+    final to = segment + 1 < nodes.length
+        ? nodes[segment + 1]
         : chain.bellPosition;
     return Offset.lerp(from, to, t.clamp(0.0, 1.0))!;
   }
 
-  int _chainSegmentCount(IncenseChain chain) => chain.nodes.length;
+  int _chainSegmentCount(IncenseChain chain) => chainNodes(chain).length;
 
   /// Move a flame [distance] px along its chain, refreshing it at censers and
   /// ringing the bell at the end.
@@ -176,11 +506,12 @@ extension CinderCathedral on PlanetDungeonGame {
     _VesperFlame flame,
     double distance,
   ) {
+    final nodes = chainNodes(chain);
     var remaining = distance;
     while (remaining > 0) {
-      final from = chain.nodes[flame.segment];
-      final to = flame.segment + 1 < chain.nodes.length
-          ? chain.nodes[flame.segment + 1]
+      final from = nodes[flame.segment.clamp(0, nodes.length - 1)];
+      final to = flame.segment + 1 < nodes.length
+          ? nodes[flame.segment + 1]
           : chain.bellPosition;
       final segLen = (to - from).distance;
       if (segLen <= 0.01) {
@@ -202,9 +533,9 @@ extension CinderCathedral on PlanetDungeonGame {
         _chainCheckpoints[chain.id] ?? 0,
         flame.segment,
       );
-      flame.life = max(flame.life, _kFlameLife * 0.7);
+      flame.life = max(flame.life, _flameLife * 0.7);
       _spawnAlchemyBurst(
-        chain.nodes[flame.segment],
+        nodes[flame.segment],
         producedElement: 'Fire',
         particleCount: 8,
         intensity: 0.5,
@@ -238,11 +569,8 @@ extension CinderCathedral on PlanetDungeonGame {
         announce: false,
       );
     } else {
-      _setHint(
-        'An ember bell tolls — ${bellsRung.length} of '
-        '${room.incenseChains.length}',
-        3.2,
-      );
+      // The tally is STATE — it lives in the BELLS readout (§5.6).
+      _setHint('An ember bell tolls through the gallery', 3.2);
     }
     onChanged();
   }
@@ -262,11 +590,10 @@ extension CinderCathedral on PlanetDungeonGame {
   }
 
   /// The censer where a chain's next ignition takes (its checkpoint).
-  Offset chainIgnitionPoint(IncenseChain chain) =>
-      chain.nodes[(_chainCheckpoints[chain.id] ?? 0).clamp(
-        0,
-        chain.nodes.length - 1,
-      )];
+  Offset chainIgnitionPoint(IncenseChain chain) {
+    final nodes = chainNodes(chain);
+    return nodes[(_chainCheckpoints[chain.id] ?? 0).clamp(0, nodes.length - 1)];
+  }
 
   // ── Utility interactions ────────────────────────────────
 
@@ -344,12 +671,15 @@ extension CinderCathedral on PlanetDungeonGame {
   bool _tryHearthOrBrazier(DungeonCreature a, DungeonRoom room) {
     if (room.braziers.isEmpty) return false;
     RitualBrazier? nearest;
+    var nearestIndex = -1;
     var bestDist = 46.0;
-    for (final b in room.braziers) {
+    for (var i = 0; i < room.braziers.length; i++) {
+      final b = room.braziers[i];
       final d = (a.position - b.position).distance;
       if (d < bestDist) {
         bestDist = d;
         nearest = b;
+        nearestIndex = i;
       }
     }
     if (nearest == null) return false;
@@ -385,19 +715,23 @@ extension CinderCathedral on PlanetDungeonGame {
       return true;
     }
 
-    // The choir rite.
+    // The choir rite — against THIS RUN'S rolled order, not the authored one.
     final star = room.brazierStarIndex!;
     if (hasStar(star)) return false;
-    if (nearest.order < ritualProgress) {
+    final rank = riteRankOf(nearestIndex);
+    if (rank < ritualProgress) {
       _setHint('This brazier already burns its remembered turn');
       return true;
     }
     if (a.member.element != 'Fire') {
-      _setHint('Cold ritual iron — the braziers answer Fire alone');
+      // §5.6 BLOCKED: one clause, element-first, on the failed attempt.
+      _setBlockedHint('Cold ritual iron — the braziers answer Fire alone');
       return true;
     }
-    if (nearest.order == ritualProgress) {
+    if (rank == ritualProgress) {
       ritualProgress++;
+      // The rite's own fire eats this brazier's testimony (eased, never a pop).
+      _testimonyFade[nearestIndex] = 1.0;
       _spawnAlchemyBurst(
         nearest.position,
         producedElement: 'Fire',
@@ -415,6 +749,9 @@ extension CinderCathedral on PlanetDungeonGame {
       onChanged();
     } else {
       ritualProgress = 0;
+      // The snuffed rite lays its evidence back down — the wax and soot the
+      // fires had begun to eat are legible again, and the deduction stands.
+      _testimonyFade.clear();
       _spawnAlchemyBurst(
         nearest.position,
         producedElement: 'Dust',
@@ -496,11 +833,8 @@ extension CinderCathedral on PlanetDungeonGame {
       if (revealed >= room.vineBeds.length) {
         earnStar(star);
       } else {
-        _setHint(
-          'The vines char to ash — a sigil glows in its groove '
-          '($revealed of ${room.vineBeds.length})',
-          3.2,
-        );
+        // The count is STATE — it lives in the SIGILS readout (§5.6).
+        _setHint('The vines char to ash — a sigil glows in its groove', 3.2);
       }
       return true;
     }
@@ -521,29 +855,63 @@ extension CinderCathedral on PlanetDungeonGame {
       if (revealed >= room.vineBeds.length) {
         earnStar(star);
       } else {
-        _setHint(
-          'Ash needs no fire — it settles straight into the groove '
-          '($revealed of ${room.vineBeds.length})',
-          3.2,
-        );
+        _setHint('Ash needs no fire — it settles straight into the groove', 3.2);
       }
       return true;
     }
+    // §5.6 BLOCKED: one short clause naming what is missing, never a method.
     if (element == 'Fire' && state == 0) {
-      _setHint('Bare scorched earth — flame needs something to take first');
+      _setBlockedHint('Bare scorched earth — nothing here will take');
       return true;
     }
     if (element == 'Plant' && state == 1) {
-      _setHint('The vines wait for flame');
+      _setBlockedHint('The vines are already thick');
       return true;
     }
-    _setHint('The garden answers Plant, then Fire — ash reveals the sigils');
+    _setBlockedHint('This bed answers Plant, or Dust');
     return true;
   }
 
-  /// The bell gallery's vesper rite (Star 3): ignite + gust.
+  /// The two censer stands (Star 3's decision). A Fire creature lights one to
+  /// declare the run; the choice stays open — walk both, weigh both — until
+  /// the first censer of the vesper takes flame, and then it is COMMITTED.
+  bool _tryVesperStand(DungeonCreature a, DungeonRoom room) {
+    if (room.vesperRoutes.isEmpty || hasStar(2)) return false;
+    for (final route in room.vesperRoutes) {
+      if ((a.position - route.standPosition).distance > 50) continue;
+      if (a.member.element != 'Fire') {
+        _setBlockedHint('The stand answers only Fire');
+        return true;
+      }
+      if (vesperRouteId == route.id) {
+        _setHint('This run already carries the vesper');
+        return true;
+      }
+      if (_vesperUnderway) {
+        _setBlockedHint('The vesper has begun — this run is committed');
+        return true;
+      }
+      vesperRouteId = route.id;
+      _routeSwapT = 0;
+      _chainCheckpoints.clear(); // a new run starts at its own first censer
+      _spawnAlchemyBurst(
+        route.standPosition,
+        producedElement: 'Fire',
+        particleCount: 18,
+        intensity: 0.9,
+      );
+      _setHint('The censers swing round — the vesper will go by the '
+          '${route.name.toLowerCase()}');
+      onChanged();
+      return true;
+    }
+    return false;
+  }
+
+  /// The bell gallery's vesper rite (Star 3): declare the run, ignite, gust.
   bool _tryVesper(DungeonCreature a, DungeonRoom room) {
     if (room.incenseChains.isEmpty || hasStar(2)) return false;
+    if (_tryVesperStand(a, room)) return true;
     final element = a.member.element;
 
     // Fire: light (or re-light) a chain at its checkpoint censer.
@@ -554,17 +922,24 @@ extension CinderCathedral on PlanetDungeonGame {
         final ignition = chainIgnitionPoint(chain);
         if ((a.position - ignition).distance > 46) continue;
         if (!guardianRiteUnlocked) {
-          _setHint(
+          _setBlockedHint(
             'The censer swallows the flame — the vesper waits on the '
             '${layout.starName(0)} and ${layout.starName(1)}',
           );
           return true;
         }
+        final route = vesperRouteIn(room);
+        if (route == null && room.vesperRoutes.isNotEmpty) {
+          _setBlockedHint('No run is declared — the censers hang idle');
+          return true;
+        }
+        // The rite has begun: the declared run is COMMITTED for this attempt.
+        vesperCommitted = true;
         final checkpoint = _chainCheckpoints[chain.id] ?? 0;
         _vesperFlames[chain.id] = _VesperFlame(
-          segment: checkpoint.clamp(0, chain.nodes.length - 1),
+          segment: checkpoint.clamp(0, chainNodes(chain).length - 1),
           t: 0,
-          life: _kFlameLife,
+          life: _flameLife,
         );
         _spawnAlchemyBurst(
           ignition,
@@ -572,21 +947,23 @@ extension CinderCathedral on PlanetDungeonGame {
           particleCount: 16,
           intensity: 0.9,
         );
-        // The vesper flame draws the ash the moment it lights — the rite
-        // is tended under attack.
+        // The vesper flame draws the ash the moment it lights — the rite is
+        // tended under attack, and the ash-storm run draws it heavier.
         spawnWispWave(
           element: 'Fire',
           center: ignition,
-          count: 2,
+          count: route?.igniteWisps ?? 2,
+          unstable: route?.unstableWisps ?? false,
           announce: false,
         );
         _setHint(
           checkpoint > 0
               ? 'The flame rekindles — and the ash stirs with it'
-              : 'The first censer takes the flame and the ash rises to '
-                    'smother it — gust it down the chain',
+              : 'The first censer takes the flame, and the ash rises to '
+                    'smother it',
           3.0,
         );
+        onChanged();
         return true;
       }
     }
@@ -601,7 +978,7 @@ extension CinderCathedral on PlanetDungeonGame {
         if ((a.position - pos).distance > _kGustRadius) continue;
         final speedT = normStat(a.member.statSpeed);
         final push = 120.0 + 70.0 * speedT;
-        flame.life = max(flame.life, _kFlameLife);
+        flame.life = max(flame.life, _flameLife);
         _spawnAlchemyBurst(
           pos,
           producedElement: 'Air',
@@ -615,7 +992,7 @@ extension CinderCathedral on PlanetDungeonGame {
       }
     }
 
-    // Near a chain but holding the wrong element: teach the rite.
+    // Near a chain but holding neither element — one clause, no method.
     for (final chain in room.incenseChains) {
       if (bellsRung.contains(chain.id)) continue;
       final flame = _vesperFlames[chain.id];
@@ -623,7 +1000,7 @@ extension CinderCathedral on PlanetDungeonGame {
           ? _chainPoint(chain, flame.segment, flame.t)
           : chainIgnitionPoint(chain);
       if ((a.position - anchor).distance <= _kGustRadius) {
-        _setHint('The censers answer Fire; the flame rides on Air');
+        _setBlockedHint('The censers answer Fire, the flame rides on Air');
         return true;
       }
     }
@@ -649,6 +1026,81 @@ extension CinderCathedral on PlanetDungeonGame {
     return true;
   }
 
+  // ── Simurgh re-lights the rite (§7 guardian retrofit) ───
+
+  /// Where the sanctum's phantom braziers stand: the CHOIR'S OWN arrangement,
+  /// scaled in around the roost. The bullet pattern is the rite, laid out the
+  /// way the player already learned it.
+  List<Offset> simurghTelegraphSpots(DungeonRoom room) {
+    final choir = _choirRoom;
+    if (choir == null) return const [];
+    final c = room.bounds.center;
+    return [
+      for (final b in choir.braziers)
+        c + (b.position - choir.bounds.center) * 0.62,
+    ];
+  }
+
+  /// The live telegraph, read-only for tests/diagnostics: rank → 0..1, where
+  /// values below [_kTelegraphWindup] are the readable flare and beyond it the
+  /// pillar is actually burning.
+  Map<int, double> get simurghPillars => Map.unmodifiable(_simurghPillars);
+
+  /// Called from the shared guardian loop (one `_isCathedral`-guarded line in
+  /// `_updateAltar`). While the Simurgh STRIKES it walks this run's rolled
+  /// rite, re-lighting one phantom brazier per beat: a flare you can read, then
+  /// a pillar of flame where it stood. The lull silences the whole ring and
+  /// rewinds the rite to its first fire, so the pattern always reads from the
+  /// top. Raids are exempt — the generated arena has no choir to remember.
+  void _applySimurghTelegraph(
+    DungeonCreature a,
+    DungeonRoom room,
+    double dt,
+  ) {
+    final g = room.guardian;
+    if (g == null || isRaid || hasStar(g.starIndex)) return;
+    final spots = simurghTelegraphSpots(room);
+    if (spots.isEmpty) return;
+
+    if (guardianVulnerable) {
+      // The lull: the ring gutters out and the rite rewinds.
+      if (_simurghPillars.isNotEmpty) _simurghPillars.clear();
+      _simurghRank = 0;
+      _simurghBeat = 0;
+      return;
+    }
+
+    // Advance every live pillar; the finished ones fall dark.
+    if (_simurghPillars.isNotEmpty) {
+      for (final rank in _simurghPillars.keys.toList()) {
+        final v = _simurghPillars[rank]! + dt / _kTelegraphBeat;
+        if (v >= 1.0) {
+          _simurghPillars.remove(rank);
+        } else {
+          _simurghPillars[rank] = v;
+        }
+      }
+    }
+
+    // The next fire in the remembered order takes its turn.
+    _simurghBeat -= dt;
+    if (_simurghBeat <= 0) {
+      _simurghBeat = _kTelegraphBeat;
+      _simurghPillars[_simurghRank] = 0.0;
+      _simurghRank = (_simurghRank + 1) % spots.length;
+    }
+
+    // A pillar burns only AFTER its flare — the wind-up is the fair warning.
+    for (final entry in _simurghPillars.entries) {
+      if (entry.value < _kTelegraphWindup) continue;
+      final idx = riteBrazierAt(entry.key);
+      if (idx < 0 || idx >= spots.length) continue;
+      if ((a.position - spots[idx]).distance <= _kTelegraphRadius) {
+        a.hp = max(0, a.hp - _kTelegraphDps * progressDmgMul * dt);
+      }
+    }
+  }
+
   // ── Mask insight ────────────────────────────────────────
 
   void _cathedralReveal(DungeonCreature a, DungeonRoom room) {
@@ -671,19 +1123,24 @@ extension CinderCathedral on PlanetDungeonGame {
           _setHint('The braziers keep their vigil — the rite is done');
           return;
         }
-        if (choirRevealTier >= 0) {
-          _setHint(_muralReading(choirRevealTier), 4.2);
-          return;
+        // THE FORENSIC RITE (§6.1): insight ASSISTS, it never answers. t0
+        // names the shape; t1 MARKS the readable evidence (and says what the
+        // three marks mean); t2 additionally annotates ONE deduced link on the
+        // floor. The order itself is never spoken, at any tier.
+        _testimonyMarked = true;
+        if (revealTier >= 2) {
+          _testimonyLinkRank = _pickTestimonyLink();
         }
-        // Reading the stalls cold caps out below the mural itself.
-        choirRevealTier = min(revealTier, 1);
         _setHint(
-          choirRevealTier >= 1
-              ? 'Soot tallies ghost over two braziers — the scriptorium '
-                    'holds the whole rite'
-              : 'The braziers keep their secret — soot writing waits in '
-                    'the scriptorium',
-          3.8,
+          revealTier >= 2
+              ? 'Wax, soot and drift all read now — and one step of the rite '
+                    'draws itself on the floor'
+              : revealTier >= 1
+              ? 'The evidence stands out: lowest wax burned longest, soot '
+                    'leans off whatever was already alight, ash piles downwind'
+              : 'The iron still wears the last rite — wax, soot and ash '
+                    'have all kept their share of it',
+          4.4,
         );
         return;
       case 'cloister':
@@ -693,11 +1150,9 @@ extension CinderCathedral on PlanetDungeonGame {
         _setHint(
           hidden > 0
               ? (revealTier >= 1
-                    ? 'Insight: $hidden bed${hidden == 1 ? '' : 's'} still '
-                          'hide${hidden == 1 ? 's' : ''} a sigil — grow them '
-                          'green, then give them to flame'
-                    : 'The soot whispers of sigils beneath the beds — more '
-                          'Intelligence would read how they bare themselves')
+                    ? 'Grow the beds green, then give them to flame — the ash '
+                          'settles into the groove and bares the sigil'
+                    : 'Sigils lie cut beneath the beds, waiting on the ash')
               : 'Every groove burns — the garden has told all it knows',
           3.8,
         );
@@ -710,13 +1165,25 @@ extension CinderCathedral on PlanetDungeonGame {
         );
         return;
       case 'bell_gallery':
-        final left = room.incenseChains.length - bellsRung.length;
+        if (bellsRung.length >= room.incenseChains.length) {
+          _setHint('The bells have all spoken', 3.8);
+          return;
+        }
+        // The DECISION, weighed — the method behind the two stands, tiered.
+        final declared = vesperRouteIn(room);
         _setHint(
-          left > 0
-              ? 'Three chains, three bells — $left still '
-                    'silent. Light the censer; gust the flame onward'
-              : 'The bells have all spoken',
-          3.8,
+          declared == null
+              ? (revealTier >= 1
+                    ? 'Two runs to the same three bells: the nave is short and '
+                          'the flame starves in its ash-storm; the cloister is '
+                          'long and calm, two more censers to keep alight'
+                    : 'Two censer runs reach the bells, and they are not the '
+                          'same walk')
+              : (revealTier >= 1
+                    ? 'Light a censer, then gust the flame on before it '
+                          'starves — every censer you pass re-lights from there'
+                    : 'The censers answer flame, and the flame answers wind'),
+          4.2,
         );
         return;
       case 'narthex':
@@ -747,33 +1214,61 @@ extension CinderCathedral on PlanetDungeonGame {
     _setHint('Nothing hidden stirs here');
   }
 
-  String _muralReading(int tier) => switch (tier) {
-    >= 2 =>
-      'The mural completes — west floor, the high northeast lamp, the low '
-          'seat, the high northwest lamp, the east floor, and last the '
-          'high seat',
-    1 =>
-      'The mural half-steadies: the rite begins at the west floor, then '
-          'the high northeast lamp — the rest still writhes',
-    _ =>
-      'Soot on soot — six fires and one remembered order; the choir floor '
-          'replays it for patient eyes. More Intelligence would steady '
-          'the strokes',
-  };
+  /// The ONE link a tier-2 reading draws out (rank k → k+1). Deterministic per
+  /// run and STICKY: re-reading must never walk the player through link after
+  /// link until the whole rite is spent. Deliberately a middle step — a check
+  /// on a deduction in progress, not the thread-end that unravels it.
+  int _pickTestimonyLink() {
+    final held = _testimonyLinkRank;
+    if (held != null) return held;
+    final n = riteOrder.length;
+    if (n < 2) return 0;
+    final pick = 1 + (riteOrder.first * 7 + riteOrder.last) % (n - 2).clamp(1, n);
+    return pick.clamp(1, n - 2);
+  }
 
   // ── Ambient hints / objectives / mood ───────────────────
 
-  /// The choir rite's progress, glanceable beside the star tracker (§5.6):
-  /// live only while the braziers are the room's business.
+  /// Fire's progress readout — STATE, glanceable beside the star tracker,
+  /// never a sentence that fades (§5.6 "state leaves the capsule"). The rite's
+  /// braziers, the garden's sigils, and the vesper's declared run + bells.
   DungeonProgressReadout? get _cathedralProgressReadout {
     final room = currentRoom;
+    // S1 — the rite, brazier by brazier.
     final star = room.brazierStarIndex;
-    if (star == null || hasStar(star) || room.braziers.isEmpty) return null;
-    return DungeonProgressReadout(
-      label: 'BRAZIERS',
-      value: '$ritualProgress/${room.braziers.length}',
-      fraction: ritualProgress / room.braziers.length,
-    );
+    if (star != null && !hasStar(star) && room.braziers.isNotEmpty) {
+      return DungeonProgressReadout(
+        label: 'BRAZIERS',
+        value: '$ritualProgress/${room.braziers.length}',
+        fraction: ritualProgress / room.braziers.length,
+      );
+    }
+    // S2 — the garden's bared sigils.
+    final vine = room.vineStarIndex;
+    if (vine != null && !hasStar(vine) && room.vineBeds.isNotEmpty) {
+      final bared = room.vineBeds
+          .where((b) => (bedStates[b.id] ?? 0) == 2)
+          .length;
+      return DungeonProgressReadout(
+        label: 'SIGILS',
+        value: '$bared/${room.vineBeds.length}',
+        fraction: bared / room.vineBeds.length,
+      );
+    }
+    // S3 — the declared run first (the decision is state too), then the bells.
+    if (room.incenseChains.isNotEmpty && !hasStar(2)) {
+      final declared = vesperRouteIn(room);
+      if (declared == null && room.vesperRoutes.isNotEmpty) {
+        return const DungeonProgressReadout(label: 'VESPER', value: 'UNSET');
+      }
+      final total = room.incenseChains.length;
+      return DungeonProgressReadout(
+        label: declared == null ? 'BELLS' : 'BELLS · ${declared.name}',
+        value: '${bellsRung.length}/$total',
+        fraction: bellsRung.length / total,
+      );
+    }
+    return null;
   }
 
   void _cathedralAmbientHint(DungeonCreature a, DungeonRoom room) {
@@ -791,11 +1286,9 @@ extension CinderCathedral on PlanetDungeonGame {
         return;
       }
       if (hasStar(room.brazierStarIndex!)) return;
-      _setAmbientHint(
-        a.member.element == 'Fire'
-            ? 'The brazier waits for its remembered turn'
-            : 'Cold ritual iron, kept in its old order',
-      );
+      // AMBIENT = atmosphere only (§5.6): the iron's age and its old dirt,
+      // never what the dirt MEANS. That reading is the puzzle.
+      _setAmbientHint('Old wax has run down the iron and set there');
       return;
     }
     // Garden beds.
@@ -819,8 +1312,13 @@ extension CinderCathedral on PlanetDungeonGame {
         return;
       }
     }
-    // Vesper chains.
+    // Vesper chains — and the two stands the run is declared at.
     if (room.incenseChains.isNotEmpty && !hasStar(2)) {
+      for (final route in room.vesperRoutes) {
+        if ((a.position - route.standPosition).distance > 62) continue;
+        _setAmbientHint('A stand of cold censers, waiting to be swung out');
+        return;
+      }
       for (final chain in room.incenseChains) {
         final flame = _vesperFlames[chain.id];
         if (flame != null) {
@@ -853,10 +1351,14 @@ extension CinderCathedral on PlanetDungeonGame {
       case 'scriptorium':
         return hasStar(0)
             ? null
-            : 'Scriptorium — soot writing on the wall; insight steadies it';
+            : 'Scriptorium — the soot mural keeps two fires of the old rite';
       case 'choir':
-        return 'Choir — the floor mural walks the order; light the six '
-            'braziers as the fire remembers';
+        // WHAT, never HOW (§5.6): the rite's goal only. How to READ the
+        // braziers is earned through Mask insight, or found by looking.
+        return hasStar(0)
+            ? null
+            : 'Choir — six braziers, and one order the cathedral still '
+                  'remembers';
       case 'cloister':
         // WHAT, never HOW (§5.6): the grow-burn-read rite is Mask-insight
         // content (_cathedralReveal), not room-entry copy.
@@ -866,8 +1368,11 @@ extension CinderCathedral on PlanetDungeonGame {
             ? null
             : 'Vestry — a charred fresco diagrams the vesper ahead';
       case 'bell_gallery':
-        return 'Bell Gallery — carry flame down each chain; ring all '
-            'three bells';
+        if (hasStar(2)) return null;
+        return vesperRouteId == null && room.vesperRoutes.isNotEmpty
+            ? 'Bell Gallery — two censer runs, three silent bells; one run '
+                  'carries the vesper'
+            : 'Bell Gallery — three bells, and a flame that will not keep';
       case 'high_altar':
         return hasStar(2)
             ? null
@@ -1056,6 +1561,7 @@ extension CinderCathedral on PlanetDungeonGame {
       case 'choir':
         _drawChoirStalls(canvas, room);
         _drawChoirFloorMural(canvas, room);
+        _drawRiteAshDrift(canvas, room); // the drift lies under everything
         _drawRitualBraziers(canvas, room);
         break;
       case 'cloister':
@@ -1069,6 +1575,7 @@ extension CinderCathedral on PlanetDungeonGame {
         _drawVesperFresco(canvas, room);
         break;
       case 'bell_gallery':
+        _drawVesperStands(canvas, room);
         _drawIncenseChains(canvas, room);
         break;
       case 'high_altar':
@@ -1076,6 +1583,7 @@ extension CinderCathedral on PlanetDungeonGame {
         break;
       case 'sanctum':
         _drawSanctumRoost(canvas, room);
+        _drawSimurghTelegraph(canvas, room);
         break;
     }
   }
@@ -1317,42 +1825,69 @@ extension CinderCathedral on PlanetDungeonGame {
         ..color = const Color(0xFF74613A).withValues(alpha: 0.7),
     );
     // The panel's upper half belongs to the dead words (_drawEmberEpitaph).
-    // The lower band carries the brazier glyphs in RITE order, left to
-    // right — drawn ONLY once insight has steadied them (no placeholders).
+    //
+    // The lower band is the mural's own testimony, and it is CONFIRMATION,
+    // not a key (§6.1 REWORK): six numbered stations, of which only TWO were
+    // ever recorded — and never two in a row, so it can't even hand over a
+    // single step of the sequence. Each recorded station names its brazier
+    // WORDLESSLY, as a little constellation of the choir with one bowl
+    // filled. Bring a deduction here and the mural will tell you whether you
+    // are right; bring nothing and it tells you nothing.
     final tier = choirRevealTier;
-    final visible = tier < 0 ? 0 : (tier >= 2 ? 6 : tier + 1);
-    final glyphY = panel.bottom - 32;
-    for (var i = 0; i < visible; i++) {
-      final p = Offset(panel.left + 52 + i * 77.0, glyphY);
-      // Steady glyph: bowl + flame + tally pips (order i = i+1 pips).
-      canvas.drawArc(
-        Rect.fromCircle(center: p, radius: 13),
-        0,
-        pi,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = const Color(0xFFE4C16A).withValues(alpha: 0.8),
-      );
-      _drawFlame(canvas, p + const Offset(0, 2), 18, phase: i * 1.7);
-      for (var k = 0; k <= i; k++) {
+    if (tier < 0) return;
+    // Tier 0 recovers one station from the soot; tier 1+ recovers both.
+    final shown = riteMuralRanks.take(tier >= 1 ? 2 : 1).toSet();
+    final choir = _choirRoom;
+    final glyphY = panel.bottom - 34;
+    for (var rank = 0; rank < 6; rank++) {
+      final p = Offset(panel.left + 52 + rank * 77.0, glyphY);
+      // The station's number, always legible: rank+1 tally pips.
+      for (var k = 0; k <= rank; k++) {
         canvas.drawCircle(
-          p + Offset(-18 + k * 7.5, 22),
+          p + Offset(-18 + k * 7.5, 24),
           2.0,
-          Paint()..color = const Color(0xFFE4C16A).withValues(alpha: 0.85),
+          Paint()..color = const Color(0xFFE4C16A).withValues(alpha: 0.75),
         );
       }
-      if (i > 0) {
-        // Order arrow from the previous glyph.
-        final prev = Offset(panel.left + 52 + (i - 1) * 77.0, p.dy - 24);
-        canvas.drawLine(
-          prev + const Offset(14, 0),
-          Offset(p.dx - 14, p.dy - 24),
+      if (!shown.contains(rank) || choir == null) {
+        // Unrecorded: the soot here has flaked away to nothing.
+        canvas.drawArc(
+          Rect.fromCircle(center: p, radius: 13),
+          0.5,
+          pi * 0.55,
+          false,
           Paint()
-            ..strokeWidth = 1.2
-            ..color = const Color(0xFFC4A35A).withValues(alpha: 0.5),
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFF6E5A46).withValues(alpha: 0.35),
         );
+        continue;
+      }
+      // Recorded: a constellation of the choir's six bowls, the named one
+      // filled and burning. No words, no arrows, no order.
+      final named = riteBrazierAt(rank);
+      for (var i = 0; i < choir.braziers.length; i++) {
+        final q = p + (choir.braziers[i].position - choir.bounds.center) * 0.055;
+        final isNamed = i == named;
+        canvas.drawCircle(
+          q,
+          isNamed ? 3.4 : 2.0,
+          Paint()
+            ..style = isNamed ? PaintingStyle.fill : PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = const Color(0xFFE4C16A).withValues(
+              alpha: isNamed ? 0.95 : 0.34,
+            ),
+        );
+        if (isNamed) {
+          _drawFlame(
+            canvas,
+            q + const Offset(0, 2),
+            11,
+            outer: const Color(0xFFC4703C),
+            phase: rank * 1.7,
+          );
+        }
       }
     }
   }
@@ -1616,29 +2151,30 @@ extension CinderCathedral on PlanetDungeonGame {
     }
   }
 
-  /// The cryptic floor mural: a faded soot diagram of the six braziers at
-  /// the choir's heart. The connecting path is broken and barely-there, but
-  /// a faint ember endlessly WALKS the true order — patient eyes can decode
-  /// the rite unaided; Mask insight (choirRevealTier) brightens everything.
+  /// The choir floor's ember-walk: a worn soot LABYRINTH at the room's heart,
+  /// an ember pacing its circuits for ever. Kept from the old build as pure
+  /// flavour (§6.1 REWORK) and deliberately DEFANGED — it is a devotional
+  /// path, not a diagram, so it can never lie about a rite it was never told.
+  /// The rite is read off the braziers now.
   void _drawChoirFloorMural(Canvas canvas, DungeonRoom room) {
     final star = room.brazierStarIndex;
     if (star == null || room.braziers.length < 2) return;
-    final done = hasStar(star);
     final c = room.bounds.center + const Offset(0, 8);
-    final tier = choirRevealTier;
-    // Visibility scales with insight; the solved rite settles into a calm,
-    // legible memorial.
-    final pathAlpha = done
-        ? 0.20
-        : tier >= 2
-        ? 0.22
-        : tier >= 1
-        ? 0.14
-        : 0.07;
-    final ordered = [...room.braziers]..sort((a, b) => a.order - b.order);
-    Offset mapPt(Offset p) => c + (p - room.bounds.center) * 0.26;
-
-    // Worn ritual ring framing the diagram.
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFC4A35A).withValues(alpha: 0.11);
+    // Four broken circuits, each opening at a different gate.
+    for (var i = 0; i < 4; i++) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: 34.0 + i * 22.0),
+        i * 1.35 + 0.4,
+        pi * 1.72,
+        false,
+        ring,
+      );
+    }
     canvas.drawCircle(
       c,
       104,
@@ -1647,107 +2183,270 @@ extension CinderCathedral on PlanetDungeonGame {
         ..strokeWidth = 1.2
         ..color = const Color(0xFF4A382C).withValues(alpha: 0.35),
     );
-    // Broken soot path through the braziers in rite order: each segment is
-    // drawn as worn fragments, never a clean line.
-    final pathPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFC4A35A).withValues(alpha: pathAlpha);
-    for (var i = 0; i < ordered.length - 1; i++) {
-      final a = mapPt(ordered[i].position);
-      final b = mapPt(ordered[i + 1].position);
-      for (final (f0, f1) in const [(0.06, 0.26), (0.42, 0.58), (0.76, 0.94)]) {
-        canvas.drawLine(
-          Offset.lerp(a, b, f0)!,
-          Offset.lerp(a, b, f1)!,
-          pathPaint,
-        );
-      }
-    }
-    // Brazier glyphs: a tick per brazier; the FIRST carries a tiny flame
-    // mark (the rite's start), pips appear with insight.
-    for (var i = 0; i < ordered.length; i++) {
-      final p = mapPt(ordered[i].position);
-      canvas.drawCircle(
-        p,
-        4.5,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = const Color(0xFFC4A35A).withValues(
-            alpha: (pathAlpha * 2.2).clamp(0.0, 0.6),
-          ),
-      );
-      if (i == 0) {
-        _drawFlame(
-          canvas,
-          p + const Offset(0, 3),
-          10,
-          outer: const Color(0xFF8A5A48),
-          phase: 5.0,
-        );
-      }
-      if (tier >= 2 && !done) {
-        for (var k = 0; k <= i; k++) {
-          canvas.drawCircle(
-            p + Offset(-9 + k * 4.0, -10),
-            1.4,
-            Paint()..color = const Color(0xFFE8DFC8).withValues(alpha: 0.5),
-          );
-        }
-      }
-    }
-    if (done) return;
-    // The walking ember: one slow lap of the rite, pausing nowhere — the
-    // mural remembering out loud. Brighter the more insight has steadied it.
-    final emberAlpha = tier >= 2
-        ? 0.5
-        : tier >= 1
-        ? 0.34
-        : 0.20;
-    final segs = ordered.length - 1;
-    final u = (_time % 11.0) / 11.0 * segs;
-    final si = u.floor().clamp(0, segs - 1);
-    final p = Offset.lerp(
-      mapPt(ordered[si].position),
-      mapPt(ordered[si + 1].position),
-      u - si,
-    )!;
+    if (hasStar(star)) return;
+    // The pacing ember: one slow turn inward, endlessly.
+    final u = (_time % 17.0) / 17.0;
+    final ang = u * pi * 6;
     if (_fx.ready) {
       drawGlow(
         canvas,
         _fx.mote!,
-        p,
+        c + Offset(cos(ang), sin(ang)) * (100.0 - u * 66.0),
         6,
-        const Color(0xFFFFB46B).withValues(alpha: emberAlpha),
+        const Color(0xFFFFB46B).withValues(alpha: 0.20),
       );
+    }
+  }
+
+  /// THE ASH DRIFT (evidence channel 3): the whole sequence's downwind, laid
+  /// in one direction across the choir floor. With the wax and the soot it
+  /// says which way the rite ran — and it is genuinely load-bearing: without
+  /// it, barely a tenth of orders are uniquely deducible; with it, two fifths.
+  /// Twelve strokes on a fixed lattice; nothing per-frame but the draw.
+  void _drawRiteAshDrift(Canvas canvas, DungeonRoom room) {
+    final star = room.brazierStarIndex;
+    if (star == null || hasStar(star)) return;
+    final d = riteAshDrift;
+    if (d == Offset.zero) return;
+    final b = room.bounds;
+    final n = Offset(-d.dy, d.dx); // across the drift
+    final mark = _testimonyMark;
+    final streak = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.6
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF7A6249).withValues(alpha: 0.22 + 0.14 * mark);
+    final tail = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF9A8168).withValues(alpha: 0.13 + 0.10 * mark);
+    for (var i = 0; i < 12; i++) {
+      // Scattered, but a fixed lattice — never re-randomised per frame.
+      final p = Offset(
+        b.left + 90 + (((i * 7) % 11) / 11.0) * (b.width - 180),
+        b.top + 80 + (((i * 5) % 7) / 7.0) * (b.height - 160),
+      );
+      final jog = n * (i.isEven ? 6.0 : -6.0);
+      canvas.drawLine(p - d * 14 + jog, p + d * 14 + jog, streak);
+      canvas.drawLine(p + d * 14 + jog, p + d * 28 + jog, tail);
     }
   }
 
   void _drawRitualBraziers(Canvas canvas, DungeonRoom room) {
     final star = room.brazierStarIndex;
     final done = star != null && hasStar(star);
-    for (final brz in room.braziers) {
-      final lit = done || brz.order < ritualProgress;
-      _drawBrazier(canvas, brz.position, lit: lit, phase: brz.order * 1.3);
-      // Mural knowledge ghosts tally pips over the braziers.
-      if (!done && choirRevealTier >= 1) {
-        final show = choirRevealTier >= 2 || brz.order <= 1;
-        if (show) {
-          for (var k = 0; k <= brz.order; k++) {
-            canvas.drawCircle(
-              brz.position + Offset(-16 + k * 6.5, -42),
-              2.0,
-              Paint()
-                ..color = const Color(0xFFE8DFC8).withValues(
-                  alpha: 0.35 + 0.18 * sin(_time * 2.4 + k),
-                ),
-            );
-          }
-        }
+    // The evidence lies UNDER the iron (soot on the floor, then the drift
+    // wedge), so a lit brazier's own light falls over its own testimony.
+    if (!done && star != null) {
+      for (var i = 0; i < room.braziers.length; i++) {
+        _drawBrazierTestimony(canvas, room, i);
       }
+      _drawTestimonyLink(canvas, room);
     }
+    for (var i = 0; i < room.braziers.length; i++) {
+      final brz = room.braziers[i];
+      final rank = star == null ? brz.order : riteRankOf(i);
+      final lit = done || rank < ritualProgress;
+      // Animation phase rides the brazier's PLACE, never its rank — a flicker
+      // that beat in rite order would leak the answer through the idle loop.
+      _drawBrazier(canvas, brz.position, lit: lit, phase: i * 1.3);
+      // The WAX rides on the iron itself — drawn over the basin so the melt
+      // line reads against the bowl, and eaten by the brazier's own fire.
+      if (!done && star != null) _drawBrazierWax(canvas, room, i);
+    }
+  }
+
+  /// How much of brazier [i]'s testimony still survives: 1 until its own fire
+  /// takes it, then eased away over [_kTestimonyFade].
+  double _testimonyAlive(int i) => _testimonyFade[i] ?? 1.0;
+
+  /// THE SOOT + THE ASH, on the floor beneath one brazier.
+  ///
+  ///  • SOOT — an elliptical shadow shoved off-centre along the direction it
+  ///    leans, with three fanning streaks: it leans AWAY from whichever
+  ///    neighbour was already burning. On the fire lit FIRST there was no
+  ///    such neighbour, so its soot lies in an EVEN COLLAR — a closed ring,
+  ///    unmistakable at a glance and the thread-end of the whole deduction.
+  ///  • ASH — a small drift wedge banked on the downwind side, matching the
+  ///    floor streaks.
+  ///
+  /// Mask insight (t1) only brightens what is already drawn and adds a caret;
+  /// it never adds information the iron does not carry.
+  void _drawBrazierTestimony(Canvas canvas, DungeonRoom room, int i) {
+    final alive = _testimonyAlive(i);
+    if (alive <= 0.01) return;
+    final t = testimonyFor(i);
+    if (t == null) return;
+    final p = room.braziers[i].position + const Offset(0, 20);
+    final mark = _testimonyMark;
+    final soot = Paint()
+      ..color = const Color(0xFF15100C).withValues(alpha: (0.62 + 0.16 * mark) * alive);
+    final lean = t.sootLean;
+
+    if (lean == null) {
+      // THE EVEN COLLAR — nothing was alight, so the soot fell all round.
+      canvas.drawOval(
+        Rect.fromCenter(center: p, width: 62, height: 30),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 7
+          ..color = const Color(0xFF15100C).withValues(
+            alpha: (0.52 + 0.18 * mark) * alive,
+          ),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: p, width: 40, height: 19),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = const Color(0xFF2A2018).withValues(
+            alpha: (0.40 + 0.16 * mark) * alive,
+          ),
+      );
+    } else {
+      // A LEANING SHADOW — shoved out along the lean, fanning as it goes.
+      canvas.save();
+      canvas.translate(p.dx, p.dy);
+      canvas.rotate(atan2(lean.dy, lean.dx));
+      canvas.drawOval(
+        Rect.fromCenter(center: const Offset(19, 0), width: 74, height: 26),
+        soot,
+      );
+      final streak = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF241A13).withValues(
+          alpha: (0.50 + 0.20 * mark) * alive,
+        );
+      for (final fan in const [-0.30, 0.0, 0.30]) {
+        canvas.drawLine(
+          Offset(cos(fan), sin(fan)) * 24,
+          Offset(cos(fan), sin(fan)) * 54,
+          streak,
+        );
+      }
+      canvas.restore();
+    }
+
+    // THE ASH WEDGE, banked downwind on the same side as the floor streaks.
+    final d = riteAshDrift;
+    if (d != Offset.zero) {
+      final base = p + d * 26;
+      final n = Offset(-d.dy, d.dx);
+      canvas.drawPath(
+        Path()
+          ..moveTo(base.dx - n.dx * 15, base.dy - n.dy * 15)
+          ..lineTo(base.dx + n.dx * 15, base.dy + n.dy * 15)
+          ..lineTo(base.dx + d.dx * 15, base.dy + d.dy * 15)
+          ..close(),
+        Paint()
+          ..color = const Color(0xFF8A7358).withValues(
+            alpha: (0.30 + 0.18 * mark) * alive,
+          ),
+      );
+    }
+
+    // Insight's caret over the readable evidence (t1) — a mark, not an answer.
+    if (mark > 0.02) {
+      final caret = p - const Offset(0, 46);
+      final nib = Paint()
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFE4C16A).withValues(alpha: 0.42 * mark * alive);
+      canvas.drawLine(caret + const Offset(-5, 5), caret, nib);
+      canvas.drawLine(caret, caret + const Offset(5, 5), nib);
+    }
+  }
+
+  /// THE WAX (evidence channel 1): tallow run down the iron and set there.
+  /// Lowest = lit first, burned longest. Three tiers, two braziers each, so
+  /// the wax narrows the rite to eight candidates and never hands it over —
+  /// and two braziers of one tier are drawn IDENTICALLY, or the tier would
+  /// leak the rank.
+  void _drawBrazierWax(Canvas canvas, DungeonRoom room, int i) {
+    final alive = _testimonyAlive(i);
+    if (alive <= 0.01) return;
+    final t = testimonyFor(i);
+    if (t == null) return;
+    final p = room.braziers[i].position;
+    final h = 6.0 + 26.0 * t.waxFill; // 10 · 20 · 32 px of set tallow
+    final mark = _testimonyMark;
+    final tallow = Paint()
+      ..color = const Color(0xFFD9C7A2).withValues(
+        alpha: (0.62 + 0.16 * mark) * alive,
+      );
+    // The collar of wax banked round the bowl's foot…
+    final body = Path()
+      ..moveTo(p.dx - 15, p.dy + 22)
+      ..lineTo(p.dx - 11, p.dy + 22 - h)
+      ..quadraticBezierTo(p.dx, p.dy + 16 - h, p.dx + 11, p.dy + 22 - h)
+      ..lineTo(p.dx + 15, p.dy + 22)
+      ..close();
+    canvas.drawPath(body, tallow);
+    // …its melt line, the one edge the eye actually measures…
+    canvas.drawLine(
+      Offset(p.dx - 12, p.dy + 21 - h),
+      Offset(p.dx + 12, p.dy + 21 - h),
+      Paint()
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFFF2E6C8).withValues(
+          alpha: (0.55 + 0.25 * mark) * alive,
+        ),
+    );
+    // …and the drips that got that far down before they set.
+    final drip = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFC9B48D).withValues(alpha: 0.5 * alive);
+    for (final dx in const [-8.0, 0.0, 8.0]) {
+      canvas.drawLine(
+        Offset(p.dx + dx, p.dy + 21 - h * 0.72),
+        Offset(p.dx + dx, p.dy + 21),
+        drip,
+      );
+    }
+  }
+
+  /// Insight t2's ONE annotated link: a dotted arc drawn from the fire at the
+  /// picked rank to the fire that followed it — one step of the deduction,
+  /// worked out for you. Never more than one, and always the same one.
+  void _drawTestimonyLink(Canvas canvas, DungeonRoom room) {
+    final rank = _testimonyLinkRank;
+    if (rank == null || _testimonyMark <= 0.02) return;
+    if (rank + 1 >= riteOrder.length) return;
+    final from = room.braziers[riteBrazierAt(rank)].position;
+    final to = room.braziers[riteBrazierAt(rank + 1)].position;
+    final a = 0.5 * _testimonyMark;
+    final ink = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFE4C16A).withValues(alpha: a);
+    // Dashed, so it reads as annotation over the world rather than a wire.
+    for (final (f0, f1) in const [
+      (0.10, 0.22),
+      (0.32, 0.44),
+      (0.54, 0.66),
+      (0.76, 0.88),
+    ]) {
+      canvas.drawLine(
+        Offset.lerp(from, to, f0)!,
+        Offset.lerp(from, to, f1)!,
+        ink,
+      );
+    }
+    // An arrowhead at the later fire.
+    final dir = to - from;
+    final len = dir.distance;
+    if (len < 1) return;
+    final u = dir / len;
+    final n = Offset(-u.dy, u.dx);
+    final tip = to - u * 26;
+    canvas.drawLine(tip, tip - u * 11 + n * 7, ink);
+    canvas.drawLine(tip, tip - u * 11 - n * 7, ink);
   }
 
   void _drawBrazier(
@@ -2041,13 +2740,91 @@ extension CinderCathedral on PlanetDungeonGame {
     canvas.drawCircle(c + Offset(0, r * 0.85), r * 0.2, Paint()..color = color);
   }
 
+  /// The two censer stands (Star 3's decision, §6.1 REWORK). Both stand cold
+  /// and equal until one is lit; the declared one keeps a live coal and a lit
+  /// ring, and the ghost of the run it would swing out to is sketched from it
+  /// — so the choice can be WEIGHED by looking, not by committing.
+  void _drawVesperStands(Canvas canvas, DungeonRoom room) {
+    if (room.vesperRoutes.isEmpty || hasStar(2)) return;
+    final declared = vesperRouteId;
+    for (final route in room.vesperRoutes) {
+      final chosen = route.id == declared;
+      final p = route.standPosition;
+      // The ghost run: this route's censers, faint, so both paths can be read
+      // off the floor before either is chosen.
+      final ghost = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFC4A35A).withValues(
+          alpha: chosen ? 0.0 : 0.13,
+        );
+      if (!chosen) {
+        for (final chain in room.incenseChains) {
+          final nodes = route.chainNodes[chain.id] ?? chain.nodes;
+          final pts = [...nodes, chain.bellPosition];
+          for (var i = 0; i < pts.length - 1; i++) {
+            canvas.drawLine(pts[i], pts[i + 1], ghost);
+          }
+          for (final n in nodes) {
+            canvas.drawCircle(n, 5, ghost);
+          }
+        }
+      }
+      // The stand itself: a tripod of hanging censers.
+      final iron = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..strokeCap = StrokeCap.round
+        ..color = (chosen ? const Color(0xFFC4A35A) : const Color(0xFF4A382C))
+            .withValues(alpha: 0.85);
+      canvas.drawLine(p + const Offset(0, 26), p + const Offset(0, -18), iron);
+      canvas.drawLine(p + const Offset(-16, -14), p + const Offset(16, -14), iron);
+      for (final dx in const [-14.0, 0.0, 14.0]) {
+        canvas.drawArc(
+          Rect.fromCircle(center: p + Offset(dx, -2), radius: 7),
+          0,
+          pi,
+          false,
+          iron,
+        );
+      }
+      if (chosen) {
+        // The declared run keeps a live coal, and the swing settles in eased.
+        final swing = Curves.easeOutCubic.transform(_routeSwapT.clamp(0.0, 1.0));
+        _drawFlame(canvas, p + const Offset(0, 4), 8 + 10 * swing, phase: 2.4);
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            p,
+            26 + 10 * swing,
+            const Color(0xFFFF8A50).withValues(alpha: 0.18 * swing),
+          );
+        }
+      } else if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          p + const Offset(6, -2),
+          4,
+          const Color(0xFFFF8A50).withValues(
+            alpha: 0.14 + 0.10 * (0.5 + 0.5 * sin(_time * 2.0 + p.dy)),
+          ),
+        );
+      }
+    }
+  }
+
   void _drawIncenseChains(Canvas canvas, DungeonRoom room) {
     for (final chain in room.incenseChains) {
       final rung = bellsRung.contains(chain.id) || hasStar(2);
       final checkpoint = _chainCheckpoints[chain.id] ?? 0;
       final flame = _vesperFlames[chain.id];
-      // Chain segments: sagging links between censers, ending at the bell.
-      final pts = [...chain.nodes, chain.bellPosition];
+      // Chain segments: sagging links between the DECLARED run's censers,
+      // ending at the bell (which never moves — only the way to it does).
+      final nodes = chainNodes(chain);
+      final pts = [...nodes, chain.bellPosition];
       final linkPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.8
@@ -2065,8 +2842,8 @@ extension CinderCathedral on PlanetDungeonGame {
         );
       }
       // Censers: small swinging cups; reached ones keep a coal alive.
-      for (var i = 0; i < chain.nodes.length; i++) {
-        final p = chain.nodes[i];
+      for (var i = 0; i < nodes.length; i++) {
+        final p = nodes[i];
         final reached = rung || i <= checkpoint;
         canvas.drawArc(
           Rect.fromCircle(center: p, radius: 9),
@@ -2224,6 +3001,101 @@ extension CinderCathedral on PlanetDungeonGame {
       }
       canvas.drawPath(path, smoke);
     }
+  }
+
+  /// SIMURGH'S TELEGRAPH (§7): phantom rite braziers ringing the roost in the
+  /// choir's own arrangement, re-lit in this run's remembered order. Each takes
+  /// its turn with a readable FLARE (a widening ring and a swelling ember, so
+  /// the wind-up is visibly a wind-up) before the pillar of flame actually
+  /// lands. The order is the bullet pattern — Star 1's deduction is Star 3's
+  /// footwork.
+  void _drawSimurghTelegraph(Canvas canvas, DungeonRoom room) {
+    if (isRaid || !guardianAwake) return;
+    final g = room.guardian;
+    if (g == null || hasStar(g.starIndex)) return;
+    final spots = simurghTelegraphSpots(room);
+    if (spots.isEmpty) return;
+
+    // The cold phantom iron, always present once the Simurgh is up.
+    final iron = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..color = const Color(0xFF5A3A2A).withValues(alpha: 0.42);
+    for (final p in spots) {
+      canvas.drawArc(
+        Rect.fromCircle(center: p, radius: 13),
+        0,
+        pi,
+        false,
+        iron,
+      );
+      canvas.drawLine(p + const Offset(-8, 7), p + const Offset(-12, 19), iron);
+      canvas.drawLine(p + const Offset(8, 7), p + const Offset(12, 19), iron);
+    }
+
+    _simurghPillars.forEach((rank, t) {
+      final idx = riteBrazierAt(rank);
+      if (idx < 0 || idx >= spots.length) return;
+      final p = spots[idx];
+      if (t < _kTelegraphWindup) {
+        // THE FLARE — the fair warning. A ring closing in on the spot, and an
+        // ember swelling in the bowl.
+        final u = (t / _kTelegraphWindup).clamp(0.0, 1.0);
+        canvas.drawCircle(
+          p,
+          _kTelegraphRadius * (1.35 - 0.35 * u),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6 + 1.6 * u
+            ..color = const Color(0xFFFF8A50).withValues(alpha: 0.16 + 0.30 * u),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.mote!,
+            p,
+            4 + 8 * u,
+            const Color(0xFFFFD27A).withValues(alpha: 0.24 + 0.36 * u),
+          );
+        }
+      } else {
+        // THE PILLAR — black-flame fire standing where the warning stood.
+        final u = ((t - _kTelegraphWindup) / (1 - _kTelegraphWindup))
+            .clamp(0.0, 1.0);
+        final fade = 1.0 - u * u;
+        canvas.drawCircle(
+          p,
+          _kTelegraphRadius,
+          Paint()
+            ..color = const Color(0xFF6E2A14).withValues(alpha: 0.20 * fade),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            p - const Offset(0, 20),
+            _kTelegraphRadius * 1.1,
+            const Color(0xFF8A2AA0).withValues(alpha: 0.22 * fade),
+          );
+        }
+        _drawFlame(
+          canvas,
+          p + const Offset(0, 6),
+          88 * fade,
+          core: const Color(0xFF35124A),
+          outer: const Color(0xFF1A0A26),
+          phase: rank * 1.7,
+        );
+        _drawFlame(
+          canvas,
+          p + const Offset(0, 6),
+          46 * fade,
+          core: const Color(0xFFFF7A3C),
+          outer: const Color(0xFF6E2A14),
+          phase: rank * 2.3,
+        );
+      }
+    });
   }
 
   void _drawSanctumRoost(Canvas canvas, DungeonRoom room) {

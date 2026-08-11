@@ -467,21 +467,54 @@ not as soft modifiers.
    sanctum. Mercy shrine = high altar. Rooms: narthex, nave (hub, rose window
    + star vigil lights), scriptorium, choir, cloister, reliquary, vestry,
    bell_gallery, high_altar, sanctum.
-   **REWORK (planned 2026-08-10 — S1 lookup→deduction):** the rite's order
-   is no longer read off a key; it is INFERRED from evidence — the fire
-   remembers, and so does the wax. The order is ROLLED PER RUN (Earth's
-   precedent: wikis can never spoil it) and each brazier carries generated
-   physical testimony of the last rite: wax melted lowest = lit first,
-   burned longest · soot shadows lean AWAY from the neighbor that was
-   already burning · ash drifts pile downwind of the sequence. A patient
-   player deduces the full order from the braziers alone; Mask insight
-   tiers mark the readable evidence (t1) and annotate one deduced link
-   (t2). The scriptorium mural demotes to CONFIRMATION (it shows two of the
-   six positions, never the answer); the choir's ember-walk stays as
-   flavor. Wrong flame still snuffs the rite + wisps. S3 gains one
-   DECISION: two censer routes to the bells — short through the ash-storm
-   nave (flame starves faster, heavier wisps) or long through the calm
-   cloister (two extra censers to keep alive). Choose, then commit.
+   **REWORK BUILT 2026-08-11 — the forensic rite + the route decision:** the
+   rite's order is no longer read off a key; it is INFERRED from evidence —
+   the fire remembers, and so does the wax. The order is ROLLED PER RUN
+   (`riteOrder`; Earth's precedent — wikis can never spoil it) and each
+   brazier carries generated physical testimony of the last rite, in three
+   channels that are each deliberately PARTIAL: **wax** melted lowest = lit
+   first, burned longest (three coarse tiers, two braziers each → eight
+   candidates, never the answer) · **soot** shadows lean AWAY from the
+   nearest neighbour already burning, and the fire lit FIRST wears an EVEN
+   COLLAR (the thread-end of the deduction) · **ash** drifts pile downwind of
+   the whole sequence, one quantised compass direction streaked across the
+   floor. Sufficiency is GUARANTEED, not hoped for: every roll is re-rolled
+   until `solveRiteOrder()` — which reads only the testimony the braziers
+   actually render — returns exactly one consistent order (~39% of the 720
+   orders qualify at a 23° reading tolerance, so variety is ample). All
+   three channels are load-bearing: drop the ash drift and unique-solvability
+   falls from ~39% to ~11%. A patient player solves it with NO Mask in the
+   party (test-proven); Mask insight only ASSISTS — t1 marks the readable
+   evidence, t2 annotates ONE sticky middle link and never recites the
+   order. The scriptorium mural is demoted to CONFIRMATION: two of the six
+   positions, never adjacent, each named wordlessly as a constellation of
+   the choir with one bowl filled (t0 recovers one, t1+ both). The choir's
+   ember-walk survives as flavour, DEFANGED into a soot labyrinth so it can
+   no longer imply a sequence it was never told. Wrong flame still snuffs the
+   rite + wisps, and lays the evidence back down. Testimony is eaten (eased)
+   by each brazier's own fire; the order and its evidence survive death (the
+   cathedral's memory), while the rite itself restarts.
+   S3 gained its DECISION: two censer runs to the same three bells, declared
+   at two stands in the gallery and committed the moment the first censer
+   takes flame (death re-opens it). SHORT — the ash-storm nave: 2 censers,
+   wide gaps no single gust can clear, a fuse at 0.55× (~1.4s per feeding),
+   3 unstable wisps per ignition. LONG — the calm cloister: 4 censers (two
+   extra to keep alight), every gap crossed by ONE comfortable gust so the
+   flame never has to survive a wait, full 2.6s fuse, 2 stable wisps. Both
+   ring all three bells at brisk AND harried tending (test-proven both ways);
+   the unlit run is sketched on the floor so the choice can be weighed before
+   it is made. Simurgh §7 retrofit: it RE-LIGHTS the rite braziers as its
+   telegraph — phantom iron rings the roost in the choir's own arrangement
+   and walks THIS RUN'S rolled order, one readable flare then a pillar of
+   black flame per beat, silenced and rewound by every lull. The order is the
+   bullet pattern: Star 1's deduction is Star 3's footwork. Raids exempt (the
+   generated arena has no choir to remember). No hard family gate declared —
+   Fire stays element-only at full power, and deliberately so: the rite is
+   built to be solved without a Mask, so gating it behind one would contradict
+   its own design. Prose to the §5.6 standard (goal-only objectives, method
+   tiered into insight, one-clause BLOCKED refusals) and BRAZIERS / SIGILS /
+   BELLS·<run> all live in the `DungeonProgressReadout` chip. Tests:
+   `planet_dungeon_fire_full_run_test.dart` (19, per-mechanic).
 2. **Lava — Molten Reliquary** · Lava+Earth+Ice · Lavahorn/Earthmask/Icemane ·
    *the foundry line still runs — program it, and the metal becomes what
    the line makes of it.* (Re-authored 2026-08-10 from the §5.5 row;
@@ -978,8 +1011,8 @@ lull/strike/calm grammar stays engine-shared, but every mystic WEAPONIZES
 its planet's signature mechanic so no two encounters play alike:
 Leviathan turns the tide mid-fight (the arena floods and drains on its
 roar) · Raikuma FEEDS on powered trunks — cut its power to force the lull ·
-Simurgh re-lights the rite braziers as attack telegraphs (the order IS the
-bullet pattern) · Boilrog vents the main (your own budget becomes its
+Simurgh re-lights the rite braziers as attack telegraphs — the order IS the
+bullet pattern (BUILT §6.1) · Boilrog vents the main (your own budget becomes its
 weapon) · Terradon's tremors knock the scale loose · Roc drags the
 storm-cell across the rod field · Magmara rides the conveyors (§6.2).
 AUTHORING RULE: every unbuilt planet's §6 entry declares its guardian
@@ -1358,8 +1391,10 @@ Each pass = v2 interaction conversion + the redesign + guardian retrofit
    for the remaining three passes).
 2. **Water** — S2 spin/flow-graph deduction; Leviathan tide-turn retrofit
    (§6.4 REWORK).
-3. **Fire** — S1 forensic rite rolled per run, S3 route choice; Simurgh
-   brazier-telegraph retrofit (§6.1 REWORK).
+3. ✅ **Fire** — S1 forensic rite rolled per run (three partial evidence
+   channels, solver-guaranteed unique, Mask-optional), S3 nave/cloister
+   censer-route decision, Simurgh brazier-telegraph retrofit (§6.1 REWORK —
+   BUILT 2026-08-11).
 4. **Air** — S1 wake-the-winds, S3 storm-rod steering (rings + stabilize
    retire); Roc storm-cell retrofit (§6.11 REWORK). Biggest pass — the
    pilot finally meets the bar the later planets set.
