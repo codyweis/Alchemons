@@ -3,7 +3,7 @@ import 'dart:ui' show Rect;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart'
-    show kSteamStartPressure;
+    show PlanetDungeonGame, StormCircuit, kSteamStartPressure;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -694,13 +694,16 @@ void main() {
         ]),
       );
       expect(lightning.starIndices, {0, 1, 2});
-      // Star 1: the pylon hall threads one bolt-beam through three terminals.
+      // Star 1 (rework): FOUR mirrors, three terminals, and the fulminate
+      // vats the bolt must never cross (the negative constraints).
       final pylon = lightning.rooms['pylon_hall']!;
       expect(pylon.circuitStarIndex, 0);
       expect(pylon.beamEmitters.length, 1); // the pylon
-      expect(pylon.beamMirrors.length, 3);
+      expect(pylon.beamMirrors.length, 4);
       expect(pylon.beamReceivers.length, 3); // the three terminals
       expect(pylon.beamConverters, isEmpty, reason: 'no Fire conversion in S1');
+      expect(pylon.fulminateVats.length, 2,
+          reason: 'the negative constraints that make it unique');
       // Star 2: three sockets (one needs heat) fed by storm-cells.
       final works = lightning.rooms['cloud_works']!;
       expect(works.circuitStarIndex, 1);
@@ -709,15 +712,133 @@ void main() {
       expect(lightning.rooms['mirror_gallery']!.stormCells.length, 3);
       // Star 3: the Storm Spire beam puzzle + Raikuma beyond the gate.
       final maze = lightning.rooms['overload_maze']!;
-      expect(maze.beamEmitters.length, 3); // multiple Wind Vents
-      expect(maze.beamConverters.length, 3); // multiple Fire-converter spots
+      expect(maze.beamEmitters.length, 4); // Wind Vents (incl. the decoy VD)
+      expect(maze.beamConverters.length, 4); // converters (incl. the decoy FD)
       expect(maze.beamMirrors.length, 5);
       expect(maze.beamReceiver, isNotNull); // the Storm Tower
       expect(maze.poweredBarriers.length, 1, reason: 'just the core gate');
       final guardian = lightning.rooms['storm_core']!.guardian;
       expect(guardian, isNotNull);
       expect(guardian!.encounter?.mysticId, 'Raikuma');
+      // The Raikuma feed retrofit needs the grounding spike in the arena.
+      expect(lightning.rooms['storm_core']!.coreBreaker, isNotNull);
     });
+
+    test('Lightning zero-sum dynamo is well-formed', () {
+      final lightning = kPlanetDungeonLayouts['Lightning']!;
+      final hubId = lightning.dynamoRoomId;
+      expect(hubId, isNotNull, reason: 'the dynamo hub must be declared');
+      final hub = lightning.rooms[hubId];
+      expect(hub, isNotNull);
+      expect(lightning.dynamoTrunks.length, 4,
+          reason: 'pylon / cloud / vault / core');
+      final ids = lightning.dynamoTrunks.map((t) => t.id).toSet();
+      expect(ids.length, 4, reason: 'trunk ids must be unique');
+      expect(ids, contains(lightning.initialTrunkId),
+          reason: 'the initial trunk must exist');
+      // The treasury hoards the storm: the run starts on the VAULT trunk so
+      // every star wing begins dark and the vault begins sealed.
+      final initial = lightning.dynamoTrunks
+          .firstWhere((t) => t.id == lightning.initialTrunkId);
+      expect(
+        initial.roomIds.any((r) => lightning.rooms[r]!.vaultBolt != null),
+        isTrue,
+        reason: 'the initial trunk must be the vault trunk',
+      );
+      final claimed = <String>{};
+      for (final t in lightning.dynamoTrunks) {
+        expect(t.roomIds, isNotEmpty);
+        for (final rid in t.roomIds) {
+          expect(lightning.rooms.containsKey(rid), isTrue,
+              reason: 'trunk ${t.id} feeds unknown room $rid');
+          expect(claimed.add(rid), isTrue,
+              reason: '$rid must belong to exactly one trunk');
+        }
+        // Breakers stand inside the hub, off its walls.
+        expect(hub!.bounds.contains(t.breakerPosition), isTrue,
+            reason: 'breaker of ${t.id} must stand inside the dynamo court');
+        expect(
+          hub.walls.any((w) => w.inflate(16).contains(t.breakerPosition)),
+          isFalse,
+          reason: 'breaker of ${t.id} must not stand in a wall',
+        );
+        // A frozen-lit trunk must freeze on ITS wing's own star.
+        final freeze = t.freezeLitStarIndex;
+        if (freeze != null) {
+          final wingStars = <int>{
+            for (final rid in t.roomIds) ...[
+              if (lightning.rooms[rid]!.circuitStarIndex != null)
+                lightning.rooms[rid]!.circuitStarIndex!,
+              if (lightning.rooms[rid]!.guardian != null)
+                lightning.rooms[rid]!.guardian!.starIndex,
+            ],
+          };
+          expect(wingStars, contains(freeze),
+              reason: '${t.id} freezes on a star its wing does not award');
+        }
+      }
+      // The hub and the entrance are the always-lit spine — on no trunk.
+      expect(claimed, isNot(contains(hubId)));
+      expect(claimed, isNot(contains(lightning.entranceRoomId)));
+      // Every star wing rides a trunk (the zero-sum question touches all).
+      for (final room in lightning.rooms.values) {
+        if (room.circuitStarIndex != null ||
+            room.guardian != null ||
+            room.vaultBolt != null) {
+          expect(claimed, contains(room.id),
+              reason: '${room.id} must belong to a trunk');
+        }
+      }
+      // The vault sanctum: the bolt is the sole mouth, and the cache sits
+      // inside (unreachable while the trunk burns — collision-enforced).
+      final vaultRoom =
+          lightning.rooms.values.firstWhere((r) => r.vaultBolt != null);
+      expect(vaultRoom.vaultCache, isNotNull);
+      expect(vaultRoom.walls, isNotEmpty,
+          reason: 'the sanctum needs its walls');
+      // No gate:<element>_<family> id is declared for Lightning — the planet
+      // stays hard-gate free after the rework (element-only at full power).
+    });
+
+    test(
+      'Lightning S1 threading is PROVABLY UNIQUE (brute-forced against the '
+      'real beam engine)',
+      () {
+        final game = _lightningProbe();
+        final result = game.solvePylonThreading();
+        expect(result.searched, 16, reason: '4 mirrors → 2^4 configurations');
+        expect(
+          result.satisfying,
+          1,
+          reason: 'exactly ONE orientation set may thread all three '
+              'terminals without crossing a fulminate vat',
+        );
+        expect(
+          result.solution,
+          {'pa': 1, 'pb': 0, 'pc': 0, 'pd': 1},
+          reason: 'the authored solution: pa=\\ pd=\\ pc=/ pb=/',
+        );
+      },
+    );
+
+    test(
+      'Lightning S3 decoy pair is geometrically impossible; the true pair '
+      'is not',
+      () {
+        final game = _lightningProbe();
+        // The decoy: vent VD (index 3) + converter FD (index 3) — dead-
+        // aligned, and a lie in every one of the 32 conductor configurations.
+        final decoy = game.solveStormSpire(ventIndex: 3, converterIndex: 3);
+        expect(decoy.searched, 32, reason: '5 mirrors → 2^5 configurations');
+        expect(decoy.satisfying, 0,
+            reason: 'no conductor waits beyond FD — the bolt dies in the '
+                'ceiling under every configuration');
+        // The viable chain: vent VA (0) + converter FA (0) reaches the tower.
+        final viable = game.solveStormSpire(ventIndex: 0, converterIndex: 0);
+        expect(viable.satisfying, greaterThan(0),
+            reason: 'VA + FA must remain routable');
+      },
+    );
 
     test('Steam dungeon has its three star chambers and full 3 stars', () {
       final steam = kPlanetDungeonLayouts['Steam']!;
@@ -861,3 +982,15 @@ void main() {
     });
   });
 }
+
+/// A bare Lightning game used only to drive the public brute-force solvers —
+/// they exercise the REAL beam engine over the authored layout, so the
+/// uniqueness proof can never drift from what the game actually computes.
+PlanetDungeonGame _lightningProbe() => PlanetDungeonGame(
+      element: 'Lightning',
+      party: const [],
+      initialStarMask: 0,
+      onStarEarned: (_) {},
+      onPlayerDown: () {},
+      onChanged: () {},
+    );

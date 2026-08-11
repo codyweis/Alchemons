@@ -1,29 +1,35 @@
 // lib/games/planet_dungeon/planet_dungeon_game_lightning.dart
 //
-// VOLTARA — the Storm Circuit. The Lightning planet's puzzle logic + rendering,
-// as a part of planet_dungeon_game.dart (it shares the engine's private state
-// the same way the Fire cathedral, Water temple and Earth barrow do).
+// VOLTARA — the Storm Circuit, reworked to the ZERO-SUM DYNAMO (docs §6.3
+// REWORK / §9.1 item 1). The Lightning planet's puzzle logic + rendering, as a
+// part of planet_dungeon_game.dart (it shares the engine's private state the
+// same way the Fire cathedral, Water temple and Earth barrow do).
 //
-// World rule: *the dungeon IS a living circuit.* Charge floods from energized
-// SOURCE pylons across conductive links every tick; rotatable conductor MIRRORS
-// route it (only the links of their current orientation conduct); SINKS light;
-// powered doors open while unpowered ones close.
+// World rule: *the dungeon is a living circuit with ONE heart.* The hub dynamo
+// feeds exactly one trunk at a time; charging a trunk breaker (any Lightning —
+// element-only) routes the whole output down that wing and DARKENS every other
+// wing. Dead segments stay walkable but unlit, spark wisps prowling. The
+// run-long question: where does the power go, and what must I do in the dark?
 //  • Entry — the way in is a dead bus. Any Lightning charges the gate pylon
 //    and, once power reaches the sink, the passage lights open (one-time, kept
 //    across death like the other planets' entry rites).
-//  • Star 1 (Circuit) — the pylon hall: any Lightning charges the source (a
-//    DECAYING window, the same length for every family — the pylon is
-//    ELEMENT-ONLY), then two conductor mirrors must be turned so power reaches
-//    all THREE terminals at once.
-//  • Star 2 (Storm) — the cloud works: storm-cell echoes (bared by insight in
-//    the mirror gallery) are herded onto sockets; the anvil socket ignites only
-//    when a Fire creature heats its cell (Air+Fire→Lightning → a Thundercloud
-//    source). Every energized socket feeds the grid; all three banks the star.
-//  • Star 3 (Overload) — behind the breaker gate: any Lightning charges the
-//    maze pylon, a mirror routes the pulse so one corridor's doors open — cross
-//    to the storm core before the charge dies → Raikuma (calm or defeat).
-//  • Lost Maxim — the THUNDERBOLT: power EVERY maze door at once inside a single
-//    charge window (far harder than the star) earns Heraclitus.
+//  • Star 1 (Circuit) — the pylon hall: with its trunk fed, one bolt must
+//    thread ALL THREE terminals via four conductor mirrors — and never cross a
+//    fulminate vat (a cooked vat detonates and trips the dynamo dark). The
+//    threading is PROVABLY UNIQUE (brute-forced in the layout test).
+//  • Star 2 (Storm) — the cloud works: storm-cell echoes (bared in the mirror
+//    gallery) are herded onto sockets; the anvil socket ignites only when a
+//    Fire creature heats its cell (Air+Fire→Lightning → a Thundercloud). The
+//    works only sing — and the star only banks — while their trunk burns.
+//  • The vault — capacitor_vault only opens UNPOWERED: the bolt holds while
+//    its trunk burns and falls open in the dark. Cut the very trunk you stand
+//    in and walk the dead segment back to the fallen bolt.
+//  • Star 3 (Overload) — behind the breaker gate: element stationing lights
+//    the Storm Tower (one dead-aligned vent/converter pair is a geometric
+//    lie). Beyond, Raikuma FEEDS on the powered core trunk — ground it at the
+//    spike to force the lull; it seizes the trunk back when the window shuts.
+//  • Lost Maxim — the THUNDERBOLT: light the Storm Tower with a Lightning
+//    HORN standing among the conductors. Heraclitus, lit forever.
 
 part of 'planet_dungeon_game.dart';
 
@@ -38,9 +44,38 @@ const String kLightningThunderboltMaxim =
 /// works can herd. Their staging order maps to the staging slots.
 const List<String> _kCircuitCellIds = ['cell_spark', 'cell_veil', 'cell_anvil'];
 
-/// How long a charged pylon holds. ELEMENT-ONLY: every Lightning family gets
-/// the same full window.
+/// How long a charged (non-latching) pylon holds — the arc-gate entry rite.
 const double _kChargeWindow = 8.0;
+
+// ── Zero-sum feel knobs ────────────────────────────────────
+/// Beam-to-vat contact radius (matches terminal tolerance; the solver uses
+/// the same number, so game and proof can never drift apart).
+const double _kVatRadius = 20.0;
+
+/// Seconds a bolt may cook a fulminate vat before it detonates.
+const double _kVatFuseSeconds = 1.6;
+
+/// Seconds for a wing to fade dark / relight (eased, never snapped).
+const double _kDarkFadeSeconds = 1.2;
+
+/// Peak darkness-overlay alpha — capped ≈0.5 so the storm shader still
+/// breathes through the floor (FLOOR TRANSLUCENCY rule).
+const double _kDarkMaxAlpha = 0.52;
+
+/// Seconds for the vault bolt to slide open / slam home (eased).
+const double _kBoltEaseSeconds = 1.1;
+
+/// Dark dead segments: prowl top-up interval and max concurrent spark wisps
+/// (atmosphere-pressure, never a wall).
+const double _kDarkWispIntervalSeconds = 7.0;
+const int _kDarkWispMax = 2;
+
+/// Raikuma's forced vulnerability window after the core trunk is grounded.
+const double _kRaikumaLull = 3.4;
+const double _kRaikumaLullEnraged = 2.4;
+
+double _stepToward(double cur, double target, double delta) =>
+    cur < target ? min(target, cur + delta) : max(target, cur - delta);
 
 extension StormCircuit on PlanetDungeonGame {
   // ── Lifecycle ────────────────────────────────────────────
@@ -53,16 +88,60 @@ extension StormCircuit on PlanetDungeonGame {
     _poweredNodes.clear();
     energizedSockets.clear();
     _anvilCellWaiting.clear();
+    _vatFuse.clear();
     _beamLatched = false;
-    // The pylon beam stays on once its star is banked (knowledge persists).
-    pylonBeamOn = hasStar(0);
+    _raikumaFed = false;
+    _raikumaLullLeft = 0;
+    _darkWispTimer = 0;
+    _circuitPrevRoomId = null;
+    _dynamoSwing = 1.0;
+    // The dynamo idles into the vault trunk — the treasury hoards the storm.
+    activeTrunk = layout.initialTrunkId;
+    // Seed darkness/bolt state instantly (no fade-in on spawn or death).
+    _trunkDark.clear();
+    for (final t in layout.dynamoTrunks) {
+      for (final rid in t.roomIds) {
+        _trunkDark[rid] = circuitRoomLit(rid) ? 0.0 : 1.0;
+      }
+    }
+    for (final r in layout.rooms.values) {
+      if (r.vaultBolt != null) {
+        _vaultBoltOpen = circuitRoomLit(r.id) ? 0.0 : 1.0;
+      }
+    }
     // The Thunderbolt's permanent glow survives death (it's a found secret).
     _thunderboltGlow = discoveredClouds.contains(kLightningThunderboltEggId)
         ? 1.0
         : 0.0;
   }
 
-  // ── Beam-reflection maze (Star 3) ────────────────────────
+  // ── Zero-sum trunk state ─────────────────────────────────
+
+  DynamoTrunk? _trunkForRoom(String roomId) {
+    for (final t in layout.dynamoTrunks) {
+      if (t.roomIds.contains(roomId)) return t;
+    }
+    return null;
+  }
+
+  /// Is [roomId] lit? Rooms off every trunk (gate, hub) are always lit; a
+  /// trunk wing is lit while the dynamo feeds it — or forever once its star
+  /// banks (solved is solved, the rule the circuit rooms already obey).
+  bool circuitRoomLit(String roomId) {
+    final t = _trunkForRoom(roomId);
+    if (t == null) return true;
+    final freeze = t.freezeLitStarIndex;
+    if (freeze != null && hasStar(freeze)) return true;
+    return activeTrunk == t.id;
+  }
+
+  /// Raikuma's feed state (read-only, for tests/diagnostics).
+  bool get raikumaFed => _raikumaFed;
+
+  /// The vault bolt's eased openness (read-only, for tests/diagnostics).
+  double get vaultBoltOpenness => _vaultBoltOpen;
+
+  // ── Beam stationing helpers (Star 3) ─────────────────────
 
   /// True while a creature of [element] is stationed on the pad at [pos]
   /// (active OR — the swap-control trick — held there while you control another).
@@ -112,18 +191,55 @@ extension StormCircuit on PlanetDungeonGame {
     return null;
   }
 
-  // ── Star 1: thread one bolt-beam through all three terminals ──
+  // ── Star 1: thread one bolt through all three terminals ──
 
   void _updatePylonBeam(DungeonRoom room, double dt) {
-    if (_thunderboltGlow > 0 && _thunderboltGlow < 1.0) {
-      _thunderboltGlow = (_thunderboltGlow + dt * 0.6).clamp(0.0, 1.0);
-    }
     final idx = room.circuitStarIndex;
     if (idx == null || hasStar(idx)) return; // solved → frozen lit
-    if (!pylonBeamOn) return; // the pylon isn't charged yet → no live beam
+    if (!circuitRoomLit(room.id)) {
+      // The hall is dark — the emitter is dead and the vats cool off.
+      _coolVatFuses(dt);
+      return;
+    }
     final vent = room.beamEmitters.first;
     final path = _computeBeam(room, vent);
-    // The star banks when the single beam lies on EVERY terminal at once.
+
+    // Fulminate vats: a bolt lying on one COOKS it — a short seething fuse,
+    // then it detonates (spark wisps) and the dynamo trips dark for safety.
+    var anyCrossed = false;
+    for (final vat in room.fulminateVats) {
+      if (_beamHits(path, vat.position, _kVatRadius)) {
+        anyCrossed = true;
+        final fuse = (_vatFuse[vat.id] ?? 0) + dt;
+        _vatFuse[vat.id] = fuse;
+        if (fuse >= _kVatFuseSeconds) {
+          _vatFuse.clear();
+          _spawnAlchemyBurst(
+            vat.position,
+            producedElement: 'Lightning',
+            unstable: true,
+            particleCount: 30,
+            intensity: 1.3,
+          );
+          spawnWispWave(
+            element: 'Lightning',
+            center: vat.position,
+            count: 2,
+            unstable: true,
+            announce: false,
+          );
+          activeTrunk = null;
+          _dynamoSwing = 0;
+          _setHint('The fulminate flashes — the dynamo trips dark', 3.4);
+          return;
+        }
+      } else {
+        _coolVatFuse(vat.id, dt);
+      }
+    }
+    if (anyCrossed) return; // a bolt cooking a vat can never bank the star
+
+    // The star banks when the single bolt lies on EVERY terminal at once.
     if (room.beamReceivers.isNotEmpty &&
         room.beamReceivers.every((t) => _beamHits(path, t))) {
       _setHint('One bolt strings every terminal — the circuit runs true');
@@ -131,35 +247,29 @@ extension StormCircuit on PlanetDungeonGame {
     }
   }
 
-  bool _tryPylonBeam(DungeonCreature a, DungeonRoom room) {
-    final pylon = room.beamEmitters.first.position;
-    // Charge the pylon (Lightning only) — it latches the beam ON for the run.
-    if ((a.position - pylon).distance <= 52) {
-      if (a.member.element != 'Lightning') {
-        _setHint('Only a Lightning creature wakes the dead pylon');
-        return true;
-      }
-      if (!pylonBeamOn) {
-        // ELEMENT-ONLY: any Lightning wakes the pylon, cleanly and in full.
-        pylonBeamOn = true;
-        _spawnAlchemyBurst(
-          pylon,
-          producedElement: 'Lightning',
-          unstable: true,
-          particleCount: 24,
-          intensity: 1.2,
-        );
-        _setHint('The dead pylon wakes — a bolt leaps from it');
-      } else {
-        _setHint('The pylon already burns — turn the conductors');
-      }
-      return true;
+  void _coolVatFuse(String vatId, double dt) {
+    final fuse = _vatFuse[vatId];
+    if (fuse == null) return;
+    final cooled = fuse - dt * 0.8;
+    if (cooled <= 0) {
+      _vatFuse.remove(vatId);
+    } else {
+      _vatFuse[vatId] = cooled;
     }
-    // Turn a conductor mirror (Lightning only).
+  }
+
+  void _coolVatFuses(double dt) {
+    for (final id in _vatFuse.keys.toList()) {
+      _coolVatFuse(id, dt);
+    }
+  }
+
+  bool _tryPylonBeam(DungeonCreature a, DungeonRoom room) {
+    // Turn a conductor mirror (Lightning only — the storm's own iron).
     for (final m in room.beamMirrors) {
       if ((a.position - m.position).distance <= 52) {
         if (a.member.element != 'Lightning') {
-          _setHint('The conductor is dead iron — only Lightning can turn it');
+          _setBlockedHint('Only Lightning turns the conductor');
           return true;
         }
         mirrorOrient[m.id] = ((mirrorOrient[m.id] ?? 0) + 1) % 2;
@@ -169,19 +279,30 @@ extension StormCircuit on PlanetDungeonGame {
           particleCount: 10,
           intensity: 0.5,
         );
-        _setHint('The conductor turns — the bolt bends the other way');
+        _setHint('The conductor turns — the bolt will bend the other way');
         return true;
       }
+    }
+    // At the emitter: the bolt answers the dynamo now, not a held charge.
+    final vent = room.beamEmitters.first;
+    if ((a.position - vent.position).distance <= 56) {
+      if (circuitRoomLit(room.id)) {
+        _setHint('The emitter already burns — turn the conductors');
+      } else {
+        _setBlockedHint('The hall is dark — the dynamo feeds elsewhere');
+      }
+      return true;
     }
     return false;
   }
 
   void _renderPylonBeam(Canvas canvas, DungeonRoom room) {
     final pylon = room.beamEmitters.first;
-    final on = pylonBeamOn || hasStar(room.circuitStarIndex ?? -1);
+    final on = circuitRoomLit(room.id); // freeze-lit once the star banks
     final path = _computeBeam(room, pylon);
 
-    // The bolt — a jagged lightning line when live, a faint preview when off.
+    // The bolt — a jagged lightning line when live, a faint preview when off
+    // (dark-hall planning: the route can be read even in a dead wing).
     if (path.length >= 2) {
       if (on) {
         for (var i = 0; i + 1 < path.length; i++) {
@@ -208,7 +329,7 @@ extension StormCircuit on PlanetDungeonGame {
       }
     }
 
-    // The pylon.
+    // The emitter pylon.
     canvas.drawCircle(
       pylon.position,
       14,
@@ -229,6 +350,11 @@ extension StormCircuit on PlanetDungeonGame {
     // Mirrors.
     for (final m in room.beamMirrors) {
       _drawBeamMirror(canvas, m, on);
+    }
+
+    // Fulminate vats — the negative constraints, seething when cooked.
+    for (final vat in room.fulminateVats) {
+      _drawFulminateVat(canvas, vat, _vatFuse[vat.id] ?? 0);
     }
 
     // Terminals — lit when the live beam lies on them.
@@ -289,6 +415,55 @@ extension StormCircuit on PlanetDungeonGame {
     );
   }
 
+  /// A fulminate vat: a squat cauldron of volatile charge-salts. Drawn as
+  /// masonry (shadow + body + lit rim — §8), its amber pool whitening and
+  /// flaring as a stray bolt cooks it toward detonation.
+  void _drawFulminateVat(Canvas canvas, FulminateVat vat, double fuse) {
+    final p = vat.position;
+    final seethe = (fuse / _kVatFuseSeconds).clamp(0.0, 1.0);
+    canvas.drawCircle(
+      p + const Offset(0, 3),
+      17,
+      Paint()..color = const Color(0x66000000),
+    );
+    canvas.drawCircle(p, 16, Paint()..color = const Color(0xFF2A2118));
+    canvas.drawCircle(
+      p,
+      16,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..color = Color.lerp(
+          const Color(0xFF8A6E3F),
+          const Color(0xFFFFB46B),
+          seethe,
+        )!,
+    );
+    // The salts: an amber pool that whitens as it cooks (jittering when hot).
+    final jitter = seethe > 0 ? sin(_time * 26) * 1.6 * seethe : 0.0;
+    canvas.drawCircle(
+      p + Offset(jitter, 0),
+      9,
+      Paint()
+        ..color = Color.lerp(
+          const Color(0xFFE9A86B),
+          const Color(0xFFFFF3D0),
+          seethe,
+        )!.withValues(alpha: 0.55 + 0.45 * seethe),
+    );
+    if (_fx.ready && seethe > 0.02) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        p,
+        26 + 20 * seethe,
+        const Color(0xFFFFB46B).withValues(alpha: 0.3 + 0.5 * seethe),
+      );
+    }
+  }
+
+  // ── Star 3: the Storm Spire stationing puzzle ────────────
+
   void _updateBeamMaze(DungeonRoom room, double dt) {
     if (room.beamConverters.isEmpty) {
       _updatePylonBeam(room, dt);
@@ -332,6 +507,8 @@ extension StormCircuit on PlanetDungeonGame {
             particleCount: 34,
             intensity: 1.3,
           );
+          // The Lost Maxim: the tower crowned with a Lightning HORN standing
+          // among the conductors (kept exactly — the maxim and its spirit).
           final horn = creatures.any(
             (c) =>
                 c.alive &&
@@ -355,9 +532,6 @@ extension StormCircuit on PlanetDungeonGame {
     _poweredNodes.clear();
     if (_beamLatched || hasStar(2)) _poweredNodes.add('beam_core');
 
-    if (_thunderboltGlow > 0 && _thunderboltGlow < 1.0) {
-      _thunderboltGlow = (_thunderboltGlow + dt * 0.6).clamp(0.0, 1.0);
-    }
     _maybeWakeRaikuma(room);
   }
 
@@ -367,7 +541,7 @@ extension StormCircuit on PlanetDungeonGame {
     for (final m in room.beamMirrors) {
       if ((a.position - m.position).distance <= 52) {
         if (a.member.element != 'Lightning') {
-          _setHint('The conductor is dead iron — only Lightning can turn it');
+          _setBlockedHint('Only Lightning turns the conductor');
           return true;
         }
         mirrorOrient[m.id] = ((mirrorOrient[m.id] ?? 0) + 1) % 2;
@@ -496,20 +670,97 @@ extension StormCircuit on PlanetDungeonGame {
     return (p - (a + ab * t)).distance;
   }
 
+  // ── Brute-force solvers (public: the layout test's proof engine) ──
+
+  /// Brute-force the pylon-hall threading over every mirror-orientation
+  /// configuration. A configuration SATISFIES when the bolt lies on every
+  /// terminal at once and never crosses a fulminate vat. The layout test
+  /// asserts exactly ONE satisfying configuration (§6.3 "provably unique"),
+  /// checked against the REAL beam engine so game and proof cannot drift.
+  ({int searched, int satisfying, Map<String, int>? solution})
+  solvePylonThreading() {
+    final room = layout.rooms.values.firstWhere(
+      (r) => r.circuitStarIndex == 0 && r.beamEmitters.isNotEmpty,
+    );
+    final mirrors = room.beamMirrors;
+    final saved = Map<String, int>.from(mirrorOrient);
+    var satisfying = 0;
+    Map<String, int>? solution;
+    final configs = 1 << mirrors.length;
+    for (var mask = 0; mask < configs; mask++) {
+      for (var i = 0; i < mirrors.length; i++) {
+        mirrorOrient[mirrors[i].id] = (mask >> i) & 1;
+      }
+      final path = _computeBeam(room, room.beamEmitters.first);
+      final threads = room.beamReceivers.isNotEmpty &&
+          room.beamReceivers.every((t) => _beamHits(path, t));
+      final safe = !room.fulminateVats.any(
+        (v) => _beamHits(path, v.position, _kVatRadius),
+      );
+      if (threads && safe) {
+        satisfying++;
+        solution = {for (final m in mirrors) m.id: mirrorOrient[m.id]!};
+      }
+    }
+    mirrorOrient
+      ..clear()
+      ..addAll(saved);
+    return (searched: configs, satisfying: satisfying, solution: solution);
+  }
+
+  /// Brute-force one Storm-Spire vent/converter pairing over every conductor
+  /// orientation: in how many configurations does that pairing's converted
+  /// bolt reach the tower? The decoy pair must return ZERO — its elimination
+  /// is mirror geometry, not trial-and-error.
+  ({int searched, int satisfying}) solveStormSpire({
+    required int ventIndex,
+    required int converterIndex,
+  }) {
+    final room = layout.rooms.values.firstWhere(
+      (r) => r.beamConverters.isNotEmpty,
+    );
+    final vent = room.beamEmitters[ventIndex];
+    final converter = room.beamConverters[converterIndex];
+    final recv = room.beamReceiver;
+    final mirrors = room.beamMirrors;
+    final saved = Map<String, int>.from(mirrorOrient);
+    var satisfying = 0;
+    final configs = 1 << mirrors.length;
+    for (var mask = 0; mask < configs; mask++) {
+      for (var i = 0; i < mirrors.length; i++) {
+        mirrorOrient[mirrors[i].id] = (mask >> i) & 1;
+      }
+      final path = _computeBeam(room, vent);
+      final split = _beamConvertSplit(path, converter);
+      if (split != null && recv != null) {
+        final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
+        if (_beamHits(bolt, recv)) satisfying++;
+      }
+    }
+    mirrorOrient
+      ..clear()
+      ..addAll(saved);
+    return (searched: configs, satisfying: satisfying);
+  }
+
   // ── Per-frame update ─────────────────────────────────────
 
   void _updateCircuit(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isCircuit) return;
 
-    // The overload maze is a beam-reflection puzzle — handled separately.
+    // Zero-sum atmosphere first (darkness ease, bolt ease, wisp prowl) —
+    // it applies to EVERY room, beam puzzles included.
+    _updateTrunkAtmosphere(a, room, dt);
+
+    // The beam rooms (pylon hall + storm spire) are handled separately.
     if (room.beamEmitters.isNotEmpty) {
       _updateBeamMaze(room, dt);
       return;
     }
 
     // RULE (docs §7 — cleared stars + Air's altar pinned to infinity): once a
-    // circuit puzzle's star is BANKED its grid freezes LIT — the charge timer
-    // never runs out, the conductors stay live, the room reads solved forever.
+    // circuit puzzle's star is BANKED its grid freezes LIT — the room reads
+    // solved forever.
     if (room.circuitStarIndex != null && _roomCleared(room)) {
       _poweredNodes
         ..clear()
@@ -548,22 +799,21 @@ extension StormCircuit on PlanetDungeonGame {
       _circuitChargeMax.remove(id);
     }
 
-    // Re-assert latching sources whose socket is energized (so power survives a
-    // room exit/return and never decays).
+    // Re-assert latching sources whose socket is energized (so socket state
+    // survives a room exit/return and never decays).
     for (final sock in room.cellSockets) {
       if (energizedSockets.contains(sock.id)) {
         circuitCharge[sock.energizesNodeId] = double.infinity;
       }
     }
 
-    // Recompute the live power set for THIS room.
-    _poweredNodes
-      ..clear()
-      ..addAll(_computePowered(room));
-
-    if (_thunderboltGlow > 0 && _thunderboltGlow < 1.0) {
-      _thunderboltGlow = (_thunderboltGlow + dt * 0.6).clamp(0.0, 1.0);
-    }
+    // Recompute the live power set for THIS room — ZERO-SUM: a wing whose
+    // trunk the dynamo is not feeding computes DEAD, whatever its sources
+    // hold. The socket state persists; the grid just has nothing to sing
+    // through until the dynamo comes back.
+    final lit = circuitRoomLit(room.id);
+    _poweredNodes.clear();
+    if (lit) _poweredNodes.addAll(_computePowered(room));
 
     // Entry rite: the dead bus lights → the passage opens.
     if (room.id == layout.entranceRoomId &&
@@ -602,9 +852,11 @@ extension StormCircuit on PlanetDungeonGame {
       }
     }
 
-    // If a barrier slams shut on a creature (charge died mid-corridor), drift it
-    // to the nearest open footing instead of trapping it. Once the Overload Star
-    // is banked the breakers stay open for good, so this never fires then.
+    // The vault bolt: refusal lean + never trapping a creature in its slot.
+    if (room.vaultBolt != null) _updateVaultBolt(a, room);
+
+    // If a barrier slams shut on a creature, drift it to the nearest open
+    // footing instead of trapping it.
     if (!_fallRecovering && !hasStar(2)) {
       for (final bar in room.poweredBarriers) {
         if (_poweredNodes.contains(bar.nodeId)) continue;
@@ -629,42 +881,138 @@ extension StormCircuit on PlanetDungeonGame {
       return;
     }
 
-    // Star 1 / Star 2: bank when this room's win condition is met.
+    // Star 1 / Star 2: bank when this room's win condition is met — and its
+    // trunk is FED (a dark wing can be staged, but never sung).
     final starIdx = room.circuitStarIndex;
     if (starIdx != null && !hasStar(starIdx)) {
       if (room.cellSockets.isNotEmpty) {
-        // Storm Star — every socket energized.
-        if (room.cellSockets.every((s) => energizedSockets.contains(s.id))) {
+        final staged =
+            room.cellSockets.every((s) => energizedSockets.contains(s.id));
+        if (staged && lit) {
           _setHint('Three storm-cells sing into the grid — the works light up');
           earnStar(starIdx);
+        } else if (staged && !lit) {
+          // Every cell seated in a dead wing: the refusal names what's
+          // missing (§5.6 BLOCKED — attempt-edged by the state itself).
+          _setBlockedHintOnce(
+            'circuit:works_dark',
+            'The works are dark — the sockets wait on the dynamo',
+          );
         }
       } else {
-        // Circuit Star — every sink powered together.
+        // Circuit Star fallback — every sink powered together.
         final sinks = room.circuitNodes.where(
           (n) => n.kind == CircuitNodeKind.sink,
         );
-        if (sinks.isNotEmpty && sinks.every((n) => _poweredNodes.contains(n.id))) {
+        if (lit &&
+            sinks.isNotEmpty &&
+            sinks.every((n) => _poweredNodes.contains(n.id))) {
           _setHint('Power runs true to every terminal at once');
           earnStar(starIdx);
         }
       }
     }
 
-    // Star 3 / the Thunderbolt egg: the overload maze.
-    if (room.poweredBarriers.isNotEmpty) {
-      _maybeEarnThunderbolt(room);
-    }
-
     // Reaching the storm core wakes Raikuma.
     _maybeWakeRaikuma(room);
   }
+
+  /// Darkness/bolt easing, the dynamo swing, the thunderbolt glow, and the
+  /// dark-segment spark-wisp prowl. Runs for every Lightning room each frame.
+  void _updateTrunkAtmosphere(DungeonCreature a, DungeonRoom room, double dt) {
+    for (final t in layout.dynamoTrunks) {
+      for (final rid in t.roomIds) {
+        final target = circuitRoomLit(rid) ? 0.0 : 1.0;
+        _trunkDark[rid] = _stepToward(
+          _trunkDark[rid] ?? target,
+          target,
+          dt / _kDarkFadeSeconds,
+        );
+      }
+    }
+    _dynamoSwing = min(1.0, _dynamoSwing + dt / 0.9);
+    for (final r in layout.rooms.values) {
+      if (r.vaultBolt == null) continue;
+      final target = circuitRoomLit(r.id) ? 0.0 : 1.0;
+      _vaultBoltOpen = _stepToward(_vaultBoltOpen, target, dt / _kBoltEaseSeconds);
+    }
+    if (_thunderboltGlow > 0 && _thunderboltGlow < 1.0) {
+      _thunderboltGlow = (_thunderboltGlow + dt * 0.6).clamp(0.0, 1.0);
+    }
+
+    // Spark wisps prowl the dead segment the party is walking — modest
+    // numbers on a slow clock: atmosphere-pressure, never a wall. The
+    // guardian's arena keeps its own consequence layer.
+    if (_circuitPrevRoomId != room.id) {
+      _circuitPrevRoomId = room.id;
+      _darkWispTimer = 0.8; // a beat after stepping into the dark
+    }
+    final dark = (_trunkDark[room.id] ?? 0) > 0.6;
+    if (!dark || room.guardian != null) return;
+    _darkWispTimer -= dt;
+    if (_darkWispTimer > 0) return;
+    _darkWispTimer = _kDarkWispIntervalSeconds;
+    final live = combatEnemies.where((e) => !e.isDead).length;
+    if (live >= _kDarkWispMax) return;
+    spawnWispWave(
+      element: 'Lightning',
+      center: a.position,
+      count: _kDarkWispMax - live,
+      announce: false,
+    );
+    _setAmbientHint('Spark wisps prowl the dead wires');
+  }
+
+  /// Is the vault bolt solid at this instant? Shut while the trunk burns, and
+  /// still shut while the eased slide has not yet cleared the doorway.
+  bool _vaultBoltBlocked(DungeonRoom room) =>
+      circuitRoomLit(room.id) || _vaultBoltOpen < 0.55;
+
+  void _updateVaultBolt(DungeonCreature a, DungeonRoom room) {
+    final bolt = room.vaultBolt!;
+    final shut = _vaultBoltBlocked(room);
+    final keep = <String>{};
+    if (shut && bolt.inflate(30).contains(a.position)) {
+      keep.add('circuit:vault_bolt');
+      _setBlockedHintOnce(
+        'circuit:vault_bolt',
+        'The vault bolt holds while this trunk burns',
+      );
+    }
+    _releaseBlockedExcept('circuit:vault_bolt', keep);
+    // The bolt slamming home must never trap a creature inside its slot.
+    if (!_fallRecovering &&
+        shut &&
+        bolt.inflate(PlanetDungeonGame._radius - 2).contains(a.position)) {
+      _beginFallRecovery(
+        a,
+        Offset(a.position.dx, bolt.bottom + PlanetDungeonGame._radius + 6),
+        hint: 'The bolt slams home — the surge throws you clear',
+      );
+    }
+  }
+
+  // ── Raikuma feeds on the powered trunk (§7 retrofit) ─────
 
   void _maybeWakeRaikuma(DungeonRoom room) {
     final g = room.guardian;
     if (g == null || guardianAwake || hasStar(g.starIndex)) return;
     guardianAwake = true;
     guardianHp = PlanetDungeonGame.maxGuardianHp;
-    _setHint('You reach the storm core — Raikuma uncoils from the grid', 4.2);
+    final trunk = _trunkForRoom(room.id);
+    if (trunk != null && !isRaid) {
+      // The guardian SEIZES the dynamo as it wakes: the core trunk surges
+      // live and Raikuma drinks — no lull until the trunk is grounded.
+      activeTrunk = trunk.id;
+      _raikumaFed = true;
+      _dynamoSwing = 0;
+      _setHint(
+        'Raikuma uncoils from the grid — and drinks the powered trunk',
+        4.2,
+      );
+    } else {
+      _setHint('You reach the storm core — Raikuma uncoils from the grid', 4.2);
+    }
     spawnWispWave(
       element: 'Lightning',
       center: g.position,
@@ -674,26 +1022,77 @@ extension StormCircuit on PlanetDungeonGame {
     );
   }
 
-  void _maybeEarnThunderbolt(DungeonRoom room) {
-    if (discoveredClouds.contains(kLightningThunderboltEggId)) return;
-    final allLit = room.poweredBarriers.every(
-      (b) => _poweredNodes.contains(b.nodeId),
-    );
-    if (!allLit) return;
-    _discoverCloud(kLightningThunderboltEggId);
-    _thunderboltGlow = 0.001;
-    _setHint(
-      'Every door of the maze blazes at once. $kLightningThunderboltMaxim '
-      '— the grid will never go dark here again.',
-      7.5,
-    );
+  /// Called from the shared guardian loop (one `_isCircuit`-guarded line in
+  /// `_updateAltar`): while Raikuma feeds on its powered trunk there is NO
+  /// lull; grounding the trunk opens a timed vulnerability window, and when
+  /// the window shuts Raikuma seizes the trunk back. Raids (no trunks, no
+  /// spike in the generated arena) keep the shared rage/lull cycle.
+  void _applyRaikumaFeed(DungeonRoom room, double dt) {
+    final g = room.guardian;
+    if (g == null || room.coreBreaker == null || isRaid) return;
+    if (hasStar(g.starIndex)) return;
+    final trunk = _trunkForRoom(room.id);
+    if (trunk == null) return;
+    if (activeTrunk == trunk.id) {
+      // Feeding: whatever powered the trunk — the wake-seize, a re-seize, or
+      // the player's own routing — the guardian drinks and never lulls.
+      _raikumaFed = true;
+      guardianVulnerable = false;
+      return;
+    }
+    if (_raikumaFed) {
+      // The trunk just died under it — the forced window opens.
+      _raikumaFed = false;
+      _raikumaLullLeft = _rocEnraged ? _kRaikumaLullEnraged : _kRaikumaLull;
+    }
+    _raikumaLullLeft -= dt;
+    if (_raikumaLullLeft <= 0) {
+      // The window closes: Raikuma seizes the trunk back and feeds again.
+      _raikumaFed = true;
+      activeTrunk = trunk.id;
+      _dynamoSwing = 0;
+      guardianVulnerable = false;
+      _setHint('Raikuma drinks — the core trunk surges back to life', 2.8);
+    } else {
+      guardianVulnerable = true;
+    }
+  }
+
+  /// The grounding spike: a Lightning creature cuts the core trunk mid-fight,
+  /// forcing Raikuma's vulnerability window. Checked BEFORE the guardian's
+  /// own interaction catch (the spike sits inside the guardian's radius).
+  bool _tryCoreBreaker(DungeonCreature a) {
+    final room = currentRoom;
+    final spike = room.coreBreaker;
+    if (spike == null || isRaid) return false;
+    if ((a.position - spike).distance > 56) return false;
+    if (a.member.element != 'Lightning') {
+      _setBlockedHint('The grounding spike answers only Lightning');
+      return true;
+    }
+    final g = room.guardian;
+    if (g == null || !guardianAwake || hasStar(g.starIndex)) {
+      _setHint('The spike is quiet — nothing drinks the trunk now');
+      return true;
+    }
+    if (!_raikumaFed) {
+      _setHint('The trunk is already dead — strike while Raikuma reels');
+      return true;
+    }
+    activeTrunk = null;
+    _dynamoSwing = 0;
     _spawnAlchemyBurst(
-      room.bounds.center,
+      spike,
       producedElement: 'Lightning',
       unstable: true,
-      particleCount: 40,
-      intensity: 1.4,
+      particleCount: 26,
+      intensity: 1.2,
     );
+    _setHint(
+      'The spike bites — the trunk dies and Raikuma reels into the lull',
+      3.2,
+    );
+    return true;
   }
 
   // ── Action button ────────────────────────────────────────
@@ -701,13 +1100,20 @@ extension StormCircuit on PlanetDungeonGame {
   bool _tryCircuit(DungeonCreature a) {
     if (!_isCircuit) return false;
     final room = currentRoom;
+
+    // 0) The dynamo breakers — the zero-sum trunk selector.
+    if (room.id == layout.dynamoRoomId && _trySelectTrunk(a, room)) {
+      return true;
+    }
+
     if (room.beamEmitters.isNotEmpty) return _tryBeamMaze(a, room);
     if (_roomCleared(room)) return false;
 
-    // 1) Charge / heat a source pylon you're standing at.
+    // 1) Charge a (non-latching) source pylon you're standing at — the entry
+    // rite's dead bus.
     for (final node in room.circuitNodes) {
       if (node.kind != CircuitNodeKind.source) continue;
-      if (node.latching) continue; // sockets, not Horn-charged
+      if (node.latching) continue; // sockets, not charge-driven
       if ((a.position - node.position).distance > 52) continue;
       return _chargePylon(a, node);
     }
@@ -727,7 +1133,7 @@ extension StormCircuit on PlanetDungeonGame {
       if (a.member.element == 'Fire') {
         return _heatAnvil(a, sock);
       }
-      _setHint('The anvil-cell is cold — it needs a Fire creature\'s heat');
+      _setBlockedHint('The anvil-cell answers only Fire');
       return true;
     }
 
@@ -759,9 +1165,43 @@ extension StormCircuit on PlanetDungeonGame {
     return false;
   }
 
+  /// Throw a trunk breaker at the dynamo. Any Lightning (element-only): the
+  /// selected wing wakes, every other goes dark; throwing the live breaker
+  /// again grounds the dynamo entirely.
+  bool _trySelectTrunk(DungeonCreature a, DungeonRoom room) {
+    for (final t in layout.dynamoTrunks) {
+      if ((a.position - t.breakerPosition).distance > 56) continue;
+      if (a.member.element != 'Lightning') {
+        _setBlockedHint('The breaker answers only Lightning');
+        return true;
+      }
+      _dynamoSwing = 0;
+      _spawnAlchemyBurst(
+        t.breakerPosition,
+        producedElement: 'Lightning',
+        unstable: true,
+        particleCount: 20,
+        intensity: 1.0,
+      );
+      if (activeTrunk == t.id) {
+        activeTrunk = null;
+        _setHint('The breaker opens — the dynamo idles, every trunk dark', 3.0);
+      } else {
+        activeTrunk = t.id;
+        _setHint(
+          'The dynamo swings — the ${t.name.toLowerCase()} wakes, '
+          'the rest go dark',
+          3.0,
+        );
+      }
+      return true;
+    }
+    return false;
+  }
+
   bool _chargePylon(DungeonCreature a, CircuitNode node) {
     if (a.member.element != 'Lightning') {
-      _setHint('Only a Lightning creature wakes the dead iron');
+      _setBlockedHint('This dead iron answers only Lightning');
       return true;
     }
     // ELEMENT-ONLY: every Lightning drives the same full, clean charge.
@@ -805,7 +1245,7 @@ extension StormCircuit on PlanetDungeonGame {
     );
     if (sock.requiresHeat) {
       _anvilCellWaiting.add(sock.id);
-      _setHint('The cell rests on the anvil — heat it with Fire to charge it');
+      _setHint('The cell rests cold on the anvil');
     } else {
       energizedSockets.add(sock.id);
       _setHint('The storm-cell socket latches live');
@@ -829,7 +1269,7 @@ extension StormCircuit on PlanetDungeonGame {
     return true;
   }
 
-  // ── Insight (Mask) ───────────────────────────────────────
+  // ── Insight (Mask) — the ONLY channel allowed to teach ──
 
   void _circuitReveal(DungeonCreature a, DungeonRoom room) {
     final tier = revealHintTier(a.member.statIntelligence);
@@ -853,36 +1293,91 @@ extension StormCircuit on PlanetDungeonGame {
       _setHint('Insight bares $found storm-cell echo${found == 1 ? '' : 'es'}');
       return;
     }
-    // Star 1 pylon beam (no converters): thread all three terminals.
+    // Star 1 — the threading, tiered: t0 names the shape, t1 the constraint,
+    // t2 the route itself (the earned, marked answer).
     if (room.beamEmitters.isNotEmpty && room.beamConverters.isEmpty) {
+      if (!circuitRoomLit(room.id)) {
+        _setHint('The hall is dead — the dynamo must feed the pylon trunk');
+        return;
+      }
       _setHint(
         tier >= 2
-            ? 'One bolt must lie across all three terminals at once — turn the '
-                  'conductors so the beam snakes through each'
-            : 'Charge the pylon, then bend the bolt through every terminal',
+            ? 'Thread it sunwise: down the first iron, along the floor, up '
+                  'the far wall — and out ABOVE the vat, never back across it'
+            : tier >= 1
+            ? 'One bolt must lie on all three terminals at once — and never '
+                  'on a fulminate vat'
+            : 'The bolt bends where the conductors will it, and the vats '
+                  'must stay unlit',
       );
       return;
     }
-    // At the Storm Spire, a Mask reads the storm's recipe.
+    // Star 3 — the stationing, tiered: t2 eliminates the decoy by geometry.
     if (room.beamEmitters.isNotEmpty) {
       _setHint(
         tier >= 2
-            ? 'The tower wakes only to lightning — born where the Air beam '
-                  'crosses a stationed Fire; bounce that bolt onto the spire'
-            : 'Station Air on the vent, Fire on the converter, then aim the bolt',
+            ? 'The dead-aligned pair on the east wall is a lie — no conductor '
+                  'waits past its converter; that bolt can only die in the '
+                  'ceiling'
+            : tier >= 1
+            ? 'Air births the beam at a vent; Fire stationed in its path '
+                  'turns it to lightning — only the lightning wakes the tower'
+            : 'The tower drinks only lightning — wind and flame must braid '
+                  'to make it',
       );
       return;
     }
-    if (room.circuitNodes.any((n) => n.kind == CircuitNodeKind.sink)) {
-      _setHint('Charge the pylon, then turn the mirrors until every light holds');
+    // Star 2 — the works.
+    if (room.cellSockets.isNotEmpty) {
+      _setHint(
+        tier >= 1
+            ? 'Herd each echo to a socket — the anvil-cell answers only to '
+                  'Fire\'s heat, and the works sing only while their trunk burns'
+            : 'The sockets want their storm-cells, and the works want the '
+                  'dynamo',
+      );
+      return;
+    }
+    // The dynamo court — the zero-sum rule, read; t2 whispers the vault.
+    if (room.id == layout.dynamoRoomId) {
+      _setHint(
+        tier >= 2
+            ? 'The dynamo owns one trunk at a time — and the vault bolt only '
+                  'falls in a DEAD trunk'
+            : 'The dynamo owns one trunk at a time — what it feeds wakes; '
+                  'the rest go dark',
+      );
+      return;
+    }
+    // The vault — the re-hide, named.
+    if (room.vaultBolt != null) {
+      _setHint('The bolt holds while this trunk burns — kill the power you '
+          'stand in');
+      return;
+    }
+    // The storm core — the feed, named.
+    if (room.guardian != null && guardianAwake) {
+      _setHint('Raikuma drinks the powered trunk — ground it at the spike to '
+          'force the lull');
       return;
     }
     _setHint('${a.member.element} insight finds nothing hidden here');
   }
 
-  // ── Collision: powered barriers ──────────────────────────
+  // ── Collision: powered barriers + the vault bolt ─────────
 
   bool _circuitBlocksAt(Offset center, DungeonRoom room) {
+    // The vault bolt: solid while its trunk burns (or the slide hasn't
+    // cleared the doorway yet).
+    final bolt = room.vaultBolt;
+    if (bolt != null && _vaultBoltBlocked(room)) {
+      if (center.dx > bolt.left - PlanetDungeonGame._radius &&
+          center.dx < bolt.right + PlanetDungeonGame._radius &&
+          center.dy > bolt.top - PlanetDungeonGame._radius &&
+          center.dy < bolt.bottom + PlanetDungeonGame._radius) {
+        return true;
+      }
+    }
     if (room.poweredBarriers.isEmpty) return false;
     // Once the Overload Star is banked the maze stays crossable forever (the
     // breaker never re-locks behind you — solved is solved).
@@ -900,88 +1395,120 @@ extension StormCircuit on PlanetDungeonGame {
     return false;
   }
 
-  // ── Hints ────────────────────────────────────────────────
+  // ── Hints (§5.6): ambient = flavor ONLY, objective = goal ONLY ──
 
   void _circuitAmbientHint(DungeonCreature a, DungeonRoom room) {
-    // Star 1 pylon beam (a beam room with no Fire converters).
-    if (room.beamEmitters.isNotEmpty && room.beamConverters.isEmpty) {
-      if (hasStar(room.circuitStarIndex ?? -1)) return;
-      final pylon = room.beamEmitters.first.position;
-      if (!pylonBeamOn && (a.position - pylon).distance < 56) {
-        _setAmbientHint('Charge this pylon — a single bolt will leap from it');
-      }
+    // Rare atmosphere — no mechanics, no stats, no teaching.
+    if ((_trunkDark[room.id] ?? 0) > 0.6) {
+      _setAmbientHint('Dead wires tick as they cool');
       return;
     }
-    if (room.beamEmitters.isNotEmpty) {
-      if (_beamLatched || hasStar(2)) return;
-      for (final v in room.beamEmitters) {
-        if ((a.position - v.position).distance < 50 &&
-            !_creatureOn('Air', v.position)) {
-          _setAmbientHint('Station Air here — this vent will spit a beam');
-          return;
-        }
-      }
-      for (final c in room.beamConverters) {
-        if ((a.position - c).distance < 50 && !_creatureOn('Fire', c)) {
-          _setAmbientHint(
-            'Station Fire here — a beam passing through becomes lightning',
-          );
-          return;
-        }
-      }
+    if (room.id == layout.dynamoRoomId) {
+      _setAmbientHint('The great rotor never slows');
       return;
     }
-    if (_roomCleared(room)) return;
-    // Standing on an uncharged source pylon.
-    for (final node in room.circuitNodes) {
-      if (node.kind != CircuitNodeKind.source || node.latching) continue;
-      if ((a.position - node.position).distance > 60) continue;
-      if ((circuitCharge[node.id] ?? 0) > 0) return;
-      _setAmbientHint(
-        a.member.element == 'Lightning'
-            ? 'This pylon is dead — charge it'
-            : 'This pylon answers only to Lightning',
-      );
-      return;
+    if (room.circuitNodes.isNotEmpty || room.beamEmitters.isNotEmpty) {
+      _setAmbientHint('Ozone hangs sharp over the conductors');
     }
   }
 
   String? _circuitObjectiveHint(DungeonRoom room) {
-    if (room.circuitStarIndex != null && room.cellSockets.isNotEmpty) {
-      return 'Cloud Works — herd each storm-cell onto a socket; '
-          'heat the anvil-cell with Fire';
+    // Room-entry goal lines — WHAT, never HOW (the method lives with Mask).
+    if (room.id == layout.dynamoRoomId) {
+      return 'Dynamo Court — one dynamo, four dark trunks';
     }
-    if (room.circuitStarIndex != null) {
-      return 'Pylon Hall — charge the pylon, then turn the mirrors so all '
-          'three terminals light at once';
+    if (room.cellSockets.isNotEmpty) {
+      return 'Cloud Works — three sockets stand empty';
     }
-    if (room.beamEmitters.isNotEmpty) {
-      return 'Storm Spire — station Air on the vent + Fire on the converter, '
-          'then turn the mirrors to bounce the bolt onto the tower';
+    if (room.circuitStarIndex != null && room.beamEmitters.isNotEmpty) {
+      return 'Pylon Hall — three dead terminals wait on one bolt';
+    }
+    if (room.beamConverters.isNotEmpty) {
+      return 'Storm Spire — the Storm Tower wakes only to lightning';
     }
     if (room.guardian != null) {
       return 'Storm Core — face Raikuma: calm it, or strike in its lulls';
     }
     if (room.stormCells.isNotEmpty) {
-      return 'Mirror Gallery — insight bares the hidden storm-cells';
+      return 'Mirror Gallery — something stirs behind the glass';
+    }
+    if (room.vaultBolt != null && !discoveredClouds.contains(_vaultCacheId)) {
+      return 'Capacitor Vault — the treasury hoards its charge';
+    }
+    return null;
+  }
+
+  /// The Lightning progress readout (§5.6 STATE LEAVES THE CAPSULE): live
+  /// terminal/socket counters in the star wings, the dynamo's routing state
+  /// everywhere else on the grid.
+  DungeonProgressReadout? _circuitProgressReadout() {
+    final room = currentRoom;
+    // S1: terminals the live bolt is lying on right now.
+    if (room.circuitStarIndex == 0 &&
+        room.beamEmitters.isNotEmpty &&
+        !hasStar(0)) {
+      var lit = 0;
+      if (circuitRoomLit(room.id)) {
+        final path = _computeBeam(room, room.beamEmitters.first);
+        for (final t in room.beamReceivers) {
+          if (_beamHits(path, t)) lit++;
+        }
+      }
+      final total = room.beamReceivers.length;
+      return DungeonProgressReadout(
+        label: 'TERMINALS',
+        value: '$lit/$total',
+        fraction: total == 0 ? null : lit / total,
+      );
+    }
+    // S2: energized sockets.
+    if (room.cellSockets.isNotEmpty && !hasStar(1)) {
+      final total = room.cellSockets.length;
+      final n = room.cellSockets
+          .where((s) => energizedSockets.contains(s.id))
+          .length;
+      return DungeonProgressReadout(
+        label: 'SOCKETS',
+        value: '$n/$total',
+        fraction: total == 0 ? null : n / total,
+      );
+    }
+    // Anywhere on the grid: where the power is, glanceable.
+    if (room.id == layout.dynamoRoomId || _trunkForRoom(room.id) != null) {
+      DynamoTrunk? sel;
+      for (final t in layout.dynamoTrunks) {
+        if (t.id == activeTrunk) sel = t;
+      }
+      return DungeonProgressReadout(
+        label: 'DYNAMO',
+        value: sel?.name ?? 'GROUNDED',
+      );
     }
     return null;
   }
 
   double get _circuitMoodTarget {
+    final dark = _trunkDark[currentRoomId] ?? 0;
+    final double base;
     switch (currentRoomId) {
       case 'overload_maze':
-        return 0.26;
+        base = 0.26;
+        break;
       case 'storm_core':
-        return guardianAwake ? 0.18 : 0.24;
+        base = guardianAwake ? 0.18 : 0.24;
+        break;
       case 'cloud_works':
       case 'mirror_gallery':
-        return 0.5;
+        base = 0.5;
+        break;
       case 'arc_gate':
-        return 0.4;
+        base = 0.4;
+        break;
       default:
-        return 0.46;
+        base = 0.46;
     }
+    // A dead wing reads storm-dark even before the overlay finishes easing.
+    return (base - 0.22 * dark).clamp(0.1, 1.0);
   }
 
   // ── Circuit graph maths ──────────────────────────────────
@@ -1073,9 +1600,29 @@ extension StormCircuit on PlanetDungeonGame {
     }
   }
 
+  /// The zero-sum darkness overlay: one cheap eased tint over a dead wing's
+  /// fabric (alpha-capped so the storm shader still glows through). Drawn
+  /// UNDER creatures/enemies so the living stay readable in the dark.
+  void _renderCircuitDarkness(Canvas canvas, DungeonRoom room) {
+    final d = _trunkDark[room.id] ?? 0;
+    if (d <= 0.01) return;
+    canvas.drawRect(
+      room.bounds.inflate(60),
+      Paint()..color = const Color(0xFF04060C).withValues(alpha: _kDarkMaxAlpha * d),
+    );
+  }
+
   void _renderCircuit(Canvas canvas, DungeonRoom room) {
+    if (room.id == layout.dynamoRoomId) {
+      _renderDynamoCourt(canvas, room);
+      return;
+    }
     if (room.beamEmitters.isNotEmpty) {
       _renderBeamMaze(canvas, room);
+      return;
+    }
+    if (room.vaultBolt != null) {
+      _renderVaultSanctum(canvas, room);
       return;
     }
 
@@ -1117,8 +1664,8 @@ extension StormCircuit on PlanetDungeonGame {
       _drawCircuitNode(canvas, n, live, nodes);
     }
 
-    // 3) Powered barriers (the overload maze doors) — open while powered, and
-    // permanently once the Overload Star is banked (or the Thunderbolt won).
+    // 3) Powered barriers — open while powered, and permanently once the
+    // Overload Star is banked (or the Thunderbolt won).
     final cleared = _roomCleared(room) || hasStar(2) || _thunderboltGlow >= 1.0;
     for (final bar in room.poweredBarriers) {
       final open = cleared || _poweredNodes.contains(bar.nodeId);
@@ -1148,6 +1695,183 @@ extension StormCircuit on PlanetDungeonGame {
           a.position + const Offset(0, -34),
           carriedCloudType!,
         );
+      }
+    }
+  }
+
+  /// The hub: the great rotor, four trunk breakers, and the wing wires that
+  /// carry the chosen trunk's light toward its doors. Everything eases — the
+  /// swing brightens the new wire over ~0.9s, never a snap.
+  void _renderDynamoCourt(Canvas canvas, DungeonRoom room) {
+    final c = room.bounds.center;
+    final live = activeTrunk != null;
+    final swing = Curves.easeOutCubic.transform(_dynamoSwing);
+
+    // Wing wires (under everything): breaker → each door its trunk feeds.
+    for (final t in layout.dynamoTrunks) {
+      final sel = activeTrunk == t.id;
+      final alpha = sel ? 0.25 + 0.75 * swing : 1.0;
+      final wire = Paint()
+        ..strokeCap = StrokeCap.round
+        ..color = sel
+            ? const Color(0xFF9FD4FF).withValues(alpha: 0.85 * alpha)
+            : const Color(0x3354708F)
+        ..strokeWidth = sel ? 3.2 : 1.6;
+      // Rotor → breaker feeder.
+      canvas.drawLine(c, t.breakerPosition, wire);
+      for (final d in room.doors) {
+        if (!t.roomIds.contains(d.targetRoomId)) continue;
+        canvas.drawLine(t.breakerPosition, d.rect.center, wire);
+        if (sel && _fx.ready) {
+          final u = (_time * 1.4 + d.rect.center.dx * 0.01) % 1.0;
+          final bead = Offset.lerp(t.breakerPosition, d.rect.center, u)!;
+          drawGlow(canvas, _fx.glow!, bead, 9, const Color(0xFFE9F6FF));
+        }
+      }
+    }
+
+    // The rotor: brass rings + spinning spokes (faster while feeding).
+    final spin = _time * (live ? 1.7 : 0.5);
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        70,
+        (live ? const Color(0xFF6BA8FF) : const Color(0xFFE9D27A))
+            .withValues(alpha: 0.32),
+      );
+    }
+    canvas.drawCircle(c, 56, Paint()..color = const Color(0xFF1A222E));
+    canvas.drawCircle(
+      c,
+      56,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = const Color(0xFFE9D27A),
+    );
+    canvas.drawCircle(
+      c,
+      40,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = const Color(0x5954708F),
+    );
+    final spoke = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 3
+      ..color = live
+          ? const Color(0xFF9FD4FF).withValues(alpha: 0.85)
+          : const Color(0xFF6E89A6);
+    for (var i = 0; i < 6; i++) {
+      final ang = spin + i * pi / 3;
+      final dir = Offset(cos(ang), sin(ang));
+      canvas.drawLine(c + dir * 12, c + dir * 50, spoke);
+    }
+    canvas.drawCircle(
+      c,
+      9,
+      Paint()
+        ..color = live ? const Color(0xFFBFE6FF) : const Color(0xFF54708F),
+    );
+
+    // The breakers: squat pylons, thrown-in when their trunk is fed.
+    for (final t in layout.dynamoTrunks) {
+      final sel = activeTrunk == t.id;
+      final bp = t.breakerPosition;
+      if (_fx.ready && sel) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          bp,
+          30,
+          const Color(0xFF6BA8FF).withValues(alpha: 0.3 + 0.6 * swing),
+        );
+      }
+      canvas.drawCircle(bp, 15, Paint()..color = const Color(0xFF241B12));
+      canvas.drawCircle(
+        bp,
+        15,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = sel ? const Color(0xFFBFE6FF) : const Color(0xFFE9D27A),
+      );
+      // The blade: eases from open (up-angled) to thrown (flat) on select.
+      final blade = sel ? swing : 0.0;
+      final ang = -0.9 * (1.0 - blade);
+      final dir = Offset(cos(ang), sin(ang));
+      canvas.drawLine(
+        bp + const Offset(-9, 0),
+        bp + const Offset(-9, 0) + dir * 18,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 4
+          ..color = sel ? const Color(0xFFEAF6FF) : const Color(0xFF8FB8E0),
+      );
+      canvas.drawCircle(
+        bp + const Offset(-9, 0),
+        3,
+        Paint()..color = const Color(0xFFBFE6FF),
+      );
+    }
+  }
+
+  /// The capacitor vault: sanctum glow + the vault bolt sliding in its slot.
+  /// The bolt SLIDES aside as its trunk dies (eased, never a snap) and slams
+  /// back home when the power returns.
+  void _renderVaultSanctum(Canvas canvas, DungeonRoom room) {
+    final bolt = room.vaultBolt!;
+    final open = Curves.easeOutCubic.transform(_vaultBoltOpen.clamp(0.0, 1.0));
+
+    // The slot: a faint threshold under the bolt, lit when fallen open.
+    canvas.drawRect(
+      bolt,
+      Paint()
+        ..color = open > 0.55
+            ? const Color(0x224A7FB0)
+            : const Color(0x22101820),
+    );
+    if (open > 0.55 && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        bolt.center,
+        bolt.width * 0.4,
+        const Color(0xFF6BA8FF).withValues(alpha: 0.35 * open),
+      );
+    }
+
+    // The bolt itself, anchored at the west jamb, sliding aside as it opens.
+    final w = bolt.width * (1.0 - open);
+    if (w > 1.5) {
+      final r = Rect.fromLTWH(bolt.left, bolt.top, w, bolt.height);
+      final rr = RRect.fromRectAndRadius(r, const Radius.circular(4));
+      canvas.drawRRect(rr, Paint()..color = const Color(0xFF1B2530));
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = const Color(0xFF6E89A6),
+      );
+      // Arcing energy bars while the trunk burns.
+      if (circuitRoomLit(room.id)) {
+        final spark = Paint()
+          ..color = const Color(0x885FB8FF)
+          ..strokeWidth = 1.4;
+        final n = (r.width / 18).floor();
+        for (var i = 1; i < n; i++) {
+          final x = r.left + r.width * i / n;
+          final jitter = sin(_time * 8 + i) * 3;
+          canvas.drawLine(
+            Offset(x, r.top + 3),
+            Offset(x + jitter, r.bottom - 3),
+            spark,
+          );
+        }
       }
     }
   }
@@ -1221,38 +1945,7 @@ extension StormCircuit on PlanetDungeonGame {
     // Mirrors as 45° plates ( / or \ ).
     final live = vent != null;
     for (final m in room.beamMirrors) {
-      final ang = (mirrorOrient[m.id] ?? 0) == 0 ? -pi / 4 : pi / 4;
-      if (_fx.ready && live) {
-        drawGlow(canvas, _fx.glow!, m.position, 24, const Color(0xFF6BA8FF));
-      }
-      canvas.save();
-      canvas.translate(m.position.dx, m.position.dy);
-      canvas.rotate(ang);
-      final plate = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset.zero, width: 42, height: 8),
-        const Radius.circular(4),
-      );
-      canvas.drawRRect(plate, Paint()..color = const Color(0xFFEAF6FF));
-      canvas.drawLine(
-        const Offset(-19, -2),
-        const Offset(19, -2),
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.95)
-          ..strokeWidth = 1.3,
-      );
-      canvas.drawLine(
-        const Offset(-19, 3),
-        const Offset(19, 3),
-        Paint()
-          ..color = const Color(0xFF26303C)
-          ..strokeWidth = 2.4,
-      );
-      canvas.restore();
-      canvas.drawCircle(
-        m.position,
-        3.4,
-        Paint()..color = const Color(0xFFBFE6FF),
-      );
+      _drawBeamMirror(canvas, m, live);
     }
 
     // The Storm Tower (the beam's target).
