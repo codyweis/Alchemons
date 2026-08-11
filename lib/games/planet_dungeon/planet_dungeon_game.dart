@@ -267,6 +267,8 @@ class PlanetDungeonGame extends FlameGame {
     // The Mirror-Tide's ghost-current is likewise rolled fresh per run — and
     // only ever from the routes whose spins pin them uniquely.
     _rollGhostCurrent();
+    // …and so is the Cinder Cathedral's rite, with the evidence that proves it.
+    _rollRiteOrder();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -462,6 +464,48 @@ class PlanetDungeonGame extends FlameGame {
   /// Insight tier from reading the scriptorium's soot mural (-1 = unread).
   /// Knowledge, like cloud discoveries: it survives death within a session.
   int choirRevealTier = -1;
+
+  /// THE RITE, ROLLED PER RUN (§6.1 REWORK): `riteOrder[rank]` = the index into
+  /// the choir's `braziers` list that was lit at that rank. Never authored, so
+  /// a wiki can never spoil it — and never noise either: [riteTestimony] is
+  /// generated alongside it and PROVABLY pins it down (see
+  /// `solveRiteOrder()`), so the whole sequence can be read off the iron.
+  final List<int> riteOrder = [];
+
+  /// The physical testimony each brazier carries, by brazier list index.
+  final List<BrazierTestimony> riteTestimony = [];
+
+  /// The rite's downwind: one quantised compass direction the ash has drifted,
+  /// shared by every brazier and streaked across the choir floor.
+  Offset riteAshDrift = Offset.zero;
+
+  /// The two ranks the scriptorium mural CONFIRMS (never the order — §6.1).
+  List<int> riteMuralRanks = const [];
+
+  /// Insight's marking of the evidence, eased 0→1 (t1), and the single link
+  /// t2 annotates (the rank whose step to rank+1 is drawn out). Knowledge:
+  /// both survive death, like the mural reading.
+  double _testimonyMark = 0;
+  bool _testimonyMarked = false;
+  int? _testimonyLinkRank;
+
+  /// Per-brazier testimony fade (index → 1 fresh … 0 consumed): the rite's own
+  /// fire eats the old wax and soot as each brazier takes flame.
+  final Map<int, double> _testimonyFade = {};
+
+  /// Star 3's DECISION (§6.1 REWORK): the declared censer run, and whether the
+  /// vesper has begun (after which the run is committed for this attempt).
+  String? vesperRouteId;
+  bool vesperCommitted = false;
+
+  /// Eased swap between the two censer runs (0 mid-swing … 1 settled).
+  double _routeSwapT = 1.0;
+
+  /// Simurgh's brazier telegraph (§7 retrofit): the rank it is re-lighting,
+  /// the beat clock, and each live pillar's 0→1 wind-up/eruption progress.
+  int _simurghRank = 0;
+  double _simurghBeat = 0;
+  final Map<int, double> _simurghPillars = {};
 
   /// Ash-garden bed states: VineBed.id → 0 barren · 1 overgrown · 2 revealed.
   final Map<String, int> bedStates = {};
@@ -2460,6 +2504,10 @@ class PlanetDungeonGame extends FlameGame {
       // every other guardian keeps the shared cycle untouched, and raids are
       // exempt (the generated arena has no tide zones).
       if (_isTemple) _applyLeviathanTide(room, dt);
+      // Simurgh re-lights the rite braziers as it strikes (§7): the ORDER is
+      // the bullet pattern. Reads the shared lull/strike cycle, never rewrites
+      // it — and the generated raid arena has no braziers to re-light.
+      if (_isCathedral) _applySimurghTelegraph(a, room, dt);
       final stormCenter = _guardianPosition(g);
       // Half-HP escalation: one screech — feather-wisps rise, lulls tighten.
       if (!_rocEnraged &&
