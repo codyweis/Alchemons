@@ -86,8 +86,16 @@ const double _kLeaderFlashSeconds = 0.85;
 /// Storm wisps spawned by a bolt that dies on a rod instead of a conduit.
 const int _kWildStrikeWisps = 2;
 
-/// How far behind the Roc its dragged storm-cell trails.
-const double _kRocLeash = 300.0;
+/// How far behind the Roc its dragged storm-cell trails. Chosen against the
+/// arena's rod ring: far enough that herding the cell is real work, close
+/// enough that the ring can always take it somewhere.
+const double _kRocLeash = 280.0;
+
+/// The bolt's LAST leap, into the guardian. Longer than a leap between irons:
+/// the Roc is a mountain of feathers with a storm already sitting on it. (The
+/// one-rank rule still forbids the cell striking the bird directly — a leader
+/// always begins on rank-0 iron.)
+const double _kRocStrikeReach = 265.0;
 
 /// How fast the dragged leash follows the bird (px/sec).
 const double _kRocLeashSpeed = 210.0;
@@ -548,7 +556,9 @@ extension WindCrownSpire on PlanetDungeonGame {
         if (h != want) continue;
         if (path.contains(id)) continue;
         final d = (pos - at).distance;
-        if (d > kStormHopReach) continue;
+        final reach =
+            id == _kGuardianConductorId ? _kRocStrikeReach : kStormHopReach;
+        if (d > reach) continue;
         if (d < bestDist) {
           bestId = id;
           bestPos = pos;

@@ -270,6 +270,10 @@ class PlanetDungeonGame extends FlameGame {
     _rollGhostCurrent();
     // …and so is the Cinder Cathedral's rite, with the evidence that proves it.
     _rollRiteOrder();
+    // The Wind-Crown Spire starts CALM, with its rods flat and its storm-cell
+    // already on its authored mark — seeded here, not in onLoad, because the
+    // HUD (and every headless sim) reads this state before Flame finishes.
+    _resetSpireState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1701,6 +1705,10 @@ class PlanetDungeonGame extends FlameGame {
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
+    // The gale pushes friend AND FOE — applied AFTER the steering AI has had
+    // its say, so the wind is something the wisps are carried by rather than
+    // something their pathing quietly undoes.
+    if (_isSpire) _applyGalesToEnemies(room, dt);
 
     _checkDoors(a);
     _checkHazards(a, dt);
@@ -1806,7 +1814,6 @@ class PlanetDungeonGame extends FlameGame {
       // the same wind that scours the walkways it crosses.
       _applyGaleToWalker(a, room, dt);
     }
-    _applyGalesToEnemies(room, dt);
     _releaseBlockedExcept(_currentBlockPrefix, resisting);
   }
 

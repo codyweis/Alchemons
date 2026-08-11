@@ -1338,6 +1338,17 @@ const DungeonLayout _airLayout = DungeonLayout(
           strength: 96,
           galeId: 'g_ramp',
         ),
+        // THE FLUE — an always-on wild wind up the spire's east face, never
+        // part of the wind graph and never needed for the crown. It is a
+        // swift flier's shortcut from open sky straight to the shoulder, and
+        // its Speed threshold therefore scales a BONUS, not progress (§4:
+        // stats scale magnitude; hard stat gates never gate a road).
+        WindCurrent(
+          rect: Rect.fromLTWH(640, 150, 115, 690),
+          dir: Offset(-0.2, -1),
+          strength: 132,
+          requiredSpeed: 3.5,
+        ),
       ],
     ),
 
@@ -1867,13 +1878,20 @@ const DungeonLayout _airLayout = DungeonLayout(
         period: 14,
         strikeInterval: 3.6,
       ),
+      // A RING of perch-rods at radius 150 about the bird's ground: neighbours
+      // sit 115 apart (inside a leader's leap) so a staircase can be built all
+      // the way round, and the whole ring stands inside the Roc's own strike
+      // reach — the bolt's last leap into a mountain of feathers is longer than
+      // its leap between irons.
       stormRods: [
-        StormRod(id: 'perch_nw', position: Offset(255, 240)),
-        StormRod(id: 'perch_n', position: Offset(410, 200)),
-        StormRod(id: 'perch_ne', position: Offset(565, 240)),
-        StormRod(id: 'perch_sw', position: Offset(255, 460)),
-        StormRod(id: 'perch_s', position: Offset(410, 500)),
-        StormRod(id: 'perch_se', position: Offset(565, 460)),
+        StormRod(id: 'perch_e', position: Offset(560, 300)),
+        StormRod(id: 'perch_se', position: Offset(516, 406)),
+        StormRod(id: 'perch_s', position: Offset(410, 450)),
+        StormRod(id: 'perch_sw', position: Offset(304, 406)),
+        StormRod(id: 'perch_w', position: Offset(260, 300)),
+        StormRod(id: 'perch_nw', position: Offset(304, 194)),
+        StormRod(id: 'perch_n', position: Offset(410, 150)),
+        StormRod(id: 'perch_ne', position: Offset(516, 194)),
       ],
     ),
   },

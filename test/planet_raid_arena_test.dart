@@ -121,7 +121,9 @@ void main() {
         expect(room.clouds, isEmpty, reason: element);
         expect(room.anchors, isEmpty, reason: element);
         expect(room.conduits, isEmpty, reason: element);
-        expect(room.rings, isEmpty, reason: element);
+        expect(room.gustShrines, isEmpty, reason: element);
+        expect(room.stormRods, isEmpty, reason: element);
+        expect(room.stormOrbit, isNull, reason: element);
         expect(room.summit, isNull, reason: element);
         expect(room.guardian, isNotNull, reason: element);
         expect(room.guardian!.encounter!.canCalm, isFalse, reason: element);
