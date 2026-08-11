@@ -305,7 +305,14 @@ extension MirrorTide on PlanetDungeonGame {
         ),
       );
       if (r == InteractionResult.blockedFamily) {
-        _setHint('Only a Water pip slips down this pipe-mouth');
+        // The refusal stamps the pipe-mouth's Water+Pip chip onto the descent
+        // panel — once, forever ("the seal remembers", §4).
+        final gate = layout.familyGateFor('pipe_mouth');
+        if (gate != null) {
+          _stampFamilyGate(gate);
+        } else {
+          _setBlockedHint('Only a Water pip slips down this pipe-mouth');
+        }
         return true;
       }
       if (!interactionSucceeded(r)) {

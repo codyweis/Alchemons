@@ -466,7 +466,14 @@ extension BuriedGiant on PlanetDungeonGame {
         ),
       );
       if (r == InteractionResult.blockedFamily) {
-        _setHint('Only an Earth horn\'s force shifts this bone');
+        // The refusal stamps ⛰ HORN onto the descent panel — once, forever
+        // ("the seal remembers", §4). One logical gate covers all three ribs.
+        final gate = layout.familyGateFor('rib');
+        if (gate != null) {
+          _stampFamilyGate(gate);
+        } else {
+          _setBlockedHint('Only an Earth horn\'s force shifts this bone');
+        }
         return true;
       }
       if (!interactionSucceeded(r)) {

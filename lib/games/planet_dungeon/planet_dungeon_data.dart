@@ -9,6 +9,8 @@
 
 import 'dart:ui';
 
+import 'package:alchemons/games/cosmic/cosmic_data.dart'
+    show PlanetStarState;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -633,6 +635,46 @@ class DungeonRoom {
   });
 }
 
+/// A hard family gate: the object needs element + a SPECIFIC family, not just
+/// any creature of that element (§4 "FAMILY-GATED interactions" in
+/// docs/dungeons.md). Declared here — rather than inline in the engine — so
+/// the overworld descent panel can name the requirement without importing
+/// engine internals, and so "the seal remembers" can derive a stable,
+/// human-readable discovery id.
+class DungeonFamilyGate {
+  /// Cross-reference to the underlying puzzle object (a Conduit's id 'A', the
+  /// logical 'rib' track, the 'pipe_mouth' valve) — for engine lookup and
+  /// docs/debug, never persisted.
+  final String objectId;
+
+  /// The element this gate answers to (one of the planet's three
+  /// kCosmicPlanetEntry slots).
+  final String element;
+
+  /// The required family, matching CreatureFamily / FamilyColors keys
+  /// ('Horn', 'Pip', 'Wing', 'Mane', 'Mask', 'Kin', 'Let').
+  final String family;
+
+  /// The §5.6 BLOCKED line spoken on a wrong-family attempt — one short
+  /// clause naming exactly what is missing, element-first.
+  final String hintLine;
+
+  const DungeonFamilyGate({
+    required this.objectId,
+    required this.element,
+    required this.family,
+    required this.hintLine,
+  });
+
+  /// The cloud-discovery id this gate stamps on first contact ("the seal
+  /// remembers"). Lower-cased element+family only — stable even if
+  /// [objectId]/[hintLine] are later re-authored, and safe under
+  /// PlanetStarState's serialisation separators (`,` `=` `.` `|`), which no
+  /// discovery id may contain.
+  String get discoveryId =>
+      'gate:${element.toLowerCase()}_${family.toLowerCase()}';
+}
+
 /// A whole planet dungeon: its rooms, where the run begins, and the authored
 /// identity the engine composes its copy and door gating from.
 class DungeonLayout {
@@ -671,6 +713,12 @@ class DungeonLayout {
   /// about BEFORE descending, never a guess.
   final List<String> riddle;
 
+  /// Hard family gates in this dungeon (§4 "the seal remembers"): max one per
+  /// star, 1–3 per planet, each tied to a distinct entry slot. First contact
+  /// with one permanently stamps its element+family chip onto the overworld
+  /// descent panel.
+  final List<DungeonFamilyGate> familyGates;
+
   const DungeonLayout({
     required this.element,
     required this.rooms,
@@ -685,9 +733,19 @@ class DungeonLayout {
     this.finaleSealedHint,
     this.mercyShrineRoomId,
     this.riddle = const [],
+    this.familyGates = const [],
   });
 
   DungeonRoom get entranceRoom => rooms[entranceRoomId]!;
+
+  /// The declared family gate for puzzle object [objectId], or null when the
+  /// object is not gated (or this layout — e.g. a raid arena — has none).
+  DungeonFamilyGate? familyGateFor(String objectId) {
+    for (final g in familyGates) {
+      if (g.objectId == objectId) return g;
+    }
+    return null;
+  }
 
   /// Star-spec name for [index] ('Star n+1' when unauthored).
   String starName(int index) =>
@@ -761,6 +819,16 @@ const DungeonLayout _airLayout = DungeonLayout(
     'My crown belongs to those the ground cannot keep;',
     'my storm-walls confide only in sight that pierces the hidden;',
     'and my thunder stays only where the grip is strongest.',
+  ],
+  // The one marquee lock (§4): Storm-Altar conduit A channels only for a
+  // Lightning Horn. First refusal stamps ⚡ HORN onto the descent panel.
+  familyGates: [
+    DungeonFamilyGate(
+      objectId: 'A',
+      element: 'Lightning',
+      family: 'Horn',
+      hintLine: 'Only a Lightning horn\'s grip holds this current',
+    ),
   ],
   rooms: {
     // Room A — Entry Island.
@@ -1622,6 +1690,16 @@ const DungeonLayout _waterLayout = DungeonLayout(
     'my drowned currents bare themselves to second sight;',
     'and my moon waits on a cold that paves a road behind it.',
   ],
+  // The one marquee lock (§4): the moon-well pipe-mouth admits only a Water
+  // Pip. First refusal stamps the requirement onto the descent panel.
+  familyGates: [
+    DungeonFamilyGate(
+      objectId: 'pipe_mouth',
+      element: 'Water',
+      family: 'Pip',
+      hintLine: 'Only a Water pip slips down this pipe-mouth',
+    ),
+  ],
   rooms: {
     // Room A — Tide Gate. The temple's outer porch: a dry offering-bowl.
     // A Water creature filling it parts the inner doors (one-time reveal).
@@ -1903,6 +1981,16 @@ const DungeonLayout _earthLayout = DungeonLayout(
     'My bones grind aside for nothing less than the mightiest shove;',
     'my buried sockets spark only for what my smallest veins admit;',
     'and my eye confides only in sight that pierces the hidden.',
+  ],
+  // The one marquee lock (§4): the giant's ribs grind only for an Earth Horn
+  // (one logical gate shared by all three ribs on the track).
+  familyGates: [
+    DungeonFamilyGate(
+      objectId: 'rib',
+      element: 'Earth',
+      family: 'Horn',
+      hintLine: 'Only an Earth horn\'s force shifts this bone',
+    ),
   ],
   rooms: {
     // Room A — Barrow Gate. The mound's mouth, lintel collapsed; an Earth
@@ -2806,6 +2894,29 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Lightning': _lightningLayout,
   'Steam': _steamLayout,
 };
+
+/// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):
+/// auto-stamp a planet's family-gate chips ONLY when that planet is fully
+/// cleared (all 3 stars). A solved puzzle short-circuits before its
+/// interaction check ever runs again, so a veteran could never re-trigger the
+/// stamp in-world — and there is nothing left to spoil on a finished planet.
+/// Partial clears do NOT auto-stamp: those gates are still live content.
+///
+/// Returns [state] unchanged (identical instance) when nothing needed
+/// stamping, so callers can cheaply detect whether to re-persist.
+PlanetStarState stampClearedPlanetFamilyGates(PlanetStarState state) {
+  var out = state;
+  for (final layout in kPlanetDungeonLayouts.values) {
+    if (state.starsEarned(layout.element) < 3) continue;
+    for (final gate in layout.familyGates) {
+      if (out.discoveredCloudsFor(layout.element).contains(gate.discoveryId)) {
+        continue;
+      }
+      out = out.withDiscoveredCloud(layout.element, gate.discoveryId);
+    }
+  }
+  return out;
+}
 
 // ─────────────────────────────────────────────────────────
 // RAID ARENAS

@@ -246,6 +246,7 @@ class PlanetDungeonGame extends FlameGame {
     Set<String> initialDiscoveredCloudIds = const {},
     required this.onStarEarned,
     this.onCloudDiscovered,
+    this.onGuardianIntro,
     required this.onPlayerDown,
     required this.onChanged,
     this.raid,
@@ -269,6 +270,12 @@ class PlanetDungeonGame extends FlameGame {
   final int initialStarMask;
   final void Function(int starIndex) onStarEarned;
   final void Function(String cloudId)? onCloudDiscovered;
+
+  /// The guardian-intro popup hook (§5.6 "four occasions, one chrome"): fires
+  /// the moment the mystic's combat spawns, with its name and its one arrival
+  /// line. When wired, the screen presents the chrome banner and the capsule
+  /// stays quiet; unwired (headless tests), the line falls back to the capsule.
+  final void Function(String mysticName, String line)? onGuardianIntro;
   final VoidCallback onPlayerDown;
   final VoidCallback onChanged;
 
@@ -1708,6 +1715,18 @@ class PlanetDungeonGame extends FlameGame {
     if (!discoveredClouds.add(cloudId)) return;
     onCloudDiscovered?.call(cloudId);
     onChanged();
+  }
+
+  /// THE SEAL REMEMBERS (§4): a hard family gate refused the wrong family.
+  /// Speaks the gate's one-clause refusal on the BLOCKED channel (a press is
+  /// already edge-triggered — it happened exactly once), and — the FIRST time
+  /// only, via [_discoverCloud]'s idempotent Set.add — permanently stamps the
+  /// element+family requirement onto the planet's overworld descent panel.
+  /// Rides the existing one-time discovery channel (`rune:entry_door`
+  /// precedent), so nothing new is persisted.
+  void _stampFamilyGate(DungeonFamilyGate gate) {
+    _setBlockedHint(gate.hintLine);
+    _discoverCloud(gate.discoveryId);
   }
 
   /// Put a carried echo down. The echo drifts back to its resting place in
@@ -3661,11 +3680,18 @@ class PlanetDungeonGame extends FlameGame {
     );
     combatEnemies.add(_guardianEnemy!);
     final mysticName = g.encounter?.mysticId ?? 'The guardian';
-    _setHint(
-      isRaid
-          ? 'The raid-maddened guardian descends — bring it down!'
-          : '$mysticName descends — use Auto Attack and Ability',
-    );
+    final line = isRaid
+        ? 'The raid-maddened guardian descends — bring it down!'
+        : '$mysticName descends — use Auto Attack and Ability';
+    // A mystic's arrival deserves more than a status line: the screen shows
+    // the chrome intro banner (§5.6). The capsule fallback keeps headless
+    // runs (and any unwired host) speaking exactly as before.
+    final intro = onGuardianIntro;
+    if (intro != null) {
+      intro(mysticName, line);
+    } else {
+      _setHint(line);
+    }
   }
 
   /// Raid escalation: each time the guardian's HP crosses a configured
@@ -6131,7 +6157,16 @@ class PlanetDungeonGame extends FlameGame {
           );
           break;
         case InteractionResult.blockedFamily:
-          _setHint('Only a ${c.requireElement} horn\'s grip holds this current');
+          // The refusal stamps the gate's chip onto the descent panel — once,
+          // forever ("the seal remembers", §4).
+          final gate = layout.familyGateFor(c.id);
+          if (gate != null) {
+            _stampFamilyGate(gate);
+          } else {
+            _setBlockedHint(
+              'Only a ${c.requireElement} horn\'s grip holds this current',
+            );
+          }
           _spawnAlchemyBurst(
             c.position,
             producedElement: c.requireElement,

@@ -11,6 +11,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
+import 'package:alchemons/utils/color_util.dart' show FamilyColors;
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/services/raid_service.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_screen.dart';
@@ -441,6 +442,15 @@ class _CosmicScreenState extends State<CosmicScreen>
     final starRaw = prefs.getString(_planetStarStatePrefsKey);
     if (starRaw != null) {
       _planetStarState = PlanetStarState.deserialise(starRaw);
+      // Save-compat for "the seal remembers" (§9.0 ruling): a fully-cleared
+      // planet's family-gate chips are stamped retroactively — its puzzles
+      // short-circuit when solved, so a veteran could never earn them
+      // in-world. Partial clears keep their gates undiscovered.
+      final stamped = stampClearedPlanetFamilyGates(_planetStarState);
+      if (!identical(stamped, _planetStarState)) {
+        _planetStarState = stamped;
+        await prefs.setString(_planetStarStatePrefsKey, stamped.serialise());
+      }
     }
 
     // Load permanently unsealed dungeon gates.
@@ -5888,11 +5898,18 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _planetStarState = PlanetStarState.deserialise(
-        prefs.getString(_planetStarStatePrefsKey) ?? '',
-      );
-    });
+    var refreshed = PlanetStarState.deserialise(
+      prefs.getString(_planetStarStatePrefsKey) ?? '',
+    );
+    // A run that just banked the planet's last star completes its seal chips
+    // too (same §9.0 fully-cleared ruling as the load-time migration).
+    final stamped = stampClearedPlanetFamilyGates(refreshed);
+    if (!identical(stamped, refreshed)) {
+      refreshed = stamped;
+      await prefs.setString(_planetStarStatePrefsKey, stamped.serialise());
+    }
+    if (!mounted) return;
+    setState(() => _planetStarState = refreshed);
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
   }
 
@@ -6265,6 +6282,96 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
+  /// "THE SEAL REMEMBERS" chips (§4 in docs/dungeons.md): one per hard family
+  /// gate the player has struck in this planet's dungeon — a text badge in
+  /// the family's color behind the element's dot (the "⚡ HORN" contract; no
+  /// family art exists in the app). Stamped on first refusal via the
+  /// discovery channel, rendered here PERMANENTLY once known: knowledge
+  /// earned in-world, remembered by the ship forever.
+  List<Widget> _familyGateChips(String element) {
+    final gates =
+        kPlanetDungeonLayouts[element]?.familyGates ??
+        const <DungeonFamilyGate>[];
+    if (gates.isEmpty) return const [];
+    final discovered = _planetStarState.discoveredCloudsFor(element);
+    final known = [
+      for (final g in gates)
+        if (discovered.contains(g.discoveryId)) g,
+    ];
+    if (known.isEmpty) return const [];
+    return [
+      const SizedBox(height: 9),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _placardRule(const Color(0xFFC4A35A)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              'THE SEAL REMEMBERS',
+              style: TextStyle(
+                color: const Color(0xFFC4A35A).withValues(alpha: 0.75),
+                fontSize: 8,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.0,
+                shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
+              ),
+            ),
+          ),
+          _placardRule(const Color(0xFFC4A35A), leftToRight: false),
+        ],
+      ),
+      const SizedBox(height: 6),
+      Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        alignment: WrapAlignment.center,
+        children: [for (final g in known) _familyGateChip(g)],
+      ),
+    ];
+  }
+
+  Widget _familyGateChip(DungeonFamilyGate gate) {
+    final famColor = FamilyColors.of(gate.family);
+    final elColor = elementColor(gate.element);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0805).withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: famColor.withValues(alpha: 0.55), width: 1.1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: elColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: elColor.withValues(alpha: 0.6), blurRadius: 6),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '${gate.element.toUpperCase()} '
+            '${FamilyColors.label(gate.family).toUpperCase()}',
+            style: TextStyle(
+              color: famColor,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+              shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// The persistent descent placard, shown whenever the player stands at an
   /// unsealed dungeon gate. It carries the planet's name, stars, the carried
   /// element trio and the whisper riddle — and, once the party is complete,
@@ -6467,6 +6574,10 @@ class _CosmicScreenState extends State<CosmicScreen>
             // The descent riddle — which SPECIES each slot truly wants.
             _dungeonRiddleCard(planet.element, color, boxed: false),
           ],
+          // "The seal remembers" (§4): family gates struck in-world, stamped
+          // here forever. Unlike the riddle this never fades at 3 stars, and
+          // unlike the element row it ignores party state.
+          ..._familyGateChips(planet.element),
           // ── Actions — present once the trio rides ──
           if (raidHere) ...[
             const SizedBox(height: 14),
