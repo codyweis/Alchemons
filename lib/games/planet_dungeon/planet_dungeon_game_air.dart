@@ -167,6 +167,19 @@ extension WindCrownSpire on PlanetDungeonGame {
   /// Is [c] a gale that is at least stirring?
   bool _currentLive(WindCurrent c) => _galeFactor(c) > 0.01;
 
+  /// Stone that a live SIDEWAYS gale is sweeping. Standable, but never
+  /// remembered as safe footing: a fall-recovery target inside the wind that
+  /// caused the fall is a loop, not a consequence.
+  bool _onScouredFooting(Offset p, DungeonRoom room) {
+    for (final cur in room.currents) {
+      if (cur.strength <= 0 || _galeFactor(cur) <= 0.01) continue;
+      final len = cur.dir.distance;
+      if (len <= 0 || cur.dir.dy / len <= -0.5) continue; // a lift, not a shove
+      if (cur.rect.contains(p)) return true;
+    }
+    return false;
+  }
+
   void _updateGaleRamps(double dt) {
     if (wokenGales.isEmpty) return;
     final step = dt / _kGaleWakeSeconds;

@@ -2079,10 +2079,15 @@ class PlanetDungeonGame extends FlameGame {
         }
       }
     } else if (_onSolidGround(a.position, room) &&
-        !(_isTemple && _templeOverLedge(a.position, room))) {
+        !(_isTemple && _templeOverLedge(a.position, room)) &&
+        !(_isSpire && _onScouredFooting(a.position, room))) {
       // On solid ground: remember it and refill the glide reserve. Swimming
       // over a submerged tide-ledge is NOT safe footing — when the water
       // falls away the ledge becomes a wall, so lastSafe must stay off it.
+      // Neither is stone a live gale is sweeping: remembering it would drop a
+      // blown-off walker straight back into the wind that just took them,
+      // over and over. Being blown off costs one fall and one climb, not a
+      // loop (§6.11 REWORK).
       a.lastSafe = a.position;
       flightMeter = flightMax;
     }
