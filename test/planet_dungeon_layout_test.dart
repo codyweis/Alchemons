@@ -1,9 +1,9 @@
-import 'dart:ui' show Rect;
+import 'dart:ui' show Offset, Rect;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart'
-    show PlanetDungeonGame, StormCircuit, kSteamStartPressure;
+    show PlanetDungeonGame, MirrorTide, StormCircuit, kSteamStartPressure;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -158,15 +158,64 @@ void main() {
                 expect(t, inInclusiveRange(0, 2));
               }
             }
-            final eddyOrders = [for (final e in room.ghostEddies) e.order]
-              ..sort();
+            // The ghost-current network: ids unique, every channel endpoint
+            // real, exactly one spring and one sea drain — and every channel
+            // clearly east/west so the SPIN rule ("an eddy rolls the way its
+            // feeder drives it") is never a coin-flip on screen.
+            final nodeIds = <String, Offset>{
+              for (final m in room.ghostMouths) m.id: m.position,
+              for (final e in room.ghostEddies) e.id: e.position,
+            };
             expect(
-              eddyOrders,
-              List.generate(eddyOrders.length, (i) => i),
-              reason:
-                  '${room.id}: eddy orders must be exactly 0..n-1 with no '
-                  'gaps/dupes',
+              nodeIds.length,
+              room.ghostMouths.length + room.ghostEddies.length,
+              reason: '${room.id}: ghost node ids must be unique',
             );
+            if (room.ghostEddies.isNotEmpty) {
+              expect(
+                room.ghostMouths.where((m) => m.isSource).length,
+                1,
+                reason: '${room.id}: the current needs exactly one spring',
+              );
+              expect(
+                room.ghostMouths.where((m) => !m.isSource).length,
+                1,
+                reason: '${room.id}: the current needs exactly one sea drain',
+              );
+              expect(
+                room.ghostChannels,
+                isNotEmpty,
+                reason: '${room.id}: eddies with no channels between them',
+              );
+            }
+            for (final ch in room.ghostChannels) {
+              expect(
+                nodeIds.containsKey(ch.a) && nodeIds.containsKey(ch.b),
+                isTrue,
+                reason: '${room.id}: channel ${ch.a}–${ch.b} names a '
+                    'node that does not exist',
+              );
+              expect(
+                (nodeIds[ch.a]!.dx - nodeIds[ch.b]!.dx).abs(),
+                greaterThanOrEqualTo(60.0),
+                reason: '${room.id}: channel ${ch.a}–${ch.b} is too nearly '
+                    'vertical — its feeder must read clearly east or west',
+              );
+            }
+            for (final e in room.ghostEddies) {
+              expect(
+                room.bounds.contains(e.position),
+                isTrue,
+                reason: '${room.id}/${e.id}: eddy outside the room',
+              );
+            }
+            for (final m in room.ghostMouths) {
+              expect(
+                room.bounds.contains(m.position),
+                isTrue,
+                reason: '${room.id}/${m.id}: mouth outside the room',
+              );
+            }
             final poolIds = room.moonPools.map((p) => p.id).toSet();
             expect(
               poolIds.length,
@@ -624,10 +673,21 @@ void main() {
         {0, 1, 2},
         reason: 'the three seals cover the three tide stands',
       );
-      // Star 2: the ghost gallery owns the current.
+      // Star 2: the ghost gallery owns the current — five eddies strung on a
+      // network of carved channels between a spring and a sea drain.
       final gallery = water.rooms['ghost_gallery']!;
       expect(gallery.ghostEddies.length, 5);
+      expect(gallery.ghostMouths.length, 2);
+      expect(gallery.ghostChannels.length, 12);
       expect(gallery.eddyStarIndex, 1);
+      // The Leviathan's arena answers the same tide as every other chamber
+      // (§7 retrofit) — without tide zones there is nothing for its roar to
+      // turn.
+      expect(
+        water.rooms['leviathan_depths']!.tideZones,
+        isNotEmpty,
+        reason: 'the depths must flood and drain on the guardian\'s roar',
+      );
       // Star 3: four moon-pools, exactly two true; Leviathan in the depths.
       final well = water.rooms['moon_well']!;
       expect(well.moonPools.length, 4);
@@ -840,6 +900,68 @@ void main() {
       },
     );
 
+    test(
+      'Water S2: EVERY current the gallery can run is PROVABLY DEDUCIBLE '
+      'from its spins alone',
+      () {
+        final game = _waterProbe();
+        final routes = game.ghostRoutes();
+        expect(
+          routes.length,
+          6,
+          reason: 'the twelve carved channels allow exactly six spring→sea '
+              'routes through all five eddies',
+        );
+        // Every route: adopt it, read back ONLY the spins it puts on the
+        // water, and hand those to the solver. The solver must recover that
+        // route and no other — which is exactly the reasoning the player
+        // does, run against the same code the game plays with.
+        for (final route in routes) {
+          game.adoptGhostRoute(route);
+          final spins = {
+            for (final e in game.layout.rooms['ghost_gallery']!.ghostEddies)
+              e.id: game.eddySpinSunwise(e.id)!,
+          };
+          final result = game.solveGhostCurrent(spins);
+          expect(result.searched, 6);
+          expect(
+            result.satisfying,
+            1,
+            reason: 'the spins of ${route.join('→')} must single it out — a '
+                'current two routes could explain is a coin toss, not a '
+                'deduction',
+          );
+          expect(
+            result.order,
+            route.sublist(1, route.length - 1),
+            reason: 'the derived wade must BE the authored course',
+          );
+        }
+      },
+    );
+
+    test('Water S2: the run rolls a real current, and only a deducible one',
+        () {
+      // Twenty fresh descents: each rolls one of the six routes, every roll
+      // is a legal spring→sea course, and every roll survives its own solver.
+      final seen = <String>{};
+      for (var i = 0; i < 20; i++) {
+        final game = _waterProbe();
+        final order = game.ghostWadeOrder;
+        expect(order.length, 5, reason: 'the current runs through all five');
+        expect(order.toSet().length, 5, reason: 'no eddy twice');
+        final result = game.solveGhostCurrent();
+        expect(result.satisfying, 1);
+        expect(result.order, order);
+        seen.add(order.join('>'));
+      }
+      expect(
+        seen.length,
+        greaterThan(1),
+        reason: 'the current is rolled per run — a wiki must never spoil it',
+      );
+    });
+
     test('Steam dungeon has its three star chambers and full 3 stars', () {
       final steam = kPlanetDungeonLayouts['Steam']!;
       expect(
@@ -986,6 +1108,15 @@ void main() {
 /// A bare Lightning game used only to drive the public brute-force solvers —
 /// they exercise the REAL beam engine over the authored layout, so the
 /// uniqueness proof can never drift from what the game actually computes.
+PlanetDungeonGame _waterProbe() => PlanetDungeonGame(
+      element: 'Water',
+      party: const [],
+      initialStarMask: 0,
+      onStarEarned: (_) {},
+      onPlayerDown: () {},
+      onChanged: () {},
+    );
+
 PlanetDungeonGame _lightningProbe() => PlanetDungeonGame(
       element: 'Lightning',
       party: const [],

@@ -264,6 +264,9 @@ class PlanetDungeonGame extends FlameGame {
     activeTrunk = layout.initialTrunkId;
     // The Buried Giant's scale answer is rolled fresh per run.
     _rollScaleSolution();
+    // The Mirror-Tide's ghost-current is likewise rolled fresh per run — and
+    // only ever from the routes whose spins pin them uniquely.
+    _rollGhostCurrent();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -504,9 +507,43 @@ class PlanetDungeonGame extends FlameGame {
   int eddyProgress = 0;
 
   /// Ghost-current visibility: seconds remaining + the insight tier that
-  /// revealed it (drives how much of the path shows).
+  /// revealed it (drives how much of the path shows). The TIMER now governs
+  /// only the high-Int extras — see [eddiesBared].
   double eddyRevealTimer = 0;
   int eddyRevealTier = 0;
+
+  /// True once a Spirit creature has bared the gallery this run. The eddies
+  /// and their SPINS then stay visible for good: Star 2 is a deduction, and
+  /// a deduction you cannot look at twice is only a memory test. The tiered
+  /// extras (flow arrows, order pips) still ride [eddyRevealTimer].
+  bool eddiesBared = false;
+
+  /// The run's ghost-current, rolled fresh in the constructor and never
+  /// rerolled by death (the water keeps its course for the whole descent):
+  /// eddy id → its place in the wade, and eddy id → the node UPSTREAM of it
+  /// (another eddy, or the source spring). The feeder is what the spin
+  /// betrays; the order is what the player must derive from the spins.
+  final Map<String, int> eddyOrder = {};
+  final Map<String, String> eddyFeeder = {};
+
+  /// The eased 0→1 bloom of the bared eddies (ANIMATED-STATE rule: the
+  /// ghost-water fades up out of the dark, it never snaps into being).
+  double _ghostBare = 0;
+
+  /// Node id → position for the gallery's flow network, built once from the
+  /// const layout. The render and the spin rule ask for it several times a
+  /// frame; rebuilding the map each time would allocate for nothing.
+  Map<String, Offset>? _ghostNodeCache;
+
+  /// Leviathan's tide-turn (§7 retrofit): the direction the deep is hauling
+  /// the water (+1 rising, -1 falling) and last frame's raw lull state, so
+  /// the roar can fire exactly on the edge where the lull shuts.
+  int _leviathanTideDir = 1;
+  bool _leviathanLullPrev = true;
+  int _leviathanRoars = 0;
+
+  /// How many times Leviathan has turned the tide this fight (diagnostics).
+  int get leviathanRoars => _leviathanRoars;
 
   /// Moon-pool states (Star 3): MoonPool.id → 0 liquid · 1 frozen bridge.
   final Map<String, int> poolStates = {};
@@ -1046,6 +1083,9 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) return _barrowProgressReadout;
     // Lightning: terminal/socket counters + the dynamo's trunk state.
     if (_isCircuit) return _circuitProgressReadout();
+    // Water: the sluice tally and the wade, out of the capsule at last. The
+    // tide gauge is a canvas HUD of its own and stays there.
+    if (_isTemple) return _templeProgressReadout();
     final total = _totalSpireRings;
     if (total > 0 && !hasStar(0)) {
       final room = currentRoom;
@@ -2415,6 +2455,11 @@ class PlanetDungeonGame extends FlameGame {
       // is NO lull; grounding the trunk forces the window. Lightning-only
       // hook — every other guardian keeps the shared cycle untouched.
       if (_isCircuit) _applyRaikumaFeed(room, dt);
+      // Leviathan turns the tide (§7): the arena floods and drains on its
+      // roar, and the lull only opens on SETTLED water. Water-only hook —
+      // every other guardian keeps the shared cycle untouched, and raids are
+      // exempt (the generated arena has no tide zones).
+      if (_isTemple) _applyLeviathanTide(room, dt);
       final stormCenter = _guardianPosition(g);
       // Half-HP escalation: one screech — feather-wisps rise, lulls tighten.
       if (!_rocEnraged &&

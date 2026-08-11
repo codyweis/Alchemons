@@ -414,9 +414,15 @@ class _DungeonMiniMapPainter extends CustomPainter {
       }
     } else if (room.eddyStarIndex != null &&
         !game.hasStar(room.eddyStarIndex!)) {
-      for (final eddy in room.ghostEddies) {
-        if (eddy.order == game.eddyProgress) {
-          objective = eddy.position;
+      // NEVER the next eddy: which eddy comes next is the whole puzzle, and
+      // a marker that answered it would hand the deduction over for free.
+      // The marker names the course's ENDS instead — both carved stone, both
+      // already in plain sight: the spring you start from, then the sea you
+      // are running toward.
+      final wantSource = game.eddyProgress == 0;
+      for (final mouth in room.ghostMouths) {
+        if (mouth.isSource == wantSource) {
+          objective = mouth.position;
           break;
         }
       }

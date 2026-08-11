@@ -306,7 +306,7 @@ new. The ledger grows with every build:
 |---|---|
 | **Air** | flow traversal (currents/updrafts) · set-collection constellation matching · *(rework)* irreversible wind-authoring (woken gales help AND hinder; order is the puzzle) · storm-steering by height-ranking (tallest rod takes the bolt) |
 | **Fire** | sequence-execution / order-memory ritual under attack (CLAIMED — no other planet may hand a sequence to execute) · flame-relay escort between checkpoints · *(rework)* forensic-evidence deduction at the object itself (rolled per run) |
-| **Water** | global state machine (tide) that regates SPACE itself · *(rework)* flow-graph ordering deduced from spin (read the system, derive the sequence) |
+| **Water** | global state machine (tide) that regates SPACE itself · flow-graph ordering deduced from spin (read the system, derive the sequence — CLAIMED: no other planet may reveal a sequence as evidence-to-reconstruct) |
 | **Earth** | track-notch sokoban shoves · clue-hunt logic deduction (answers carved into REMOTE architecture, rolled per run — the treasure-hunt variant; Fire's forensic variant reads the object itself) |
 | **Lightning** | beam routing/reflection via rotatable mirrors (+ *(rework)* negative constraints, provably unique) · element STATIONING pads · decoy-pad deduction · *(rework)* zero-sum power routing (power here = dark there) |
 | **Steam** | global resource economy (spend/condense/stoke one shared budget) · sacrifice-the-whole-budget vault |
@@ -563,26 +563,37 @@ not as soft modifiers.
    sluggish 1.4s gurgle); pipe-mouths elsewhere cycle one stand, PIP ONLY.
    S1 (Tide Star) three sluice seals, one per stand: drained basin, mid
    walkway, swum-over high ledge (+brine wisps per seal). S2 (Current Star)
-   the ghost gallery: eddies are INVISIBLE until any Spirit creature's
-   insight bares the current (Mask longest, Int-tiered: next eddy → full
-   course → order pips); wade five in order, a later eddy mid-sequence
-   scatters it + ghost wisps. S3 (Deep Star), behind the mirror gate: at
+   the ghost gallery — DEDUCTION (**REWORKED 2026-08-11**, §9.1 item 2): a
+   spring mouth, a sea drain and 12 carved channels are STONE and always
+   visible; the run's current is one route through all five eddies, spring →
+   sea. Spirit insight bares each eddy's SPIN — *an eddy rolls the way its
+   upstream feeder drives it*: feeder WEST → sunwise, feeder EAST →
+   widdershins — and the wade order is DERIVED from the spins, never handed
+   over. Int re-cuts the reveal: t0 spins only · t1 flow arrows along the
+   live channels · t2 the order pips (the old baseline, now the high-Int
+   reward). The baring is PERMANENT for the run (a deduction you cannot look
+   at twice is only a memory test); only the tiered extras run on the timer.
+   The 12 channels allow exactly SIX spring→sea routes and all six are pinned
+   uniquely by their spins, so the current is ROLLED PER RUN and stays
+   provably deducible (`solveGhostCurrent`, layout-test enforced route by
+   route; the roll only ever draws from signature-unique routes). A later
+   eddy mid-wade still scatters the course + ghost wisps; a wrong FIRST eddy
+   is free, so a course can always be restarted cleanly. Death never rerolls
+   the current. S3 (Deep Star), behind the mirror gate: at
    settled MID tide freeze the two TRUE moon-pools (Spirit insight names
    them) — Ice direct (Mane cleanest) or **Spirit+Water→Ice** (recipe rouses
    brine); false pools SHATTER + fury wisps; both bridged → Leviathan (calm
-   or defeat). Mercy = moon well. The pearl vault hides behind a low-tide-only
+   or defeat). **LEVIATHAN TURNS THE TIDE** (§7 retrofit, 2026-08-11): the
+   depths carry tide zones of their own (a sink that becomes swimmable, two
+   piers that drown at high water), and on every roar — the beat its lull
+   shuts — the deep hauls the water one stand, rolling low→mid→high→mid so
+   the fight is played across all three. The lull only opens on SETTLED
+   water: the swell itself is the guardian's armour, and the player never
+   holds the valve. Raids exempt (the generated arena has no tide zones).
+   Mercy = moon well. The pearl vault hides behind a low-tide-only
    passage. Rooms: tide_gate, drowned_court (hub, moon + star vigil),
    tide_works, ghost_gallery, pearl_vault, reflection_court (egg), moon_hall,
    moon_well, leviathan_depths.
-   **REWORK (planned 2026-08-10 — S2 Simon-says→deduction):** the eddies'
-   order is no longer handed over as pips; it is DERIVED. Spirit insight
-   bares each eddy's SPIN, and spin tells flow — an eddy turns the way its
-   upstream feeder drives it. Read the spins, reconstruct the flow graph,
-   then wade it SOURCE→SEA (a topological ordering the player reasons out).
-   Int tiers re-cut: t0 = spins only · t1 = flow arrows between adjacent
-   eddies · t2 = the deduced order pips (today's baseline becomes the
-   high-Int reward, not the default). Mid-sequence mistakes still scatter
-   the sequence + ghost wisps.
 5. **Ice — Frozen Observatory** · Ice+Light+Air · Icemane/Lightmask/Airwing ·
    *the solution is visible only through reflection.*
    S1 Icemane freezes floors; slide star-blocks into orbit sockets. S2 Lightmask
@@ -976,8 +987,9 @@ the SECOND of the pair lands, whichever it is.
 Seventeen finales must not be seventeen copies of one fight. The
 lull/strike/calm grammar stays engine-shared, but every mystic WEAPONIZES
 its planet's signature mechanic so no two encounters play alike:
-Leviathan turns the tide mid-fight (the arena floods and drains on its
-roar) · Raikuma FEEDS on powered trunks — cut its power to force the lull ·
+✅ Leviathan turns the tide mid-fight (the arena floods and drains on its
+roar, and its lull only opens on settled water — BUILT 2026-08-11) ·
+✅ Raikuma FEEDS on powered trunks — cut its power to force the lull ·
 Simurgh re-lights the rite braziers as attack telegraphs (the order IS the
 bullet pattern) · Boilrog vents the main (your own budget becomes its
 weapon) · Terradon's tremors knock the scale loose · Roc drags the
@@ -1120,6 +1132,16 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   `planet_dungeon_water_full_run_test.dart` (animated-flood asserts,
   pip-only valve gate, tide-door lock/unlock, false-pool shatter, recipe
   freeze, egg) + layout integrity extended to all tide verbs.
+  **§9.1 rework landed 2026-08-11:** S2 became a deduction —
+  `GhostEddy` now carries an id (not an order), joined by `GhostMouth`
+  (spring/sea) and `GhostChannel` (the carved grooves). The derivation, the
+  brute-force `solveGhostCurrent`, the per-run roll and the render all go
+  through one spin rule, so the layout test's uniqueness proof can never
+  drift from what the game plays. `_templeProgressReadout` moved the sluice
+  and wade tallies out of the capsule; the canvas tide gauge stayed. The
+  minimap objective marker now points at the course's ENDS, never the next
+  eddy (which would have handed the puzzle over for free). Leviathan's
+  tide-turn is one `_isTemple`-guarded line in the shared guardian loop.
 - ✅ **Earth — The Buried Giant built** (see §6 entry 7): track-notch rib
   shoves (`FossilRib` + `_RibSlide` animated grinds, side-dependent
   direction, solid-except-bridging collision, chasm + sternum plate),
@@ -1356,8 +1378,10 @@ Each pass = v2 interaction conversion + the redesign + guardian retrofit
    negative-constraint threading w/ solver-checked uniqueness, Raikuma
    feeds-on-power retrofit (§6.3 REWORK — BUILT 2026-08-10, the template
    for the remaining three passes).
-2. **Water** — S2 spin/flow-graph deduction; Leviathan tide-turn retrofit
-   (§6.4 REWORK).
+2. ✅ **Water** — S2 spin/flow-graph deduction (12 carved channels, 6 routes,
+   every one solver-proved unique from its spins alone and rolled per run),
+   re-cut insight tiers, sluice + wade counters into `DungeonProgressReadout`,
+   Leviathan tide-turn retrofit (§6.4 REWORK — BUILT 2026-08-11).
 3. **Fire** — S1 forensic rite rolled per run, S3 route choice; Simurgh
    brazier-telegraph retrofit (§6.1 REWORK).
 4. **Air** — S1 wake-the-winds, S3 storm-rod steering (rings + stabilize

@@ -202,12 +202,45 @@ class TideSeal {
   const TideSeal({required this.id, required this.position, required this.tides});
 }
 
-/// A ghost-current eddy (Star 2): invisible until Spirit insight reveals the
-/// current; waded through in [order] like the spire's rings.
+/// A ghost-current eddy (Star 2 — the DEDUCTION rework, docs §6.4). The
+/// gallery's carved channels say which nodes the ghost-water CAN run between;
+/// the run picks one route through every eddy, source → sea. An eddy is
+/// invisible until Spirit insight bares it — and what it bares is the eddy's
+/// SPIN, never its number: an eddy rolls the way its upstream feeder drives
+/// it (a feeder to the WEST rolls it sunwise, one to the EAST widdershins).
+/// The wade order is derived from the spins, not handed over.
 class GhostEddy {
-  final int order;
+  final String id;
   final Offset position;
-  const GhostEddy({required this.order, required this.position});
+  const GhostEddy({required this.id, required this.position});
+}
+
+/// The gallery's inlet and outlet. The ghost-current always runs SOURCE →
+/// SEA, so both mouths are carved stone and always visible — they are the
+/// two fixed ends the player reasons from.
+class GhostMouth {
+  final String id;
+  final Offset position;
+
+  /// True = the spring the water enters by; false = the drain it leaves by.
+  /// A sea mouth never feeds an eddy (water leaves there, it does not come
+  /// from there), which is what makes the last eddy's spin readable.
+  final bool isSource;
+  const GhostMouth({
+    required this.id,
+    required this.position,
+    required this.isSource,
+  });
+}
+
+/// A carved channel in the gallery floor between two nodes (eddy ids or
+/// mouth ids). The groove is STONE — always visible, and undirected. Which
+/// way the ghost-water runs down it is the run's secret, and the eddies'
+/// spins are the only testimony.
+class GhostChannel {
+  final String a;
+  final String b;
+  const GhostChannel(this.a, this.b);
 }
 
 /// A moon-pool (Star 3): at MID tide, Ice freezes it into a bridge-disc
@@ -587,6 +620,8 @@ class DungeonRoom {
   final List<TideSeal> tideSeals;
   final int? sealStarIndex; // star awarded when every sluice seal is open
   final List<GhostEddy> ghostEddies;
+  final List<GhostMouth> ghostMouths; // the current's source spring + sea drain
+  final List<GhostChannel> ghostChannels; // the carved grooves between them
   final int? eddyStarIndex; // star awarded for riding the full current
   final List<MoonPool> moonPools;
   final List<TideZone> tideZones;
@@ -657,6 +692,8 @@ class DungeonRoom {
     this.tideSeals = const [],
     this.sealStarIndex,
     this.ghostEddies = const [],
+    this.ghostMouths = const [],
+    this.ghostChannels = const [],
     this.eddyStarIndex,
     this.moonPools = const [],
     this.tideZones = const [],
@@ -1721,8 +1758,10 @@ const DungeonLayout _fireLayout = DungeonLayout(
 /// and drains are animated, reshaping walkways, walls and doors while you
 /// watch. Star 1 (Tide) — restore the tide-works: open three sluice seals,
 /// each reachable only at one tide stand. Star 2 (Current) — the ghost
-/// gallery: Spirit insight bares an invisible current; wade its five eddies
-/// in order. Star 3 (Deep) — beyond the sealed mirror gate: at MID tide,
+/// gallery: Spirit insight bares each eddy's SPIN, spin betrays the feeder,
+/// and the wade order is DERIVED from the flow the spins describe (rolled
+/// per run, provably unique). Star 3 (Deep) — beyond the sealed mirror gate:
+/// at MID tide,
 /// freeze the two TRUE moon-pools (Ice directly, or Spirit acting in the
 /// water — Spirit+Water→Ice) into bridge-discs; the well wakes Leviathan.
 const DungeonLayout _waterLayout = DungeonLayout(
@@ -1862,9 +1901,15 @@ const DungeonLayout _waterLayout = DungeonLayout(
       sealStarIndex: 0,
     ),
 
-    // Room D — Ghost Gallery. Star 2: an invisible current circles the
-    // gallery; Spirit insight bares it, and its five eddies must be waded
-    // in the order the water remembers.
+    // Room D — Ghost Gallery. Star 2 (the deduction rework, docs §6.4): a
+    // ghost-current runs from the spring in the north-west wall to the sea
+    // drain in the south-east, through all five eddies. The carved channels
+    // between them are stone and always visible; WHICH way the water runs
+    // down each one is the run's secret, and each eddy's SPIN is the only
+    // testimony. Twelve channels allow exactly SIX source→sea routes, and
+    // every one of the six is uniquely pinned by its spins — so the current
+    // is rolled fresh per run and stays provably deducible
+    // (`solveGhostCurrent`, layout-test enforced).
     'ghost_gallery': DungeonRoom(
       id: 'ghost_gallery',
       bounds: Rect.fromLTWH(0, 0, 1000, 720),
@@ -1884,12 +1929,32 @@ const DungeonLayout _waterLayout = DungeonLayout(
       tideDoorRules: [
         TideDoorRule(targetRoomId: 'pearl_vault', tides: {0}),
       ],
+      ghostMouths: [
+        // The spring: a carved lion-mouth high in the north-west wall.
+        GhostMouth(id: 'spring', position: Offset(120, 120), isSource: true),
+        // The sea drain, low in the south-east corner.
+        GhostMouth(id: 'sea', position: Offset(880, 640), isSource: false),
+      ],
       ghostEddies: [
-        GhostEddy(order: 0, position: Offset(200, 200)),
-        GhostEddy(order: 1, position: Offset(480, 140)),
-        GhostEddy(order: 2, position: Offset(760, 240)),
-        GhostEddy(order: 3, position: Offset(620, 480)),
-        GhostEddy(order: 4, position: Offset(300, 560)),
+        GhostEddy(id: 'eddy_a', position: Offset(200, 200)),
+        GhostEddy(id: 'eddy_b', position: Offset(480, 140)),
+        GhostEddy(id: 'eddy_c', position: Offset(760, 240)),
+        GhostEddy(id: 'eddy_d', position: Offset(620, 480)),
+        GhostEddy(id: 'eddy_e', position: Offset(300, 560)),
+      ],
+      ghostChannels: [
+        GhostChannel('spring', 'eddy_a'),
+        GhostChannel('spring', 'eddy_b'),
+        GhostChannel('eddy_a', 'eddy_b'),
+        GhostChannel('eddy_a', 'eddy_e'),
+        GhostChannel('eddy_b', 'eddy_c'),
+        GhostChannel('eddy_b', 'eddy_d'),
+        GhostChannel('eddy_b', 'eddy_e'),
+        GhostChannel('eddy_c', 'eddy_d'),
+        GhostChannel('eddy_c', 'sea'),
+        GhostChannel('eddy_d', 'eddy_e'),
+        GhostChannel('eddy_d', 'sea'),
+        GhostChannel('eddy_e', 'sea'),
       ],
       tideZones: [
         TideZone(rect: Rect.fromLTWH(250, 300, 500, 200), floodedAt: 1),
@@ -1982,7 +2047,12 @@ const DungeonLayout _waterLayout = DungeonLayout(
       ],
     ),
 
-    // Room I — Leviathan Depths. The drowned arena above the well.
+    // Room I — Leviathan Depths. The drowned arena above the well — and the
+    // one room where the tide is NOT yours (§7 guardian retrofit): Leviathan
+    // hauls the water a stand on every roar, so the fight is played across
+    // all three stands. The terrain answers the same tide system every other
+    // chamber does — a central sink that becomes swimmable, and two broken
+    // pier stubs that are cover until the high water swallows them.
     'leviathan_depths': DungeonRoom(
       id: 'leviathan_depths',
       bounds: Rect.fromLTWH(0, 0, 820, 700),
@@ -1991,6 +2061,21 @@ const DungeonLayout _waterLayout = DungeonLayout(
           rect: Rect.fromLTWH(355, 676, 110, 24),
           targetRoomId: 'moon_well',
           targetSpawn: Offset(450, 110),
+        ),
+      ],
+      tideZones: [
+        // The arena's sink: bare stone at low water, swum from mid up.
+        TideZone(rect: Rect.fromLTWH(250, 180, 320, 250), floodedAt: 1),
+        // Broken piers: solid cover at low and mid, drowned at high.
+        TideZone(
+          rect: Rect.fromLTWH(110, 470, 170, 56),
+          floodedAt: 2,
+          ledge: true,
+        ),
+        TideZone(
+          rect: Rect.fromLTWH(600, 130, 160, 56),
+          floodedAt: 2,
+          ledge: true,
         ),
       ],
       guardian: GuardianNode(

@@ -15,15 +15,26 @@
 //    valve elsewhere is a HARD GATE that answers ONLY a Water Pip). Three
 //    sluice seals each yield at exactly one stand: drained floor, mid
 //    walkway, swum-over high ledge.
-//  • Star 2 (Current) — the ghost gallery: an invisible current; a Spirit
-//    creature's insight bares it (any family, Int-tiered detail) and its
-//    five eddies must be waded in order. A wrong eddy scatters the current
-//    and the ghost-water rises angry.
+//  • Star 2 (Current) — the ghost gallery, DERIVED not memorised (docs §6.4
+//    REWORK / §9.1 item 2). Carved channels between a spring, five eddies
+//    and a sea drain are stone and always visible; which way the ghost-water
+//    runs down each one is the run's secret. A Spirit creature's insight
+//    bares each eddy's SPIN — and an eddy rolls the way its upstream feeder
+//    drives it (feeder to the WEST → sunwise, to the EAST → widdershins).
+//    Read the spins, reconstruct the flow, wade it SPRING→SEA. The twelve
+//    channels allow exactly six routes and all six are pinned uniquely by
+//    their spins, so the current is ROLLED PER RUN and stays provably
+//    deducible (`solveGhostCurrent`, layout-test enforced). Int re-cuts the
+//    reveal: t0 spins only · t1 flow arrows · t2 the order pips. A wrong
+//    eddy mid-wade still scatters the current and rouses ghost wisps.
 //  • Star 3 (Deep) — beyond the mirror gate: at MID tide the two TRUE
 //    moon-pools take the ice (any Ice family, clean — or a Spirit
 //    creature acting in the water: Spirit+Water→Ice, the recipe's downside
 //    being roused brine). Freezing a false pool SHATTERS. Both true pools
 //    bridged → Leviathan stirs in the depths.
+//  • The Leviathan turns the tide (§7 retrofit): the deep hauls the water one
+//    stand on every roar, so the fight is played across all three stands —
+//    and its lull only opens on SETTLED water. Raids are exempt.
 //  • Lost Maxim — the FROZEN MOON: at mid tide a faint glint drifts on the
 //    reflection-court pool; Ice laid exactly on it freezes the moon's
 //    reflection forever. (Lao Tzu, +20 gold once.)
@@ -48,6 +59,13 @@ const String kWaterFrozenMoonMaxim =
 const double _kTideRate = 0.22; // fraction/s
 const double _kSwimSpeedMul = 0.62; // non-Water creatures wade slowly
 
+/// Seconds for the bared ghost-current to bloom up out of the dark (and to
+/// fade back when the run resets). Nothing snaps.
+const double _kGhostBareSeconds = 0.9;
+
+/// How close a creature must come to an eddy to wade it.
+const double _kEddyWadeRadius = 30.0;
+
 extension MirrorTide on PlanetDungeonGame {
   // ── State helpers ───────────────────────────────────────
 
@@ -58,8 +76,16 @@ extension MirrorTide on PlanetDungeonGame {
     eddyProgress = 0;
     eddyRevealTimer = 0;
     eddyRevealTier = 0;
+    eddiesBared = false;
+    _ghostBare = 0;
     poolStates.clear();
     _poolFx.clear();
+    _leviathanTideDir = 1;
+    _leviathanLullPrev = true;
+    _leviathanRoars = 0;
+    // The CURRENT itself is not rerolled — the ghost-water keeps its course
+    // for the whole descent (the Buried Giant's scale answer does the same),
+    // so a death costs you the walk back, never the deduction.
   }
 
   /// Visual flood threshold for a zone (floodedAt 1 → 0.47 · 2 → 0.97).
@@ -153,6 +179,185 @@ extension MirrorTide on PlanetDungeonGame {
         Offset(sin(_time * 0.21) * 52, sin(_time * 0.33 + 1.7) * 36);
   }
 
+  // ── Star 2: the ghost current, DERIVED ──────────────────
+  //
+  // THE RULE, entire: an eddy turns the way its upstream feeder drives it.
+  // Water reaching it from the WEST rolls it sunwise (clockwise); water from
+  // the EAST rolls it widdershins. Nothing else is hidden — the channels are
+  // stone, the spring and the sea drain are stone, and the spins are what
+  // Spirit bares. Everything the game does with the current — the render, the
+  // run's roll — and everything the layout test proves about it go through
+  // ONE rule function and ONE route enumerator below, so the proof can never
+  // drift away from the gameplay.
+
+  /// The gallery — the room that owns the eddies (null on other planets).
+  DungeonRoom? get _ghostGallery {
+    for (final room in layout.rooms.values) {
+      if (room.ghostEddies.isNotEmpty) return room;
+    }
+    return null;
+  }
+
+  /// Every node in the gallery's flow network by id: the spring, the five
+  /// eddies, the sea drain. Built once — the layout is const, and the render
+  /// asks for this several times a frame.
+  Map<String, Offset> _ghostNodes(DungeonRoom room) =>
+      _ghostNodeCache ??= {
+        for (final m in room.ghostMouths) m.id: m.position,
+        for (final e in room.ghostEddies) e.id: e.position,
+      };
+
+  /// THE RULE. True = sunwise (clockwise): the water reaches [eddy] from the
+  /// west. The game's render, the run's roll and the solver all ask this.
+  bool _spinSunwise(Offset eddy, Offset feeder) => feeder.dx < eddy.dx;
+
+  /// The spin the gallery is SHOWING for [eddyId] right now — the one thing
+  /// a Spirit reveal bares. Null before the current is rolled.
+  bool? eddySpinSunwise(String eddyId) {
+    final room = _ghostGallery;
+    final feeder = eddyFeeder[eddyId];
+    if (room == null || feeder == null) return null;
+    final nodes = _ghostNodes(room);
+    final at = nodes[eddyId], from = nodes[feeder];
+    if (at == null || from == null) return null;
+    return _spinSunwise(at, from);
+  }
+
+  /// Every route the carved channels allow: spring → all five eddies → sea,
+  /// each node once. This is the whole space of currents the gallery's stone
+  /// could ever carry, and it is what both the roll and the solver search.
+  List<List<String>> ghostRoutes() {
+    final room = _ghostGallery;
+    if (room == null) return const [];
+    String? sourceId, seaId;
+    for (final m in room.ghostMouths) {
+      if (m.isSource) {
+        sourceId = m.id;
+      } else {
+        seaId = m.id;
+      }
+    }
+    if (sourceId == null || seaId == null) return const [];
+    final adj = <String, Set<String>>{};
+    for (final ch in room.ghostChannels) {
+      adj.putIfAbsent(ch.a, () => {}).add(ch.b);
+      adj.putIfAbsent(ch.b, () => {}).add(ch.a);
+    }
+    final eddyIds = {for (final e in room.ghostEddies) e.id};
+    final routes = <List<String>>[];
+    void walk(List<String> path, Set<String> seen) {
+      if (seen.length == eddyIds.length) {
+        if (adj[path.last]?.contains(seaId) ?? false) {
+          routes.add([...path, seaId!]);
+        }
+        return;
+      }
+      for (final next in adj[path.last] ?? const <String>{}) {
+        if (!eddyIds.contains(next) || seen.contains(next)) continue;
+        walk([...path, next], {...seen, next});
+      }
+    }
+
+    walk([sourceId], {});
+    return routes;
+  }
+
+  /// The spins a given route would put on the water, as a per-eddy map.
+  Map<String, bool> _routeSpins(DungeonRoom room, List<String> route) {
+    final nodes = _ghostNodes(room);
+    return {
+      for (var i = 1; i < route.length - 1; i++)
+        route[i]: _spinSunwise(nodes[route[i]]!, nodes[route[i - 1]]!),
+    };
+  }
+
+  String _spinKey(Map<String, bool> spins) {
+    final ids = spins.keys.toList()..sort();
+    return [for (final id in ids) spins[id]! ? 's' : 'w'].join();
+  }
+
+  /// THE SOLVER (public: the layout test's proof engine, and the run's own
+  /// roll). Derives the wade order from the SPINS alone — exactly the
+  /// reasoning the player must do — by walking every route the carved
+  /// channels allow and keeping the ones whose spins match what the water
+  /// shows. [searched] = routes the stone permits; [satisfying] must be
+  /// exactly 1 (docs §6.4: "the spins uniquely determine one wade order").
+  ({int searched, int satisfying, List<String>? order}) solveGhostCurrent([
+    Map<String, bool>? spins,
+  ]) {
+    final room = _ghostGallery;
+    if (room == null) return (searched: 0, satisfying: 0, order: null);
+    final observed =
+        spins ??
+        {
+          for (final e in room.ghostEddies)
+            if (eddySpinSunwise(e.id) != null) e.id: eddySpinSunwise(e.id)!,
+        };
+    final routes = ghostRoutes();
+    var satisfying = 0;
+    List<String>? order;
+    for (final route in routes) {
+      final produced = _routeSpins(room, route);
+      var matches = produced.length == observed.length;
+      if (matches) {
+        for (final entry in produced.entries) {
+          if (observed[entry.key] != entry.value) {
+            matches = false;
+            break;
+          }
+        }
+      }
+      if (matches) {
+        satisfying++;
+        order = route.sublist(1, route.length - 1);
+      }
+    }
+    return (searched: routes.length, satisfying: satisfying, order: order);
+  }
+
+  /// Roll the run's current (constructor-time, like the Buried Giant's scale)
+  /// — and roll ONLY from the routes whose spins pin them uniquely. A current
+  /// the spins cannot single out is not a puzzle, it is a coin toss, so the
+  /// gallery simply never runs one.
+  void _rollGhostCurrent() {
+    eddyOrder.clear();
+    eddyFeeder.clear();
+    if (!_isTemple) return;
+    final room = _ghostGallery;
+    if (room == null) return;
+    final routes = ghostRoutes();
+    if (routes.isEmpty) return;
+    final tally = <String, int>{};
+    for (final route in routes) {
+      final key = _spinKey(_routeSpins(room, route));
+      tally[key] = (tally[key] ?? 0) + 1;
+    }
+    final deducible = [
+      for (final route in routes)
+        if (tally[_spinKey(_routeSpins(room, route))] == 1) route,
+    ];
+    final pool = deducible.isEmpty ? routes : deducible;
+    adoptGhostRoute(pool[Random().nextInt(pool.length)]);
+  }
+
+  /// Adopt [route] (`[springId, …eddyIds, seaId]`) as this run's current.
+  /// Public so tests can pin a known current instead of fighting the roll.
+  void adoptGhostRoute(List<String> route) {
+    eddyOrder.clear();
+    eddyFeeder.clear();
+    for (var i = 1; i < route.length - 1; i++) {
+      eddyOrder[route[i]] = i - 1;
+      eddyFeeder[route[i]] = route[i - 1];
+    }
+  }
+
+  /// The eddy ids in wade order (empty before the roll).
+  List<String> get ghostWadeOrder {
+    final ids = eddyOrder.keys.toList()
+      ..sort((a, b) => eddyOrder[a]! - eddyOrder[b]!);
+    return ids;
+  }
+
   // ── Update ──────────────────────────────────────────────
 
   void _updateTemple(DungeonCreature a, DungeonRoom room, double dt) {
@@ -169,20 +374,32 @@ extension MirrorTide on PlanetDungeonGame {
     }
 
     if (eddyRevealTimer > 0) eddyRevealTimer -= dt;
+    // The bared current blooms up (and never snaps): ANIMATED-STATE rule.
+    final bareTarget = eddiesBared ? 1.0 : 0.0;
+    if ((_ghostBare - bareTarget).abs() > 0.001) {
+      final step = dt / _kGhostBareSeconds;
+      _ghostBare = _ghostBare < bareTarget
+          ? min(bareTarget, _ghostBare + step)
+          : max(bareTarget, _ghostBare - step);
+    }
     if (_poolFx.isNotEmpty) {
       _poolFx.updateAll((k, v) => v - dt);
       _poolFx.removeWhere((k, v) => v <= 0);
     }
 
-    // Star 2: wade the ghost current's eddies in order (ring-style: a later
-    // eddy mid-sequence scatters the current).
+    // Star 2: wade the current SPRING→SEA in the order the spins describe.
+    // A later eddy taken mid-wade scatters the whole thing (the consequence
+    // the rework keeps) — and stepping into the wrong FIRST eddy costs
+    // nothing, so a course can always be started over cleanly.
     final eddyStar = room.eddyStarIndex;
     if (room.ghostEddies.isNotEmpty &&
         eddyStar != null &&
         !hasStar(eddyStar)) {
       for (final eddy in room.ghostEddies) {
-        if ((a.position - eddy.position).distance > 30) continue;
-        if (eddy.order == eddyProgress) {
+        if ((a.position - eddy.position).distance > _kEddyWadeRadius) continue;
+        final ord = eddyOrder[eddy.id];
+        if (ord == null) continue;
+        if (ord == eddyProgress) {
           eddyProgress++;
           _spawnAlchemyBurst(
             eddy.position,
@@ -194,13 +411,12 @@ extension MirrorTide on PlanetDungeonGame {
           if (eddyProgress >= room.ghostEddies.length) {
             earnStar(eddyStar);
           } else {
-            _setHint(
-              'The current carries you — $eddyProgress of '
-              '${room.ghostEddies.length}',
-            );
+            // The tally itself lives in the progress readout now (§5.6);
+            // the capsule only says the water took you.
+            _setHint('The ghost-water gathers you and carries on');
           }
           onChanged();
-        } else if (eddy.order > eddyProgress && eddyProgress != 0) {
+        } else if (ord > eddyProgress && eddyProgress != 0) {
           eddyProgress = 0;
           _spawnAlchemyBurst(
             eddy.position,
@@ -392,18 +608,29 @@ extension MirrorTide on PlanetDungeonGame {
     return false;
   }
 
-  /// Star 2's reveal: ANY Spirit creature bares the ghost current, at full
-  /// sight — Intelligence alone decides how long and how much shows.
+  /// Star 2's reveal: ANY Spirit creature bares the ghost current. What it
+  /// bares at tier 0 is the SPINS — the evidence, not the answer — and the
+  /// baring is PERMANENT for the run: a deduction you cannot look at twice
+  /// is only a memory test. Intelligence buys the shortcuts on top of it:
+  /// t1 draws the flow along the channels, t2 numbers the wade outright.
   bool _tryGhostReveal(DungeonCreature a, DungeonRoom room) {
     if (room.ghostEddies.isEmpty) return false;
-    if (a.member.element != 'Spirit') return false;
     final star = room.eddyStarIndex;
+    if (a.member.element != 'Spirit') {
+      // A Mask still reads the gallery's frieze for the RULE (_templeReveal);
+      // anyone else gets one clause of refusal and nothing else.
+      if (a.ability == DungeonAbility.insight) return false;
+      if (star != null && hasStar(star)) return false;
+      _setBlockedHint('Only Spirit bares the ghost-water');
+      return true;
+    }
     if (star != null && hasStar(star)) {
       _setHint('The current rests — its course is run');
       return true;
     }
     eddyRevealTier = revealHintTier(a.member.statIntelligence);
     eddyRevealTimer = 4.0 + 6.0 * normStat(a.member.statIntelligence);
+    eddiesBared = true; // the spins stay bare for the rest of the run
     revealFlash = 0.6;
     _spawnAlchemyBurst(
       a.position,
@@ -411,11 +638,16 @@ extension MirrorTide on PlanetDungeonGame {
       particleCount: 16,
       intensity: 0.8,
     );
-    _setHint(
-      eddyRevealTier >= 1
-          ? 'The ghost-current bares its whole course — wade it in order'
-          : 'The ghost-water stirs — its next turning shows itself',
-      3.4,
+    // INSIGHT is the only channel allowed to teach method (§5.6), and it is
+    // priority-protected so the reading is never stomped mid-read.
+    _setInsightHint(
+      eddyRevealTier >= 2
+          ? 'The water counts its own course — wade the eddies as they number'
+          : eddyRevealTier >= 1
+          ? 'The flow bares itself along the channels — follow it spring to sea'
+          : 'Each eddy rolls the way its feeder drives it — sunwise when the '
+                'water comes from the west, widdershins from the east',
+      4.2,
     );
     return true;
   }
@@ -573,6 +805,83 @@ extension MirrorTide on PlanetDungeonGame {
     return true;
   }
 
+  // ── The Leviathan turns the tide (§7 retrofit) ──────────
+  //
+  // The guardian grammar stays engine-shared: the same lull/strike cycle
+  // every mystic rides. What Leviathan adds is the PLANET'S OWN RULE turned
+  // against you — on every roar (the beat the lull shuts) the deep hauls the
+  // water one stand, so the arena's footing, swim speed and pier cover are
+  // never the same twice; and the lull only opens on SETTLED water, so the
+  // swell itself is the guardian's shield. Raids are exempt: the generated
+  // arena has no tide zones, and the shared cycle carries the fight there.
+
+  /// Called from the shared guardian loop (one `_isTemple`-guarded line in
+  /// `_updateAltar`), AFTER the cycle has set [guardianVulnerable].
+  void _applyLeviathanTide(DungeonRoom room, double dt) {
+    final g = room.guardian;
+    if (g == null || isRaid || room.tideZones.isEmpty) return;
+    if (hasStar(g.starIndex)) return;
+    // The roar rides the SHUT of the lull — the raw cycle's falling edge, so
+    // it fires on a fixed beat and always has a full strike phase in which
+    // to settle before the next window opens.
+    final cycleLull = guardianVulnerable;
+    if (_leviathanLullPrev && !cycleLull) _leviathanRoar();
+    _leviathanLullPrev = cycleLull;
+    // The swell is its armour: nothing touches Leviathan on moving water.
+    if (!tideSettled) guardianVulnerable = false;
+  }
+
+  /// One roar: the deep hauls the water a stand, rolling low→mid→high→mid→…
+  /// so the fight is played across every stand instead of parking on one.
+  void _leviathanRoar() {
+    var next = tideLevel + _leviathanTideDir;
+    if (next > 2) {
+      next = 1;
+      _leviathanTideDir = -1;
+    } else if (next < 0) {
+      next = 1;
+      _leviathanTideDir = 1;
+    }
+    _leviathanRoars++;
+    _setTide(next);
+    _setHint(
+      'Leviathan roars — the deep hauls the ${_tideName(tideLevel)} water in',
+      2.8,
+    );
+  }
+
+  // ── Progress readout (§5.6 STATE LEAVES THE CAPSULE) ────
+
+  /// Water's persistent, glanceable counters, beside the star tracker: the
+  /// sluice tally (migrated out of the capsule, where it used to fade after
+  /// three seconds) and the wade. The tide GAUGE is a canvas HUD of its own
+  /// and deliberately stays one.
+  DungeonProgressReadout? _templeProgressReadout() {
+    final room = currentRoom;
+    final sealStar = room.sealStarIndex;
+    if (room.tideSeals.isNotEmpty && sealStar != null && !hasStar(sealStar)) {
+      final total = room.tideSeals.length;
+      final open = room.tideSeals
+          .where((s) => openedSeals.contains(s.id))
+          .length;
+      return DungeonProgressReadout(
+        label: 'SLUICES',
+        value: '$open/$total',
+        fraction: total == 0 ? null : open / total,
+      );
+    }
+    final eddyStar = room.eddyStarIndex;
+    if (room.ghostEddies.isNotEmpty && eddyStar != null && !hasStar(eddyStar)) {
+      final total = room.ghostEddies.length;
+      return DungeonProgressReadout(
+        label: 'EDDIES',
+        value: '$eddyProgress/$total',
+        fraction: total == 0 ? null : eddyProgress / total,
+      );
+    }
+    return null;
+  }
+
   // ── Mask insight ────────────────────────────────────────
 
   void _templeReveal(DungeonCreature a, DungeonRoom room) {
@@ -587,7 +896,22 @@ extension MirrorTide on PlanetDungeonGame {
         );
         return;
       case 'ghost_gallery':
-        _setHint('Ghost-water turns here — only Spirit bares its course', 3.4);
+        // A non-Spirit Mask cannot bare the water, but it CAN read the
+        // gallery's frieze — and the frieze is where the rule is written.
+        // (Spirit creatures never reach here: _tryGhostReveal catches them.)
+        final star = room.eddyStarIndex;
+        if (star != null && hasStar(star)) {
+          _setHint('The current rests — its course is run');
+          return;
+        }
+        _setHint(
+          revealTier >= 1
+              ? 'The frieze reads plain: an eddy rolls the way its feeder '
+                    'drives it — sunwise from the west, widdershins from the east'
+              : 'Carved channels, and eddies that turn between them — only '
+                    'Spirit bares which way',
+          4.2,
+        );
         return;
       case 'moon_hall':
         _setHint(
@@ -599,7 +923,9 @@ extension MirrorTide on PlanetDungeonGame {
       case 'moon_well':
         // Tiered (§5.6): tier 1 narrows the method, tier 2 marks the answer.
         if (revealTier >= 2) {
-          eddyRevealTier = max(eddyRevealTier, revealTier);
+          // (The moon-well reading is the moon-well's; it no longer bleeds
+          // into the gallery's eddy tier — that would hand a room away from
+          // three chambers off.)
           _poolFx['truth'] = 3.0 + revealTier * 1.5; // true pools glow
           _setHint(
             'The moon rides the northwest and southeast pools — the '
@@ -683,6 +1009,18 @@ extension MirrorTide on PlanetDungeonGame {
       if ((a.position - kTideGateBowl).distance <= 70) {
         _setAmbientHint('The offering-bowl stands dry — it thirsts');
       }
+      return;
+    }
+    // Atmosphere ONLY at the gallery's mouths: a named stone thing, no
+    // mechanic, no element requirement (§5.6 AMBIENT).
+    for (final mouth in room.ghostMouths) {
+      if ((a.position - mouth.position).distance > 70) continue;
+      _setAmbientHint(
+        mouth.isSource
+            ? 'A carved mouth weeps brine into the dark'
+            : 'The grate breathes; somewhere below, the sea',
+      );
+      return;
     }
   }
 
@@ -697,8 +1035,9 @@ extension MirrorTide on PlanetDungeonGame {
         return 'Tide-Works — turn the valves, stand the tide, open all '
             'three sluices';
       case 'ghost_gallery':
-        return 'Ghost Gallery — Spirit bares the current; wade its eddies '
-            'in order';
+        // WHAT, never HOW (§5.6): the rule and the reading are the frieze's
+        // and Spirit's to give, not the doorway's.
+        return 'Ghost Gallery — an unseen current still runs spring to sea';
       case 'reflection_court':
         return null; // the egg keeps its silence
       case 'moon_hall':
@@ -936,7 +1275,7 @@ extension MirrorTide on PlanetDungeonGame {
         _drawTideWorks(canvas, room);
         break;
       case 'ghost_gallery':
-        _drawGhostEddies(canvas, room);
+        _drawGhostGallery(canvas, room);
         break;
       case 'pearl_vault':
         _drawPearlShrine(canvas, room.bounds.center);
@@ -1281,70 +1620,217 @@ extension MirrorTide on PlanetDungeonGame {
     }
   }
 
-  void _drawGhostEddies(Canvas canvas, DungeonRoom room) {
+  /// The ghost gallery. The STONE is always there — the carved channels, the
+  /// spring's mouth, the sea grate — because the flow network is the thing
+  /// the player reasons over and reasoning needs something to look at. What
+  /// Spirit bares is the WATER: five eddies, each rolling the way its feeder
+  /// drives it. High insight adds the flow arrows (t1) and the pips (t2) on
+  /// top, on a timer, while the spins themselves stay bare for the run.
+  void _drawGhostGallery(Canvas canvas, DungeonRoom room) {
     final star = room.eddyStarIndex;
     final done = star != null && hasStar(star);
-    if (done) return;
-    final visible = eddyRevealTimer > 0;
-    final fade = visible ? (eddyRevealTimer / 2.5).clamp(0.0, 1.0) : 0.0;
-    final eddies = [...room.ghostEddies]..sort((a, b) => a.order - b.order);
-    // The current's course, shown per insight tier.
-    if (visible && eddyRevealTier >= 1) {
-      final path = Paint()
+    final nodes = _ghostNodes(room);
+
+    // 1) The channels — grooves cut in the mosaic, stone and unhidden.
+    final groove = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF071319).withValues(alpha: 0.55);
+    final grooveLip = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF4A7080).withValues(alpha: 0.34);
+    for (final ch in room.ghostChannels) {
+      final a = nodes[ch.a], b = nodes[ch.b];
+      if (a == null || b == null) continue;
+      canvas.drawLine(a, b, groove);
+      canvas.drawLine(a, b, grooveLip);
+    }
+
+    // 2) The two fixed ends the whole deduction hangs from.
+    for (final mouth in room.ghostMouths) {
+      _drawGhostMouth(canvas, mouth);
+    }
+    if (done) return; // the course is run; the water rests
+
+    final bare = _ghostBare.clamp(0.0, 1.0);
+    final tiered = eddyRevealTimer > 0;
+    final fade = tiered ? (eddyRevealTimer / 2.5).clamp(0.0, 1.0) : 0.0;
+
+    // 3) TIER 1 — the flow itself, an arrow along each live channel.
+    if (tiered && eddyRevealTier >= 1) {
+      final flow = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFFB8D8E8).withValues(alpha: 0.16 * fade);
-      for (var i = 0; i < eddies.length - 1; i++) {
-        canvas.drawLine(eddies[i].position, eddies[i + 1].position, path);
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFB8D8E8).withValues(alpha: 0.55 * fade);
+      eddyFeeder.forEach((id, from) {
+        final to = nodes[id], src = nodes[from];
+        if (to == null || src == null) return;
+        _drawFlowArrow(canvas, src, to, flow);
+      });
+      // …and on out to the sea, so the end of the course reads too.
+      String? last;
+      eddyOrder.forEach((id, ord) {
+        if (ord == room.ghostEddies.length - 1) last = id;
+      });
+      if (last != null) {
+        final from = nodes[last];
+        for (final mouth in room.ghostMouths) {
+          if (mouth.isSource || from == null) continue;
+          _drawFlowArrow(canvas, from, mouth.position, flow);
+        }
       }
     }
-    for (final eddy in eddies) {
-      final donePart = eddy.order < eddyProgress;
-      final next = eddy.order == eddyProgress;
-      // Unrevealed eddies are GHOSTS: only the waded ones and (while the
-      // reveal lasts) the course show at all.
-      final show = donePart || (visible && (eddyRevealTier >= 1 || next));
-      if (!show) continue;
-      final col = donePart
+
+    // 4) The eddies.
+    for (final eddy in room.ghostEddies) {
+      final ord = eddyOrder[eddy.id];
+      final waded = ord != null && ord < eddyProgress;
+      final next = ord != null && ord == eddyProgress;
+      final show = waded ? 1.0 : bare;
+      if (show <= 0.02) continue;
+      // The same rule the solver uses, read straight off the cached nodes
+      // (this runs five times a frame — no room scan, no allocation).
+      final from = nodes[eddyFeeder[eddy.id]];
+      final sunwise = from == null || _spinSunwise(eddy.position, from);
+      final col = waded
           ? const Color(0xFF6FE0C0)
-          : next
-          ? const Color(0xFFB8D8E8)
-          : const Color(0xFF5A8AA0);
-      final alpha = donePart ? 0.6 : (0.3 + 0.5 * fade);
+          : next && tiered && eddyRevealTier >= 2
+          ? const Color(0xFFDCE8F0)
+          : const Color(0xFFB8D8E8);
       final swirl = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = col.withValues(alpha: alpha);
-      // A spiral eddy: three arcs winding inward.
+        ..strokeWidth = 1.8
+        ..strokeCap = StrokeCap.round
+        ..color = col.withValues(alpha: (waded ? 0.62 : 0.52) * show);
+      // Three arcs winding inward, TURNING the way the feeder drives them —
+      // this rotation IS the puzzle's evidence, so it must read at a glance.
+      final spin = sunwise ? 1.0 : -1.0;
+      final phase = _time * 1.15 * spin;
       for (var i = 0; i < 3; i++) {
+        final r = 19.0 - i * 5.5;
         canvas.drawArc(
-          Rect.fromCircle(center: eddy.position, radius: 18.0 - i * 5),
-          _time * (next ? 1.6 : 0.7) + i * 1.4,
-          pi * 1.2,
+          Rect.fromCircle(center: eddy.position, radius: r),
+          phase + i * 1.5,
+          pi * 1.25,
           false,
           swirl,
         );
       }
-      if (next && _fx.ready) {
+      // A chevron riding the outer arc's leading edge — the direction, said
+      // twice, because a slow spiral alone is easy to misread.
+      _drawSpinChevron(canvas, eddy.position, 19.0, phase + pi * 1.25, spin,
+          swirl);
+      if (waded && _fx.ready) {
         drawGlow(
           canvas,
           _fx.glow!,
           eddy.position,
-          26,
-          col.withValues(alpha: 0.25 * (visible ? 1.0 : 0.0)),
+          24,
+          const Color(0xFF6FE0C0).withValues(alpha: 0.18),
         );
       }
-      // Order pips at high insight.
-      if (visible && eddyRevealTier >= 2 && !donePart) {
-        for (var k = 0; k <= eddy.order; k++) {
+      // 5) TIER 2 — the water counts itself.
+      if (tiered && eddyRevealTier >= 2 && !waded && ord != null) {
+        final pip = Paint()
+          ..color = const Color(0xFFDCE8F0).withValues(alpha: 0.7 * fade);
+        for (var k = 0; k <= ord; k++) {
           canvas.drawCircle(
-            eddy.position + Offset(-10 + k * 5.0, -26),
-            1.6,
-            Paint()
-              ..color = const Color(0xFFDCE8F0).withValues(alpha: 0.6 * fade),
+            eddy.position + Offset(-10 + k * 5.0, -27),
+            1.7,
+            pip,
           );
         }
       }
+    }
+  }
+
+  /// A single arrowhead at the far end of a channel (the shaft is the groove
+  /// already drawn beneath it) — one chevron, two lines.
+  void _drawFlowArrow(Canvas canvas, Offset from, Offset to, Paint paint) {
+    final d = to - from;
+    final len = d.distance;
+    if (len < 24) return;
+    final u = Offset(d.dx / len, d.dy / len);
+    final tip = to - u * 24.0;
+    final n = Offset(-u.dy, u.dx);
+    canvas.drawLine(tip, tip - u * 11 + n * 6, paint);
+    canvas.drawLine(tip, tip - u * 11 - n * 6, paint);
+  }
+
+  /// The chevron on an eddy's outer arc, pointing the way it turns.
+  void _drawSpinChevron(
+    Canvas canvas,
+    Offset centre,
+    double radius,
+    double angle,
+    double spin,
+    Paint paint,
+  ) {
+    final at = centre + Offset(cos(angle), sin(angle)) * radius;
+    // Tangent in the direction of travel.
+    final t = Offset(-sin(angle), cos(angle)) * spin;
+    final n = Offset(-t.dy, t.dx);
+    canvas.drawLine(at, at - t * 7 + n * 4, paint);
+    canvas.drawLine(at, at - t * 7 - n * 4, paint);
+  }
+
+  /// The spring's carved mouth (source) or the sea grate (drain) — stone, so
+  /// both are visible from the first step into the gallery.
+  void _drawGhostMouth(Canvas canvas, GhostMouth mouth) {
+    final p = mouth.position;
+    final stone = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..color = const Color(0xFF4A7080).withValues(alpha: 0.85);
+    canvas.drawCircle(
+      p,
+      15,
+      Paint()..color = const Color(0xFF07141B).withValues(alpha: 0.9),
+    );
+    canvas.drawCircle(p, 15, stone);
+    if (mouth.isSource) {
+      // The spring: a mouth with water spilling from it, always running.
+      final spill = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF8FE0EC).withValues(
+          alpha: 0.4 + 0.2 * sin(_time * 3.1),
+        );
+      for (var i = 0; i < 3; i++) {
+        final y = p.dy + 6 + ((_time * 26 + i * 11) % 22);
+        canvas.drawLine(
+          Offset(p.dx - 5 + i * 5.0, y),
+          Offset(p.dx - 5 + i * 5.0, y + 6),
+          spill,
+        );
+      }
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          p,
+          6,
+          const Color(0xFF8FE0EC).withValues(alpha: 0.3),
+        );
+      }
+      return;
+    }
+    // The sea drain: three bars over a dark throat.
+    final bar = Paint()
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF4A8AB8).withValues(alpha: 0.8);
+    for (var i = -1; i <= 1; i++) {
+      canvas.drawLine(
+        Offset(p.dx + i * 6.0, p.dy - 9),
+        Offset(p.dx + i * 6.0, p.dy + 9),
+        bar,
+      );
     }
   }
 
