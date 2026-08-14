@@ -506,16 +506,118 @@ void main() {
           }
         });
 
-        test('ring orders form one complete 0..n-1 sequence', () {
-          final orders = [
-            for (final room in layout.rooms.values)
-              for (final ring in room.rings) ring.order,
-          ]..sort();
-          expect(
-            orders,
-            List.generate(orders.length, (i) => i),
-            reason: 'ring orders must be exactly 0..n-1 with no gaps/dupes',
-          );
+        // §6.11 REWORK: the wind graph is the SOLVER'S model of the spire, and
+        // the collision map is what the player actually walks. If they can
+        // drift apart, the no-strand proof proves nothing — so every claim the
+        // graph makes is checked against the authored geometry here.
+        test('the wind graph and the room geometry agree', () {
+          final galeRects = <String, List<Rect>>{};
+          for (final room in layout.rooms.values) {
+            for (final c in room.currents) {
+              final id = c.galeId;
+              if (id != null) (galeRects[id] ??= []).add(c.rect);
+            }
+          }
+          bool covers(List<Rect> rects, Rect path) {
+            // A swept path must be fully inside the union; with axis-aligned
+            // rects, sampling the path's corners and centre is sufficient for
+            // the single-rect covers used here, so require one rect to hold it.
+            return rects.any(
+              (r) =>
+                  r.left <= path.left + 0.01 &&
+                  r.right >= path.right - 0.01 &&
+                  r.top <= path.top + 0.01 &&
+                  r.bottom >= path.bottom - 0.01,
+            );
+          }
+
+          for (final room in layout.rooms.values) {
+            final ledges = {for (final l in room.windLedges) l.id: l};
+            for (final l in room.windLedges) {
+              expect(
+                room.platforms.any((p) => p == l.rect),
+                isTrue,
+                reason: '${room.id}: ledge ${l.id} is not standable footing',
+              );
+            }
+            for (final r in room.windRoutes) {
+              expect(ledges.containsKey(r.from), isTrue,
+                  reason: '${room.id}: route ${r.id} leaves nowhere');
+              expect(ledges.containsKey(r.to), isTrue,
+                  reason: '${room.id}: route ${r.id} arrives nowhere');
+              final rides = r.ridesGale;
+              if (rides == null) {
+                expect(
+                  room.platforms.any((p) => p == r.path),
+                  isTrue,
+                  reason:
+                      '${room.id}: walkway ${r.id} is not standable footing',
+                );
+              } else {
+                final rects = galeRects[rides];
+                expect(rects, isNotNull,
+                    reason: '${room.id}: route ${r.id} rides an unauthored '
+                        'gale "$rides"');
+                expect(
+                  rects!.any((g) => g.overlaps(ledges[r.from]!.rect)) &&
+                      rects.any((g) => g.overlaps(ledges[r.to]!.rect)),
+                  isTrue,
+                  reason:
+                      '${room.id}: gale "$rides" does not actually connect '
+                      '${r.from} to ${r.to}',
+                );
+              }
+              for (final g in r.sweptBy) {
+                expect(
+                  covers(galeRects[g] ?? const [], r.path),
+                  isTrue,
+                  reason:
+                      '${room.id}: route ${r.id} claims gale "$g" scours it, '
+                      'but no rect of that gale covers its path',
+                );
+              }
+              if (r.costly) {
+                expect(
+                  galeRects.values.any(
+                    (rects) => rects.any((g) => g.overlaps(r.path)),
+                  ),
+                  isTrue,
+                  reason:
+                      '${room.id}: route ${r.id} claims to cost a fall, but '
+                      'no gale touches it',
+                );
+              }
+            }
+            for (final s in room.gustShrines) {
+              expect(ledges.containsKey(s.ledgeId), isTrue,
+                  reason: '${room.id}: shrine ${s.id} stands on no ledge');
+              expect(
+                ledges[s.ledgeId]!.rect.contains(s.position),
+                isTrue,
+                reason: '${room.id}: shrine ${s.id} is off its own ledge',
+              );
+              expect(
+                galeRects.containsKey(s.wakesGale),
+                isTrue,
+                reason: '${room.id}: shrine ${s.id} wakes nothing',
+              );
+              // THE SOFTLOCK GUARD, at the geometry level: a shrine standing
+              // inside a gale that blows through ITS OWN ROOM would become
+              // unusable the moment that gale woke — permanently. (A shrine
+              // may wake a gale in a distant room; only local wind can bar it.)
+              for (final c in room.currents) {
+                final id = c.galeId;
+                if (id == null) continue;
+                expect(
+                  c.rect.contains(s.position),
+                  isFalse,
+                  reason:
+                      '${room.id}: shrine ${s.id} stands inside gale "$id" — '
+                      'waking it would bar the shrine for the rest of the run',
+                );
+              }
+            }
+          }
         });
 
         test('derived anchor types are craftable in their room', () {
@@ -540,16 +642,35 @@ void main() {
           }
         });
 
-        test('arc-only conduits share a room with a wind current', () {
+        // §6.11 REWORK: no conduit is arc-lit by hand any more. A conduit the
+        // player cannot channel must be one the STORM can reach — and the
+        // storm must never be able to reach it without a rod staircase, or
+        // there is no puzzle at all.
+        test('storm-struck conduits stand in a rod field, out of the '
+            'cell\'s own reach', () {
           for (final room in layout.rooms.values) {
             for (final c in room.conduits) {
-              if (c.requiredFamily != null) continue; // channelled, not arc-lit
+              if (c.requiredFamily != null) continue; // channelled by hand
               expect(
-                room.currents,
-                isNotEmpty,
+                c.struckByStorm,
+                isTrue,
                 reason:
-                    'conduit ${c.id} in ${room.id} is arc-only but the room '
-                    'has no current for the Fire creature to ignite in',
+                    'conduit ${c.id} in ${room.id} answers neither a hand nor '
+                    'the storm — nothing can ever light it',
+              );
+              expect(room.stormRods, isNotEmpty,
+                  reason: '${room.id}: nothing for the bolt to climb');
+              final orbit = room.stormOrbit;
+              expect(orbit, isNotNull,
+                  reason: '${room.id}: a struck conduit with no storm');
+              final gap =
+                  (c.position - orbit!.center).distance - orbit.radius;
+              expect(
+                gap,
+                greaterThan(kStormHopReach),
+                reason:
+                    '${room.id}: the cell passes within a single leap of '
+                    'conduit ${c.id} — it would light itself',
               );
             }
           }

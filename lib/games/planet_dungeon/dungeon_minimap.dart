@@ -374,8 +374,13 @@ class _DungeonMiniMapPainter extends CustomPainter {
       objective = room.guardian!.position;
     } else if (room.conduits.isNotEmpty && !game.hasStar(2)) {
       objective = room.conduits.first.position;
-    } else if (room.rings.isNotEmpty && !game.hasStar(0)) {
-      objective = room.rings.first.position;
+    } else if (room.gustShrines.isNotEmpty && !game.hasStar(0)) {
+      // The next sleeping gust shrine in this room (§6.11 REWORK — the sky
+      // rings retired with Star 1's execution ascent).
+      final sleeping = room.gustShrines
+          .where((s) => !game.wokenGales.contains(s.wakesGale))
+          .firstOrNull;
+      if (sleeping != null) objective = sleeping.position;
     } else if (room.braziers.isNotEmpty &&
         room.brazierStarIndex == null &&
         !game.entryDoorRevealed) {

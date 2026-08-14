@@ -280,36 +280,34 @@ void main() {
     });
   });
 
-  group('wind spire rings', () {
-    void flyThroughRing(PlanetDungeonGame game, String roomId, Offset ringPos) {
+  group('wind spire — waking the winds', () {
+    void wake(PlanetDungeonGame game, String roomId, String shrineId) {
       game.currentRoomId = roomId;
-      final flyer = game.creatures[game.activeIndex];
-      flyer.position = ringPos;
-      game.flightActive = true;
-      game.flightMeter = 5;
+      final shrine = game.currentRoom.gustShrines.firstWhere(
+        (s) => s.id == shrineId,
+      );
+      final walker = game.creatures[game.activeIndex]
+        ..position = shrine.position
+        ..lastSafe = shrine.position;
+      expect(walker.position, shrine.position);
+      game.activateAbility();
       _step(game, 0.1);
     }
 
-    test('summit opens only after ALL three rings, in order', () {
+    test('the crown opens only once EVERY wind blows', () {
       final game = _buildGame();
-      final rings = <String, Offset>{
-        for (final room in game.layout.rooms.values)
-          for (final ring in room.rings) room.id: ring.position,
-      };
-      expect(rings.length, 3, reason: 'air spire authors one ring per room');
+      expect(game.wokenGales, isEmpty, reason: 'the spire is born calm');
 
-      flyThroughRing(game, 'lower_spire', rings['lower_spire']!);
-      expect(
-        game.summitOpen,
-        isFalse,
-        reason: 'one ring of three must NOT open the summit',
-      );
-      flyThroughRing(game, 'crosswind_hall', rings['crosswind_hall']!);
+      wake(game, 'lower_spire', 'shrine_ridge');
+      expect(game.summitOpen, isFalse, reason: 'one wind of four is not four');
+      wake(game, 'lower_spire', 'shrine_first');
       expect(game.summitOpen, isFalse);
-      flyThroughRing(game, 'cloud_platforms', rings['cloud_platforms']!);
-      expect(game.summitOpen, isTrue);
+      wake(game, 'crosswind_hall', 'shrine_crown');
+      expect(game.summitOpen, isFalse);
+      wake(game, 'crosswind_hall', 'shrine_span');
+      expect(game.summitOpen, isTrue, reason: 'the fourth wind opens the crown');
 
-      // Standing in the summit zone banks Star 1.
+      // Standing in the crown banks Star 1.
       game.currentRoomId = 'spire_summit';
       final summit = game.currentRoom.summit!;
       game.creatures[game.activeIndex]
@@ -654,10 +652,21 @@ void main() {
       final game = _buildGame();
       game.currentRoomId = 'lower_spire';
       final walker = game.creatures[game.activeIndex];
-      // Stand on platform 1 inside the west thermal's entry overlap.
-      walker.position = const Offset(150, 840);
+      // The spire is born calm: the thermal must be WOKEN before it carries
+      // anyone (§9.1 — gales are authored, not found).
+      final first = game.currentRoom.gustShrines.firstWhere(
+        (s) => s.id == 'shrine_first',
+      );
+      walker
+        ..position = first.position
+        ..lastSafe = first.position;
+      game.activateAbility();
+      expect(game.wokenGales, contains('g_thermal'));
+      // Stand on the base ledge inside the west thermal's entry overlap.
+      walker.position = const Offset(200, 830);
       walker.lastSafe = walker.position;
       expect(game.flightActive, isFalse);
+      _step(game, 1.6); // let the wind swell to full (it never snaps on)
 
       final startY = walker.position.dy;
       _step(game, 2.5);
@@ -673,9 +682,16 @@ void main() {
       final game = _buildGame();
       game.currentRoomId = 'lower_spire';
       final walker = game.creatures[game.activeIndex];
-      walker.position = const Offset(150, 840);
+      final first = game.currentRoom.gustShrines.firstWhere(
+        (s) => s.id == 'shrine_first',
+      );
+      walker
+        ..position = first.position
+        ..lastSafe = first.position;
+      game.activateAbility();
+      walker.position = const Offset(200, 830);
       walker.lastSafe = walker.position;
-      _step(game, 2.0); // riding up
+      _step(game, 3.0); // riding up
       // Shove the walker clear of ALL currents, over open sky.
       walker.position = const Offset(620, 560); // void, no current
       _step(game, 2.5);
@@ -744,8 +760,9 @@ void main() {
       game.carriedCloudId = null;
       game.carriedCloudType = null;
 
-      // 3. Conduit B: a direct touch replaces the Fire-in-wind braid.
-      // (The altar only answers once the first two stars are banked.)
+      // 3. Conduit B is the one place the parity rule NO LONGER reaches:
+      // §9.1 took it away from every hand, Lightning's included, and gave it
+      // to the storm. The refusal must say so in one clause.
       game.earnStar(0);
       game.earnStar(1);
       game.currentRoomId = 'twin_conduit';
@@ -754,9 +771,11 @@ void main() {
       game.activateAbility();
       expect(
         game.conduitEnergy['B'] ?? 0,
-        greaterThan(0),
-        reason: 'Lightning arcs conduit B directly',
+        0,
+        reason: 'conduit B waits on the storm, not on an arc',
       );
+      expect(game.hintText, contains('storm'));
+      expect(game.hintChannel, DungeonHintChannel.blocked);
     });
   });
 
@@ -901,24 +920,26 @@ void main() {
       game.creatures.add(c);
       game.combatCompanions.add(_companion(m, c.position));
 
-      final conduitB = game.currentRoom.conduits.firstWhere((k) => k.id == 'B');
-      c.position = conduitB.position;
+      // §9.1: conduit B answers no hand at all now — the storm strikes it.
+      // The rite lock is proved on the conduit a hand CAN reach: A.
+      final conduitA = game.currentRoom.conduits.firstWhere((k) => k.id == 'A');
+      c.position = conduitA.position;
 
-      // No stars: the lightning arc lands but the pylon swallows it.
+      // No stars: the horn's grip lands but the pylon swallows it.
       game.activateAbility();
-      expect(game.conduitEnergy['B'] ?? 0, 0, reason: 'rite still sealed');
+      expect(game.conduitEnergy['A'] ?? 0, 0, reason: 'rite still sealed');
       expect(game.guardianRiteUnlocked, isFalse);
 
       // One star: still sealed.
       game.earnStar(0);
       game.activateAbility();
-      expect(game.conduitEnergy['B'] ?? 0, 0, reason: 'one star is not enough');
+      expect(game.conduitEnergy['A'] ?? 0, 0, reason: 'one star is not enough');
 
-      // Both stars (order-free): the offering takes.
+      // Both stars (order-free): the offering takes, and it LATCHES.
       game.earnStar(1);
       expect(game.guardianRiteUnlocked, isTrue);
       game.activateAbility();
-      expect(game.conduitEnergy['B'] ?? 0, greaterThan(0));
+      expect(game.conduitEnergy['A'], double.infinity);
     });
   });
 

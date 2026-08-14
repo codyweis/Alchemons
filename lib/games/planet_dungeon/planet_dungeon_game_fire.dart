@@ -128,8 +128,8 @@ const double _kGustRadius = 85.0;
 // Discovery ids ride the persisted cloud-discovery channel ('egg:' prefix);
 // the screen pays out 20 gold the first time one is found.
 
-/// Air's maxim: commune at the hub compass heart with all three stars.
-const String kAirFirstWindEggId = 'egg:air_first_wind';
+// (Air's `kAirFirstWindEggId` moved to planet_dungeon_game_air.dart with the
+// rest of the spire's own content — §9.1 item 4.)
 
 /// Fire's maxim — the EMBER EPITAPH. Mask insight in the scriptorium WRITES
 /// the maxim into the floor (an ember-quill animates it stroke by stroke) and

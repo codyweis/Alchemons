@@ -220,32 +220,33 @@ void main() {
       expect(readout.value, startsWith('0/'));
     });
 
-    test('the ring count is a readout, not a hint line', () {
+    test('the WIND count is a readout, not a hint line', () {
+      // §9.1: the RINGS readout retired with Star 1's ring sequence; the
+      // shrine tally took its slot beside the star tracker.
       final game = _buildGame();
-      final ringRoom = game.layout.rooms.values.firstWhere(
-        (r) => r.rings.isNotEmpty,
+      final shrineRoom = game.layout.rooms.values.firstWhere(
+        (r) => r.gustShrines.isNotEmpty,
       );
-      game.currentRoomId = ringRoom.id;
+      game.currentRoomId = shrineRoom.id;
 
       final readout = game.progressReadout;
       expect(readout, isNotNull);
-      expect(readout!.label, 'RINGS');
+      expect(readout!.label, 'WINDS');
       expect(readout.value, startsWith('0/'));
       expect(readout.fraction, 0);
 
-      // Fly the first ring: the count moves in the readout, and the capsule
-      // is left alone for whatever the room has to say.
-      final first = ringRoom.rings.reduce((a, b) => a.order <= b.order ? a : b);
-      final flier = game.creatures[0];
-      flier.position = first.position;
+      // Wake one: the count moves in the readout, and the capsule keeps its
+      // own voice for what the shrine has to say.
+      final shrine = shrineRoom.gustShrines.first;
       game.setActive(0);
-      game.flightMax = 5;
-      game.flightMeter = 5;
-      game.flightActive = true; // rings only count to a creature in the air
+      game.creatures[0]
+        ..position = shrine.position
+        ..lastSafe = shrine.position;
+      game.activateAbility();
       _step(game, 0.1);
 
       expect(game.progressReadout!.value, startsWith('1/'));
-      expect(game.hintText, isNot(contains('Ring 1')));
+      expect(game.hintText, isNot(contains('1/')));
     });
   });
 
@@ -277,9 +278,9 @@ void main() {
       game.activateAbility();
 
       expect(game.hintChannel, DungeonHintChannel.insight);
-      // Tier 1 narrows the method without naming the elements…
-      expect(game.hintText, contains('sing at once'));
-      expect(game.hintText, isNot(contains('Lightning')));
+      // Tier 1 narrows the method without spelling out the leader's rule…
+      expect(game.hintText, contains('ladder'));
+      expect(game.hintText, isNot(contains('tallest')));
 
       // …tier 2 (a sharper mask) names element and order.
       final sharp = _member(slot: 1, element: 'Crystal', family: 'mask');
@@ -307,17 +308,17 @@ void main() {
       game2.creatures[1].position = game2.currentRoom.bounds.center;
       game2.activateAbility();
       expect(game2.hintChannel, DungeonHintChannel.insight);
-      expect(game2.hintText, contains('Lightning'));
+      expect(game2.hintText, contains('tallest'));
     });
   });
 
   group('stat nags speak on the failure moment, once per attempt', () {
     test('a too-fierce thermal refuses a walker once, not per frame', () {
       final game = _buildGame();
-      game.currentRoomId = 'cloud_platforms';
-      // The upper thermal wants Speed 3.5; the party walks with 3.
+      game.currentRoomId = 'lower_spire';
+      // The east flue wants Speed 3.5; the party walks with 3.
       final walker = game.creatures[game.activeIndex];
-      walker.position = const Offset(420, 280); // platform inside the column
+      walker.position = const Offset(690, 500); // inside the flue
       walker.lastSafe = walker.position;
       _step(game, 0.2);
 
@@ -329,10 +330,10 @@ void main() {
       expect(game.hintText, isNot(contains('Speed')));
 
       // Step out and back in: a new attempt, so it speaks again.
-      walker.position = const Offset(480, 630);
+      walker.position = const Offset(300, 870);
       walker.lastSafe = walker.position;
       _step(game, 0.2);
-      walker.position = const Offset(420, 280);
+      walker.position = const Offset(690, 500);
       walker.lastSafe = walker.position;
       _step(game, 0.2);
       expect(game.hintText, contains('Speed'));
@@ -341,16 +342,16 @@ void main() {
 
     test('a strong current refuses a flier once, on the shove-back', () {
       final game = _buildGame();
-      game.currentRoomId = 'cloud_platforms';
+      game.currentRoomId = 'lower_spire';
       final flier = game.creatures[0];
       game.setActive(0);
       game.flightMax = 999;
       game.flightMeter = 999;
       game.flightActive = true;
 
-      // Fly INTO the Speed-3.5 column, pinning position each frame (the
+      // Fly INTO the Speed-3.5 flue, pinning position each frame (the
       // joystick fighting the shove) so the creature stays inside it.
-      const inColumn = Offset(420, 300);
+      const inColumn = Offset(690, 500);
       for (var i = 0; i < 12; i++) {
         flier.position = inColumn;
         game.update(1 / 60);
