@@ -1652,6 +1652,23 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   'Steam': ['Steam', 'Earth', 'Fire'],
 };
 
+/// The IDEAL family for each of a planet's entry slots — index-aligned with
+/// [kCosmicPlanetEntry], i.e. the §6 "ideal team" from docs/dungeons.md
+/// (Air = Airwing/Lightninghorn/Firemask, and so on).
+///
+/// Element gets you in; the right family clears the hard gates (§4). This is
+/// the trio a developer descent fabricates so every gate in the planet can be
+/// exercised — it is NOT used by normal play, where the player brings whatever
+/// they have bred.
+const Map<String, List<String>> kDungeonIdealFamilies = {
+  'Air': ['Wing', 'Horn', 'Mask'], // Airwing · Lightninghorn · Firemask
+  'Fire': ['Mask', 'Wing', 'Mane'], // Firemask · Airwing · Plantmane
+  'Water': ['Pip', 'Mask', 'Mane'], // Waterpip · Spiritmask · Icemane
+  'Earth': ['Horn', 'Pip', 'Mask'], // Earthhorn · Lightningpip · Crystalmask
+  'Lightning': ['Horn', 'Wing', 'Mask'], // Lightninghorn · Airwing · Firemask
+  'Steam': ['Pip', 'Horn', 'Mask'], // Steampip · Earthhorn · Firemask
+};
+
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
 /// still carry the gate ritual — the player can complete the offering and
 /// unseal them — but instead of a DESCEND action they show a "descent coming

@@ -32,6 +32,7 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
@@ -337,6 +338,15 @@ class _CosmicScreenState extends State<CosmicScreen>
   @override
   void initState() {
     super.initState();
+
+    // Hydrate the developer-tools switch so the debug affordances below can
+    // read it synchronously during build (it also lights them in a release
+    // install, which `kDebugMode` alone cannot).
+    unawaited(
+      DebugSettingsService().isEnabled().then((_) {
+        if (mounted) setState(() {});
+      }),
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -5913,6 +5923,77 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
   }
 
+  /// DEVELOPER TOOL — descend into [planet] immediately with a fabricated
+  /// ideal trio, skipping the gate offering and whatever the player actually
+  /// has orbiting. The trio is the planet's §6 ideal team
+  /// ([kDungeonIdealFamilies]), so every hard family gate inside can be
+  /// exercised in one run.
+  ///
+  /// Nothing here writes to the save except what the run itself banks — the
+  /// gate stays sealed, so this never fakes progression the player didn't earn.
+  Future<void> _debugDescend(CosmicPlanet planet) async {
+    final req = kCosmicPlanetEntry[planet.element];
+    if (req == null || !kPlanetDungeonLayouts.containsKey(planet.element)) {
+      return;
+    }
+    final roster = _debugIdealTrio(planet.element);
+    if (roster.isEmpty) {
+      _showQuote('No creatures match ${planet.element}\'s trio.');
+      return;
+    }
+
+    _game?.pauseEngine();
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            PlanetDungeonScreen(element: planet.element, party: roster),
+      ),
+    );
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _planetStarState = PlanetStarState.deserialise(
+        prefs.getString(_planetStarStatePrefsKey) ?? '',
+      );
+    });
+    if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
+  }
+
+  /// Build the planet's ideal team from the creature catalog: for each entry
+  /// slot, the real species of that element AND ideal family (so sprites and
+  /// abilities are genuine), falling back to any creature of the element when
+  /// no such species exists. Stats are maxed so stat-scaled tunables show
+  /// their full behaviour.
+  List<CosmicPartyMember> _debugIdealTrio(String element) {
+    final slots = kCosmicPlanetEntry[element];
+    if (slots == null) return const [];
+    final families = kDungeonIdealFamilies[element];
+    final catalog = context.read<CreatureCatalog>();
+
+    final out = <CosmicPartyMember>[];
+    for (var i = 0; i < slots.length; i++) {
+      final slotElement = slots[i];
+      final wantFamily = (families != null && i < families.length)
+          ? families[i].toLowerCase()
+          : null;
+      // Animated species only (the dungeon renders sprite sheets), and never a
+      // Mystic — those are guardians, not party tools (§5).
+      final ofElement = catalog
+          .byType(slotElement)
+          .where((c) => c.spriteData != null)
+          .where((c) => (c.mutationFamily ?? '').toLowerCase() != 'mystic')
+          .toList();
+      if (ofElement.isEmpty) continue;
+      final match =
+          ofElement.firstWhereOrNull(
+            (c) => (c.mutationFamily ?? '').toLowerCase() == wantFamily,
+          ) ??
+          ofElement.first;
+      out.add(_sandboxMemberFromCreature(match));
+    }
+    return out;
+  }
+
   /// Planets that can host a raid: guardian beaten (star 3) on an unsealed
   /// gate, and a raid arena configured for the element.
   List<String> get _raidEligibleElements => [
@@ -7528,8 +7609,61 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
+              // ── Debug: descend now with the planet's ideal trio ──
+              // Skips the gate offering AND the carried party, so any built
+              // dungeon can be entered from a standing start with the exact
+              // team its hard gates want.
+              if (DebugSettingsService.toolsVisible &&
+                  showCosmicHud &&
+                  nearEl != null &&
+                  kPlanetDungeonLayouts.containsKey(nearEl) &&
+                  !_isNearHome &&
+                  !_raidLive &&
+                  !_showElementsCaptured &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 168,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () => unawaited(_debugDescend(_nearPlanet!)),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF080808,
+                            ).withValues(alpha: 0.86),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(
+                                0xFF7BE88C,
+                              ).withValues(alpha: 0.8),
+                              width: 1.3,
+                            ),
+                          ),
+                          child: Text(
+                            '⇩  DESCEND w/ TRIO (DEBUG)',
+                            style: const TextStyle(
+                              color: Color(0xFF7BE88C),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
               // ── Debug: skip the element offering and unseal the gate ──
-              if (kDebugMode &&
+              if (DebugSettingsService.toolsVisible &&
                   showCosmicHud &&
                   nearEl != null &&
                   isDungeonGatePlanet(nearEl) &&

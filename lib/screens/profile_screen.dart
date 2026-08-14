@@ -15,6 +15,7 @@ import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/save_restore_reload_service.dart';
@@ -202,6 +203,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationPrefsLoaded = false;
   CinematicQuality _cinematicQuality = CinematicQuality.cinematic;
   bool _cinematicQualityLoaded = false;
+  final DebugSettingsService _debugSettings = DebugSettingsService();
+  bool _debugToolsEnabled = false;
+  bool _debugToolsLoaded = false;
   bool _saveTransferBusy = false;
   int _cosmicHintPage = 0;
 
@@ -212,6 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _load = _fetch();
     _loadNotificationPrefs();
     _loadCinematicQuality();
+    _loadDebugTools();
   }
 
   @override
@@ -301,6 +306,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _setCinematicQuality(CinematicQuality value) async {
     setState(() => _cinematicQuality = value);
     await _cinematicQualityService.setQuality(value);
+  }
+
+  Future<void> _loadDebugTools() async {
+    final enabled = await _debugSettings.isEnabled();
+    if (!mounted) return;
+    setState(() {
+      _debugToolsEnabled = enabled;
+      _debugToolsLoaded = true;
+    });
+  }
+
+  Future<void> _setDebugTools(bool value) async {
+    setState(() => _debugToolsEnabled = value);
+    await _debugSettings.setEnabled(value);
   }
 
   Future<void> _reloadProfileState() async {
@@ -1644,6 +1663,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onTap: _replayStory,
                         ),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  const _EtchedDivider(label: 'DEVELOPER'),
+                  const SizedBox(height: 14),
+
+                  _ForgePanel(
+                    accentBar: t.teal,
+                    child: _NotificationToggleRow(
+                      icon: AppIcons.bug_report_rounded,
+                      title: 'DEBUG TOOLS',
+                      subtitle:
+                          'Testing shortcuts in the cosmos: unseal a gate, '
+                          'and descend with a planet\'s ideal trio',
+                      value: _debugToolsEnabled,
+                      enabled: _debugToolsLoaded,
+                      onChanged: _setDebugTools,
+                      accent: t.teal,
                     ),
                   ),
                 ],
