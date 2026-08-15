@@ -1160,7 +1160,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
 
       if (capped) {
-        // Shut: a plug of stone, and no breath at all.
+        // SHUT — but a shut mouth is not a dead one: the head it was venting
+        // has gone into the rest of the field, and you can see it straining.
         canvas.drawCircle(
           gy.position,
           r - 7,
@@ -1174,50 +1175,111 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             ..strokeWidth = 1.6
             ..color = const Color(0xFF8A7A68),
         );
+        if (!solved && _fx.ready) {
+          // Vapour hissing out from under the seal, hardest right before the
+          // field blows — the room breathing even where it is held.
+          final strain = (0.25 + 0.55 * charge) * (0.6 + 0.1 * p);
+          for (var i = 0; i < 4; i++) {
+            final a0 = i * pi / 2 + _moltenPulse * 0.6;
+            final at = gy.position +
+                Offset(cos(a0), sin(a0)) * (r - 2) -
+                Offset(0, 4 + 7 * strain);
+            drawPuff(
+              canvas,
+              _fx.puff!,
+              at,
+              r * (0.55 + 0.35 * strain),
+              const Color(0xFFCFEAF2).withValues(alpha: 0.10 + 0.16 * strain),
+            );
+          }
+        }
         continue;
       }
       if (solved) continue;
 
-      // Open: the throat glows as the cycle builds, then the plume goes up.
+      // OPEN — the throat, then the column. Steam is drawn the way this
+      // codebase draws soft things: baked puff sprites blitted cheaply and
+      // additive glow, never per-frame blurs (see planet_dungeon_fx.dart).
       final heat = 0.25 + 0.55 * charge;
+      // The throat: a hot well that brightens as the head builds under it.
       canvas.drawCircle(
         gy.position,
         r - 8,
         Paint()
-          ..color = Color.lerp(const Color(0xFF3A4A50),
-                  const Color(0xFFBFF2FF), heat)!
-              .withValues(alpha: 0.9),
+          ..color = Color.lerp(const Color(0xFF23343C),
+                  const Color(0xFFCFF4FF), heat)!
+              .withValues(alpha: 0.95),
       );
-      final plume = blasting
-          ? 1.0
-          : (charge * charge) * 0.35; // the fair warning before it blows
-      if (plume > 0.02) {
-        final height = (34 + 150 * plume) * (1 + 0.16 * p);
-        final width = r * (0.7 + 0.5 * plume);
-        final path = Path()
-          ..moveTo(gy.position.dx - width, gy.position.dy)
-          ..quadraticBezierTo(
-            gy.position.dx - width * 0.35,
-            gy.position.dy - height * 0.6,
-            gy.position.dx,
-            gy.position.dy - height,
-          )
-          ..quadraticBezierTo(
-            gy.position.dx + width * 0.35,
-            gy.position.dy - height * 0.6,
-            gy.position.dx + width,
-            gy.position.dy,
-          )
-          ..close();
-        canvas.drawPath(
-          path,
-          Paint()
-            ..color = const Color(0xFFDFF6FF)
-                .withValues(alpha: 0.14 + 0.42 * plume),
-        );
-        if (_fx.ready && blasting) {
-          drawGlow(canvas, _fx.glow!, gy.position - Offset(0, height * 0.45),
-              width * 2.4, const Color(0xFFBFF2FF).withValues(alpha: 0.20));
+      if (_fx.ready) {
+        drawGlow(canvas, _fx.glow!, gy.position, r * (0.9 + 0.5 * charge),
+            const Color(0xFF8FE0EC).withValues(alpha: 0.10 + 0.30 * charge));
+      }
+
+      // Pressure makes the column taller and fatter, so a field nearly shut
+      // LOOKS like it is about to tear the lid off.
+      final force = 1.0 + 0.22 * p;
+      // Blast: a hard, fast column that decays over the blast window. Build:
+      // a low mutter of steam that says "this one is live" without hiding it.
+      final blastT = blasting
+          ? (1 - ((geyserCycle % _kGeyserPeriod) -
+                      (_kGeyserPeriod - _kGeyserBlast)) /
+                  _kGeyserBlast)
+              .clamp(0.0, 1.0)
+          : 0.0;
+      final drive = blasting ? 0.35 + 0.65 * blastT : 0.10 + 0.22 * charge;
+      final height = (26 + 190 * drive) * force;
+
+      if (_fx.ready) {
+        // The column: puffs stacked up the throat, each one bigger, slower
+        // and fainter than the last, drifting on a slow sway so it breathes.
+        final puffs = blasting ? 7 : 4;
+        for (var i = 0; i < puffs; i++) {
+          final f = (i + 1) / puffs;
+          final rise = height * f;
+          final sway = sin(_moltenPulse * 2.2 + i * 0.9 + gy.position.dx) *
+              (5 + 9 * f) *
+              drive;
+          final w = r * (1.15 + 1.5 * f) * (0.7 + 0.5 * drive);
+          drawPuff(
+            canvas,
+            _fx.puff!,
+            Offset(gy.position.dx + sway, gy.position.dy - rise),
+            w,
+            const Color(0xFFDDF4FF)
+                .withValues(alpha: (0.34 - 0.26 * f) * (0.45 + 0.55 * drive)),
+          );
+        }
+        // The core: a bright, narrow jet right at the mouth while it blows.
+        if (blasting) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            gy.position - Offset(0, height * 0.30),
+            r * (1.5 + 1.2 * blastT),
+            const Color(0xFFBFF2FF).withValues(alpha: 0.16 + 0.30 * blastT),
+          );
+          // Spatter: condensate flung off the top of the jet.
+          for (var i = 0; i < 5; i++) {
+            final a0 = -pi / 2 + (i - 2) * 0.30;
+            final d = height * (0.55 + 0.30 * ((i * 37) % 7) / 7) * blastT;
+            drawGlow(
+              canvas,
+              _fx.mote!,
+              gy.position + Offset(cos(a0), sin(a0)) * d,
+              5.0 + 3.0 * blastT,
+              const Color(0xFFEAFBFF).withValues(alpha: 0.40 * blastT),
+            );
+          }
+          // The skirt: a ground ring snapping outward — the tell that this is
+          // the moment it throws you.
+          canvas.drawCircle(
+            gy.position,
+            r + (_kBlastReach - r) * (1 - blastT),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.6 * blastT
+              ..color = const Color(0xFFBFF2FF).withValues(alpha: 0.55 * blastT),
+          );
         }
       }
     }
@@ -1259,9 +1321,35 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           crack,
         );
       }
-      if (_fx.ready && frac > 0.4) {
-        drawGlow(canvas, _fx.glow!, cap.position, 46,
-            const Color(0xFFBFF2FF).withValues(alpha: 0.10 + 0.28 * frac));
+      if (_fx.ready) {
+        // Light bleeding up through the seams, and a plume once it splits.
+        if (frac > 0.25 || burst) {
+          drawGlow(canvas, _fx.glow!, cap.position, 40 + 26 * frac,
+              const Color(0xFFBFF2FF)
+                  .withValues(alpha: 0.08 + 0.34 * (burst ? 1.0 : frac)));
+        }
+        if (burst) {
+          for (var i = 0; i < 5; i++) {
+            final f = (i + 1) / 5;
+            drawPuff(
+              canvas,
+              _fx.puff!,
+              cap.position -
+                  Offset(sin(_moltenPulse * 1.4 + i) * 8, 30 + 150 * f),
+              46 + 70 * f,
+              const Color(0xFFE8FAFF).withValues(alpha: 0.30 - 0.22 * f),
+            );
+          }
+        } else if (frac > 0.5) {
+          // Before it goes: a warning wisp squeezing out of the seam.
+          drawPuff(
+            canvas,
+            _fx.puff!,
+            cap.position - Offset(0, 26 + 16 * frac),
+            34 * frac,
+            const Color(0xFFCFEAF2).withValues(alpha: 0.16 * frac),
+          );
+        }
       }
     }
 
