@@ -17,9 +17,9 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_descent.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_reward_popup.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/screens/cosmic/widgets/virtual_joystick.dart';
 import 'package:flame/game.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -186,6 +186,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   Future<void> _init() async {
+    // Hydrate the persisted developer switch so `toolsVisible` reads true in a
+    // RELEASE install on a real device — `kDebugMode` alone hid the dungeon's
+    // debug affordances exactly where playtesting happens.
+    unawaited(
+      DebugSettingsService().isEnabled().then((_) {
+        if (mounted) setState(() {});
+      }),
+    );
     final prefs = await SharedPreferences.getInstance();
     final stars = PlanetStarState.deserialise(
       prefs.getString(_starPrefsKey) ?? '',
@@ -577,7 +585,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                           );
                         },
                       ),
-                      if (kDebugMode && !_isRaid) ...[
+                      // Developer tools: the persisted switch OR a debug
+                      // build, so the reset is reachable on the device where
+                      // the playtesting actually happens.
+                      if (DebugSettingsService.toolsVisible && !_isRaid) ...[
                         const SizedBox(height: 6),
                         _pillButton(
                           'RESET ★',

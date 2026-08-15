@@ -969,6 +969,35 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         drawGlow(canvas, _fx.glow!, wheel, 20,
             const Color(0xFF8FE0EC).withValues(alpha: 0.12 + 0.14 * pulse));
       }
+      // THE LINKAGE (2026-08-14, playtest: "it should be clear that turning
+      // the wheel opens the door"). A wheel sitting NEXT to a clamp is just
+      // scenery; a wheel visibly BOLTED TO one is a control. The rod runs
+      // from the hub into the clamp plate, and it lights with the wheel.
+      final linkPaint = Paint()
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round
+        ..color = afford
+            ? const Color(0xCC8FE0EC)
+            : const Color(0x995A6A74);
+      final toPlate = r.center - wheel;
+      final len = toPlate.distance;
+      if (len > 1) {
+        final dir = toPlate / len;
+        canvas.drawLine(wheel + dir * 11, wheel + dir * (len * 0.52), linkPaint);
+        // A collar where the rod enters the plate — the joint reads as driven.
+        canvas.drawCircle(
+          wheel + dir * (len * 0.52),
+          4,
+          Paint()..color = linkPaint.color,
+        );
+      }
+      // THE PRICE, on the object (§5.6: state leaves the capsule). The door
+      // refusal names the cost only once you lean on it; the wheel now says
+      // it from across the room, so the junction can be PLANNED against the
+      // gauge instead of discovered by walking into it.
+      if (seal != null) {
+        _drawTinyLabel(canvas, wheel + const Offset(0, 16), '${seal.cost}');
+      }
     }
 
     // The stoke firebox: a grated hearth breathing ember light.
