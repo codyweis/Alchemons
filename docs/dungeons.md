@@ -690,7 +690,27 @@ not as soft modifiers.
    THE WHOLE MAIN in one surge (≥60; below that the valve refuses and takes
    nothing). Death re-clamps the ring (puzzle state). Tile star mechanics
    kept: S1 choose-your-breach dam (wet faces glow, sealed pockets, dry slot
-   threads through), rite = bunker/break/quench band gates.
+   threads through).
+   **RITE REWORKED 2026-08-14 — THE SOURCE, QUENCHED.** The crucible was a
+   3.0s walk: break either band gate, drop through, touch the pedestal, done —
+   both gates played identically and the reservoir overhead never acted. The
+   structural reason is worth recording, because it governs every flood room
+   on this planet: **molten creeps one cell (70px) per 2.2s beat ≈ 32px/s, and
+   a walker moves 150px/s — so a flood can NEVER threaten someone who only has
+   to walk somewhere once.** A creeping flood only bites when the player must
+   STAND AND WORK while it converges (S2's two-thick plug) or must cross
+   ground it already holds (paying breath). So the pedestal now demands what
+   the planet has been teaching all along: the SOURCE, stilled. It will not
+   sink while the reservoir above the band still runs, and the order is the
+   whole rite — quench it while the chamber SLEEPS (quenching never wakes
+   anything; only breaking rock does), because breaking in first sets the
+   reservoir pouring down through your own hole, multiplying past what one
+   breath per beat can ever answer. The source is found STRUCTURALLY, not by
+   hand-counted rows (`_riteSourceCells`): flood-fill the authored floor out
+   from the pedestal, and any authored molten the fill cannot see is a source,
+   because the band is exactly what separates them — so a re-authored crucible
+   cannot silently drift from the rule. The lower cisterns stay a hazard, not
+   a checklist.
    **S2 REWORKED 2026-08-14 — THE TWO POURS** (playtest: "this seems to not
    have any strategy... I build 3 walls, then what"). Both halves of that were
    right. Modelled against the real rules the old sanctuary cleared in **2.6

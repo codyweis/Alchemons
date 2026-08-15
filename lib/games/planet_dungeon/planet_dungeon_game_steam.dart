@@ -154,6 +154,58 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     return layout.entranceSpawn;
   }
 
+  /// THE SOURCE: the authored molten that sits OUTSIDE the pedestal's own
+  /// chamber — the reservoir hanging above the band, not the cisterns you
+  /// share the floor with. Found structurally, never by hand-counted rows:
+  /// flood-fill the AUTHORED open ground from the pedestal, and any authored
+  /// 'L' the fill cannot see is a source, because the band is what separates
+  /// them. (So a re-authored crucible cannot silently drift from this rule.)
+  List<(int, int)> _riteSourceCells(DungeonRoom room, MoltenGrid g) {
+    final ped = _pedestalCell(g);
+    if (ped == null) return const [];
+    final seen = <int>{ped.$2 * g.cols + ped.$1};
+    final queue = <(int, int)>[ped];
+    while (queue.isNotEmpty) {
+      final (c, r) = queue.removeLast();
+      for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
+        final nc = c + dc, nr = r + dr;
+        if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
+        if (!seen.add(nr * g.cols + nc)) continue;
+        final ch = g.rows[nr][nc];
+        // The fill runs over authored floor only: rock and the band stop it,
+        // and molten is a destination, not a corridor.
+        if (ch == 'X' || ch == '#' || ch == 'L') continue;
+        queue.add((nc, nr));
+      }
+    }
+    final out = <(int, int)>[];
+    for (var r = 0; r < g.rowCount; r++) {
+      for (var c = 0; c < g.cols; c++) {
+        if (g.rows[r][c] != 'L') continue;
+        if (seen.contains(r * g.cols + c)) continue; // shares your floor
+        out.add((c, r));
+      }
+    }
+    return out;
+  }
+
+  /// How many SOURCE veins still run. The crucible rite reads this: the
+  /// pedestal will not sink while the thing overhead is still pouring.
+  int _moltenLavaCount(DungeonRoom room, MoltenGrid g) {
+    final grid = _moltenFor(room);
+    var n = 0;
+    for (final (c, r) in _riteSourceCells(room, g)) {
+      if (grid[r][c] == _mLava) n++;
+    }
+    return n;
+  }
+
+  /// §5.6: the refusal names WHAT is owed, never the method — and it counts,
+  /// so the readout is the progress bar for the quenching.
+  String _riteRefusalHint(int live) => live == 1
+      ? 'The crucible will not take you — one last vein still runs'
+      : 'The crucible will not take you — $live veins still run';
+
   /// The mutable cell grid for [room], built lazily from its authored rows.
   List<List<int>> _moltenFor(DungeonRoom room) {
     final cached = moltenCells[room.id];
@@ -303,11 +355,27 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         _setHint('You stand on the cooled pedestal — the molten yields to you');
         earnStar(g.starIndex!);
       } else if (g.starIndex == null && !moltenRiteDone) {
-        moltenRiteDone = true;
-        _setHint(
-            'The crucible pedestal sinks — Boilrog heaves up from the heart',
-            4.0);
-        _maybeEarnHiddenHarmony(room);
+        // THE RITE IS A QUENCHING (reworked 2026-08-14). The pedestal used to
+        // sink for anyone who reached it, which made the crucible a 3.0s walk:
+        // break a band, drop through, touch it — the reservoir overhead and
+        // both cisterns never acted, because a flood that creeps one cell a
+        // beat can never catch a walker who only has to walk once. So the
+        // crucible now demands what this planet has been teaching all along:
+        // the SOURCE, quenched. Every last drop of molten in the chamber must
+        // be stilled — and since the cisterns lie beyond the band, you have to
+        // break in to reach them, which wakes everything you have not yet
+        // dealt with. Order is the whole rite: still the reservoir before you
+        // break, dam what you cannot outpace, and quench the rest.
+        final live = _moltenLavaCount(room, g);
+        if (live > 0) {
+          _setBlockedHint(_riteRefusalHint(live));
+        } else {
+          moltenRiteDone = true;
+          _setHint(
+              'The crucible pedestal sinks — Boilrog heaves up from the heart',
+              4.0);
+          _maybeEarnHiddenHarmony(room);
+        }
       }
     }
   }

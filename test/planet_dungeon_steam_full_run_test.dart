@@ -108,7 +108,9 @@ void main() {
       _member(2, 'Fire', 'mask'),
     ];
     final game = _harness(party, onStar: earned.add, onCloud: discovered.add);
-    const steam = 0, earth = 1, fire = 2;
+    // The reworked forge and rite need no Earth hand; the dam stays a
+    // player option, never a required step.
+    const steam = 0, fire = 2;
 
     DungeonRoom room(String id) => game.layout.rooms[id]!;
     void step([double seconds = 0.1]) {
@@ -301,24 +303,32 @@ void main() {
         reason: 'an unaffordable clamp refuses — and takes nothing');
     expect(game.boilerPressure, afterNorth);
 
-    // ── Rite: the Crucible — bunker, break, quench the source ──
-    standAt('crucible', 4, 4, 4, 3);
-    waitForBreath(2);
-    act('crucible', earth, 4, 4, 3, 4); // wall left of the stand
-    act('crucible', earth, 4, 4, 5, 4); // wall right of the stand
-    act('crucible', fire, 4, 4, 4, 5); // break the band-gate → WAKE
-    act('crucible', steam, 4, 4, 4, 5); // cool the spill
-    standAt('crucible', 4, 5, 4, 6);
-    game.update(1 / 60);
-    standAt('crucible', 4, 6, 3, 6);
-    game.update(1 / 60);
-    act('crucible', steam, 4, 6, 3, 6); // quench the lower cistern's source
+    // ── Rite: the Crucible — THE SOURCE, QUENCHED (reworked) ──
+    // The pedestal will not sink while one vein still runs, and the cisterns
+    // lie beyond the band — so the order is the rite: still the reservoir
+    // FIRST, while the chamber sleeps, then break in for the rest.
+    standAt('crucible', 5, 4, 5, 3);
+    step();
     final crucible = game.moltenCells['crucible']!;
-    expect(crucible[6][3], 0, reason: 'the near cistern is quenched');
-    standAt('crucible', 6, 7, 6, 7); // the pedestal
+    expect(crucible[3][5], 3, reason: 'the reservoir hangs over the band');
+    for (final c in [5, 6, 7]) {
+      waitForBreath(1);
+      act('crucible', steam, c, 4, c, 3); // quench the reservoir, asleep
+      expect(crucible[3][c], 0);
+    }
+    expect(game.wokeRooms.contains('crucible'), isFalse,
+        reason: 'quenching never wakes anything — only breaking rock does');
+
+    // Now break in. The breach itself runs molten and counts as a live vein.
+    waitForBreath(2);
+    act('crucible', fire, 4, 4, 4, 5);
+    expect(game.wokeRooms, contains('crucible'));
+    act('crucible', steam, 4, 4, 4, 5);
+
+    standAt('crucible', 6, 7, 6, 7);
     step();
     expect(game.moltenRiteDone, isTrue,
-        reason: 'the crucible pedestal performs the guardian rite');
+        reason: 'a stilled chamber performs the guardian rite');
 
     // ── Hidden Harmony: the whole labyrinth without one scald ──
     expect(game.moltenScalds, 0);
@@ -590,6 +600,61 @@ void main() {
     expect(cells[6][5], 3, reason: 'and so does the other pour');
   });
 
+  test('the crucible rite is a QUENCHING: the source, before the pedestal', () {
+    final game = _harness([
+      _member(0, 'Steam', 'pip'),
+      _member(1, 'Earth', 'horn'),
+      _member(2, 'Fire', 'mask'),
+    ]);
+    final room = game.layout.rooms['crucible']!;
+    final g = room.molten!;
+    game.currentRoomId = 'crucible';
+    game.update(1 / 60);
+    final cells = game.moltenCells['crucible']!;
+
+    void park(int c, int r, int fc, int fr) {
+      final p = _center(room, g, c, r);
+      final ang = atan2((fr - r).toDouble(), (fc - c).toDouble());
+      for (final cr in game.creatures) {
+        cr
+          ..position = p
+          ..lastSafe = p
+          ..angle = ang
+          ..aimAngle = ang;
+      }
+    }
+
+    // Break the band and walk to the pedestal with the reservoir still live.
+    game.setActive(2);
+    park(4, 4, 4, 5);
+    game.activateAbility();
+    expect(game.wokeRooms, contains('crucible'));
+    park(6, 7, 6, 7);
+    game.update(1 / 60);
+    expect(game.moltenRiteDone, isFalse,
+        reason: 'the pedestal will not sink while the source still runs');
+    expect(game.hintChannel, DungeonHintChannel.blocked);
+    expect(game.hintText, contains('run'));
+
+    // Still the reservoir — the three veins that hang above the band — and
+    // the same pedestal answers. (Quenching never wakes anything; only
+    // breaking rock does, which is why the order is the whole rite.)
+    game.setActive(0);
+    for (final c in [5, 6, 7]) {
+      var guard = 0;
+      while (game.steamBreath < 1 && guard++ < 60 * 10) {
+        game.update(1 / 60);
+      }
+      park(c, 4, c, 3);
+      game.activateAbility();
+      expect(cells[3][c], 0, reason: 'reservoir vein $c stilled');
+    }
+    park(6, 7, 6, 7);
+    game.update(1 / 60);
+    expect(game.moltenRiteDone, isTrue,
+        reason: 'a stilled source performs the rite');
+  });
+
   test('a DRY breach gives you one honest beat to quench it', () {
     // PLAYTEST FIX: the beat clock free-runs, so melting used to leave
     // anywhere from 2.2s down to a few frames before the lava you just made
@@ -640,7 +705,6 @@ void main() {
     // the two pours sit under the only cell it can be worked from.
     final game = _harness([_member(0, 'Steam', 'pip')]);
     final room = game.layout.rooms['cinder_forge']!;
-    final g = room.molten!;
     final cells = game.moltenCells[room.id] ?? () {
       game.currentRoomId = 'cinder_forge';
       game.update(1 / 60);
