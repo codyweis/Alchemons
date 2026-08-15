@@ -68,8 +68,8 @@ const int kSteamStokeGain = 20;
 const double _kPressureReach = 78.0;
 
 // ── Star 1 · geyser-field knobs (device-tunable) ──
-const double _kGeyserPeriod = 4.6;
-const double _kGeyserBlast = 1.35;
+const double _kGeyserPeriod = 6.0;
+const double _kGeyserBlast = 2.4;
 const double _kGeyserReach = 44.0;
 const double _kBlastReach = 96.0;
 
@@ -1201,7 +1201,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       // codebase draws soft things: baked puff sprites blitted cheaply and
       // additive glow, never per-frame blurs (see planet_dungeon_fx.dart).
       final heat = 0.25 + 0.55 * charge;
-      // The throat: a hot well that brightens as the head builds under it.
+      // The throat: a hot well that brightens as the head builds under it,
+      // with a low collar of steam always creeping over the lip — a live
+      // mouth is never perfectly still.
       canvas.drawCircle(
         gy.position,
         r - 8,
@@ -1211,6 +1213,15 @@ extension MoltenLabyrinth on PlanetDungeonGame {
               .withValues(alpha: 0.95),
       );
       if (_fx.ready) {
+        drawPuff(
+          canvas,
+          _fx.puff!,
+          gy.position + Offset(sin(_moltenPulse * 0.9) * 3, -3),
+          r * 1.6,
+          const Color(0xFFCFEAF2).withValues(alpha: 0.07 + 0.06 * charge),
+        );
+      }
+      if (_fx.ready) {
         drawGlow(canvas, _fx.glow!, gy.position, r * (0.9 + 0.5 * charge),
             const Color(0xFF8FE0EC).withValues(alpha: 0.10 + 0.30 * charge));
       }
@@ -1218,67 +1229,89 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       // Pressure makes the column taller and fatter, so a field nearly shut
       // LOOKS like it is about to tear the lid off.
       final force = 1.0 + 0.22 * p;
-      // Blast: a hard, fast column that decays over the blast window. Build:
-      // a low mutter of steam that says "this one is live" without hiding it.
-      final blastT = blasting
-          ? (1 - ((geyserCycle % _kGeyserPeriod) -
-                      (_kGeyserPeriod - _kGeyserBlast)) /
-                  _kGeyserBlast)
-              .clamp(0.0, 1.0)
-          : 0.0;
-      final drive = blasting ? 0.35 + 0.65 * blastT : 0.10 + 0.22 * charge;
-      final height = (26 + 190 * drive) * force;
+
+      // Seconds since this blast opened (negative while it is still building).
+      // Steam is drawn as puffs BORN at the mouth that then rise, expand and
+      // fade — never as one shape that scales, which is what made the old
+      // version read as sucking inward instead of blowing out.
+      final phase = geyserCycle % _kGeyserPeriod;
+      final blastAge = phase - (_kGeyserPeriod - _kGeyserBlast);
 
       if (_fx.ready) {
-        // The column: puffs stacked up the throat, each one bigger, slower
-        // and fainter than the last, drifting on a slow sway so it breathes.
-        final puffs = blasting ? 7 : 4;
+        const puffs = 9;
+        const puffLife = 1.5; // seconds a parcel of steam stays readable
+        const stagger = 0.16; // seconds between parcels leaving the throat
         for (var i = 0; i < puffs; i++) {
-          final f = (i + 1) / puffs;
-          final rise = height * f;
-          final sway = sin(_moltenPulse * 2.2 + i * 0.9 + gy.position.dx) *
-              (5 + 9 * f) *
-              drive;
-          final w = r * (1.15 + 1.5 * f) * (0.7 + 0.5 * drive);
+          // While building, only a slow mutter of steam leaves the mouth; on
+          // the blast the parcels come fast and hard.
+          final age = blasting
+              ? blastAge - i * stagger
+              : (phase * 0.5) - i * (puffLife * 0.9);
+          if (age <= 0) continue;
+          final life = (age / puffLife).clamp(0.0, 1.0);
+          if (life >= 1) continue;
+
+          // Rise: fast off the mouth, slowing as it cools and spreads.
+          final ease = 1 - pow(1 - life, 2.2).toDouble();
+          final rise = (blasting ? 168.0 : 34.0) * force * ease;
+          // Expand as it climbs — a plume mushrooms, it does not stay a rod.
+          final w = r * (blasting ? 1.25 : 0.85) * (0.55 + 1.75 * life);
+          // Drift: each parcel keeps its own wander so the column churns.
+          final sway = sin(_moltenPulse * 1.6 + i * 1.7 + gy.position.dx * 0.02) *
+              (4 + 20 * life);
+          // Fade: bright at the throat, gone by the top.
+          final alpha = (blasting ? 0.42 : 0.16) *
+              pow(1 - life, 1.35).toDouble() *
+              (0.55 + 0.45 * (blasting ? 1.0 : charge));
+
           drawPuff(
             canvas,
             _fx.puff!,
             Offset(gy.position.dx + sway, gy.position.dy - rise),
             w,
-            const Color(0xFFDDF4FF)
-                .withValues(alpha: (0.34 - 0.26 * f) * (0.45 + 0.55 * drive)),
+            const Color(0xFFE6F7FF).withValues(alpha: alpha),
           );
         }
-        // The core: a bright, narrow jet right at the mouth while it blows.
+
         if (blasting) {
+          final bt = (blastAge / _kGeyserBlast).clamp(0.0, 1.0);
+          // The jet at the throat: hardest as it opens, easing as it spends.
+          final jet = pow(1 - bt, 1.6).toDouble();
           drawGlow(
             canvas,
             _fx.glow!,
-            gy.position - Offset(0, height * 0.30),
-            r * (1.5 + 1.2 * blastT),
-            const Color(0xFFBFF2FF).withValues(alpha: 0.16 + 0.30 * blastT),
+            gy.position - Offset(0, 26 * force * (1 - jet)),
+            r * (1.3 + 1.1 * jet),
+            const Color(0xFFBFF2FF).withValues(alpha: 0.10 + 0.34 * jet),
           );
-          // Spatter: condensate flung off the top of the jet.
-          for (var i = 0; i < 5; i++) {
-            final a0 = -pi / 2 + (i - 2) * 0.30;
-            final d = height * (0.55 + 0.30 * ((i * 37) % 7) / 7) * blastT;
+          // Condensate flung UP and out along the jet, falling back as it goes.
+          for (var i = 0; i < 6; i++) {
+            final k = ((i * 53) % 11) / 11.0;
+            final spread = (i - 2.5) * 0.22;
+            final travel = (0.35 + 0.65 * k) * bt;
+            final d = 150 * force * travel;
+            final at = gy.position +
+                Offset(sin(spread) * d * 0.55, -cos(spread) * d) +
+                Offset(0, d * d * 0.0016); // a little gravity on the arc
             drawGlow(
               canvas,
               _fx.mote!,
-              gy.position + Offset(cos(a0), sin(a0)) * d,
-              5.0 + 3.0 * blastT,
-              const Color(0xFFEAFBFF).withValues(alpha: 0.40 * blastT),
+              at,
+              4.5 + 3.0 * (1 - travel),
+              const Color(0xFFF2FCFF)
+                  .withValues(alpha: 0.42 * pow(1 - travel, 1.2).toDouble()),
             );
           }
-          // The skirt: a ground ring snapping outward — the tell that this is
-          // the moment it throws you.
+          // The skirt: a ring rushing OUTWARD from the mouth as it opens —
+          // the tell for the throw, travelling the way the force travels.
           canvas.drawCircle(
             gy.position,
-            r + (_kBlastReach - r) * (1 - blastT),
+            r + (_kBlastReach - r) * Curves.easeOutCubic.transform(bt),
             Paint()
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.6 * blastT
-              ..color = const Color(0xFFBFF2FF).withValues(alpha: 0.55 * blastT),
+              ..strokeWidth = 3.0 * pow(1 - bt, 0.8).toDouble()
+              ..color = const Color(0xFFBFF2FF)
+                  .withValues(alpha: 0.50 * pow(1 - bt, 0.9).toDouble()),
           );
         }
       }
