@@ -396,12 +396,10 @@ class _DungeonMiniMapPainter extends CustomPainter {
       }
     } else if (room.vineStarIndex != null &&
         !game.hasStar(room.vineStarIndex!)) {
-      for (final bed in room.vineBeds) {
-        if ((game.bedStates[bed.id] ?? 0) != 2) {
-          objective = bed.position;
-          break;
-        }
-      }
+      // The garth as a whole — its wind-cross, never "the next bed". Which bed
+      // to work is the puzzle (cf. Water's course-ends rule); a beacon on it
+      // would hand over a step of the plan for free.
+      objective = room.windVane ?? room.bounds.center;
     } else if (room.incenseChains.isNotEmpty && !game.hasStar(2)) {
       for (final chain in room.incenseChains) {
         if (game.bellsRung.contains(chain.id)) continue;

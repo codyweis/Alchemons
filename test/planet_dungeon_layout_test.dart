@@ -804,9 +804,11 @@ void main() {
       final choir = fire.rooms['choir']!;
       expect(choir.braziers.length, 6);
       expect(choir.brazierStarIndex, 0);
-      // Star 2: the cloister owns four ash-garden beds.
+      // Star 2: the cloister owns the six-bed garth and its wind-cross.
       final cloister = fire.rooms['cloister']!;
-      expect(cloister.vineBeds.length, 4);
+      expect(cloister.vineBeds.length, 6);
+      expect(cloister.windVane, isNotNull,
+          reason: 'the garth turns its own crosswind');
       expect(cloister.vineStarIndex, 1);
       // Star 3: three bells in the gallery; Simurgh roosts in the sanctum.
       expect(fire.rooms['bell_gallery']!.incenseChains.length, 3);
