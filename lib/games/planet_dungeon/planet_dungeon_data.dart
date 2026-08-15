@@ -3644,21 +3644,35 @@ const DungeonLayout _steamLayout = DungeonLayout(
         PressureSeal(targetRoomId: 'manifold_south', cost: 15),
         PressureSeal(targetRoomId: 'manifold_north', cost: 15),
       ],
-      // 10×12 grid (cells 70×70). Sanctuary pocket rows 4-6 cols 0-4 with
-      // its gate '#' at (4,5); pedestal inside at (1,5); cisterns at (4,2),
-      // (6,6), (3,8) wake on any melt in this room.
+      // 10×12 grid (cells 70×70). THE TWO POURS (reworked 2026-08-14 — the
+      // old room was a 2.6s dash: one gate, one cool, done, with three
+      // cisterns too far away to ever act).
+      //
+      // The vault (pedestal (5,3)) is shut by a plug TWO walls thick at
+      // (4,5)/(4,4), and the only cell you can work it from is the gallery
+      // cell (4,6). The gallery is sealed from the side lanes by two meltable
+      // entrances — (2,6) west, (7,6) east — and breaching either is what
+      // wakes the room.
+      //
+      // Two cisterns sit UNDER the gallery at (3,7) and (5,7), each walled on
+      // three sides so it pours in exactly one direction: up, into the very
+      // cells you must cross. So the flood arrives ON your path, on a clock,
+      // while the two-thick plug pins you in front of it — and a pour can be
+      // CAPPED (Steam cools it to stone, Earth walls the stone) at the cost
+      // of a breath and a beat. Capping the pour you are standing on walls
+      // your own road; capping the far one is what buys the plug work.
       molten: MoltenGrid(
         starIndex: 1,
         rows: [
           'XXXXXXXXXX',
           'X........X',
-          'X...L....X',
+          'X.XXXXXX.X',
+          'X.X..P.X.X',
+          'X.XX#XXX.X',
+          'X.XX#XXX.X',
           'X........X',
-          'XXXXX....X',
-          'XP..#....X',
-          'XXXXX.L..X',
-          'X........X',
-          'X..L.....X',
+          'X.XLXLXX.X',
+          'X.XXXXXX.X',
           'X........X',
           'X........X',
           'XXXXXXXXXX',

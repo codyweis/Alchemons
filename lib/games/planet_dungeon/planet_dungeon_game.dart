@@ -978,6 +978,15 @@ class PlanetDungeonGame extends FlameGame {
   /// rock in that room; only woken rooms creep on the beat.
   final Set<String> wokeRooms = {};
 
+  /// Cells that were molten THIS beat by the player's own hand (roomId → cell
+  /// indices). Fresh fire-blood does not creep until it has sat for one whole
+  /// beat, which is the difference between a puzzle and a coin toss:
+  /// PLAYTEST FIX (2026-08-14) — the beat clock free-runs, so melting a wall
+  /// used to leave anywhere from 2.2s down to a few frames before the lava
+  /// you just made spread onto the tile you were standing on to make it. The
+  /// grace makes the window HONEST and identical every time.
+  final Map<String, Set<int>> freshLava = {};
+
   /// Steam's cooling-breath charges (max [kSteamBreathMax]); one is spent per
   /// cooled cell and one returns with each creep beat — so a wide flood can't
   /// be out-cooled, only dammed.

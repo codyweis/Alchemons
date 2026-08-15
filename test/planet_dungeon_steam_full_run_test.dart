@@ -253,29 +253,29 @@ void main() {
     final afterEast = kSteamStartPressure - 30 + 2 * kSteamCondensateGain;
     expect(game.boilerPressure, afterEast);
 
-    standAt('cinder_forge', 6, 8, 6, 7);
-    waitForBreath(2);
-    // Wall the bunker around the gate mouth (5,5) while everything sleeps.
-    act('cinder_forge', earth, 5, 5, 5, 4); // wall above the mouth
-    act('cinder_forge', earth, 5, 5, 6, 5); // wall east of the mouth
-    act('cinder_forge', earth, 5, 5, 5, 6); // wall below the mouth
+    // ── THE TWO POURS: breach the west entrance, cross the gallery, and
+    // work the two-thick plug while the cisterns pour into your road ──
+    standAt('cinder_forge', 4, 6, 4, 5);
+    step(); // entering builds the room's mutable grid
     final forge = game.moltenCells['cinder_forge']!;
-    expect(forge[4][5], 1);
-    expect(forge[5][6], 1);
-    expect(forge[6][5], 1);
-    // Break the gate — every cistern in the forge wakes.
-    act('cinder_forge', fire, 5, 5, 4, 5);
+    waitForBreath(3);
+    // The gallery is walkable, the pours are asleep, and the vault is shut by
+    // a plug TWO walls thick — melting it is what wakes the cisterns under
+    // your feet, so the whole fight happens while you are pinned here.
+    expect(forge[5][4], 1, reason: 'the inner plug');
+    expect(forge[4][4], 1, reason: 'and the outer plug behind it');
+    expect(game.wokeRooms.contains('cinder_forge'), isFalse);
+    act('cinder_forge', fire, 4, 6, 4, 5);
     expect(game.wokeRooms, contains('cinder_forge'));
-    // Cool the spill and slip into the sanctuary.
-    act('cinder_forge', steam, 5, 5, 4, 5);
-    standAt('cinder_forge', 4, 5, 3, 5);
-    game.update(1 / 60);
-    standAt('cinder_forge', 1, 5, 1, 5); // the pedestal
+    act('cinder_forge', steam, 4, 6, 4, 5);
+    standAt('cinder_forge', 4, 5, 4, 4);
+    waitForBreath(1);
+    act('cinder_forge', fire, 4, 5, 4, 4);
+    act('cinder_forge', steam, 4, 5, 4, 4);
+    standAt('cinder_forge', 5, 3, 5, 3); // the pedestal, inside the vault
     step();
     expect(game.hasStar(1), isTrue,
-        reason: 'reaching the sanctuary pedestal banks star 1');
-    // The sanctuary interior never flooded.
-    expect(forge[5][2], 0);
+        reason: 'reaching the vault pedestal banks star 1');
     clearWisps();
 
     // Both stars banked → the crucible gate grinds open.
@@ -288,7 +288,8 @@ void main() {
         .firstWhere((d) => d.targetRoomId == 'manifold_north');
     actAt('cinder_forge', steam, forgeNorthDoor.rect.center + const Offset(0, 40));
     expect(game.isDoorLocked(forgeRoom, forgeNorthDoor), isFalse);
-    final afterNorth = afterEast - 15 + kSteamCondensateGain; // +1 forge cool
+    // +2 forge cools: the reworked vault plug is two walls thick.
+    final afterNorth = afterEast - 15 + 2 * kSteamCondensateGain;
     expect(game.boilerPressure, afterNorth);
     expect(afterNorth, lessThan(15),
         reason: 'the strategic pinch: the fourth junction cannot be bought');
@@ -567,14 +568,15 @@ void main() {
     park();
     game.update(1 / 60);
     final cells = game.moltenCells['cinder_forge']!;
-    // An authored cistern sits at col4/row2 in the open field.
-    expect(cells[2][4], 3);
+    // The two pours sit under the gallery at (3,7) and (5,7).
+    expect(cells[7][3], 3);
+    expect(cells[7][5], 3);
     // Asleep: nothing creeps, however long you wait.
     for (var i = 0; i < 60 * 5; i++) {
       park();
       game.update(1 / 60);
     }
-    expect(cells[2][5], 0, reason: 'a sleeping cistern never creeps');
+    expect(cells[6][3], 0, reason: 'a sleeping cistern never creeps');
 
     // Woken: the flood claims the neighbour within a beat.
     game.wokeRooms.add('cinder_forge');
@@ -582,7 +584,84 @@ void main() {
       park();
       game.update(1 / 60);
     }
-    expect(cells[2][5], 3, reason: 'a woken cistern floods its neighbours');
+    // Each pour is walled on three sides, so it has exactly one way to go:
+    // UP, into the gallery cell the player has to walk across.
+    expect(cells[6][3], 3, reason: 'a woken cistern floods its neighbours');
+    expect(cells[6][5], 3, reason: 'and so does the other pour');
+  });
+
+  test('a DRY breach gives you one honest beat to quench it', () {
+    // PLAYTEST FIX: the beat clock free-runs, so melting used to leave
+    // anywhere from 2.2s down to a few frames before the lava you just made
+    // spread onto the tile you made it from. Fresh fire-blood from a DRY wall
+    // now sits still for exactly one beat.
+    final game = _harness([
+      _member(0, 'Steam', 'pip'),
+      _member(1, 'Earth', 'horn'),
+      _member(2, 'Fire', 'mask'),
+    ]);
+    final room = game.layout.rooms['cinder_forge']!;
+    final g = room.molten!;
+    game.currentRoomId = 'cinder_forge';
+    game.update(1 / 60);
+    final cells = game.moltenCells['cinder_forge']!;
+
+    // Break the vault plug from the gallery cell and stand your ground.
+    game.setActive(2);
+    final stand = _center(room, g, 4, 6);
+    for (final c in game.creatures) {
+      c
+        ..position = stand
+        ..lastSafe = stand
+        ..angle = -pi / 2
+        ..aimAngle = -pi / 2;
+    }
+    game.activateAbility();
+    expect(cells[5][4], 3, reason: 'the plug runs molten');
+
+    // One whole beat passes and the breach has NOT crawled onto the player.
+    for (var i = 0; i < 60 * 2.4; i++) {
+      for (final c in game.creatures) {
+        c
+          ..position = stand
+          ..lastSafe = stand;
+      }
+      game.update(1 / 60);
+    }
+    expect(cells[6][4], 0,
+        reason: 'the grace beat: your own breach does not eat the tile you '
+            'broke it from');
+    expect(game.moltenScalds, 0);
+  });
+
+  test('the vault cannot be taken in one melt any more', () {
+    // The old forge was a 2.6s dash — one gate, one cool, done, with the
+    // cisterns too far away to ever act. The plug is now two walls thick and
+    // the two pours sit under the only cell it can be worked from.
+    final game = _harness([_member(0, 'Steam', 'pip')]);
+    final room = game.layout.rooms['cinder_forge']!;
+    final g = room.molten!;
+    final cells = game.moltenCells[room.id] ?? () {
+      game.currentRoomId = 'cinder_forge';
+      game.update(1 / 60);
+      return game.moltenCells['cinder_forge']!;
+    }();
+
+    // Two walls between the gallery and the vault, stacked.
+    expect(cells[5][4], 1);
+    expect(cells[4][4], 1);
+    // The pours sit directly under the working cell's neighbours, walled on
+    // three sides so each has exactly one way to run: onto your road.
+    expect(cells[7][3], 3);
+    expect(cells[7][5], 3);
+    for (final (c, r) in const [(2, 7), (4, 7), (6, 7), (3, 8), (5, 8)]) {
+      expect(cells[r][c], 2,
+          reason: 'a pour is boxed in bedrock except upward');
+    }
+    // And the vault itself is sealed on every other face.
+    for (final c in [3, 4, 5, 6]) {
+      expect(cells[2][c], 2, reason: 'the vault roof is bedrock');
+    }
   });
 
   test('breaching a WET dam section floods your own chamber', () {

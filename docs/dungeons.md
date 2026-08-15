@@ -690,8 +690,30 @@ not as soft modifiers.
    THE WHOLE MAIN in one surge (≥60; below that the valve refuses and takes
    nothing). Death re-clamps the ring (puzzle state). Tile star mechanics
    kept: S1 choose-your-breach dam (wet faces glow, sealed pockets, dry slot
-   threads through), S2 bunker-before-melting sanctuary, rite = bunker/break/
-   quench band gates. Pressure gauge with a burst-disc tick always on the
+   threads through), rite = bunker/break/quench band gates.
+   **S2 REWORKED 2026-08-14 — THE TWO POURS** (playtest: "this seems to not
+   have any strategy... I build 3 walls, then what"). Both halves of that were
+   right. Modelled against the real rules the old sanctuary cleared in **2.6
+   SECONDS** — melt the gate, cool it, walk to the pedestal — with the first
+   creep beat never landing and all three cisterns too far off to act; and the
+   authored "bunker before melting" line was actively harmful, walling the
+   player IN beside the cell they were about to turn to lava, with no retreat.
+   The vault is now shut by a plug **two walls thick**, workable only from one
+   gallery cell, and two cisterns sit under that cell's neighbours, each boxed
+   in bedrock so it pours in exactly one direction: UP, onto the road. Melting
+   the plug is the WAKE, so the flood runs while you are pinned in front of
+   it. The counterplay is to **CAP** a pour (Steam quenches it to stone, Earth
+   walls the stone) for a breath and a beat — and capping the pour you are
+   standing on walls your own road, so *which one* is the decision. Breath
+   (3, +1/beat) is the budget; the two-thick plug is what makes the beats bite.
+   **Fairness, same pass:** the beat clock free-runs, so a melt used to leave
+   anywhere from 2.2s down to a few frames before your own fresh lava took the
+   tile you made it from — a reaction test on a randomised timer. Fresh molten
+   from a **dry** wall now waits one whole beat before it creeps; a **wet**
+   face still bursts at once, because that is what wet means (S1's lesson is
+   untouched). The clock is deliberately NOT reset on a melt: an earlier draft
+   did that, and the model caught it letting a player stall the entire flood
+   by breaking rock on a loop. Pressure gauge with a burst-disc tick always on the
    HUD. Egg: Hidden Harmony (zero scalds) unchanged. Rooms: boiler_gate,
    manifold_south, ember_causeway, manifold_north, cinder_forge, crucible,
    burst_vault, boiler_heart.

@@ -73,6 +73,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   void _resetPressureState() {
     if (!_isVapor) return;
     moltenCells.clear();
+    freshLava.clear();
     moltenBeat = _kMoltenBeat;
     moltenRiteDone = false;
     wokeRooms.clear();
@@ -126,6 +127,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   void restartRoom() {
     if (!canRestartRoom) return;
     moltenCells.remove(currentRoomId);
+    freshLava.remove(currentRoomId);
     wokeRooms.remove(currentRoomId); // the flood goes back to sleep
     steamBreath = kSteamBreathMax;
     moltenBeat = _kMoltenBeat;
@@ -239,7 +241,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (moltenBeat <= 0) {
       moltenBeat = _kMoltenBeat;
       steamBreath = min(kSteamBreathMax, steamBreath + 1);
-      if (wokeRooms.contains(room.id)) _spreadLava(grid, g);
+      if (wokeRooms.contains(room.id)) {
+        _spreadLava(grid, g, fresh: freshLava[room.id]);
+      }
+      // The grace is ONE beat: whatever you broke has now settled and runs
+      // with the rest of the flood from here.
+      freshLava.remove(room.id);
     }
 
     // Footing: lava under a creature throws it back to safe ground — and the
@@ -318,11 +325,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   /// One creep step: each lava cell floods its open 4-neighbours (snapshot, so a
   /// single beat advances exactly one ring).
-  void _spreadLava(List<List<int>> grid, MoltenGrid g) {
+  void _spreadLava(List<List<int>> grid, MoltenGrid g, {Set<int>? fresh}) {
     final next = <(int, int)>[];
     for (var r = 0; r < g.rowCount; r++) {
       for (var c = 0; c < g.cols; c++) {
         if (grid[r][c] != _mLava) continue;
+        // Fire-blood you made this beat sits still for one beat before it
+        // runs — the promised window to quench your own breach.
+        if (fresh != null && fresh.contains(r * g.cols + c)) continue;
         for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
           final nc = c + dc, nr = r + dr;
           if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
@@ -519,6 +529,15 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         if (code == _mWall) {
           final wet = _wallIsWet(grid, g, c, r);
           grid[r][c] = _mLava;
+          // A DRY wall gives you one honest beat to quench your own breach;
+          // a WET one gives you nothing, because that is what wet means — the
+          // reservoir behind it is already pressing and it bursts at once.
+          // (That split is what lets S2 stop being a coin toss without
+          // softening S1's whole lesson, choose-your-breach.)
+          // NOTE: the beat clock is deliberately NOT reset here. Resetting it
+          // per melt let a player stall the entire flood by breaking rock on
+          // a loop — the grace gives the window without stopping time.
+          if (!wet) (freshLava[room.id] ??= <int>{}).add(r * g.cols + c);
           final woke = wokeRooms.add(room.id);
           _setHint(wet
               ? 'The dam gives way — the reservoir pours through your breach!'
