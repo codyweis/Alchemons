@@ -1573,8 +1573,10 @@ class PlanetDungeonGame extends FlameGame {
       final off = i == 0 ? Offset.zero : Offset(cos(a), sin(a)) * 34.0;
       var p = _clampToBounds(anchor + off, currentRoom);
       // Never strand a walker on open sky / over a gap — a non-Wing creature
-      // can neither move nor launch a glide from there.
-      if (!_onSolidGround(p, currentRoom)) p = safeAnchor;
+      // can neither move nor launch a glide from there — and never post one
+      // inside stone (see [regroup]: that is a teleport through every gate in
+      // the game). The authored anchor is the always-valid fallback.
+      if (!_canPlaceBody(p, safeAnchor, currentRoom)) p = safeAnchor;
       creatures[i].position = p;
       creatures[i].lastSafe = p;
       if (i < combatCompanions.length) {
@@ -1682,23 +1684,70 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   /// Snap the inactive creatures next to the active one (QoL traversal aid).
+  ///
+  /// EXPLOIT FIX (2026-08-14, playtest): this used to check only the room
+  /// bounds and open sky, so a regroup beside a wall posted the party INSIDE
+  /// the stone — and since movement only forbids ENTERING something solid,
+  /// never leaving it, they then walked out the far side. That teleported the
+  /// party through walls, tide ledges, fossil ribs, powered barriers and
+  /// pistons alike: every gate in the game, including straight into a star.
+  /// Placement now has to be somewhere a body could actually stand, reached
+  /// from the active creature without crossing anything solid.
   void regroup() {
     final a = active;
     if (a == null) return;
     var k = 0;
+    final others = creatures.length - 1;
     for (var i = 0; i < creatures.length; i++) {
       if (i == activeIndex || !creatures[i].alive) continue;
-      final ang = (k / max(1, creatures.length - 1)) * pi * 2;
-      var p = _clampToBounds(
-        a.position + Offset(cos(ang), sin(ang)) * 36.0,
-        currentRoom,
-      );
-      // Same stranding guard as room spawns: walkers need solid footing.
-      if (!_onSolidGround(p, currentRoom)) p = a.position;
+      // Walk the ring for the first spot that is honestly reachable; the
+      // active creature's own footing is the always-valid fallback (it is
+      // standing there, so it cannot be inside anything).
+      var p = a.position;
+      for (var probe = 0; probe < 8; probe++) {
+        final ang = (k / max(1, others)) * pi * 2 + probe * pi / 4;
+        final c = _clampToBounds(
+          a.position + Offset(cos(ang), sin(ang)) * 36.0,
+          currentRoom,
+        );
+        if (_canPlaceBody(c, a.position, currentRoom)) {
+          p = c;
+          break;
+        }
+      }
       creatures[i].position = p;
+      creatures[i].lastSafe = p;
       k++;
     }
     onChanged();
+  }
+
+  /// Is [p] somewhere a body can stand — no wall, no ledge, no rib, no
+  /// barrier, no unextended piston, and not out over open sky? Mirrors
+  /// [_hitsWall] minus its flight branch: placement is judged for a walker,
+  /// because a walker is what gets stranded.
+  bool _blocksPlacement(Offset p, DungeonRoom room) {
+    if (_hitsWallRect(p, room)) return true;
+    if (_isTemple && _templeLedgeBlocks(p, room)) return true;
+    if (_isBarrow && _barrowBlocksAt(p, room)) return true;
+    if (_isCircuit && _circuitBlocksAt(p, room)) return true;
+    if (_isVapor && _steamBlocksAt(p, room)) return true;
+    return !_onSolidGround(p, room);
+  }
+
+  /// Can a body be PLACED at [p] as seen from [from]? It must be standable,
+  /// and the straight line from [from] must not pass through anything solid —
+  /// otherwise a 36px snap could post a creature across a thin wall, which is
+  /// the whole exploit this guards.
+  bool _canPlaceBody(Offset p, Offset from, DungeonRoom room) {
+    if (_blocksPlacement(p, room)) return false;
+    const steps = 6;
+    for (var i = 1; i < steps; i++) {
+      if (_blocksPlacement(Offset.lerp(from, p, i / steps)!, room)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   // ── Update ──────────────────────────────────────────────
