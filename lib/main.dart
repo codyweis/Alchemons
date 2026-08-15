@@ -25,6 +25,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +64,12 @@ void main() async {
     debugPrintStack(stackTrace: stack);
     return true; // prevent silent crash
   };
+
+  // Hydrate the developer-tools switch BEFORE the first frame, so every
+  // debug affordance reads the persisted value from frame one. Screens used
+  // to hydrate it themselves on mount, which meant whichever screen you
+  // landed on decided whether the tools were there yet.
+  await DebugSettingsService().isEnabled();
 
   final db = constructDb();
 
