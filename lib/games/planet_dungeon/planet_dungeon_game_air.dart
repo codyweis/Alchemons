@@ -23,7 +23,16 @@
 //    the player can reach still has a next move, proved exhaustively by
 //    `solveWindWaking()` (`strandable == 0`) — and death resets the winds
 //    besides, as redundancy rather than as the mechanism.
-//  • Star 2 (Loom) — unchanged: the five wonder-cloud trials and the Sky Loom.
+//  • Star 2 (Loom) — the five wonder-cloud trials and the Sky Loom. The SPIRAL
+//    trial is reworked (§9.1): THE SPIRAL IS COMPOSED, NOT WALKED. Seven gale
+//    vents ring a still eye; communing with one opens its jet PERMANENTLY for
+//    the attempt — Star 1's irreversible wind-authoring, in miniature. Four
+//    jets close the eye, but only if they COMPOSE: all tangent to the rim, all
+//    turning the same way. Open a mouth that stabs inward or outward, or one
+//    that turns against the coil, and the forming vortex is sheared apart in
+//    front of you. Which way each mouth breathes is ROLLED PER RUN (so no wiki
+//    can spoil it) and carved on its stone (so the choice is read, not
+//    guessed); `solveSpiralVents()` proves every roll has exactly one answer.
 //  • Star 3 (Storm) — STORM-ROD STEERING. Conduit A keeps its hard
 //    Lightning+Horn gate and now LATCHES (the decay timers are gone, and with
 //    them the Wing-only stabilize that existed only to beat them). Conduit B is
@@ -68,6 +77,19 @@ const double _kGaleEnemyScale = 0.55;
 /// Grace after a gale releases you before the fall begins (matches the thermal
 /// coyote so both winds feel the same underfoot).
 const double _kGaleCoyote = 0.35;
+
+// ── Star 2 · the Gale Eye · device-tunable knobs ───────────
+
+/// How close a creature must stand to a gale vent to commune with it. The
+/// vents answer ANY hand (§4: no gate here — Air's one family gate is Star 3's
+/// conduit A, and this trial keeps at least one echo open to every trio).
+const double _kVentReach = 46.0;
+
+/// Seconds an opened jet takes to swell to full. A wind never snaps on.
+const double _kJetSwellSeconds = 0.9;
+
+/// Seconds the shearing plays out for. The failure is WATCHED, not read.
+const double _kSpiralTearSeconds = 1.6;
 
 // ── Star 3 · device-tunable knobs ──────────────────────────
 
@@ -145,6 +167,362 @@ extension WindCrownSpire on PlanetDungeonGame {
     _latchedLeaderOrigin = null;
     _rocLeash = Offset.zero;
     _rocStunLeft = 0;
+    // The Gale Eye's ring is authored; its winds are rolled fresh every run.
+    _rollSpiralVents();
+  }
+
+  // ── Star 2 · THE GALE EYE (the Spiral, composed) ─────────
+
+  /// The chamber that carries the vent ring (null off Air / in a raid arena).
+  DungeonRoom? get _spiralChamber {
+    for (final r in layout.rooms.values) {
+      if (r.galeVents.isNotEmpty) return r;
+    }
+    return null;
+  }
+
+  /// The still point the vents ring — where the echo forms.
+  Offset _spiralEye(DungeonRoom room) =>
+      room.clouds.isNotEmpty ? room.clouds.first.position : room.bounds.center;
+
+  /// The unit direction a vent breathes, given the eye it rings. Screen space
+  /// (y down), so `(-r.dy, r.dx)` turns the way the sun crosses the crown.
+  Offset spiralVentDirection(GaleVent v, Offset eye, GaleVentFlow flow) {
+    final d = v.position - eye;
+    final len = d.distance;
+    final r = len < 1e-6 ? const Offset(1, 0) : d / len;
+    return switch (flow) {
+      GaleVentFlow.sunwise => Offset(-r.dy, r.dx),
+      GaleVentFlow.widdershins => Offset(r.dy, -r.dx),
+      GaleVentFlow.inward => -r,
+      GaleVentFlow.outward => r,
+    };
+  }
+
+  /// THE COMPOSITION RULE, in one place so the game and the proof can never
+  /// differ: an eye braids only out of jets that all run TANGENT to the rim and
+  /// all turn the SAME WAY. A radial jet (inward or outward) stabs the coil; a
+  /// counter-turning jet shears it. Either one tears the forming vortex apart.
+  ///
+  /// Note what this is NOT: an order. The jets compose as a SET, so the trial
+  /// can never be reduced to a memorised walk (§5.5 hands sequence-execution to
+  /// Fire alone) — what it asks is which four winds you are willing to commit
+  /// to, knowing none of them can be taken back.
+  bool spiralComposes(Iterable<String> ventIds) {
+    GaleVentFlow? coil;
+    for (final id in ventIds) {
+      final f = spiralVentFlow[id];
+      if (f == null) return false;
+      if (f != GaleVentFlow.sunwise && f != GaleVentFlow.widdershins) {
+        return false;
+      }
+      if (coil == null) {
+        coil = f;
+      } else if (coil != f) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Do these open jets close the eye? (Composing is necessary; four is the
+  /// price.)
+  bool spiralVortexClosed(Iterable<String> ventIds) =>
+      ventIds.length >= kSpiralJetsNeeded && spiralComposes(ventIds);
+
+  /// The coil the OPEN jets have already committed to (null while nothing
+  /// tangential is blowing).
+  GaleVentFlow? get spiralCoil {
+    for (final id in spiralOpenJets) {
+      final f = spiralVentFlow[id];
+      if (f == GaleVentFlow.sunwise || f == GaleVentFlow.widdershins) return f;
+    }
+    return null;
+  }
+
+  /// The one coil this ring can actually braid — the handedness that owns at
+  /// least [kSpiralJetsNeeded] mouths. Tier-2 Mask insight names it.
+  GaleVentFlow? get spiralComposableCoil {
+    var sun = 0;
+    var wid = 0;
+    for (final f in spiralVentFlow.values) {
+      if (f == GaleVentFlow.sunwise) sun++;
+      if (f == GaleVentFlow.widdershins) wid++;
+    }
+    if (sun >= kSpiralJetsNeeded) return GaleVentFlow.sunwise;
+    if (wid >= kSpiralJetsNeeded) return GaleVentFlow.widdershins;
+    return null;
+  }
+
+  // ── Star 2 · the roll, and the proof it is always solvable ──
+
+  /// Roll THIS RUN'S vent ring. The shape is fixed and fair — [kSpiralJetsNeeded]
+  /// mouths breathe the winning coil, two breathe against it (the near-miss you
+  /// have to count past), one is radial (the mouth that tears the eye the
+  /// instant it opens) — but WHICH mouth is which is random, so the answer
+  /// cannot be written down anywhere but on the stone. A candidate is kept only
+  /// when [solveSpiralVents] proves it admits exactly ONE answering set and
+  /// that both named failures really do fail.
+  void _rollSpiralVents() {
+    spiralVentFlow.clear();
+    _armGaleEye();
+    _spiralLastRoom = null;
+    final room = _spiralChamber;
+    if (room == null) return;
+    final vents = room.galeVents;
+    if (vents.length <= kSpiralJetsNeeded) return;
+    final rng = Random();
+    for (var attempt = 0; attempt < 200; attempt++) {
+      _plantSpiralFlows(vents, rng);
+      final proof = solveSpiralVents();
+      if (proof.solutions == 1 &&
+          proof.coldVents > 0 &&
+          proof.counterTears > 0) {
+        return;
+      }
+    }
+    // Unreachable in practice: every roll the planter can produce is valid by
+    // construction (the test sweeps all 420 of them). Kept so the chamber can
+    // never be left unplayable.
+    spiralVentFlow.clear();
+    for (var i = 0; i < vents.length; i++) {
+      spiralVentFlow[vents[i].id] = i < kSpiralJetsNeeded
+          ? GaleVentFlow.sunwise
+          : i < vents.length - 1
+          ? GaleVentFlow.widdershins
+          : GaleVentFlow.inward;
+    }
+  }
+
+  void _plantSpiralFlows(List<GaleVent> vents, Random rng) {
+    final coil = rng.nextBool()
+        ? GaleVentFlow.sunwise
+        : GaleVentFlow.widdershins;
+    final counter = coil == GaleVentFlow.sunwise
+        ? GaleVentFlow.widdershins
+        : GaleVentFlow.sunwise;
+    final order = List<int>.generate(vents.length, (i) => i)..shuffle(rng);
+    spiralVentFlow.clear();
+    for (var i = 0; i < order.length; i++) {
+      final id = vents[order[i]].id;
+      spiralVentFlow[id] = i < kSpiralJetsNeeded
+          ? coil
+          : i < order.length - 1
+          ? counter
+          : (rng.nextBool() ? GaleVentFlow.inward : GaleVentFlow.outward);
+    }
+  }
+
+  /// THE SPIRAL PROOF (§5.5 "prove it solvable" — the precedent of
+  /// [solveWindWaking] and [solveRodRanking]).
+  ///
+  /// Brute-forces every ORDERED way to spend the four openings an attempt is
+  /// worth, judged by the REAL mechanic functions ([spiralComposes] /
+  /// [spiralVortexClosed]) — the same calls the vents make under a hand, so
+  /// proof and gameplay cannot drift apart. Reports:
+  ///  • `sequences` — ordered selections examined (`n·(n-1)·…`, k deep);
+  ///  • `closing` — sequences that reach a closed eye without ever shearing;
+  ///  • `solutions` — DISTINCT vent SETS that close it (must be exactly 1);
+  ///  • `torn` / `radialTears` / `counterTears` — the sequences that shear, split
+  ///    by which named failure did it (a mouth that stabs in or out, versus one
+  ///    that turns against the coil);
+  ///  • `coldVents` — mouths that shear the eye the instant they open, with
+  ///    nothing yet blowing (the radial ones, and only those).
+  ({
+    int vents,
+    int needed,
+    int sequences,
+    int closing,
+    int solutions,
+    int torn,
+    int radialTears,
+    int counterTears,
+    int coldVents,
+    List<String>? solution,
+  }) solveSpiralVents() {
+    final room = _spiralChamber;
+    if (room == null || spiralVentFlow.length != room.galeVents.length) {
+      return (
+        vents: 0,
+        needed: kSpiralJetsNeeded,
+        sequences: 0,
+        closing: 0,
+        solutions: 0,
+        torn: 0,
+        radialTears: 0,
+        counterTears: 0,
+        coldVents: 0,
+        solution: null,
+      );
+    }
+    final ids = [for (final v in room.galeVents) v.id];
+    var sequences = 0;
+    var closing = 0;
+    var torn = 0;
+    var radialTears = 0;
+    var counterTears = 0;
+    final sets = <String>{};
+    List<String>? solution;
+
+    void walk(List<String> chosen, List<String> left) {
+      if (chosen.length == kSpiralJetsNeeded) {
+        sequences++;
+        var shearedAt = -1;
+        for (var i = 1; i <= chosen.length; i++) {
+          if (!spiralComposes(chosen.take(i))) {
+            shearedAt = i - 1;
+            break;
+          }
+        }
+        if (shearedAt < 0 && spiralVortexClosed(chosen)) {
+          closing++;
+          final key = (List.of(chosen)..sort()).join(',');
+          if (sets.add(key)) solution = List.of(chosen)..sort();
+          return;
+        }
+        torn++;
+        final f = spiralVentFlow[chosen[shearedAt < 0 ? 0 : shearedAt]];
+        if (f == GaleVentFlow.inward || f == GaleVentFlow.outward) {
+          radialTears++;
+        } else {
+          counterTears++;
+        }
+        return;
+      }
+      for (var i = 0; i < left.length; i++) {
+        walk([...chosen, left[i]], [...left]..removeAt(i));
+      }
+    }
+
+    walk(const [], ids);
+
+    // The mouths that tear a coil that has not yet begun — asked of the real
+    // rule, never assumed from the roll's shape.
+    var coldVents = 0;
+    for (final id in ids) {
+      if (!spiralComposes([id])) coldVents++;
+    }
+
+    return (
+      vents: ids.length,
+      needed: kSpiralJetsNeeded,
+      sequences: sequences,
+      closing: closing,
+      solutions: sets.length,
+      torn: torn,
+      radialTears: radialTears,
+      counterTears: counterTears,
+      coldVents: coldVents,
+      solution: solution,
+    );
+  }
+
+  // ── Star 2 · play ────────────────────────────────────────
+
+  /// Shut every jet and let the eye settle — a fresh attempt. NO SOFTLOCK IS
+  /// STRUCTURALLY POSSIBLE: the only irreversible thing here is irreversible
+  /// *within the room*, and the chamber's one door is never locked, so walking
+  /// out and back in always re-arms the trial. Death re-rolls it besides.
+  void _armGaleEye() {
+    spiralOpenJets.clear();
+    spiralJetRamp.clear();
+    _spiralShearedVent = null;
+    spiralTorn = false;
+    _spiralTearFlash = 0;
+  }
+
+  /// Per-frame: swell the open jets, run the tear animation, and re-arm the
+  /// chamber whenever it is ENTERED. Cheap — one map walk over at most four
+  /// ids, and nothing at all outside the chamber.
+  void _updateSpiralChamber(DungeonRoom room, double dt) {
+    if (_spiralLastRoom != room.id) {
+      _spiralLastRoom = room.id;
+      // Entering is the edge: the vents were shut behind you when you left.
+      if (room.galeVents.isNotEmpty) _armGaleEye();
+    }
+    if (_spiralTearFlash > 0) _spiralTearFlash -= dt;
+    if (spiralOpenJets.isEmpty) return;
+    final step = dt / _kJetSwellSeconds;
+    for (final id in spiralOpenJets) {
+      final v = spiralJetRamp[id] ?? 0.0;
+      if (v < 1.0) spiralJetRamp[id] = min(1.0, v + step);
+    }
+  }
+
+  /// Commune with the gale vent underfoot. ANY hand opens it — the mouths are
+  /// the chamber's own voice, exactly like Star 1's shrines.
+  bool _trySpiralVent(DungeonCreature a, HiddenCloud sealed) {
+    final room = currentRoom;
+    if (room.galeVents.isEmpty) return false;
+    for (final v in room.galeVents) {
+      if ((a.position - v.position).distance > _kVentReach) continue;
+      if (spiralTorn) {
+        // §5.6 BLOCKED: one clause, naming the state, never the method.
+        _setBlockedHint('The eye is unmade — this air is spent');
+        return true;
+      }
+      if (spiralOpenJets.contains(v.id)) {
+        _setHint('${_capitalise(v.name)} already blows', 2.2);
+        return true;
+      }
+      _openSpiralJet(room, v, sealed);
+      return true;
+    }
+    return false;
+  }
+
+  void _openSpiralJet(DungeonRoom room, GaleVent v, HiddenCloud sealed) {
+    spiralOpenJets.add(v.id);
+    spiralJetRamp[v.id] = 0.0;
+    _spawnAlchemyBurst(
+      v.position,
+      producedElement: 'Air',
+      reagentElements: const ['Air', 'Spirit'],
+      particleCount: 18,
+      intensity: 0.85,
+    );
+    if (!spiralComposes(spiralOpenJets)) {
+      // The failure you WATCH: the coil comes apart at the eye.
+      spiralTorn = true;
+      _spiralShearedVent = v.id;
+      _spiralTearFlash = _kSpiralTearSeconds;
+      _setBlockedHint('The eye shears apart');
+      _spawnAlchemyBurst(
+        _spiralEye(room),
+        producedElement: 'Air',
+        reagentElements: const ['Spirit'],
+        unstable: true,
+        particleCount: 26,
+        intensity: 1.15,
+      );
+      onChanged();
+      return;
+    }
+    if (spiralVortexClosed(spiralOpenJets)) {
+      _completeWonderTrial(
+        sealed,
+        'Four winds braid one eye — the Spiral echo awakens',
+      );
+    } else {
+      // Progress is STATE, not speech (§5.6): the count lives in the readout.
+      _setHint('${_capitalise(v.name)} opens — and will not shut', 2.6);
+    }
+    onChanged();
+  }
+
+  /// Mask insight for the Gale Eye — the only channel allowed to teach method.
+  String _spiralInsight(int tier) {
+    if (tier >= 2) {
+      final coil = spiralComposableCoil;
+      if (coil == null) return 'Nothing in this ring will hold an eye';
+      final hand = coil == GaleVentFlow.sunwise ? 'sunwise' : 'widdershins';
+      return 'Four of these mouths breathe $hand — the rest will shear the eye';
+    }
+    if (tier >= 1) {
+      return 'An eye braids only from jets that skirt the rim the same way, '
+          'and no mouth you open will shut again';
+    }
+    return 'Seven mouths, one eye — and the eye is particular';
   }
 
   // ── Star 1 · the wind graph ──────────────────────────────
@@ -970,6 +1348,15 @@ extension WindCrownSpire on PlanetDungeonGame {
         );
       }
     }
+    // The Gale Eye: how much of the coil is committed, glanceable at will.
+    if (room.galeVents.isNotEmpty && _sealedWonderCloud(room) != null) {
+      final open = spiralOpenJets.length;
+      return DungeonProgressReadout(
+        label: 'JETS',
+        value: spiralTorn ? 'TORN' : '$open/$kSpiralJetsNeeded',
+        fraction: spiralTorn ? 0 : (open / kSpiralJetsNeeded).clamp(0.0, 1.0),
+      );
+    }
     final loomStar = room.loomStarIndex;
     if (loomStar != null && !hasStar(loomStar) && room.anchors.isNotEmpty) {
       return DungeonProgressReadout(
@@ -1263,6 +1650,157 @@ extension WindCrownSpire on PlanetDungeonGame {
       return g == null ? null : _guardianPosition(g);
     }
     return null;
+  }
+
+  // ── Rendering · the Gale Eye ─────────────────────────────
+  // Same stonework as the gust shrines (squat cairn, breath-slot, amber when
+  // asleep, cyan when blowing) so the borrowed verb is legible at a glance.
+  // Budget: flat strokes only — ~7 cairns, ~21 chaff motes and one 26-segment
+  // coil path per frame, and only inside this one small chamber.
+
+  void _drawGaleEye(Canvas canvas, DungeonRoom room) {
+    if (room.galeVents.isEmpty) return;
+    final eye = _spiralEye(room);
+    final rim = (room.galeVents.first.position - eye).distance;
+    // The rim the mouths ring — thin and honest, like the storm-cell's circuit.
+    canvas.drawCircle(
+      eye,
+      rim,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0xFF8FE6FF).withValues(alpha: 0.10),
+    );
+    _drawFormingEye(canvas, eye);
+    final marked = revealTier >= 2 ? spiralComposableCoil : null;
+    for (final v in room.galeVents) {
+      _drawGaleVent(canvas, v, eye, marked);
+    }
+  }
+
+  /// The coil at the eye: it tightens with every jet that composes, and comes
+  /// apart on screen when one does not.
+  void _drawFormingEye(Canvas canvas, Offset eye) {
+    final jets = spiralOpenJets.length;
+    final tear = (_spiralTearFlash / _kSpiralTearSeconds).clamp(0.0, 1.0);
+    if (jets == 0 && tear <= 0) return;
+    final coil = spiralCoil;
+    final spin = coil == GaleVentFlow.widdershins ? -1.0 : 1.0;
+    final grip = spiralTorn
+        ? tear
+        : (jets / kSpiralJetsNeeded).clamp(0.0, 1.0);
+    if (grip <= 0.01) return;
+    // Torn: the coil flies apart outward as it fades. Whole: it draws tighter.
+    final burst = spiralTorn ? (1.0 - tear) * 70.0 : 0.0;
+    final path = Path();
+    for (var i = 0; i <= 26; i++) {
+      final t = i / 26;
+      final a = spin * (t * pi * 2.6 + _time * (0.8 + 1.4 * grip));
+      final r = 24 + t * (34 + 52 * grip) + burst * t;
+      final p = eye + Offset(cos(a), sin(a)) * r;
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    final col = spiralTorn
+        ? const Color(0xFFD07A4A)
+        : Color.lerp(const Color(0xFF8FE6FF), const Color(0xFFE4C16A), grip)!;
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..color = col.withValues(alpha: (0.30 + 0.5 * grip) * (spiralTorn ? tear : 1.0)),
+    );
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        eye,
+        26 + 26 * grip,
+        col.withValues(alpha: 0.22 * (spiralTorn ? tear : 1.0)),
+      );
+    }
+  }
+
+  void _drawGaleVent(
+    Canvas canvas,
+    GaleVent v,
+    Offset eye,
+    GaleVentFlow? marked,
+  ) {
+    final flow = spiralVentFlow[v.id] ?? GaleVentFlow.inward;
+    final dir = spiralVentDirection(v, eye, flow);
+    final open = spiralOpenJets.contains(v.id);
+    final swell = open ? (spiralJetRamp[v.id] ?? 0.0) : 0.0;
+    final culprit = _spiralShearedVent == v.id;
+    final col = culprit
+        ? const Color(0xFFD07A4A)
+        : open
+        ? Color.lerp(const Color(0xFF74613A), const Color(0xFF8FE6FF), swell)!
+        : const Color(0xFFE4C16A);
+    final pulse = open ? 1.0 : 0.74 + 0.26 * sin(_time * 2.2);
+    if (_fx.ready && (open || culprit)) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        v.position,
+        22 + 12 * swell,
+        col.withValues(alpha: 0.28),
+      );
+    }
+    // The mouth: the gust shrine's cairn, turned to face the way it breathes.
+    final body = Rect.fromCenter(center: v.position, width: 24, height: 24);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(body, const Radius.circular(5)),
+      Paint()..color = const Color(0xFF241F18).withValues(alpha: 0.86),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(body, const Radius.circular(5)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = col.withValues(alpha: 0.9 * pulse),
+    );
+    // THE CARVING — the direction, readable BEFORE the mouth is ever touched:
+    // a shaft cut through the stone and a chevron at its head.
+    final carve = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7
+      ..strokeCap = StrokeCap.round
+      ..color = col.withValues(alpha: 0.92 * pulse);
+    final head = v.position + dir * 15;
+    canvas.drawLine(v.position - dir * 13, head, carve);
+    final wing = Offset(-dir.dy, dir.dx);
+    canvas.drawLine(head, head - dir * 8 + wing * 6, carve);
+    canvas.drawLine(head, head - dir * 8 - wing * 6, carve);
+    // THE CHAFF — loose grit already drifting the way the mouth breathes, so
+    // the carving is never the only signal.
+    final chaff = Paint()
+      ..color = col.withValues(alpha: (open ? 0.75 : 0.45) * pulse);
+    final speed = open ? 52.0 + 40 * swell : 20.0;
+    for (var i = 0; i < 3; i++) {
+      final u = ((_time * speed / 60 + i / 3) % 1.0);
+      canvas.drawCircle(
+        v.position + dir * (16 + u * (open ? 74 : 30)),
+        open ? 2.4 : 1.6,
+        chaff,
+      );
+    }
+    // Tier-2 Mask: the mouths that can actually braid stand marked.
+    if (marked != null && flow == marked) {
+      canvas.drawCircle(
+        v.position,
+        20,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color = const Color(0xFFE4C16A).withValues(alpha: 0.55),
+      );
+    }
   }
 
   /// A wind hoop. Star 1's sky-ring SEQUENCE retired (§5.5 hands

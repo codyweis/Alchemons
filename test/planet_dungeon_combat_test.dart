@@ -606,20 +606,34 @@ void main() {
   });
 
   group('wonder trials', () {
-    test('spiral eddies reset when ridden out of order', () {
+    test('the Gale Eye is composed, not walked: standing on a vent does '
+        'nothing until it is communed with', () {
       final game = _buildGame();
       game.currentRoomId = 'spiral_cloud';
-      final eddies = game.spiralEddies(game.currentRoom);
-      final rider = game.creatures[game.activeIndex];
+      final vents = game.currentRoom.galeVents;
+      final walker = game.creatures[game.activeIndex];
 
-      rider.position = eddies[0];
-      _step(game, 0.1);
-      expect(game.wonderProgress('spiral_cloud'), 1);
-
-      rider.position = eddies[2]; // skipped one — the winds scatter
-      _step(game, 0.1);
+      // Walking the whole ring must not open a single jet — the old trial
+      // was touch-driven; this one is a commitment you make on purpose.
+      for (final v in vents) {
+        walker.position = v.position;
+        _step(game, 0.1);
+      }
       expect(game.wonderProgress('spiral_cloud'), 0);
       expect(game.discoveredClouds, isNot(contains('c_spiral')));
+
+      // Commune, and the mouth opens — for good.
+      final answer = game.solveSpiralVents().solution!;
+      final first = vents.firstWhere((v) => v.id == answer.first);
+      walker.position = first.position;
+      game.activateAbility();
+      expect(game.spiralOpenJets, contains(first.id));
+      _step(game, 2.0);
+      expect(
+        game.spiralOpenJets,
+        contains(first.id),
+        reason: 'an opened jet never shuts on its own',
+      );
     });
 
     test('ring trial refuses to seal while the reagents are scattered', () {

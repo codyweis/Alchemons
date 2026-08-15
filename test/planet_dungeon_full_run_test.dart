@@ -12,6 +12,11 @@
 //     strand the player (solver-proved over every state and every order), with
 //     death resetting the winds as the belt and braces.
 //   • Star 1 physics — a woken gale carries walkers AND wisps, friend and foe.
+//   • Star 2's Gale Eye — the Spiral is COMPOSED, not walked: four jets that
+//     all skirt the rim the same way close the eye, every other choice shears
+//     it, the ring is rolled per run and EVERY roll it can produce admits
+//     exactly one answering set (exhaustive), and leaving the chamber always
+//     re-arms the trial so a spent attempt can never wedge the run.
 //   • Star 3 — conduit A keeps its hard Lightning+Horn gate and now latches;
 //     conduit B answers no hand at all; the storm's leader climbs a rod
 //     staircase (solver-proved family, with the two named mis-rankings failing
@@ -138,6 +143,59 @@ void _wake(PlanetDungeonGame game, String shrineId) {
   _teleport(game, roomId, shrine.position);
   game.activateAbility();
   _step(game);
+}
+
+// ── The Gale Eye (Star 2's Spiral trial) ────────────────────
+
+DungeonRoom _eyeRoom(PlanetDungeonGame game) =>
+    game.layout.rooms['spiral_cloud']!;
+
+GaleVent _vent(PlanetDungeonGame game, String id) =>
+    _eyeRoom(game).galeVents.firstWhere((v) => v.id == id);
+
+/// Enter the chamber THROUGH ITS DOOR — the entry edge is what arms the trial,
+/// so every spiral test that means "a fresh attempt" comes in this way.
+void _walkIntoGaleEye(PlanetDungeonGame game) {
+  final hub = game.layout.rooms['hub']!;
+  final door = hub.doors.firstWhere((d) => d.targetRoomId == 'spiral_cloud');
+  _teleport(game, 'hub', door.rect.center);
+  // Long enough to clear the door cooldown a previous transition may have set.
+  _step(game, 0.8);
+}
+
+/// Leave the chamber by its one door and come back — the honest reset.
+void _leaveAndReturnToGaleEye(PlanetDungeonGame game) {
+  final out = _eyeRoom(game).doors.single;
+  _teleport(game, 'spiral_cloud', out.rect.center);
+  _step(game, 0.8);
+  _walkIntoGaleEye(game);
+}
+
+/// Stand at a gale vent and commune with it.
+void _commune(PlanetDungeonGame game, String ventId) {
+  _teleport(game, 'spiral_cloud', _vent(game, ventId).position);
+  game.activateAbility();
+  _step(game);
+}
+
+/// A vent whose rolled flow is [flow] and that is not already open.
+String _ventWithFlow(PlanetDungeonGame game, GaleVentFlow flow) {
+  for (final v in _eyeRoom(game).galeVents) {
+    if (game.spiralVentFlow[v.id] == flow &&
+        !game.spiralOpenJets.contains(v.id)) {
+      return v.id;
+    }
+  }
+  throw StateError('this roll has no free $flow vent');
+}
+
+/// This run's radial mouth — the one that stabs in or out, whichever it rolled.
+String _radialVent(PlanetDungeonGame game) {
+  for (final v in _eyeRoom(game).galeVents) {
+    final f = game.spiralVentFlow[v.id];
+    if (f == GaleVentFlow.inward || f == GaleVentFlow.outward) return v.id;
+  }
+  throw StateError('this roll has no radial vent');
 }
 
 void main() {
@@ -384,6 +442,395 @@ void main() {
       expect(game.wokenGales, isEmpty, reason: 'death resets the winds');
       expect(game.galeRamp, isEmpty);
       expect(game.summitOpen, isFalse);
+    });
+  });
+
+  // ── Star 2 — THE GALE EYE (the Spiral, composed) ───────
+
+  group('Star 2 · the Gale Eye', () {
+    /// Every configuration `_plantSpiralFlows` can produce: a coil handedness,
+    /// which four mouths carry it, which of the rest is radial, and which way
+    /// that one stabs. 2 × C(7,4) × 3 × 2 = 420.
+    List<Map<String, GaleVentFlow>> allRolls(List<GaleVent> vents) {
+      final out = <Map<String, GaleVentFlow>>[];
+      final n = vents.length;
+      for (final coil in const [
+        GaleVentFlow.sunwise,
+        GaleVentFlow.widdershins,
+      ]) {
+        final counter = coil == GaleVentFlow.sunwise
+            ? GaleVentFlow.widdershins
+            : GaleVentFlow.sunwise;
+        for (var mask = 0; mask < (1 << n); mask++) {
+          if (mask.toRadixString(2).replaceAll('0', '').length !=
+              kSpiralJetsNeeded) {
+            continue;
+          }
+          final rest = [
+            for (var i = 0; i < n; i++)
+              if ((mask & (1 << i)) == 0) i,
+          ];
+          for (final radial in rest) {
+            for (final kind in const [
+              GaleVentFlow.inward,
+              GaleVentFlow.outward,
+            ]) {
+              out.add({
+                for (var i = 0; i < n; i++)
+                  vents[i].id: (mask & (1 << i)) != 0
+                      ? coil
+                      : i == radial
+                      ? kind
+                      : counter,
+              });
+            }
+          }
+        }
+      }
+      return out;
+    }
+
+    test('the vent ring is authored, and it rings the eye', () {
+      final game = _harness(_trio());
+      final room = _eyeRoom(game);
+      final vents = room.galeVents;
+      expect(vents.length, 7, reason: 'seven mouths, four of them the answer');
+      expect(
+        vents.length,
+        greaterThan(kSpiralJetsNeeded),
+        reason: 'without decoys there is no choice to make',
+      );
+      expect(
+        vents.map((v) => v.id).toSet().length,
+        vents.length,
+        reason: 'vent ids must be unique — the whole trial is keyed on them',
+      );
+      final eye = room.clouds.single.position;
+      final radii = [for (final v in vents) (v.position - eye).distance];
+      for (final r in radii) {
+        expect((r - radii.first).abs(), lessThan(6), reason: 'a RING, not a heap');
+      }
+      for (final v in vents) {
+        expect(
+          room.bounds.deflate(40).contains(v.position),
+          isTrue,
+          reason: '${v.id} is not standable inside the chamber',
+        );
+        expect(
+          room.doors.every((d) => !d.rect.inflate(40).contains(v.position)),
+          isTrue,
+          reason: '${v.id} sits in the doorway — leaving would open it',
+        );
+        // Every mouth must be a separate decision, never one hand on two.
+        for (final o in vents) {
+          if (o.id == v.id) continue;
+          expect((o.position - v.position).distance, greaterThan(90));
+        }
+      }
+    });
+
+    test('EVERY configuration the roll can produce is solvable, and admits '
+        'exactly ONE answering set (exhaustive: 420 rolls)', () {
+      final game = _harness(_trio());
+      final vents = _eyeRoom(game).galeVents;
+      final rolls = allRolls(vents);
+      expect(rolls.length, 420, reason: 'the whole roll space, not a sample');
+      for (var i = 0; i < rolls.length; i++) {
+        game.spiralVentFlow
+          ..clear()
+          ..addAll(rolls[i]);
+        final p = game.solveSpiralVents();
+        expect(p.sequences, 840, reason: 'roll #$i: 7·6·5·4 ordered attempts');
+        expect(
+          p.solutions,
+          1,
+          reason: 'roll #$i must have exactly one answering set, not '
+              '${p.solutions}',
+        );
+        expect(
+          p.closing,
+          24,
+          reason: 'roll #$i: the one answer, in any of its 4! orders',
+        );
+        expect(p.torn, 816, reason: 'roll #$i: everything else shears');
+        // Both named failures really fail, and between them they account for
+        // every torn sequence — nothing shears for an unnamed reason.
+        expect(
+          p.radialTears,
+          320,
+          reason: 'roll #$i: a mouth that stabs in or out must really fail',
+        );
+        expect(
+          p.counterTears,
+          496,
+          reason: 'roll #$i: a mouth turning against the coil must really fail',
+        );
+        expect(p.radialTears + p.counterTears, p.torn);
+        expect(
+          p.coldVents,
+          1,
+          reason: 'roll #$i: exactly the radial mouth tears a coil from cold',
+        );
+        // The answer the solver names must BE the coil.
+        final coil = rolls[i].entries
+            .where((e) => e.value == game.spiralComposableCoil)
+            .map((e) => e.key)
+            .toList()
+          ..sort();
+        expect(p.solution, coil);
+      }
+    });
+
+    test('the roll is per RUN and genuinely varies — a wiki cannot spoil it', () {
+      final seen = <String>{};
+      for (var run = 0; run < 120; run++) {
+        final game = _harness(_trio());
+        final proof = game.solveSpiralVents();
+        expect(
+          proof.solutions,
+          1,
+          reason: 'run #$run rolled a ring with ${proof.solutions} answers',
+        );
+        expect(proof.coldVents, greaterThan(0));
+        expect(proof.counterTears, greaterThan(0));
+        seen.add(
+          (proof.solution!..sort()).join(',') +
+              (game.spiralComposableCoil == GaleVentFlow.sunwise ? '+' : '-'),
+        );
+      }
+      expect(
+        seen.length,
+        greaterThan(20),
+        reason: 'a roll that always lands the same way is an authored answer '
+            'in a disguise; saw only ${seen.length}',
+      );
+    });
+
+    test('four composing jets close the eye — and the trial is a COMMITMENT, '
+        'not a walk', () {
+      final discovered = <String>[];
+      final game = _harness(_trio(), onCloudDiscovered: discovered.add);
+      _walkIntoGaleEye(game);
+      final answer = game.solveSpiralVents().solution!;
+      for (var i = 0; i < answer.length; i++) {
+        expect(
+          game.discoveredClouds.contains('c_spiral'),
+          isFalse,
+          reason: 'the echo cannot form before the fourth jet',
+        );
+        _commune(game, answer[i]);
+        expect(game.spiralOpenJets.length, i + 1);
+        expect(game.spiralTorn, isFalse);
+      }
+      expect(game.discoveredClouds, contains('c_spiral'));
+      expect(discovered, contains('c_spiral'));
+    });
+
+    test('the ORDER of the four does not matter — it is a set, not a sequence', () {
+      // (§5.5: sequence-execution belongs to Fire. Composing is a different
+      // question, and this is the test that keeps it one.)
+      final game = _harness(_trio());
+      _walkIntoGaleEye(game);
+      final answer = [...game.solveSpiralVents().solution!].reversed.toList();
+      for (final id in answer) {
+        _commune(game, id);
+      }
+      expect(game.discoveredClouds, contains('c_spiral'));
+    });
+
+    test('a radial mouth shears the eye the instant it opens', () {
+      final game = _harness(_trio());
+      _walkIntoGaleEye(game);
+      final radial = _eyeRoom(game).galeVents.firstWhere(
+        (v) =>
+            game.spiralVentFlow[v.id] == GaleVentFlow.inward ||
+            game.spiralVentFlow[v.id] == GaleVentFlow.outward,
+      );
+      _commune(game, radial.id);
+      expect(game.spiralTorn, isTrue, reason: 'in or out, it stabs the coil');
+      expect(game.hintChannel, DungeonHintChannel.blocked);
+      expect(game.discoveredClouds, isNot(contains('c_spiral')));
+      expect(game.progressReadout!.value, 'TORN');
+    });
+
+    test('a mouth turning against the coil shears it too', () {
+      final game = _harness(_trio());
+      _walkIntoGaleEye(game);
+      final coil = game.spiralComposableCoil!;
+      final against = coil == GaleVentFlow.sunwise
+          ? GaleVentFlow.widdershins
+          : GaleVentFlow.sunwise;
+      // One good jet sets the handedness; the counter-turning one shears it.
+      _commune(game, game.solveSpiralVents().solution!.first);
+      expect(game.spiralTorn, isFalse);
+      _commune(game, _ventWithFlow(game, against));
+      expect(game.spiralTorn, isTrue);
+      expect(game.discoveredClouds, isNot(contains('c_spiral')));
+    });
+
+    test('an opened jet is IRREVERSIBLE inside the room, and a torn eye stays '
+        'torn until you leave', () {
+      final game = _harness(_trio());
+      _walkIntoGaleEye(game);
+      final answer = game.solveSpiralVents().solution!;
+      _commune(game, answer.first);
+      _step(game, 5.0);
+      expect(
+        game.spiralOpenJets,
+        contains(answer.first),
+        reason: 'no timer takes a jet back',
+      );
+      // Communing again is refused, not toggled.
+      _commune(game, answer.first);
+      expect(game.spiralOpenJets.length, 1);
+
+      _commune(game, _radialVent(game));
+      expect(game.spiralTorn, isTrue);
+      _step(game, 6.0);
+      expect(game.spiralTorn, isTrue, reason: 'the attempt is spent');
+      _commune(game, answer[1]);
+      expect(
+        game.spiralOpenJets.contains(answer[1]),
+        isFalse,
+        reason: 'a torn chamber takes no more jets',
+      );
+      expect(game.hintChannel, DungeonHintChannel.blocked);
+    });
+
+    test('NO SOFTLOCK: leaving and re-entering re-arms the trial, and the '
+        'chamber door is never sealed', () {
+      final game = _harness(_trio());
+      final out = _eyeRoom(game).doors.single;
+      expect(
+        game.isDoorLocked(_eyeRoom(game), out),
+        isFalse,
+        reason: 'the one way out must never lock behind a spent attempt',
+      );
+      _walkIntoGaleEye(game);
+      // Burn the attempt as badly as possible.
+      _commune(game, _radialVent(game));
+      expect(game.spiralTorn, isTrue);
+      // Walk out and back in — the honest reset, played through the door.
+      _leaveAndReturnToGaleEye(game);
+      expect(game.currentRoomId, 'spiral_cloud');
+      expect(game.spiralTorn, isFalse);
+      expect(game.spiralOpenJets, isEmpty);
+      // …and the second attempt really does finish.
+      for (final id in game.solveSpiralVents().solution!) {
+        _commune(game, id);
+      }
+      expect(game.discoveredClouds, contains('c_spiral'));
+    });
+
+    test('the ring answers ANY hand — no family gate, no element gate', () {
+      // §4 budget: Air declares exactly one family gate (Star 3's conduit A),
+      // and at least one star must stay earnable by any correct-element trio.
+      for (final m in const [
+        ('Air', 'wing'),
+        ('Fire', 'mask'),
+        ('Lightning', 'horn'),
+        ('Water', 'pip'),
+      ]) {
+        final game = _harness([_member(0, m.$1, m.$2)]);
+        _walkIntoGaleEye(game);
+        for (final id in game.solveSpiralVents().solution!) {
+          _commune(game, id);
+        }
+        expect(
+          game.discoveredClouds,
+          contains('c_spiral'),
+          reason: 'a ${m.$1} ${m.$2} must braid the eye at full power',
+        );
+      }
+    });
+
+    test('progress is STATE, not speech: the JETS readout counts, the capsule '
+        'does not', () {
+      final game = _harness(_trio());
+      _walkIntoGaleEye(game);
+      expect(game.progressReadout!.label, 'JETS');
+      expect(game.progressReadout!.value, '0/4');
+      _commune(game, game.solveSpiralVents().solution!.first);
+      expect(game.progressReadout!.value, '1/4');
+      expect(game.hintText, isNot(contains('1/4')));
+    });
+
+    test('the objective states the GOAL; the method is earned through Mask '
+        'insight, tiered', () {
+      final game = _harness(_trio());
+      _walkIntoGaleEye(game);
+      expect(game.hintChannel, DungeonHintChannel.objective);
+      expect(game.hintText, contains('Gale Eye'));
+      for (final leak in const [
+        'sunwise',
+        'widdershins',
+        'same way',
+        'four',
+        'tangent',
+      ]) {
+        expect(
+          game.hintText!.toLowerCase(),
+          isNot(contains(leak)),
+          reason: 'the entry line must not hand over the method',
+        );
+      }
+      // A Mask reading (Int 3 → tier 1) narrows the method without naming the
+      // coil; a sharper Mask marks the answer.
+      game.setActive(1);
+      _teleport(game, 'spiral_cloud', _eyeRoom(game).bounds.center);
+      game.activateAbility();
+      expect(game.hintChannel, DungeonHintChannel.insight);
+      expect(game.hintText, contains('same way'));
+      expect(game.hintText!.toLowerCase(), isNot(contains('sunwise')));
+
+      final sharp = _harness([
+        CosmicPartyMember(
+          instanceId: 'inst_9',
+          baseId: 'base_9',
+          displayName: 'sharp mask',
+          element: 'Fire',
+          family: 'mask',
+          level: 10,
+          statSpeed: 3,
+          statIntelligence: 5,
+          statStrength: 3,
+          statBeauty: 3,
+          slotIndex: 0,
+          staminaBars: 3,
+          staminaMax: 3,
+        ),
+      ]);
+      _walkIntoGaleEye(sharp);
+      _teleport(sharp, 'spiral_cloud', _eyeRoom(sharp).bounds.center);
+      sharp.activateAbility();
+      expect(sharp.hintChannel, DungeonHintChannel.insight);
+      expect(
+        sharp.hintText,
+        contains(
+          sharp.spiralComposableCoil == GaleVentFlow.sunwise
+              ? 'sunwise'
+              : 'widdershins',
+        ),
+        reason: 'tier 2 marks the answer',
+      );
+    });
+
+    test('death re-rolls the ring and shuts every jet', () {
+      final game = _harness(_trio(), onPlayerDown: () {});
+      _walkIntoGaleEye(game);
+      _commune(game, game.solveSpiralVents().solution!.first);
+      expect(game.spiralOpenJets, isNotEmpty);
+      for (final c in game.creatures) {
+        c.hp = 0;
+      }
+      game.update(1 / 60);
+      expect(game.spiralOpenJets, isEmpty);
+      expect(game.spiralTorn, isFalse);
+      expect(game.solveSpiralVents().solutions, 1);
+    });
+
+    test('raids stay exempt — a generated arena has no vent ring', () {
+      expect(buildRaidArenaLayout('Air').entranceRoom.galeVents, isEmpty);
     });
   });
 
@@ -957,11 +1404,13 @@ void main() {
     _step(game);
     expect(game.hasStar(0), isTrue, reason: 'Star 1 banks at the crown');
 
-    // ── Star 2 (UNCHANGED): earn the five echoes through their trials ──
+    // ── Star 2: earn the five echoes through their trials ──
+    // The Spiral is COMPOSED: walk in through the door (the entry edge is what
+    // arms the chamber) and commune with the four mouths that braid.
     game.setActive(0);
-    for (final eddy in game.spiralEddies(room('spiral_cloud'))) {
-      _teleport(game, 'spiral_cloud', eddy);
-      _step(game);
+    _walkIntoGaleEye(game);
+    for (final id in game.solveSpiralVents().solution!) {
+      _commune(game, id);
     }
     expect(game.discoveredClouds, contains('c_spiral'));
 
