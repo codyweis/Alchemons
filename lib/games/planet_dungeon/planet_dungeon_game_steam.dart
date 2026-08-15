@@ -1116,6 +1116,197 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   // ── Rendering ────────────────────────────────────────────
 
+  /// STAR 1/2 — the geyser field. Every mouth shows three things at a glance:
+  /// whether it is SHUT, how close the shared cycle is to blowing, and (for a
+  /// riser) that its throat is too wide to smother. The capstone cracks wider
+  /// the more of the field is held, so the goal reads from across the room.
+  void _drawGeyserField(Canvas canvas, DungeonRoom room) {
+    if (room.geysers.isEmpty) return;
+    final solved = room.capstone != null && hasStar(room.capstone!.starIndex);
+    final charge = geyserCharge;
+    final blasting = _geyserBlasting;
+    final p = geyserPressure;
+
+    for (final gy in room.geysers) {
+      final capped = cappedGeysers.contains(gy.id);
+      final r = gy.isRiser ? 34.0 : 24.0;
+
+      // The stone rim, cut into the floor.
+      canvas.drawCircle(
+        gy.position,
+        r,
+        Paint()..color = const Color(0xFF2A2622),
+      );
+      canvas.drawCircle(
+        gy.position,
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = gy.isRiser ? 3.4 : 2.2
+          ..color = capped
+              ? const Color(0xFF6E6257)
+              : const Color(0xFF8FE0EC).withValues(alpha: 0.85),
+      );
+      // A riser wears a second ring: the throat one body cannot smother.
+      if (gy.isRiser) {
+        canvas.drawCircle(
+          gy.position,
+          r - 9,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = const Color(0x778FE0EC),
+        );
+      }
+
+      if (capped) {
+        // Shut: a plug of stone, and no breath at all.
+        canvas.drawCircle(
+          gy.position,
+          r - 7,
+          Paint()..color = const Color(0xFF5A5048),
+        );
+        canvas.drawCircle(
+          gy.position,
+          r - 7,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = const Color(0xFF8A7A68),
+        );
+        continue;
+      }
+      if (solved) continue;
+
+      // Open: the throat glows as the cycle builds, then the plume goes up.
+      final heat = 0.25 + 0.55 * charge;
+      canvas.drawCircle(
+        gy.position,
+        r - 8,
+        Paint()
+          ..color = Color.lerp(const Color(0xFF3A4A50),
+                  const Color(0xFFBFF2FF), heat)!
+              .withValues(alpha: 0.9),
+      );
+      final plume = blasting
+          ? 1.0
+          : (charge * charge) * 0.35; // the fair warning before it blows
+      if (plume > 0.02) {
+        final height = (34 + 150 * plume) * (1 + 0.16 * p);
+        final width = r * (0.7 + 0.5 * plume);
+        final path = Path()
+          ..moveTo(gy.position.dx - width, gy.position.dy)
+          ..quadraticBezierTo(
+            gy.position.dx - width * 0.35,
+            gy.position.dy - height * 0.6,
+            gy.position.dx,
+            gy.position.dy - height,
+          )
+          ..quadraticBezierTo(
+            gy.position.dx + width * 0.35,
+            gy.position.dy - height * 0.6,
+            gy.position.dx + width,
+            gy.position.dy,
+          )
+          ..close();
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0xFFDFF6FF)
+                .withValues(alpha: 0.14 + 0.42 * plume),
+        );
+        if (_fx.ready && blasting) {
+          drawGlow(canvas, _fx.glow!, gy.position - Offset(0, height * 0.45),
+              width * 2.4, const Color(0xFFBFF2FF).withValues(alpha: 0.20));
+        }
+      }
+    }
+
+    // THE CAPSTONE at the heart: the slab, cracking wider with the head.
+    final cap = room.capstone;
+    if (cap != null && !room.geysers.any((g) => g.isRiser)) {
+      final burst = capstoneBurst || hasStar(cap.starIndex);
+      final frac = room.geysers.isEmpty
+          ? 0.0
+          : (p / room.geysers.length).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        cap.position,
+        30,
+        Paint()..color = const Color(0xFF3A342C),
+      );
+      canvas.drawCircle(
+        cap.position,
+        30,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = burst
+              ? const Color(0xFFE4C16A)
+              : const Color(0xFF8A7A68),
+      );
+      // Cracks: they widen and brighten as the field is shut.
+      final crack = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0 + 2.4 * frac
+        ..color = Color.lerp(const Color(0xFF6E6257),
+                const Color(0xFFBFF2FF), burst ? 1.0 : frac)!
+            .withValues(alpha: 0.55 + 0.45 * frac);
+      for (var i = 0; i < 5; i++) {
+        final a0 = i * pi * 2 / 5 + 0.4;
+        canvas.drawLine(
+          cap.position + Offset(cos(a0), sin(a0)) * 8,
+          cap.position + Offset(cos(a0), sin(a0)) * (30 * (0.5 + 0.5 * frac)),
+          crack,
+        );
+      }
+      if (_fx.ready && frac > 0.4) {
+        drawGlow(canvas, _fx.glow!, cap.position, 46,
+            const Color(0xFFBFF2FF).withValues(alpha: 0.10 + 0.28 * frac));
+      }
+    }
+
+    // THE STONE: Earth's one boulder, heaving up out of the floor.
+    final rock = earthRock;
+    if (rock != null) {
+      final rise = earthRockRaise.clamp(0.0, 1.0);
+      final rr = _kRockRadius * (0.45 + 0.55 * rise);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: rock + const Offset(0, 8),
+          width: rr * 2.1,
+          height: rr * 0.8,
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.35 * rise),
+      );
+      canvas.drawCircle(
+        rock,
+        rr,
+        Paint()..color = const Color(0xFF6B5B49),
+      );
+      canvas.drawCircle(
+        rock,
+        rr,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..color = const Color(0xFF9C8A66),
+      );
+      // A few facets so it reads as cut stone, not a ball.
+      final facet = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0x99483A2C);
+      for (var i = 0; i < 3; i++) {
+        final a0 = i * 2.1 + 0.6;
+        canvas.drawLine(
+          rock + Offset(cos(a0), sin(a0)) * rr * 0.25,
+          rock + Offset(cos(a0 + 1.2), sin(a0 + 1.2)) * rr * 0.85,
+          facet,
+        );
+      }
+    }
+  }
+
   void _renderSteamFloor(Canvas canvas, DungeonRoom room) {
     final g = room.molten;
     if (g == null) {
@@ -1448,6 +1639,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   void _renderSteam(Canvas canvas, DungeonRoom room) {
     _renderPressureFixtures(canvas, room);
+    _drawGeyserField(canvas, room);
     final g = room.molten;
     if (g == null) {
       // The entry vent wheel.
