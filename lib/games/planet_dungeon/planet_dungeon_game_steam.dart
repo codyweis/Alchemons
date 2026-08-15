@@ -1228,7 +1228,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
       // Pressure makes the column taller and fatter, so a field nearly shut
       // LOOKS like it is about to tear the lid off.
-      final force = 1.0 + 0.22 * p;
+      // Every mouth you shut sends its head here, so an open mouth in a
+      // nearly-shut field is not slightly bigger — it is a column.
+      final force = 1.0 + 0.38 * p;
 
       // Seconds since this blast opened (negative while it is still building).
       // Steam is drawn as puffs BORN at the mouth that then rise, expand and
@@ -1255,7 +1257,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           final ease = 1 - pow(1 - life, 2.2).toDouble();
           final rise = (blasting ? 168.0 : 34.0) * force * ease;
           // Expand as it climbs — a plume mushrooms, it does not stay a rod.
-          final w = r * (blasting ? 1.25 : 0.85) * (0.55 + 1.75 * life);
+          final w = r *
+              (blasting ? 1.25 : 0.85) *
+              (0.55 + 1.75 * life) *
+              (1.0 + 0.16 * p); // the head widens the column too
           // Drift: each parcel keeps its own wander so the column churns.
           final sway = sin(_moltenPulse * 1.6 + i * 1.7 + gy.position.dx * 0.02) *
               (4 + 20 * life);
@@ -1317,6 +1322,55 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
     }
 
+    // THE HEART, ONCE IT IS OPEN: the whole field's head comes up through it
+    // and never stops. Driven off _moltenPulse rather than the geyser cycle,
+    // because a solved field stops turning — but this plume is the room's
+    // standing trophy and has to keep breathing.
+    final heart = room.capstone;
+    if (heart != null &&
+        !room.geysers.any((g) => g.isRiser) &&
+        (capstoneBurst || solved) &&
+        _fx.ready) {
+      const puffs = 12;
+      const life = 2.4;
+      for (var i = 0; i < puffs; i++) {
+        final age = (_moltenPulse * 1.15 + i * (life / puffs)) % life;
+        final t = age / life;
+        final ease = 1 - pow(1 - t, 2.0).toDouble();
+        final rise = 300 * ease;
+        final sway = sin(_moltenPulse * 1.1 + i * 1.6) * (6 + 34 * t);
+        drawPuff(
+          canvas,
+          _fx.puff!,
+          heart.position + Offset(sway, -rise),
+          46 * (0.5 + 2.0 * t),
+          const Color(0xFFE6F7FF)
+              .withValues(alpha: 0.34 * pow(1 - t, 1.3).toDouble()),
+        );
+      }
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        heart.position - Offset(0, 20),
+        70 + 10 * sin(_moltenPulse * 2.0),
+        const Color(0xFFBFF2FF).withValues(alpha: 0.30),
+      );
+      // Condensate raining back down around the throat.
+      for (var i = 0; i < 7; i++) {
+        final k = ((i * 41) % 13) / 13.0;
+        final f = (_moltenPulse * 0.8 + k) % 1.0;
+        final a0 = k * pi * 2;
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          heart.position +
+              Offset(cos(a0) * (26 + 44 * f), -230 * (1 - f) + 60 * f * f),
+          4.0,
+          const Color(0xFFF2FCFF).withValues(alpha: 0.34 * (1 - f)),
+        );
+      }
+    }
+
     // THE CAPSTONE at the heart: the slab, cracking wider with the head.
     final cap = room.capstone;
     if (cap != null && !room.geysers.any((g) => g.isRiser)) {
@@ -1324,11 +1378,31 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       final frac = room.geysers.isEmpty
           ? 0.0
           : (p / room.geysers.length).clamp(0.0, 1.0);
+      // Once it goes, the slab is not a lid any more — it is a throat.
       canvas.drawCircle(
         cap.position,
         30,
-        Paint()..color = const Color(0xFF3A342C),
+        Paint()
+          ..color = burst
+              ? const Color(0xFF10181C)
+              : const Color(0xFF3A342C),
       );
+      if (burst) {
+        // The broken lip: shards left standing around the open mouth.
+        final shard = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.2
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF8A7A68);
+        for (var i = 0; i < 6; i++) {
+          final a0 = i * pi / 3 + 0.3;
+          canvas.drawLine(
+            cap.position + Offset(cos(a0), sin(a0)) * 24,
+            cap.position + Offset(cos(a0), sin(a0)) * 34,
+            shard,
+          );
+        }
+      }
       canvas.drawCircle(
         cap.position,
         30,
