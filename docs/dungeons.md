@@ -122,10 +122,10 @@ catch both kinds.
 | 2 | **Earth** S1 marrow rib shove — `planet_dungeon_game_earth.dart:479` | Horn 0.9s clean; other Earth 2.4s + 2 bone wisps | **HARD GATE** Earth+Horn |
 | 3 | **Water** S1 master valves — `_water.dart:305` | Pip instant; other Water **5.0s** delay (`_valveDelay`, NOT 1.4s) + 2 wisps | element-only, instant |
 | 3b | **Water** pipe-mouth valve — `_water.dart:308` | already a clean hard Pip check, no fallback | **KEEP as HARD GATE** Water+Pip (the temple's stamped gate) |
-| 4 | **Water** S2 ghost-eddy reveal — `_water.dart:417` | Mask full timer; other Spirit `* 0.6` | element-only (Int still scales) |
+| 4 | ~~**Water** S2 ghost-eddy reveal~~ | — | **RETIRED 2026-08-14** with the ghost gallery. Its replacement (the canal reading) is element-only Spirit with Int tiering, carrying the same rule forward |
 | 5 | **Water** S3 moon-pool freeze — `_water.dart:454` | ⚠ off-family Ice AND the Spirit+Water recipe share ONE `q != perfect` wisp branch | **SPLIT the branch**: recipe keeps its wisps (v2-legal), off-family Ice loses them |
 | 6 | **Earth** S2 socket charge — `_earth.dart:525` | Pip 2.0s/2 wisps; other Lightning 4.5s/3 unstable | element-only, one 2.0s charge; defend-wave stays for everyone |
-| 7 | **Fire** S2 vine bed — `_fire.dart:462` | off-family Plant spawns 2 wisps | element-only; the Fire-burn wisp ramp stays (unconditional) |
+| 7 | **Fire** S2 vine bed | off-family Plant spawns 2 wisps | element-only; the Fire-burn wisp ramp stays (unconditional). Survives the 2026-08-14 garden rework unchanged: growing is the anti-softlock verb, so it is never punished |
 | 8 | **Fire** S3 vesper gust — `_fire.dart:621` | Wing push 120–190; other Air 70–110 | element-only, use the Wing formula |
 | 9 | **Lightning** S1 pylon wake — `_lightning.dart:137` | Horn clean; other Lightning fewer particles + 2 unstable wisps | element-only |
 | 10 | **Lightning** entry rite charge — `_lightning.dart:788` | Horn 8s window; other Lightning 4s + wisps | element-only, one 8s window |
@@ -308,9 +308,9 @@ new. The ledger grows with every build:
 
 | Claimed by | Core mechanics owned |
 |---|---|
-| **Air** | flow traversal (currents/updrafts) · set-collection constellation matching · **irreversible wind-authoring** (BUILT: gust shrines wake permanent gales that help AND hinder; the waking ORDER is the puzzle — CLAIMED: no other planet may hand the player a permanent world-edit whose ordering is the whole question) · **storm-steering by height-ranking** (BUILT: the bolt climbs one rank at a time, so the rod field must be a staircase) |
-| **Fire** | sequence-execution / order-memory ritual under attack (CLAIMED — no other planet may hand a sequence to execute) · flame-relay escort between checkpoints · *(rework)* forensic-evidence deduction at the object itself (rolled per run) |
-| **Water** | global state machine (tide) that regates SPACE itself · flow-graph ordering deduced from spin (read the system, derive the sequence — CLAIMED: no other planet may reveal a sequence as evidence-to-reconstruct) |
+| **Air** | flow traversal (currents/updrafts) · set-collection constellation matching · **irreversible wind-authoring** (BUILT: gust shrines wake permanent gales that help AND hinder; the waking ORDER is the puzzle — CLAIMED: no other planet may hand the player a permanent world-edit whose ordering is the whole question) · **storm-steering by height-ranking** (BUILT: the bolt climbs one rank at a time, so the rod field must be a staircase) · **coherence composition** (BUILT 2026-08-14, the Gale Eye: a SET of irreversible edits that must agree with one another — no order, no sequence, just whether the four winds turn the same way) |
+| **Fire** | sequence-execution / order-memory ritual under attack (CLAIMED — no other planet may hand a sequence to execute) · flame-relay escort between checkpoints · *(rework)* forensic-evidence deduction at the object itself (rolled per run) · **reagent transport / deposition planning** (BUILT 2026-08-14: a burn's PRODUCT travels downwind onto other beds, so the question is where a reaction lands, not what order you were told; distinct from Fire's own sequence row — nothing hands you an order, you author one from the wind and the cuts) |
+| **Water** | global state machine (tide) that regates SPACE itself · **piloting a drifting object by editing the world state that carries it** (BUILT 2026-08-14: the lantern is never touched — you move the TIDE it floats on, and a dam only ever removes a destination; CLAIMED: no other planet may steer a thing it cannot touch) ~~flow-graph ordering deduced from spin~~ (RETIRED with the ghost gallery — it played as arbitrary, and the seat is free again for a later planet) |
 | **Earth** | track-notch sokoban shoves · clue-hunt logic deduction (answers carved into REMOTE architecture, rolled per run — the treasure-hunt variant; Fire's forensic variant reads the object itself) |
 | **Lightning** | beam routing/reflection via rotatable mirrors (+ *(rework)* negative constraints, provably unique) · element STATIONING pads · decoy-pad deduction · *(rework)* zero-sum power routing (power here = dark there) |
 | **Steam** | global resource economy (spend/condense/stoke one shared budget) · sacrifice-the-whole-budget vault |
@@ -458,11 +458,38 @@ not as soft modifiers.
    path + a faint ember that endlessly walks the true order; patient eyes can
    decode it unaided, Mask insight brightens path/pips) and the scriptorium
    soot mural as the explicit key (Mask insight, Int-tiered; reading in the
-   choir caps at tier 1); a wrong flame snuffs the rite + ash wisps. S2 (Ash
-   Star) cloister beds: Plant grows vines (Mane = perfect), Fire burns them
-   (**Plant+Fire→Dust**) revealing groove sigils; every burn breathes out 3
-   cinder wisps, escalating to unstable pouncers from the 3rd sigil; PARITY:
-   a Dust creature lays ash directly. S3 (Pyre Star), behind the chancel
+   choir caps at tier 1); a wrong flame snuffs the rite + ash wisps. S2 (Ash Star) THE
+   WIND CARRIES THE REACTION (**REWORKED 2026-08-14**; the old bed-by-bed
+   grow/burn loop is retired — playtest verdict: too easy and basic, a
+   two-verb loop with nothing to plan). The garth is open to the sky and holds
+   a CROSSWIND. Six beds on a 3×2 grid around an iron wind-cross. Three verbs,
+   all element-only at full power: **Plant grows** a bed (burying whatever lay
+   there — ash, brand or ruin; shoots need 1.2s to take before they catch) ·
+   **Fire burns** grown vines, and **Plant+Fire→Dust now GOES SOMEWHERE**: the
+   burn brands its own bed *and* throws a plume of ash down the whole lane
+   downwind onto every bed behind it · **Air swings the wind-cross** a quarter
+   turn (eased, unlimited, free). Six grooves, ROLLED PER RUN, each cut for one
+   gift: the **drift** (ash carried onto it), the **brand** (burned itself,
+   never dusted after), or **nothing at all** (a swept groove that must stay
+   clean). Ash landing on a standing brand SPOILS it until the bed is regrown.
+   All six true at once banks the star. Every burn still breathes 3 cinder
+   wisps, escalating as before — the cost rides the burn, never the regrow,
+   because regrowing is also the anti-softlock verb. The plume FORECAST draws
+   before you commit (a bright downwind streak from the bed under your hand,
+   with a ring on each groove it would dust). PARITY NOTE: the old "a Dust
+   creature lays ash directly" path is DELETED — it satisfied every drift
+   groove with no burn at all, collapsing both the wind and the ordering; the
+   alchemy survives where it belongs, as the travelling product itself.
+   **Proof (`solveAshGarden` / `ashGardenStrandable`, public, walk the real
+   transitions):** the entire state graph is swept (15,625 boards × 4 quarters
+   = 62,500 states; 53,252 reachable from the empty garth). Of the 729 groove
+   assignments **728 are solvable** — the one impossible garth is all-drift
+   (every groove wants ash, so nothing is left to burn to feed the last one).
+   **176** assignments need the vane turned, and the run rolls only from the
+   **137** of those in the 8–12-move band, so **every run needs the wind** and
+   no wiki can spoil a garden. **`strandable == 0`** over every reachable
+   state: growing is legal on any non-green bed, so a fouled garth is always a
+   detour, never a wall. S3 (Pyre Star), behind the chancel
    gate: Fire lights a censer — the ash rises to smother it AT ONCE (ignite =
    instant wisp wave; the rite is tended under attack) — the vesper flame
    crawls and starves between censers, Air gusts carry it (Wing strongest,
@@ -599,24 +626,36 @@ not as soft modifiers.
    SETTLED tide. Master valves = any Water creature (Pip instant, others a
    sluggish 1.4s gurgle); pipe-mouths elsewhere cycle one stand, PIP ONLY.
    S1 (Tide Star) three sluice seals, one per stand: drained basin, mid
-   walkway, swum-over high ledge (+brine wisps per seal). S2 (Current Star)
-   the ghost gallery — DEDUCTION (**REWORKED 2026-08-11**, §9.1 item 2): a
-   spring mouth, a sea drain and 12 carved channels are STONE and always
-   visible; the run's current is one route through all five eddies, spring →
-   sea. Spirit insight bares each eddy's SPIN — *an eddy rolls the way its
-   upstream feeder drives it*: feeder WEST → sunwise, feeder EAST →
-   widdershins — and the wade order is DERIVED from the spins, never handed
-   over. Int re-cuts the reveal: t0 spins only · t1 flow arrows along the
-   live channels · t2 the order pips (the old baseline, now the high-Int
-   reward). The baring is PERMANENT for the run (a deduction you cannot look
-   at twice is only a memory test); only the tiered extras run on the timer.
-   The 12 channels allow exactly SIX spring→sea routes and all six are pinned
-   uniquely by their spins, so the current is ROLLED PER RUN and stays
-   provably deducible (`solveGhostCurrent`, layout-test enforced route by
-   route; the roll only ever draws from signature-unique routes). A later
-   eddy mid-wade still scatters the course + ghost wisps; a wrong FIRST eddy
-   is free, so a course can always be restarted cleanly. Death never rerolls
-   the current. S3 (Deep Star), behind the mirror gate: at
+   walkway, swum-over high ledge (+brine wisps per seal). S2 (Current Star) FLOAT THE
+   MOON-LANTERN ON THE TIDE (**REWORKED 2026-08-14**; the 2026-08-11 ghost
+   gallery is RETIRED — playtest verdict: it hung on one hidden rule, so the
+   spins read as arbitrary rather than strategic, and it never once touched
+   the temple's own signature system). The gallery is one CANAL NETWORK: ten
+   directed grooves cut between a spring mouth, five basins and the sea
+   drain. Every groove is permanently visible and wears its SILL on its lip —
+   *the whole problem is public from the doorway; there is no hidden rule to
+   hold.* **THE SILL RULE** (`canalChannelLive`): a groove runs when the water
+   tops its sill — LOW at every stand · MID from the middle water up · CREST
+   only at high water · and a DEEP cut runs low and mid but drowns into a
+   swallowing TORRENT at high. **THE SPILL RULE** (`canalSpillFrom`): a basin
+   pours down the LOWEST live groove leaving it — so the tide decides most
+   forks, and the temple's own natural fall runs all the way down into the
+   BLIND SUMP, a throatless basin with no groove out. Two verbs: **play the
+   tide** at the gallery's sluice-bank (element-only Water; the walk there is
+   the commitment, since a stand takes ~2.3s to ease over and the lantern is
+   already drifting), and **plug a basin with ICE** to remove it as a
+   destination and force the next-lowest groove (element-only, toggled — a dam
+   can only ever take an option AWAY; nothing but the water opens a dry sill).
+   Spirit's reading is FORESIGHT, never the answer: t0 names the deep cuts for
+   the run · t1 shows where the water would take the lantern next · t2 traces
+   the whole fall at the water as it stands — and all of it is knowable
+   without a Spirit, the expensive way. Losing the lantern is cheap and never
+   a softlock: grounded or sumped, it washes back to the last mouth it passed
+   and is re-lit by hand; the spring always answers. **Proof
+   (`solveLanternDrift`, public, walks the real sill/spill functions):** the
+   authored stone is reachable, **`strandable == 0`**, and the route is
+   **unsolvable at any single stand** AND **unsolvable without a dam** — both
+   verbs are load-bearing by proof, not by assertion. S3 (Deep Star), behind the mirror gate: at
    settled MID tide freeze the two TRUE moon-pools (Spirit insight names
    them) — Ice direct (Mane cleanest) or **Spirit+Water→Ice** (recipe rouses
    brine); false pools SHATTER + fury wisps; both bridged → Leviathan (calm
@@ -743,7 +782,25 @@ not as soft modifiers.
     **(PILOT — built; §9.1 rework BUILT 2026-08-11; DEVICE TUNING still owed)**
     S1 Airwing rides updrafts/crosswinds/wind rings to the spire top (movement). S2
     Sky Loom: EARN the wonder-clouds via per-chamber elemental trials —
-    Spiral: ride 3 gale eddies in order (Air-friendly) · Ring: seal the orbit
+    Spiral → **THE GALE EYE** (**REWORKED 2026-08-14**; "ride 3 gale eddies in
+    order, Air-friendly" is retired — playtest verdict: way too basic, three
+    fixed dots walked in a fixed order). Seven vents ring a still eye;
+    communing opens a jet PERMANENTLY for the attempt (Star 1's verb and Star
+    1's irreversibility, in miniature). The eye closes only when four jets
+    COMPOSE — all tangent to the rim, all turning the same way; a mouth that
+    stabs inward/outward or turns against the coil SHEARS the forming vortex
+    on screen, the instant it opens. It is a SET, not a sequence (§5.5 hands
+    sequence-execution to Fire alone). ROLLED PER RUN (4 coil · 2 counter · 1
+    radial, random handedness and placement) and readable BEFORE touching —
+    every mouth wears a carved chevron along its flow plus drifting chaff.
+    ANY HAND at full power: the old Air catch-radius perk is retired, because
+    an element affordance on the READABILITY channel would undercut the whole
+    premise. Leaving the chamber re-arms the trial (no softlock, structurally
+    — the one door is never lockable); death re-rolls the ring. **Proof
+    (`solveSpiralVents`, public, walks the real `spiralVortexClosed`):** over
+    **all 420 configurations the roll can produce**, 840 ordered attempts →
+    24 closing sequences → **exactly ONE answering set**, 816 torn, every tear
+    attributable (320 radial · 496 counter-coil). · Ring: seal the orbit
     when the Air/Fire/Lightning reagent motes align (Mask widens the window) ·
     Anvil: crack the storm shell (Lightning strike, or **Air+Fire→Lightning**
     arc from the wind current) then defeat the spark trio · Feather: catch 3
@@ -1346,7 +1403,8 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   `TideZone`/`TideDoorRule`), logic + rendering in
   `planet_dungeon_game_water.dart` (part-file pattern, `_isTemple` guard).
   Visuals: water shader (caustic web, god-rays, rising bubbles), animated
-  basin/ledge water surfaces, drowned-court moon, ghost-eddy spirals, moon
+  basin/ledge water surfaces, drowned-court moon, the canal gallery (sills cut
+  in the lip, the drifting moon-lantern, ice dams, the blind sump), moon
   pools that freeze into cracked ice discs, kelp arena. Leviathan wired
   (sheets + raids + enrage copy). Frozen Moon egg built. Tests:
   `planet_dungeon_water_full_run_test.dart` (animated-flood asserts,
