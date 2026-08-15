@@ -194,6 +194,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         if (mounted) setState(() {});
       }),
     );
+    DebugSettingsService.enabledNotifier.addListener(_onDebugToolsChanged);
     final prefs = await SharedPreferences.getInstance();
     final stars = PlanetStarState.deserialise(
       prefs.getString(_starPrefsKey) ?? '',
@@ -377,7 +378,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// Quiesce everything that rebuilds on a timer/animation BEFORE popping the
   /// route — a tick landing mid-pop leaves dirty semantics on a deactivated
   /// subtree (the `!semantics.parentDataDirty` assert spam on exit).
+  void _onDebugToolsChanged() {
+    if (mounted) setState(() {});
+  }
+
   void _prepareExit() {
+    DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
     _hudTimer?.cancel();
     _hudTimer = null;
     _toastTimer?.cancel();
@@ -430,6 +436,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
   @override
   void dispose() {
+    // Belt and braces: _prepareExit drops it on the normal pop, but a screen
+    // torn down another way must not leave a listener on the static notifier.
+    DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
     _introTicker.dispose();
     _introTime.dispose();
     _hudTimer?.cancel();

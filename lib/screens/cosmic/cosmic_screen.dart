@@ -347,6 +347,11 @@ class _CosmicScreenState extends State<CosmicScreen>
         if (mounted) setState(() {});
       }),
     );
+    // ...and LISTEN, so flipping the switch on the profile screen lights the
+    // tools the moment you come back. Hydrating once was not enough: the
+    // service's notifier had no subscribers at all, so a screen already built
+    // kept reading the old value and the descend chip never appeared.
+    DebugSettingsService.enabledNotifier.addListener(_onDebugToolsChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -6910,8 +6915,13 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
+  void _onDebugToolsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
     try {
       unawaited(context.read<AudioController>().playHomeMusic());
     } catch (_) {}
