@@ -308,15 +308,54 @@ class RitualBrazier {
   const RitualBrazier({required this.order, required this.position});
 }
 
-// ── Fire Star 2: Ash Garden ────────────────────────────────
+// ── Fire Star 2: the Ash Garden ────────────────────────────
+// **REWORK (§9.1 follow-up) — THE WIND CARRIES THE REACTION.** The cloister
+// garth is open to the sky and holds a CROSSWIND. Burning a bed no longer only
+// marks that bed: the Plant+Fire→Dust reaction throws a PLUME of ash downwind,
+// and it settles on every bed behind it in the lane. Each groove is cut for one
+// specific gift — the drift (ash), the brand (a burn of its own bed), or
+// nothing at all (a swept groove that must stay clean) — so the puzzle is
+// choosing a wind quarter and a burn ORDER that leaves all six sitting true at
+// once. The order is never handed over; it is DERIVED from the wind and the
+// grooves.
 
-/// A scorched garden bed. Plant grows it over with vines; Fire burns the
-/// vines to ash (Plant+Fire→Dust); the settling ash fills an old floor groove
-/// and reveals the sigil cut beneath. All beds revealed → the garden's star.
+/// What one groove is cut to receive (§6.1 rework).
+enum GrooveDemand {
+  /// The drift: this groove wants ash carried onto it from an upwind burn.
+  ash,
+
+  /// The brand: this bed must be burned itself, and never dusted afterwards.
+  scorch,
+
+  /// The swept groove: nothing may land here at all.
+  clean,
+}
+
+/// A scorched garden bed, standing on the garth's [col]/[row] grid. Plant
+/// grows it over with vines; Fire burns the vines (Plant+Fire→Dust), which
+/// brands THIS bed and throws its ash onto every bed downwind in the lane.
+/// Growing a bed again buries whatever lies in it — that is the recovery path,
+/// and it is why no arrangement of the garden can ever be softlocked.
+///
+/// The demand each groove carries is NOT authored: it is rolled per run (see
+/// `PlanetDungeonGame.gardenDemands`) out of the assignments a brute-force
+/// solver has proved solvable, wind-turn-requiring and inside the difficulty
+/// band — so no wiki can spoil a garden.
 class VineBed {
   final String id;
   final Offset position;
-  const VineBed({required this.id, required this.position});
+
+  /// Grid coordinates: [col] rises east, [row] rises south. The plume walks
+  /// these, not the pixels.
+  final int col;
+  final int row;
+
+  const VineBed({
+    required this.id,
+    required this.position,
+    required this.col,
+    required this.row,
+  });
 }
 
 // ── Fire Star 3: Vesper of Embers ──────────────────────────
@@ -828,7 +867,10 @@ class DungeonRoom {
   final List<RitualBrazier> braziers;
   final int? brazierStarIndex; // star awarded for the full lit sequence
   final List<VineBed> vineBeds;
-  final int? vineStarIndex; // star awarded when every bed's sigil is revealed
+  final int? vineStarIndex; // star awarded when every groove sits true
+  /// The garth's iron wind-cross: any Air creature standing here turns the
+  /// cloister's crosswind one quarter (element-only, like the vesper gust).
+  final Offset? windVane;
   final List<IncenseChain> incenseChains;
   /// The two censer runs the vesper flame may take to those same bells (§6.1
   /// REWORK). Empty = the chains' authored nodes are the only path.
@@ -909,6 +951,7 @@ class DungeonRoom {
     this.brazierStarIndex,
     this.vineBeds = const [],
     this.vineStarIndex,
+    this.windVane,
     this.incenseChains = const [],
     this.vesperRoutes = const [],
     this.tideValves = const [],
@@ -1902,9 +1945,11 @@ const DungeonLayout _airLayout = DungeonLayout(
 /// guards the way in; the nave is the hub under a rose window of ember glass.
 /// Star 1 (Ember) — the choir's four braziers must be lit in the order the
 /// cathedral remembers (the scriptorium's soot mural diagrams it; a Mask
-/// reads it). Star 2 (Ash) — the cloister's scorched beds: Plant grows vines,
-/// Fire burns them, the settling ash reveals the sigils cut beneath
-/// (Plant+Fire→Dust). Star 3 (Pyre) — beyond the sealed chancel gate, flame
+/// reads it). Star 2 (Ash) — the cloister garth holds a crosswind: Plant grows
+/// a bed, Fire burns it (Plant+Fire→Dust), and the reaction's ash rides the
+/// wind onto the beds downwind — every groove is cut for a different gift, so
+/// the wind quarter and the burn order are the puzzle. Star 3 (Pyre) — beyond
+/// the sealed chancel gate, flame
 /// is carried along hanging incense chains by gusts of Air until all three
 /// ember bells toll, waking the black-flame Simurgh in the sanctum.
 const DungeonLayout _fireLayout = DungeonLayout(
@@ -2038,9 +2083,15 @@ const DungeonLayout _fireLayout = DungeonLayout(
       brazierStarIndex: 0,
     ),
 
-    // Room E — Cloister. Star 2: the ash garden. Four scorched beds around a
-    // dry fountain; Plant overgrows a bed, Fire burns it to ash, and the ash
-    // settles into the groove of a buried sigil (Plant+Fire→Dust).
+    // Room E — Cloister. Star 2: THE WIND CARRIES THE REACTION. The garth is
+    // open to the sky and holds a crosswind; six scorched beds stand on a 3×2
+    // grid around the dry fountain, whose iron wind-cross any Air creature
+    // turns a quarter at a time. Plant overgrows a bed, Fire burns it — the
+    // Plant+Fire→Dust reaction brands THAT bed and throws its ash down the
+    // lane onto every bed behind it. Each groove is cut for one gift (drift /
+    // brand / nothing), rolled per run, so the wind quarter and the burn ORDER
+    // are the whole puzzle. Regrowing buries a fouled bed: nothing is ever
+    // lost, only paid for.
     'cloister': DungeonRoom(
       id: 'cloister',
       bounds: Rect.fromLTWH(0, 0, 820, 740),
@@ -2056,13 +2107,20 @@ const DungeonLayout _fireLayout = DungeonLayout(
           targetSpawn: Offset(110, 280),
         ),
       ],
+      // The grid is deliberately WIDER than it is deep: an east/west wind runs
+      // a three-bed lane (a chain), a north/south wind only a pair — so the
+      // two axes are not interchangeable and a quarter turn really changes the
+      // problem.
       vineBeds: [
-        VineBed(id: 'bed_nw', position: Offset(195, 215)),
-        VineBed(id: 'bed_ne', position: Offset(625, 215)),
-        VineBed(id: 'bed_sw', position: Offset(195, 565)),
-        VineBed(id: 'bed_se', position: Offset(625, 565)),
+        VineBed(id: 'bed_nw', position: Offset(170, 205), col: 0, row: 0),
+        VineBed(id: 'bed_n', position: Offset(410, 175), col: 1, row: 0),
+        VineBed(id: 'bed_ne', position: Offset(650, 205), col: 2, row: 0),
+        VineBed(id: 'bed_sw', position: Offset(170, 570), col: 0, row: 1),
+        VineBed(id: 'bed_s', position: Offset(410, 600), col: 1, row: 1),
+        VineBed(id: 'bed_se', position: Offset(650, 570), col: 2, row: 1),
       ],
       vineStarIndex: 1,
+      windVane: Offset(410, 385),
     ),
 
     // Room F — Reliquary. The cathedral's quiet treasury (reward space).

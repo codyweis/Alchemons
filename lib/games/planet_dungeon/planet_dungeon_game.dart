@@ -270,6 +270,9 @@ class PlanetDungeonGame extends FlameGame {
     _rollGhostCurrent();
     // …and so is the Cinder Cathedral's rite, with the evidence that proves it.
     _rollRiteOrder();
+    // …and the cloister's grooves, out of the assignments the garden solver
+    // has proved solvable, wind-turn-requiring and honestly hard.
+    _rollAshGarden();
     // The Wind-Crown Spire starts CALM, with its rods flat and its storm-cell
     // already on its authored mark — seeded here, not in onLoad, because the
     // HUD (and every headless sim) reads this state before Flame finishes.
@@ -548,8 +551,35 @@ class PlanetDungeonGame extends FlameGame {
   double _simurghBeat = 0;
   final Map<int, double> _simurghPillars = {};
 
-  /// Ash-garden bed states: VineBed.id → 0 barren · 1 overgrown · 2 revealed.
-  final Map<String, int> bedStates = {};
+  /// THE ASH GARDEN (Star 2 rework — "the wind carries the reaction"). The
+  /// whole garth is ONE packed base-5 board, `AshGardenRules.bedCount` digits
+  /// wide, and it is the single source of truth shared by the interaction
+  /// verbs, the renderer and `solveAshGarden()` — the puzzle the solver proves
+  /// is literally the puzzle the player plays.
+  int gardenBoard = 0;
+
+  /// The crosswind's quarter (see `AshGardenRules`: 0 N · 1 E · 2 S · 3 W),
+  /// the quarter it swung FROM, and the eased 0→1 swing (never a snap).
+  int gardenWind = 1;
+  int gardenWindFrom = 1;
+  double gardenWindSwing = 1.0;
+
+  /// The quarter the run's wind starts at (restored on death with the beds).
+  int gardenWindStart = 1;
+
+  /// What each groove is cut to receive, index-aligned with the cloister's
+  /// `vineBeds`. ROLLED PER RUN out of the assignments the solver has proved
+  /// solvable AND wind-turn-requiring AND inside the difficulty band. Like the
+  /// rite's evidence this is the cathedral's stonework, not this run's
+  /// progress: it survives death.
+  final List<GrooveDemand> gardenDemands = [];
+
+  /// Vine maturity per bed index, 0→1 (shoots must take before they will
+  /// burn — the time price of regrowing a fouled bed).
+  final Map<int, double> _bedGrowth = {};
+
+  /// The one source→groove link a tier-2 reading has drawn out (null = none).
+  ({int source, int groove})? _gardenLink;
 
   /// Ember bells rung this run (IncenseChain.id).
   final Set<String> bellsRung = {};
@@ -560,8 +590,12 @@ class PlanetDungeonGame extends FlameGame {
   /// Live vesper flames crawling their chains, by chain id.
   final Map<String, _VesperFlame> _vesperFlames = {};
 
-  /// Recent grow/burn pulse per bed id (render accent).
-  final Map<String, double> _bedFx = {};
+  /// Recent grow/burn pulse per bed index (render accent).
+  final Map<int, double> _bedFx = {};
+
+  /// Live ash plumes crossing the garth (bed index → 0→1 flight), so the
+  /// reaction's product is WATCHED onto the beds behind, never teleported.
+  final Map<int, double> _bedPlume = {};
   double _bellTollFx = 0;
 
   /// Ember Epitaph easter egg (scriptorium): 0 hidden · 1 maxim written into

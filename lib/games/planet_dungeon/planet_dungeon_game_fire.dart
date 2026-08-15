@@ -27,11 +27,20 @@
 //    link. The scriptorium mural is CONFIRMATION — two of the six positions,
 //    never the order. The choir floor's ember-walk is a labyrinth: flavour,
 //    signalling nothing. A wrong flame still snuffs the rite + ash wisps.
-//  • Star 2 (Ash) — the cloister's scorched beds: Plant grows vines, Fire
-//    burns them (Plant+Fire→Dust), the settling ash reveals the sigil cut in
-//    the groove beneath; each burn breathes out cinder wisps, angrier as the
-//    garden bares. PARITY RULE: anything the Plant+Fire braid renders to
-//    ash, a Dust creature lays directly.
+//  • Star 2 (Ash) — THE WIND CARRIES THE REACTION. The cloister garth is open
+//    to the sky and holds a CROSSWIND. Plant grows a bed; Fire burns it
+//    (Plant+Fire→Dust) — and the reaction's product GOES SOMEWHERE: the burn
+//    brands its own bed and throws a plume of ash down the wind onto every bed
+//    behind it in the lane. Six grooves are cut in the garth's stone, each for
+//    one gift — the DRIFT (ash carried onto it), the BRAND (a burn of its own
+//    bed) or NOTHING AT ALL (a swept groove that must stay clean) — and the
+//    assignment is ROLLED PER RUN. Any Air creature turns the garth's iron
+//    wind-cross a quarter (element-only, exactly like the vesper gust), so the
+//    run's question is *which quarter, and in what order*. A bed that catches
+//    the wrong deposit is SPOILED; growing it again buries the ruin, which is
+//    why nothing here can be softlocked — proved, not asserted, by
+//    `ashGardenStrandable()`. Every burn still breathes out cinder wisps,
+//    angrier the nearer the garth is to done.
 //  • Star 3 (Pyre) — THE ROUTE DECISION. The three ember bells never move,
 //    but the censer run to them is a choice made at two stands: the SHORT run
 //    over the ash-storm nave (two censers, wide gaps — the flame starves
@@ -102,6 +111,440 @@ const double _kTelegraphWindup = 0.62;
 /// The flame pillar's reach and its damage per second (progress-scaled).
 const double _kTelegraphRadius = 66.0;
 const double _kTelegraphDps = 5.5;
+
+// ── STAR 2: THE WIND CARRIES THE REACTION ─────────────────
+//
+// The cloister garth is open to the sky. Burning a bed does not merely mark
+// that bed: the Plant+Fire→Dust reaction BRANDS it and throws its ash down the
+// crosswind onto every bed behind it in the lane. Each groove is cut for one
+// gift — the drift, the brand, or nothing — so the run's question is *which
+// quarter, and in what order*. Everything below is PURE: the interaction
+// verbs, the renderer and `solveAshGarden()` all go through these same
+// functions, so the proof of solvability can never drift from what is played.
+
+/// What a bed currently holds. `spoiled` = a brand the drift has since fouled;
+/// it satisfies no groove at all, and is undone by growing the bed again.
+enum AshBedState { barren, green, ash, scorch, spoiled }
+
+/// The verbs a garden plan is made of.
+enum AshGardenVerb { grow, burn, turnWind }
+
+/// One move of a garden plan. [bed] is the bed index, or -1 for a turn of the
+/// wind-cross.
+class AshGardenMove {
+  const AshGardenMove(this.verb, this.bed);
+  final AshGardenVerb verb;
+  final int bed;
+
+  @override
+  String toString() => verb == AshGardenVerb.turnWind
+      ? 'turnWind'
+      : '${verb.name}($bed)';
+}
+
+/// The garth's rules, as pure functions over a packed base-5 board (one digit
+/// per bed, `AshBedState.index`) and a wind quarter (0 N · 1 E · 2 S · 3 W;
+/// a quarter turn is +1, clockwise).
+class AshGardenRules {
+  AshGardenRules({required this.cols, required this.rows})
+    : bedCount = cols * rows {
+    var b = 1;
+    for (var i = 0; i < bedCount; i++) {
+      _pow5.add(b);
+      b *= 5;
+    }
+    boardCount = b;
+    _plumes = [
+      for (var w = 0; w < 4; w++)
+        [for (var i = 0; i < bedCount; i++) _computePlume(i, w)],
+    ];
+  }
+
+  final int cols;
+  final int rows;
+  final int bedCount;
+  late final int boardCount;
+  final List<int> _pow5 = [];
+  late final List<List<List<int>>> _plumes;
+
+  int colOf(int bed) => bed % cols;
+  int rowOf(int bed) => bed ~/ cols;
+
+  /// The beds a burn at [bed] dusts under [wind] — its whole lane downwind,
+  /// nearest first. The ash is a streak, not a single hop.
+  List<int> plume(int bed, int wind) => _plumes[wind & 3][bed];
+
+  List<int> _computePlume(int bed, int wind) {
+    final c = colOf(bed);
+    final r = rowOf(bed);
+    final out = <int>[];
+    switch (wind & 3) {
+      case 0: // north: toward row 0
+        for (var rr = r - 1; rr >= 0; rr--) {
+          out.add(rr * cols + c);
+        }
+      case 1: // east: toward the last column
+        for (var cc = c + 1; cc < cols; cc++) {
+          out.add(r * cols + cc);
+        }
+      case 2: // south
+        for (var rr = r + 1; rr < rows; rr++) {
+          out.add(rr * cols + c);
+        }
+      default: // west
+        for (var cc = c - 1; cc >= 0; cc--) {
+          out.add(r * cols + cc);
+        }
+    }
+    return out;
+  }
+
+  AshBedState cellAt(int board, int bed) =>
+      AshBedState.values[(board ~/ _pow5[bed]) % 5];
+
+  int withCell(int board, int bed, AshBedState v) {
+    final cur = (board ~/ _pow5[bed]) % 5;
+    return board + (v.index - cur) * _pow5[bed];
+  }
+
+  /// GROW — Plant. Legal on any bed not already green, whatever lies in it:
+  /// the new growth buries ash, brand and ruin alike. This is why the garden
+  /// can never be softlocked, and the solver proves it (`ashGardenStrandable`).
+  int? grow(int board, int bed) => cellAt(board, bed) == AshBedState.green
+      ? null
+      : withCell(board, bed, AshBedState.green);
+
+  /// BURN — Fire on grown vines. Brands this bed and lays the reaction's ash
+  /// on every bed downwind: bare ground and young vines take the drift, a
+  /// standing brand is FOULED by it.
+  int? burn(int board, int bed, int wind) {
+    if (cellAt(board, bed) != AshBedState.green) return null;
+    var next = withCell(board, bed, AshBedState.scorch);
+    for (final d in plume(bed, wind)) {
+      next = withCell(next, d, switch (cellAt(next, d)) {
+        AshBedState.barren ||
+        AshBedState.green ||
+        AshBedState.ash => AshBedState.ash,
+        _ => AshBedState.spoiled,
+      });
+    }
+    return next;
+  }
+
+  /// The one groove a bed in this state sits true for (null = none — a spoiled
+  /// bed answers nothing until it is grown again).
+  GrooveDemand? satisfies(AshBedState s) => switch (s) {
+    AshBedState.barren || AshBedState.green => GrooveDemand.clean,
+    AshBedState.ash => GrooveDemand.ash,
+    AshBedState.scorch => GrooveDemand.scorch,
+    AshBedState.spoiled => null,
+  };
+
+  bool sitsTrue(int board, int bed, GrooveDemand demand) =>
+      satisfies(cellAt(board, bed)) == demand;
+
+  bool solved(int board, List<GrooveDemand> demands) {
+    for (var i = 0; i < bedCount; i++) {
+      if (satisfies(cellAt(board, i)) != demands[i]) return false;
+    }
+    return true;
+  }
+
+  /// Pack a groove assignment into a base-3 key (the analysis works in keys).
+  int demandKey(List<GrooveDemand> demands) {
+    var key = 0;
+    var pow = 1;
+    for (var i = 0; i < bedCount; i++) {
+      key += demands[i].index * pow;
+      pow *= 3;
+    }
+    return key;
+  }
+
+  List<GrooveDemand> demandsOf(int key) {
+    var k = key;
+    return [
+      for (var i = 0; i < bedCount; i++)
+        () {
+          final d = GrooveDemand.values[k % 3];
+          k ~/= 3;
+          return d;
+        }(),
+    ];
+  }
+
+  /// The assignment a board sits true for, or -1 if any bed is spoiled (a
+  /// spoiled bed answers no groove, so such a board solves nothing).
+  int boardKey(int board) {
+    var key = 0;
+    var pow = 1;
+    for (var i = 0; i < bedCount; i++) {
+      final d = satisfies(cellAt(board, i));
+      if (d == null) return -1;
+      key += d.index * pow;
+      pow *= 3;
+    }
+    return key;
+  }
+
+  // ── The proof machinery ─────────────────────────────────
+
+  static final Map<String, AshGardenAnalysis> _analysisCache = {};
+
+  /// Walk the WHOLE state graph once from the empty garth at [startWind] and
+  /// report, for every one of the 3^bedCount groove assignments, the shortest
+  /// solution and whether it can be done without ever touching the vane. The
+  /// graph does not depend on the grooves — only the goal test does — so a
+  /// single sweep answers for all of them, and it is cached per wind.
+  AshGardenAnalysis analyse(int startWind) {
+    final key = '${cols}x$rows@$startWind';
+    final cached = _analysisCache[key];
+    if (cached != null) return cached;
+
+    // 1. Shortest distances with the vane in play (states = board × wind).
+    final states = boardCount * 4;
+    final dist = List<int>.filled(states, -1);
+    final start = startWind & 3;
+    dist[start] = 0;
+    final queue = <int>[start];
+    for (var head = 0; head < queue.length; head++) {
+      final s = queue[head];
+      final board = s ~/ 4;
+      final wind = s % 4;
+      final d = dist[s] + 1;
+      void push(int ns) {
+        if (dist[ns] < 0) {
+          dist[ns] = d;
+          queue.add(ns);
+        }
+      }
+
+      push(board * 4 + ((wind + 1) & 3));
+      for (var i = 0; i < bedCount; i++) {
+        final g = grow(board, i);
+        if (g != null) push(g * 4 + wind);
+        final b = burn(board, i, wind);
+        if (b != null) push(b * 4 + wind);
+      }
+    }
+    final minActions = <int, int>{};
+    for (final s in queue) {
+      final k = boardKey(s ~/ 4);
+      if (k < 0) continue;
+      final d = dist[s];
+      final cur = minActions[k];
+      if (cur == null || d < cur) minActions[k] = d;
+    }
+
+    // 2. The same sweep with the vane NAILED DOWN, once per quarter: any
+    //    assignment missing from all four needs a turn of the wind, and that
+    //    is a property of the grooves themselves, not of where the wind
+    //    happened to start.
+    final noTurn = <int>{};
+    for (var w = 0; w < 4; w++) {
+      final seen = List<bool>.filled(boardCount, false);
+      seen[0] = true;
+      final q = <int>[0];
+      for (var head = 0; head < q.length; head++) {
+        final board = q[head];
+        for (var i = 0; i < bedCount; i++) {
+          final g = grow(board, i);
+          if (g != null && !seen[g]) {
+            seen[g] = true;
+            q.add(g);
+          }
+          final b = burn(board, i, w);
+          if (b != null && !seen[b]) {
+            seen[b] = true;
+            q.add(b);
+          }
+        }
+      }
+      for (final board in q) {
+        final k = boardKey(board);
+        if (k >= 0) noTurn.add(k);
+      }
+    }
+
+    final result = AshGardenAnalysis(
+      startWind: start,
+      states: states,
+      reachable: queue.length,
+      minActions: Map.unmodifiable(minActions),
+      noTurnSolvable: Set.unmodifiable(noTurn),
+    );
+    _analysisCache[key] = result;
+    return result;
+  }
+
+  /// The shortest plan for [demands] from the empty garth at [startWind],
+  /// walking the real [grow]/[burn]/turn transitions. Returns null when the
+  /// grooves cannot all sit true at once (the all-drift garth is the one such
+  /// assignment — nothing is left to feed the last groove).
+  List<AshGardenMove>? plan(
+    List<GrooveDemand> demands,
+    int startWind, {
+    int board = 0,
+    bool allowTurns = true,
+  }) {
+    final states = boardCount * 4;
+    final dist = List<int>.filled(states, -1);
+    final prev = List<int>.filled(states, -1);
+    final via = List<AshGardenMove?>.filled(states, null);
+    final start = board * 4 + (startWind & 3);
+    dist[start] = 0;
+    final queue = <int>[start];
+    for (var head = 0; head < queue.length; head++) {
+      final s = queue[head];
+      final b = s ~/ 4;
+      final w = s % 4;
+      if (solved(b, demands)) return _unwind(prev, via, start, s);
+      void push(int ns, AshGardenMove move) {
+        if (dist[ns] >= 0) return;
+        dist[ns] = dist[s] + 1;
+        prev[ns] = s;
+        via[ns] = move;
+        queue.add(ns);
+      }
+
+      if (allowTurns) {
+        push(b * 4 + ((w + 1) & 3), const AshGardenMove(AshGardenVerb.turnWind, -1));
+      }
+      for (var i = 0; i < bedCount; i++) {
+        final g = grow(b, i);
+        if (g != null) push(g * 4 + w, AshGardenMove(AshGardenVerb.grow, i));
+        final bu = burn(b, i, w);
+        if (bu != null) push(bu * 4 + w, AshGardenMove(AshGardenVerb.burn, i));
+      }
+    }
+    return null;
+  }
+
+  List<AshGardenMove> _unwind(
+    List<int> prev,
+    List<AshGardenMove?> via,
+    int start,
+    int goal,
+  ) {
+    final out = <AshGardenMove>[];
+    var s = goal;
+    while (s != start) {
+      out.add(via[s]!);
+      s = prev[s];
+    }
+    return out.reversed.toList();
+  }
+
+  /// Reachable states from which NO solution remains — Air's `strandable`
+  /// proof, applied to the garth. Structurally this must be 0: growing is
+  /// legal on every bed that is not already green, so any ruin can be buried
+  /// and begun again. The test asserts it rather than trusting the argument.
+  int strandable(List<GrooveDemand> demands, int startWind) {
+    final states = boardCount * 4;
+    // Forward reachability from the empty garth.
+    final seen = List<bool>.filled(states, false);
+    final start = startWind & 3;
+    seen[start] = true;
+    final queue = <int>[start];
+    for (var head = 0; head < queue.length; head++) {
+      final s = queue[head];
+      final b = s ~/ 4;
+      final w = s % 4;
+      for (final ns in _successors(b, w)) {
+        if (!seen[ns]) {
+          seen[ns] = true;
+          queue.add(ns);
+        }
+      }
+    }
+    // Backward: which of them can still reach a solved board?
+    final alive = List<bool>.filled(states, false);
+    final back = <int>[];
+    for (final s in queue) {
+      if (solved(s ~/ 4, demands)) {
+        alive[s] = true;
+        back.add(s);
+      }
+    }
+    // One reverse pass needs the reverse edges; build them over the reachable
+    // set only (the graph is small — bedCount is 6).
+    final rev = <int, List<int>>{};
+    for (final s in queue) {
+      for (final ns in _successors(s ~/ 4, s % 4)) {
+        (rev[ns] ??= []).add(s);
+      }
+    }
+    for (var head = 0; head < back.length; head++) {
+      for (final p in rev[back[head]] ?? const <int>[]) {
+        if (!alive[p]) {
+          alive[p] = true;
+          back.add(p);
+        }
+      }
+    }
+    var stranded = 0;
+    for (final s in queue) {
+      if (!alive[s]) stranded++;
+    }
+    return stranded;
+  }
+
+  List<int> _successors(int board, int wind) {
+    final out = <int>[board * 4 + ((wind + 1) & 3)];
+    for (var i = 0; i < bedCount; i++) {
+      final g = grow(board, i);
+      if (g != null) out.add(g * 4 + wind);
+      final b = burn(board, i, wind);
+      if (b != null) out.add(b * 4 + wind);
+    }
+    return out;
+  }
+}
+
+/// One exhaustive sweep of the garth's state graph (see [AshGardenRules.analyse]).
+class AshGardenAnalysis {
+  const AshGardenAnalysis({
+    required this.startWind,
+    required this.states,
+    required this.reachable,
+    required this.minActions,
+    required this.noTurnSolvable,
+  });
+
+  final int startWind;
+
+  /// board × wind states in the graph, and how many the empty garth reaches.
+  final int states;
+  final int reachable;
+
+  /// Groove assignment (base-3 key) → shortest solution length.
+  final Map<int, int> minActions;
+
+  /// The assignments that can be solved without ever turning the vane.
+  final Set<int> noTurnSolvable;
+}
+
+/// One rules object per authored garth (they are immutable and their state
+/// sweep is cached inside), keyed by room id.
+final Map<String, AshGardenRules> _ashRulesCache = {};
+
+/// The band a rolled garden must land in: hard enough to plan, short enough to
+/// walk. (Optimal-play action counts — grows, burns and turns of the vane.)
+const int _kGardenMinActions = 8;
+const int _kGardenMaxActions = 12;
+
+/// Seconds young vines need before they will take flame — the time price of
+/// burying a fouled bed and beginning it again.
+const double _kGardenGrowSeconds = 1.2;
+
+/// Seconds an ash plume takes to cross to the bed behind (watched, never
+/// teleported), and how long the wind-cross takes to swing a quarter.
+const double _kPlumeFlightSeconds = 0.55;
+const double _kWindSwingSeconds = 0.7;
+
+/// How near a creature must stand to work a bed, or the garth's wind-cross.
+const double _kBedReach = 54.0;
+const double _kVaneReach = 58.0;
 
 /// A live vesper flame crawling its incense chain (Star 3). Lives in
 /// [PlanetDungeonGame._vesperFlames]; advanced by `_updateCathedral`.
@@ -357,15 +800,199 @@ extension CinderCathedral on PlanetDungeonGame {
   /// for tests/diagnostics.
   int? get testimonyLinkRank => _testimonyLinkRank;
 
+  // ── The ash garden: rolled per run, proved solvable ─────
+
+  /// The cloister — the room whose beds carry a star (null off Fire, and in
+  /// the generated raid arena).
+  DungeonRoom? get _cloisterRoom {
+    for (final r in layout.rooms.values) {
+      if (r.vineStarIndex != null && r.vineBeds.isNotEmpty) return r;
+    }
+    return null;
+  }
+
+  /// The garth's rules, sized from the authored bed grid. Public so the solver
+  /// proofs, the renderer and the tests all speak the same geometry.
+  AshGardenRules? get ashGardenRules {
+    final room = _cloisterRoom;
+    if (room == null) return null;
+    var cols = 0;
+    var rows = 0;
+    for (final b in room.vineBeds) {
+      if (b.col + 1 > cols) cols = b.col + 1;
+      if (b.row + 1 > rows) rows = b.row + 1;
+    }
+    if (cols * rows != room.vineBeds.length) return null;
+    return _ashRulesCache[room.id] ??= AshGardenRules(cols: cols, rows: rows);
+  }
+
+  /// Roll THIS RUN'S grooves. The wind starts on a random quarter, and the
+  /// assignment is drawn only from those the exhaustive sweep says are
+  /// (a) solvable at all, (b) NOT solvable without turning the vane — so the
+  /// wind is load-bearing every single run — and (c) inside the difficulty
+  /// band. A wiki cannot spoil a garden; the grooves always can.
+  void _rollAshGarden() {
+    final rules = ashGardenRules;
+    final room = _cloisterRoom;
+    if (rules == null || room == null) return;
+    final rng = Random();
+    final wind = rng.nextInt(4);
+    final analysis = rules.analyse(wind);
+    final pool = <int>[
+      for (final entry in analysis.minActions.entries)
+        if (entry.value >= _kGardenMinActions &&
+            entry.value <= _kGardenMaxActions &&
+            !analysis.noTurnSolvable.contains(entry.key))
+          entry.key,
+    ];
+    gardenWindStart = wind;
+    gardenWind = wind;
+    gardenWindFrom = wind;
+    gardenWindSwing = 1.0;
+    gardenBoard = 0;
+    gardenDemands
+      ..clear()
+      ..addAll(
+        pool.isEmpty
+            // Unreachable with the authored 3×2 garth (137 assignments qualify
+            // — see the Fire test's sweep). A garth with no qualifying roll
+            // still gets a playable one rather than an empty one.
+            ? rules.demandsOf(
+                analysis.minActions.keys.firstWhere(
+                  (k) => (analysis.minActions[k] ?? 0) > 0,
+                  orElse: () => 0,
+                ),
+              )
+            : rules.demandsOf(pool[rng.nextInt(pool.length)]),
+      );
+  }
+
+  /// THE PROOF. Walk the garth's real `grow`/`burn`/turn transitions from the
+  /// state the run is actually in and return the shortest plan that leaves
+  /// every groove sitting true — or null if there is none. The Fire test plays
+  /// the returned plan through the ordinary interaction verbs, so the solver
+  /// and the game can never drift apart.
+  ({int states, int reachable, int? minActions, List<AshGardenMove>? plan})
+  solveAshGarden({
+    List<GrooveDemand>? demands,
+    int? board,
+    int? wind,
+    bool allowWindTurns = true,
+  }) {
+    final rules = ashGardenRules;
+    final want = demands ?? gardenDemands;
+    if (rules == null || want.length != rules.bedCount) {
+      return (states: 0, reachable: 0, minActions: null, plan: null);
+    }
+    final plan = rules.plan(
+      want,
+      wind ?? gardenWind,
+      board: board ?? gardenBoard,
+      allowTurns: allowWindTurns,
+    );
+    return (
+      states: rules.boardCount * 4,
+      reachable: rules.analyse(wind ?? gardenWindStart).reachable,
+      minActions: plan?.length,
+      plan: plan,
+    );
+  }
+
+  /// NO SOFTLOCKS, STRUCTURALLY: reachable states from which no solution
+  /// remains. Must be 0 — growing buries any ruin, so every mess is a detour
+  /// and never a wall. (Exhaustive; test-only — do not call per frame.)
+  int ashGardenStrandable({List<GrooveDemand>? demands, int? startWind}) {
+    final rules = ashGardenRules;
+    final want = demands ?? gardenDemands;
+    if (rules == null || want.length != rules.bedCount) return 0;
+    return rules.strandable(want, startWind ?? gardenWindStart);
+  }
+
+  /// What bed [index] currently holds.
+  AshBedState bedStateAt(int index) {
+    final rules = ashGardenRules;
+    if (rules == null || index < 0 || index >= rules.bedCount) {
+      return AshBedState.barren;
+    }
+    return rules.cellAt(gardenBoard, index);
+  }
+
+  /// What bed [index]'s groove is cut to receive.
+  GrooveDemand grooveDemandAt(int index) =>
+      (index >= 0 && index < gardenDemands.length)
+      ? gardenDemands[index]
+      : GrooveDemand.clean;
+
+  /// True when bed [index] currently sits true for its own groove.
+  bool grooveSitsTrue(int index) {
+    final rules = ashGardenRules;
+    if (rules == null) return false;
+    return rules.satisfies(bedStateAt(index)) == grooveDemandAt(index);
+  }
+
+  /// How many grooves sit true right now (the GROOVES readout).
+  int get gardenGroovesTrue {
+    final rules = ashGardenRules;
+    if (rules == null) return 0;
+    var n = 0;
+    for (var i = 0; i < rules.bedCount; i++) {
+      if (grooveSitsTrue(i)) n++;
+    }
+    return n;
+  }
+
+  /// Vine maturity at bed [index] (0 shoots … 1 ready to take flame).
+  double bedGrowthAt(int index) => (_bedGrowth[index] ?? 0).clamp(0.0, 1.0);
+
+  /// The beds a burn at [index] would dust under the wind as it stands — the
+  /// forecast the garth draws, and the same list the burn actually uses.
+  List<int> plumeTargetsAt(int index) =>
+      ashGardenRules?.plume(index, gardenWind) ?? const [];
+
+  /// The compass letter the crosswind runs toward (readout + prose).
+  String get gardenWindLabel =>
+      const ['N', 'E', 'S', 'W'][gardenWind & 3];
+
+  /// The unit vector the crosswind runs along, EASED across a quarter turn so
+  /// the streaks swing round instead of snapping.
+  Offset get gardenWindVector {
+    const dirs = [
+      Offset(0, -1),
+      Offset(1, 0),
+      Offset(0, 1),
+      Offset(-1, 0),
+    ];
+    final k = Curves.easeInOutCubic.transform(gardenWindSwing.clamp(0.0, 1.0));
+    final from = (gardenWindFrom & 3) * pi / 2;
+    var delta = (gardenWind & 3) * pi / 2 - from;
+    if (delta > pi) delta -= 2 * pi;
+    if (delta < -pi) delta += 2 * pi;
+    if (k >= 1.0) return dirs[gardenWind & 3];
+    final a = from + delta * k - pi / 2; // 0 rad points north
+    return Offset(cos(a), sin(a));
+  }
+
+  /// The one source→groove link a tier-2 reading drew out, for the renderer
+  /// and the tests.
+  ({int source, int groove})? get gardenInsightLink => _gardenLink;
+
   // ── Update ──────────────────────────────────────────────
 
   void _resetCathedralState() {
     ritualProgress = 0;
-    bedStates.clear();
     bellsRung.clear();
     _chainCheckpoints.clear();
     _vesperFlames.clear();
     _bedFx.clear();
+    _bedPlume.clear();
+    _bedGrowth.clear();
+    // The GROOVES are stonework — cut long before this run and rolled once
+    // per descent; only the beds worked into them are progress. Death re-lays
+    // the soil and puts the wind back where it was found.
+    gardenBoard = 0;
+    gardenWind = gardenWindStart;
+    gardenWindFrom = gardenWindStart;
+    gardenWindSwing = 1.0;
     _bellTollFx = 0;
     // The rite ORDER and its evidence persist: they are the cathedral's
     // memory of a rite long finished, not this run's progress. Death re-lays
@@ -384,6 +1011,36 @@ extension CinderCathedral on PlanetDungeonGame {
     // epitaph planter — but its growth restarts.
     if (epitaphStage > 1) epitaphStage = 1;
     epitaphFans = 0;
+  }
+
+  /// The garth's three eased clocks: vines taking, ash crossing the garden,
+  /// and the wind-cross swinging round. Three scalar maps, no allocation and
+  /// no geometry per frame (memory: keep the render loop cheap).
+  void _updateAshGarden(double dt) {
+    if (gardenWindSwing < 1.0) {
+      gardenWindSwing = (gardenWindSwing + dt / _kWindSwingSeconds).clamp(
+        0.0,
+        1.0,
+      );
+    }
+    if (_bedGrowth.isNotEmpty) {
+      for (final k in _bedGrowth.keys.toList()) {
+        final v = _bedGrowth[k]!;
+        if (v < 1.0) {
+          _bedGrowth[k] = (v + dt / _kGardenGrowSeconds).clamp(0.0, 1.0);
+        }
+      }
+    }
+    if (_bedPlume.isNotEmpty) {
+      for (final k in _bedPlume.keys.toList()) {
+        final v = _bedPlume[k]! + dt / _kPlumeFlightSeconds;
+        if (v >= 1.0) {
+          _bedPlume.remove(k);
+        } else {
+          _bedPlume[k] = v;
+        }
+      }
+    }
   }
 
   // ── Star 3's decision: which censer run carries the flame ──
@@ -430,6 +1087,7 @@ extension CinderCathedral on PlanetDungeonGame {
       _bedFx.updateAll((k, v) => v - dt);
       _bedFx.removeWhere((k, v) => v <= 0);
     }
+    _updateAshGarden(dt);
     // ANIMATED STATE: insight's marking blooms, a lit brazier's testimony is
     // eaten by its own fire, and a re-declared censer run swings over. Three
     // scalar eases — no allocation, no per-frame geometry.
@@ -773,32 +1431,57 @@ extension CinderCathedral on PlanetDungeonGame {
     return true;
   }
 
-  /// The cloister's ash garden (Star 2).
+  /// THE ASH GARDEN (Star 2) — "the wind carries the reaction". Three verbs,
+  /// all element-only at full power: Plant grows a bed, Fire burns it (and the
+  /// reaction's ash rides the crosswind onto the beds behind), Air turns the
+  /// garth's wind-cross a quarter. The ORDER is never given — it is derived
+  /// from the wind and what the grooves are cut for.
   bool _tryAshGarden(DungeonCreature a, DungeonRoom room) {
     final star = room.vineStarIndex;
-    if (room.vineBeds.isEmpty || star == null || hasStar(star)) return false;
-    VineBed? bed;
-    var bestDist = 50.0;
-    for (final b in room.vineBeds) {
-      final d = (a.position - b.position).distance;
-      if (d < bestDist) {
-        bestDist = d;
-        bed = b;
-      }
-    }
-    if (bed == null) return false;
-    final state = bedStates[bed.id] ?? 0;
+    final rules = ashGardenRules;
+    if (room.vineBeds.isEmpty || star == null || rules == null) return false;
+    if (hasStar(star)) return false;
     final element = a.member.element;
 
-    if (state == 2) {
-      _setHint('This sigil already burns in its groove');
+    // The wind-cross on the dry fountain, at the heart of the garth.
+    final vane = room.windVane;
+    if (vane != null && (a.position - vane).distance <= _kVaneReach) {
+      if (element != 'Air') {
+        // §5.6 BLOCKED: one clause, element-first, never a method.
+        _setBlockedHint('Dead iron — the cross turns on Air alone');
+        return true;
+      }
+      // ELEMENT-ONLY, exactly as the vesper gust is (§4 / the planet's own
+      // precedent): every Air family swings the cross the same quarter.
+      _turnGardenWind(vane);
       return true;
     }
-    if (element == 'Plant' && state == 0) {
-      bedStates[bed.id] = 1;
-      _bedFx[bed.id] = 1.2;
-      // ELEMENT-ONLY: any Plant lays the growth clean and silent.
-      _setHint('Vines surge across the bed in one green breath');
+
+    var index = -1;
+    var bestDist = _kBedReach;
+    for (var i = 0; i < room.vineBeds.length; i++) {
+      final d = (a.position - room.vineBeds[i].position).distance;
+      if (d < bestDist) {
+        bestDist = d;
+        index = i;
+      }
+    }
+    if (index < 0) return false;
+    final bed = room.vineBeds[index];
+    final state = bedStateAt(index);
+
+    if (element == 'Plant') {
+      final grown = rules.grow(gardenBoard, index);
+      if (grown == null) {
+        _setBlockedHint('The vines are already thick');
+        return true;
+      }
+      // The regrowth BURIES whatever lay here — ash, brand or ruin alike.
+      // That is the recovery path, and its price is the time the shoots take.
+      final buried = state != AshBedState.barren;
+      gardenBoard = grown;
+      _bedGrowth[index] = 0;
+      _bedFx[index] = 1.2;
       _spawnAlchemyBurst(
         bed.position,
         producedElement: 'Plant',
@@ -806,11 +1489,34 @@ extension CinderCathedral on PlanetDungeonGame {
         particleCount: 16,
         intensity: 0.8,
       );
+      _setHint(
+        buried
+            ? 'Green closes over the old bed and buries it'
+            : 'Vines surge across the bed in one green breath',
+      );
+      _afterGardenMove(star);
       return true;
     }
-    if (element == 'Fire' && state == 1) {
-      bedStates[bed.id] = 2;
-      _bedFx[bed.id] = 1.4;
+
+    if (element == 'Fire') {
+      if (state != AshBedState.green) {
+        _setBlockedHint('Bare ground takes no flame');
+        return true;
+      }
+      if (bedGrowthAt(index) < 1.0) {
+        _setBlockedHint('The shoots are still too green to catch');
+        return true;
+      }
+      final targets = plumeTargetsAt(index);
+      // ONE transition, through the same pure rule the solver walks.
+      gardenBoard = rules.burn(gardenBoard, index, gardenWind)!;
+      _bedGrowth.remove(index);
+      _bedFx[index] = 1.4;
+      for (final t in targets) {
+        _bedPlume[t] = 0.0;
+      }
+      // The alchemy is unchanged: Plant + Fire → Dust. Only now the Dust GOES
+      // somewhere.
       _spawnAlchemyBurst(
         bed.position,
         producedElement: 'Dust',
@@ -818,58 +1524,70 @@ extension CinderCathedral on PlanetDungeonGame {
         particleCount: 24,
         intensity: 1.05,
       );
-      final revealed = room.vineBeds
-          .where((b) => (bedStates[b.id] ?? 0) == 2)
-          .length;
+      for (final t in targets) {
+        _spawnAlchemyBurst(
+          room.vineBeds[t].position,
+          producedElement: 'Dust',
+          particleCount: 10,
+          intensity: 0.6,
+        );
+      }
       // The consequence layer: every burning bed breathes out cinders, and
-      // the garden grows angrier with each sigil bared.
+      // the garden grows angrier the closer it is to done.
+      final settled = gardenGroovesTrue;
       spawnWispWave(
         element: 'Fire',
         center: bed.position,
         count: 3,
-        unstable: revealed >= 3,
+        unstable: settled >= 3,
         announce: false,
       );
-      if (revealed >= room.vineBeds.length) {
-        earnStar(star);
-      } else {
-        // The count is STATE — it lives in the SIGILS readout (§5.6).
-        _setHint('The vines char to ash — a sigil glows in its groove', 3.2);
+      if (!_afterGardenMove(star)) {
+        _setHint(
+          targets.isEmpty
+              ? 'The bed burns down to a black brand — its ash goes over the '
+                    'wall'
+              : 'The bed burns, and the wind takes its ash across the garth',
+          3.2,
+        );
       }
       return true;
     }
-    // PARITY RULE: what the Plant+Fire braid renders to ash, Dust lays
-    // directly — no growth, no burning.
-    if (element == 'Dust') {
-      bedStates[bed.id] = 2;
-      _bedFx[bed.id] = 1.4;
-      _spawnAlchemyBurst(
-        bed.position,
-        producedElement: 'Dust',
-        particleCount: 20,
-        intensity: 0.9,
-      );
-      final revealed = room.vineBeds
-          .where((b) => (bedStates[b.id] ?? 0) == 2)
-          .length;
-      if (revealed >= room.vineBeds.length) {
-        earnStar(star);
-      } else {
-        _setHint('Ash needs no fire — it settles straight into the groove', 3.2);
-      }
-      return true;
-    }
+
     // §5.6 BLOCKED: one short clause naming what is missing, never a method.
-    if (element == 'Fire' && state == 0) {
-      _setBlockedHint('Bare scorched earth — nothing here will take');
-      return true;
-    }
-    if (element == 'Plant' && state == 1) {
-      _setBlockedHint('The vines are already thick');
-      return true;
-    }
-    _setBlockedHint('This bed answers Plant, or Dust');
+    _setBlockedHint('This bed answers Plant, and Fire');
     return true;
+  }
+
+  /// Swing the wind-cross one quarter (eased, never a snap).
+  void _turnGardenWind(Offset vane) {
+    gardenWindFrom = gardenWind;
+    gardenWind = (gardenWind + 1) & 3;
+    gardenWindSwing = 0;
+    _spawnAlchemyBurst(
+      vane,
+      producedElement: 'Air',
+      particleCount: 14,
+      intensity: 0.7,
+    );
+    _setHint('The cross grinds round, and the garth\'s air turns with it');
+    onChanged();
+  }
+
+  /// After any garden move: bank the star the moment every groove sits true.
+  /// Returns true when the star landed (the caller then stays quiet — the
+  /// star spec's announcement covers it).
+  bool _afterGardenMove(int star) {
+    final rules = ashGardenRules;
+    if (rules != null &&
+        gardenDemands.length == rules.bedCount &&
+        rules.solved(gardenBoard, gardenDemands)) {
+      earnStar(star);
+      onChanged();
+      return true;
+    }
+    onChanged();
+    return false;
   }
 
   /// The two censer stands (Star 3's decision). A Fire creature lights one to
@@ -1144,17 +1862,27 @@ extension CinderCathedral on PlanetDungeonGame {
         );
         return;
       case 'cloister':
-        final hidden = room.vineBeds
-            .where((b) => (bedStates[b.id] ?? 0) != 2)
-            .length;
+        if (hasStar(room.vineStarIndex ?? 1)) {
+          _setHint('Every groove sits true — the garth is at peace', 3.4);
+          return;
+        }
+        // THE GARTH (§6.1 rework): insight ASSISTS, it never plans. t0 names
+        // the shape; t1 teaches the METHOD (what the three cuts want, and
+        // that a burn's ash rides the wind onto the beds behind); t2 draws ONE
+        // source→groove link out of the shortest plan — a check on a plan in
+        // progress, never the plan.
+        if (revealTier >= 2) _gardenLink ??= _pickGardenLink();
         _setHint(
-          hidden > 0
-              ? (revealTier >= 1
-                    ? 'Grow the beds green, then give them to flame — the ash '
-                          'settles into the groove and bares the sigil'
-                    : 'Sigils lie cut beneath the beds, waiting on the ash')
-              : 'Every groove burns — the garden has told all it knows',
-          3.8,
+          revealTier >= 2
+              ? 'The cuts read now — and one groove shows which bed\'s burning '
+                    'must feed it'
+              : revealTier >= 1
+              ? 'Three cuts, three gifts: the shallow bowls want the drift, the '
+                    'deep brands want their own fire, and the swept rings want '
+                    'nothing at all — and every burn sends its ash downwind'
+              : 'Each groove is cut to a different shape, and the garth is '
+                    'open to the sky',
+          4.4,
         );
         return;
       case 'vestry':
@@ -1214,6 +1942,35 @@ extension CinderCathedral on PlanetDungeonGame {
     _setHint('Nothing hidden stirs here');
   }
 
+  /// The ONE source→groove link a tier-2 reading draws out of the garth: the
+  /// first burn in the shortest plan that actually feeds a drift-groove. STICKY
+  /// (see [_gardenLink]) — re-reading must never walk the player through the
+  /// whole plan one burn at a time.
+  ({int source, int groove})? _pickGardenLink() {
+    final rules = ashGardenRules;
+    if (rules == null) return null;
+    final plan = solveAshGarden().plan;
+    if (plan == null) return null;
+    var board = gardenBoard;
+    var wind = gardenWind;
+    for (final move in plan) {
+      switch (move.verb) {
+        case AshGardenVerb.turnWind:
+          wind = (wind + 1) & 3;
+        case AshGardenVerb.grow:
+          board = rules.grow(board, move.bed) ?? board;
+        case AshGardenVerb.burn:
+          for (final t in rules.plume(move.bed, wind)) {
+            if (grooveDemandAt(t) == GrooveDemand.ash && !grooveSitsTrue(t)) {
+              return (source: move.bed, groove: t);
+            }
+          }
+          board = rules.burn(board, move.bed, wind) ?? board;
+      }
+    }
+    return null;
+  }
+
   /// The ONE link a tier-2 reading draws out (rank k → k+1). Deterministic per
   /// run and STICKY: re-reading must never walk the player through link after
   /// link until the whole rite is spent. Deliberately a middle step — a check
@@ -1243,16 +2000,15 @@ extension CinderCathedral on PlanetDungeonGame {
         fraction: ritualProgress / room.braziers.length,
       );
     }
-    // S2 — the garden's bared sigils.
+    // S2 — the grooves sitting true, and the quarter the wind runs. Both are
+    // STATE, glanceable, never a sentence that fades (§5.6).
     final vine = room.vineStarIndex;
     if (vine != null && !hasStar(vine) && room.vineBeds.isNotEmpty) {
-      final bared = room.vineBeds
-          .where((b) => (bedStates[b.id] ?? 0) == 2)
-          .length;
+      final settled = gardenGroovesTrue;
       return DungeonProgressReadout(
-        label: 'SIGILS',
-        value: '$bared/${room.vineBeds.length}',
-        fraction: bared / room.vineBeds.length,
+        label: 'GROOVES · WIND $gardenWindLabel',
+        value: '$settled/${room.vineBeds.length}',
+        fraction: settled / room.vineBeds.length,
       );
     }
     // S3 — the declared run first (the decision is state too), then the bells.
@@ -1291,24 +2047,24 @@ extension CinderCathedral on PlanetDungeonGame {
       _setAmbientHint('Old wax has run down the iron and set there');
       return;
     }
-    // Garden beds.
+    // The garth. AMBIENT = atmosphere only (§5.6): the open sky and the state
+    // of the soil, never what a groove wants or where the ash will go — that
+    // reading is the puzzle, and the stone and the wind both show it in-world.
     if (room.vineStarIndex != null && !hasStar(room.vineStarIndex!)) {
-      for (final bed in room.vineBeds) {
-        if ((a.position - bed.position).distance > 64) continue;
-        final state = bedStates[bed.id] ?? 0;
-        if (state == 0) {
-          _setAmbientHint(
-            a.member.element == 'Plant'
-                ? 'The scorched bed tugs at your green'
-                : 'A scorched bed, bare to the soot',
-          );
-        } else if (state == 1) {
-          _setAmbientHint(
-            a.member.element == 'Fire'
-                ? 'The vines lean toward your flame'
-                : 'The vines crowd thick over the bed',
-          );
-        }
+      final vane = room.windVane;
+      if (vane != null && (a.position - vane).distance <= 76) {
+        _setAmbientHint('The old wind-cross creaks on its pin');
+        return;
+      }
+      for (var i = 0; i < room.vineBeds.length; i++) {
+        if ((a.position - room.vineBeds[i].position).distance > 64) continue;
+        _setAmbientHint(switch (bedStateAt(i)) {
+          AshBedState.barren => 'A scorched bed, bare to the soot',
+          AshBedState.green => 'The vines crowd thick over the bed',
+          AshBedState.ash => 'Fine pale ash lies banked across the soil',
+          AshBedState.scorch => 'The bed is burned down to a black brand',
+          AshBedState.spoiled => 'Ash and char lie muddled together here',
+        });
         return;
       }
     }
@@ -1360,9 +2116,13 @@ extension CinderCathedral on PlanetDungeonGame {
             : 'Choir — six braziers, and one order the cathedral still '
                   'remembers';
       case 'cloister':
-        // WHAT, never HOW (§5.6): the grow-burn-read rite is Mask-insight
-        // content (_cathedralReveal), not room-entry copy.
-        return 'Cloister — the scorched beds keep their sigils';
+        // WHAT, never HOW (§5.6): the wind, the grooves and the order they
+        // imply are Mask-insight content (_cathedralReveal) — and legible in
+        // the stone for anyone patient — never room-entry copy.
+        return hasStar(room.vineStarIndex ?? 1)
+            ? null
+            : 'Cloister — six grooves cut in the garth, and a sky that will '
+                  'not sit still';
       case 'vestry':
         return hasStar(2)
             ? null
@@ -1565,7 +2325,12 @@ extension CinderCathedral on PlanetDungeonGame {
         _drawRitualBraziers(canvas, room);
         break;
       case 'cloister':
-        _drawDryFountain(canvas, room.bounds.center);
+        // The wind lies under everything; the vane stands on the dry fountain
+        // at the heart of the garth.
+        _drawCrosswind(canvas, room);
+        final vane = room.windVane ?? room.bounds.center;
+        _drawDryFountain(canvas, vane);
+        _drawWindVane(canvas, vane);
         _drawVineBeds(canvas, room);
         break;
       case 'reliquary':
@@ -2532,109 +3297,369 @@ extension CinderCathedral on PlanetDungeonGame {
     }
   }
 
+  // ── The garth: the wind, the grooves, the drift ─────────
+
+  /// THE CROSSWIND, drawn first and under everything: soot streaking across
+  /// the open garth on one scrolling phase. Eight short strokes — the wind has
+  /// to be READABLE before a burn is committed, and it must cost nothing.
+  void _drawCrosswind(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final dir = gardenWindVector;
+    final across = Offset(-dir.dy, dir.dx);
+    final c = b.center;
+    final span = b.longestSide * 0.5;
+    final paint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2.0;
+    for (var i = 0; i < 8; i++) {
+      final lane = (i - 3.5) * (b.shortestSide / 8.5);
+      final phase = (_time * 46 + i * 97) % (span * 2);
+      final head = c + across * lane + dir * (phase - span);
+      final len = 26.0 + (i.isEven ? 12.0 : 0.0);
+      final tail = head - dir * len;
+      if (!b.inflate(40).contains(head)) continue;
+      canvas.drawLine(
+        tail,
+        head,
+        paint
+          ..color = const Color(0xFF9A8C7C).withValues(
+            alpha: 0.05 + 0.05 * sin(_time * 1.4 + i),
+          ),
+      );
+    }
+  }
+
+  /// The iron wind-cross on the dry fountain: the vane any Air creature swings
+  /// a quarter. The pointer EASES round (never a snap) and the four cardinal
+  /// pins stay put, so the turn reads as a mechanism and not a teleport.
+  void _drawWindVane(Canvas canvas, Offset c) {
+    final iron = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF74613A).withValues(alpha: 0.8);
+    // The cardinal pins.
+    for (var i = 0; i < 4; i++) {
+      final a = i * pi / 2 - pi / 2;
+      final u = Offset(cos(a), sin(a));
+      canvas.drawLine(c + u * 20, c + u * 30, iron);
+    }
+    // The vane itself, swung to the live quarter.
+    final dir = gardenWindVector;
+    final across = Offset(-dir.dy, dir.dx);
+    final head = c + dir * 34;
+    final arrow = Paint()
+      ..color = const Color(0xFFC4A35A).withValues(alpha: 0.9);
+    canvas.drawLine(
+      c - dir * 26,
+      head,
+      Paint()
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFC4A35A).withValues(alpha: 0.85),
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(head.dx, head.dy)
+        ..lineTo((head - dir * 14 + across * 8).dx, (head - dir * 14 + across * 8).dy)
+        ..lineTo((head - dir * 14 - across * 8).dx, (head - dir * 14 - across * 8).dy)
+        ..close(),
+      arrow,
+    );
+    // The tail feather, so the quarter reads at a glance.
+    canvas.drawLine(
+      c - dir * 26 + across * 9,
+      c - dir * 26 - across * 9,
+      iron,
+    );
+    if (_fx.ready && gardenWindSwing < 1.0) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        46,
+        const Color(0xFFBFD4E0).withValues(alpha: 0.16 * (1 - gardenWindSwing)),
+      );
+    }
+  }
+
+  /// THE FORECAST — where a burn's ash would land, shown BEFORE it is
+  /// committed. Every grown bed shows a faint downwind streak (a plume waiting
+  /// to happen); the bed the active creature is standing at shows a bright one
+  /// with a ring on each groove it would dust.
+  void _drawPlumeForecast(Canvas canvas, DungeonRoom room) {
+    final rules = ashGardenRules;
+    if (rules == null) return;
+    final active = creatures.isNotEmpty ? creatures[activeIndex].position : null;
+    for (var i = 0; i < room.vineBeds.length; i++) {
+      if (bedStateAt(i) != AshBedState.green) continue;
+      final from = room.vineBeds[i].position;
+      final near =
+          active != null && (active - from).distance <= _kBedReach + 22;
+      final ready = bedGrowthAt(i) >= 1.0;
+      final targets = plumeTargetsAt(i);
+      if (targets.isEmpty) continue;
+      final alpha = near && ready ? 0.34 : 0.10;
+      final streak = Paint()
+        ..strokeWidth = near ? 3.0 : 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFB9A891).withValues(alpha: alpha);
+      var tail = from;
+      for (final t in targets) {
+        final to = room.vineBeds[t].position;
+        canvas.drawLine(tail, to, streak);
+        canvas.drawCircle(
+          to,
+          near ? 26 : 22,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = near ? 2.0 : 1.2
+            ..color = const Color(0xFFB9A891).withValues(alpha: alpha * 0.9),
+        );
+        tail = to;
+      }
+    }
+    // A tier-2 reading draws ONE source→groove link out of the plan.
+    final link = _gardenLink;
+    if (link != null &&
+        link.source < room.vineBeds.length &&
+        link.groove < room.vineBeds.length) {
+      final a = room.vineBeds[link.source].position;
+      final b = room.vineBeds[link.groove].position;
+      final pulse = 0.4 + 0.25 * sin(_time * 2.4);
+      canvas.drawLine(
+        a,
+        b,
+        Paint()
+          ..strokeWidth = 2.0
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF7FC7E8).withValues(alpha: pulse * 0.7),
+      );
+      canvas.drawCircle(
+        b,
+        30,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = const Color(0xFF7FC7E8).withValues(alpha: pulse * 0.6),
+      );
+    }
+  }
+
+  /// The groove cut into a bed's stone kerb. Three unmistakable shapes, always
+  /// visible (no Mask required — the rite's own standard): a shallow BOWL of
+  /// broken arcs wants the drift · a deep angular BRAND wants its own fire ·
+  /// a smooth SWEPT ring, barred, wants nothing at all.
+  void _drawGroove(Canvas canvas, Offset p, GrooveDemand demand, bool sitsTrue) {
+    final glow = sitsTrue ? 0.55 + 0.25 * sin(_time * 2.2 + p.dx) : 0.0;
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sitsTrue ? 2.4 : 1.8
+      ..strokeCap = StrokeCap.round
+      ..color = sitsTrue
+          ? const Color(0xFFFFB46B).withValues(alpha: 0.55 + 0.32 * glow)
+          : const Color(0xFF8A7458).withValues(alpha: 0.78);
+    if (sitsTrue && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        p,
+        40,
+        const Color(0xFFFF8A50).withValues(alpha: 0.10 + 0.07 * glow),
+      );
+    }
+    switch (demand) {
+      case GrooveDemand.ash:
+        // A shallow bowl, cut open in four arcs so the drift can settle in.
+        final r = Rect.fromCircle(center: p, radius: 16);
+        for (var i = 0; i < 4; i++) {
+          canvas.drawArc(r, i * pi / 2 + 0.30, pi / 2 - 0.60, false, stroke);
+        }
+        canvas.drawArc(
+          Rect.fromCircle(center: p, radius: 8),
+          0.2,
+          pi * 1.6,
+          false,
+          stroke,
+        );
+      case GrooveDemand.scorch:
+        // A deep brand: hard-cut chevrons pointing in on the bed itself.
+        for (final s in const [1.0, 0.58]) {
+          final d = 17.0 * s;
+          canvas.drawPath(
+            Path()
+              ..moveTo(p.dx - d, p.dy - d * 0.72)
+              ..lineTo(p.dx, p.dy + d * 0.5)
+              ..lineTo(p.dx + d, p.dy - d * 0.72),
+            stroke,
+          );
+        }
+      case GrooveDemand.clean:
+        // Swept smooth, and barred: this one keeps nothing.
+        canvas.drawCircle(p, 16, stroke);
+        canvas.drawLine(
+          p + const Offset(-11, 11),
+          p + const Offset(11, -11),
+          stroke,
+        );
+    }
+  }
+
   void _drawVineBeds(Canvas canvas, DungeonRoom room) {
-    final star = room.vineStarIndex;
-    final done = star != null && hasStar(star);
-    for (final bed in room.vineBeds) {
-      final state = done ? 2 : (bedStates[bed.id] ?? 0);
-      final fx = _bedFx[bed.id] ?? 0;
+    final rules = ashGardenRules;
+    if (rules == null) return;
+    _drawPlumeForecast(canvas, room);
+    for (var i = 0; i < room.vineBeds.length; i++) {
+      final bed = room.vineBeds[i];
+      final state = bedStateAt(i);
+      final fx = _bedFx[i] ?? 0;
       final p = bed.position;
-      // The bed itself: a soil plot with a scorched border.
-      final plot = Rect.fromCenter(center: p, width: 110, height: 84);
+      // The bed itself: a soil plot with a scorched kerb.
+      final plot = Rect.fromCenter(center: p, width: 112, height: 88);
+      final rr = RRect.fromRectAndRadius(plot, const Radius.circular(12));
       canvas.drawRRect(
-        RRect.fromRectAndRadius(plot, const Radius.circular(12)),
-        Paint()..color = const Color(0xFF15100B).withValues(alpha: 0.85),
+        rr,
+        Paint()
+          ..color = switch (state) {
+            AshBedState.scorch => const Color(0xFF0C0806),
+            AshBedState.ash => const Color(0xFF201C18),
+            AshBedState.spoiled => const Color(0xFF17110D),
+            _ => const Color(0xFF15100B),
+          }.withValues(alpha: 0.88),
       );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(plot, const Radius.circular(12)),
+        rr,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6
           ..color = const Color(0xFF4A382C).withValues(alpha: 0.7),
       );
+
       switch (state) {
-        case 0:
-          // Barren: scorch marks.
+        case AshBedState.barren:
           final scorch = Paint()
             ..strokeWidth = 1.4
             ..strokeCap = StrokeCap.round
             ..color = const Color(0xFF33261D).withValues(alpha: 0.8);
-          canvas.drawLine(p + const Offset(-26, -8), p + const Offset(-8, 6), scorch);
-          canvas.drawLine(p + const Offset(6, -12), p + const Offset(22, 2), scorch);
-          canvas.drawLine(p + const Offset(-4, 14), p + const Offset(14, 18), scorch);
-          break;
-        case 1:
-          // Overgrown: vine curls.
+          canvas.drawLine(
+            p + const Offset(-30, -22),
+            p + const Offset(-12, -10),
+            scorch,
+          );
+          canvas.drawLine(
+            p + const Offset(10, -26),
+            p + const Offset(26, -14),
+            scorch,
+          );
+          canvas.drawLine(
+            p + const Offset(-8, 26),
+            p + const Offset(12, 30),
+            scorch,
+          );
+        case AshBedState.green:
+          // Vines TAKING: the shoots climb in over `_kGardenGrowSeconds`, and
+          // will not answer flame until they have (the price of a redo).
+          final grown = bedGrowthAt(i);
           final vine = Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2.4
             ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFF6FAF5A).withValues(alpha: 0.85);
+            ..color = Color.lerp(
+              const Color(0xFF4E7C42),
+              const Color(0xFF6FAF5A),
+              grown,
+            )!.withValues(alpha: 0.55 + 0.35 * grown);
           final sway = sin(_time * 1.8) * 3;
-          for (var i = 0; i < 3; i++) {
-            final ox = -28.0 + i * 26;
-            final path = Path()
-              ..moveTo(p.dx + ox, p.dy + 28)
-              ..quadraticBezierTo(
-                p.dx + ox - 12 + sway,
-                p.dy + 2,
-                p.dx + ox + 6 + sway,
-                p.dy - 18 - i * 4,
-              );
-            canvas.drawPath(path, vine);
+          for (var v = 0; v < 3; v++) {
+            final ox = -28.0 + v * 26;
+            final h = (18.0 + v * 4) * (0.25 + 0.75 * grown);
+            canvas.drawPath(
+              Path()
+                ..moveTo(p.dx + ox, p.dy + 28)
+                ..quadraticBezierTo(
+                  p.dx + ox - 12 + sway,
+                  p.dy + 2,
+                  p.dx + ox + 6 + sway,
+                  p.dy + 28 - h - 28,
+                ),
+              vine,
+            );
             canvas.drawCircle(
-              Offset(p.dx + ox + 6 + sway, p.dy - 18 - i * 4),
-              3,
-              Paint()..color = const Color(0xFF8FCF6A).withValues(alpha: 0.9),
+              Offset(p.dx + ox + 6 + sway, p.dy - h),
+              3 * (0.4 + 0.6 * grown),
+              Paint()..color = const Color(
+                0xFF8FCF6A,
+              ).withValues(alpha: 0.5 + 0.45 * grown),
             );
           }
-          if (fx > 0 && _fx.ready) {
-            drawGlow(
-              canvas,
-              _fx.glow!,
-              p,
-              40,
-              const Color(0xFF6FAF5A).withValues(alpha: 0.18 * fx),
+        case AshBedState.ash:
+          // The drift, banked in pale streaks lying WITH the wind that laid
+          // it — and easing in as the plume arrives.
+          final land = 1.0 - (_bedPlume[i] ?? 1.0);
+          final dir = gardenWindVector;
+          final ash = Paint()
+            ..strokeWidth = 3.2
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFFBFB3A2).withValues(alpha: 0.30 * land);
+          for (var s = -2; s <= 2; s++) {
+            final off = Offset(-dir.dy, dir.dx) * (s * 11.0);
+            canvas.drawLine(
+              p + off - dir * 24,
+              p + off + dir * 24,
+              ash,
             );
           }
-          break;
-        case 2:
-          // Revealed: the ash-filled sigil glowing in its groove.
-          final glowA = 0.5 + 0.22 * sin(_time * 2.2 + p.dx);
-          if (_fx.ready) {
-            drawGlow(
-              canvas,
-              _fx.glow!,
-              p,
-              44,
-              const Color(0xFFFF8A50).withValues(alpha: 0.16 + 0.08 * glowA),
+        case AshBedState.scorch:
+          // A black brand, still breathing ember cracks.
+          final crack = Paint()
+            ..strokeWidth = 1.6
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFFB4542A).withValues(
+              alpha: 0.34 + 0.16 * sin(_time * 1.9 + p.dx),
             );
-          }
-          final sig = Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = const Color(0xFFFFB46B).withValues(alpha: 0.55 + 0.3 * glowA);
-          canvas.drawCircle(p, 18, sig);
-          final d = 18.0;
-          canvas.drawPath(
-            Path()
-              ..moveTo(p.dx, p.dy - d)
-              ..lineTo(p.dx + d, p.dy)
-              ..lineTo(p.dx, p.dy + d)
-              ..lineTo(p.dx - d, p.dy)
-              ..close(),
-            sig,
+          canvas.drawLine(
+            p + const Offset(-34, 6),
+            p + const Offset(-6, -14),
+            crack,
           );
-          if (fx > 0 && _fx.ready) {
-            drawGlow(
-              canvas,
-              _fx.glow!,
-              p,
-              58,
-              const Color(0xFFFFD27A).withValues(alpha: 0.22 * fx),
-            );
-          }
-          break;
+          canvas.drawLine(
+            p + const Offset(6, 16),
+            p + const Offset(32, -6),
+            crack,
+          );
+        case AshBedState.spoiled:
+          // Ash muddled into char: neither one thing nor the other. Grow it
+          // again and it is gone — that is the whole recovery.
+          final land = 1.0 - (_bedPlume[i] ?? 1.0);
+          final smear = Paint()
+            ..strokeWidth = 4.0
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFF6C6055).withValues(alpha: 0.32 * land);
+          canvas.drawLine(
+            p + const Offset(-32, -16),
+            p + const Offset(30, 12),
+            smear,
+          );
+          canvas.drawLine(
+            p + const Offset(-28, 16),
+            p + const Offset(26, -12),
+            smear,
+          );
+      }
+
+      _drawGroove(canvas, p, grooveDemandAt(i), grooveSitsTrue(i));
+
+      if (fx > 0 && _fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          p,
+          52,
+          (state == AshBedState.green
+                  ? const Color(0xFF6FAF5A)
+                  : const Color(0xFFFFD27A))
+              .withValues(alpha: 0.20 * fx),
+        );
       }
     }
   }
