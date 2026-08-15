@@ -15,18 +15,34 @@
 //    valve elsewhere is a HARD GATE that answers ONLY a Water Pip). Three
 //    sluice seals each yield at exactly one stand: drained floor, mid
 //    walkway, swum-over high ledge.
-//  • Star 2 (Current) — the ghost gallery, DERIVED not memorised (docs §6.4
-//    REWORK / §9.1 item 2). Carved channels between a spring, five eddies
-//    and a sea drain are stone and always visible; which way the ghost-water
-//    runs down each one is the run's secret. A Spirit creature's insight
-//    bares each eddy's SPIN — and an eddy rolls the way its upstream feeder
-//    drives it (feeder to the WEST → sunwise, to the EAST → widdershins).
-//    Read the spins, reconstruct the flow, wade it SPRING→SEA. The twelve
-//    channels allow exactly six routes and all six are pinned uniquely by
-//    their spins, so the current is ROLLED PER RUN and stays provably
-//    deducible (`solveGhostCurrent`, layout-test enforced). Int re-cuts the
-//    reveal: t0 spins only · t1 flow arrows · t2 the order pips. A wrong
-//    eddy mid-wade still scatters the current and rouses ghost wisps.
+//  • Star 2 (Current) — FLOAT THE MOON-LANTERN ON THE TIDE (docs §6.4
+//    REWORK). The gallery is one CANAL NETWORK: ten directed grooves cut in
+//    stone between a spring mouth, five basins and the sea drain. Every
+//    groove is permanently visible and wears its SILL on its lip, so the
+//    whole problem is public from the doorway — there is no hidden rule to
+//    hold, which is exactly what the old ghost-eddy puzzle got wrong.
+//      – THE SILL RULE (`canalChannelLive`): a groove runs when the temple's
+//        water tops its sill. LOW runs at every stand · MID from the middle
+//        water up · CREST only at the high water · and a DEEP cut runs at low
+//        and middle but drowns into a swallowing TORRENT at high.
+//      – THE SPILL RULE (`canalSpillFrom`): a basin pours down the LOWEST
+//        live groove leaving it. So the TIDE decides most forks — and the
+//        temple's own natural fall runs, all the way down, into the BLIND
+//        SUMP, a throatless basin with no groove out of it.
+//      – The two verbs: play the tide at the gallery's own sluice-bank
+//        (element-only Water, and the walk there is the commitment), and
+//        plug a basin with ICE (element-only, toggled) to remove it as a
+//        destination and force the next-lowest groove. A dam can only ever
+//        take an option AWAY — nothing but the water opens a dry sill.
+//      – Spirit's reading is FORESIGHT, never the answer: t0 names the deep
+//        cuts for the rest of the run, t1 shows where the water would take
+//        the lantern next, t2 traces the whole fall at the water as it
+//        stands. All of it is knowable without a Spirit, the expensive way.
+//      – Losing it is cheap and never a softlock: a grounded or sumped
+//        lantern is washed back to the last mouth it passed and re-lit by
+//        hand, and the spring mouth always answers. `solveLanternDrift`
+//        (public) proves the authored stone reachable, `strandable == 0`,
+//        unsolvable at any single stand, and unsolvable without a dam.
 //  • Star 3 (Deep) — beyond the mirror gate: at MID tide the two TRUE
 //    moon-pools take the ice (any Ice family, clean — or a Spirit
 //    creature acting in the water: Spirit+Water→Ice, the recipe's downside
@@ -59,12 +75,67 @@ const String kWaterFrozenMoonMaxim =
 const double _kTideRate = 0.22; // fraction/s
 const double _kSwimSpeedMul = 0.62; // non-Water creatures wade slowly
 
-/// Seconds for the bared ghost-current to bloom up out of the dark (and to
-/// fade back when the run resets). Nothing snaps.
-const double _kGhostBareSeconds = 0.9;
+// ── Moon-lantern tunables (DEVICE-TUNABLE, all of them) ────
+/// How fast the lantern eases along a groove (px/s). The authored grooves run
+/// 217–472px, so a crossing is ~3.5–7.6s — long enough to walk to the
+/// sluice-bank and back, short enough that dithering costs you the fork.
+const double _kLanternDrift = 62.0;
 
-/// How close a creature must come to an eddy to wade it.
-const double _kEddyWadeRadius = 30.0;
+/// How long the lantern turns in a basin before it commits to the next
+/// groove. It will not leave on MOVING water, so a change begun inside this
+/// window still lands — the honest commit deadline, not a stopwatch.
+const double _kLanternDwell = 2.2;
+
+/// Seconds for the backwash to carry a lost lantern to the last mouth it
+/// passed (ANIMATED-STATE rule: it is never teleported, not even in failure).
+const double _kLanternWashSeconds = 0.9;
+
+/// Seconds for a dam's ice to grow in / thaw back out.
+const double _kDamEaseSeconds = 0.55;
+
+/// How close a hand must come to a basin to set the lantern or plug the ice.
+const double _kCanalReach = 46.0;
+
+/// The water levels at which the raised sills start to run. These match the
+/// tide-zone thresholds exactly (`floodedAt / 2 - 0.03`), so a groove starts
+/// running on the same frame the chamber it crosses starts to flood.
+const double _kSillMid = 0.47;
+const double _kSillCrest = 0.97;
+
+/// Cached geometry for one carved channel — a pure function of the const
+/// layout, so it is built once per descent and never recomputed per frame.
+class _CanalGeom {
+  final CanalChannel channel;
+  final Offset a;
+  final Offset b;
+  final Offset unit;
+  final double length;
+  const _CanalGeom(this.channel, this.a, this.b, this.unit, this.length);
+}
+
+/// One leg of a PROVED lantern route: cross from [from] to [to] with the tide
+/// standing at [stand] and [dams] plugged. Public because the full-run test
+/// plays the solver's own answer with the real verbs — a hand-copied script
+/// would be free to drift away from the stone.
+class LanternLeg {
+  final String from;
+  final String to;
+  final CanalSill sill;
+  final int stand;
+  final List<String> dams;
+  const LanternLeg({
+    required this.from,
+    required this.to,
+    required this.sill,
+    required this.stand,
+    required this.dams,
+  });
+
+  @override
+  String toString() =>
+      '$from→$to (${sill.name} at stand $stand'
+      '${dams.isEmpty ? '' : ', dam ${dams.join('+')}'})';
+}
 
 extension MirrorTide on PlanetDungeonGame {
   // ── State helpers ───────────────────────────────────────
@@ -73,19 +144,29 @@ extension MirrorTide on PlanetDungeonGame {
     tideLevel = 0;
     tideAnim = 0;
     openedSeals.clear();
-    eddyProgress = 0;
-    eddyRevealTimer = 0;
-    eddyRevealTier = 0;
-    eddiesBared = false;
-    _ghostBare = 0;
+    // The lantern is fished out of wherever it lies and the ice lets go — but
+    // the STONE is unchanged, so a death costs the re-float, never the plan.
+    lanternNodeId = null;
+    lanternChannel = null;
+    lanternT = 0;
+    lanternDwell = 0;
+    lanternLit = false;
+    lanternFlare = 0;
+    lanternLosses = 0;
+    _lanternWashFrom = null;
+    _lanternWashT = 0;
+    _lanternPrevNodeId = null;
+    dammedNodes.clear();
+    _damAnim.clear();
+    // What Spirit READ, though, survives: a warning you cannot look at twice
+    // is only a memory test (the same reason the old baring was permanent).
+    canalRevealTimer = 0;
+    canalRevealTier = 0;
     poolStates.clear();
     _poolFx.clear();
     _leviathanTideDir = 1;
     _leviathanLullPrev = true;
     _leviathanRoars = 0;
-    // The CURRENT itself is not rerolled — the ghost-water keeps its course
-    // for the whole descent (the Buried Giant's scale answer does the same),
-    // so a death costs you the walk back, never the deduction.
   }
 
   /// Visual flood threshold for a zone (floodedAt 1 → 0.47 · 2 → 0.97).
@@ -179,183 +260,333 @@ extension MirrorTide on PlanetDungeonGame {
         Offset(sin(_time * 0.21) * 52, sin(_time * 0.33 + 1.7) * 36);
   }
 
-  // ── Star 2: the ghost current, DERIVED ──────────────────
+  // ── Star 2: the moon-lantern on the canals ──────────────
   //
-  // THE RULE, entire: an eddy turns the way its upstream feeder drives it.
-  // Water reaching it from the WEST rolls it sunwise (clockwise); water from
-  // the EAST rolls it widdershins. Nothing else is hidden — the channels are
-  // stone, the spring and the sea drain are stone, and the spins are what
-  // Spirit bares. Everything the game does with the current — the render, the
-  // run's roll — and everything the layout test proves about it go through
-  // ONE rule function and ONE route enumerator below, so the proof can never
-  // drift away from the gameplay.
+  // THE TWO RULES, entire, and there is nothing else:
+  //   1. SILL — a groove runs when the temple's water tops its sill.
+  //   2. SPILL — a basin pours down the LOWEST live groove leaving it.
+  // Both are carved into the stone in plain sight. Everything the game does
+  // with the canals — the drift, the render, Spirit's forecast — and
+  // everything the layout test PROVES about them goes through the same two
+  // functions below, so the proof can never drift away from the gameplay.
 
-  /// The gallery — the room that owns the eddies (null on other planets).
-  DungeonRoom? get _ghostGallery {
+  /// The gallery — the room that owns the canal network (null elsewhere).
+  DungeonRoom? get _canalRoom {
     for (final room in layout.rooms.values) {
-      if (room.ghostEddies.isNotEmpty) return room;
+      if (room.canalNodes.isNotEmpty) return room;
     }
     return null;
   }
 
-  /// Every node in the gallery's flow network by id: the spring, the five
-  /// eddies, the sea drain. Built once — the layout is const, and the render
-  /// asks for this several times a frame.
-  Map<String, Offset> _ghostNodes(DungeonRoom room) =>
-      _ghostNodeCache ??= {
-        for (final m in room.ghostMouths) m.id: m.position,
-        for (final e in room.ghostEddies) e.id: e.position,
-      };
+  /// Node id → node, built once from the const layout.
+  Map<String, CanalNode> _canalNodes(DungeonRoom room) =>
+      _canalNodeCache ??= {for (final n in room.canalNodes) n.id: n};
 
-  /// THE RULE. True = sunwise (clockwise): the water reaches [eddy] from the
-  /// west. The game's render, the run's roll and the solver all ask this.
-  bool _spinSunwise(Offset eddy, Offset feeder) => feeder.dx < eddy.dx;
-
-  /// The spin the gallery is SHOWING for [eddyId] right now — the one thing
-  /// a Spirit reveal bares. Null before the current is rolled.
-  bool? eddySpinSunwise(String eddyId) {
-    final room = _ghostGallery;
-    final feeder = eddyFeeder[eddyId];
-    if (room == null || feeder == null) return null;
-    final nodes = _ghostNodes(room);
-    final at = nodes[eddyId], from = nodes[feeder];
-    if (at == null || from == null) return null;
-    return _spinSunwise(at, from);
+  /// The gallery's node by id (null off-planet or for an unknown id).
+  CanalNode? canalNodeById(String id) {
+    final room = _canalRoom;
+    return room == null ? null : _canalNodes(room)[id];
   }
 
-  /// Every route the carved channels allow: spring → all five eddies → sea,
-  /// each node once. This is the whole space of currents the gallery's stone
-  /// could ever carry, and it is what both the roll and the solver search.
-  List<List<String>> ghostRoutes() {
-    final room = _ghostGallery;
+  /// Per-channel geometry, built once (the render walks it every frame).
+  List<_CanalGeom> get _canalGeometry {
+    final cached = _canalGeomCache;
+    if (cached != null) return cached;
+    final room = _canalRoom;
     if (room == null) return const [];
-    String? sourceId, seaId;
-    for (final m in room.ghostMouths) {
-      if (m.isSource) {
-        sourceId = m.id;
-      } else {
-        seaId = m.id;
+    final nodes = _canalNodes(room);
+    final out = <_CanalGeom>[];
+    for (final ch in room.canalChannels) {
+      final a = nodes[ch.from]?.position, b = nodes[ch.to]?.position;
+      if (a == null || b == null) continue;
+      final d = b - a;
+      final len = d.distance;
+      final unit = len < 0.001 ? Offset.zero : Offset(d.dx / len, d.dy / len);
+      out.add(_CanalGeom(ch, a, b, unit, len));
+    }
+    return _canalGeomCache = out;
+  }
+
+  _CanalGeom? _canalGeomFor(CanalChannel ch) {
+    for (final g in _canalGeometry) {
+      if (identical(g.channel, ch)) return g;
+    }
+    return null;
+  }
+
+  /// THE SILL RULE, half one: the water level at which a sill starts to run.
+  /// (A deep cut is floor-level like a low groove — its whole difference is
+  /// what the HIGH water does to it, below.)
+  double canalSillThreshold(CanalSill sill) => switch (sill) {
+    CanalSill.low => 0.0,
+    CanalSill.deep => 0.0,
+    CanalSill.mid => _kSillMid,
+    CanalSill.crest => _kSillCrest,
+  };
+
+  /// THE SILL RULE, half two: a deep cut drowned by the high water is not a
+  /// channel any more, it is a torrent — and it swallows what floats on it.
+  bool canalChannelTorrent(CanalSill sill, double water) =>
+      sill == CanalSill.deep && water >= _kSillCrest;
+
+  /// THE SILL RULE. True = this groove is running at [water] (0..1, the same
+  /// scale as [tideAnim]). Asked by the drift, the render and the solver.
+  bool canalChannelLive(CanalSill sill, double water) =>
+      water >= canalSillThreshold(sill) && !canalChannelTorrent(sill, water);
+
+  /// Which sill the water reaches for first when it leaves a basin: the
+  /// deepest cut, then the floor groove, then the raised ones. (The layout
+  /// test forbids two grooves of the same sill leaving one basin, so this
+  /// never comes down to a coin toss the player cannot see.)
+  int canalSpillRank(CanalSill sill) => switch (sill) {
+    CanalSill.deep => 0,
+    CanalSill.low => 1,
+    CanalSill.mid => 2,
+    CanalSill.crest => 3,
+  };
+
+  /// THE SPILL RULE — the one route function. The groove the water takes out
+  /// of [nodeId] with the temple standing at [water] and [dammed] basins
+  /// plugged, or null if nothing runs and the lantern simply turns and waits.
+  ///
+  /// Note what a dam can and cannot do: it removes a DESTINATION, so the
+  /// water reaches past it for the next-lowest sill. It can never make a dry
+  /// groove run — only the tide does that.
+  CanalChannel? canalSpillFrom(
+    String nodeId, {
+    required double water,
+    required Set<String> dammed,
+  }) {
+    final room = _canalRoom;
+    if (room == null) return null;
+    CanalChannel? best;
+    for (final ch in room.canalChannels) {
+      if (ch.from != nodeId) continue;
+      if (!canalChannelLive(ch.sill, water)) continue;
+      if (dammed.contains(ch.to)) continue;
+      if (best == null ||
+          canalSpillRank(ch.sill) < canalSpillRank(best.sill)) {
+        best = ch;
       }
     }
-    if (sourceId == null || seaId == null) return const [];
-    final adj = <String, Set<String>>{};
-    for (final ch in room.ghostChannels) {
-      adj.putIfAbsent(ch.a, () => {}).add(ch.b);
-      adj.putIfAbsent(ch.b, () => {}).add(ch.a);
+    return best;
+  }
+
+  /// True when the basin has no groove leaving it at all — the blind sump.
+  /// The water backs up there and hands the lantern back to the last mouth
+  /// it passed, which is why arriving in one is a cost and never a trap.
+  bool canalIsBlind(String nodeId) {
+    final room = _canalRoom;
+    if (room == null) return true;
+    return !room.canalChannels.any((c) => c.from == nodeId);
+  }
+
+  // ── The proof ───────────────────────────────────────────
+
+  /// The dams a player must plug to send the water down [ch] at [water] —
+  /// every live groove leaving the same basin that the water would otherwise
+  /// reach first. Null when that is impossible (a lower groove runs straight
+  /// into the spring or the sea, and neither takes ice).
+  List<String>? _canalDamsFor(CanalChannel ch, double water) {
+    final room = _canalRoom;
+    if (room == null) return null;
+    final nodes = _canalNodes(room);
+    final dams = <String>[];
+    for (final other in room.canalChannels) {
+      if (other.from != ch.from || identical(other, ch)) continue;
+      if (!canalChannelLive(other.sill, water)) continue;
+      if (canalSpillRank(other.sill) > canalSpillRank(ch.sill)) continue;
+      final node = nodes[other.to];
+      if (node == null || !node.isBasin) return null;
+      dams.add(other.to);
     }
-    final eddyIds = {for (final e in room.ghostEddies) e.id};
-    final routes = <List<String>>[];
-    void walk(List<String> path, Set<String> seen) {
-      if (seen.length == eddyIds.length) {
-        if (adj[path.last]?.contains(seaId) ?? false) {
-          routes.add([...path, seaId!]);
+    return dams;
+  }
+
+  /// Every leg the player can actually make the water take out of [from].
+  /// The candidates are proposed from the stone, but each one is only kept
+  /// when THE REAL SPILL RULE agrees — the solver never re-implements the
+  /// mechanic, it interrogates it.
+  List<LanternLeg> canalLegsFrom(
+    String from, {
+    Iterable<int> stands = const [0, 1, 2],
+    bool allowDams = true,
+  }) {
+    final room = _canalRoom;
+    if (room == null) return const [];
+    final out = <LanternLeg>[];
+    for (final stand in stands) {
+      final water = stand / 2;
+      for (final ch in room.canalChannels) {
+        if (ch.from != from) continue;
+        final dams = allowDams ? _canalDamsFor(ch, water) : const <String>[];
+        if (dams == null) continue;
+        if (canalSpillFrom(from, water: water, dammed: dams.toSet()) != ch) {
+          continue;
         }
-        return;
-      }
-      for (final next in adj[path.last] ?? const <String>{}) {
-        if (!eddyIds.contains(next) || seen.contains(next)) continue;
-        walk([...path, next], {...seen, next});
+        out.add(
+          LanternLeg(
+            from: from,
+            to: ch.to,
+            sill: ch.sill,
+            stand: stand,
+            dams: List.unmodifiable(dams),
+          ),
+        );
       }
     }
-
-    walk([sourceId], {});
-    return routes;
+    return out;
   }
 
-  /// The spins a given route would put on the water, as a per-eddy map.
-  Map<String, bool> _routeSpins(DungeonRoom room, List<String> route) {
-    final nodes = _ghostNodes(room);
-    return {
-      for (var i = 1; i < route.length - 1; i++)
-        route[i]: _spinSunwise(nodes[route[i]]!, nodes[route[i - 1]]!),
-    };
-  }
-
-  String _spinKey(Map<String, bool> spins) {
-    final ids = spins.keys.toList()..sort();
-    return [for (final id in ids) spins[id]! ? 's' : 'w'].join();
-  }
-
-  /// THE SOLVER (public: the layout test's proof engine, and the run's own
-  /// roll). Derives the wade order from the SPINS alone — exactly the
-  /// reasoning the player must do — by walking every route the carved
-  /// channels allow and keeping the ones whose spins match what the water
-  /// shows. [searched] = routes the stone permits; [satisfying] must be
-  /// exactly 1 (docs §6.4: "the spins uniquely determine one wade order").
-  ({int searched, int satisfying, List<String>? order}) solveGhostCurrent([
-    Map<String, bool>? spins,
-  ]) {
-    final room = _ghostGallery;
-    if (room == null) return (searched: 0, satisfying: 0, order: null);
-    final observed =
-        spins ??
-        {
-          for (final e in room.ghostEddies)
-            if (eddySpinSunwise(e.id) != null) e.id: eddySpinSunwise(e.id)!,
-        };
-    final routes = ghostRoutes();
-    var satisfying = 0;
-    List<String>? order;
-    for (final route in routes) {
-      final produced = _routeSpins(room, route);
-      var matches = produced.length == observed.length;
-      if (matches) {
-        for (final entry in produced.entries) {
-          if (observed[entry.key] != entry.value) {
-            matches = false;
-            break;
+  /// Breadth-first over the legs the rules actually permit.
+  List<LanternLeg>? _canalRoute(
+    String from,
+    String to, {
+    required Iterable<int> stands,
+    required bool allowDams,
+  }) {
+    if (from == to) return const [];
+    final prev = <String, LanternLeg>{};
+    final seen = <String>{from};
+    final queue = <String>[from];
+    while (queue.isNotEmpty) {
+      final at = queue.removeAt(0);
+      for (final leg in canalLegsFrom(
+        at,
+        stands: stands,
+        allowDams: allowDams,
+      )) {
+        if (!seen.add(leg.to)) continue;
+        prev[leg.to] = leg;
+        if (leg.to == to) {
+          final route = <LanternLeg>[];
+          var cursor = to;
+          while (cursor != from) {
+            final leg = prev[cursor]!;
+            route.insert(0, leg);
+            cursor = leg.from;
           }
+          return route;
         }
-      }
-      if (matches) {
-        satisfying++;
-        order = route.sublist(1, route.length - 1);
+        queue.add(leg.to);
       }
     }
-    return (searched: routes.length, satisfying: satisfying, order: order);
+    return null;
   }
 
-  /// Roll the run's current (constructor-time, like the Buried Giant's scale)
-  /// — and roll ONLY from the routes whose spins pin them uniquely. A current
-  /// the spins cannot single out is not a puzzle, it is a coin toss, so the
-  /// gallery simply never runs one.
-  void _rollGhostCurrent() {
-    eddyOrder.clear();
-    eddyFeeder.clear();
-    if (!_isTemple) return;
-    final room = _ghostGallery;
-    if (room == null) return;
-    final routes = ghostRoutes();
-    if (routes.isEmpty) return;
-    final tally = <String, int>{};
-    for (final route in routes) {
-      final key = _spinKey(_routeSpins(room, route));
-      tally[key] = (tally[key] ?? 0) + 1;
+  /// Every node the lantern can be driven to from [from].
+  Set<String> _canalReachable(String from) {
+    final seen = <String>{from};
+    final queue = <String>[from];
+    while (queue.isNotEmpty) {
+      for (final leg in canalLegsFrom(queue.removeAt(0))) {
+        if (seen.add(leg.to)) queue.add(leg.to);
+      }
     }
-    final deducible = [
-      for (final route in routes)
-        if (tally[_spinKey(_routeSpins(room, route))] == 1) route,
+    return seen;
+  }
+
+  /// THE SOLVER (public: the layout test's proof engine). It walks the REAL
+  /// sill and spill rules — the same two functions the drift and the render
+  /// call — over every basin, every tide stand and every dam the player could
+  /// plug, and reports what the authored stone actually guarantees:
+  ///
+  ///  • [solvable] / [route] — the lantern CAN be floated spring → sea, and
+  ///    here is a route a player could follow, leg by leg.
+  ///  • [strandable] — how many resting places the lantern can reach from
+  ///    which the sea is no longer reachable. MUST be 0: no softlock, and
+  ///    structurally, not because dying resets it.
+  ///  • [singleStandSolvable] — the stands that would carry the lantern out
+  ///    on their own. MUST be empty, or the temple's own tide is decoration.
+  ///  • [damFree] — whether the water's natural fall ever reaches the sea.
+  ///    MUST be false, or the ice is decoration.
+  ({
+    int basins,
+    int channels,
+    int states,
+    bool solvable,
+    int strandable,
+    bool damFree,
+    int blindBasins,
+    List<int> singleStandSolvable,
+    List<LanternLeg> route,
+  })
+  solveLanternDrift() {
+    final room = _canalRoom;
+    if (room == null) {
+      return (
+        basins: 0,
+        channels: 0,
+        states: 0,
+        solvable: false,
+        strandable: 0,
+        damFree: false,
+        blindBasins: 0,
+        singleStandSolvable: const [],
+        route: const [],
+      );
+    }
+    String? springId, seaId;
+    for (final n in room.canalNodes) {
+      if (n.isSpring) springId = n.id;
+      if (n.isSea) seaId = n.id;
+    }
+    if (springId == null || seaId == null) {
+      return (
+        basins: 0,
+        channels: room.canalChannels.length,
+        states: 0,
+        solvable: false,
+        strandable: 0,
+        damFree: false,
+        blindBasins: 0,
+        singleStandSolvable: const [],
+        route: const [],
+      );
+    }
+    final route =
+        _canalRoute(springId, seaId, stands: const [0, 1, 2], allowDams: true) ??
+        const <LanternLeg>[];
+    final solvable = route.isNotEmpty;
+    final damFree =
+        _canalRoute(
+          springId,
+          seaId,
+          stands: const [0, 1, 2],
+          allowDams: false,
+        ) !=
+        null;
+    final singleStand = <int>[
+      for (var s = 0; s < 3; s++)
+        if (_canalRoute(springId, seaId, stands: [s], allowDams: true) != null)
+          s,
     ];
-    final pool = deducible.isEmpty ? routes : deducible;
-    adoptGhostRoute(pool[Random().nextInt(pool.length)]);
-  }
-
-  /// Adopt [route] (`[springId, …eddyIds, seaId]`) as this run's current.
-  /// Public so tests can pin a known current instead of fighting the roll.
-  void adoptGhostRoute(List<String> route) {
-    eddyOrder.clear();
-    eddyFeeder.clear();
-    for (var i = 1; i < route.length - 1; i++) {
-      eddyOrder[route[i]] = i - 1;
-      eddyFeeder[route[i]] = route[i - 1];
+    // A RESTING PLACE is anywhere the lantern can end up waiting for a hand:
+    // the spring (which always answers) and every reachable basin that has a
+    // groove leaving it. A blind basin is never one — the backwash gives the
+    // lantern straight back to the mouth before it.
+    final reachable = _canalReachable(springId);
+    var strandable = 0;
+    for (final id in reachable) {
+      if (id == seaId) continue;
+      if (id != springId && canalIsBlind(id)) continue;
+      if (_canalRoute(id, seaId, stands: const [0, 1, 2], allowDams: true) ==
+          null) {
+        strandable++;
+      }
     }
-  }
-
-  /// The eddy ids in wade order (empty before the roll).
-  List<String> get ghostWadeOrder {
-    final ids = eddyOrder.keys.toList()
-      ..sort((a, b) => eddyOrder[a]! - eddyOrder[b]!);
-    return ids;
+    final basins = room.canalNodes.where((n) => n.isBasin).length;
+    return (
+      basins: basins,
+      channels: room.canalChannels.length,
+      states: room.canalNodes.length * 3,
+      solvable: solvable,
+      strandable: strandable,
+      damFree: damFree,
+      blindBasins: room.canalNodes.where((n) => n.isBasin && canalIsBlind(n.id)).length,
+      singleStandSolvable: singleStand,
+      route: route,
+    );
   }
 
   // ── Update ──────────────────────────────────────────────
@@ -373,68 +604,182 @@ extension MirrorTide on PlanetDungeonGame {
       _handleLedgeEmergence(room, prev, tideAnim);
     }
 
-    if (eddyRevealTimer > 0) eddyRevealTimer -= dt;
-    // The bared current blooms up (and never snaps): ANIMATED-STATE rule.
-    final bareTarget = eddiesBared ? 1.0 : 0.0;
-    if ((_ghostBare - bareTarget).abs() > 0.001) {
-      final step = dt / _kGhostBareSeconds;
-      _ghostBare = _ghostBare < bareTarget
-          ? min(bareTarget, _ghostBare + step)
-          : max(bareTarget, _ghostBare - step);
-    }
+    if (canalRevealTimer > 0) canalRevealTimer -= dt;
     if (_poolFx.isNotEmpty) {
       _poolFx.updateAll((k, v) => v - dt);
       _poolFx.removeWhere((k, v) => v <= 0);
     }
+    // Star 2: the moon-lantern rides the canals. It only drifts while the
+    // player is in the gallery — the temple holds its breath behind you, so
+    // nothing is ever lost off-screen to a valve turned three rooms away.
+    if (room.canalNodes.isNotEmpty) _updateLantern(room, dt);
+  }
 
-    // Star 2: wade the current SPRING→SEA in the order the spins describe.
-    // A later eddy taken mid-wade scatters the whole thing (the consequence
-    // the rework keeps) — and stepping into the wrong FIRST eddy costs
-    // nothing, so a course can always be started over cleanly.
-    final eddyStar = room.eddyStarIndex;
-    if (room.ghostEddies.isNotEmpty &&
-        eddyStar != null &&
-        !hasStar(eddyStar)) {
-      for (final eddy in room.ghostEddies) {
-        if ((a.position - eddy.position).distance > _kEddyWadeRadius) continue;
-        final ord = eddyOrder[eddy.id];
-        if (ord == null) continue;
-        if (ord == eddyProgress) {
-          eddyProgress++;
-          _spawnAlchemyBurst(
-            eddy.position,
-            producedElement: 'Spirit',
-            reagentElements: const ['Water'],
-            particleCount: 12,
-            intensity: 0.7,
-          );
-          if (eddyProgress >= room.ghostEddies.length) {
-            earnStar(eddyStar);
-          } else {
-            // The tally itself lives in the progress readout now (§5.6);
-            // the capsule only says the water took you.
-            _setHint('The ghost-water gathers you and carries on');
-          }
-          onChanged();
-        } else if (ord > eddyProgress && eddyProgress != 0) {
-          eddyProgress = 0;
-          _spawnAlchemyBurst(
-            eddy.position,
-            producedElement: 'Spirit',
-            unstable: true,
-            particleCount: 18,
-          );
-          spawnWispWave(
-            element: 'Spirit',
-            center: eddy.position,
-            count: 2,
-            announce: false,
-          );
-          _setHint('The current scatters — the ghost-water rises angry', 3.0);
-          onChanged();
-        }
-      }
+  /// The dam ice easing in and out (ANIMATED-STATE rule: never a flip).
+  void _updateDamAnim(double dt) {
+    if (_damAnim.isEmpty && dammedNodes.isEmpty) return;
+    for (final id in dammedNodes) {
+      _damAnim[id] = min(1.0, (_damAnim[id] ?? 0) + dt / _kDamEaseSeconds);
     }
+    _damAnim.updateAll(
+      (id, v) => dammedNodes.contains(id)
+          ? v
+          : max(0.0, v - dt / _kDamEaseSeconds),
+    );
+    _damAnim.removeWhere((id, v) => v <= 0 && !dammedNodes.contains(id));
+  }
+
+  /// THE DRIFT. The lantern eases along a groove; at a basin it turns until
+  /// the water is SETTLED and then commits to whatever [canalSpillFrom] says
+  /// — the same function the render forecasts with and the solver proves on.
+  void _updateLantern(DungeonRoom room, double dt) {
+    _updateDamAnim(dt);
+    if (lanternFlare > 0) lanternFlare = max(0.0, lanternFlare - dt);
+    // The backwash: a lost lantern is carried back to the last mouth it
+    // passed. Even failure eases.
+    if (_lanternWashT > 0) {
+      _lanternWashT = max(0.0, _lanternWashT - dt / _kLanternWashSeconds);
+      final home = canalNodeById(lanternNodeId ?? '')?.position;
+      final from = _lanternWashFrom;
+      if (home != null && from != null) {
+        lanternPos = Offset.lerp(
+          home,
+          from,
+          Curves.easeOutCubic.transform(_lanternWashT),
+        )!;
+      }
+      if (_lanternWashT <= 0) _lanternWashFrom = null;
+    }
+    final star = room.canalStarIndex;
+    if (star == null || hasStar(star)) return;
+    final atId = lanternNodeId;
+    if (!lanternLit || atId == null) return;
+
+    final channel = lanternChannel;
+    if (channel == null) {
+      // Turning in the basin.
+      lanternDwell += dt;
+      final at = canalNodeById(atId);
+      if (at == null) return;
+      lanternPos =
+          at.position +
+          Offset(sin(_time * 1.7) * 3.6, sin(_time * 2.3 + 1.1) * 2.7);
+      if (canalIsBlind(atId)) {
+        // The blind sump: no throat, so the water backs up and gives the
+        // lantern back. A cost, never a trap.
+        _loseLantern(
+          _lanternPrevNodeId ?? atId,
+          sumped: false,
+          message: 'The sump has no throat — the backwash gives the lantern '
+              'up again, dark',
+        );
+        return;
+      }
+      // It will not leave on moving water: a change begun before the dwell
+      // runs out still lands, and the departure always reads the settled
+      // stand the player committed to.
+      if (lanternDwell < _kLanternDwell || !tideSettled) return;
+      final next = canalSpillFrom(
+        atId,
+        water: tideAnim,
+        dammed: dammedNodes,
+      );
+      // Nothing runs: the lantern simply keeps turning and waits on the water.
+      if (next == null) return;
+      lanternChannel = next;
+      lanternT = 0;
+      onChanged();
+      return;
+    }
+
+    // Crossing. This is where a mistimed wheel costs you: the groove can
+    // drown or dry out with the lantern still in it.
+    if (canalChannelTorrent(channel.sill, tideAnim)) {
+      _loseLantern(
+        atId,
+        sumped: true,
+        message: 'The high water takes the deep cut — the lantern goes under',
+      );
+      return;
+    }
+    if (!canalChannelLive(channel.sill, tideAnim)) {
+      _loseLantern(
+        atId,
+        sumped: false,
+        message: 'The groove runs dry — the lantern grounds on the sill',
+      );
+      return;
+    }
+    final geom = _canalGeomFor(channel);
+    if (geom == null) return;
+    lanternT = min(1.0, lanternT + _kLanternDrift * dt / max(1.0, geom.length));
+    lanternPos = Offset.lerp(geom.a, geom.b, lanternT)!;
+    if (lanternT < 1) return;
+
+    _lanternPrevNodeId = channel.from;
+    lanternNodeId = channel.to;
+    lanternChannel = null;
+    lanternDwell = 0;
+    lanternFlare = 0.55;
+    final arrived = canalNodeById(channel.to);
+    lanternPos = arrived?.position ?? lanternPos;
+    if (arrived != null && arrived.isSea) {
+      _spawnAlchemyBurst(
+        arrived.position,
+        producedElement: 'Water',
+        reagentElements: const ['Light'],
+        particleCount: 26,
+        intensity: 1.2,
+      );
+      earnStar(star);
+    } else {
+      _spawnAlchemyBurst(
+        lanternPos,
+        producedElement: 'Water',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+    }
+    onChanged();
+  }
+
+  /// A grounded or swallowed lantern: washed back to [toNodeId], dark, and
+  /// waiting for a hand. The stone is untouched, so nothing about the plan is
+  /// lost — only the float.
+  void _loseLantern(
+    String toNodeId, {
+    required bool sumped,
+    required String message,
+  }) {
+    _lanternWashFrom = lanternPos;
+    _lanternWashT = 1.0;
+    lanternChannel = null;
+    lanternT = 0;
+    lanternDwell = 0;
+    lanternLit = false;
+    lanternLosses++;
+    lanternFlare = 0.5;
+    lanternNodeId = toNodeId;
+    _lanternPrevNodeId = null;
+    if (sumped) {
+      // The consequence layer, and only for the sump: the torrent is loud,
+      // and the temple's old brine hears it. A dry grounding costs nothing
+      // but the walk (§ fail state, real but not punishing).
+      _spawnAlchemyBurst(
+        _lanternWashFrom ?? lanternPos,
+        producedElement: 'Water',
+        unstable: true,
+        particleCount: 20,
+      );
+      spawnWispWave(
+        element: 'Water',
+        center: _lanternWashFrom ?? lanternPos,
+        count: 2,
+        announce: false,
+      );
+    }
+    _setHint(message, 3.2);
+    onChanged();
   }
 
   /// When a draining tide bares a ledge, nothing may be left standing inside
@@ -467,7 +812,12 @@ extension MirrorTide on PlanetDungeonGame {
     if (_tryOfferingBowl(a, room)) return true;
     if (_tryTideValve(a, room)) return true;
     if (_trySluiceSeal(a, room)) return true;
-    if (_tryGhostReveal(a, room)) return true;
+    // Order matters at the canal basins: a hand on the lantern always means
+    // the lantern; then Spirit READS (it never plugs, so the temple's own
+    // Spirit+Water→Ice braid can't hijack the reading verb); then Ice PLUGS.
+    if (_tryLantern(a, room)) return true;
+    if (_tryCanalReveal(a, room)) return true;
+    if (_tryCanalDam(a, room)) return true;
     if (_tryMoonPool(a, room)) return true;
     if (_tryFrozenMoon(a, room)) return true;
     if (_tryCourtCommune(a, room)) return true;
@@ -608,29 +958,133 @@ extension MirrorTide on PlanetDungeonGame {
     return false;
   }
 
-  /// Star 2's reveal: ANY Spirit creature bares the ghost current. What it
-  /// bares at tier 0 is the SPINS — the evidence, not the answer — and the
-  /// baring is PERMANENT for the run: a deduction you cannot look at twice
-  /// is only a memory test. Intelligence buys the shortcuts on top of it:
-  /// t1 draws the flow along the channels, t2 numbers the wade outright.
-  bool _tryGhostReveal(DungeonCreature a, DungeonRoom room) {
-    if (room.ghostEddies.isEmpty) return false;
-    final star = room.eddyStarIndex;
-    if (a.member.element != 'Spirit') {
-      // A Mask still reads the gallery's frieze for the RULE (_templeReveal);
-      // anyone else gets one clause of refusal and nothing else.
-      if (a.ability == DungeonAbility.insight) return false;
-      if (star != null && hasStar(star)) return false;
-      _setBlockedHint('Only Spirit bares the ghost-water');
+  /// True while the lantern lies dark somewhere, waiting to be re-lit.
+  bool get lanternAground => lanternNodeId != null && !lanternLit;
+
+  /// Set (or re-set) the moon-lantern. ANY creature may do it — floating a
+  /// lamp is not an elemental act, and making it one would let a bad swap or
+  /// a downed slot end a run. The SPRING always answers, wherever the lantern
+  /// currently lies: that is the structural reason losing it can never
+  /// softlock, and the solver's `strandable == 0` is the stronger claim on
+  /// top of it, not the mechanism.
+  bool _tryLantern(DungeonCreature a, DungeonRoom room) {
+    final star = room.canalStarIndex;
+    if (room.canalNodes.isEmpty || star == null || hasStar(star)) return false;
+    for (final node in room.canalNodes) {
+      if ((a.position - node.position).distance > _kCanalReach) continue;
+      if (node.isSea) {
+        _setHint('The grate breathes; somewhere below it, the sea');
+        return true;
+      }
+      if (lanternLit && lanternNodeId == node.id) {
+        // An ICE hand at the lantern's own basin means the ice — let the dam
+        // speak its own refusal rather than swallowing the press here.
+        if (a.member.element == 'Ice') return false;
+        _setHint('The lantern rides already — the water has it');
+        return true;
+      }
+      // A basin that is neither the spring nor the lantern's own resting
+      // place has nothing to set: fall through to the ice and the reading.
+      if (!node.isSpring && !(lanternAground && lanternNodeId == node.id)) {
+        return false;
+      }
+      final relit = lanternNodeId != null;
+      lanternNodeId = node.id;
+      _lanternPrevNodeId = null;
+      lanternChannel = null;
+      lanternT = 0;
+      lanternDwell = 0;
+      lanternLit = true;
+      lanternFlare = 0.8;
+      _lanternWashFrom = null;
+      _lanternWashT = 0;
+      lanternPos = node.position;
+      _spawnAlchemyBurst(
+        node.position,
+        producedElement: 'Light',
+        reagentElements: const ['Water'],
+        particleCount: 16,
+        intensity: 0.9,
+      );
+      _setHint(
+        relit && !node.isSpring
+            ? 'The wick catches again — the lantern turns and waits on the water'
+            : 'The moon-lantern takes the spill, and the water takes the '
+                  'lantern',
+        3.0,
+      );
+      onChanged();
       return true;
     }
-    if (star != null && hasStar(star)) {
-      _setHint('The current rests — its course is run');
+    return false;
+  }
+
+  /// Star 2's ICE verb: plug a basin so the water reaches past it for the
+  /// next-lowest sill. ELEMENT-ONLY (§4) — every Ice family plugs identically
+  /// — and deliberately NOT recipe-able: the temple's Spirit+Water→Ice braid
+  /// already has a job three chambers away, and letting it plug basins would
+  /// put the reading verb and the damming verb on the same stone for the same
+  /// creature. Toggled, so no configuration of ice can ever be a dead end.
+  bool _tryCanalDam(DungeonCreature a, DungeonRoom room) {
+    final star = room.canalStarIndex;
+    if (room.canalNodes.isEmpty || star == null || hasStar(star)) return false;
+    for (final node in room.canalNodes) {
+      if (!node.isBasin) continue;
+      if ((a.position - node.position).distance > _kCanalReach) continue;
+      if (a.member.element != 'Ice') {
+        // §5.6 BLOCKED: one clause, element-first, no how-to.
+        _setBlockedHint('Only Ice plugs a basin');
+        return true;
+      }
+      if (dammedNodes.contains(node.id)) {
+        dammedNodes.remove(node.id);
+        _spawnAlchemyBurst(
+          node.position,
+          producedElement: 'Water',
+          reagentElements: const ['Ice'],
+          particleCount: 12,
+          intensity: 0.7,
+        );
+        _setHint('The plug lets go — the basin runs again', 2.8);
+        onChanged();
+        return true;
+      }
+      if (lanternLit && lanternNodeId == node.id && lanternChannel == null) {
+        _setBlockedHint('The lantern turns here — the ice will not take');
+        return true;
+      }
+      dammedNodes.add(node.id);
+      _spawnAlchemyBurst(
+        node.position,
+        producedElement: 'Ice',
+        reagentElements: [a.member.element],
+        particleCount: 18,
+        intensity: 0.9,
+      );
+      _setHint('The basin takes the ice, and holds', 2.8);
+      onChanged();
       return true;
     }
-    eddyRevealTier = revealHintTier(a.member.statIntelligence);
-    eddyRevealTimer = 4.0 + 6.0 * normStat(a.member.statIntelligence);
-    eddiesBared = true; // the spins stay bare for the rest of the run
+    return false;
+  }
+
+  /// Star 2's reading: ANY Spirit creature (element-only). What it buys is
+  /// FORESIGHT, never the answer — every word of it is knowable by watching
+  /// the water instead, the expensive way.
+  ///   t0 — the DEEP cuts are named, permanently for the run.
+  ///   t1 — …and the groove the water would take next is drawn.
+  ///   t2 — …and the whole fall is traced, at the water as it stands now.
+  bool _tryCanalReveal(DungeonCreature a, DungeonRoom room) {
+    final star = room.canalStarIndex;
+    if (room.canalNodes.isEmpty || star == null) return false;
+    if (a.member.element != 'Spirit') return false;
+    if (hasStar(star)) {
+      _setHint('The canals lie quiet — the lantern is away');
+      return true;
+    }
+    canalRevealTier = revealHintTier(a.member.statIntelligence);
+    canalRevealTimer = 4.0 + 6.0 * normStat(a.member.statIntelligence);
+    sumpsRead = true; // the deep cuts stay named for the rest of the run
     revealFlash = 0.6;
     _spawnAlchemyBurst(
       a.position,
@@ -641,12 +1095,14 @@ extension MirrorTide on PlanetDungeonGame {
     // INSIGHT is the only channel allowed to teach method (§5.6), and it is
     // priority-protected so the reading is never stomped mid-read.
     _setInsightHint(
-      eddyRevealTier >= 2
-          ? 'The water counts its own course — wade the eddies as they number'
-          : eddyRevealTier >= 1
-          ? 'The flow bares itself along the channels — follow it spring to sea'
-          : 'Each eddy rolls the way its feeder drives it — sunwise when the '
-                'water comes from the west, widdershins from the east',
+      canalRevealTier >= 2
+          ? 'The whole fall lies bare, basin to basin, for the water as it '
+                'stands'
+          : canalRevealTier >= 1
+          ? 'The deep cuts stand named — and the water shows which groove it '
+                'would take next'
+          : 'The deep cuts stand named: they run low and middle, and drown '
+                'into a torrent at the high water',
       4.2,
     );
     return true;
@@ -870,13 +1326,15 @@ extension MirrorTide on PlanetDungeonGame {
         fraction: total == 0 ? null : open / total,
       );
     }
-    final eddyStar = room.eddyStarIndex;
-    if (room.ghostEddies.isNotEmpty && eddyStar != null && !hasStar(eddyStar)) {
-      final total = room.ghostEddies.length;
+    final canalStar = room.canalStarIndex;
+    if (room.canalNodes.isNotEmpty && canalStar != null && !hasStar(canalStar)) {
       return DungeonProgressReadout(
-        label: 'EDDIES',
-        value: '$eddyProgress/$total',
-        fraction: total == 0 ? null : eddyProgress / total,
+        label: 'LANTERN',
+        value: lanternNodeId == null
+            ? 'UNSET'
+            : !lanternLit
+            ? 'AGROUND'
+            : 'ADRIFT',
       );
     }
     return null;
@@ -896,21 +1354,22 @@ extension MirrorTide on PlanetDungeonGame {
         );
         return;
       case 'ghost_gallery':
-        // A non-Spirit Mask cannot bare the water, but it CAN read the
-        // gallery's frieze — and the frieze is where the rule is written.
-        // (Spirit creatures never reach here: _tryGhostReveal catches them.)
-        final star = room.eddyStarIndex;
+        // The gallery's frieze is where the temple wrote its own two rules
+        // down. A Mask of any element can read them — the rules were never
+        // the secret; only the foresight is, and that is Spirit's.
+        final star = room.canalStarIndex;
         if (star != null && hasStar(star)) {
-          _setHint('The current rests — its course is run');
+          _setHint('The canals lie quiet — the lantern is away');
           return;
         }
         _setHint(
           revealTier >= 1
-              ? 'The frieze reads plain: an eddy rolls the way its feeder '
-                    'drives it — sunwise from the west, widdershins from the east'
-              : 'Carved channels, and eddies that turn between them — only '
-                    'Spirit bares which way',
-          4.2,
+              ? 'The frieze reads plain: water spills down the LOWEST groove '
+                    'a basin offers it, and a groove only runs once the tide '
+                    'tops its sill'
+              : 'A frieze of grooves and sills — the temple explaining how '
+                    'its own water falls',
+          4.4,
         );
         return;
       case 'moon_hall':
@@ -1011,15 +1470,18 @@ extension MirrorTide on PlanetDungeonGame {
       }
       return;
     }
-    // Atmosphere ONLY at the gallery's mouths: a named stone thing, no
+    // Atmosphere ONLY at the gallery's two ends: a named stone thing, no
     // mechanic, no element requirement (§5.6 AMBIENT).
-    for (final mouth in room.ghostMouths) {
-      if ((a.position - mouth.position).distance > 70) continue;
-      _setAmbientHint(
-        mouth.isSource
-            ? 'A carved mouth weeps brine into the dark'
-            : 'The grate breathes; somewhere below, the sea',
-      );
+    for (final node in room.canalNodes) {
+      if ((a.position - node.position).distance > 70) continue;
+      if (node.isSpring) {
+        _setAmbientHint('A carved mouth weeps brine into the dark');
+        return;
+      }
+      if (node.isSea) {
+        _setAmbientHint('The grate breathes; somewhere below, the sea');
+        return;
+      }
       return;
     }
   }
@@ -1035,9 +1497,9 @@ extension MirrorTide on PlanetDungeonGame {
         return 'Tide-Works — turn the valves, stand the tide, open all '
             'three sluices';
       case 'ghost_gallery':
-        // WHAT, never HOW (§5.6): the rule and the reading are the frieze's
-        // and Spirit's to give, not the doorway's.
-        return 'Ghost Gallery — an unseen current still runs spring to sea';
+        // WHAT, never HOW (§5.6): the sills, the spill and the ice are the
+        // frieze's and Spirit's to give, not the doorway's.
+        return 'Lantern Gallery — the moon-lantern must reach the sea drain';
       case 'reflection_court':
         return null; // the egg keeps its silence
       case 'moon_hall':
@@ -1275,7 +1737,7 @@ extension MirrorTide on PlanetDungeonGame {
         _drawTideWorks(canvas, room);
         break;
       case 'ghost_gallery':
-        _drawGhostGallery(canvas, room);
+        _drawCanalGallery(canvas, room);
         break;
       case 'pearl_vault':
         _drawPearlShrine(canvas, room.bounds.center);
@@ -1530,47 +1992,7 @@ extension MirrorTide on PlanetDungeonGame {
       canvas.drawLine(Offset(x, 110), Offset(x, 165), pipe);
     }
     // Valves: rune-marked wheels (low / mid / high).
-    for (final valve in room.tideValves) {
-      final p = valve.position;
-      final isCurrent = valve.level == tideLevel;
-      final wheel = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = (isCurrent
-                ? const Color(0xFF8FE0EC)
-                : const Color(0xFF4A7080))
-            .withValues(alpha: 0.85);
-      canvas.drawCircle(p, 16, wheel);
-      for (var i = 0; i < 4; i++) {
-        final a = i * pi / 2 + (isCurrent ? _time * 0.4 : 0.6);
-        canvas.drawLine(
-          p + Offset(cos(a), sin(a)) * 6,
-          p + Offset(cos(a), sin(a)) * 15,
-          wheel,
-        );
-      }
-      // Stand mark beneath: 1–3 wave ticks.
-      final ticks = (valve.level ?? 0) + 1;
-      for (var i = 0; i < ticks; i++) {
-        canvas.drawLine(
-          p + Offset(-9 + i * 9.0 - (ticks - 1) * 0.0, 24),
-          p + Offset(-3 + i * 9.0, 24),
-          Paint()
-            ..strokeWidth = 2
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.6),
-        );
-      }
-      if (isCurrent && _fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          p,
-          26,
-          const Color(0xFF4AB8D8).withValues(alpha: 0.2),
-        );
-      }
-    }
+    _drawTideWheels(canvas, room);
     // Sluice seals: round hatches that glow open.
     final star = room.sealStarIndex;
     final done = star != null && hasStar(star);
@@ -1620,179 +2042,247 @@ extension MirrorTide on PlanetDungeonGame {
     }
   }
 
-  /// The ghost gallery. The STONE is always there — the carved channels, the
-  /// spring's mouth, the sea grate — because the flow network is the thing
-  /// the player reasons over and reasoning needs something to look at. What
-  /// Spirit bares is the WATER: five eddies, each rolling the way its feeder
-  /// drives it. High insight adds the flow arrows (t1) and the pips (t2) on
-  /// top, on a timer, while the spins themselves stay bare for the run.
-  void _drawGhostGallery(Canvas canvas, DungeonRoom room) {
-    final star = room.eddyStarIndex;
-    final done = star != null && hasStar(star);
-    final nodes = _ghostNodes(room);
+  /// The master sluice wheels — shared by the tide-works and the gallery's
+  /// own bank, because the gallery steers the lantern with the very same
+  /// wheels and they must read identically in both rooms.
+  void _drawTideWheels(Canvas canvas, DungeonRoom room) {
+    for (final valve in room.tideValves) {
+      if (valve.pipOnly) continue;
+      final p = valve.position;
+      final isCurrent = valve.level == tideLevel;
+      final wheel = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..color = (isCurrent
+                ? const Color(0xFF8FE0EC)
+                : const Color(0xFF4A7080))
+            .withValues(alpha: 0.85);
+      canvas.drawCircle(p, 16, wheel);
+      for (var i = 0; i < 4; i++) {
+        final a = i * pi / 2 + (isCurrent ? _time * 0.4 : 0.6);
+        canvas.drawLine(
+          p + Offset(cos(a), sin(a)) * 6,
+          p + Offset(cos(a), sin(a)) * 15,
+          wheel,
+        );
+      }
+      // Stand mark beneath: 1-3 wave ticks.
+      final ticks = (valve.level ?? 0) + 1;
+      for (var i = 0; i < ticks; i++) {
+        canvas.drawLine(
+          p + Offset(-9 + i * 9.0, 24),
+          p + Offset(-3 + i * 9.0, 24),
+          Paint()
+            ..strokeWidth = 2
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.6),
+        );
+      }
+      if (isCurrent && _fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          p,
+          26,
+          const Color(0xFF4AB8D8).withValues(alpha: 0.2),
+        );
+      }
+    }
+  }
 
-    // 1) The channels — grooves cut in the mosaic, stone and unhidden.
+  /// The Lantern Gallery. EVERY line of this is public information — the
+  /// grooves, the fall chevrons, the sill notches, the blind sump's missing
+  /// throat — because the puzzle is a thing you reason over, and reasoning
+  /// needs something honest to look at. The only things drawn conditionally
+  /// are the LIVE water in the running grooves (which is just the tide made
+  /// legible) and Spirit's tiered foresight overlay.
+  ///
+  /// Per-frame cost: the whole network is 10 channels and 7 basins, and all
+  /// of the geometry is cached in [_canalGeometry] — nothing here scans the
+  /// room or allocates a map.
+  void _drawCanalGallery(Canvas canvas, DungeonRoom room) {
+    final star = room.canalStarIndex;
+    final done = star != null && hasStar(star);
+    final geoms = _canalGeometry;
+
+    // 1) The grooves themselves: cut stone, always there.
     final groove = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 7
+      ..strokeWidth = 9
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF071319).withValues(alpha: 0.55);
+      ..color = const Color(0xFF071319).withValues(alpha: 0.6);
     final grooveLip = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round
       ..color = const Color(0xFF4A7080).withValues(alpha: 0.34);
-    for (final ch in room.ghostChannels) {
-      final a = nodes[ch.a], b = nodes[ch.b];
-      if (a == null || b == null) continue;
-      canvas.drawLine(a, b, groove);
-      canvas.drawLine(a, b, grooveLip);
-    }
-
-    // 2) The two fixed ends the whole deduction hangs from.
-    for (final mouth in room.ghostMouths) {
-      _drawGhostMouth(canvas, mouth);
-    }
-    if (done) return; // the course is run; the water rests
-
-    final bare = _ghostBare.clamp(0.0, 1.0);
-    final tiered = eddyRevealTimer > 0;
-    final fade = tiered ? (eddyRevealTimer / 2.5).clamp(0.0, 1.0) : 0.0;
-
-    // 3) TIER 1 — the flow itself, an arrow along each live channel.
-    if (tiered && eddyRevealTier >= 1) {
-      final flow = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFB8D8E8).withValues(alpha: 0.55 * fade);
-      eddyFeeder.forEach((id, from) {
-        final to = nodes[id], src = nodes[from];
-        if (to == null || src == null) return;
-        _drawFlowArrow(canvas, src, to, flow);
-      });
-      // …and on out to the sea, so the end of the course reads too.
-      String? last;
-      eddyOrder.forEach((id, ord) {
-        if (ord == room.ghostEddies.length - 1) last = id;
-      });
-      if (last != null) {
-        final from = nodes[last];
-        for (final mouth in room.ghostMouths) {
-          if (mouth.isSource || from == null) continue;
-          _drawFlowArrow(canvas, from, mouth.position, flow);
-        }
-      }
-    }
-
-    // 4) The eddies.
-    for (final eddy in room.ghostEddies) {
-      final ord = eddyOrder[eddy.id];
-      final waded = ord != null && ord < eddyProgress;
-      final next = ord != null && ord == eddyProgress;
-      final show = waded ? 1.0 : bare;
-      if (show <= 0.02) continue;
-      // The same rule the solver uses, read straight off the cached nodes
-      // (this runs five times a frame — no room scan, no allocation).
-      final from = nodes[eddyFeeder[eddy.id]];
-      final sunwise = from == null || _spinSunwise(eddy.position, from);
-      final col = waded
-          ? const Color(0xFF6FE0C0)
-          : next && tiered && eddyRevealTier >= 2
-          ? const Color(0xFFDCE8F0)
-          : const Color(0xFFB8D8E8);
-      final swirl = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8
-        ..strokeCap = StrokeCap.round
-        ..color = col.withValues(alpha: (waded ? 0.62 : 0.52) * show);
-      // Three arcs winding inward, TURNING the way the feeder drives them —
-      // this rotation IS the puzzle's evidence, so it must read at a glance.
-      final spin = sunwise ? 1.0 : -1.0;
-      final phase = _time * 1.15 * spin;
-      for (var i = 0; i < 3; i++) {
-        final r = 19.0 - i * 5.5;
-        canvas.drawArc(
-          Rect.fromCircle(center: eddy.position, radius: r),
-          phase + i * 1.5,
-          pi * 1.25,
-          false,
-          swirl,
+    for (final g in geoms) {
+      if (g.channel.sill == CanalSill.deep) {
+        // A deep cut is CUT DEEPER, and it looks it: a wider, darker throat
+        // under the ordinary groove. Nothing about it is hidden — Spirit's
+        // reading only saves you finding out at the high water.
+        canvas.drawLine(
+          g.a,
+          g.b,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 14
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFF040C12).withValues(alpha: 0.55),
         );
       }
-      // A chevron riding the outer arc's leading edge — the direction, said
-      // twice, because a slow spiral alone is easy to misread.
-      _drawSpinChevron(canvas, eddy.position, 19.0, phase + pi * 1.25, spin,
-          swirl);
-      if (waded && _fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          eddy.position,
-          24,
-          const Color(0xFF6FE0C0).withValues(alpha: 0.18),
-        );
-      }
-      // 5) TIER 2 — the water counts itself.
-      if (tiered && eddyRevealTier >= 2 && !waded && ord != null) {
-        final pip = Paint()
-          ..color = const Color(0xFFDCE8F0).withValues(alpha: 0.7 * fade);
-        for (var k = 0; k <= ord; k++) {
-          canvas.drawCircle(
-            eddy.position + Offset(-10 + k * 5.0, -27),
-            1.7,
-            pip,
-          );
-        }
-      }
+      canvas.drawLine(g.a, g.b, groove);
+      canvas.drawLine(g.a, g.b, grooveLip);
     }
+
+    // 2) The live water, and the fall it runs in. This IS the tide gauge for
+    //    the puzzle: what runs, and which way.
+    for (final g in geoms) {
+      final live = canalChannelLive(g.channel.sill, tideAnim);
+      final torrent = canalChannelTorrent(g.channel.sill, tideAnim);
+      if (torrent) {
+        _drawTorrent(canvas, g);
+      } else if (live) {
+        _drawLiveChannel(canvas, g);
+      }
+      // The fall chevrons are carved, so they show wet or dry — a dry groove
+      // still tells you which way it would run.
+      _drawFallChevrons(canvas, g, live: live && !torrent);
+      _drawSillMark(canvas, g);
+    }
+
+    // 3) Spirit's foresight, on its timer, over the top of all of it.
+    if (!done) _drawCanalForesight(canvas, room);
+
+    // 4) The basins.
+    for (final node in room.canalNodes) {
+      _drawCanalNode(canvas, node);
+    }
+
+    // 5) The lantern itself.
+    if (!done) _drawMoonLantern(canvas);
   }
 
-  /// A single arrowhead at the far end of a channel (the shaft is the groove
-  /// already drawn beneath it) — one chevron, two lines.
-  void _drawFlowArrow(Canvas canvas, Offset from, Offset to, Paint paint) {
-    final d = to - from;
-    final len = d.distance;
-    if (len < 24) return;
-    final u = Offset(d.dx / len, d.dy / len);
-    final tip = to - u * 24.0;
-    final n = Offset(-u.dy, u.dx);
-    canvas.drawLine(tip, tip - u * 11 + n * 6, paint);
-    canvas.drawLine(tip, tip - u * 11 - n * 6, paint);
-  }
-
-  /// The chevron on an eddy's outer arc, pointing the way it turns.
-  void _drawSpinChevron(
-    Canvas canvas,
-    Offset centre,
-    double radius,
-    double angle,
-    double spin,
-    Paint paint,
-  ) {
-    final at = centre + Offset(cos(angle), sin(angle)) * radius;
-    // Tangent in the direction of travel.
-    final t = Offset(-sin(angle), cos(angle)) * spin;
-    final n = Offset(-t.dy, t.dx);
-    canvas.drawLine(at, at - t * 7 + n * 4, paint);
-    canvas.drawLine(at, at - t * 7 - n * 4, paint);
-  }
-
-  /// The spring's carved mouth (source) or the sea grate (drain) — stone, so
-  /// both are visible from the first step into the gallery.
-  void _drawGhostMouth(Canvas canvas, GhostMouth mouth) {
-    final p = mouth.position;
-    final stone = Paint()
+  /// A running groove: a band of water with two travelling glints sliding
+  /// downstream, so "this one is live, and it runs THAT way" reads at a
+  /// glance from across the room.
+  void _drawLiveChannel(Canvas canvas, _CanalGeom g) {
+    canvas.drawLine(
+      g.a,
+      g.b,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF2A88A8).withValues(alpha: 0.42),
+    );
+    final glint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..color = const Color(0xFF4A7080).withValues(alpha: 0.85);
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.42);
+    for (var i = 0; i < 2; i++) {
+      final travel = ((_time * 44 + i * g.length * 0.5) % g.length);
+      final head = g.a + g.unit * travel;
+      final tail = g.a + g.unit * max(0.0, travel - 16);
+      canvas.drawLine(tail, head, glint);
+    }
+  }
+
+  /// A deep cut drowned by the high water: not a channel any more, a torrent.
+  /// It churns, it runs no glints, and it is unmistakable.
+  void _drawTorrent(Canvas canvas, _CanalGeom g) {
+    final normal = Offset(-g.unit.dy, g.unit.dx);
+    final churn = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFB8D8E8).withValues(alpha: 0.34);
+    final steps = (g.length / 26).clamp(2, 18).toInt();
+    for (var i = 0; i < steps; i++) {
+      final t = (i + 0.5) / steps;
+      final at = g.a + g.unit * (g.length * t);
+      final wob = sin(_time * 7 + i * 1.9) * 5.5;
+      canvas.drawLine(at - normal * wob, at + normal * wob * 0.4, churn);
+    }
+  }
+
+  /// Which way the stone falls — carved chevrons along the groove. Brighter
+  /// while the groove is running, but never absent: the direction is stone.
+  void _drawFallChevrons(Canvas canvas, _CanalGeom g, {required bool live}) {
+    final normal = Offset(-g.unit.dy, g.unit.dx);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF8FE0EC).withValues(alpha: live ? 0.5 : 0.22);
+    final count = (g.length / 90).clamp(1, 6).toInt();
+    for (var i = 0; i < count; i++) {
+      final at = g.a + g.unit * (g.length * (i + 0.5) / count);
+      canvas.drawLine(at, at - g.unit * 7 + normal * 5, paint);
+      canvas.drawLine(at, at - g.unit * 7 - normal * 5, paint);
+    }
+  }
+
+  /// The sill, cut into the groove's lip at the basin it leaves: one notch
+  /// low, two mid, three crest — and a deep cut wears a downward hook
+  /// instead, brightened once Spirit has named the deep cuts.
+  void _drawSillMark(Canvas canvas, _CanalGeom g) {
+    final normal = Offset(-g.unit.dy, g.unit.dx);
+    final at = g.a + g.unit * 34;
+    if (g.channel.sill == CanalSill.deep) {
+      final named = sumpsRead;
+      final hook = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = named ? 2.2 : 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = (named
+                ? const Color(0xFFB8D8E8)
+                : const Color(0xFF4A7080))
+            .withValues(alpha: named ? 0.7 : 0.5);
+      canvas.drawArc(
+        Rect.fromCircle(center: at, radius: 7),
+        atan2(normal.dy, normal.dx),
+        pi,
+        false,
+        hook,
+      );
+      return;
+    }
+    final notches = switch (g.channel.sill) {
+      CanalSill.low => 1,
+      CanalSill.mid => 2,
+      _ => 3,
+    };
+    final tick = Paint()
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFE4C16A).withValues(alpha: 0.55);
+    for (var i = 0; i < notches; i++) {
+      final base = at + g.unit * (i * 6.0);
+      canvas.drawLine(base - normal * 7, base - normal * 12, tick);
+    }
+  }
+
+  /// A basin: cut stone with a still surface, an ice cap when it is dammed,
+  /// and — for the blind sump — a visibly missing throat.
+  void _drawCanalNode(Canvas canvas, CanalNode node) {
+    final p = node.position;
+    final r = node.isBasin ? 21.0 : 15.0;
     canvas.drawCircle(
       p,
-      15,
+      r,
       Paint()..color = const Color(0xFF07141B).withValues(alpha: 0.9),
     );
-    canvas.drawCircle(p, 15, stone);
-    if (mouth.isSource) {
+    canvas.drawCircle(
+      p,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..color = const Color(0xFF4A7080).withValues(alpha: 0.85),
+    );
+    if (node.isSpring) {
       // The spring: a mouth with water spilling from it, always running.
       final spill = Paint()
         ..style = PaintingStyle.stroke
@@ -1820,16 +2310,161 @@ extension MirrorTide on PlanetDungeonGame {
       }
       return;
     }
-    // The sea drain: three bars over a dark throat.
-    final bar = Paint()
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF4A8AB8).withValues(alpha: 0.8);
-    for (var i = -1; i <= 1; i++) {
+    if (node.isSea) {
+      // The sea drain: three bars over a dark throat.
+      final bar = Paint()
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF4A8AB8).withValues(alpha: 0.8);
+      for (var i = -1; i <= 1; i++) {
+        canvas.drawLine(
+          Offset(p.dx + i * 6.0, p.dy - 9),
+          Offset(p.dx + i * 6.0, p.dy + 9),
+          bar,
+        );
+      }
+      return;
+    }
+    // A basin's water, turning slowly.
+    canvas.drawArc(
+      Rect.fromCircle(center: p, radius: 13),
+      _time * 0.55 + p.dx,
+      pi * 1.1,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.22),
+    );
+    if (canalIsBlind(node.id)) {
+      // The blind sump: an X of old iron over a throat that goes nowhere.
+      // Drawn, not hinted — the dead end is a thing you can SEE.
+      final iron = Paint()
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF8A6E48).withValues(alpha: 0.55);
+      canvas.drawLine(p + const Offset(-9, -9), p + const Offset(9, 9), iron);
+      canvas.drawLine(p + const Offset(9, -9), p + const Offset(-9, 9), iron);
+    }
+    final ice = _damAnim[node.id] ?? 0;
+    if (ice > 0) {
+      // The dam: an ice cap that GROWS in and thaws back out.
+      final grow = Curves.easeOutBack.transform(ice.clamp(0.0, 1.0));
+      canvas.drawCircle(
+        p,
+        r * 0.92 * grow,
+        Paint()..color = const Color(0xFFCFE4EE).withValues(alpha: 0.6 * ice),
+      );
+      canvas.drawCircle(
+        p,
+        r * 0.92 * grow,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = Colors.white.withValues(alpha: 0.6 * ice),
+      );
+      final crack = Paint()
+        ..strokeWidth = 1
+        ..color = Colors.white.withValues(alpha: 0.4 * ice);
       canvas.drawLine(
-        Offset(p.dx + i * 6.0, p.dy - 9),
-        Offset(p.dx + i * 6.0, p.dy + 9),
-        bar,
+        p + const Offset(-11, -5) * 1.0,
+        p + const Offset(6, 8),
+        crack,
+      );
+      canvas.drawLine(p + const Offset(3, -13), p + const Offset(8, 5), crack);
+    }
+  }
+
+  /// The moon-lantern: a small warm lamp on cold water, bobbing where it
+  /// floats and guttered dark where it does not.
+  void _drawMoonLantern(Canvas canvas) {
+    if (lanternNodeId == null) return;
+    final p = lanternPos;
+    final lit = lanternLit;
+    final warm = lit
+        ? const Color(0xFFE4C16A)
+        : const Color(0xFF6A6455);
+    if (lit && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        p,
+        30 + lanternFlare * 26,
+        warm.withValues(alpha: 0.22 + 0.08 * sin(_time * 2.6) + lanternFlare * 0.2),
+      );
+    }
+    // The float: a little ring of pale wood on the water.
+    canvas.drawCircle(
+      p,
+      9,
+      Paint()..color = const Color(0xFF10222C).withValues(alpha: 0.9),
+    );
+    canvas.drawCircle(
+      p,
+      9,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = warm.withValues(alpha: lit ? 0.85 : 0.5),
+    );
+    // The flame.
+    canvas.drawCircle(
+      p,
+      lit ? 4.4 + sin(_time * 5.3) * 0.5 : 2.4,
+      Paint()..color = warm.withValues(alpha: lit ? 0.9 : 0.4),
+    );
+    if (!lit) return;
+    // A reflection smeared under it, so it reads as floating, not pasted on.
+    canvas.drawArc(
+      Rect.fromCenter(center: p + const Offset(0, 12), width: 26, height: 8),
+      0,
+      pi,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = warm.withValues(alpha: 0.3),
+    );
+  }
+
+  /// Spirit's foresight overlay. t1 draws the ONE groove the water would take
+  /// next out of the lantern's basin; t2 follows that fall all the way to
+  /// wherever it ends at the water as it stands. Neither is the answer: both
+  /// describe the CURRENT stand, and the whole puzzle is which stands to hold
+  /// and when.
+  void _drawCanalForesight(Canvas canvas, DungeonRoom room) {
+    if (canalRevealTimer <= 0 || canalRevealTier < 1) return;
+    final start = lanternNodeId;
+    if (start == null) return;
+    final fade = (canalRevealTimer / 2.5).clamp(0.0, 1.0);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFB8D8E8).withValues(alpha: 0.5 * fade);
+    final hops = canalRevealTier >= 2 ? room.canalNodes.length : 1;
+    var at = start;
+    final walked = <String>{start};
+    for (var i = 0; i < hops; i++) {
+      final ch = canalSpillFrom(at, water: tideAnim, dammed: dammedNodes);
+      if (ch == null) break;
+      final g = _canalGeomFor(ch);
+      if (g == null) break;
+      canvas.drawLine(g.a, g.b, paint);
+      if (!walked.add(ch.to)) break;
+      at = ch.to;
+    }
+    // Where that fall ENDS, marked — including, pointedly, when it ends in
+    // the blind sump.
+    final endNode = canalNodeById(at);
+    if (endNode != null && at != start) {
+      canvas.drawCircle(
+        endNode.position,
+        26,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = const Color(0xFFDCE8F0).withValues(alpha: 0.55 * fade),
       );
     }
   }

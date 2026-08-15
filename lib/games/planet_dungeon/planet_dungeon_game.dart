@@ -265,10 +265,9 @@ class PlanetDungeonGame extends FlameGame {
     activeTrunk = layout.initialTrunkId;
     // The Buried Giant's scale answer is rolled fresh per run.
     _rollScaleSolution();
-    // The Mirror-Tide's ghost-current is likewise rolled fresh per run — and
-    // only ever from the routes whose spins pin them uniquely.
-    _rollGhostCurrent();
-    // …and so is the Cinder Cathedral's rite, with the evidence that proves it.
+    // (The Mirror-Tide's canal network is STONE — authored, not rolled; its
+    // solvability is proved once, in the layout test, by `solveLanternDrift`.)
+    // The Cinder Cathedral's rite IS rolled, with the evidence that proves it.
     _rollRiteOrder();
     // The Wind-Crown Spire starts CALM, with its rods flat and its storm-cell
     // already on its authored mark — seeded here, not in onLoad, because the
@@ -623,39 +622,62 @@ class PlanetDungeonGame extends FlameGame {
   int tideLevel = 0;
   double tideAnim = 0;
 
-  /// Sluice seals opened this run (Star 1) and the ghost-current progress
-  /// (Star 2, next eddy order to wade).
+  /// Sluice seals opened this run (Star 1).
   final Set<String> openedSeals = {};
-  int eddyProgress = 0;
 
-  /// Ghost-current visibility: seconds remaining + the insight tier that
-  /// revealed it (drives how much of the path shows). The TIMER now governs
-  /// only the high-Int extras — see [eddiesBared].
-  double eddyRevealTimer = 0;
-  int eddyRevealTier = 0;
+  // ── Star 2: the moon-lantern on the canals (docs §6.4 rework) ──
+  /// The basin the lantern last passed (null = it has never been set this
+  /// run). While [lanternChannel] is non-null the lantern is CROSSING that
+  /// groove out of this basin; otherwise it turns in the basin itself.
+  String? lanternNodeId;
+  CanalChannel? lanternChannel;
 
-  /// True once a Spirit creature has bared the gallery this run. The eddies
-  /// and their SPINS then stay visible for good: Star 2 is a deduction, and
-  /// a deduction you cannot look at twice is only a memory test. The tiered
-  /// extras (flow arrows, order pips) still ride [eddyRevealTimer].
-  bool eddiesBared = false;
+  /// The basin BEFORE [lanternNodeId] — where the backwash hands the lantern
+  /// back if it settles into a basin with no groove out of it at all.
+  String? _lanternPrevNodeId;
 
-  /// The run's ghost-current, rolled fresh in the constructor and never
-  /// rerolled by death (the water keeps its course for the whole descent):
-  /// eddy id → its place in the wade, and eddy id → the node UPSTREAM of it
-  /// (another eddy, or the source spring). The feeder is what the spin
-  /// betrays; the order is what the player must derive from the spins.
-  final Map<String, int> eddyOrder = {};
-  final Map<String, String> eddyFeeder = {};
+  /// 0..1 along [lanternChannel], and how long the lantern has been turning
+  /// in its basin (it only commits to a groove once the water is SETTLED).
+  double lanternT = 0;
+  double lanternDwell = 0;
 
-  /// The eased 0→1 bloom of the bared eddies (ANIMATED-STATE rule: the
-  /// ghost-water fades up out of the dark, it never snaps into being).
-  double _ghostBare = 0;
+  /// False = the lantern lies dark (grounded or sumped) and waits for a hand.
+  bool lanternLit = false;
 
-  /// Node id → position for the gallery's flow network, built once from the
-  /// const layout. The render and the spin rule ask for it several times a
-  /// frame; rebuilding the map each time would allocate for nothing.
-  Map<String, Offset>? _ghostNodeCache;
+  /// Where the lantern actually IS — eased every frame, never teleported.
+  Offset lanternPos = Offset.zero;
+
+  /// One-shot flare (set / arrival / ground / sump) and the eased backwash
+  /// that carries a lost lantern back to the last mouth it passed.
+  double lanternFlare = 0;
+  Offset? _lanternWashFrom;
+  double _lanternWashT = 0;
+
+  /// How many times the lantern has been lost this run (diagnostics + tests).
+  int lanternLosses = 0;
+
+  /// Basins an Ice hand has plugged into dams, with their eased ice caps.
+  /// A dam only ever REMOVES a destination — nothing but the tide can make a
+  /// dry groove run — so damming can never conjure a route the stone forbids.
+  final Set<String> dammedNodes = {};
+  final Map<String, double> _damAnim = {};
+
+  /// Spirit's reading. Naming the deep cuts is PERMANENT for the run (a
+  /// warning you cannot look at twice is only a memory test); the forecast
+  /// tiers ride [canalRevealTimer], which Intelligence buys.
+  bool sumpsRead = false;
+  double canalRevealTimer = 0;
+  int canalRevealTier = 0;
+
+  /// Node id → node for the gallery's canal network, built once from the
+  /// const layout: the drift, the render and the solver all ask for it many
+  /// times a frame, and rebuilding the map each time would allocate for
+  /// nothing.
+  Map<String, CanalNode>? _canalNodeCache;
+
+  /// Cached per-channel geometry (endpoints, unit vector, length) — pure
+  /// functions of the const layout, so it is built once and never per frame.
+  List<_CanalGeom>? _canalGeomCache;
 
   /// Leviathan's tide-turn (§7 retrofit): the direction the deep is hauling
   /// the water (+1 rising, -1 falling) and last frame's raw lull state, so
@@ -1241,7 +1263,7 @@ class PlanetDungeonGame extends FlameGame {
       room.brazierStarIndex ??
       room.vineStarIndex ??
       room.sealStarIndex ??
-      room.eddyStarIndex ??
+      room.canalStarIndex ??
       room.ribStarIndex ??
       room.pillarStarIndex ??
       room.circuitStarIndex ??

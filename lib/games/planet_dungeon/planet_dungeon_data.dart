@@ -384,9 +384,10 @@ class VesperRoute {
 // and the tide MOVES — floods and drains are animated, never a teleport.
 
 /// A tide valve. Master valves set the temple to an explicit [level]
-/// (0 low · 1 mid · 2 high) and answer any Water creature (Pip = instant,
-/// others sluggish). A [pipOnly] pipe-mouth ([level] null) cycles the tide
-/// one step and only a smallAccess creature can slip inside.
+/// (0 low · 1 mid · 2 high) and are ELEMENT-ONLY (§4): any Water creature
+/// turns one instantly, whatever its family. A [pipOnly] pipe-mouth ([level]
+/// null) cycles the tide one step and is the temple's one HARD FAMILY GATE —
+/// only a Water Pip fits down the pipes.
 class TideValve {
   final Offset position;
   final int? level; // null = cycle (pipe-mouth)
@@ -404,45 +405,62 @@ class TideSeal {
   const TideSeal({required this.id, required this.position, required this.tides});
 }
 
-/// A ghost-current eddy (Star 2 — the DEDUCTION rework, docs §6.4). The
-/// gallery's carved channels say which nodes the ghost-water CAN run between;
-/// the run picks one route through every eddy, source → sea. An eddy is
-/// invisible until Spirit insight bares it — and what it bares is the eddy's
-/// SPIN, never its number: an eddy rolls the way its upstream feeder drives
-/// it (a feeder to the WEST rolls it sunwise, one to the EAST widdershins).
-/// The wade order is derived from the spins, not handed over.
-class GhostEddy {
-  final String id;
-  final Offset position;
-  const GhostEddy({required this.id, required this.position});
+/// How high the temple's water must stand before a canal channel RUNS
+/// (Star 2 — the moon-lantern rework, docs §6.4). Every channel is stone and
+/// permanently visible; its sill is cut into the lip and reads at a glance.
+/// This is the whole of the hidden information in the gallery: there is none.
+enum CanalSill {
+  /// Cut to the floor — it runs at every stand of water.
+  low,
+
+  /// Raised: it takes the middle water to start running.
+  mid,
+
+  /// A crest — only the HIGH water tops it. Dry below, and a lantern caught
+  /// in it when the water falls is beached on the stone.
+  crest,
+
+  /// A deep cut. It runs at the low and middle water like any floor groove,
+  /// but the high water drowns it into a TORRENT that swallows anything
+  /// afloat on it. (Spirit's reading names these before you learn them the
+  /// expensive way; at high water the churn names them for itself.)
+  deep,
 }
 
-/// The gallery's inlet and outlet. The ghost-current always runs SOURCE →
-/// SEA, so both mouths are carved stone and always visible — they are the
-/// two fixed ends the player reasons from.
-class GhostMouth {
+/// A basin in the gallery's canal network: the spring mouth the lantern is
+/// set in, the sea drain that banks the star, or one of the stone basins
+/// between them where the water turns and chooses its next groove.
+class CanalNode {
   final String id;
   final Offset position;
 
-  /// True = the spring the water enters by; false = the drain it leaves by.
-  /// A sea mouth never feeds an eddy (water leaves there, it does not come
-  /// from there), which is what makes the last eddy's spin readable.
-  final bool isSource;
-  const GhostMouth({
+  /// The spring: the one mouth the lantern can always be (re-)set in, which
+  /// is what makes losing it structurally impossible to softlock on.
+  final bool isSpring;
+
+  /// The sea drain — the lantern reaching it banks the Current Star.
+  final bool isSea;
+
+  const CanalNode({
     required this.id,
     required this.position,
-    required this.isSource,
+    this.isSpring = false,
+    this.isSea = false,
   });
+
+  /// A plain basin: the only kind Ice may plug into a dam.
+  bool get isBasin => !isSpring && !isSea;
 }
 
-/// A carved channel in the gallery floor between two nodes (eddy ids or
-/// mouth ids). The groove is STONE — always visible, and undirected. Which
-/// way the ghost-water runs down it is the run's secret, and the eddies'
-/// spins are the only testimony.
-class GhostChannel {
-  final String a;
-  final String b;
-  const GhostChannel(this.a, this.b);
+/// A carved channel between two basins. DIRECTED — the stone only falls one
+/// way, and the fall is cut into the groove as chevrons the player can read
+/// from the doorway. Its [sill] says at which stands of the temple-wide tide
+/// it actually runs.
+class CanalChannel {
+  final String from;
+  final String to;
+  final CanalSill sill;
+  const CanalChannel(this.from, this.to, this.sill);
 }
 
 /// A moon-pool (Star 3): at MID tide, Ice freezes it into a bridge-disc
@@ -837,10 +855,9 @@ class DungeonRoom {
   final List<TideValve> tideValves;
   final List<TideSeal> tideSeals;
   final int? sealStarIndex; // star awarded when every sluice seal is open
-  final List<GhostEddy> ghostEddies;
-  final List<GhostMouth> ghostMouths; // the current's source spring + sea drain
-  final List<GhostChannel> ghostChannels; // the carved grooves between them
-  final int? eddyStarIndex; // star awarded for riding the full current
+  final List<CanalNode> canalNodes; // spring + basins + the sea drain
+  final List<CanalChannel> canalChannels; // the carved grooves, with sills
+  final int? canalStarIndex; // star banked when the lantern reaches the sea
   final List<MoonPool> moonPools;
   final List<TideZone> tideZones;
   final List<TideDoorRule> tideDoorRules;
@@ -914,10 +931,9 @@ class DungeonRoom {
     this.tideValves = const [],
     this.tideSeals = const [],
     this.sealStarIndex,
-    this.ghostEddies = const [],
-    this.ghostMouths = const [],
-    this.ghostChannels = const [],
-    this.eddyStarIndex,
+    this.canalNodes = const [],
+    this.canalChannels = const [],
+    this.canalStarIndex,
     this.moonPools = const [],
     this.tideZones = const [],
     this.tideDoorRules = const [],
@@ -1100,7 +1116,7 @@ class DungeonLayout {
       if (room.brazierStarIndex != null) seen.add(room.brazierStarIndex!);
       if (room.vineStarIndex != null) seen.add(room.vineStarIndex!);
       if (room.sealStarIndex != null) seen.add(room.sealStarIndex!);
-      if (room.eddyStarIndex != null) seen.add(room.eddyStarIndex!);
+      if (room.canalStarIndex != null) seen.add(room.canalStarIndex!);
       if (room.ribStarIndex != null) seen.add(room.ribStarIndex!);
       if (room.pillarStarIndex != null) seen.add(room.pillarStarIndex!);
       if (room.circuitStarIndex != null) seen.add(room.circuitStarIndex!);
@@ -2257,11 +2273,11 @@ const DungeonLayout _fireLayout = DungeonLayout(
 /// to one temple-wide tide* — low, mid or high — and the tide MOVES: floods
 /// and drains are animated, reshaping walkways, walls and doors while you
 /// watch. Star 1 (Tide) — restore the tide-works: open three sluice seals,
-/// each reachable only at one tide stand. Star 2 (Current) — the ghost
-/// gallery: Spirit insight bares each eddy's SPIN, spin betrays the feeder,
-/// and the wade order is DERIVED from the flow the spins describe (rolled
-/// per run, provably unique). Star 3 (Deep) — beyond the sealed mirror gate:
-/// at MID tide,
+/// each reachable only at one tide stand. Star 2 (Current) — the gallery's
+/// CANAL NETWORK: set the moon-lantern in the spring mouth and float it out
+/// to the sea drain, steering it by playing the tide (each groove's SILL says
+/// which stands it runs at) and by plugging a basin with Ice. Star 3 (Deep) —
+/// beyond the sealed mirror gate: at MID tide,
 /// freeze the two TRUE moon-pools (Ice directly, or Spirit acting in the
 /// water — Spirit+Water→Ice) into bridge-discs; the well wakes Leviathan.
 const DungeonLayout _waterLayout = DungeonLayout(
@@ -2279,7 +2295,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Current Star',
       earnAnnouncement:
-          'The Current Star is yours — the ghost-water knows its course',
+          'The Current Star is yours — the moon-lantern rides out to sea',
     ),
     DungeonStarSpec(name: 'Deep Star'),
   ],
@@ -2404,15 +2420,28 @@ const DungeonLayout _waterLayout = DungeonLayout(
       sealStarIndex: 0,
     ),
 
-    // Room D — Ghost Gallery. Star 2 (the deduction rework, docs §6.4): a
-    // ghost-current runs from the spring in the north-west wall to the sea
-    // drain in the south-east, through all five eddies. The carved channels
-    // between them are stone and always visible; WHICH way the water runs
-    // down each one is the run's secret, and each eddy's SPIN is the only
-    // testimony. Twelve channels allow exactly SIX source→sea routes, and
-    // every one of the six is uniquely pinned by its spins — so the current
-    // is rolled fresh per run and stays provably deducible
-    // (`solveGhostCurrent`, layout-test enforced).
+    // Room D — the Lantern Gallery. Star 2 (the moon-lantern rework, docs
+    // §6.4): the room is one CANAL NETWORK, cut in stone and wholly public —
+    // ten directed grooves between a spring mouth, five basins and the sea
+    // drain, each groove wearing its SILL on its lip. NOTHING here is hidden:
+    // the topology, the fall-direction chevrons and the sill notches are all
+    // carved, and the only thing Spirit's reading buys is foresight (which
+    // grooves are DEEP cuts, and where the water would take the lantern next).
+    //
+    // THE SILL RULE (one function, `canalChannelLive`, shared by the drift,
+    // the render and the proof): a groove runs when the water tops its sill —
+    // low at every stand, mid from the middle water up, crest only at the
+    // high water — while a DEEP cut runs at low and middle and drowns into a
+    // swallowing torrent at high. THE SPILL RULE (`canalSpillFrom`): a basin
+    // pours down the LOWEST live groove leaving it, so the tide alone decides
+    // most forks; Ice plugging a basin removes it as a destination and forces
+    // the next-lowest.
+    //
+    // The authored network is proved by `solveLanternDrift` (layout test):
+    // reachable, `strandable == 0`, NO single stand runs it alone (every road
+    // to the sea crosses one crest AND one deep cut, so the tide must be
+    // PLAYED), and no dam-free play reaches the sea (the temple's natural fall
+    // ends in the blind sump, which is the puzzle's whole thesis).
     'ghost_gallery': DungeonRoom(
       id: 'ghost_gallery',
       bounds: Rect.fromLTWH(0, 0, 1000, 720),
@@ -2432,37 +2461,48 @@ const DungeonLayout _waterLayout = DungeonLayout(
       tideDoorRules: [
         TideDoorRule(targetRoomId: 'pearl_vault', tides: {0}),
       ],
-      ghostMouths: [
-        // The spring: a carved lion-mouth high in the north-west wall.
-        GhostMouth(id: 'spring', position: Offset(120, 120), isSource: true),
-        // The sea drain, low in the south-east corner.
-        GhostMouth(id: 'sea', position: Offset(880, 640), isSource: false),
+      // The gallery keeps its own sluice-bank on the west wall: the tide is
+      // the steering wheel, so it has to be IN the room — but far enough from
+      // the water's forks that every change is a committed walk.
+      tideValves: [
+        TideValve(position: Offset(80, 470), level: 0),
+        TideValve(position: Offset(80, 560), level: 1),
+        TideValve(position: Offset(80, 650), level: 2),
       ],
-      ghostEddies: [
-        GhostEddy(id: 'eddy_a', position: Offset(200, 200)),
-        GhostEddy(id: 'eddy_b', position: Offset(480, 140)),
-        GhostEddy(id: 'eddy_c', position: Offset(760, 240)),
-        GhostEddy(id: 'eddy_d', position: Offset(620, 480)),
-        GhostEddy(id: 'eddy_e', position: Offset(300, 560)),
+      canalNodes: [
+        // The spring: a carved lion-mouth high in the north-west wall. It is
+        // the one basin that always answers a hand, so a lost lantern can
+        // never end a run (§ no-softlock, structural).
+        CanalNode(id: 'spring', position: Offset(100, 110), isSpring: true),
+        CanalNode(id: 'north_lock', position: Offset(330, 165)),
+        CanalNode(id: 'east_shelf', position: Offset(800, 210)),
+        CanalNode(id: 'heart_basin', position: Offset(545, 330)),
+        // The blind sump: a throatless basin — no groove leaves it, and the
+        // temple's natural fall runs straight into it. Visibly a dead end.
+        CanalNode(id: 'blind_sump', position: Offset(215, 495)),
+        CanalNode(id: 'south_race', position: Offset(600, 540)),
+        // The sea drain, low in the south-east corner: the lantern reaching
+        // it banks the Current Star.
+        CanalNode(id: 'sea', position: Offset(885, 645), isSea: true),
       ],
-      ghostChannels: [
-        GhostChannel('spring', 'eddy_a'),
-        GhostChannel('spring', 'eddy_b'),
-        GhostChannel('eddy_a', 'eddy_b'),
-        GhostChannel('eddy_a', 'eddy_e'),
-        GhostChannel('eddy_b', 'eddy_c'),
-        GhostChannel('eddy_b', 'eddy_d'),
-        GhostChannel('eddy_b', 'eddy_e'),
-        GhostChannel('eddy_c', 'eddy_d'),
-        GhostChannel('eddy_c', 'sea'),
-        GhostChannel('eddy_d', 'eddy_e'),
-        GhostChannel('eddy_d', 'sea'),
-        GhostChannel('eddy_e', 'sea'),
+      canalChannels: [
+        CanalChannel('spring', 'north_lock', CanalSill.low),
+        CanalChannel('north_lock', 'heart_basin', CanalSill.deep),
+        CanalChannel('north_lock', 'blind_sump', CanalSill.mid),
+        CanalChannel('north_lock', 'east_shelf', CanalSill.crest),
+        CanalChannel('east_shelf', 'heart_basin', CanalSill.mid),
+        CanalChannel('east_shelf', 'south_race', CanalSill.deep),
+        CanalChannel('heart_basin', 'blind_sump', CanalSill.low),
+        CanalChannel('heart_basin', 'south_race', CanalSill.deep),
+        CanalChannel('south_race', 'blind_sump', CanalSill.mid),
+        CanalChannel('south_race', 'sea', CanalSill.crest),
       ],
       tideZones: [
-        TideZone(rect: Rect.fromLTWH(250, 300, 500, 200), floodedAt: 1),
+        // The gallery's own flooded middle: from the middle water up it is
+        // swum, so a high stand is not free — it slows every walk to a valve.
+        TideZone(rect: Rect.fromLTWH(300, 290, 420, 210), floodedAt: 1),
       ],
-      eddyStarIndex: 1,
+      canalStarIndex: 1,
     ),
 
     // Room E — Pearl Vault. The temple's quiet treasury, dry only at low

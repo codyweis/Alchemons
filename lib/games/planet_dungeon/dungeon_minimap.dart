@@ -417,17 +417,17 @@ class _DungeonMiniMapPainter extends CustomPainter {
         objective = seal.position;
         break;
       }
-    } else if (room.eddyStarIndex != null &&
-        !game.hasStar(room.eddyStarIndex!)) {
-      // NEVER the next eddy: which eddy comes next is the whole puzzle, and
-      // a marker that answered it would hand the deduction over for free.
-      // The marker names the course's ENDS instead — both carved stone, both
-      // already in plain sight: the spring you start from, then the sea you
-      // are running toward.
-      final wantSource = game.eddyProgress == 0;
-      for (final mouth in room.ghostMouths) {
-        if (mouth.isSource == wantSource) {
-          objective = mouth.position;
+    } else if (room.canalStarIndex != null &&
+        !game.hasStar(room.canalStarIndex!)) {
+      // NEVER the next basin: which groove the water takes is the whole
+      // puzzle, and a marker that answered it would hand the route over for
+      // free. The marker names the network's ENDS instead — both carved
+      // stone, both already in plain sight: the spring you set the lantern
+      // in, then the sea drain you are steering it toward.
+      final wantSpring = game.lanternNodeId == null || !game.lanternLit;
+      for (final node in room.canalNodes) {
+        if (wantSpring ? node.isSpring : node.isSea) {
+          objective = node.position;
           break;
         }
       }
@@ -874,7 +874,7 @@ class _DungeonFullMapPainter extends CustomPainter {
         room.brazierStarIndex ??
         room.vineStarIndex ??
         room.sealStarIndex ??
-        room.eddyStarIndex ??
+        room.canalStarIndex ??
         room.ribStarIndex ??
         room.pillarStarIndex ??
         room.guardian?.starIndex;

@@ -3,9 +3,10 @@
 // completable with the real verbs; the rest of the file pins the pieces that
 // can silently rot:
 //
-//  • Star 2 is a DEDUCTION now (docs §6.4 REWORK / §9.1 item 2): the spin
-//    rule, the spin→flow derivation, the solver's uniqueness guarantee, the
-//    per-run roll, the re-cut insight tiers, and the wrong-eddy scatter.
+//  • Star 2 is the MOON-LANTERN now (docs §6.4 REWORK): the gallery's canal
+//    network, its two public rules (SILL and SPILL), the tide as the steering
+//    wheel, Ice as the second verb, Spirit's foresight, and both cheap
+//    failures — grounding on a bare sill and going under in a torrent.
 //  • The Leviathan turns the tide on its roar (§7 retrofit) and hides in the
 //    swell — and raids stay exempt.
 //  • The invariants the rework was not allowed to touch: the Water+Pip
@@ -121,21 +122,64 @@ PlanetDungeonGame _moonWellAtMidTide(CosmicPartyMember m) {
   return game;
 }
 
-/// A gallery harness with a Spirit creature in slot 0 (Int decides the tier)
-/// and the current pinned to a known course, so a test never has to fight the
-/// per-run roll to say something exact about the wade.
-PlanetDungeonGame _galleryWithCourse(
-  List<String> route, {
-  double intelligence = 3,
-}) {
-  final game = _harness([_member(0, 'Spirit', 'mask', intelligence: intelligence)]);
-  game.adoptGhostRoute(route);
+/// A gallery harness: the party stands in the Lantern Gallery's south-east
+/// floor, clear of every basin and every sluice wheel, so a press means what
+/// the test says it means and nothing else.
+PlanetDungeonGame _gallery(List<CosmicPartyMember> party) {
+  final game = _harness(party);
   game.currentRoomId = 'ghost_gallery';
-  final at = game.layout.rooms['ghost_gallery']!.bounds.center;
-  game.creatures.single
+  const clear = Offset(500, 690);
+  for (final c in game.creatures) {
+    c
+      ..position = clear
+      ..lastSafe = clear;
+  }
+  return game;
+}
+
+Offset _nodeAt(PlanetDungeonGame game, String id) => game
+    .layout
+    .rooms['ghost_gallery']!
+    .canalNodes
+    .firstWhere((n) => n.id == id)
+    .position;
+
+/// Walk the active creature onto [at] and press ACT — the whole player input
+/// vocabulary for this puzzle, in one line.
+void _act(PlanetDungeonGame game, Offset at) {
+  game.creatures[game.activeIndex]
     ..position = at
     ..lastSafe = at;
-  return game;
+  game.activateAbility();
+}
+
+/// Set the lantern at [nodeId] and light it with a hand, as a player does.
+/// For a basin mid-network the test seeds the RESTING state first (the same
+/// state a grounding leaves behind) rather than spending twenty seconds of
+/// drift getting there — the setting press itself is the real verb.
+void _setLanternAt(PlanetDungeonGame game, String nodeId) {
+  if (nodeId != 'spring') {
+    game.lanternNodeId = nodeId;
+    game.lanternLit = false;
+  }
+  _act(game, _nodeAt(game, nodeId));
+}
+
+/// Let the temple run until [done], healing as we go. False on timeout.
+bool _driftUntil(
+  PlanetDungeonGame game,
+  bool Function() done, {
+  double seconds = 30,
+}) {
+  final steps = (seconds * 60).round();
+  for (var i = 0; i < steps; i++) {
+    if (done()) return true;
+    game.update(1 / 60);
+    for (final c in game.creatures) {
+      c.hp = c.maxHp;
+    }
+  }
+  return done();
 }
 
 void main() {
@@ -260,42 +304,81 @@ void main() {
       reason: 'high water drowns the pearl passage',
     );
 
-    // ── Star 2: Spirit bares the SPINS; the order is derived from them ──
+    // ── Star 2: float the moon-lantern out to the sea ──
+    game.currentRoomId = 'ghost_gallery';
+    Offset nodeAt(String id) =>
+        gallery.canalNodes.firstWhere((n) => n.id == id).position;
+    Offset wheelAt(int stand) =>
+        gallery.tideValves.firstWhere((v) => v.level == stand).position;
+
+    // The Spirit reads the deep cuts before committing anything to the water
+    // — the same first move a player makes, and pure foresight either way.
     game.setActive(1); // Spirit mask
     teleport('ghost_gallery', gallery.bounds.center);
     game.activateAbility();
     expect(
-      game.eddiesBared,
+      game.sumpsRead,
       isTrue,
-      reason: 'Spirit insight bares the ghost current',
+      reason: 'Spirit names the deep cuts for the rest of the run',
     );
-    // The player derives the course from what they can see; so does the test.
-    final derived = game.solveGhostCurrent();
-    expect(derived.satisfying, 1, reason: 'the spins allow exactly one course');
-    final course = derived.order!;
-    Offset eddyAt(String id) =>
-        gallery.ghostEddies.firstWhere((e) => e.id == id).position;
 
-    // Start the course, then blunder into a later eddy: the current scatters.
-    teleport('ghost_gallery', eddyAt(course[0]));
-    step();
-    expect(game.eddyProgress, 1);
-    expect(game.progressReadout?.label, 'EDDIES');
-    expect(game.progressReadout?.value, '1/5');
-    teleport('ghost_gallery', eddyAt(course[2]));
-    step();
-    expect(game.eddyProgress, 0, reason: 'a wrong eddy scatters the current');
-    expect(
-      game.combatEnemies.where((e) => !e.isDead),
-      isNotEmpty,
-      reason: 'the scattered ghost-water rises angry',
-    );
-    clearWisps();
-    for (final id in course) {
-      teleport('ghost_gallery', eddyAt(id));
-      step();
+    // The player reads the stone and plans a route. So does the test — using
+    // the game's OWN solver, which walks the game's OWN sill and spill rules,
+    // so this stays a real playthrough instead of a script free to rot away
+    // from the mechanic it is meant to be exercising.
+    final proof = game.solveLanternDrift();
+    expect(proof.solvable, isTrue, reason: 'the canals must be floatable');
+    expect(proof.strandable, 0, reason: 'and must not be able to strand us');
+
+    void setDams(List<String> want) {
+      game.setActive(2); // the Ice mane plugs the basins
+      final target = want.toSet();
+      for (final id in {...game.dammedNodes, ...target}) {
+        if (game.dammedNodes.contains(id) == target.contains(id)) continue;
+        teleport('ghost_gallery', nodeAt(id));
+        game.activateAbility();
+      }
+      expect(game.dammedNodes, target);
     }
-    expect(game.hasStar(1), isTrue, reason: 'the derived course banks Star 2');
+
+    void setStand(int stand) {
+      game.setActive(0); // the Water pip works the gallery's own wheels
+      teleport('ghost_gallery', wheelAt(stand));
+      game.activateAbility();
+      expect(game.tideLevel, stand, reason: 'the wheel answers Water at once');
+      settleTide();
+    }
+
+    var standing = 'spring';
+    for (final leg in proof.route) {
+      expect(leg.from, standing, reason: 'the route must be connected');
+      // Commit the ice and the water BEFORE the lantern is at the fork.
+      setDams(leg.dams);
+      setStand(leg.stand);
+      if (game.lanternNodeId == null) {
+        // Any hand may float it — the lamp is not an elemental act.
+        game.setActive(1);
+        teleport('ghost_gallery', nodeAt('spring'));
+        game.activateAbility();
+        expect(game.lanternLit, isTrue, reason: 'the wick catches');
+        expect(game.progressReadout?.label, 'LANTERN');
+        expect(game.progressReadout?.value, 'ADRIFT');
+      }
+      final arrived = _driftUntil(
+        game,
+        () => game.lanternNodeId == leg.to && game.lanternChannel == null,
+        seconds: 60,
+      );
+      expect(arrived, isTrue, reason: 'the lantern must ride $leg');
+      standing = leg.to;
+    }
+    expect(
+      game.lanternLosses,
+      0,
+      reason: 'a proved route, played as proved, never loses the lantern',
+    );
+    expect(standing, 'sea');
+    expect(game.hasStar(1), isTrue, reason: 'the sea drain banks Star 2');
     expect(game.guardianRiteUnlocked, isTrue);
     expect(
       game.isDoorLocked(court, mirrorGate),
@@ -419,236 +502,388 @@ void main() {
     expect(game.starsEarnedCount, 3);
   });
 
-  // ── Star 2: the spin → flow derivation ────────────────────
+  // ── Star 2: the sill rule and the spill rule ─────────────
 
-  test('THE RULE: an eddy rolls the way its feeder drives it', () {
-    final game = _harness([_member(0, 'Spirit', 'mask')]);
-    final gallery = game.layout.rooms['ghost_gallery']!;
-    final at = {
-      for (final m in gallery.ghostMouths) m.id: m.position,
-      for (final e in gallery.ghostEddies) e.id: e.position,
-    };
-    // Every route the stone allows, every eddy on it: the spin the gallery
-    // shows must be exactly "is my feeder west of me?" — nothing else is
-    // hidden, and nothing else may leak in.
-    for (final route in game.ghostRoutes()) {
-      game.adoptGhostRoute(route);
-      for (var i = 1; i < route.length - 1; i++) {
-        final eddy = route[i], feeder = route[i - 1];
-        expect(
-          game.eddySpinSunwise(eddy),
-          at[feeder]!.dx < at[eddy]!.dx,
-          reason: '$eddy fed from $feeder must roll '
-              '${at[feeder]!.dx < at[eddy]!.dx ? 'sunwise' : 'widdershins'}',
-        );
-      }
-    }
-  });
-
-  test('the wade order is DERIVED from the spins, and the spins alone pin it',
-      () {
-    final game = _harness([_member(0, 'Spirit', 'mask')]);
-    final gallery = game.layout.rooms['ghost_gallery']!;
-    final routes = game.ghostRoutes();
-    expect(routes.length, 6, reason: 'twelve channels, six spring→sea routes');
-
-    for (final route in routes) {
-      game.adoptGhostRoute(route);
-      // Hand the solver ONLY what a player can see.
-      final spins = {
-        for (final e in gallery.ghostEddies) e.id: game.eddySpinSunwise(e.id)!,
-      };
-      final result = game.solveGhostCurrent(spins);
-      expect(result.searched, 6);
+  test('THE SILL RULE: what runs at which stand of water', () {
+    final game = _harness([_member(0, 'Water', 'pip')]);
+    // low 0.0 · mid 0.5 · high 1.0 — the same scale as tideAnim.
+    for (final water in const [0.0, 0.5, 1.0]) {
       expect(
-        result.satisfying,
-        1,
-        reason: 'the spins of ${route.join('→')} must single it out',
+        game.canalChannelLive(CanalSill.low, water),
+        isTrue,
+        reason: 'a floor groove runs at every stand',
       );
-      expect(result.order, route.sublist(1, route.length - 1));
-      expect(game.ghostWadeOrder, result.order);
     }
-  });
+    expect(game.canalChannelLive(CanalSill.mid, 0.0), isFalse);
+    expect(game.canalChannelLive(CanalSill.mid, 0.5), isTrue);
+    expect(game.canalChannelLive(CanalSill.mid, 1.0), isTrue);
 
-  test('a scrambled reading finds no course at all (the spins are load-bearing)',
-      () {
-    final game = _harness([_member(0, 'Spirit', 'mask')]);
-    final gallery = game.layout.rooms['ghost_gallery']!;
-    game.adoptGhostRoute(game.ghostRoutes().first);
-    final spins = {
-      for (final e in gallery.ghostEddies) e.id: game.eddySpinSunwise(e.id)!,
-    };
-    // Flip one eddy's spin: no route in the gallery explains the water now.
-    final victim = gallery.ghostEddies.first.id;
-    final lied = {...spins, victim: !spins[victim]!};
-    final result = game.solveGhostCurrent(lied);
-    expect(result.searched, 6);
+    expect(game.canalChannelLive(CanalSill.crest, 0.0), isFalse);
+    expect(game.canalChannelLive(CanalSill.crest, 0.5), isFalse);
     expect(
-      result.satisfying,
-      0,
-      reason: 'one wrong spin and the reading stops being a course — the '
-          'derivation really is driven by the spins',
-    );
-  });
-
-  test('the current is rolled per run, and never one the spins cannot pin',
-      () {
-    final seen = <String>{};
-    for (var i = 0; i < 24; i++) {
-      final game = _harness([_member(0, 'Spirit', 'mask')]);
-      expect(game.ghostWadeOrder.length, 5);
-      expect(game.solveGhostCurrent().satisfying, 1);
-      seen.add(game.ghostWadeOrder.join('>'));
-    }
-    expect(seen.length, greaterThan(1), reason: 'a wiki must not spoil it');
-  });
-
-  test('death does not reroll the current — the water keeps its course', () {
-    var wiped = false;
-    final game = _harness(
-      [_member(0, 'Spirit', 'mask')],
-      onPlayerDown: () => wiped = true,
-    );
-    final before = game.ghostWadeOrder;
-    final gallery = game.layout.rooms['ghost_gallery']!;
-    game.currentRoomId = 'ghost_gallery';
-    final first = gallery.ghostEddies
-        .firstWhere((e) => e.id == before.first)
-        .position;
-    game.creatures.single
-      ..position = first
-      ..lastSafe = first;
-    game.activateAbility(); // bare the water
-    game.update(1 / 60);
-    expect(game.eddyProgress, 1);
-    expect(game.eddiesBared, isTrue);
-
-    // A party wipe resets the run.
-    game.creatures.single.hp = 0;
-    game.update(1 / 60);
-    expect(wiped, isTrue, reason: 'the party went down');
-    expect(game.eddyProgress, 0, reason: 'the wade resets');
-    expect(game.eddiesBared, isFalse, reason: 'the water hides itself again');
-    expect(
-      game.ghostWadeOrder,
-      before,
-      reason: 'but the course itself survives the descent — a death costs the '
-          'walk back, never the deduction',
-    );
-  });
-
-  // ── Star 2: insight tiers ────────────────────────────────
-
-  test('insight tiers give progressively more: spins → flow → pips', () {
-    final route = _harness([_member(0, 'Spirit', 'mask')]).ghostRoutes().first;
-
-    // t0 — the low-Int Spirit bares the SPINS and is taught the RULE. That is
-    // all: the evidence, and how to read it.
-    final t0 = _galleryWithCourse(route, intelligence: 1);
-    t0.activateAbility();
-    expect(t0.eddiesBared, isTrue);
-    expect(t0.eddyRevealTier, 0);
-    expect(t0.hintChannel, DungeonHintChannel.insight);
-    expect(t0.hintText, contains('feeder'));
-    expect(
-      t0.hintText,
-      contains('sunwise'),
-      reason: 'tier 0 teaches the rule, not the answer',
-    );
-
-    // t1 — the flow itself, drawn along the channels: no deduction left, but
-    // the course still has to be traced.
-    final t1 = _galleryWithCourse(route, intelligence: 3);
-    t1.activateAbility();
-    expect(t1.eddyRevealTier, 1);
-    expect(t1.hintText, contains('flow'));
-
-    // t2 — the water counts itself: the pips, today's old baseline, now the
-    // high-Int reward instead of the default.
-    final t2 = _galleryWithCourse(route, intelligence: 5);
-    t2.activateAbility();
-    expect(t2.eddyRevealTier, 2);
-    expect(t2.hintText, contains('counts'));
-
-    // The tiered extras ride a timer that Intelligence buys; the SPINS do
-    // not — they stay bare for the run.
-    expect(t2.eddyRevealTimer, greaterThan(t0.eddyRevealTimer));
-    for (var i = 0; i < 60 * 30; i++) {
-      t0.update(1 / 60);
-    }
-    expect(t0.eddyRevealTimer, lessThanOrEqualTo(0));
-    expect(
-      t0.eddiesBared,
+      game.canalChannelLive(CanalSill.crest, 1.0),
       isTrue,
-      reason: 'a deduction you cannot look at twice is only a memory test',
+      reason: 'only the high water crests it',
+    );
+
+    // The deep cut: an ordinary groove at low and middle, and a TORRENT at
+    // high — which is the one thing about the network you can learn the
+    // expensive way instead of reading it.
+    expect(game.canalChannelLive(CanalSill.deep, 0.0), isTrue);
+    expect(game.canalChannelLive(CanalSill.deep, 0.5), isTrue);
+    expect(game.canalChannelLive(CanalSill.deep, 1.0), isFalse);
+    expect(game.canalChannelTorrent(CanalSill.deep, 1.0), isTrue);
+    expect(game.canalChannelTorrent(CanalSill.deep, 0.5), isFalse);
+    expect(
+      game.canalChannelTorrent(CanalSill.low, 1.0),
+      isFalse,
+      reason: 'only a DEEP cut drowns',
+    );
+
+    // The sills line up with the tide zones exactly, so a groove starts
+    // running on the same frame its chamber starts to flood.
+    expect(game.canalSillThreshold(CanalSill.mid), 0.47);
+    expect(game.canalSillThreshold(CanalSill.crest), 0.97);
+  });
+
+  test('THE SPILL RULE: a basin pours down the lowest live groove it has', () {
+    final game = _harness([_member(0, 'Water', 'pip')]);
+    String? spill(String from, int stand, [Set<String> dammed = const {}]) =>
+        game.canalSpillFrom(from, water: stand / 2, dammed: dammed)?.to;
+
+    // The north lock is the fork the tide alone decides: at low and middle
+    // water the deep cut is the lowest thing on offer; at high it is a
+    // torrent, so the water reaches for the next sill up.
+    expect(spill('north_lock', 0), 'heart_basin');
+    expect(spill('north_lock', 1), 'heart_basin');
+    expect(
+      spill('north_lock', 2),
+      'blind_sump',
+      reason: 'at high water the deep cut is gone and the MID groove is the '
+          'lowest live one — straight into the blind sump',
+    );
+    // …and the ice is what buys the crest.
+    expect(
+      spill('north_lock', 2, {'blind_sump'}),
+      'east_shelf',
+      reason: 'plug the sump and the water has to reach for the crest',
+    );
+
+    // The natural fall, all the way down, ends nowhere.
+    expect(spill('heart_basin', 0), 'south_race');
+    expect(spill('heart_basin', 2), 'blind_sump');
+    expect(spill('south_race', 1), 'blind_sump');
+    expect(spill('south_race', 2), 'blind_sump');
+    expect(
+      spill('south_race', 2, {'blind_sump'}),
+      'sea',
+      reason: 'the sea groove is a crest, and it is never the lowest thing '
+          'on offer — the ice has to take the alternative away',
+    );
+    expect(
+      spill('south_race', 0, {'blind_sump'}),
+      isNull,
+      reason: 'nothing runs: the lantern simply turns and waits on the water',
+    );
+
+    // A dam can only ever take a destination AWAY. Nothing but the tide
+    // opens a dry sill.
+    expect(
+      spill('north_lock', 0, {'heart_basin', 'blind_sump'}),
+      isNull,
+      reason: 'the crest stays dry at low water however much ice you lay',
     );
   });
 
-  test('only Spirit bares the water; a non-Spirit Mask still reads the rule',
-      () {
-    final route = _harness([_member(0, 'Spirit', 'mask')]).ghostRoutes().first;
-
-    // A Water horn: one clause of refusal, and nothing bared.
-    final horn = _harness([_member(0, 'Water', 'horn')]);
-    horn.adoptGhostRoute(route);
-    horn.currentRoomId = 'ghost_gallery';
-    horn.creatures.single.position =
-        horn.layout.rooms['ghost_gallery']!.bounds.center;
-    horn.activateAbility();
-    expect(horn.eddiesBared, isFalse);
-    expect(horn.hintChannel, DungeonHintChannel.blocked);
-    expect(horn.hintText, 'Only Spirit bares the ghost-water');
-
-    // An Ice mask cannot bare the water either — but the frieze is stone, and
-    // a high-Int reading of it gives the RULE (the method channel's job).
-    final mask = _harness([_member(0, 'Ice', 'mask', intelligence: 5)]);
-    mask.adoptGhostRoute(route);
-    mask.currentRoomId = 'ghost_gallery';
-    mask.creatures.single.position =
-        mask.layout.rooms['ghost_gallery']!.bounds.center;
-    mask.activateAbility();
-    expect(mask.eddiesBared, isFalse, reason: 'the water stays hidden');
-    expect(mask.hintChannel, DungeonHintChannel.insight);
-    expect(mask.hintText, contains('sunwise'));
+  test('the blind sump is a visible dead end, and gives the lantern back', () {
+    final game = _gallery([_member(0, 'Ice', 'mane')]);
+    // The temple's own fall, played straight and never fought: no dams, and
+    // the high water the deep cuts cannot take.
+    game.tideLevel = 2;
+    game.tideAnim = 1.0;
+    _setLanternAt(game, 'spring');
+    final ended = _driftUntil(game, () => !game.lanternLit, seconds: 90);
+    expect(ended, isTrue, reason: 'the natural fall must end somewhere');
+    expect(
+      game.lanternLosses,
+      1,
+      reason: 'spring → north lock → the blind sump, exactly as the stone '
+          'says it would',
+    );
+    expect(
+      game.lanternNodeId,
+      'north_lock',
+      reason: 'the backwash hands it back to the last mouth it passed — the '
+          'sump is a cost, never a trap',
+    );
+    expect(
+      game.combatEnemies.where((e) => !e.isDead),
+      isEmpty,
+      reason: 'a dry loss is not punished; only the torrent rouses brine',
+    );
+    // And it is not softlocked there: the solver says the sea is still
+    // reachable from that mouth, and so it is.
+    expect(game.solveLanternDrift().strandable, 0);
   });
 
-  // ── Star 2: the consequence ──────────────────────────────
-
-  test('a later eddy mid-wade scatters the course and rouses ghost wisps', () {
-    final route = _harness([_member(0, 'Spirit', 'mask')]).ghostRoutes().first;
-    final game = _galleryWithCourse(route);
-    final gallery = game.layout.rooms['ghost_gallery']!;
-    Offset at(String id) =>
-        gallery.ghostEddies.firstWhere((e) => e.id == id).position;
-    final course = game.ghostWadeOrder;
-
-    void wade(String id) {
-      game.creatures.single
-        ..position = at(id)
-        ..lastSafe = at(id);
-      game.update(1 / 60);
-      game.creatures.single.hp = game.creatures.single.maxHp;
-    }
-
-    // Stepping into the WRONG first eddy is free — a course can always be
-    // started over cleanly.
-    wade(course[1]);
-    expect(game.eddyProgress, 0);
-    expect(game.combatEnemies.where((e) => !e.isDead), isEmpty);
-
-    wade(course[0]);
-    wade(course[1]);
-    expect(game.eddyProgress, 2);
-
-    // …but jumping ahead mid-course scatters everything.
-    wade(course[4]);
-    expect(game.eddyProgress, 0, reason: 'the current scatters');
+  test('the high water swallows a lantern still in a deep cut', () {
+    final game = _gallery([_member(0, 'Water', 'pip')]);
+    // From the MIDDLE water the deep cut still runs, and the flood to high is
+    // one stand away — which is exactly the mistake this punishes.
+    game.tideLevel = 1;
+    game.tideAnim = 0.5;
+    _setLanternAt(game, 'north_lock');
+    // Let it commit to the deep cut down to the heart basin…
+    _driftUntil(game, () => game.lanternChannel != null, seconds: 10);
+    expect(game.lanternChannel?.sill, CanalSill.deep);
+    _driftUntil(game, () => game.lanternT > 0.15, seconds: 10);
+    // …then bring the high water in on top of it.
+    game.tideLevel = 2;
+    final lost = _driftUntil(game, () => !game.lanternLit, seconds: 20);
+    expect(lost, isTrue);
+    expect(
+      game.lanternNodeId,
+      'north_lock',
+      reason: 'the sump spits it back into the basin it left',
+    );
     expect(
       game.combatEnemies.where((e) => !e.isDead),
       isNotEmpty,
-      reason: 'and the ghost-water rises angry',
+      reason: 'the torrent is loud, and the temple\'s old brine hears it',
     );
-    expect(game.hintText, contains('scatters'));
+  });
+
+  test('a groove that dries out grounds the lantern where it lies', () {
+    final game = _gallery([_member(0, 'Water', 'pip')]);
+    game.tideLevel = 2;
+    game.tideAnim = 1.0;
+    game.dammedNodes.add('blind_sump');
+    _setLanternAt(game, 'north_lock');
+    _driftUntil(game, () => game.lanternChannel != null, seconds: 10);
+    expect(
+      game.lanternChannel?.sill,
+      CanalSill.crest,
+      reason: 'the plugged sump forces the crest to the east shelf',
+    );
+    _driftUntil(game, () => game.lanternT > 0.3, seconds: 12);
+    // Drop the water mid-crossing and the crest simply stops running.
+    game.tideLevel = 1;
+    final grounded = _driftUntil(game, () => !game.lanternLit, seconds: 20);
+    expect(grounded, isTrue);
+    expect(game.lanternNodeId, 'north_lock');
+    expect(
+      game.combatEnemies.where((e) => !e.isDead),
+      isEmpty,
+      reason: 'grounding on a bare sill costs the walk and nothing else',
+    );
+  });
+
+  test('the lantern will not leave a basin while the water is moving', () {
+    final game = _gallery([_member(0, 'Water', 'pip')]);
+    _setLanternAt(game, 'north_lock');
+    game.tideLevel = 2; // the flood begins, and the basin churns
+    for (var i = 0; i < 60 * 6; i++) {
+      game.update(1 / 60);
+      if (!game.tideSettled) {
+        expect(
+          game.lanternChannel,
+          isNull,
+          reason: 'it turns in the basin until the water settles — which is '
+              'what makes a change begun in time still land',
+        );
+      }
+    }
+    expect(
+      game.tideSettled,
+      isTrue,
+      reason: 'and six seconds is more than the ~4.5s a low→high flood takes',
+    );
+  });
+
+  test('the spring always answers: a lost lantern can never end a run', () {
+    final game = _gallery([_member(0, 'Water', 'pip')]);
+    game.tideLevel = 2;
+    game.tideAnim = 1.0;
+    _setLanternAt(game, 'spring');
+    _driftUntil(game, () => !game.lanternLit, seconds: 90);
+    expect(game.lanternLit, isFalse);
+    expect(game.lanternNodeId, isNot('spring'));
+
+    // Any hand, any element: wade to the spring mouth and set it again.
+    _act(game, game.layout.rooms['ghost_gallery']!.canalNodes
+        .firstWhere((n) => n.isSpring)
+        .position);
+    expect(game.lanternLit, isTrue);
+    expect(game.lanternNodeId, 'spring');
+  });
+
+  test('a grounded lantern is re-lit by hand where it lies', () {
+    final game = _gallery([_member(0, 'Ice', 'mane')]);
+    game.tideLevel = 2;
+    game.tideAnim = 1.0;
+    _setLanternAt(game, 'spring');
+    _driftUntil(game, () => !game.lanternLit, seconds: 90);
+    final rest = game.lanternNodeId!;
+    // Wait out the backwash so the lantern is truly at rest on the stone.
+    for (var i = 0; i < 90; i++) {
+      game.update(1 / 60);
+    }
+    _act(game, _nodeAt(game, rest));
+    expect(game.lanternLit, isTrue);
+    expect(game.lanternNodeId, rest, reason: 'it rides on from where it lay');
+  });
+
+  // ── Star 2: the ice ──────────────────────────────────────
+
+  test('the dam is element-only: every Ice family plugs a basin identically',
+      () {
+    for (final family in const ['pip', 'mane', 'horn', 'mask', 'wing', 'kin']) {
+      final game = _gallery([_member(0, 'Ice', family)]);
+      _act(game, _nodeAt(game, 'blind_sump'));
+      expect(
+        game.dammedNodes,
+        {'blind_sump'},
+        reason: 'an Ice $family must plug the basin',
+      );
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'and do it silently ($family)',
+      );
+      // Toggled: a second hand takes the plug back out, so no arrangement of
+      // ice can ever be a dead end.
+      _act(game, _nodeAt(game, 'blind_sump'));
+      expect(game.dammedNodes, isEmpty);
+    }
+  });
+
+  test('only Ice plugs a basin — one clause, and nothing moves', () {
+    // (Spirit is deliberately absent: a Spirit hand at a basin READS the
+    // canals — the ordering that keeps the reading verb and the damming verb
+    // off the same stone. Its own test is below.)
+    for (final element in const ['Water', 'Fire', 'Light']) {
+      final game = _gallery([_member(0, element, 'mane')]);
+      _act(game, _nodeAt(game, 'blind_sump'));
+      expect(game.dammedNodes, isEmpty, reason: '$element must be refused');
+      expect(game.hintChannel, DungeonHintChannel.blocked);
+      expect(game.hintText, 'Only Ice plugs a basin');
+      expect(
+        game.combatEnemies.where((e) => !e.isDead),
+        isEmpty,
+        reason: 'a clean refusal is not a penalty',
+      );
+    }
+  });
+
+  test('a Spirit hand at a basin READS the canals — it never plugs them', () {
+    // The ordering that keeps the temple's Spirit+Water→Ice braid from
+    // hijacking the reading verb: the dam is Ice, element-only, no recipe.
+    final game = _gallery([_member(0, 'Spirit', 'mane')]);
+    _act(game, _nodeAt(game, 'blind_sump'));
+    expect(game.dammedNodes, isEmpty);
+    expect(game.sumpsRead, isTrue);
+    expect(game.hintChannel, DungeonHintChannel.insight);
+  });
+
+  test('the basin the lantern turns in will not take the ice', () {
+    final game = _gallery([_member(0, 'Ice', 'mane')]);
+    _setLanternAt(game, 'heart_basin');
+    _act(game, _nodeAt(game, 'heart_basin'));
+    expect(game.dammedNodes, isEmpty);
+    expect(game.hintChannel, DungeonHintChannel.blocked);
+    expect(game.hintText, contains('will not take'));
+  });
+
+  // ── Star 2: Spirit's reading is FORESIGHT, never the answer ──
+
+  test('Spirit reads the deep cuts, and Intelligence buys the forecast', () {
+    // t0 — the deep cuts are named. That is the whole of the low-Int reading,
+    // and it is a thing the high water would have told you for free.
+    final t0 = _gallery([_member(0, 'Spirit', 'mask', intelligence: 1)]);
+    t0.activateAbility();
+    expect(t0.sumpsRead, isTrue);
+    expect(t0.canalRevealTier, 0);
+    expect(t0.hintChannel, DungeonHintChannel.insight);
+    expect(t0.hintText, contains('deep cuts'));
+    expect(t0.hintText, contains('torrent'));
+
+    // t1 — …and where the water would take the lantern NEXT.
+    final t1 = _gallery([_member(0, 'Spirit', 'mask', intelligence: 3)]);
+    t1.activateAbility();
+    expect(t1.canalRevealTier, 1);
+    expect(t1.hintText, contains('next'));
+
+    // t2 — …and the whole fall, at the water as it stands. Still not the
+    // answer: the answer is which stands to hold, and when.
+    final t2 = _gallery([_member(0, 'Spirit', 'mask', intelligence: 5)]);
+    t2.activateAbility();
+    expect(t2.canalRevealTier, 2);
+    expect(t2.hintText, contains('whole fall'));
+
+    // The forecast rides a timer Intelligence buys; the NAMING does not.
+    expect(t2.canalRevealTimer, greaterThan(t0.canalRevealTimer));
+    for (var i = 0; i < 60 * 30; i++) {
+      t0.update(1 / 60);
+    }
+    expect(t0.canalRevealTimer, lessThanOrEqualTo(0));
+    expect(
+      t0.sumpsRead,
+      isTrue,
+      reason: 'a warning you cannot look at twice is only a memory test',
+    );
+  });
+
+  test('a non-Spirit Mask still reads the frieze — the rules were never the '
+      'secret', () {
+    // Standing clear of every basin, an insight press IS the reading.
+    final game = _gallery([_member(0, 'Ice', 'mask', intelligence: 5)]);
+    game.activateAbility();
+    expect(game.sumpsRead, isFalse, reason: 'the foresight stays Spirit\'s');
+    expect(game.hintText, contains('LOWEST'));
+    expect(
+      game.hintText,
+      contains('sill'),
+      reason: 'the frieze is where the temple wrote its own two rules down',
+    );
+  });
+
+  // ── Star 2: the readout and the objective line ───────────
+
+  test('the readout says where the lantern stands, and the doorway does not '
+      'teach', () {
+    final game = _gallery([_member(0, 'Water', 'pip')]);
+    expect(game.progressReadout?.label, 'LANTERN');
+    expect(game.progressReadout?.value, 'UNSET');
+    _setLanternAt(game, 'spring');
+    expect(game.progressReadout?.value, 'ADRIFT');
+    game.tideLevel = 2;
+    game.tideAnim = 1.0;
+    _driftUntil(game, () => !game.lanternLit, seconds: 90);
+    expect(game.progressReadout?.value, 'AGROUND');
+
+  });
+
+  test('the doorway states the GOAL and never the method (§5.6)', () {
+    final game = _harness([_member(0, 'Water', 'pip')]);
+    game.currentRoomId = 'drowned_court';
+    final door = game.currentRoom.doors.firstWhere(
+      (d) => d.targetRoomId == 'ghost_gallery',
+    );
+    game.creatures[game.activeIndex].position = door.rect.center;
+    for (var i = 0; i < 12; i++) {
+      game.update(1 / 60);
+    }
+    expect(game.currentRoomId, 'ghost_gallery');
+    expect(game.hintChannel, DungeonHintChannel.objective);
+    final objective = game.hintText;
+    expect(objective, contains('sea drain'));
+    for (final leak in const ['sill', 'lowest', 'Ice', 'dam', 'deep']) {
+      expect(
+        objective,
+        isNot(contains(leak)),
+        reason: 'the doorway must not hand over the method ("$leak")',
+      );
+    }
   });
 
   // ── The Leviathan turns the tide (§7 retrofit) ───────────

@@ -1,4 +1,4 @@
-import 'dart:ui' show Offset, Rect;
+import 'dart:ui' show Rect;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -158,62 +158,114 @@ void main() {
                 expect(t, inInclusiveRange(0, 2));
               }
             }
-            // The ghost-current network: ids unique, every channel endpoint
-            // real, exactly one spring and one sea drain — and every channel
-            // clearly east/west so the SPIN rule ("an eddy rolls the way its
-            // feeder drives it") is never a coin-flip on screen.
-            final nodeIds = <String, Offset>{
-              for (final m in room.ghostMouths) m.id: m.position,
-              for (final e in room.ghostEddies) e.id: e.position,
+            // The canal network: ids unique, every groove's endpoints real,
+            // exactly one spring and one sea drain, the whole thing a DAG
+            // (the stone only falls one way), and — the readability rule —
+            // never two grooves of the same sill leaving one basin, so the
+            // SPILL rule is never a coin toss the player cannot see.
+            final nodeIds = <String, CanalNode>{
+              for (final n in room.canalNodes) n.id: n,
             };
             expect(
               nodeIds.length,
-              room.ghostMouths.length + room.ghostEddies.length,
-              reason: '${room.id}: ghost node ids must be unique',
+              room.canalNodes.length,
+              reason: '${room.id}: canal node ids must be unique',
             );
-            if (room.ghostEddies.isNotEmpty) {
+            if (room.canalNodes.isNotEmpty) {
               expect(
-                room.ghostMouths.where((m) => m.isSource).length,
+                room.canalNodes.where((n) => n.isSpring).length,
                 1,
-                reason: '${room.id}: the current needs exactly one spring',
+                reason: '${room.id}: the canals need exactly one spring mouth',
               );
               expect(
-                room.ghostMouths.where((m) => !m.isSource).length,
+                room.canalNodes.where((n) => n.isSea).length,
                 1,
-                reason: '${room.id}: the current needs exactly one sea drain',
+                reason: '${room.id}: the canals need exactly one sea drain',
               );
               expect(
-                room.ghostChannels,
+                room.canalChannels,
                 isNotEmpty,
-                reason: '${room.id}: eddies with no channels between them',
+                reason: '${room.id}: basins with no grooves between them',
+              );
+              // Nothing may run INTO the spring or OUT of the sea: those are
+              // the two fixed ends the whole network hangs from.
+              for (final ch in room.canalChannels) {
+                expect(
+                  nodeIds[ch.to]!.isSpring,
+                  isFalse,
+                  reason: '${room.id}: ${ch.from}→${ch.to} runs into the '
+                      'spring — the source never takes water back',
+                );
+                expect(
+                  nodeIds[ch.from]!.isSea,
+                  isFalse,
+                  reason: '${room.id}: ${ch.from}→${ch.to} runs out of the '
+                      'sea drain',
+                );
+              }
+            }
+            for (final ch in room.canalChannels) {
+              expect(
+                nodeIds.containsKey(ch.from) && nodeIds.containsKey(ch.to),
+                isTrue,
+                reason: '${room.id}: groove ${ch.from}→${ch.to} names a node '
+                    'that does not exist',
+              );
+              expect(
+                (nodeIds[ch.from]!.position - nodeIds[ch.to]!.position)
+                    .distance,
+                greaterThanOrEqualTo(120.0),
+                reason: '${room.id}: groove ${ch.from}→${ch.to} is too short '
+                    'to read its chevrons, its sill notches, or the lantern '
+                    'crossing it',
               );
             }
-            for (final ch in room.ghostChannels) {
+            // No two grooves out of one basin may share a sill.
+            for (final node in room.canalNodes) {
+              final sills = [
+                for (final ch in room.canalChannels)
+                  if (ch.from == node.id) ch.sill,
+              ];
               expect(
-                nodeIds.containsKey(ch.a) && nodeIds.containsKey(ch.b),
-                isTrue,
-                reason: '${room.id}: channel ${ch.a}–${ch.b} names a '
-                    'node that does not exist',
-              );
-              expect(
-                (nodeIds[ch.a]!.dx - nodeIds[ch.b]!.dx).abs(),
-                greaterThanOrEqualTo(60.0),
-                reason: '${room.id}: channel ${ch.a}–${ch.b} is too nearly '
-                    'vertical — its feeder must read clearly east or west',
-              );
-            }
-            for (final e in room.ghostEddies) {
-              expect(
-                room.bounds.contains(e.position),
-                isTrue,
-                reason: '${room.id}/${e.id}: eddy outside the room',
+                sills.toSet().length,
+                sills.length,
+                reason: '${room.id}/${node.id}: two grooves share a sill — '
+                    'the spill would be a coin toss the player cannot read',
               );
             }
-            for (final m in room.ghostMouths) {
+            // Acyclic: the stone only ever falls seaward.
+            if (room.canalNodes.isNotEmpty) {
+              final onward = <String, List<String>>{};
+              for (final ch in room.canalChannels) {
+                onward.putIfAbsent(ch.from, () => []).add(ch.to);
+              }
+              final state = <String, int>{}; // 1 = on the stack, 2 = done
+              bool cyclic(String at) {
+                final mark = state[at];
+                if (mark == 1) return true;
+                if (mark == 2) return false;
+                state[at] = 1;
+                for (final next in onward[at] ?? const <String>[]) {
+                  if (cyclic(next)) return true;
+                }
+                state[at] = 2;
+                return false;
+              }
+
+              for (final node in room.canalNodes) {
+                expect(
+                  cyclic(node.id),
+                  isFalse,
+                  reason: '${room.id}: the canals loop — water that can circle '
+                      'is water the player can never finish steering',
+                );
+              }
+            }
+            for (final n in room.canalNodes) {
               expect(
-                room.bounds.contains(m.position),
+                room.bounds.contains(n.position),
                 isTrue,
-                reason: '${room.id}/${m.id}: mouth outside the room',
+                reason: '${room.id}/${n.id}: canal node outside the room',
               );
             }
             final poolIds = room.moonPools.map((p) => p.id).toSet();
@@ -418,8 +470,8 @@ void main() {
             if (room.sealStarIndex != null) {
               nonGuardianStars.add(room.sealStarIndex!);
             }
-            if (room.eddyStarIndex != null) {
-              nonGuardianStars.add(room.eddyStarIndex!);
+            if (room.canalStarIndex != null) {
+              nonGuardianStars.add(room.canalStarIndex!);
             }
             if (room.ribStarIndex != null) {
               nonGuardianStars.add(room.ribStarIndex!);
@@ -794,13 +846,24 @@ void main() {
         {0, 1, 2},
         reason: 'the three seals cover the three tide stands',
       );
-      // Star 2: the ghost gallery owns the current — five eddies strung on a
-      // network of carved channels between a spring and a sea drain.
+      // Star 2: the gallery owns the canal network — a spring, five basins,
+      // a sea drain, ten carved grooves, and its OWN sluice-bank (the tide is
+      // the steering wheel, so the wheels have to be in the room).
       final gallery = water.rooms['ghost_gallery']!;
-      expect(gallery.ghostEddies.length, 5);
-      expect(gallery.ghostMouths.length, 2);
-      expect(gallery.ghostChannels.length, 12);
-      expect(gallery.eddyStarIndex, 1);
+      expect(gallery.canalNodes.length, 7);
+      expect(gallery.canalNodes.where((n) => n.isBasin).length, 5);
+      expect(gallery.canalChannels.length, 10);
+      expect(gallery.canalStarIndex, 1);
+      expect(
+        gallery.tideValves.map((v) => v.level).toSet(),
+        {0, 1, 2},
+        reason: 'the gallery must be able to reach every stand from inside it',
+      );
+      // Every sill kind is authored, or the tide is only half a verb.
+      expect(
+        gallery.canalChannels.map((c) => c.sill).toSet(),
+        CanalSill.values.toSet(),
+      );
       // The Leviathan's arena answers the same tide as every other chamber
       // (§7 retrofit) — without tide zones there is nothing for its roar to
       // turn.
@@ -1022,66 +1085,123 @@ void main() {
     );
 
     test(
-      'Water S2: EVERY current the gallery can run is PROVABLY DEDUCIBLE '
-      'from its spins alone',
+      'Water S2: the authored canal network is PROVED solvable, and the tide '
+      'and the ice are both load-bearing',
       () {
         final game = _waterProbe();
-        final routes = game.ghostRoutes();
+        final proof = game.solveLanternDrift();
+        expect(proof.basins, 5);
+        expect(proof.channels, 10);
         expect(
-          routes.length,
-          6,
-          reason: 'the twelve carved channels allow exactly six spring→sea '
-              'routes through all five eddies',
+          proof.solvable,
+          isTrue,
+          reason: 'the lantern must be floatable spring → sea at all',
         );
-        // Every route: adopt it, read back ONLY the spins it puts on the
-        // water, and hand those to the solver. The solver must recover that
-        // route and no other — which is exactly the reasoning the player
-        // does, run against the same code the game plays with.
-        for (final route in routes) {
-          game.adoptGhostRoute(route);
-          final spins = {
-            for (final e in game.layout.rooms['ghost_gallery']!.ghostEddies)
-              e.id: game.eddySpinSunwise(e.id)!,
-          };
-          final result = game.solveGhostCurrent(spins);
-          expect(result.searched, 6);
-          expect(
-            result.satisfying,
-            1,
-            reason: 'the spins of ${route.join('→')} must single it out — a '
-                'current two routes could explain is a coin toss, not a '
-                'deduction',
-          );
-          expect(
-            result.order,
-            route.sublist(1, route.length - 1),
-            reason: 'the derived wade must BE the authored course',
-          );
-        }
+        expect(
+          proof.route.first.from,
+          'spring',
+          reason: 'a proved route starts where the player sets the lantern',
+        );
+        expect(proof.route.last.to, 'sea');
+        // THE TIDE IS THE PUZZLE: no single stand of water carries the
+        // lantern out, however the player plugs the basins. Every road to
+        // the sea has to cross a crest (high water only) AND a deep cut
+        // (never at high water), so the stand must CHANGE mid-drift.
+        expect(
+          proof.singleStandSolvable,
+          isEmpty,
+          reason: 'a stand that solved it alone would make the temple\'s own '
+              'signature system decoration',
+        );
+        // THE ICE IS A VERB: the temple's natural fall never reaches the sea.
+        expect(
+          proof.damFree,
+          isFalse,
+          reason: 'undammed, the water spills all the way into the blind '
+              'sump — plugging a basin is required, not optional',
+        );
+        expect(
+          proof.blindBasins,
+          1,
+          reason: 'exactly one throatless basin: the fall the player must '
+              'learn to fight',
+        );
       },
     );
 
-    test('Water S2: the run rolls a real current, and only a deducible one',
-        () {
-      // Twenty fresh descents: each rolls one of the six routes, every roll
-      // is a legal spring→sea course, and every roll survives its own solver.
-      final seen = <String>{};
-      for (var i = 0; i < 20; i++) {
+    test(
+      'Water S2: the canal network CANNOT strand the player — strandable == 0',
+      () {
         final game = _waterProbe();
-        final order = game.ghostWadeOrder;
-        expect(order.length, 5, reason: 'the current runs through all five');
-        expect(order.toSet().length, 5, reason: 'no eddy twice');
-        final result = game.solveGhostCurrent();
-        expect(result.satisfying, 1);
-        expect(result.order, order);
-        seen.add(order.join('>'));
-      }
-      expect(
-        seen.length,
-        greaterThan(1),
-        reason: 'the current is rolled per run — a wiki must never spoil it',
-      );
-    });
+        final proof = game.solveLanternDrift();
+        // Checked exhaustively over every resting place the lantern can
+        // reach, not assumed and not covered up by the death reset: from
+        // each one the sea is still reachable with the real spill rule.
+        expect(
+          proof.strandable,
+          0,
+          reason: 'every place the lantern can come to rest must still have a '
+              'road to the sea',
+        );
+        expect(proof.states, 21, reason: '7 nodes x 3 stands');
+        // And the blind sump is not a resting place at all: it has no groove
+        // out of it, which is exactly why the backwash hands the lantern
+        // back to the mouth before it.
+        final gallery = game.layout.rooms['ghost_gallery']!;
+        final blind = gallery.canalNodes
+            .where((n) => n.isBasin && game.canalIsBlind(n.id))
+            .single;
+        expect(
+          gallery.canalChannels.any((c) => c.from == blind.id),
+          isFalse,
+        );
+        expect(
+          gallery.canalChannels.where((c) => c.to == blind.id).length,
+          greaterThanOrEqualTo(2),
+          reason: 'the blind sump has to be somewhere the natural fall '
+              'actually goes, or it teaches nothing',
+        );
+      },
+    );
+
+    test(
+      'Water S2: the solver walks the REAL spill rule, leg by leg',
+      () {
+        // The proof is only worth anything if it cannot drift away from what
+        // the game plays. Replay the proved route through `canalSpillFrom` —
+        // the same function the drift calls every frame — and it must land on
+        // exactly the same grooves.
+        final game = _waterProbe();
+        final proof = game.solveLanternDrift();
+        var at = 'spring';
+        for (final leg in proof.route) {
+          expect(leg.from, at, reason: 'the route must be connected');
+          final spilled = game.canalSpillFrom(
+            leg.from,
+            water: leg.stand / 2,
+            dammed: leg.dams.toSet(),
+          );
+          expect(
+            spilled?.to,
+            leg.to,
+            reason: 'leg $leg must be what the real rule does with that '
+                'stand and those dams',
+          );
+          expect(
+            game.canalChannelLive(leg.sill, leg.stand / 2),
+            isTrue,
+            reason: 'leg $leg must ride a groove that is actually running',
+          );
+          expect(
+            game.canalChannelTorrent(leg.sill, leg.stand / 2),
+            isFalse,
+            reason: 'leg $leg must never be a drowned deep cut',
+          );
+          at = leg.to;
+        }
+        expect(at, 'sea');
+      },
+    );
 
     test('Steam dungeon has its three star chambers and full 3 stars', () {
       final steam = kPlanetDungeonLayouts['Steam']!;
