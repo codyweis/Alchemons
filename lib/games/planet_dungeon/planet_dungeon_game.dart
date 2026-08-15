@@ -412,13 +412,32 @@ class PlanetDungeonGame extends FlameGame {
   // Discovery is EARNED: each branch chamber seals its echo behind a small
   // themed trial (ride the gale / time the orbit / crack the shell / catch
   // the feathers / pin the shroud). Solving it IS the discovery.
-  /// Gale eddies for the Spiral trial, relative to the room centre,
-  /// touched in list order (outer → inner).
-  static const List<Offset> kSpiralEddyOffsets = [
-    Offset(0, -200),
-    Offset(115, 95),
-    Offset(-150, 40),
-  ];
+  // ── Spiral trial (THE GALE EYE) run-state ──
+  // §9.1: the Spiral is COMPOSED, not walked. The vent ring is authored
+  // (`DungeonRoom.galeVents`); which way each vent breathes is rolled per run
+  // and proved solvable (`_rollSpiralVents` / `solveSpiralVents`, Air file).
+  /// This run's vent flows, by vent id. Rolled fresh every run/death.
+  final Map<String, GaleVentFlow> spiralVentFlow = {};
+
+  /// Jets opened this ATTEMPT — irreversible until the chamber is left.
+  final Set<String> spiralOpenJets = {};
+
+  /// How far each opened jet has swelled (0 = still, 1 = full). Eased, never
+  /// snapped — same rule as a woken gale.
+  final Map<String, double> spiralJetRamp = {};
+
+  /// True once an incoherent jet has sheared the forming eye: the attempt is
+  /// spent until the player leaves and comes back.
+  bool spiralTorn = false;
+
+  /// Fade on the tear animation (the failure you WATCH).
+  double _spiralTearFlash = 0;
+
+  /// The mouth whose jet did the shearing (drawn as the culprit).
+  String? _spiralShearedVent;
+
+  /// The room the trial logic last saw, so re-entering the chamber re-arms it.
+  String? _spiralLastRoom;
 
   /// Shimmer-fold spots for the Veil trial, relative to the room centre.
   static const List<Offset> kVeilSpotOffsets = [
@@ -447,15 +466,11 @@ class PlanetDungeonGame extends FlameGame {
 
   int wonderProgress(String roomId) => switch (roomId) {
     'veil_cloud' => _veilPinned.length,
+    'spiral_cloud' => spiralOpenJets.length,
     _ => _wonderProgress[roomId] ?? 0,
   };
 
   List<Offset> get fallingFeatherPositions => List.unmodifiable(_feathers);
-
-  /// Spiral eddy world positions for [room].
-  List<Offset> spiralEddies(DungeonRoom room) => [
-    for (final o in kSpiralEddyOffsets) room.bounds.center + o,
-  ];
 
   /// Veil shimmer-spot world positions for [room].
   List<Offset> veilSpots(DungeonRoom room) => [
@@ -2187,43 +2202,14 @@ class PlanetDungeonGame extends FlameGame {
   /// feathers, anvil wave completion).
   void _updateWonderTrials(DungeonCreature a, DungeonRoom room, double dt) {
     if (veilFlareTimer > 0) veilFlareTimer -= dt;
+    // The Gale Eye's jets swell and its re-arm edge live OUTSIDE the sealed
+    // guard: leaving the chamber is what shuts the vents, and that has to be
+    // seen even on the frame the player walks out.
+    if (_isSpire) _updateSpiralChamber(room, dt);
     final sealed = _sealedWonderCloud(room);
     if (sealed == null) return;
 
     switch (room.id) {
-      case 'spiral_cloud':
-        // Ride the gale: touch the eddies outer → inner, in order. The
-        // wind answers Air — an Air creature gets a wider catch radius.
-        final eddies = spiralEddies(room);
-        final progress = _wonderProgress['spiral_cloud'] ?? 0;
-        final reach = a.member.element == 'Air' ? 46.0 : 34.0;
-        for (var i = 0; i < eddies.length; i++) {
-          if ((a.position - eddies[i]).distance > reach) continue;
-          if (i == progress) {
-            _wonderProgress['spiral_cloud'] = progress + 1;
-            _spawnAlchemyBurst(
-              eddies[i],
-              producedElement: 'Air',
-              particleCount: 12,
-              intensity: 0.7,
-            );
-            if (progress + 1 >= eddies.length) {
-              _completeWonderTrial(
-                sealed,
-                'The gale coils into its eye — the Spiral echo awakens',
-              );
-            } else {
-              _setHint('The eddy spins up — ${progress + 1} / 3');
-            }
-            onChanged();
-          } else if (i > progress && progress > 0) {
-            _wonderProgress['spiral_cloud'] = 0;
-            _setHint('Out of order — the eddies scatter');
-            onChanged();
-          }
-        }
-        break;
-
       case 'feather_cloud':
         // Weightless: feathers drift down one at a time; catch three
         // before they land. Air draws nearby feathers toward itself.
@@ -2323,6 +2309,12 @@ class PlanetDungeonGame extends FlameGame {
     if (sealed == null) return false;
 
     switch (room.id) {
+      case 'spiral_cloud':
+        // THE GALE EYE: commune with a vent to open its jet — for good. The
+        // whole mechanic lives in the Air file with Star 1's shrines, whose
+        // verb and irreversibility it borrows.
+        return _trySpiralVent(a, sealed);
+
       case 'ring_cloud':
         // The Conjunction: Air, Fire and Lightning reagents circle the
         // orbit — seal the ring while the trio is gathered.
@@ -6274,11 +6266,7 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Mask insight, tiered by Intelligence, for each wonder trial.
   String _wonderInsight(String roomId, int tier) => switch (roomId) {
-    'spiral_cloud' =>
-      tier >= 1
-          ? 'Three eddies turn the gale — ride them outermost first, '
-                'then ever inward'
-          : 'The gale turns around unseen pivots — find its rhythm',
+    'spiral_cloud' => _spiralInsight(tier),
     'ring_cloud' =>
       tier >= 1
           ? 'Air, Fire and Lightning circle the orbit — seal it the moment '
@@ -6759,9 +6747,10 @@ class PlanetDungeonGame extends FlameGame {
     // Wonder trial chambers (until their echo is earned).
     if (_sealedWonderCloud(room) != null) {
       return switch (roomId) {
-        // WHAT, never HOW (§5.6): the eddy order and the storm-charge braid
-        // are Mask-insight content (_wonderInsight), not room-entry copy.
-        'spiral_cloud' => 'Gale Eye — three eddies turn the gale',
+        // WHAT, never HOW (§5.6): what the eye will accept, and the
+        // storm-charge braid, are Mask-insight content (_wonderInsight), not
+        // room-entry copy.
+        'spiral_cloud' => 'Gale Eye — a still eye, and the vents are shut',
         'ring_cloud' =>
           'The Conjunction — seal the orbit when the three reagents gather',
         'anvil_cloud' => 'Storm Forge — a shell nothing plain can mark',
@@ -8457,35 +8446,15 @@ class PlanetDungeonGame extends FlameGame {
     final pipAnchor = cl.position + const Offset(0, 52);
     switch (room.id) {
       case 'spiral_cloud':
-        final eddies = spiralEddies(room);
-        final progress = _wonderProgress['spiral_cloud'] ?? 0;
-        for (var i = 0; i < eddies.length; i++) {
-          final done = i < progress;
-          final next = i == progress;
-          final col = done
-              ? const Color(0xFF22C55E)
-              : next
-              ? const Color(0xFFE4C16A)
-              : const Color(0xFF74613A);
-          final pulse = next ? 0.7 + 0.3 * sin(_time * 4) : 1.0;
-          if (_fx.ready) {
-            drawGlow(
-              canvas,
-              _fx.glow!,
-              eddies[i],
-              26,
-              col.withValues(alpha: 0.4 * pulse),
-            );
-          }
-          _drawWindRing(
-            canvas,
-            eddies[i],
-            20,
-            col.withValues(alpha: 0.85 * pulse),
-            active: next,
-          );
-        }
-        _drawTrialPips(canvas, pipAnchor, eddies.length, progress);
+        // The Gale Eye draws itself in the Air file, beside the gust shrines
+        // whose stonework its vents are cut from.
+        _drawGaleEye(canvas, room);
+        _drawTrialPips(
+          canvas,
+          pipAnchor,
+          kSpiralJetsNeeded,
+          spiralTorn ? 0 : spiralOpenJets.length.clamp(0, kSpiralJetsNeeded),
+        );
         break;
 
       case 'ring_cloud':

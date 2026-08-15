@@ -259,6 +259,42 @@ const double kStormHopReach = 165.0;
 /// The conductor rank of a struck conduit — above every rod by one.
 const int kConduitConductorHeight = kStormRodMaxHeight + 1;
 
+// ── Air Star 2: THE SPIRAL, COMPOSED (§9.1 spiral rework) ──
+// The Gale Eye's echo is not WALKED, it is AUTHORED. A ring of gale vents
+// surrounds a still eye; communing with one opens its jet PERMANENTLY for the
+// attempt — Star 1's irreversible wind-authoring, in miniature. The eye only
+// forms out of jets that COMPOSE: all tangent to the rim, all turning the same
+// way. A jet that stabs inward or outward, or one that turns against the coil,
+// shears the forming vortex apart — and that is watched, not read.
+//
+// The vent RING is authored here (below, in `spiral_cloud`); each vent's FLOW
+// is rolled per run by `PlanetDungeonGame._rollSpiralVents()` and proved
+// solvable by its public `solveSpiralVents()`, so no wiki can spoil it.
+
+/// What a gale vent's jet does relative to the chamber's eye. The two coils are
+/// named in the spire's own voice: **sunwise** turns the way the sun crosses
+/// the crown, **widdershins** turns against it.
+enum GaleVentFlow { sunwise, widdershins, inward, outward }
+
+/// A gale vent in the Gale Eye. Its stone mouth is carved with the way it
+/// breathes, so the direction is READABLE BEFORE it is touched — a vent, once
+/// opened, cannot be shut until the chamber is left.
+class GaleVent {
+  final String id;
+
+  /// The vent's voice, used by its "already blows" line.
+  final String name;
+  final Offset position;
+  const GaleVent({
+    required this.id,
+    required this.name,
+    required this.position,
+  });
+}
+
+/// How many jets the eye needs before it closes into an echo.
+const int kSpiralJetsNeeded = 4;
+
 // ── Star 2: Sky Loom ───────────────────────────────────────
 
 /// A wonder-cloud (Spiral/Ring/Anvil/Feather/Veil). Discovered via Mask reveal
@@ -816,6 +852,8 @@ class DungeonRoom {
   final List<WindRoute> windRoutes;
   final List<GustShrine> gustShrines;
   final SpireSummit? summit;
+  // Air Star 2 (THE SPIRAL, COMPOSED): the Gale Eye's ring of vents.
+  final List<GaleVent> galeVents;
   // Air Star 3 (STORM-ROD STEERING): the rod field + the cell's circuit.
   final List<StormRod> stormRods;
   final StormCellOrbit? stormOrbit;
@@ -898,6 +936,7 @@ class DungeonRoom {
     this.windRoutes = const [],
     this.gustShrines = const [],
     this.summit,
+    this.galeVents = const [],
     this.stormRods = const [],
     this.stormOrbit,
     this.clouds = const [],
@@ -1529,7 +1568,11 @@ const DungeonLayout _airLayout = DungeonLayout(
       ),
     ),
 
-    // Room G — Spiral Cloud Room.
+    // Room G — Spiral Cloud Room, THE GALE EYE (§9.1 spiral rework).
+    // Seven vents ring a still eye at radius 210. The ring is authored; which
+    // way each vent breathes is rolled per run (`_rollSpiralVents`). Four
+    // composing jets close the eye, so three of the seven are always decoys —
+    // and the trial is a commitment, not a walk.
     'spiral_cloud': DungeonRoom(
       id: 'spiral_cloud',
       bounds: Rect.fromLTWH(0, 0, 700, 620),
@@ -1546,6 +1589,15 @@ const DungeonLayout _airLayout = DungeonLayout(
           cloudType: 'Spiral',
           position: Offset(350, 285),
         ),
+      ],
+      galeVents: [
+        GaleVent(id: 'v_north', name: 'the north mouth', position: Offset(350, 75)),
+        GaleVent(id: 'v_dawn', name: 'the dawn mouth', position: Offset(514, 154)),
+        GaleVent(id: 'v_east', name: 'the east mouth', position: Offset(555, 332)),
+        GaleVent(id: 'v_low', name: 'the low mouth', position: Offset(441, 474)),
+        GaleVent(id: 'v_deep', name: 'the deep mouth', position: Offset(259, 474)),
+        GaleVent(id: 'v_west', name: 'the west mouth', position: Offset(145, 332)),
+        GaleVent(id: 'v_dusk', name: 'the dusk mouth', position: Offset(186, 154)),
       ],
     ),
 
