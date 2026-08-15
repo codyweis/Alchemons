@@ -7623,12 +7623,16 @@ class _CosmicScreenState extends State<CosmicScreen>
               // Skips the gate offering AND the carried party, so any built
               // dungeon can be entered from a standing start with the exact
               // team its hard gates want.
+              // A debug affordance that VANISHES teaches nothing: parked at a
+              // planet whose dungeon is not built yet, this used to simply not
+              // be there, which reads exactly like the switch being broken.
+              // It now always shows beside the unseal chip and SAYS why it
+              // cannot take you down.
               if (DebugSettingsService.toolsVisible &&
                   showCosmicHud &&
                   nearEl != null &&
-                  kPlanetDungeonLayouts.containsKey(nearEl) &&
+                  isDungeonGatePlanet(nearEl) &&
                   !_isNearHome &&
-                  !_raidLive &&
                   !_showElementsCaptured &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
@@ -7639,7 +7643,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: SafeArea(
                     child: Center(
                       child: GestureDetector(
-                        onTap: () => unawaited(_debugDescend(_nearPlanet!)),
+                        onTap: kPlanetDungeonLayouts.containsKey(nearEl) &&
+                                !_raidLive
+                            ? () => unawaited(_debugDescend(_nearPlanet!))
+                            : null,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -7658,9 +7665,19 @@ class _CosmicScreenState extends State<CosmicScreen>
                             ),
                           ),
                           child: Text(
-                            '⇩  DESCEND w/ TRIO (DEBUG)',
-                            style: const TextStyle(
-                              color: Color(0xFF7BE88C),
+                            !kPlanetDungeonLayouts.containsKey(nearEl)
+                                ? '⇩  NO DUNGEON BUILT — $nearEl'
+                                : _raidLive
+                                    ? '⇩  RAID LIVE — DESCEND BLOCKED'
+                                    : '⇩  DESCEND w/ TRIO (DEBUG)',
+                            style: TextStyle(
+                              color: const Color(0xFF7BE88C).withValues(
+                                alpha:
+                                    kPlanetDungeonLayouts.containsKey(nearEl) &&
+                                            !_raidLive
+                                        ? 1.0
+                                        : 0.45,
+                              ),
                               fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 1.4,
