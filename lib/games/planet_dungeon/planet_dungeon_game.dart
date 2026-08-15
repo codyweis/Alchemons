@@ -305,18 +305,48 @@ class PlanetDungeonGame extends FlameGame {
   /// near-perfect team": enemies and ESPECIALLY guardians scale with it.
   final int clearedGuardianCount;
 
-  /// Guardian/wisp HP swells steeply with progress (final guardian ≈ 8×).
-  double get progressHpMul => 1.0 + 0.45 * clearedGuardianCount;
+  /// Guardian/wisp HP swells with progress (final guardian ≈ 3.9×). Was
+  /// ×0.45·n (≈8.2× at the end) while the guardian pool was tiny and the
+  /// lull-strike fraction decided every fight; now that [kGuardianBaseHp] is
+  /// sized against real party damage, that slope stretched the last fights
+  /// past two minutes. Measured at ×0.18·n: a near-perfect trio spends ~70s
+  /// on the seventeenth mystic, and a mid one cannot finish it — which is
+  /// the campaign statement the curve was always making.
+  double get progressHpMul => 1.0 + 0.18 * clearedGuardianCount;
 
   /// Damage climbs more gently (final ≈ 2.9×) — lethality should come from
   /// the longer fight, not one-shots.
   double get progressDmgMul => 1.0 + 0.12 * clearedGuardianCount;
 
-  /// Lull strikes needed to fell the guardian: 4 on a fresh save, 16 by the
+  /// Lull strikes needed to fell the guardian on a FRESH save.
+  ///
+  /// 2026-08-14, MEASURED (headless sim, ideal trio parked on the perch,
+  /// attack + special mashed the frame they come up): a three-Alchemon party
+  /// deals ~172 dmg/s at stat 2.0, ~393 at 3.0 and ~1005 at 4.5. The guardian
+  /// pool was 341. The mystic was deleted inside a second — no cycle, no
+  /// twist, no enrage, nothing the fight was built to show.
+  ///
+  /// The strike chunk is `maxHp / strikesNeeded`, so this number is also the
+  /// fight's LENGTH CAP: at ~2 paced strikes per 3.0s lull in a 6s cycle, the
+  /// strike path alone runs 3 × strikesNeeded seconds however fat the pool is.
+  /// 14 puts that ceiling at 42s on a fresh save (78s by the last dungeon),
+  /// and [kGuardianBaseHp] is then sized so a mid trio spends most of it.
+  /// (Deliberately NOT tied to [maxGuardianHp], which is the HUD's pip count.)
+  static const double kGuardianBaseStrikes = 14;
+
+  /// The guardian's own pool before any scaling — sized against MEASURED
+  /// party damage, not against a wisp. With the wave-7 curve (×1.3125) a
+  /// fresh-save mystic stands at ~41k, which the sim plays out as ≈36s for a
+  /// weak trio, ≈30s for a mid one and ≈21s for a near-perfect one: four to
+  /// six full rage/lull cycles, the half-HP enrage, and room for the planet's
+  /// own twist to turn several times.
+  static const double kGuardianBaseHp = 6000;
+
+  /// Lull strikes needed to fell the guardian: 14 on a fresh save, 26 by the
   /// last dungeon (the strike chunk is a fraction of max HP, so raw HP alone
   /// wouldn't lengthen the strike path).
   double get guardianStrikesNeeded =>
-      maxGuardianHp + clearedGuardianCount * 0.75;
+      kGuardianBaseStrikes + clearedGuardianCount * 0.75;
 
   /// Synthetic discovery id for the entry passage reveal. Stored alongside
   /// cloud ids so the one-time entry puzzle stays solved across runs
@@ -398,6 +428,13 @@ class PlanetDungeonGame extends FlameGame {
   /// The conductor ids the last leader climbed (rendering + tests).
   final List<String> lastLeaderPath = [];
   double _leaderFlash = 0;
+
+  /// The ladder that WON, and where the bolt came down to start it. A conduit
+  /// latches (§9.1) — so the chain that lit it latches with it and keeps
+  /// burning instead of guttering out after one flash. The circuit the player
+  /// built is a standing fact about the room, not a moment.
+  final List<String> latchedLeaderPath = [];
+  Offset? _latchedLeaderOrigin;
 
   /// The Roc's dragged leash — the centre its stolen storm-cell circles.
   Offset _rocLeash = Offset.zero;
@@ -911,6 +948,25 @@ class PlanetDungeonGame extends FlameGame {
   double guardianHp = maxGuardianHp;
   double guardianHitFlash = 0;
   CosmicSurvivalEnemy? _guardianEnemy;
+
+  /// THE ARRIVAL: a mystic does not blink into being on its perch. Entering
+  /// its roused chamber drops the room into a short cinematic — the ground
+  /// shakes, the thing falls out of the ceiling/sky, and only on IMPACT does
+  /// the combat body exist. Nothing can be hit (either way) before then, so
+  /// the fight always starts from a clean, readable beat.
+  static const double kGuardianArrivalSeconds = 1.9;
+
+  /// Seconds into the arrival, or -1 when no arrival is staged/playing.
+  double _guardianArrival = -1;
+
+  /// Whether the arrival cinematic owns the room right now.
+  bool get guardianArriving =>
+      _guardianArrival >= 0 && _guardianArrival < kGuardianArrivalSeconds;
+
+  /// Camera shake, in pixels of amplitude. Decays every frame; the arrival
+  /// (and its impact) is the only thing that drives it today.
+  double _shake = 0;
+  double get shakeAmplitude => _shake;
 
   /// Mid-fight escalation: fired once at half HP (screech, feather-wisps,
   /// shorter lull windows).
@@ -1502,6 +1558,8 @@ class PlanetDungeonGame extends FlameGame {
     _rocEnraged = false;
     _altarBlessingUsed = false;
     _guardianEnemy = null;
+    _guardianArrival = -1; // a fresh run gets the whole arrival again
+    _shake = 0;
     combatEnemies.clear();
     combatProjectiles.clear();
     _activeWingBeams.clear();
@@ -1607,6 +1665,8 @@ class PlanetDungeonGame extends FlameGame {
     _guardianTicker?.update(dt);
 
     final room = currentRoom;
+    // The arrival owns the room whether or not anyone is on their feet.
+    _updateGuardianArrival(dt, room);
     final a = active;
     if (a == null) return;
 
@@ -2491,6 +2551,9 @@ class PlanetDungeonGame extends FlameGame {
     final g = room.guardian;
     if (guardianAwake && g != null) {
       _maybeSpawnGuardianCombat(room); // safe to call every frame (guarded)
+      // Nothing turns while the mystic is still falling: no lull clock, no
+      // hazard ring, no enrage. The fight starts when it lands.
+      if (guardianArriving) return;
       _guardianCycle += dt;
       guardianVulnerable = (_guardianCycle % 6.0) < (_rocEnraged ? 2.2 : 3.0);
       // Raikuma feeds on the powered core trunk (§7): while it drinks there
@@ -3815,36 +3878,16 @@ class PlanetDungeonGame extends FlameGame {
     onChanged();
   }
 
+  /// Stage the guardian's ARRIVAL. The combat body is NOT created here — the
+  /// cinematic runs first (see [_updateGuardianArrival]) and the thing exists
+  /// only once it has landed. Safe to call every frame; guarded throughout.
   void _maybeSpawnGuardianCombat(DungeonRoom room) {
     final g = room.guardian;
     if (g == null || !guardianAwake || hasStar(g.starIndex)) return;
-    if (_guardianEnemy != null && !_guardianEnemy!.isDead) return;
-    // A downed body whose victory hasn't been banked yet (the bank runs later
-    // in the frame) must not be replaced by a fresh guardian.
-    if (_guardianEnemy != null && _guardianEnemy!.isDead) return;
-    final hpScale =
-        CosmicSurvivalBalance.enemyWaveHpScale(7) *
-        (raid?.hpMul ?? 1.0) *
-        progressHpMul;
-    final damageScale =
-        CosmicSurvivalBalance.enemyWaveDamageScale(7) *
-        (raid?.dmgMul ?? 1.0) *
-        progressDmgMul;
-    _guardianEnemy = CosmicSurvivalEnemy(
-      position: g.position,
-      hp: 220 * hpScale,
-      maxHp: 220 * hpScale,
-      speed: 58,
-      damage: 20 * damageScale,
-      radius: 38,
-      tier: EnemyTier.phantom,
-      element: g.encounter?.element ?? 'Air',
-      role: CosmicEnemyRole.hunter,
-      variant: SurvivalEnemyVariant.crusher,
-      target: CosmicEnemyTarget.companion,
-      isElite: true,
-    );
-    combatEnemies.add(_guardianEnemy!);
+    if (_guardianEnemy != null) return; // live, or downed and awaiting its bank
+    if (_guardianArrival >= 0) return; // already falling
+    _guardianArrival = 0;
+    _shake = _kArrivalShake;
     final mysticName = g.encounter?.mysticId ?? 'The guardian';
     final line = isRaid
         ? 'The raid-maddened guardian descends — bring it down!'
@@ -3858,6 +3901,80 @@ class PlanetDungeonGame extends FlameGame {
     } else {
       _setHint(line);
     }
+    onChanged();
+  }
+
+  /// Shake while it falls, and a hard spike when it lands.
+  static const double _kArrivalShake = 5.0;
+  static const double _kImpactShake = 16.0;
+
+  /// The arrival cinematic: the room shakes harder as the mystic drops, and
+  /// on IMPACT the combat body spawns under a burst. Runs from the shared
+  /// update so it keeps ticking wherever the party is standing.
+  void _updateGuardianArrival(double dt, DungeonRoom room) {
+    // Shake always decays, arrival or not.
+    if (_shake > 0) _shake = max(0, _shake - dt * 26);
+    if (_guardianArrival < 0) return;
+    final g = room.guardian;
+    if (g == null || hasStar(g.starIndex)) {
+      // Walked out mid-fall (or it died to something else): forget the beat,
+      // so re-entering the chamber plays a whole arrival again.
+      if (_guardianEnemy == null) _guardianArrival = -1;
+      return;
+    }
+    if (_guardianArrival >= kGuardianArrivalSeconds) return;
+    final was = _guardianArrival;
+    _guardianArrival += dt;
+    // Ground-shudder ramps through the fall — the thing is getting closer.
+    _shake = max(_shake, _kArrivalShake * (was / kGuardianArrivalSeconds));
+    if (_guardianArrival < kGuardianArrivalSeconds) return;
+
+    // IMPACT.
+    _shake = _kImpactShake;
+    _spawnGuardianBody(g);
+    // Raikuma takes the grid as it lands (§7): the seize belongs to the
+    // arrival, not to the distant beam latch that woke it.
+    if (_isCircuit) _seizeCoreTrunk(room);
+    _spawnAlchemyBurst(
+      g.position,
+      producedElement: g.encounter?.element ?? layout.element,
+      reagentElements: [layout.element],
+      unstable: true,
+      particleCount: 30,
+      intensity: 1.3,
+    );
+    onChanged();
+  }
+
+  void _spawnGuardianBody(GuardianNode g) {
+    final hpScale =
+        CosmicSurvivalBalance.enemyWaveHpScale(7) *
+        (raid?.hpMul ?? 1.0) *
+        progressHpMul;
+    final damageScale =
+        CosmicSurvivalBalance.enemyWaveDamageScale(7) *
+        (raid?.dmgMul ?? 1.0) *
+        progressDmgMul;
+    // 2026-08-14 balance pass: the pool is [kGuardianBaseHp] (measured
+    // against real party DPS — see there) and contact damage 20 → 24. The
+    // early guardians read as set-pieces and died like wisps; the strike
+    // count caps the fight's length, the pool decides how much of that cap a
+    // given team actually spends, and the damage makes those windows cost.
+    _guardianEnemy = CosmicSurvivalEnemy(
+      position: g.position,
+      hp: kGuardianBaseHp * hpScale,
+      maxHp: kGuardianBaseHp * hpScale,
+      speed: 58,
+      damage: 24 * damageScale,
+      radius: 38,
+      tier: EnemyTier.phantom,
+      element: g.encounter?.element ?? 'Air',
+      role: CosmicEnemyRole.hunter,
+      variant: SurvivalEnemyVariant.crusher,
+      target: CosmicEnemyTarget.companion,
+      isElite: true,
+    );
+    combatEnemies.add(_guardianEnemy!);
   }
 
   /// Raid escalation: each time the guardian's HP crosses a configured
@@ -6492,6 +6609,13 @@ class PlanetDungeonGame extends FlameGame {
     final g = currentRoom.guardian;
     if (g == null || !guardianAwake) return false;
     if ((a.position - _guardianPosition(g)).distance > 90) return false;
+    // Standing under a mystic in mid-fall: nothing to strike or calm yet. Only
+    // the ground beneath it is refused — the room's own verbs (ranking rods,
+    // herding the cell) stay live everywhere else while it comes down.
+    if (guardianArriving) {
+      _setHint('It is still coming down — brace');
+      return true;
+    }
     final enc = g.encounter;
     final canCalm = enc?.canCalm ?? true;
     final canDefeat = enc?.canDefeat ?? true;
@@ -6520,13 +6644,15 @@ class PlanetDungeonGame extends FlameGame {
       _setHint('This guardian can only be calmed — more Beauty may be needed');
       return true;
     }
-    // Pace the lull strikes (~2 per lull window) so the rage/lull rhythm
-    // stays the fight instead of four instant taps deleting it.
+    // Pace the lull strikes (2 per lull window at 1.5s apart in a 3.0s lull)
+    // so the rage/lull rhythm stays the fight instead of instant taps
+    // deleting it. With kGuardianBaseStrikes = 6 a first mystic costs three
+    // clean windows; the last one costs nine.
     if (_guardianStrikeCooldown > 0) {
       _setHint('The guardian reels — let the strike land');
       return true;
     }
-    _guardianStrikeCooldown = 1.2;
+    _guardianStrikeCooldown = 1.5;
     final e = _guardianEnemy;
     if (e != null && !e.isDead) {
       e.hp -= e.maxHp / guardianStrikesNeeded;
@@ -6692,8 +6818,23 @@ class PlanetDungeonGame extends FlameGame {
     if (ref != null && ref.matches(room, door) && !guardianRiteUnlocked) {
       return true;
     }
+    if (_guardianDoorSealed(door)) return true;
     if (_isVapor && _sealBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
+  }
+
+  /// The mystic's chamber is SEALED until the planet's own rite has ROUSED it
+  /// (conduits sung, bells tolled, moon-pools frozen, scale hung true, beam
+  /// latched, crucible sunk). A boss is walked into on purpose: no wandering
+  /// into a sleeping arena, and no fight that starts before its arrival can.
+  /// Once its star is banked the chamber stays open for good — solved is
+  /// solved — and raids skip this entirely (their guardian is already loose).
+  bool _guardianDoorSealed(DungeonDoor door) {
+    if (isRaid) return false;
+    final g = layout.rooms[door.targetRoomId]?.guardian;
+    if (g == null) return false;
+    if (hasStar(g.starIndex)) return false;
+    return !guardianAwake;
   }
 
   /// What a locked door says when touched. The finale hint is PROGRESS-AWARE:
@@ -6705,6 +6846,11 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVapor && _sealBlocked(room, door)) {
       return _sealDoorHint(room, door);
+    }
+    if (_guardianDoorSealed(door)) {
+      return layout.guardianSealedHint ??
+          'The chamber is sealed — nothing in there wakes until this '
+              'planet\'s rite is done';
     }
     final need0 = !hasStar(0);
     final need1 = !hasStar(1);
@@ -6941,7 +7087,9 @@ class PlanetDungeonGame extends FlameGame {
     super.render(canvas);
     final vp = Size(size.x, size.y);
     final room = currentRoom;
-    final cam = _cameraTopLeft(room, _cameraFocus);
+    // The shake moves the WORLD under a fixed sky — cheaper than shaking
+    // everything, and it reads as the ground moving, which is the point.
+    final cam = _cameraTopLeft(room, _cameraFocus) + _shakeOffset();
 
     // Screen-space atmosphere. Background = elemental shader, else gradient.
     if (_sky.ready) {
@@ -9289,6 +9437,10 @@ class PlanetDungeonGame extends FlameGame {
       _drawTinyLabel(canvas, c.position + const Offset(0, 30), c.id);
     }
     final g = room.guardian;
+    if (g != null && guardianArriving) {
+      _drawGuardianArrival(canvas, g);
+      return;
+    }
     if (g != null && (altarOpen || guardianAwake)) {
       final pos = _guardianPosition(g);
       final col = guardianVulnerable
@@ -9349,6 +9501,40 @@ class PlanetDungeonGame extends FlameGame {
         }
       }
     }
+  }
+
+  /// THE ARRIVAL. The mystic falls onto its own perch: a shadow tightens on
+  /// the ground, a warning ring closes on the spot, and the body drops out of
+  /// the dark above with an accelerating (eased-in) fall. The room shake is
+  /// driven from the update side; this is only what the eye follows.
+  void _drawGuardianArrival(Canvas canvas, GuardianNode g) {
+    final t = (_guardianArrival / kGuardianArrivalSeconds).clamp(0.0, 1.0);
+    final fall = t * t * t; // ease-in: slow lift, hard landing
+    final pos = g.position;
+    final col = const Color(0xFFC0392B);
+
+    // Ground shadow: wide and faint at height, tight and black on landing.
+    final shadowW = 96.0 - 46.0 * fall;
+    canvas.drawOval(
+      Rect.fromCenter(center: pos, width: shadowW, height: shadowW * 0.42),
+      Paint()..color = Colors.black.withValues(alpha: 0.20 + 0.42 * fall),
+    );
+    // The spot it is going to land on, closing.
+    canvas.drawCircle(
+      pos,
+      120 - 78 * fall,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..color = col.withValues(alpha: 0.30 + 0.45 * fall),
+    );
+
+    final from = pos - Offset(0, 460 * (1 - fall));
+    if (_fx.ready) {
+      drawGlow(canvas, _fx.glow!, from, 46 + 22 * fall,
+          col.withValues(alpha: 0.30 + 0.35 * fall));
+    }
+    _renderGuardianBody(canvas, from, 40, col, false);
   }
 
   void _drawStormConduit(
@@ -10107,6 +10293,16 @@ class PlanetDungeonGame extends FlameGame {
       Paint()..color = const Color(0xFF080808).withValues(alpha: 0.55),
     );
     tp.paint(canvas, origin);
+  }
+
+  /// Two detuned sines instead of random jitter: a shudder the eye can track,
+  /// and it costs nothing per frame.
+  Offset _shakeOffset() {
+    if (_shake <= 0.01) return Offset.zero;
+    return Offset(
+      sin(_time * 51.0) * _shake,
+      cos(_time * 43.0) * _shake * 0.7,
+    );
   }
 
   Offset _cameraTopLeft(DungeonRoom room, Offset focus) {

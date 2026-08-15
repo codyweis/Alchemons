@@ -42,14 +42,22 @@ void main() {
       final g = _game(0);
       expect(g.progressHpMul, 1.0);
       expect(g.progressDmgMul, 1.0);
-      expect(g.guardianStrikesNeeded, PlanetDungeonGame.maxGuardianHp);
+      expect(
+        g.guardianStrikesNeeded,
+        PlanetDungeonGame.kGuardianBaseStrikes,
+        reason: 'six lull windows for a first mystic (raised from four '
+            '2026-08-14: the early guardians died before their cycle read)',
+      );
     });
 
     test('the seventeenth dungeon is a different animal', () {
       final last = _game(16);
-      expect(last.progressHpMul, closeTo(8.2, 0.001));
+      // ×0.18·n since 2026-08-14 (was ×0.45·n): the guardian pool is now
+      // sized against measured party damage, so the old slope stretched the
+      // last fights past two minutes.
+      expect(last.progressHpMul, closeTo(3.88, 0.001));
       expect(last.progressDmgMul, closeTo(2.92, 0.001));
-      expect(last.guardianStrikesNeeded, 16); // 4 lull strikes → 16
+      expect(last.guardianStrikesNeeded, 26); // 14 lull strikes → 26
     });
 
     test('scaling grows monotonically with each fallen guardian', () {

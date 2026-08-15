@@ -1019,6 +1019,12 @@ class DungeonLayout {
   /// Hint when a creature touches the still-locked [finaleDoor].
   final String? finaleSealedHint;
 
+  /// Hint when a creature leans on the guardian chamber's door before the
+  /// planet's rite has roused the mystic. The chamber is SEALED until then —
+  /// a boss is walked into on purpose, never wandered into. Names the rite,
+  /// never the method (§5.6). Null falls back to a generic line.
+  final String? guardianSealedHint;
+
   /// Room whose centre mends the party once per run (null = none).
   final String? mercyShrineRoomId;
 
@@ -1057,6 +1063,7 @@ class DungeonLayout {
     this.finaleDoor,
     this.riteAnnouncement,
     this.finaleSealedHint,
+    this.guardianSealedHint,
     this.mercyShrineRoomId,
     this.riddle = const [],
     this.familyGates = const [],
@@ -1141,6 +1148,9 @@ const DungeonLayout _airLayout = DungeonLayout(
   finaleSealedHint:
       'The storm door is sealed — it parts only for both the Wind and '
       'Loom stars',
+  guardianSealedHint:
+      'The summit stair is shut — the crown wakes no bird until the twin '
+      'conduits sing',
   mercyShrineRoomId: 'storm_altar',
   // Ideal: Airwing · Firemask · Lightninghorn — hinted by VERB, never by
   // body part. §9.1 NOTE: the crown is no longer climbed on wings — a woken
@@ -1804,14 +1814,17 @@ const DungeonLayout _airLayout = DungeonLayout(
         ),
         Conduit(
           id: 'B',
-          position: Offset(770, 330),
+          position: Offset(770, 150),
           // Nothing channels B by hand — the storm strikes it, or nothing does.
+          // It sits HIGH in the far corner, above and beyond the whole rod
+          // field, so the room reads its own rule at a glance: the only way to
+          // that pylon is a ladder of iron climbing toward it.
           requireElement: 'Lightning',
           struckByStorm: true,
         ),
       ],
       // The cell's circuit never brings it within a leader's leap of conduit B
-      // (nearest approach 180 > kStormHopReach): the bolt only ever arrives up
+      // (nearest approach 224 > kStormHopReach): the bolt only ever arrives up
       // a staircase the player ranked.
       stormOrbit: StormCellOrbit(
         center: Offset(420, 330),
@@ -1933,6 +1946,9 @@ const DungeonLayout _fireLayout = DungeonLayout(
   finaleSealedHint:
       'The chancel gate is sealed — it parts only for both the Ember and '
       'Ash stars',
+  guardianSealedHint:
+      'The sanctum door holds fast — nothing in there stirs until every '
+      'ember bell has tolled',
   mercyShrineRoomId: 'high_altar',
   // Ideal: Firemask · Plantmane · Airwing — hinted by VERB, never by body
   // part: insight, the trail-leaving passage, flight.
@@ -2274,6 +2290,9 @@ const DungeonLayout _waterLayout = DungeonLayout(
   finaleSealedHint:
       'The mirror gate is sealed — it parts only for both the Tide and '
       'Current stars',
+  guardianSealedHint:
+      'The deep gate will not open — the dark below sleeps until the true '
+      'moon-pools lie frozen',
   mercyShrineRoomId: 'moon_well',
   // Ideal: Waterpip · Spiritmask · Icemane — hinted by VERB, never by body
   // part: small access, second sight, the road-paving passage.
@@ -2612,6 +2631,9 @@ const DungeonLayout _earthLayout = DungeonLayout(
   finaleSealedHint:
       'The skull\'s jaw is shut — it opens only for both the Marrow and '
       'Crystal stars',
+  guardianSealedHint:
+      'The heart-way is barred — the bones lie still until the great scale '
+      'hangs true',
   mercyShrineRoomId: 'eye_chamber',
   // Ideal: Earthhorn · Lightningpip · Crystalmask — hinted by VERB, never by
   // body part: the mighty shove, small access, insight.
@@ -2922,6 +2944,9 @@ const DungeonLayout _lightningLayout = DungeonLayout(
   finaleSealedHint:
       'The breaker gate is dead — it powers only for both the Circuit and '
       'Storm stars',
+  guardianSealedHint:
+      'The core hatch is dead iron — nothing uncoils in there until the '
+      'beam runs latched',
   mercyShrineRoomId: 'storm_core',
   // Ideal: Lightninghorn · Airwing · Firepip — hinted by VERB, never body part:
   // the mighty charge/hold, flight, small access + heat.
@@ -3320,6 +3345,9 @@ const DungeonLayout _steamLayout = DungeonLayout(
   finaleSealedHint:
       'The crucible gate is sealed — it yields only to the Causeway and Cinder '
       'stars',
+  guardianSealedHint:
+      'The heart valve is clamped — the boiler holds its breath until the '
+      'crucible pedestal sinks',
   mercyShrineRoomId: 'boiler_heart',
   // Ideal: Steampip · Firemask · Earthhorn — hinted by VERB, never body part:
   // a cooling breath, a kindling/melting heart, the wall-raising strength.

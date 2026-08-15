@@ -483,12 +483,15 @@ void main() {
 
   test('every molten-room door is passable on foot (not just by teleport)', () {
     final game = _harness([_member(0, 'Steam', 'pip')]);
-    // Geometry test, not economy: pre-pay every ring junction.
+    // Geometry test, not economy: pre-pay every ring junction. And not
+    // gating either — rouse Boilrog so the heart's door is unsealed too (the
+    // seal itself is tested where it belongs).
     for (final room in game.layout.rooms.values) {
       for (final s in room.pressureSeals) {
         game.unclampedSeals.add(_sealKeyOf(room.id, s.targetRoomId));
       }
     }
+    game.guardianAwake = true;
     for (final room in game.layout.rooms.values) {
       if (room.molten == null) continue;
       for (final door in room.doors) {

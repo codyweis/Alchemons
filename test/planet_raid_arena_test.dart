@@ -151,8 +151,9 @@ void main() {
         config: const RaidConfig(hpMul: 3.0, dmgMul: 1.5),
       );
       expect(raid.guardianAwake, isTrue);
-      _step(baseline, 0.5);
-      _step(raid, 0.5);
+      // The guardian ARRIVES (it falls in) before its body exists.
+      _step(baseline, 2.2);
+      _step(raid, 2.2);
       final base = baseline.combatEnemies.singleWhere((e) => e.isElite);
       final boosted = raid.combatEnemies.singleWhere((e) => e.isElite);
       expect(boosted.maxHp, closeTo(base.maxHp * 3.0, 0.001));
@@ -167,7 +168,7 @@ void main() {
       final raid = _buildRaid(
         config: const RaidConfig(addPhaseThresholds: [0.7, 0.35]),
       );
-      _step(raid, 0.5);
+      _step(raid, 2.2); // past the arrival
       final guardian = raid.combatEnemies.singleWhere((e) => e.isElite);
       final baseCount = raid.combatEnemies.length;
 
@@ -188,7 +189,7 @@ void main() {
         onCleared: () => cleared++,
         onStar: (_) => stars++,
       );
-      _step(raid, 0.5);
+      _step(raid, 2.2); // past the arrival
       final guardian = raid.combatEnemies.singleWhere((e) => e.isElite);
 
       guardian.hp = 0;

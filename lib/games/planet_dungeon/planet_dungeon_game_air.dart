@@ -141,6 +141,8 @@ extension WindCrownSpire on PlanetDungeonGame {
     stormStrikeTimer = 0;
     lastLeaderPath.clear();
     _leaderFlash = 0;
+    latchedLeaderPath.clear();
+    _latchedLeaderOrigin = null;
     _rocLeash = Offset.zero;
     _rocStunLeft = 0;
   }
@@ -797,6 +799,12 @@ extension WindCrownSpire on PlanetDungeonGame {
         .firstOrNull;
     if (conduit != null) {
       _energizeConduit(conduit.id);
+      // The winning ladder LATCHES with the conduit it fed: from here the
+      // chain keeps burning, so the room shows the answer it was given.
+      latchedLeaderPath
+        ..clear()
+        ..addAll(path);
+      _latchedLeaderOrigin = from;
       _setHint('The storm finds the ladder — conduit ${conduit.id} takes the '
           'bolt');
       _spawnAlchemyBurst(
@@ -1187,17 +1195,55 @@ extension WindCrownSpire on PlanetDungeonGame {
         ..color = const Color(0xFFE4C16A).withValues(alpha: 0.8),
     );
 
+    // The latched ladder burns first and always — under the live flash, so a
+    // fresh strike still reads as the brighter event.
+    _drawLatchedLeader(canvas, room, cell);
+
     if (_leaderFlash <= 0 || lastLeaderPath.isEmpty) return;
     final fade = (_leaderFlash / _kLeaderFlashSeconds).clamp(0.0, 1.0);
-    var from = cell;
-    for (final id in lastLeaderPath) {
+    _drawLeaderChain(canvas, room, lastLeaderPath, cell, 0.85 * fade);
+  }
+
+  /// The chain that lit a conduit, kept alight. Anchored to the spot the bolt
+  /// came down from — but only while the cell is still standing there; once it
+  /// has drifted on, the chain starts at the first iron instead of trailing an
+  /// arc into empty air.
+  void _drawLatchedLeader(Canvas canvas, DungeonRoom room, Offset cell) {
+    if (latchedLeaderPath.isEmpty) return;
+    if ((conduitEnergy[latchedLeaderPath.last] ?? 0) <= 0) return;
+    final origin = _latchedLeaderOrigin;
+    final anchored = origin != null && (cell - origin).distance < 8;
+    final path = anchored ? latchedLeaderPath : latchedLeaderPath.skip(1);
+    final from = anchored
+        ? origin
+        : _conductorPosition(room, latchedLeaderPath.first);
+    if (from == null) return;
+    // A slow breath, not a strobe: the circuit is holding, not striking.
+    _drawLeaderChain(
+      canvas,
+      room,
+      path,
+      from,
+      0.60 + 0.14 * sin(_time * 2.1),
+    );
+  }
+
+  void _drawLeaderChain(
+    Canvas canvas,
+    DungeonRoom room,
+    Iterable<String> path,
+    Offset origin,
+    double alpha,
+  ) {
+    var from = origin;
+    for (final id in path) {
       final to = _conductorPosition(room, id);
       if (to == null) break;
       _drawLightningArc(
         canvas,
         from,
         to,
-        const Color(0xFFB9E6FF).withValues(alpha: 0.85 * fade),
+        const Color(0xFFB9E6FF).withValues(alpha: alpha.clamp(0.0, 1.0)),
       );
       from = to;
     }

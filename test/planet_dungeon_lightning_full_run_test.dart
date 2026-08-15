@@ -292,10 +292,13 @@ void main() {
     final guardianNode = core.guardian!;
     game.setActive(0); // Lightning grounds the spike
     teleport('storm_core', guardianNode.position + const Offset(0, 80));
-    step();
-    expect(game.guardianAwake, isTrue, reason: 'the core wakes Raikuma');
+    // The beam latch WOKE it back in the maze (the sealed hatch parts only
+    // for a roused guardian); walking in plays the arrival, and it seizes the
+    // grid when it lands.
+    expect(game.guardianAwake, isTrue, reason: 'the latched beam woke Raikuma');
+    step(2.2); // kGuardianArrivalSeconds + a beat
     expect(game.activeTrunk, 'trunk_core',
-        reason: 'Raikuma seizes the dynamo as it wakes');
+        reason: 'Raikuma seizes the dynamo as it lands');
     expect(game.raikumaFed, isTrue);
 
     var safety = 0;

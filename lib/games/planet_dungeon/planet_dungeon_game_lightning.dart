@@ -994,32 +994,69 @@ extension StormCircuit on PlanetDungeonGame {
 
   // ── Raikuma feeds on the powered trunk (§7 retrofit) ─────
 
+  /// Raikuma rouses at the LATCH, not at the door. The core hatch is sealed
+  /// until its guardian is awake (§ the guardian seal), so waking it on
+  /// arrival in the core would seal the room against itself: the beam that
+  /// throws the gate open is the same act that uncoils the thing behind it.
+  /// The player hears it from the maze — which is the better beat anyway.
   void _maybeWakeRaikuma(DungeonRoom room) {
-    final g = room.guardian;
-    if (g == null || guardianAwake || hasStar(g.starIndex)) return;
+    if (guardianAwake) return;
+    // Standing in the core still counts (the powered barrier vouches for it):
+    // belt and braces, so no route into that room can ever find it asleep.
+    final atCore = room.guardian != null;
+    if (!_beamLatched && !hasStar(2) && !atCore) return;
+    DungeonRoom? core = atCore ? room : null;
+    if (core == null) {
+      for (final r in layout.rooms.values) {
+        if (r.guardian != null) {
+          core = r;
+          break;
+        }
+      }
+    }
+    final g = core?.guardian;
+    if (g == null || hasStar(g.starIndex)) return;
     guardianAwake = true;
     guardianHp = PlanetDungeonGame.maxGuardianHp;
-    final trunk = _trunkForRoom(room.id);
-    if (trunk != null && !isRaid) {
-      // The guardian SEIZES the dynamo as it wakes: the core trunk surges
-      // live and Raikuma drinks — no lull until the trunk is grounded.
-      activeTrunk = trunk.id;
-      _raikumaFed = true;
-      _dynamoSwing = 0;
-      _setHint(
-        'Raikuma uncoils from the grid — and drinks the powered trunk',
-        4.2,
-      );
+    final inCore = identical(core, room);
+    if (inCore && !isRaid) {
+      // Already standing in the core when it woke: it seizes at once.
+      _seizeCoreTrunk(core!);
     } else {
-      _setHint('You reach the storm core — Raikuma uncoils from the grid', 4.2);
+      _setHint('Behind the hatch, Raikuma uncoils from the grid', 4.2);
     }
-    spawnWispWave(
-      element: 'Lightning',
-      center: g.position,
-      count: 3,
-      unstable: true,
-      announce: false,
-    );
+    // The escort only gathers where the party can see it; woken from the maze
+    // the core keeps its spawn for the arrival.
+    if (inCore) {
+      spawnWispWave(
+        element: 'Lightning',
+        center: g.position,
+        count: 3,
+        unstable: true,
+        announce: false,
+      );
+    }
+  }
+
+  /// Raikuma SEIZES the dynamo — the core trunk surges live and it drinks, so
+  /// there is no lull until the spike grounds it. Fired when the guardian
+  /// LANDS in its core (or at the wake, if the party is already standing
+  /// there): stealing the trunk from the maze the moment the beam latched
+  /// would darken the room the player is still standing in.
+  void _seizeCoreTrunk(DungeonRoom core) {
+    if (!_isCircuit || isRaid) return;
+    final g = core.guardian;
+    if (g == null || hasStar(g.starIndex)) return;
+    final trunk = _trunkForRoom(core.id);
+    if (trunk == null) {
+      _setHint('Raikuma uncoils from the grid', 4.2);
+      return;
+    }
+    activeTrunk = trunk.id;
+    _raikumaFed = true;
+    _dynamoSwing = 0;
+    _setHint('Raikuma uncoils from the grid — and drinks the powered trunk',
+        4.2);
   }
 
   /// Called from the shared guardian loop (one `_isCircuit`-guarded line in

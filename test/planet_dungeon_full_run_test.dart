@@ -519,6 +519,44 @@ void main() {
       _step(game, 0.5);
       expect(game.altarOpen, isTrue);
       expect(game.guardianAwake, isTrue);
+
+      // The winning ladder LATCHES with the conduit it fed: the flash fades,
+      // the chain does not. Long after `_kLeaderFlashSeconds` the room still
+      // shows the circuit the player built.
+      expect(game.latchedLeaderPath.last, 'B');
+      final chain = List<String>.from(game.latchedLeaderPath);
+      _step(game, 6.0);
+      expect(
+        game.latchedLeaderPath,
+        chain,
+        reason: 'the lit chain is a standing fact, not a moment',
+      );
+    });
+
+    test('conduit B stands above and beyond the whole rod field', () {
+      // The room must read its own rule at a glance: the pylon sits high in
+      // the far corner, so the only story the geometry tells is a ladder of
+      // iron climbing to it. Exactly one rod may finish the climb.
+      final game = altarReady();
+      final room = game.layout.rooms['twin_conduit']!;
+      final b = room.conduits.firstWhere((c) => c.struckByStorm);
+      for (final rod in room.stormRods) {
+        expect(
+          rod.position.dy,
+          greaterThan(b.position.dy),
+          reason: '${rod.id} stands above conduit B — the climb reads backwards',
+        );
+        expect(rod.position.dx, lessThan(b.position.dx));
+      }
+      final reachers = room.stormRods
+          .where((r) => (r.position - b.position).distance <= kStormHopReach)
+          .map((r) => r.id)
+          .toList();
+      expect(
+        reachers,
+        ['rod_north'],
+        reason: 'the corner is fed by the top of the staircase alone',
+      );
     });
 
     test('a mis-ranked field strikes wild instead — the consequence layer', () {
@@ -588,6 +626,185 @@ void main() {
     });
   });
 
+  // ── The guardian chamber: sealed, then an ARRIVAL ──────
+
+  group('the guardian chamber', () {
+    /// The door from the altar arena up into the Roc's summit.
+    (DungeonRoom, DungeonDoor) summitDoor(PlanetDungeonGame game) {
+      final room = game.layout.rooms['storm_altar']!;
+      return (
+        room,
+        room.doors.firstWhere((d) => d.targetRoomId == 'guardian_summit'),
+      );
+    }
+
+    test('the chamber is SEALED until the rite rouses what is inside', () {
+      final game = _harness(_trio());
+      game.starMask = (1 << 0) | (1 << 1); // the finale wing is open
+      final (room, door) = summitDoor(game);
+      expect(
+        game.isDoorLocked(room, door),
+        isTrue,
+        reason: 'a boss is walked into on purpose, never wandered into',
+      );
+
+      // Leaning on it names the rite, never the method (§5.6).
+      _teleport(game, 'storm_altar', door.rect.center);
+      _step(game);
+      expect(game.currentRoomId, 'storm_altar', reason: 'the door held');
+      expect(game.hintChannel, DungeonHintChannel.blocked);
+      expect(game.hintText, contains('conduits'));
+
+      // The rite lands → the stair opens.
+      game.guardianAwake = true;
+      expect(game.isDoorLocked(room, door), isFalse);
+    });
+
+    test('a banked Storm Star keeps the chamber open for good', () {
+      final game = _harness(_trio());
+      game.starMask = (1 << 0) | (1 << 1) | (1 << 2);
+      final (room, door) = summitDoor(game);
+      expect(
+        game.isDoorLocked(room, door),
+        isFalse,
+        reason: 'solved is solved — the summit stays walkable',
+      );
+    });
+
+    test('entering a roused chamber plays the ARRIVAL before the fight', () {
+      final game = _harness(_trio());
+      game.starMask = (1 << 0) | (1 << 1);
+      game.guardianAwake = true;
+      _teleport(game, 'guardian_summit', const Offset(410, 620));
+      _step(game, 0.2);
+
+      expect(game.guardianArriving, isTrue, reason: 'it is still falling');
+      expect(
+        game.combatEnemies.any((e) => e.isElite),
+        isFalse,
+        reason: 'nothing to hit — or be hit by — until it lands',
+      );
+      expect(game.shakeAmplitude, greaterThan(0), reason: 'the room shudders');
+
+      // Striking at a falling mystic is refused, not swallowed. (Stand under
+      // the perch with the cell parked on the far side of its ring, so the
+      // guardian verb — not the herd gust — is the one being asked for.)
+      game.setActive(0);
+      game.stormCellAngle = 0;
+      _teleport(game, 'guardian_summit', const Offset(330, 300));
+      game.activateAbility();
+      expect(game.hintText, contains('coming down'));
+
+      // IMPACT: the body exists, and the lull clock starts here.
+      _step(game, PlanetDungeonGame.kGuardianArrivalSeconds + 0.2);
+      expect(game.guardianArriving, isFalse);
+      expect(
+        game.combatEnemies.any((e) => e.isElite && !e.isDead),
+        isTrue,
+        reason: 'the guardian lands and the fight begins',
+      );
+    });
+  });
+
+  // ── The fight has to LAST (2026-08-14 balance pass) ────
+
+  group('a guardian is not a wisp', () {
+    /// Plays the fight the way a player does: the trio parked on the mystic,
+    /// ATTACK and SPECIAL mashed the frame they come up, and the utility verb
+    /// pressed through every lull. Returns (seconds, lull windows seen).
+    (double, int) fight(PlanetDungeonGame game, {double cap = 90}) {
+      final room = game.layout.rooms['guardian_summit']!;
+      final perch = room.guardian!.position;
+      final stand = perch + const Offset(0, 70);
+      _teleport(game, 'guardian_summit', stand);
+      var t = 0.0;
+      var lulls = 0;
+      var wasLull = false;
+      while (!game.hasStar(2) && t < cap) {
+        for (final c in game.creatures) {
+          c.position = stand;
+          c.hp = c.maxHp; // measuring the boss, not the wipe
+        }
+        if (game.autoAttackReady) game.activateAutoAttack();
+        if (game.abilityReady) game.activateCombatAbility();
+        if (game.guardianVulnerable) {
+          if (!wasLull) lulls++;
+          game.activateAbility();
+        }
+        wasLull = game.guardianVulnerable;
+        game.update(1 / 60);
+        t += 1 / 60;
+      }
+      return (t, lulls);
+    }
+
+    test('the opening burst cannot delete a mystic', () {
+      final game = _harness(_trio());
+      game.starMask = (1 << 0) | (1 << 1);
+      game.guardianAwake = true;
+      _teleport(
+        game,
+        'guardian_summit',
+        game.layout.rooms['guardian_summit']!.guardian!.position +
+            const Offset(0, 70),
+      );
+      // Land it, then give the party five seconds of everything they have.
+      _step(game, PlanetDungeonGame.kGuardianArrivalSeconds + 5.0);
+      final boss = game.combatEnemies.where((e) => e.isElite).firstOrNull;
+      expect(boss, isNotNull, reason: 'it landed');
+      expect(
+        boss!.hp / boss.maxHp,
+        greaterThan(0.5),
+        reason: 'a three-Alchemon opening burst must not halve a guardian — '
+            'the pool is sized against measured party damage, not a wisp',
+      );
+      expect(game.hasStar(2), isFalse);
+    });
+
+    test('the fight runs long enough to SHOW the rage/lull cycle', () {
+      final game = _harness(_trio());
+      game.starMask = (1 << 0) | (1 << 1);
+      game.guardianAwake = true;
+      final (seconds, lulls) = fight(game);
+      expect(game.hasStar(2), isTrue, reason: 'it does die eventually');
+      expect(
+        seconds,
+        greaterThan(15),
+        reason: 'a first mystic is a set-piece, not a speed bump',
+      );
+      expect(
+        lulls,
+        greaterThanOrEqualTo(3),
+        reason: 'the player must see the cycle turn — and the half-HP enrage',
+      );
+    });
+
+    test('the campaign clock lengthens the same fight', () {
+      PlanetDungeonGame at(int cleared) {
+        final g = PlanetDungeonGame(
+          element: 'Air',
+          party: _trio(),
+          initialStarMask: 0,
+          onStarEarned: (_) {},
+          onPlayerDown: () {},
+          onChanged: () {},
+          clearedGuardianCount: cleared,
+        );
+        g.currentRoomId = g.layout.entranceRoomId;
+        return g;
+      }
+
+      final fresh = at(0);
+      final late = at(8);
+      expect(
+        late.guardianStrikesNeeded,
+        greaterThan(fresh.guardianStrikesNeeded),
+      );
+      expect(late.progressHpMul, greaterThan(fresh.progressHpMul));
+      expect(late.progressDmgMul, greaterThan(fresh.progressDmgMul));
+    });
+  });
+
   // ── The Roc (§7) ───────────────────────────────────────
 
   group('the Roc drags the storm across its own rod field', () {
@@ -601,7 +818,9 @@ void main() {
       game.altarOpen = true;
       game.guardianAwake = true;
       _teleport(game, 'guardian_summit', const Offset(410, 620));
-      _step(game, 1.5); // the leash settles behind the bird
+      // The Roc ARRIVES first (kGuardianArrivalSeconds of falling, during
+      // which nothing turns), then the leash settles behind the bird.
+      _step(game, 2.6);
 
       final bird = room.guardian!.position;
       for (var i = 0; i < 32; i++) {
@@ -623,7 +842,7 @@ void main() {
       game.altarOpen = true;
       game.guardianAwake = true;
       _teleport(game, 'guardian_summit', const Offset(410, 620));
-      _step(game, 1.5);
+      _step(game, 2.6); // let the arrival land before the fight is measured
 
       final bird = room.guardian!.position;
 

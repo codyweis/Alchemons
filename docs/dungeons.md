@@ -801,13 +801,28 @@ not as soft modifiers.
         element-only); conduit B stands at rank 4.
       - **Proof (`solveRodRanking()`, public, uses the real
         `stormLeaderFrom`):** authored as a **FAMILY**, not a unique answer —
-        of 1024 rankings × 72 cell positions, **21 rankings (2%)** route the bolt
+        of 1024 rankings × 72 cell positions, **11 rankings (1%)** route the bolt
         to B from some position. The two mis-rankings the design names fail from
         EVERY position: all rods down (nothing to climb, 0 hits) and all rods up
         (a plateau the leader cannot start on, 0 hits). Cheapest valid ranking
         costs 6 cranks. Anything else dies on a rod: wild strike + storm wisps.
       - **Gusts herd the cell** (Air-only, `_kCellGustReach`), so the player
         chooses where the climb begins.
+      - **B stands HIGH in the far corner** (`(770,150)`, 2026-08-14): above
+        and beyond every rod, out of the cell's reach by 224 > `kStormHopReach`,
+        and inside a single leap of exactly ONE rod (`rod_north`). The room now
+        states its own rule geometrically — the pylon is somewhere iron has to
+        climb to — at the cost of half the solution family (21 → 11; the six
+        rankings that used to finish on `rod_south`/`rod_axis` are gone, the
+        cheapest answer and its 105° firing window are not). Layout-tested.
+      - **The winning chain LATCHES with the conduit it fed**
+        (`latchedLeaderPath`): once the storm finds B the ladder keeps burning
+        on a slow breath instead of guttering after `_kLeaderFlashSeconds`, so
+        the room goes on showing the circuit the player built. A fresh leader
+        still flashes brighter over the top of it. It is anchored to the spot
+        the bolt came down from while the cell is still standing there (which
+        is always, once both conduits latch the cell freezes) and starts at the
+        first iron if the cell has drifted on — never an arc into empty air.
     **Roc (§7 retrofit):** the guardian **drags the cell on a leash**
     (`_kRocLeash`, always further than one leap from the bird) across a ring of
     eight perch-rods at radius 150. The shared lull/strike cycle is untouched;
@@ -1086,16 +1101,91 @@ fallen (0..16), computed by the screen via
 `PlanetStarState.guardiansDefeated(excluding: element)` and passed into the
 game. Stats run 0–5.0, so the curve stretches from "first dungeon, mid-bred
 trio" to "seventeenth dungeon, near-perfect team":
-- **Guardian HP** ×(1 + 0.45·n) → ≈8.2× at n=16; **damage** ×(1 + 0.12·n)
+- **Guardian HP** ×(1 + 0.18·n) → ≈3.9× at n=16; **damage** ×(1 + 0.12·n)
   → ≈2.9× (lethality comes from the longer fight, not one-shots); the rage
-  aura DPS scales with the damage mul.
-- **Lull strikes to fell the guardian**: 4 + 0.75·n → 16 strikes by the
-  last dungeon (the strike chunk is maxHp-fractional, so HP alone wouldn't
-  lengthen the strike path).
+  aura DPS scales with the damage mul. (HP slope cut from ×0.45·n on
+  2026-08-14 — see the balance pass below: once the base pool was sized
+  against real party damage, the old slope pushed the last fights past two
+  minutes.)
+- **Lull strikes to fell the guardian**: `kGuardianBaseStrikes` (14) +
+  0.75·n → 26 by the last dungeon. The strike chunk is `maxHp / strikesNeeded`,
+  so this number is also the fight's **length CAP**: at ~2 paced strikes per
+  3.0s lull in a 6s cycle the strike path alone runs ≈3× the strike count in
+  seconds, however fat the pool is (42s fresh, 78s last).
 - **Wisps / raid adds**: HP ×(1 + 0.22·n), damage ×(1 + 0.07·n).
+
+#### The 2026-08-14 boss balance pass — MEASURED, not guessed
+The complaint was that early guardians got one-shot. A headless sim (the
+ideal trio parked on the perch, ATTACK + SPECIAL mashed the frame they come
+up, utility pressed every lull) put numbers on it: **a three-Alchemon party
+deals ~172 dmg/s at stat 2.0, ~393 at 3.0 and ~1005 at 4.5** against a
+guardian pool of **341**. The mystic died inside a second — no cycle, no
+planet twist, no half-HP enrage, none of what the fight was built to show.
+Two structural facts came out of it:
+1. The strike chunk being maxHp-fractional means **strike count caps fight
+   length** — raising HP alone can never lengthen a fight past ≈3× the
+   strike count in seconds.
+2. Everything else has to be sized against **party DPS**, which the old
+   pool was not: 341 HP is two frames of a mid trio.
+So: `kGuardianBaseStrikes` 4 → **14**, `kGuardianBaseHp` (new) 220 → **6000**
+(×1.3125 wave-7 curve ≈ 7.9k on a fresh save), contact damage 20 → 24, lull
+strike pacing 1.2s → 1.5s (a 3.0s lull still fits exactly two), and the
+campaign HP slope ×0.45·n → ×0.18·n. Measured result, seconds to kill and
+lull windows seen:
+
+| trio | first dungeon | seventeenth |
+|---|---|---|
+| stat 2.0 (early breeding) | **50s**, 9 cycles | does not finish |
+| stat 3.0 (mid) | **32s**, 6 cycles | 128s, 22 cycles |
+| stat 4.5 (near-perfect) | **13s**, 2 cycles | 68s, 12 cycles |
+
+A near-perfect trio still blitzes planet #1 — that is the "you overprepared"
+case, and it is left alone deliberately. Regression-pinned in
+`planet_dungeon_full_run_test.dart` ("a guardian is not a wisp"): five
+seconds of the party's whole kit may not halve a fresh guardian, and the
+fight must run >15s and show ≥3 lull windows.
+
+**Open observation (not yet acted on):** in the sim only ~3 of the available
+lull strikes actually landed per fight — the utility press competes with the
+room's own verbs (Air's rods/herd gust sit in the same button) and needs the
+party inside 90px of a guardian that is actively hunting. The fights above
+are therefore carried mostly by companion DPS, with strikes as punctuation.
+If the strike is meant to be the spine of the fight, the dispatch order (or
+its reach) is the thing to revisit.
 - **Raids** stack their own 3×/1.5× on top — late-campaign raids are brutal
   by design. Replaying an early dungeon late in the campaign IS harder (the
   clock is global). Tests: `planet_dungeon_scaling_test.dart`.
+
+### The guardian chamber — SEALED, then an ARRIVAL (built 2026-08-14)
+Two rules, engine-shared, so every planet's finale opens the same way:
+- **The chamber is sealed until its mystic is ROUSED.** `isDoorLocked` seals
+  any door whose target room holds a `GuardianNode` while `!guardianAwake`
+  (`_guardianDoorSealed`). A boss is walked into on purpose — never wandered
+  into, and never found asleep on its perch. Each planet's rite is what
+  rouses it (Air's twin conduits · Fire's ember bells · Water's frozen true
+  moon-pools · Earth's hung scale · Steam's sunk crucible pedestal ·
+  Lightning's latched beam), every one of them performed in a room OUTSIDE
+  the chamber. The refusal names the rite and never the method, per planet,
+  via `DungeonLayout.guardianSealedHint`. A banked Star 3 unseals it for good
+  (solved is solved) and raids skip it (their guardian is already loose).
+  **Lightning needed one retrofit:** Raikuma used to wake on ARRIVAL in the
+  core, which would have sealed the room against itself, so it now rouses at
+  the beam LATCH out in the maze (the same act that throws the powered
+  barrier open) and SEIZES the dynamo only when it lands — stealing the
+  trunk at the latch would have darkened the room the player was standing in.
+- **The mystic ARRIVES.** Entering a roused chamber stages
+  `kGuardianArrivalSeconds` (1.9s) of cinematic before the fight exists: the
+  room shakes (`_shake`, applied to the camera in `render`, ramping through
+  the fall and spiking to `_kImpactShake` on landing), a ground shadow
+  tightens and a warning ring closes on the perch, and the mystic falls onto
+  it with an eased-in drop. **The combat body does not exist until IMPACT** —
+  no lull clock, no rage aura, no enrage, nothing to hit and nothing that
+  hits you — so every fight starts from one clean readable beat. The chrome
+  intro banner fires at the START of the fall, over the animation. Standing
+  under it during the fall is refused ("It is still coming down — brace"),
+  but the room's own verbs stay live everywhere else — ranking rods while a
+  guardian falls is smart play, not a bug. Death resets the arrival, so a
+  retry plays it again.
 
 ### Star authoring principle — the shape of every dungeon
 **Star 3 is ALWAYS the mystic guardian** (relic drop + raid eligibility key off
