@@ -2000,17 +2000,12 @@ extension CinderCathedral on PlanetDungeonGame {
         fraction: ritualProgress / room.braziers.length,
       );
     }
-    // S2 — the grooves sitting true, and the quarter the wind runs. Both are
-    // STATE, glanceable, never a sentence that fades (§5.6).
-    final vine = room.vineStarIndex;
-    if (vine != null && !hasStar(vine) && room.vineBeds.isNotEmpty) {
-      final settled = gardenGroovesTrue;
-      return DungeonProgressReadout(
-        label: 'GROOVES · WIND $gardenWindLabel',
-        value: '$settled/${room.vineBeds.length}',
-        fraction: settled / room.vineBeds.length,
-      );
-    }
+    // S2 — NO READOUT. A groove that sits true catches light and burns in its
+    // own groove (see _drawVineBeds), and the wind is already legible from the
+    // vane and the soot running across the garth. Counting bared grooves in a
+    // badge made the player read a number instead of the garden (playtest:
+    // "the beds should really glow and aflame when its correct, visually, not
+    // number counter badges").
     // S3 — the declared run first (the decision is state too), then the bells.
     if (room.incenseChains.isNotEmpty && !hasStar(2)) {
       final declared = vesperRouteIn(room);
@@ -3387,6 +3382,36 @@ extension CinderCathedral on PlanetDungeonGame {
   /// committed. Every grown bed shows a faint downwind streak (a plume waiting
   /// to happen); the bed the active creature is standing at shows a bright one
   /// with a ring on each groove it would dust.
+  /// A low flame standing in a groove that sits true — three tongues on
+  /// their own phases so a row of lit beds never flickers in lockstep.
+  void _drawGrooveFlame(Canvas canvas, Offset p, int seed) {
+    for (var i = 0; i < 3; i++) {
+      final ph = _time * 3.1 + i * 2.0 + seed * 0.7;
+      final h = 20.0 + 9.0 * sin(ph);
+      final x = p.dx + (i - 1) * 13.0 + sin(ph * 0.8) * 2.4;
+      final base = Offset(x, p.dy + 16);
+      final path = Path()
+        ..moveTo(base.dx - 6, base.dy)
+        ..quadraticBezierTo(base.dx - 4, base.dy - h * 0.6, base.dx, base.dy - h)
+        ..quadraticBezierTo(base.dx + 4, base.dy - h * 0.6, base.dx + 6, base.dy)
+        ..close();
+      canvas.drawPath(
+        path,
+        Paint()..color = const Color(0xFFFF8A2A).withValues(alpha: 0.55),
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFFFFD79A).withValues(alpha: 0.45)
+          ..maskFilter = null,
+      );
+      if (_fx.ready) {
+        drawGlow(canvas, _fx.glow!, base - Offset(0, h * 0.5), 16,
+            const Color(0xFFFFB25A).withValues(alpha: 0.30));
+      }
+    }
+  }
+
   void _drawPlumeForecast(Canvas canvas, DungeonRoom room) {
     final rules = ashGardenRules;
     if (rules == null) return;
@@ -3514,6 +3539,24 @@ extension CinderCathedral on PlanetDungeonGame {
       final state = bedStateAt(i);
       final fx = _bedFx[i] ?? 0;
       final p = bed.position;
+      // Does this groove have what it asked for, right now?
+      final sitsTrue = grooveSitsTrue(i);
+      // A groove that HAS what it asked for catches light: the bed breathes
+      // ember and stands a low flame in its cut. That is the whole progress
+      // display — six lit beds is a solved garth, read at a glance.
+      if (sitsTrue) {
+        final breathe = 0.72 + 0.28 * sin(_time * 2.4 + p.dx * 0.03);
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            p,
+            74 * breathe,
+            const Color(0xFFFF9A3C).withValues(alpha: 0.26 * breathe),
+          );
+        }
+      }
+
       // The bed itself: a soil plot with a scorched kerb.
       final plot = Rect.fromCenter(center: p, width: 112, height: 88);
       final rr = RRect.fromRectAndRadius(plot, const Radius.circular(12));
@@ -3647,7 +3690,8 @@ extension CinderCathedral on PlanetDungeonGame {
           );
       }
 
-      _drawGroove(canvas, p, grooveDemandAt(i), grooveSitsTrue(i));
+      _drawGroove(canvas, p, grooveDemandAt(i), sitsTrue);
+      if (sitsTrue) _drawGrooveFlame(canvas, p, i);
 
       if (fx > 0 && _fx.ready) {
         drawGlow(
