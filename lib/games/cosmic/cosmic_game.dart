@@ -510,8 +510,8 @@ class CosmicGame extends FlameGame with PanDetector {
   // Camera offset (ship is always centred; camera follows ship)
   // Three zoom presets: current (closest), medium, wide.
   static const double _zoomClose = 0.85;
-  static const double _zoomMid = 0.60;
-  static const double _zoomFar = 0.42;
+  static const double _zoomMid = 0.72;
+  static const double _zoomFar = 0.504;
   static const List<double> _zoomPresets = [_zoomClose, _zoomMid, _zoomFar];
   int _zoomLevelIndex = 0;
   double _currentZoom = _zoomClose;

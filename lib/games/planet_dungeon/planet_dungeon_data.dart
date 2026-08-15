@@ -883,10 +883,16 @@ class GeyserMouth {
   /// capped from the first frame and can never be cleared.
   final bool blockedAtStart;
 
+  /// A RISER (Star 2): too wide a throat for one body to smother, so standing
+  /// on it does not cap it — it THROWS you, and how far depends on how much
+  /// of the field is shut. Only the rock is heavy enough to cap a riser.
+  final bool isRiser;
+
   const GeyserMouth({
     required this.id,
     required this.position,
     this.blockedAtStart = false,
+    this.isRiser = false,
   });
 }
 
@@ -3688,40 +3694,39 @@ const DungeonLayout _steamLayout = DungeonLayout(
         PressureSeal(targetRoomId: 'manifold_south', cost: 15),
         PressureSeal(targetRoomId: 'manifold_north', cost: 15),
       ],
-      // 10×12 grid (cells 70×70). THE TWO POURS (reworked 2026-08-14 — the
-      // old room was a 2.6s dash: one gate, one cool, done, with three
-      // cisterns too far away to ever act).
+      // STAR 2 — THE LAUNCH (2026-08-14). A chasm splits the forge; the
+      // pedestal stands on the far shore and there is no bridge. RISERS throw
+      // whoever stands on them across the void, and how far a riser throws
+      // depends on how much of the field is SHUT — so the party is both the
+      // fuel and the cargo.
       //
-      // The vault (pedestal (5,3)) is shut by a plug TWO walls thick at
-      // (4,5)/(4,4), and the only cell you can work it from is the gallery
-      // cell (4,6). The gallery is sealed from the side lanes by two meltable
-      // entrances — (2,6) west, (7,6) east — and breaching either is what
-      // wakes the room.
-      //
-      // Two cisterns sit UNDER the gallery at (3,7) and (5,7), each walled on
-      // three sides so it pours in exactly one direction: up, into the very
-      // cells you must cross. So the flood arrives ON your path, on a clock,
-      // while the two-thick plug pins you in front of it — and a pour can be
-      // CAPPED (Steam cools it to stone, Earth walls the stone) at the cost
-      // of a breath and a beat. Capping the pour you are standing on walls
-      // your own road; capping the far one is what buys the plug work.
-      molten: MoltenGrid(
-        starIndex: 1,
-        rows: [
-          'XXXXXXXXXX',
-          'X........X',
-          'X.XXXXXX.X',
-          'X.X..P.X.X',
-          'X.XX#XXX.X',
-          'X.XX#XXX.X',
-          'X........X',
-          'X.XLXLXX.X',
-          'X.XXXXXX.X',
-          'X........X',
-          'X........X',
-          'XXXXXXXXXX',
-        ],
-      ),
+      // The trap is that pressure DECAYS as you solve it: every Alchemon you
+      // send across is one fewer body capping on this side, so the throws get
+      // weaker the further you get, and the LAST one over has almost nothing
+      // holding the field. The stone is the answer — it caps without needing
+      // to come along — so the order is: hold the far riser for the crossing
+      // that still has bodies behind it, and leave the near riser, the one
+      // that needs least, for whoever goes last.
+      platforms: [
+        Rect.fromLTWH(40, 40, 620, 300), // the near shore
+        Rect.fromLTWH(40, 560, 620, 240), // the far shore (pedestal)
+      ],
+      geysers: [
+        // Cappable mouths on the near shore — the fuel.
+        GeyserMouth(id: 'r_hob_a', position: Offset(130, 130)),
+        GeyserMouth(id: 'r_hob_b', position: Offset(330, 110)),
+        GeyserMouth(id: 'r_hob_c', position: Offset(540, 130)),
+        GeyserMouth(
+          id: 'r_choked',
+          position: Offset(560, 280),
+          blockedAtStart: true,
+        ),
+        // The two risers, at the chasm's lip. The far one needs a full field
+        // behind it; the near one is the short hop anyone can take.
+        GeyserMouth(id: 'r_long', position: Offset(200, 220), isRiser: true),
+        GeyserMouth(id: 'r_short', position: Offset(470, 330), isRiser: true),
+      ],
+      capstone: GeyserCapstone(position: Offset(350, 690), starIndex: 1),
     ),
 
     // North Manifold — the ring's top segment. The rite-sealed crucible gate

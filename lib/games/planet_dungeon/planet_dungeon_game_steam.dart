@@ -72,6 +72,10 @@ const double _kGeyserPeriod = 4.6;
 const double _kGeyserBlast = 1.35;
 const double _kGeyserReach = 44.0;
 const double _kBlastReach = 96.0;
+
+/// A riser's throw: this far, plus this much again for every mouth shut.
+const double _kThrowBase = 120.0;
+const double _kThrowPerCap = 55.0;
 const int _kBodyHoldLimit = 3;
 const double _kRockRaiseSeconds = 0.55;
 const double _kRockReach = 46.0;
@@ -128,12 +132,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       ((geyserCycle % _kGeyserPeriod) / (_kGeyserPeriod - _kGeyserBlast))
           .clamp(0.0, 1.0);
 
-  /// The room's geyser field, or null on any room/planet without one.
-  DungeonRoom? get _geyserRoom {
-    final room = currentRoom;
-    return room.geysers.isEmpty ? null : room;
-  }
-
   /// How many mouths are shut right now — the system's pressure.
   int get geyserPressure => cappedGeysers.length;
 
@@ -153,6 +151,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         cappedGeysers.add(gy.id);
         continue;
       }
+      // A RISER's throat is too wide for one body to smother: standing on it
+      // does not shut it, it puts you in the plume. Only the stone caps one.
+      if (gy.isRiser) continue;
       for (final cr in creatures) {
         if (!cr.alive) continue;
         if ((cr.position - gy.position).distance <= _kGeyserReach) {
@@ -198,6 +199,21 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
     // THE BLAST, on the edge where it opens: everything still open throws.
     if (!wasBlasting && _geyserBlasting) _eruptGeysers(room);
+
+    // STAR 2 — THE LAUNCH: the room is won when the whole party stands on the
+    // far shore. (Its capstone is the pedestal there, not a pressure lock.)
+    if (cap != null && room.geysers.any((g) => g.isRiser) && !capstoneBurst) {
+      final far = room.platforms.isEmpty ? null : room.platforms.last;
+      if (far != null &&
+          creatures.every((c) => !c.alive || far.inflate(2).contains(c.position)) &&
+          creatures.any((c) => c.alive)) {
+        capstoneBurst = true;
+        _setHint('The whole party stands on the far shore — the pedestal '
+            'yields', 4.0);
+        if (!hasStar(cap.starIndex)) earnStar(cap.starIndex);
+        onChanged();
+      }
+    }
   }
 
   /// Seconds the raised rock takes to heave up out of the floor.
@@ -207,6 +223,31 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     var threw = false;
     for (final gy in room.geysers) {
       if (cappedGeysers.contains(gy.id)) continue;
+      // A RISER throws whoever is riding it, as far as the shut field allows:
+      // every body you send across is one fewer cap behind it, so the throws
+      // get weaker the closer the room is to solved. That decay IS the puzzle.
+      if (gy.isRiser) {
+        for (final cr in creatures) {
+          if (!cr.alive) continue;
+          if ((cr.position - gy.position).distance > _kGeyserReach) continue;
+          final reach = _kThrowBase + _kThrowPerCap * p;
+          final aim = Offset(cos(cr.aimAngle), sin(cr.aimAngle));
+          final to = _clampToBounds(cr.position + aim * reach, room);
+          cr
+            ..position = to
+            ..lastSafe = _onSolidGround(to, room) ? to : cr.lastSafe;
+          _spawnAlchemyBurst(
+            gy.position,
+            producedElement: 'Steam',
+            particleCount: 18,
+            intensity: 0.9,
+          );
+          _setHint(
+              'The riser throws ${cr.member.displayName} across the dark', 2.4);
+          threw = true;
+        }
+        continue;
+      }
       for (final cr in creatures) {
         if (!cr.alive) continue;
         final d = (cr.position - gy.position).distance;
@@ -342,7 +383,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   /// Whether the current room is a molten puzzle that can be restarted.
   bool get canRestartRoom =>
-      _isVapor && (layout.rooms[currentRoomId]?.molten) != null;
+      _isVapor &&
+      ((layout.rooms[currentRoomId]?.molten) != null ||
+          (layout.rooms[currentRoomId]?.geysers.isNotEmpty ?? false));
 
   /// Wipe the current molten room back to its authored state and return the
   /// party to the chamber entrance — the puzzle's clean-slate button. Earned
@@ -352,6 +395,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     moltenCells.remove(currentRoomId);
     freshLava.remove(currentRoomId);
     wokeRooms.remove(currentRoomId); // the flood goes back to sleep
+    // A geyser room resets the same way: the stone sinks, the field re-lays,
+    // and the party comes back to the door — which is what keeps a party
+    // stranded on the wrong shore from ever being a dead run.
+    earthRock = null;
+    earthRockRaise = 0;
+    cappedGeysers.clear();
+    geyserCycle = 0;
     steamBreath = kSteamBreathMax;
     moltenBeat = _kMoltenBeat;
     final spawn = _roomEntrySpawn(currentRoomId);

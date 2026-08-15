@@ -229,4 +229,123 @@ void main() {
           reason: 'the plume throws you clear of the mouth');
     });
   });
+
+  // ── STAR 2 · THE LAUNCH ──────────────────────────────────
+
+  group('the launch', () {
+    DungeonRoom forge(PlanetDungeonGame game) =>
+        game.layout.rooms['cinder_forge']!;
+
+    GeyserMouth riser(PlanetDungeonGame game, String id) =>
+        forge(game).geysers.firstWhere((g) => g.id == id);
+
+    PlanetDungeonGame atForge({void Function(int)? onStar}) {
+      final game = _harness(onStar: onStar);
+      game.currentRoomId = 'cinder_forge';
+      for (final c in game.creatures) {
+        c
+          ..position = const Offset(350, 200)
+          ..lastSafe = const Offset(350, 200);
+      }
+      return game;
+    }
+
+    test('the chasm is real: the far shore cannot be walked to', () {
+      final game = atForge();
+      final room = forge(game);
+      expect(room.platforms.length, 2);
+      // The void between the shores is not standable.
+      expect(room.platforms.first.contains(const Offset(350, 450)), isFalse);
+      expect(room.platforms.last.contains(const Offset(350, 450)), isFalse);
+    });
+
+    test('a body does NOT cap a riser — it rides it', () {
+      final game = atForge();
+      final r = riser(game, 'r_short');
+      _stand(game, 0, r.position);
+      _step(game);
+      expect(game.cappedGeysers, isNot(contains('r_short')),
+          reason: "a riser's throat is too wide for one body");
+    });
+
+    test('the stone DOES cap a riser', () {
+      final game = atForge();
+      game.setActive(1);
+      final r = riser(game, 'r_short');
+      _stand(game, 1, r.position + const Offset(0, -60));
+      game.creatures[1].aimAngle = 1.5708; // face down at the riser
+      game.activateAbility();
+      _step(game, 0.8);
+      _stand(game, 1, const Offset(350, 120));
+      _step(game);
+      expect(game.cappedGeysers, contains('r_short'));
+    });
+
+    test('the throw is only as long as the field you are holding', () {
+      // One body riding, the others parked OFF the mouths: a weak field.
+      final game = atForge();
+      final r = riser(game, 'r_short');
+      _stand(game, 1, const Offset(620, 60));
+      _stand(game, 2, const Offset(60, 60));
+      _stand(game, 0, r.position);
+      game.creatures[0].aimAngle = 1.5708; // aimed at the far shore
+      final before = game.creatures[0].position.dy;
+      _step(game, 6);
+      final weak = game.creatures[0].position.dy - before;
+
+      // Now the same rider with the whole field shut behind him.
+      final game2 = atForge();
+      final r2 = riser(game2, 'r_short');
+      _stand(game2, 1, riser(game2, 'r_hob_a').position);
+      _stand(game2, 2, riser(game2, 'r_hob_b').position);
+      _stand(game2, 0, r2.position);
+      game2.creatures[0].aimAngle = 1.5708;
+      final before2 = game2.creatures[0].position.dy;
+      _step(game2, 6);
+      final strong = game2.creatures[0].position.dy - before2;
+
+      expect(strong, greaterThan(weak),
+          reason: 'every mouth shut behind a riser is more throw in front');
+    });
+
+    test('THE SOLVE: send them in the order the decaying field allows', () {
+      final earned = <int>[];
+      final game = atForge(onStar: earned.add);
+      final far = forge(game).platforms.last;
+
+      // The stone caps first — it is the one cap that never has to leave.
+      game.setActive(1);
+      final hobC = riser(game, 'r_hob_c').position;
+      _stand(game, 1, hobC + const Offset(0, -60));
+      game.creatures[1].aimAngle = 1.5708;
+      game.activateAbility();
+      _step(game, 0.8);
+
+      // Rider 0 takes the LONG riser while two bodies still hold the field.
+      _stand(game, 1, riser(game, 'r_hob_a').position);
+      _stand(game, 2, riser(game, 'r_hob_b').position);
+      _stand(game, 0, riser(game, 'r_long').position);
+      game.creatures[0].aimAngle = 1.5708;
+      _step(game, 6);
+      expect(far.inflate(2).contains(game.creatures[0].position), isTrue,
+          reason: 'the long throw needs the fullest field');
+
+      // Then rider 1, with one body left behind plus the stone.
+      _stand(game, 1, riser(game, 'r_short').position);
+      game.creatures[1].aimAngle = 1.5708;
+      _step(game, 6);
+      expect(far.inflate(2).contains(game.creatures[1].position), isTrue);
+
+      // And the last one over, with only the stone and the rubble holding.
+      _stand(game, 2, riser(game, 'r_short').position);
+      game.creatures[2].aimAngle = 1.5708;
+      _step(game, 6);
+      expect(far.inflate(2).contains(game.creatures[2].position), isTrue,
+          reason: 'the short riser is what the last body can still afford');
+
+      _step(game, 0.5);
+      expect(game.hasStar(1), isTrue);
+      expect(earned, [1]);
+    });
+  });
 }
