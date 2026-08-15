@@ -7643,8 +7643,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: SafeArea(
                     child: Center(
                       child: GestureDetector(
-                        onTap: kPlanetDungeonLayouts.containsKey(nearEl) &&
-                                !_raidLive
+                        onTap: kPlanetDungeonLayouts.containsKey(nearEl)
                             ? () => unawaited(_debugDescend(_nearPlanet!))
                             : null,
                         child: Container(
@@ -7665,18 +7664,14 @@ class _CosmicScreenState extends State<CosmicScreen>
                             ),
                           ),
                           child: Text(
-                            !kPlanetDungeonLayouts.containsKey(nearEl)
-                                ? '⇩  NO DUNGEON BUILT — $nearEl'
-                                : _raidLive
-                                    ? '⇩  RAID LIVE — DESCEND BLOCKED'
-                                    : '⇩  DESCEND w/ TRIO (DEBUG)',
+                            kPlanetDungeonLayouts.containsKey(nearEl)
+                                ? '⇩  DESCEND w/ TRIO (DEBUG)'
+                                : '⇩  NO DUNGEON BUILT — $nearEl',
                             style: TextStyle(
                               color: const Color(0xFF7BE88C).withValues(
-                                alpha:
-                                    kPlanetDungeonLayouts.containsKey(nearEl) &&
-                                            !_raidLive
-                                        ? 1.0
-                                        : 0.45,
+                                alpha: kPlanetDungeonLayouts.containsKey(nearEl)
+                                    ? 1.0
+                                    : 0.45,
                               ),
                               fontSize: 12,
                               fontWeight: FontWeight.w900,
