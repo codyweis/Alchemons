@@ -867,6 +867,37 @@ class MoltenGrid {
   int get rowCount => rows.length;
 }
 
+/// A geyser mouth (Steam, Star 1 — the Geyser Field). Every mouth in a room
+/// erupts on ONE shared cycle, so the field breathes together.
+///
+/// Capping a mouth — a creature standing on it, a rock pushed onto it, or an
+/// authored [blockedAtStart] slab — takes it out of the system, and the head
+/// that was venting through it goes somewhere: every mouth still open blows
+/// HARDER. That is the whole puzzle. Cap them all and the pressure has only
+/// one place left to go: the capstone over the [GeyserCapstone] in the middle.
+class GeyserMouth {
+  final String id;
+  final Offset position;
+
+  /// Rubble already sitting on this mouth when the run begins — it counts as
+  /// capped from the first frame and can never be cleared.
+  final bool blockedAtStart;
+
+  const GeyserMouth({
+    required this.id,
+    required this.position,
+    this.blockedAtStart = false,
+  });
+}
+
+/// The middle mouth, held shut by a slab (Steam Star 1). It bursts — and the
+/// star with it — only when every other mouth in the room is capped.
+class GeyserCapstone {
+  final Offset position;
+  final int starIndex;
+  const GeyserCapstone({required this.position, required this.starIndex});
+}
+
 /// A clamped ring-main junction (Steam): the door from this room to
 /// [targetRoomId] stays sealed until [cost] boiler pressure is spent to
 /// unclamp it. Paid seals stay open for the run; death re-clamps them.
@@ -975,6 +1006,10 @@ class DungeonRoom {
   /// only offers the lull while the trunk is dead.
   final Offset? coreBreaker;
   // Steam (the Molten Labyrinth) authored content:
+  /// Steam Star 1: the geyser field and the capstone at its heart.
+  final List<GeyserMouth> geysers;
+  final GeyserCapstone? capstone;
+
   final MoltenGrid? molten; // a star room's spreading-lava grid
   final Offset? steamVent; // the entry-gate relief vent (Steam cracks it)
   final List<PressureSeal> pressureSeals; // clamped ring-main junction doors
@@ -1040,6 +1075,8 @@ class DungeonRoom {
     this.fulminateVats = const [],
     this.vaultBolt,
     this.coreBreaker,
+    this.geysers = const [],
+    this.capstone,
     this.molten,
     this.steamVent,
     this.pressureSeals = const [],
@@ -3599,23 +3636,30 @@ const DungeonLayout _steamLayout = DungeonLayout(
       // 10×12 grid (cells 70×70). South field = entry from the manifold;
       // dam band rows 4-6; wet pocket slots at cols 2/8 (sealed — pure
       // traps), the dry passage at col 5. Pedestal on the north field.
-      molten: MoltenGrid(
-        starIndex: 0,
-        rows: [
-          'XXXXXXXXXX',
-          'X........X',
-          'X....P...X',
-          'X........X',
-          'XXXXX#XXXX',
-          'XXLXX.XXLX',
-          'XX#XX#XX#X',
-          'X........X',
-          'X........X',
-          'X........X',
-          'X........X',
-          'XXXXXXXXXX',
-        ],
-      ),
+      // STAR 1 — THE GEYSER FIELD (2026-08-14 rework; the tile-lava causeway
+      // is retired). Room is 700x840. Five mouths ring the floor and a sixth
+      // sits at the heart under a slab. One ring mouth is already choked with
+      // rubble, so FOUR blow at the start — which is exactly a three-Alchemon
+      // party plus the one rock an Earth hand can raise.
+      //
+      // Every cap sends its head to the mouths still open, so the field gets
+      // angrier the closer you are to solving it: the last mouths blow hard
+      // enough to throw a body off the stone, and only the rock is heavy
+      // enough to sit on one at full pressure. So the rock has to be RAISED
+      // AND PUSHED while the field is still calm — cap first and you can no
+      // longer cross your own room to place it.
+      geysers: [
+        GeyserMouth(id: 'g_north', position: Offset(350, 170)),
+        GeyserMouth(id: 'g_east', position: Offset(560, 420)),
+        GeyserMouth(id: 'g_south', position: Offset(350, 670)),
+        GeyserMouth(id: 'g_west', position: Offset(140, 420)),
+        GeyserMouth(
+          id: 'g_choked',
+          position: Offset(560, 170),
+          blockedAtStart: true,
+        ),
+      ],
+      capstone: GeyserCapstone(position: Offset(350, 420), starIndex: 0),
     ),
 
     // Cinder Forge — the ring's EAST segment, and Star 1 (bunker before you

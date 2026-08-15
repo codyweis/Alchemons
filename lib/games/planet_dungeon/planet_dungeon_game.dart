@@ -978,13 +978,37 @@ class PlanetDungeonGame extends FlameGame {
   /// rock in that room; only woken rooms creep on the beat.
   final Set<String> wokeRooms = {};
 
-  /// Cells that were molten THIS beat by the player's own hand (roomId → cell
-  /// indices). Fresh fire-blood does not creep until it has sat for one whole
-  /// beat, which is the difference between a puzzle and a coin toss:
-  /// PLAYTEST FIX (2026-08-14) — the beat clock free-runs, so melting a wall
-  /// used to leave anywhere from 2.2s down to a few frames before the lava
-  /// you just made spread onto the tile you were standing on to make it. The
-  /// grace makes the window HONEST and identical every time.
+  // ── Steam Star 1: the geyser field ──
+  /// Ids of mouths the party is holding shut with a body or the rock, plus the
+  /// authored rubble. Recomputed every frame from the world, never stored as
+  /// an intention — so stepping off a mouth releases it at once.
+  final Set<String> cappedGeysers = {};
+
+  /// Seconds into the field's shared eruption cycle.
+  double geyserCycle = 0;
+
+  /// The one rock an Earth hand can hold in the world at a time (null = none).
+  Offset? earthRock;
+
+  /// Eased 0→1 as the rock heaves up out of the floor; the shove only answers
+  /// once it has fully risen.
+  double earthRockRaise = 0;
+
+  /// True once the capstone has burst (the star follows).
+  bool capstoneBurst = false;
+
+  /// Fire-blood too fresh to quench (roomId → cell indices), cleared on the
+  /// next creep beat.
+  ///
+  /// THE POINT OF THE WHOLE PLANET (2026-08-14, playtest): "it's fire turn
+  /// wall to lava, steam quickly puts it out, walk through." Melt and quench
+  /// cancelled each other, so two presses turned a wall into floor and the
+  /// creep the room is built on NEVER HAPPENED. A breach now RUNS: for its
+  /// first beat the molten is too hot to take the breath, so breaking rock is
+  /// a commitment you have to have prepared for — wall off where it will go,
+  /// stand clear, and quench only once it has spent itself. (An earlier pass
+  /// had this exactly backwards: it GUARANTEED a free beat to cork your own
+  /// breach, which optimised the cancel instead of removing it.)
   final Map<String, Set<int>> freshLava = {};
 
   /// Steam's cooling-breath charges (max [kSteamBreathMax]); one is spent per
@@ -1832,12 +1856,16 @@ class PlanetDungeonGame extends FlameGame {
           !flightActive &&
           (updraftRiding ||
               (_updraftCoyote > 0 && !_onSolidGround(a.position, room)));
+      final beforeStep = a.position;
       if (airborneWalker) {
         // Steer while wind-borne: walls only, reduced authority.
         a.position = _moveDashing(a.position, dir * moveSpeed * 0.8 * dt, room);
       } else {
         a.position = _moveWithCollision(a.position, dir * moveSpeed * dt, room);
       }
+      // Steam Star 1: walking into the raised stone SHOVES it (and walking
+      // into a stone that cannot move stops you, like any other solid).
+      if (_isVapor) _pushEarthRock(a, room, beforeStep);
       if (dir.dx.abs() > 0.01) a.angle = dir.dx >= 0 ? 0 : pi;
       a.aimAngle = atan2(dir.dy, dir.dx);
     }
@@ -1898,6 +1926,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateBarrow(a, room, dt);
     _updateCircuit(a, room, dt);
     _updatePressure(a, room, dt);
+    _updateGeyserField(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -6329,6 +6358,12 @@ class PlanetDungeonGame extends FlameGame {
     // Storm Circuit interactions (charge pylons, rotate conductor mirrors,
     // herd/heat storm-cells, the breaker maze, the Thunderbolt egg).
     if (_tryCircuit(a)) {
+      onChanged();
+      return;
+    }
+    // Steam Star 1: Earth's stone is the room's own verb, so it answers
+    // before the ring-main's fixtures.
+    if (_tryEarthRock(a)) {
       onChanged();
       return;
     }

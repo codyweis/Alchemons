@@ -67,6 +67,17 @@ const int kSteamStokeGain = 20;
 /// Reach for throwing a junction release / stoking / venting the disc.
 const double _kPressureReach = 78.0;
 
+// ── Star 1 · geyser-field knobs (device-tunable) ──
+const double _kGeyserPeriod = 4.6;
+const double _kGeyserBlast = 1.35;
+const double _kGeyserReach = 44.0;
+const double _kBlastReach = 96.0;
+const int _kBodyHoldLimit = 3;
+const double _kRockRaiseSeconds = 0.55;
+const double _kRockReach = 46.0;
+const double _kRockPlaceAhead = 52.0;
+const double _kRockRadius = 24.0;
+
 extension MoltenLabyrinth on PlanetDungeonGame {
   // ── Lifecycle ────────────────────────────────────────────
 
@@ -83,6 +94,218 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     boilerPressure = kSteamStartPressure;
     unclampedSeals.clear();
     burstDiscBlown = false;
+    cappedGeysers.clear();
+    geyserCycle = 0;
+    earthRock = null;
+    earthRockRaise = 0;
+    capstoneBurst = false;
+  }
+
+  // ── STAR 1 · THE GEYSER FIELD ────────────────────────────
+  //
+  // Every mouth in the room breathes on ONE cycle: a long build, then a short
+  // blast. Capping a mouth (a body on the stone, the rock, or authored
+  // rubble) takes it out of the system and its head goes to whatever is still
+  // open — so the field grows angrier the closer you get, and the last mouths
+  // blow hard enough to throw a body clear. Only the rock can hold one then.
+
+  /// Seconds of the shared geyser cycle: [_kGeyserBlast] of it is the blast.
+
+  /// Standing this close to a mouth caps it (and is where a blast throws you
+  /// from, if it is not capped).
+
+  /// A blast at pressure p throws anything within this of the mouth.
+
+  /// The pressure (capped count) at which a blast is strong enough to throw a
+  /// BODY off the mouth it is holding. The rock never cares.
+
+  bool get _geyserBlasting =>
+      (geyserCycle % _kGeyserPeriod) >= (_kGeyserPeriod - _kGeyserBlast);
+
+  /// 0..1 through the current cycle — the render's build-up, and the fair
+  /// warning before every blast.
+  double get geyserCharge =>
+      ((geyserCycle % _kGeyserPeriod) / (_kGeyserPeriod - _kGeyserBlast))
+          .clamp(0.0, 1.0);
+
+  /// The room's geyser field, or null on any room/planet without one.
+  DungeonRoom? get _geyserRoom {
+    final room = currentRoom;
+    return room.geysers.isEmpty ? null : room;
+  }
+
+  /// How many mouths are shut right now — the system's pressure.
+  int get geyserPressure => cappedGeysers.length;
+
+  /// Every mouth a body, the rock or the rubble is holding, recomputed from
+  /// the world each frame (§ state is never an intention).
+  void _recomputeCaps(DungeonRoom room) {
+    cappedGeysers.clear();
+    for (final gy in room.geysers) {
+      if (gy.blockedAtStart) {
+        cappedGeysers.add(gy.id);
+        continue;
+      }
+      final rock = earthRock;
+      if (rock != null &&
+          earthRockRaise >= 1 &&
+          (rock - gy.position).distance <= _kGeyserReach) {
+        cappedGeysers.add(gy.id);
+        continue;
+      }
+      for (final cr in creatures) {
+        if (!cr.alive) continue;
+        if ((cr.position - gy.position).distance <= _kGeyserReach) {
+          cappedGeysers.add(gy.id);
+          break;
+        }
+      }
+    }
+  }
+
+  void _updateGeyserField(DungeonCreature a, DungeonRoom room, double dt) {
+    if (room.geysers.isEmpty) return;
+    final star = room.capstone?.starIndex;
+    if (star != null && hasStar(star)) return; // solved: the field sleeps
+
+    if (earthRockRaise < 1 && earthRock != null) {
+      earthRockRaise = min(1.0, earthRockRaise + dt / _kRockRaiseSeconds);
+    }
+    final wasBlasting = _geyserBlasting;
+    geyserCycle += dt;
+    _recomputeCaps(room);
+
+    // THE BURST: every mouth shut, and the head has one place left to go.
+    final cap = room.capstone;
+    if (cap != null &&
+        !capstoneBurst &&
+        cappedGeysers.length >= room.geysers.length) {
+      capstoneBurst = true;
+      _setHint('Every mouth is shut — the heart takes the whole head and the '
+          'slab splits', 4.0);
+      _spawnAlchemyBurst(
+        cap.position,
+        producedElement: 'Steam',
+        reagentElements: const ['Earth'],
+        unstable: true,
+        particleCount: 34,
+        intensity: 1.4,
+      );
+      if (!hasStar(cap.starIndex)) earnStar(cap.starIndex);
+      onChanged();
+      return;
+    }
+
+    // THE BLAST, on the edge where it opens: everything still open throws.
+    if (!wasBlasting && _geyserBlasting) _eruptGeysers(room);
+  }
+
+  /// Seconds the raised rock takes to heave up out of the floor.
+
+  void _eruptGeysers(DungeonRoom room) {
+    final p = geyserPressure;
+    var threw = false;
+    for (final gy in room.geysers) {
+      if (cappedGeysers.contains(gy.id)) continue;
+      for (final cr in creatures) {
+        if (!cr.alive) continue;
+        final d = (cr.position - gy.position).distance;
+        if (d > _kBlastReach) continue;
+        // A body ON the mouth is capping it, so it never erupts under anyone;
+        // this is for everyone caught standing in the plume's skirt.
+        final away = d < 1
+            ? const Offset(0, -1)
+            : (cr.position - gy.position) / d;
+        final shove = 78.0 + 26.0 * p;
+        final to = _clampToBounds(cr.position + away * shove, room);
+        if (_canPlaceBody(to, cr.position, room)) {
+          cr
+            ..position = to
+            ..lastSafe = to;
+        }
+        cr.hp = max(0, cr.hp - (6.0 + 3.0 * p) * progressDmgMul);
+        threw = true;
+      }
+      // At full head a plume will even walk the rock off its stone — but only
+      // a mouth that is ROARING, which a capped one never is.
+      final rock = earthRock;
+      if (rock != null && p >= _kBodyHoldLimit) {
+        final d = (rock - gy.position).distance;
+        if (d <= _kBlastReach && d > 1) {
+          final away = (rock - gy.position) / d;
+          earthRock = _clampToBounds(rock + away * 40, room);
+        }
+      }
+    }
+    if (threw) {
+      _setHint('The field blows — it throws you off the stone', 2.4);
+      onChanged();
+    }
+  }
+
+  /// EARTH's verb in this labyrinth: heave one rock out of the floor, and
+  /// heave it back down. Only ever ONE — pressing again on your own rock
+  /// destroys it, which is what makes WHERE you spend it the question.
+  bool _tryEarthRock(DungeonCreature a) {
+    if (!_isVapor) return false;
+    final room = currentRoom;
+    if (room.geysers.isEmpty) return false;
+    if (a.member.element != 'Earth') {
+      _setBlockedHint('Only Earth raises stone from this floor');
+      return true;
+    }
+    final rock = earthRock;
+    if (rock != null && (a.position - rock).distance <= _kRockReach) {
+      earthRock = null;
+      earthRockRaise = 0;
+      _setHint('The stone sinks back into the floor');
+      onChanged();
+      return true;
+    }
+    if (rock != null) {
+      _setBlockedHint('Your stone already stands — go and unmake it first');
+      return true;
+    }
+    final at = a.position +
+        Offset(cos(a.aimAngle), sin(a.aimAngle)) * _kRockPlaceAhead;
+    final placed = _clampToBounds(at, room);
+    if (!_canPlaceBody(placed, a.position, room)) {
+      _setBlockedHint('The floor will not give up a stone there');
+      return true;
+    }
+    earthRock = placed;
+    earthRockRaise = 0;
+    _setHint('Earth heaves a stone up out of the floor');
+    _spawnAlchemyBurst(
+      placed,
+      producedElement: 'Earth',
+      particleCount: 16,
+      intensity: 0.8,
+    );
+    onChanged();
+    return true;
+  }
+
+
+  /// Walking into the stone shoves it — the only way to move it, so the rock
+  /// travels at a walking pace and every metre of it is a decision.
+  void _pushEarthRock(DungeonCreature a, DungeonRoom room, Offset before) {
+    final rock = earthRock;
+    if (rock == null || earthRockRaise < 1) return;
+    final d = (a.position - rock).distance;
+    if (d >= _kRockRadius + PlanetDungeonGame._radius) return;
+    final step = a.position - before;
+    if (step.distanceSquared < 0.000001) {
+      a.position = before; // standing against it: the stone does not budge
+      return;
+    }
+    final dir = step / step.distance;
+    final to = _clampToBounds(rock + dir * step.distance * 1.6, room);
+    if (_canPlaceBody(to, rock, room)) {
+      earthRock = to;
+    } else {
+      a.position = before; // the stone is against something solid
+    }
   }
 
   // ── Ring-main junction seals ─────────────────────────────
@@ -293,11 +516,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (moltenBeat <= 0) {
       moltenBeat = _kMoltenBeat;
       steamBreath = min(kSteamBreathMax, steamBreath + 1);
-      if (wokeRooms.contains(room.id)) {
-        _spreadLava(grid, g, fresh: freshLava[room.id]);
-      }
-      // The grace is ONE beat: whatever you broke has now settled and runs
-      // with the rest of the flood from here.
+      // A fresh breach spreads with everything else — that IS the creep.
+      if (wokeRooms.contains(room.id)) _spreadLava(grid, g);
+      // ...and having run for a beat, it has cooled enough to take the breath.
       freshLava.remove(room.id);
     }
 
@@ -393,14 +614,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   /// One creep step: each lava cell floods its open 4-neighbours (snapshot, so a
   /// single beat advances exactly one ring).
-  void _spreadLava(List<List<int>> grid, MoltenGrid g, {Set<int>? fresh}) {
+  void _spreadLava(List<List<int>> grid, MoltenGrid g) {
     final next = <(int, int)>[];
     for (var r = 0; r < g.rowCount; r++) {
       for (var c = 0; c < g.cols; c++) {
         if (grid[r][c] != _mLava) continue;
-        // Fire-blood you made this beat sits still for one beat before it
-        // runs — the promised window to quench your own breach.
-        if (fresh != null && fresh.contains(r * g.cols + c)) continue;
         for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
           final nc = c + dc, nr = r + dr;
           if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
@@ -597,15 +815,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         if (code == _mWall) {
           final wet = _wallIsWet(grid, g, c, r);
           grid[r][c] = _mLava;
-          // A DRY wall gives you one honest beat to quench your own breach;
-          // a WET one gives you nothing, because that is what wet means — the
-          // reservoir behind it is already pressing and it bursts at once.
-          // (That split is what lets S2 stop being a coin toss without
-          // softening S1's whole lesson, choose-your-breach.)
-          // NOTE: the beat clock is deliberately NOT reset here. Resetting it
-          // per melt let a player stall the entire flood by breaking rock on
-          // a loop — the grace gives the window without stopping time.
-          if (!wet) (freshLava[room.id] ??= <int>{}).add(r * g.cols + c);
+          // The breach RUNS: too hot to quench until it has had its beat.
+          // (The clock is deliberately NOT reset here either — resetting it
+          // per melt let a player stall the whole flood by breaking rock on a
+          // loop.)
+          (freshLava[room.id] ??= <int>{}).add(r * g.cols + c);
           final woke = wokeRooms.add(room.id);
           _setHint(wet
               ? 'The dam gives way — the reservoir pours through your breach!'
@@ -626,6 +840,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         return true;
       case 'Steam':
         if (code == _mLava) {
+          if (freshLava[room.id]?.contains(r * g.cols + c) ?? false) {
+            // §5.6 BLOCKED: names what is wrong, never the method.
+            _setBlockedHint('The fire-blood is still running — your breath '
+                'flashes off it');
+            return true;
+          }
           if (steamBreath <= 0) {
             _setHint('Your cooling breath is spent — it gathers with the beat');
             return true;
