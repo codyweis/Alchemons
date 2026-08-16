@@ -450,6 +450,54 @@ power. Unbuilt entries below still describe v1-era "familyX does Y" flavor;
 read their family mentions as *candidate* gates to be declared at build time,
 not as soft modifiers.
 
+### Fire Star 2 — THE BURN (design, 2026-08-14; supersedes the ash garden)
+
+*Playtest killed the demand-garden: "icons mean nothing to me or anyone
+playing the game… we should use logic physics and alchemy," and then "it may
+be too abstract, we may need to redesign." The verdict was right and it was
+structural — a bed "wanting ash" is a LABEL, not a fact, so no amount of
+prettier signalling could fix it. Three rendering passes were spent proving
+that. What follows uses only rules a player already owns: fire needs fuel,
+fire follows the wind, burnt ground is spent.*
+
+**THE LOOP.** The cloister floor is plantable soil. **Plant** grows vine on a
+cell; **Fire** lights one cell to start the burn; **Air** swings the vane a
+quarter. The flame then walks ITSELF: one cell per beat, DOWNWIND, into
+whatever vine is in front of it. The player never moves the fire directly —
+they lay fuel ahead of it and turn the wind to bend it.
+
+**THE SNAKE.** A burnt cell is spent: it carries nothing and cannot be
+replanted for the run. So the fire's own trail becomes the wall it can crash
+into, exactly as in snake — the constraint is not imposed, it FALLS OUT of
+what burning is. Routing a long chain means never sealing yourself into a
+pocket of your own ash.
+
+**THE SMOULDER (fairness).** If the cell downwind of the head holds no vine,
+the head SMOULDERS for one beat before it dies — one beat to plant ahead of
+it or swing the vane. So a mistake is a scramble, not an instant loss, and
+the tense expert play (laying track in front of a running flame) is the same
+verb as the calm planning, just later.
+
+**THE POOL.** Coverage is the win: an ember pool at the garth's edge fills as
+cells burn, and the star releases when it reaches the top. A short greedy
+chain does not fill it — only a route that covers the room does. This is the
+progress display, diegetic and analogue (§5.6 STATE, and the playtest
+verdict on badges: "the beds should really glow… not number counter badges").
+
+**AUTHORING NOTES.** Dead ground where vine will not take gives the field its
+maze and forces the route to bend. Growth is slow enough that the baseline is
+plan-then-light. Restart re-lays the whole garth (a stranded fire caps your
+coverage, so the room needs its clean slate like the molten rooms have).
+
+**LEDGER (§5.5).** Fire claims *route-building under an irreversible
+consuming process* — distinct from Water's lantern row (pilot a drifting
+thing through FIXED terrain by editing world state) because here the player
+BUILDS the medium and the process EATS it, and distinct from Air's
+irreversible wind-authoring (that wind is permanent and the ordering is the
+question; this wind is freely re-turnable and the route is the question).
+Consumption is the identity — keep single-use chains and unreplantable ash,
+or it drifts into Water's seat.
+
 1. **Fire — Cinder Cathedral** · Fire+Air+Plant · Firemask/Airwing/Plantmane ·
    *fire remembers the order it was lit.* **(BUILT)**
    Entry: Fire rekindles the cold narthex hearth (one-time reveal). S1 (Ember
