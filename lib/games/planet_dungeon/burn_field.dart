@@ -19,8 +19,6 @@
 // Kept as a standalone module (like AshGardenRules before it) so the engine,
 // the renderer and the solver all reason about ONE copy of the rules.
 
-import 'dart:math';
-
 /// What occupies a cell of the garth.
 enum BurnCell {
   /// Bare, plantable soil.
@@ -243,16 +241,33 @@ class BurnField {
     return burnt + reachableCoverage(h) - 1 >= coverageGoal;
   }
 
-  /// The longest chain a perfect player could still burn from [from] — the
-  /// proof that an authored field can actually meet its coverage goal. Walks
-  /// the REAL rules: dry ground only, never re-entering its own trail.
-  int longestChain(int from) {
+  /// Can a perfect player still burn a chain of [target] cells starting at
+  /// [from]? Walks the REAL rules — dry ground only, never re-entering its own
+  /// trail — and STOPS THE MOMENT it finds one.
+  ///
+  /// Deliberately not "what is the longest chain": that is an exhaustive walk
+  /// over every self-avoiding path, which is fine on a toy field and hangs
+  /// forever on a real one (learned the expensive way). A layout only needs to
+  /// know its goal is reachable, which is an existence question, and existence
+  /// answers fast because a snaking path turns up early.
+  bool canBurnAtLeast(int from, int target) {
+    if (target <= 0) return true;
     final walls = List.of(_cells);
-    var best = 0;
+    var found = false;
+    var visits = 0;
+
     void walk(int i, int len) {
-      best = max(best, len);
+      if (found || visits > 400000) return;
+      visits++;
+      if (len >= target) {
+        found = true;
+        return;
+      }
       final c0 = colOf(i), r0 = rowOf(i);
+      // Try the straight-on continuations first: a chain that keeps going
+      // finds length sooner than one that keeps turning.
       for (final w in BurnWind.values) {
+        if (found) return;
         final (dc, dr) = w.delta;
         final c = c0 + dc, r = r0 + dr;
         if (!inBounds(c, r)) continue;
@@ -266,9 +281,10 @@ class BurnField {
     }
 
     final start = walls[from];
+    if (start != BurnCell.soil && start != BurnCell.vine) return false;
     walls[from] = BurnCell.ash;
     walk(from, 1);
     walls[from] = start;
-    return best;
+    return found;
   }
 }

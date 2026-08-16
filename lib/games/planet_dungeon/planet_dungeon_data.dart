@@ -367,6 +367,38 @@ enum GrooveDemand {
   clean,
 }
 
+/// THE BURN (Fire Star 2): the garth as a field of plantable soil, with the
+/// coverage the ember pool demands. Cells are read from [art], one character
+/// each, laid left-to-right and top-to-bottom over [bounds]:
+///   `.` soil · `#` fallen stone · `~` wet ground · `v` vine already standing
+///
+/// Stone takes no vine and passes no flame — the maze wall. Wet ground grows
+/// vine happily and NEVER catches, which is the trap that teaches the rule it
+/// breaks: fuel is not the same as fire.
+class BurnGarth {
+  final List<String> art;
+
+  /// Cells that must burn before the pool stands full and the star releases.
+  /// Layout-tested against the longest chain the real rules permit.
+  final int coverageGoal;
+
+  /// The star this garth frees.
+  final int starIndex;
+
+  /// Where the ember pool stands (the fill is the progress display).
+  final Offset poolPosition;
+
+  const BurnGarth({
+    required this.art,
+    required this.coverageGoal,
+    required this.starIndex,
+    required this.poolPosition,
+  });
+
+  int get cols => art.isEmpty ? 0 : art.first.length;
+  int get rows => art.length;
+}
+
 /// A scorched garden bed, standing on the garth's [col]/[row] grid. Plant
 /// grows it over with vines; Fire burns the vines (Plant+Fire→Dust), which
 /// brands THIS bed and throws its ash onto every bed downwind in the lane.
@@ -1012,6 +1044,9 @@ class DungeonRoom {
   /// only offers the lull while the trunk is dead.
   final Offset? coreBreaker;
   // Steam (the Molten Labyrinth) authored content:
+  /// Fire Star 2: the burnable garth (THE BURN).
+  final BurnGarth? garth;
+
   /// Steam Star 1: the geyser field and the capstone at its heart.
   final List<GeyserMouth> geysers;
   final GeyserCapstone? capstone;
@@ -1081,6 +1116,7 @@ class DungeonRoom {
     this.fulminateVats = const [],
     this.vaultBolt,
     this.coreBreaker,
+    this.garth,
     this.geysers = const [],
     this.capstone,
     this.molten,
@@ -2238,15 +2274,25 @@ const DungeonLayout _fireLayout = DungeonLayout(
       // a three-bed lane (a chain), a north/south wind only a pair — so the
       // two axes are not interchangeable and a quarter turn really changes the
       // problem.
-      vineBeds: [
-        VineBed(id: 'bed_nw', position: Offset(170, 205), col: 0, row: 0),
-        VineBed(id: 'bed_n', position: Offset(410, 175), col: 1, row: 0),
-        VineBed(id: 'bed_ne', position: Offset(650, 205), col: 2, row: 0),
-        VineBed(id: 'bed_sw', position: Offset(170, 570), col: 0, row: 1),
-        VineBed(id: 'bed_s', position: Offset(410, 600), col: 1, row: 1),
-        VineBed(id: 'bed_se', position: Offset(650, 570), col: 2, row: 1),
-      ],
-      vineStarIndex: 1,
+      // THE BURN (2026-08-14): the garth is now a field you route a fire
+      // across, not six beds that ask for things. 9x7 cells over the room.
+      // The cloister's fallen columns are the maze; the seep around the dry
+      // fountain grows vine that will never catch. The doors sit on the top
+      // and bottom edges at cols 3-5, so those lanes are left open.
+      garth: BurnGarth(
+        starIndex: 1,
+        coverageGoal: 26,
+        poolPosition: Offset(756, 660),
+        art: [
+          '.........',
+          '..#...#..',
+          '.........',
+          '...~~~...',
+          '.........',
+          '..#...#..',
+          '.........',
+        ],
+      ),
       windVane: Offset(410, 385),
     ),
 

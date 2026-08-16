@@ -6,6 +6,7 @@
 // one beat of grace before it goes out.
 
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 BurnField _field(List<String> art, {BurnWind wind = BurnWind.east, int goal = 0}) =>
@@ -134,15 +135,15 @@ void main() {
     });
 
     test('an authored field can be PROVEN to meet its goal', () {
-      // The longest chain a perfect player could burn, walking the real rules.
       final f = _field([
         '.....',
         '.###.',
         '.....',
       ]);
-      // Twelve cells are dry ground; the ring is walkable end to end.
-      expect(f.longestChain(0), 12,
-          reason: 'a field whose goal exceeds this is unauthorable');
+      // Twelve cells are dry ground and the ring walks end to end.
+      expect(f.canBurnAtLeast(0, 12), isTrue);
+      expect(f.canBurnAtLeast(0, 13), isFalse,
+          reason: 'a field whose goal exceeds its ground is unauthorable');
     });
 
     test('canStillFill turns a doomed run into an honest restart', () {
@@ -153,6 +154,46 @@ void main() {
       f.light(0);
       expect(f.canStillFill, isFalse,
           reason: 'walled in on every side — the answer is the restart');
+    });
+  });
+
+  group('the authored garth', () {
+    test('the cloister field can actually meet its coverage goal', () {
+      final room = kPlanetDungeonLayouts['Fire']!.rooms['cloister']!;
+      final garth = room.garth;
+      expect(garth, isNotNull, reason: 'Fire Star 2 is THE BURN now');
+
+      final f = BurnField.parse(garth!.art, coverageGoal: garth.coverageGoal);
+      // SOME start must be able to reach the goal, walking the real rules.
+      var reachable = false;
+      for (var i = 0; i < garth.cols * garth.rows && !reachable; i++) {
+        if (f.at(i) != BurnCell.soil) continue;
+        reachable = f.canBurnAtLeast(i, garth.coverageGoal);
+      }
+      expect(reachable, isTrue,
+          reason: 'a garth whose pool cannot be filled is unauthorable '
+              '(goal ${garth.coverageGoal})');
+      // And the goal must DEMAND a real route: count the burnable ground.
+      var dry = 0;
+      for (var i = 0; i < garth.cols * garth.rows; i++) {
+        if (f.at(i) == BurnCell.soil || f.at(i) == BurnCell.vine) dry++;
+      }
+      expect(garth.coverageGoal, greaterThan(dry * 0.4),
+          reason: 'a goal a lazy short chain could reach is not a puzzle');
+    });
+
+    test('the garth is a maze, not a lawn', () {
+      final garth =
+          kPlanetDungeonLayouts['Fire']!.rooms['cloister']!.garth!;
+      final f = BurnField.parse(garth.art);
+      var stone = 0, wet = 0;
+      for (var i = 0; i < garth.cols * garth.rows; i++) {
+        if (f.at(i) == BurnCell.stone) stone++;
+        if (f.at(i) == BurnCell.wet) wet++;
+      }
+      expect(stone, greaterThan(0), reason: 'fallen columns bend the route');
+      expect(wet, greaterThan(0),
+          reason: 'the seep is the trap that teaches fuel != fire');
     });
   });
 }
