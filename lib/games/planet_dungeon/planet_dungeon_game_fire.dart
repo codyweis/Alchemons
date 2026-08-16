@@ -3435,36 +3435,6 @@ extension CinderCathedral on PlanetDungeonGame {
   /// committed. Every grown bed shows a faint downwind streak (a plume waiting
   /// to happen); the bed the active creature is standing at shows a bright one
   /// with a ring on each groove it would dust.
-  /// A low flame standing in a groove that sits true — three tongues on
-  /// their own phases so a row of lit beds never flickers in lockstep.
-  void _drawGrooveFlame(Canvas canvas, Offset p, int seed) {
-    for (var i = 0; i < 3; i++) {
-      final ph = _time * 3.1 + i * 2.0 + seed * 0.7;
-      final h = 20.0 + 9.0 * sin(ph);
-      final x = p.dx + (i - 1) * 13.0 + sin(ph * 0.8) * 2.4;
-      final base = Offset(x, p.dy + 16);
-      final path = Path()
-        ..moveTo(base.dx - 6, base.dy)
-        ..quadraticBezierTo(base.dx - 4, base.dy - h * 0.6, base.dx, base.dy - h)
-        ..quadraticBezierTo(base.dx + 4, base.dy - h * 0.6, base.dx + 6, base.dy)
-        ..close();
-      canvas.drawPath(
-        path,
-        Paint()..color = const Color(0xFFFF8A2A).withValues(alpha: 0.55),
-      );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = const Color(0xFFFFD79A).withValues(alpha: 0.45)
-          ..maskFilter = null,
-      );
-      if (_fx.ready) {
-        drawGlow(canvas, _fx.glow!, base - Offset(0, h * 0.5), 16,
-            const Color(0xFFFFB25A).withValues(alpha: 0.30));
-      }
-    }
-  }
-
   void _drawPlumeForecast(Canvas canvas, DungeonRoom room) {
     final rules = ashGardenRules;
     if (rules == null) return;
@@ -3607,20 +3577,20 @@ extension CinderCathedral on PlanetDungeonGame {
       final p = bed.position;
       // Does this groove have what it asked for, right now?
       final sitsTrue = grooveSitsTrue(i);
-      // A groove that HAS what it asked for catches light: the bed breathes
-      // ember and stands a low flame in its cut. That is the whole progress
-      // display — six lit beds is a solved garth, read at a glance.
-      if (sitsTrue) {
-        final breathe = 0.72 + 0.28 * sin(_time * 2.4 + p.dx * 0.03);
-        if (_fx.ready) {
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            p,
-            74 * breathe,
-            const Color(0xFFFF9A3C).withValues(alpha: 0.26 * breathe),
-          );
-        }
+      // A groove that HAS what it asked for catches light — but the light
+      // lives IN THE CUT, close and warm, never as flames standing on the
+      // soil. (Playtest: a `clean` groove is satisfied by an EMPTY bed, so
+      // flames-when-correct set the garth alight before the player had done
+      // anything, and then planting into one looked like planting into fire.)
+      if (sitsTrue && _fx.ready) {
+        final breathe = 0.74 + 0.26 * sin(_time * 2.2 + p.dx * 0.03);
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          p,
+          34 * breathe,
+          const Color(0xFFFFA24C).withValues(alpha: 0.20 * breathe),
+        );
       }
 
       // The bed itself: a soil plot with a scorched kerb.
@@ -3723,12 +3693,15 @@ extension CinderCathedral on PlanetDungeonGame {
             }
           }
         case AshBedState.scorch:
-          // A black brand, still breathing ember cracks.
+          // A brand is SPENT — cold black char with grey veins, not a fire
+          // still burning. (It is also why Plant can take it again: new growth
+          // out of burnt ground is the whole idea of an ash garden. A bed that
+          // looked alight made that read as planting into flame.)
           final crack = Paint()
             ..strokeWidth = 1.6
             ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFFB4542A).withValues(
-              alpha: 0.34 + 0.16 * sin(_time * 1.9 + p.dx),
+            ..color = const Color(0xFF6B5A4E).withValues(
+              alpha: 0.42 + 0.08 * sin(_time * 0.7 + p.dx),
             );
           canvas.drawLine(
             p + const Offset(-34, 6),
@@ -3761,7 +3734,6 @@ extension CinderCathedral on PlanetDungeonGame {
       }
 
       _drawGroove(canvas, p, grooveDemandAt(i), sitsTrue);
-      if (sitsTrue) _drawGrooveFlame(canvas, p, i);
 
       if (fx > 0 && _fx.ready) {
         drawGlow(
