@@ -484,6 +484,18 @@ chain does not fill it — only a route that covers the room does. This is the
 progress display, diegetic and analogue (§5.6 STATE, and the playtest
 verdict on badges: "the beds should really glow… not number counter badges").
 
+**THE BARRIERS.** The garth is not an open board — two kinds of obstacle give
+it its shape, and both say what they do by looking like what they are:
+  · **Fallen stone** (cloister rubble, toppled columns): vine will not take
+    and flame will not cross. The wall of the maze, plain and readable.
+  · **Wet ground** (the seep around the dry fountain, a cracked cistern):
+    vine grows there happily, but it will NOT catch — so a chain routed
+    through it dies at the water. It looks plantable and is, which makes it
+    the trap that teaches the rule: fuel is not the same as fire.
+A route therefore has to bend around stone it cannot use and around water it
+CAN plant but cannot burn, which is what stops the field being a lawn you
+scribble over.
+
 **AUTHORING NOTES.** Dead ground where vine will not take gives the field its
 maze and forces the route to bend. Growth is slow enough that the baseline is
 plan-then-light. Restart re-lays the whole garth (a stranded fire caps your
