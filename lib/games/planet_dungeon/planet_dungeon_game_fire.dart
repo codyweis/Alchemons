@@ -3435,6 +3435,39 @@ extension CinderCathedral on PlanetDungeonGame {
   /// committed. Every grown bed shows a faint downwind streak (a plume waiting
   /// to happen); the bed the active creature is standing at shows a bright one
   /// with a ring on each groove it would dust.
+  /// The votive flame of an ANSWERED groove: three small tongues standing in
+  /// the carved cut, each on its own phase so a row of lit beds never
+  /// flickers in lockstep. Deliberately small and low — this is a sigil
+  /// alight in its channel, not a bed on fire.
+  void _drawSigilFlame(Canvas canvas, Offset p, int seed) {
+    for (var i = 0; i < 3; i++) {
+      final ph = _time * 3.4 + i * 2.1 + seed * 0.7;
+      final h = 13.0 + 5.0 * sin(ph);
+      final x = p.dx + (i - 1) * 9.0 + sin(ph * 0.8) * 1.6;
+      final base = Offset(x, p.dy + 9);
+      Path tongue(double w, double hh) => Path()
+        ..moveTo(base.dx - w, base.dy)
+        ..quadraticBezierTo(base.dx - w * 0.7, base.dy - hh * 0.62, base.dx,
+            base.dy - hh)
+        ..quadraticBezierTo(
+            base.dx + w * 0.7, base.dy - hh * 0.62, base.dx + w, base.dy)
+        ..close();
+      // Outer body, then a brighter heart inside it.
+      canvas.drawPath(
+        tongue(4.6, h),
+        Paint()..color = const Color(0xFFE2701F).withValues(alpha: 0.70),
+      );
+      canvas.drawPath(
+        tongue(2.4, h * 0.62),
+        Paint()..color = const Color(0xFFFFDDA0).withValues(alpha: 0.85),
+      );
+      if (_fx.ready) {
+        drawGlow(canvas, _fx.glow!, base - Offset(0, h * 0.45), 13,
+            const Color(0xFFFFB25A).withValues(alpha: 0.26));
+      }
+    }
+  }
+
   void _drawPlumeForecast(Canvas canvas, DungeonRoom room) {
     final rules = ashGardenRules;
     if (rules == null) return;
@@ -3498,71 +3531,73 @@ extension CinderCathedral on PlanetDungeonGame {
   /// visible (no Mask required — the rite's own standard): a shallow BOWL of
   /// broken arcs wants the drift · a deep angular BRAND wants its own fire ·
   /// a smooth SWEPT ring, barred, wants nothing at all.
+  /// What a groove is ASKING FOR, shown as a GHOST OF THE STATE IT WANTS —
+  /// never an icon.
+  ///
+  /// PLAYTEST: "icons mean nothing to me or anyone playing the game; icons
+  /// shouldn't be how we solve this puzzle... we should use logic physics and
+  /// alchemy." Right on both counts, and it is the standard this planet
+  /// already sets elsewhere: the rite's evidence is PHYSICAL (the wax melted
+  /// lowest was lit first), never a symbol you have to be taught. So a bed
+  /// now shows a faint preview of the material it is waiting for, and solving
+  /// is comparing what lies in the bed with the ghost above it:
+  ///   · wants the drift → pale ash banked, lying with the live wind
+  ///   · wants the brand → the bed shown burnt, with cold char veins
+  ///   · must stay swept → rake lines combed across bare soil
   void _drawGroove(Canvas canvas, Offset p, GrooveDemand demand, bool sitsTrue) {
-    // One weight, one radius, one language — the three cuts differ by SHAPE
-    // alone, so they read apart at a glance instead of by squinting at
-    // decoration. (Playtest: the old marks were fussy and unpolished.)
-    const rad = 15.0;
-    final lit = sitsTrue;
-    final pulse = lit ? 0.70 + 0.30 * sin(_time * 2.2 + p.dx * 0.05) : 0.0;
-    final ink = lit
-        ? const Color(0xFFFFC98A).withValues(alpha: 0.75 + 0.25 * pulse)
-        : const Color(0xFF9A8A66).withValues(alpha: 0.62);
-    final cut = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = lit ? 2.6 : 2.0
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = ink;
+    // An answered groove has stopped asking: the flame and the real material
+    // in the bed say everything, and a ghost under them only muddies it.
+    if (sitsTrue) return;
+    final ghost = 0.30 + 0.06 * sin(_time * 1.5 + p.dx * 0.04);
 
     switch (demand) {
       case GrooveDemand.ash:
-        // THE DRIFT — an open bowl: a half-circle with a level line across it,
-        // the shape of something waiting to be filled.
-        canvas.drawArc(
-          Rect.fromCircle(center: p, radius: rad),
-          0.15,
-          pi - 0.30,
-          false,
-          cut,
-        );
-        canvas.drawLine(
-          p + const Offset(-rad, -1),
-          p + const Offset(rad, -1),
-          cut,
-        );
-        // Three settling flecks above the bowl.
-        for (var i = -1; i <= 1; i++) {
-          canvas.drawCircle(
-            p + Offset(i * 8.0, -rad * 0.62),
-            1.7,
-            Paint()..color = ink,
-          );
+        final dir = gardenWindVector;
+        if (_fx.ready) {
+          for (var k = -1; k <= 1; k++) {
+            final off = Offset(-dir.dy, dir.dx) * (k * 15.0);
+            drawPuff(
+              canvas,
+              _fx.puff!,
+              p + off,
+              54 - k.abs() * 10,
+              const Color(0xFFCFC3B0)
+                  .withValues(alpha: (0.15 - k.abs() * 0.04) * ghost * 2.2),
+            );
+          }
         }
       case GrooveDemand.scorch:
-        // THE BRAND — a single hard chevron struck downward into the bed,
-        // with a short stem: a mark burned in, not a pattern.
-        canvas.drawPath(
-          Path()
-            ..moveTo(p.dx - rad, p.dy - rad * 0.45)
-            ..lineTo(p.dx, p.dy + rad * 0.55)
-            ..lineTo(p.dx + rad, p.dy - rad * 0.45),
-          cut,
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: p, width: 82, height: 58),
+            const Radius.circular(9),
+          ),
+          Paint()..color = const Color(0xFF0C0806).withValues(alpha: ghost),
         );
+        final vein = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF7A6656).withValues(alpha: ghost * 1.5);
         canvas.drawLine(
-          p + const Offset(0, -rad * 0.9),
-          p + const Offset(0, -rad * 0.1),
-          cut,
-        );
+            p + const Offset(-26, 5), p + const Offset(-4, -10), vein);
+        canvas.drawLine(
+            p + const Offset(-4, -10), p + const Offset(20, 7), vein);
+        canvas.drawLine(p + const Offset(2, -6), p + const Offset(6, 12), vein);
       case GrooveDemand.clean:
-        // THE SWEPT GROOVE — a closed ring struck through: this one keeps
-        // nothing, and the bar says so.
-        canvas.drawCircle(p, rad * 0.86, cut);
-        canvas.drawLine(
-          p + Offset(-rad * 0.72, rad * 0.72),
-          p + Offset(rad * 0.72, -rad * 0.72),
-          cut,
-        );
+        final rake = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF8A7458).withValues(alpha: ghost * 1.6);
+        for (var k = -2; k <= 2; k++) {
+          final y = p.dy + k * 9.0;
+          final path = Path()..moveTo(p.dx - 34, y);
+          for (var x = -34.0; x <= 34.0; x += 8.5) {
+            path.lineTo(p.dx + x, y + sin(x * 0.22 + k) * 1.4);
+          }
+          canvas.drawPath(path, rake);
+        }
     }
   }
 
@@ -3577,19 +3612,19 @@ extension CinderCathedral on PlanetDungeonGame {
       final p = bed.position;
       // Does this groove have what it asked for, right now?
       final sitsTrue = grooveSitsTrue(i);
-      // A groove that HAS what it asked for catches light — but the light
-      // lives IN THE CUT, close and warm, never as flames standing on the
-      // soil. (Playtest: a `clean` groove is satisfied by an EMPTY bed, so
-      // flames-when-correct set the garth alight before the player had done
-      // anything, and then planting into one looked like planting into fire.)
+      // A groove that HAS what it asked for BURNS — the cathedral lights the
+      // sigil that has been answered. It is a votive flame standing in the
+      // carved channel, not a fire on the soil: small, contained and ritual,
+      // so a swept groove satisfied by an empty bed reads as ANSWERED rather
+      // than as the garth being ablaze.
       if (sitsTrue && _fx.ready) {
         final breathe = 0.74 + 0.26 * sin(_time * 2.2 + p.dx * 0.03);
         drawGlow(
           canvas,
           _fx.glow!,
           p,
-          34 * breathe,
-          const Color(0xFFFFA24C).withValues(alpha: 0.20 * breathe),
+          38 * breathe,
+          const Color(0xFFFFA24C).withValues(alpha: 0.24 * breathe),
         );
       }
 
@@ -3734,6 +3769,7 @@ extension CinderCathedral on PlanetDungeonGame {
       }
 
       _drawGroove(canvas, p, grooveDemandAt(i), sitsTrue);
+      if (sitsTrue) _drawSigilFlame(canvas, p, i);
 
       if (fx > 0 && _fx.ready) {
         drawGlow(
