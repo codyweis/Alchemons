@@ -3303,24 +3303,77 @@ extension CinderCathedral on PlanetDungeonGame {
     final across = Offset(-dir.dy, dir.dx);
     final c = b.center;
     final span = b.longestSide * 0.5;
-    final paint = Paint()
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 2.0;
-    for (var i = 0; i < 8; i++) {
-      final lane = (i - 3.5) * (b.shortestSide / 8.5);
-      final phase = (_time * 46 + i * 97) % (span * 2);
+
+    // The air itself: comets running downwind, bright head into a fading
+    // tail so the DIRECTION is unmistakable. (These used to sit at alpha
+    // 0.05 — present in the code and invisible on the screen.)
+    for (var i = 0; i < 14; i++) {
+      final lane = (i - 6.5) * (b.shortestSide / 14.5);
+      final phase = (_time * 78 + i * 97) % (span * 2);
       final head = c + across * lane + dir * (phase - span);
-      final len = 26.0 + (i.isEven ? 12.0 : 0.0);
-      final tail = head - dir * len;
-      if (!b.inflate(40).contains(head)) continue;
-      canvas.drawLine(
-        tail,
-        head,
-        paint
-          ..color = const Color(0xFF9A8C7C).withValues(
-            alpha: 0.05 + 0.05 * sin(_time * 1.4 + i),
-          ),
-      );
+      if (!b.inflate(60).contains(head)) continue;
+      final len = 30.0 + (i.isEven ? 16.0 : 0.0);
+      final breathe = 0.60 + 0.40 * sin(_time * 1.4 + i);
+      // Tail: several segments, each fainter, so it reads as motion.
+      for (var k = 0; k < 4; k++) {
+        final t0 = head - dir * (len * k / 4);
+        final t1 = head - dir * (len * (k + 1) / 4);
+        canvas.drawLine(
+          t1,
+          t0,
+          Paint()
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 2.6 - k * 0.5
+            ..color = const Color(0xFFBFAE97)
+                .withValues(alpha: (0.20 - k * 0.045) * breathe),
+        );
+      }
+    }
+
+    // THE LANES: the ash road. Every bed sits on a lane running downwind, and
+    // a burn dusts everything behind it on that lane — so the lanes are drawn
+    // through the bed centres as long arrows. This is the single thing that
+    // makes the wind mean something instead of just moving.
+    if (room.vineBeds.isNotEmpty) {
+      final seen = <double>{};
+      for (final bed in room.vineBeds) {
+        // One arrow per lane: key by the across-axis coordinate.
+        final key =
+            (bed.position.dx * across.dx + bed.position.dy * across.dy)
+                .roundToDouble();
+        if (!seen.add(key)) continue;
+        final from = bed.position - dir * 150;
+        final to = bed.position + dir * 190;
+        canvas.drawLine(
+          from,
+          to,
+          Paint()
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFFC4A35A).withValues(alpha: 0.16),
+        );
+        // Chevrons along the lane, marching downwind.
+        for (var k = 0; k < 5; k++) {
+          final march = ((_time * 0.35 + k * 0.2) % 1.0);
+          final at = from + (to - from) * march;
+          final wing = 7.0;
+          canvas.drawPath(
+            Path()
+              ..moveTo((at - dir * 7 + across * wing).dx,
+                  (at - dir * 7 + across * wing).dy)
+              ..lineTo(at.dx, at.dy)
+              ..lineTo((at - dir * 7 - across * wing).dx,
+                  (at - dir * 7 - across * wing).dy),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.6
+              ..strokeCap = StrokeCap.round
+              ..color = const Color(0xFFC4A35A).withValues(
+                alpha: 0.30 * sin(march * pi).clamp(0.0, 1.0),
+              ),
+          );
+        }
+      }
     }
   }
 
@@ -3476,56 +3529,69 @@ extension CinderCathedral on PlanetDungeonGame {
   /// broken arcs wants the drift · a deep angular BRAND wants its own fire ·
   /// a smooth SWEPT ring, barred, wants nothing at all.
   void _drawGroove(Canvas canvas, Offset p, GrooveDemand demand, bool sitsTrue) {
-    final glow = sitsTrue ? 0.55 + 0.25 * sin(_time * 2.2 + p.dx) : 0.0;
-    final stroke = Paint()
+    // One weight, one radius, one language — the three cuts differ by SHAPE
+    // alone, so they read apart at a glance instead of by squinting at
+    // decoration. (Playtest: the old marks were fussy and unpolished.)
+    const rad = 15.0;
+    final lit = sitsTrue;
+    final pulse = lit ? 0.70 + 0.30 * sin(_time * 2.2 + p.dx * 0.05) : 0.0;
+    final ink = lit
+        ? const Color(0xFFFFC98A).withValues(alpha: 0.75 + 0.25 * pulse)
+        : const Color(0xFF9A8A66).withValues(alpha: 0.62);
+    final cut = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = sitsTrue ? 2.4 : 1.8
+      ..strokeWidth = lit ? 2.6 : 2.0
       ..strokeCap = StrokeCap.round
-      ..color = sitsTrue
-          ? const Color(0xFFFFB46B).withValues(alpha: 0.55 + 0.32 * glow)
-          : const Color(0xFF8A7458).withValues(alpha: 0.78);
-    if (sitsTrue && _fx.ready) {
-      drawGlow(
-        canvas,
-        _fx.glow!,
-        p,
-        40,
-        const Color(0xFFFF8A50).withValues(alpha: 0.10 + 0.07 * glow),
-      );
-    }
+      ..strokeJoin = StrokeJoin.round
+      ..color = ink;
+
     switch (demand) {
       case GrooveDemand.ash:
-        // A shallow bowl, cut open in four arcs so the drift can settle in.
-        final r = Rect.fromCircle(center: p, radius: 16);
-        for (var i = 0; i < 4; i++) {
-          canvas.drawArc(r, i * pi / 2 + 0.30, pi / 2 - 0.60, false, stroke);
-        }
+        // THE DRIFT — an open bowl: a half-circle with a level line across it,
+        // the shape of something waiting to be filled.
         canvas.drawArc(
-          Rect.fromCircle(center: p, radius: 8),
-          0.2,
-          pi * 1.6,
+          Rect.fromCircle(center: p, radius: rad),
+          0.15,
+          pi - 0.30,
           false,
-          stroke,
+          cut,
         );
-      case GrooveDemand.scorch:
-        // A deep brand: hard-cut chevrons pointing in on the bed itself.
-        for (final s in const [1.0, 0.58]) {
-          final d = 17.0 * s;
-          canvas.drawPath(
-            Path()
-              ..moveTo(p.dx - d, p.dy - d * 0.72)
-              ..lineTo(p.dx, p.dy + d * 0.5)
-              ..lineTo(p.dx + d, p.dy - d * 0.72),
-            stroke,
+        canvas.drawLine(
+          p + const Offset(-rad, -1),
+          p + const Offset(rad, -1),
+          cut,
+        );
+        // Three settling flecks above the bowl.
+        for (var i = -1; i <= 1; i++) {
+          canvas.drawCircle(
+            p + Offset(i * 8.0, -rad * 0.62),
+            1.7,
+            Paint()..color = ink,
           );
         }
-      case GrooveDemand.clean:
-        // Swept smooth, and barred: this one keeps nothing.
-        canvas.drawCircle(p, 16, stroke);
+      case GrooveDemand.scorch:
+        // THE BRAND — a single hard chevron struck downward into the bed,
+        // with a short stem: a mark burned in, not a pattern.
+        canvas.drawPath(
+          Path()
+            ..moveTo(p.dx - rad, p.dy - rad * 0.45)
+            ..lineTo(p.dx, p.dy + rad * 0.55)
+            ..lineTo(p.dx + rad, p.dy - rad * 0.45),
+          cut,
+        );
         canvas.drawLine(
-          p + const Offset(-11, 11),
-          p + const Offset(11, -11),
-          stroke,
+          p + const Offset(0, -rad * 0.9),
+          p + const Offset(0, -rad * 0.1),
+          cut,
+        );
+      case GrooveDemand.clean:
+        // THE SWEPT GROOVE — a closed ring struck through: this one keeps
+        // nothing, and the bar says so.
+        canvas.drawCircle(p, rad * 0.86, cut);
+        canvas.drawLine(
+          p + Offset(-rad * 0.72, rad * 0.72),
+          p + Offset(rad * 0.72, -rad * 0.72),
+          cut,
         );
     }
   }
@@ -3640,17 +3706,21 @@ extension CinderCathedral on PlanetDungeonGame {
           // it — and easing in as the plume arrives.
           final land = 1.0 - (_bedPlume[i] ?? 1.0);
           final dir = gardenWindVector;
-          final ash = Paint()
-            ..strokeWidth = 3.2
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFFBFB3A2).withValues(alpha: 0.30 * land);
-          for (var s = -2; s <= 2; s++) {
-            final off = Offset(-dir.dy, dir.dx) * (s * 11.0);
-            canvas.drawLine(
-              p + off - dir * 24,
-              p + off + dir * 24,
-              ash,
-            );
+          // A soft bank of ash lying WITH the wind that laid it — the puff
+          // sprite rather than scratched parallel lines, which read as hatching
+          // instead of dust.
+          if (_fx.ready) {
+            for (var s = -1; s <= 1; s++) {
+              final off = Offset(-dir.dy, dir.dx) * (s * 16.0);
+              drawPuff(
+                canvas,
+                _fx.puff!,
+                p + off + dir * (s.abs() * 4.0),
+                62 - s.abs() * 12,
+                const Color(0xFFCFC3B0)
+                    .withValues(alpha: (0.26 - s.abs() * 0.06) * land),
+              );
+            }
           }
         case AshBedState.scorch:
           // A black brand, still breathing ember cracks.
