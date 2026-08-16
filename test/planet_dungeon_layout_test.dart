@@ -485,6 +485,14 @@ void main() {
             if (room.molten?.starIndex != null) {
               nonGuardianStars.add(room.molten!.starIndex!);
             }
+            // The 2026-08-14 reworks carry their star on the object: Fire's
+            // burnable garth and Steam's geyser capstone.
+            if (room.garth != null) {
+              nonGuardianStars.add(room.garth!.starIndex);
+            }
+            if (room.capstone != null) {
+              nonGuardianStars.add(room.capstone!.starIndex);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));
@@ -804,12 +812,15 @@ void main() {
       final choir = fire.rooms['choir']!;
       expect(choir.braziers.length, 6);
       expect(choir.brazierStarIndex, 0);
-      // Star 2: the cloister owns the six-bed garth and its wind-cross.
+      // Star 2: the cloister owns THE BURN — a field you route a fire across.
       final cloister = fire.rooms['cloister']!;
-      expect(cloister.vineBeds.length, 6);
+      final garth = cloister.garth;
+      expect(garth, isNotNull, reason: 'the cloister is a burnable field now');
+      expect(garth!.starIndex, 1);
+      expect(garth.coverageGoal, greaterThan(0),
+          reason: 'the ember pool is the win condition');
       expect(cloister.windVane, isNotNull,
           reason: 'the garth turns its own crosswind');
-      expect(cloister.vineStarIndex, 1);
       // Star 3: three bells in the gallery; Simurgh roosts in the sanctum.
       expect(fire.rooms['bell_gallery']!.incenseChains.length, 3);
       final guardian = fire.rooms['sanctum']!.guardian;
@@ -1222,9 +1233,20 @@ void main() {
       );
       expect(steam.starIndices, {0, 1, 2});
       // Star 0: the Ember Causeway grid banks star 0.
-      expect(steam.rooms['ember_causeway']!.molten?.starIndex, 0);
-      // Star 1: the Cinder Forge grid banks star 1.
-      expect(steam.rooms['cinder_forge']!.molten?.starIndex, 1);
+      // Star 1 is the GEYSER FIELD now (the tile-lava causeway is retired).
+      final causeway = steam.rooms['ember_causeway']!;
+      expect(causeway.geysers.length, greaterThan(0));
+      expect(causeway.capstone?.starIndex, 0);
+      expect(causeway.geysers.where((g) => g.blockedAtStart).length, 1,
+          reason: 'one mouth starts choked, so three bodies and one stone '
+              'is exactly enough to shut the field');
+      // Star 2 is THE LAUNCH: risers throw the party over a chasm to the
+      // pedestal on the far shore (the forge's tile-lava grid is retired).
+      final forge = steam.rooms['cinder_forge']!;
+      expect(forge.capstone?.starIndex, 1);
+      expect(forge.geysers.where((g) => g.isRiser).length, 2,
+          reason: 'a long crossing and a short one — the ordering is the room');
+      expect(forge.platforms.length, 2, reason: 'two shores, one chasm');
       // Rite: the Crucible grid wakes the guardian (null star index).
       final crucible = steam.rooms['crucible']!.molten;
       expect(crucible, isNotNull);

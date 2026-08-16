@@ -19,6 +19,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
@@ -978,6 +979,19 @@ class PlanetDungeonGame extends FlameGame {
   /// rock in that room; only woken rooms creep on the beat.
   final Set<String> wokeRooms = {};
 
+  // ── Fire Star 2: THE BURN ──
+  /// The live field per room, built from the authored garth on first entry.
+  final Map<String, BurnField> burnFields = {};
+
+  /// Seconds until the flame takes its next cell.
+  double burnBeat = 0;
+
+  /// Eased 0→1 fill of the ember pool, so it rises rather than stepping.
+  double poolShown = 0;
+
+  /// Flash when the flame just ate a cell (render only).
+  double burnFlash = 0;
+
   // ── Steam Star 1: the geyser field ──
   /// Ids of mouths the party is holding shut with a body or the rock, plus the
   /// authored rubble. Recomputed every frame from the world, never stored as
@@ -1922,6 +1936,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateStormCell(a, room, dt);
     _updateMercyShrine(a, room);
     _updateCathedral(a, room, dt);
+    _updateBurn(room, dt);
     _updateTemple(a, room, dt);
     _updateBarrow(a, room, dt);
     _updateCircuit(a, room, dt);
@@ -6358,6 +6373,12 @@ class PlanetDungeonGame extends FlameGame {
     // Storm Circuit interactions (charge pylons, rotate conductor mirrors,
     // herd/heat storm-cells, the breaker maze, the Thunderbolt egg).
     if (_tryCircuit(a)) {
+      onChanged();
+      return;
+    }
+    // Fire Star 2: the garth's three verbs answer before anything else in
+    // the cathedral — the room IS the burn now.
+    if (_tryBurn(a)) {
       onChanged();
       return;
     }

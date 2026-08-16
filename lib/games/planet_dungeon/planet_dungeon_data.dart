@@ -1282,6 +1282,10 @@ class DungeonLayout {
       if (room.pillarStarIndex != null) seen.add(room.pillarStarIndex!);
       if (room.circuitStarIndex != null) seen.add(room.circuitStarIndex!);
       if (room.molten?.starIndex != null) seen.add(room.molten!.starIndex!);
+      // The two 2026-08-14 reworks: Fire's burnable garth and Steam's geyser
+      // field both carry their planet's star on the object, not on a room flag.
+      if (room.garth != null) seen.add(room.garth!.starIndex);
+      if (room.capstone != null) seen.add(room.capstone!.starIndex);
     }
     return seen;
   }

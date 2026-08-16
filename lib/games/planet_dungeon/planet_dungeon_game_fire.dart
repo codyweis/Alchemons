@@ -609,6 +609,12 @@ const double _kEpitaphWriteStagger = 1.3; // line i starts at i * stagger
 const double _kEpitaphBurnPerLine = 1.6; // the fire takes its time
 const double _kEpitaphBurnStagger = 1.2;
 
+/// Seconds between the flame taking one cell and the next (device-tunable).
+const double _kBurnBeat = 1.35;
+
+/// How close a creature must stand to a garth cell to work it.
+const double _kGarthReach = 62.0;
+
 extension CinderCathedral on PlanetDungeonGame {
   // ── The rite: rolled per run, proved solvable ───────────
 
@@ -1079,6 +1085,166 @@ extension CinderCathedral on PlanetDungeonGame {
   /// True once the vesper has BEGUN — the run is committed for this attempt.
   bool get _vesperUnderway =>
       vesperCommitted || bellsRung.isNotEmpty || _vesperFlames.isNotEmpty;
+
+  // ── STAR 2 · THE BURN ────────────────────────────────────
+  //
+  // The garth is plantable soil. Plant lays vine, Fire lights one cell, Air
+  // swings the vane — and the flame walks ITSELF, one cell per beat, downwind.
+  // Every rule lives in BurnField; this is only the wiring: where a creature
+  // stands, when the beat falls, and what the room says about it.
+
+  /// Seconds between the flame taking one cell and the next.
+
+
+  /// How close a creature must stand to a cell to work it.
+
+
+  /// The live field for [room], built from its authored garth on first entry.
+  BurnField? burnFieldFor(DungeonRoom room) {
+    final g = room.garth;
+    if (g == null) return null;
+    return burnFields[room.id] ??=
+        BurnField.parse(g.art, coverageGoal: g.coverageGoal);
+  }
+
+  (double, double) _garthCell(DungeonRoom room, BurnGarth g) =>
+      (room.bounds.width / g.cols, room.bounds.height / g.rows);
+
+  /// The cell index under [p], or -1 outside the field.
+  int _garthAt(Offset p, DungeonRoom room, BurnGarth g) {
+    final (cw, ch) = _garthCell(room, g);
+    final c = ((p.dx - room.bounds.left) / cw).floor();
+    final r = ((p.dy - room.bounds.top) / ch).floor();
+    if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) return -1;
+    return r * g.cols + c;
+  }
+
+  Offset garthCentre(DungeonRoom room, BurnGarth g, int i) {
+    final (cw, ch) = _garthCell(room, g);
+    return Offset(
+      room.bounds.left + (i % g.cols + 0.5) * cw,
+      room.bounds.top + (i ~/ g.cols + 0.5) * ch,
+    );
+  }
+
+  String _burnWindName(BurnWind w) => switch (w) {
+        BurnWind.north => 'north',
+        BurnWind.east => 'east',
+        BurnWind.south => 'south',
+        BurnWind.west => 'west',
+      };
+
+  /// Plant / light / swing — the three verbs, element-only at full power.
+  bool _tryBurn(DungeonCreature a) {
+    if (!_isCathedral) return false;
+    final room = currentRoom;
+    final g = room.garth;
+    final field = burnFieldFor(room);
+    if (g == null || field == null) return false;
+    if (hasStar(g.starIndex)) return false;
+
+    // AIR swings the vane wherever it stands — the wind is the whole room's.
+    if (a.member.element == 'Air') {
+      field.wind = field.wind.quarterRight;
+      _setHint('The vane swings — the wind runs ${_burnWindName(field.wind)}');
+      onChanged();
+      return true;
+    }
+
+    final i = _garthAt(a.position, room, g);
+    if (i < 0) return false;
+    final at = garthCentre(room, g, i);
+    if ((a.position - at).distance > _kGarthReach) return false;
+
+    switch (a.member.element) {
+      case 'Plant':
+        if (field.plant(i)) {
+          _setHint(field.at(i) == BurnCell.wetVine
+              ? 'Vine takes in the wet ground — green, and it will never catch'
+              : 'Vine takes in the soil');
+          _spawnAlchemyBurst(at,
+              producedElement: 'Plant', particleCount: 10, intensity: 0.5);
+          onChanged();
+          return true;
+        }
+        _setBlockedHint(switch (field.at(i)) {
+          BurnCell.ash => 'Burnt ground takes no vine',
+          BurnCell.stone => 'Nothing roots in fallen stone',
+          _ => 'Vine already stands here',
+        });
+        return true;
+      case 'Fire':
+        if (field.alight) {
+          _setBlockedHint('A fire already runs — the garth carries one');
+          return true;
+        }
+        if (field.light(i)) {
+          burnBeat = _kBurnBeat;
+          burnFlash = 0.35;
+          _setHint('The vine catches — it runs with the wind', 3.0);
+          _spawnAlchemyBurst(at,
+              producedElement: 'Fire',
+              reagentElements: const ['Plant'],
+              particleCount: 20,
+              intensity: 1.0);
+          onChanged();
+          return true;
+        }
+        _setBlockedHint(switch (field.at(i)) {
+          BurnCell.wetVine => 'Sodden vine will not take a flame',
+          BurnCell.soil => 'Bare soil has nothing to burn',
+          BurnCell.ash => 'This ground is already spent',
+          _ => 'Nothing here will catch',
+        });
+        return true;
+    }
+    return false;
+  }
+
+  /// THE BEAT: the flame takes its next cell, or smoulders, or goes out.
+  void _updateBurn(DungeonRoom room, double dt) {
+    if (!_isCathedral) return;
+    final g = room.garth;
+    final field = burnFieldFor(room);
+    if (g == null || field == null) return;
+    if (burnFlash > 0) burnFlash -= dt;
+    poolShown += (field.poolFraction - poolShown) * min(1.0, dt * 2.6);
+    if (hasStar(g.starIndex) || !field.alight) return;
+
+    burnBeat -= dt;
+    if (burnBeat > 0) return;
+    burnBeat = _kBurnBeat;
+
+    switch (field.step()) {
+      case BurnStep.advanced:
+        burnFlash = 0.35;
+        _spawnAlchemyBurst(
+          garthCentre(room, g, field.head!),
+          producedElement: 'Dust',
+          reagentElements: const ['Plant', 'Fire'],
+          particleCount: 8,
+          intensity: 0.5,
+        );
+        if (field.poolFull && !hasStar(g.starIndex)) {
+          _setHint('The pool stands full — the cloister gives up its star', 4);
+          earnStar(g.starIndex);
+        }
+      case BurnStep.smouldered:
+        _setHint('The flame gutters — nothing downwind to take', 1.6);
+      case BurnStep.died:
+        _setHint(
+          field.canStillFill
+              ? 'The fire is out. Plant again and light a fresh run.'
+              : 'The fire is out and the garth is too spent to fill the pool '
+                  '— begin the chamber again.',
+          3.4,
+        );
+      case BurnStep.idle:
+        break;
+    }
+    onChanged();
+  }
+
 
   void _updateCathedral(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isCathedral) return;
@@ -2322,11 +2488,18 @@ extension CinderCathedral on PlanetDungeonGame {
       case 'cloister':
         // The wind lies under everything; the vane stands on the dry fountain
         // at the heart of the garth.
-        _drawCrosswind(canvas, room);
-        final vane = room.windVane ?? room.bounds.center;
-        _drawDryFountain(canvas, vane);
-        _drawWindVane(canvas, vane);
-        _drawVineBeds(canvas, room);
+        if (room.garth != null) {
+          _drawBurnGarth(canvas, room);
+          final vane = room.windVane ?? room.bounds.center;
+          _drawDryFountain(canvas, vane);
+          _drawWindVane(canvas, vane);
+        } else {
+          _drawCrosswind(canvas, room);
+          final vane = room.windVane ?? room.bounds.center;
+          _drawDryFountain(canvas, vane);
+          _drawWindVane(canvas, vane);
+          _drawVineBeds(canvas, room);
+        }
         break;
       case 'reliquary':
         _drawCinderShrine(canvas, room.bounds.center);
@@ -3600,6 +3773,251 @@ extension CinderCathedral on PlanetDungeonGame {
         }
     }
   }
+
+  /// THE BURN, drawn. Every cell says what it is by what it is made of —
+  /// tilled soil, standing vine, spent ash, fallen stone, wet ground — and the
+  /// flame is the only thing that moves, so the eye follows it.
+  void _drawBurnGarth(Canvas canvas, DungeonRoom room) {
+    final g = room.garth;
+    final field = burnFieldFor(room);
+    if (g == null || field == null) return;
+    final (cw, ch) = _garthCell(room, g);
+    final done = hasStar(g.starIndex);
+
+    for (var i = 0; i < g.cols * g.rows; i++) {
+      final c = garthCentre(room, g, i);
+      final plot = Rect.fromCenter(
+          center: c, width: cw - 8, height: ch - 8);
+      final rr = RRect.fromRectAndRadius(plot, const Radius.circular(7));
+      switch (field.at(i)) {
+        case BurnCell.stone:
+          // Fallen column: a pale block, obviously not soil.
+          canvas.drawRRect(
+              rr, Paint()..color = const Color(0xFF4A4238));
+          canvas.drawRRect(
+            rr,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2
+              ..color = const Color(0xFF6E6152),
+          );
+          for (var k = -1; k <= 1; k++) {
+            canvas.drawLine(
+              c + Offset(-plot.width * 0.3, k * 9.0),
+              c + Offset(plot.width * 0.3, k * 9.0),
+              Paint()
+                ..strokeWidth = 1.4
+                ..color = const Color(0x553A342C),
+            );
+          }
+        case BurnCell.wet:
+        case BurnCell.wetVine:
+          // The seep: dark, wet, with a sheen. Vine here reads green and sodden.
+          canvas.drawRRect(
+              rr, Paint()..color = const Color(0xFF16232A));
+          canvas.drawRRect(
+            rr,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.6
+              ..color = const Color(0xFF3E6B7A).withValues(alpha: 0.8),
+          );
+          if (_fx.ready) {
+            drawGlow(canvas, _fx.glow!, c, cw * 0.42,
+                const Color(0xFF5FA8C0).withValues(alpha: 0.10));
+          }
+          if (field.at(i) == BurnCell.wetVine) {
+            _drawVineTuft(canvas, c, cw, const Color(0xFF4E7F5E));
+          }
+        case BurnCell.ash:
+          // Spent: pale ash over black, and nothing will take here again.
+          canvas.drawRRect(
+              rr, Paint()..color = const Color(0xFF14100D));
+          if (_fx.ready) {
+            drawPuff(canvas, _fx.puff!, c, cw * 0.8,
+                const Color(0xFF8A8078).withValues(alpha: 0.16));
+          }
+        case BurnCell.vine:
+          canvas.drawRRect(
+              rr, Paint()..color = const Color(0xFF1A1710));
+          _drawVineTuft(canvas, c, cw, const Color(0xFF7FC169));
+        case BurnCell.soil:
+          canvas.drawRRect(
+              rr, Paint()..color = const Color(0xFF191309));
+          // Tilled rows, so bare ground reads as PLANTABLE.
+          for (var k = -1; k <= 1; k++) {
+            canvas.drawLine(
+              c + Offset(-plot.width * 0.32, k * 10.0),
+              c + Offset(plot.width * 0.32, k * 10.0),
+              Paint()
+                ..strokeWidth = 1.2
+                ..color = const Color(0x336B5B49),
+            );
+          }
+      }
+    }
+
+    // THE WIND, over the whole field: which way the fire will run next.
+    final (dc, dr) = field.wind.delta;
+    final dir = Offset(dc.toDouble(), dr.toDouble());
+    final b = room.bounds;
+    for (var i = 0; i < 10; i++) {
+      final t = ((_time * 0.30) + i / 10.0) % 1.0;
+      final lane = b.deflate(50);
+      final at = Offset(
+        lane.left + (dir.dx == 0 ? lane.width * (i / 9.0) : lane.width * t),
+        lane.top + (dir.dy == 0 ? lane.height * (i / 9.0) : lane.height * t),
+      );
+      final head = dir.dx < 0 || dir.dy < 0
+          ? Offset(
+              dir.dx == 0 ? at.dx : lane.right - (at.dx - lane.left),
+              dir.dy == 0 ? at.dy : lane.bottom - (at.dy - lane.top))
+          : at;
+      canvas.drawLine(
+        head - dir * 16,
+        head,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 2.0
+          ..color = const Color(0xFFC4A35A)
+              .withValues(alpha: 0.22 * sin(t * pi).clamp(0.0, 1.0)),
+      );
+    }
+
+    // THE HEAD: the only thing alive on the field.
+    final h = field.head;
+    if (h != null && !done) {
+      final at = garthCentre(room, g, h);
+      final smouldering = field.smoulder > 0;
+      final beat = 1 - (burnBeat / _kBurnBeat).clamp(0.0, 1.0);
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          at,
+          (smouldering ? 34.0 : 46.0) + 10 * burnFlash,
+          (smouldering
+                  ? const Color(0xFFB4542A)
+                  : const Color(0xFFFF9A3C))
+              .withValues(alpha: smouldering ? 0.26 : 0.38),
+        );
+      }
+      // Tongues, taller and brighter the closer the next beat is.
+      for (var i = 0; i < 3; i++) {
+        final ph = _time * 4.0 + i * 2.1;
+        final hgt = (smouldering ? 10.0 : 20.0) * (0.7 + 0.5 * beat) +
+            5.0 * sin(ph);
+        final x = at.dx + (i - 1) * 9.0 + sin(ph * 0.8) * 2.0;
+        final base = Offset(x, at.dy + 10);
+        Path tongue(double w, double hh) => Path()
+          ..moveTo(base.dx - w, base.dy)
+          ..quadraticBezierTo(
+              base.dx - w * 0.7, base.dy - hh * 0.6, base.dx, base.dy - hh)
+          ..quadraticBezierTo(
+              base.dx + w * 0.7, base.dy - hh * 0.6, base.dx + w, base.dy)
+          ..close();
+        canvas.drawPath(
+          tongue(5.0, hgt),
+          Paint()
+            ..color = (smouldering
+                    ? const Color(0xFF8A4520)
+                    : const Color(0xFFE2701F))
+                .withValues(alpha: 0.75),
+        );
+        canvas.drawPath(
+          tongue(2.6, hgt * 0.6),
+          Paint()..color = const Color(0xFFFFDDA0).withValues(alpha: 0.85),
+        );
+      }
+      // Where it will go NEXT — the fair warning before every beat.
+      final next = field.downwind(h);
+      if (next != null) {
+        final to = garthCentre(room, g, next);
+        final takes = field.at(next) == BurnCell.vine;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: to, width: cw - 14, height: ch - 14),
+            const Radius.circular(6),
+          ),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.2
+            ..color = (takes
+                    ? const Color(0xFFFFB25A)
+                    : const Color(0xFF7A6656))
+                .withValues(alpha: 0.30 + 0.35 * beat),
+        );
+      }
+    }
+
+    _drawEmberPool(canvas, g);
+  }
+
+  void _drawVineTuft(Canvas canvas, Offset c, double cw, Color col) {
+    final stem = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..color = col.withValues(alpha: 0.85);
+    for (var i = -1; i <= 1; i++) {
+      final sway = sin(_time * 1.3 + c.dx * 0.02 + i) * 3.0;
+      final base = c + Offset(i * cw * 0.16, 12);
+      canvas.drawPath(
+        Path()
+          ..moveTo(base.dx, base.dy)
+          ..quadraticBezierTo(
+              base.dx + sway, base.dy - 12, base.dx + sway * 1.6, base.dy - 22),
+        stem,
+      );
+    }
+  }
+
+  /// THE EMBER POOL: the progress display, diegetic and analogue. It fills
+  /// with coverage, and the star comes when it stands full.
+  void _drawEmberPool(Canvas canvas, BurnGarth g) {
+    final p = g.poolPosition;
+    final basin = Rect.fromCenter(center: p, width: 54, height: 150);
+    final rr = RRect.fromRectAndRadius(basin, const Radius.circular(12));
+    canvas.drawRRect(rr, Paint()..color = const Color(0xFF120D09));
+    final fill = poolShown.clamp(0.0, 1.0);
+    if (fill > 0.001) {
+      final lit = Rect.fromLTRB(
+        basin.left + 4,
+        basin.bottom - 4 - (basin.height - 8) * fill,
+        basin.right - 4,
+        basin.bottom - 4,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(lit, const Radius.circular(9)),
+        Paint()
+          ..shader = ui.Gradient.linear(
+            lit.topCenter,
+            lit.bottomCenter,
+            [const Color(0xFFFFC46A), const Color(0xFFB4401A)],
+          ),
+      );
+      if (_fx.ready) {
+        drawGlow(canvas, _fx.glow!, lit.topCenter, 40,
+            const Color(0xFFFF9A3C).withValues(alpha: 0.24 + 0.20 * fill));
+      }
+    }
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..color = const Color(0xFF74613A),
+    );
+    // The brim: a line the fill has to reach.
+    canvas.drawLine(
+      Offset(basin.left - 6, basin.top + 6),
+      Offset(basin.right + 6, basin.top + 6),
+      Paint()
+        ..strokeWidth = 2
+        ..color = const Color(0xFFE4C16A).withValues(alpha: fill >= 1 ? 1 : 0.5),
+    );
+  }
+
 
   void _drawVineBeds(Canvas canvas, DungeonRoom room) {
     final rules = ashGardenRules;
