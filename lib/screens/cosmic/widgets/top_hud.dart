@@ -8,6 +8,28 @@ import 'package:alchemons/widgets/app_icons.dart';
 // Cosmic HUD always renders on the dark space backdrop.
 const _palette = BracketPalette.dark;
 
+// ─────────────────────────────────────────────────────────
+// METER / RECIPE ALIGNMENT
+//
+// The recipe's target notches are drawn onto the meter fill, so "matching the
+// recipe" reads as "line your colours up with the marks". That only works if
+// both are laid out in the SAME order — hence one function for each, used by
+// both the fill and the painter, and a test that pins them together.
+// ─────────────────────────────────────────────────────────
+
+/// The meter's element segments in the order they are drawn, left to right.
+List<MapEntry<String, double>> meterSegmentsInDrawOrder(ElementMeter meter) {
+  return meter.breakdown.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+}
+
+/// The recipe's target components in the order their notches are drawn.
+/// Must match [meterSegmentsInDrawOrder]'s ordering rule.
+List<MapEntry<String, double>> recipeTargetsInDrawOrder(PlanetRecipe recipe) {
+  return recipe.components.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+}
+
 class TopHud extends StatefulWidget {
   const TopHud({
     super.key,
@@ -22,7 +44,9 @@ class TopHud extends StatefulWidget {
     required this.onMiniMap,
     required this.onMeterTap,
     this.showMeter = true,
-    this.raidStrip,
+    this.recipe,
+    this.dustCollected = 0,
+    this.dustTotal = 0,
     this.collapsed = false,
     this.onCollapsedChanged,
     this.zoomLevel = 0,
@@ -40,8 +64,17 @@ class TopHud extends StatefulWidget {
   final VoidCallback onMiniMap;
   final VoidCallback onMeterTap;
   final bool showMeter;
-  // A live-raid countdown strip, shown banded above the alchemical meter.
-  final Widget? raidStrip;
+  /// Recipe of the planet the ship is standing at, if any. When set, its
+  /// target percentages are drawn onto the meter as notches, so matching the
+  /// recipe becomes "line your colours up with the marks" rather than reading
+  /// a separate card.
+  final PlanetRecipe? recipe;
+
+  /// Star dust swept, and how much there is. Rendered as a resource chip
+  /// inside the card — it used to float over the card as its own Positioned,
+  /// which collided with the shard chip and ignored the collapse toggle.
+  final int dustCollected;
+  final int dustTotal;
   final bool collapsed;
   final ValueChanged<bool>? onCollapsedChanged;
   final int zoomLevel;
@@ -182,6 +215,20 @@ class TopHudState extends State<TopHud> {
                     ),
                   ),
                   // Resource chips
+                  if (widget.dustCollected > 0) ...[
+                    _ResourceChip(
+                      icon: AppIcons.auto_awesome,
+                      iconColor: const Color(0xFFFFD54F),
+                      label:
+                          '${widget.dustCollected}/'
+                          '${widget.dustTotal <= 0 ? 50 : widget.dustTotal}',
+                      labelColor: const Color(0xFFFFD54F),
+                      borderColor: const Color(
+                        0xFFFFD54F,
+                      ).withValues(alpha: 0.28),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   if (widget.wallet.shards > 0) ...[
                     _ResourceChip(
                       icon: CosmicScreenStyles.astralShardIcon,
@@ -219,12 +266,6 @@ class TopHudState extends State<TopHud> {
                 ],
               ),
 
-              // Live-raid strip — banded directly above the meter.
-              if (widget.raidStrip != null) ...[
-                const SizedBox(height: 8),
-                widget.raidStrip!,
-              ],
-
               // Alchemical meter
               if (widget.showMeter) ...[
                 const SizedBox(height: 8),
@@ -250,7 +291,6 @@ class TopHudState extends State<TopHud> {
                     },
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final breakdown = widget.meter.breakdown;
                         final total = widget.meter.total;
                         if (total <= 0) {
                           return ColoredBox(
@@ -270,8 +310,9 @@ class TopHudState extends State<TopHud> {
                           );
                         }
 
-                        final sorted = breakdown.entries.toList()
-                          ..sort((a, b) => b.value.compareTo(a.value));
+                        final sorted = meterSegmentsInDrawOrder(
+                          widget.meter,
+                        );
 
                         return Stack(
                           children: [
@@ -295,6 +336,15 @@ class TopHudState extends State<TopHud> {
                                 }).toList(),
                               ),
                             ),
+                            // Recipe targets, drawn over the fill.
+                            if (widget.recipe != null)
+                              Positioned.fill(
+                                child: CustomPaint(
+                                  painter: _RecipeTargetPainter(
+                                    recipe: widget.recipe!,
+                                  ),
+                                ),
+                              ),
                             Center(
                               child: Text(
                                 widget.meter.isFull
@@ -324,6 +374,41 @@ class TopHudState extends State<TopHud> {
       ),
     );
   }
+}
+
+/// Draws the active recipe's target percentages onto the alchemical meter as
+/// notches: a hairline at each cumulative target boundary with an element-tinted
+/// cap above it. Read against the coloured fill underneath, a segment that stops
+/// short of its notch is under-filled and one that runs past it is over.
+class _RecipeTargetPainter extends CustomPainter {
+  const _RecipeTargetPainter({required this.recipe});
+
+  final PlanetRecipe recipe;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final entries = recipeTargetsInDrawOrder(recipe);
+
+    final line = Paint()
+      ..strokeWidth = 1.4
+      ..color = Colors.white.withValues(alpha: 0.85);
+
+    var cumulative = 0.0;
+    for (final e in entries) {
+      cumulative += e.value;
+      if (cumulative >= 100) break;
+      final x = size.width * (cumulative / 100);
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
+      // Element-tinted cap so you can tell which boundary is which.
+      canvas.drawRect(
+        Rect.fromLTWH(x - 2.5, 0, 5, 3),
+        Paint()..color = elementColor(e.key),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RecipeTargetPainter old) => old.recipe != recipe;
 }
 
 class _HudIconButton extends StatelessWidget {

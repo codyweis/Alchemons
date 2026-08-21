@@ -1,6 +1,8 @@
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/material.dart';
 
+import 'package:alchemons/widgets/app_icons.dart';
+
 import 'cosmic_screen_styles.dart';
 
 class CosmicOverlayBackdrop extends StatelessWidget {
@@ -270,5 +272,28 @@ class _CosmicBracketPainter extends CustomPainter {
     return color != oldDelegate.color ||
         strokeWidth != oldDelegate.strokeWidth ||
         bracketSize != oldDelegate.bracketSize;
+  }
+}
+
+
+/// The dismiss control every cosmic panel uses.
+///
+/// One widget so the panels cannot drift apart visually. Note that X means
+/// *close the panel stack entirely* — a panel that also has a parent carries a
+/// separate docked BACK for stepping up one level.
+class CosmicCloseButton extends StatelessWidget {
+  const CosmicCloseButton({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onTap,
+      icon: const Icon(AppIcons.close_rounded),
+      color: CosmicScreenStyles.textSecondary,
+      splashRadius: 20,
+      tooltip: 'Close',
+    );
   }
 }

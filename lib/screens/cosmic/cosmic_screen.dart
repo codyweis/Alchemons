@@ -9,6 +9,8 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
+import 'package:alchemons/games/cosmic/cosmic_cache_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/utils/color_util.dart' show FamilyColors;
@@ -39,6 +41,9 @@ import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
 import 'package:alchemons/screens/cosmic/elemental_nexus_screen.dart';
+import 'package:alchemons/screens/cosmic/cosmic_prologue_screen.dart';
+import 'package:alchemons/screens/cosmic/widgets/elemental_cache_popup.dart';
+import 'package:alchemons/screens/cosmic/widgets/elemental_cache_prompt.dart';
 import 'package:alchemons/screens/cosmic/blood_ring_ending_screen.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -73,6 +78,13 @@ class CosmicScreen extends StatefulWidget {
   State<CosmicScreen> createState() => _CosmicScreenState();
 }
 
+/// Panels that a sub-panel can return to when the player backs out.
+///
+/// The cosmic panels nest — home base → customization lab → chamber picker,
+/// ship console → party picker — and the same picker is reachable from more
+/// than one parent, so BACK cannot be hardcoded to one destination.
+enum _CosmicPanel { none, home, ship, lab }
+
 class _CosmicScreenState extends State<CosmicScreen>
     with TickerProviderStateMixin {
   static const _prefsKey = 'cosmic_fog_state_v2';
@@ -81,6 +93,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       'cosmic_planet_recipe_arrival_intro_seen_v1';
   static const _cosmicIntroPromptedKey = 'cosmic_intro_prompted_v1';
   static const _cosmicIntroCompletedKey = 'cosmic_intro_completed_v1';
+  static const _cosmicPrologueCompletedKey = 'cosmic_prologue_completed_v1';
   static const _cosmicSurvivalIntroCompletedKey =
       'cosmic_survival_intro_completed_v1';
   static const _planetStarStatePrefsKey = 'cosmic_planet_stars';
@@ -125,7 +138,13 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Elemental Nexus state
   bool _isNearNexus = false;
+
+  // ── Sealed elemental caches ──
+  ElementalCache? _nearCache;
+  ElementalCacheReward? _cacheReward;
+  bool _cacheUnsealing = false;
   static const _nexusPrefsKey = 'cosmic_elemental_nexus_v1';
+  static const _cachesPrefsKey = 'cosmic_elemental_caches_v1';
   String? _nearPocketPortalElement; // non-null when near a pocket portal
 
   // Battle Ring state
@@ -247,6 +266,11 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showHomeMenu ||
       _showPartyPicker ||
       _showGarrisonPicker ||
+      _cacheReward != null ||
+      _cacheUnsealing ||
+      // Preview hides the HUD so the planet is actually visible; the END
+      // PREVIEW button opts itself back in.
+      _previewingHome ||
       (_game?.beautyContestCinematicActive ?? false);
 
   int _sandboxCompanionStatTier = 4;
@@ -302,7 +326,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   // Meter animation
   late AnimationController _meterPulse;
   late AnimationController _miniMapCtrl;
-  late AnimationController _planetMeterCtrl;
   late AnimationController _bloodRitualCtrl;
   late AnimationController _screenShakeCtrl;
   late AnimationController _survivalSignalArrowCtrl;
@@ -371,11 +394,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     _miniMapCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
-    );
-
-    _planetMeterCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
     );
 
     _bloodRitualCtrl = AnimationController(
@@ -616,6 +634,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
 
     // Restore fog state
+    final cachesRaw = prefs.getString(_cachesPrefsKey);
     final fogRaw = prefs.getString(_prefsKey);
     CosmicFogState? savedFog;
     if (fogRaw != null) {
@@ -744,6 +763,17 @@ class _CosmicScreenState extends State<CosmicScreen>
       }
     }
     _game = game;
+    game.onNearCache = _onNearCache;
+    game.onCacheOpened = _onCacheOpened;
+    game.onCacheDiscovered = (_) => unawaited(_saveCacheState());
+    game.onCacheRespawned = (_) => unawaited(_saveCacheState());
+    if (!widget.memoryTutorial &&
+        cachesRaw != null &&
+        cachesRaw.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        game.elementalCacheField.restore(cachesRaw);
+      });
+    }
     if (!widget.memoryTutorial) {
       await _saveBloodRingState();
     }
@@ -789,7 +819,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (mounted && widget.memoryTutorial) {
         unawaited(_startMemoryTutorial());
       } else if (mounted) {
-        unawaited(_maybeRunCosmicIntro());
+        unawaited(_runFirstCrossingThenIntro());
       }
     });
   }
@@ -1029,7 +1059,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showQuote('Return home to manage your party.');
       return;
     }
-    setState(() => _showPartyPicker = true);
+    _openSubPanel(_CosmicPanel.none, () => _showPartyPicker = true);
   }
 
   Future<void> _handlePartySlotLongPress(int slotIndex) async {
@@ -1689,6 +1719,37 @@ class _CosmicScreenState extends State<CosmicScreen>
   int get _garrisonSlots =>
       homeGarrisonSlotsForTier(_homePlanet?.activeSizeTier ?? 0);
 
+  /// Gold / silver / soft, read when the base panel opens. They do not change
+  /// while it is up, so a one-shot read beats holding a subscription open.
+  Map<String, int> _walletCurrencies = const {};
+
+  Future<void> _refreshWalletCurrencies() async {
+    if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
+    final all = await db.currencyDao.getAllCurrencies();
+    if (!mounted) return;
+    setState(() => _walletCurrencies = all);
+  }
+
+  /// Snapshot of everything the base panel reports besides the element store.
+  HomeBaseStats get _homeBaseStats => HomeBaseStats(
+    gold: _walletCurrencies['gold'] ?? 0,
+    silver: _walletCurrencies['silver'] ?? 0,
+    soft: _walletCurrencies['soft'] ?? 0,
+    shardsCarried: _game?.shipWallet.shards ?? 0,
+    shardCapacity: _game?.shipWallet.shardCapacity ?? 0,
+    astralBank: _homePlanet?.astralBank ?? 0,
+    dustCollected: _collectedDust.length,
+    dustTotal: 50,
+    garrisonStationed: _garrisonMembers
+        .whereType<CosmicPartyMember>()
+        .length,
+    garrisonSlots: _garrisonSlots,
+    fuel: _game?.shipFuel.fuel ?? 0,
+    fuelCapacity: _game?.shipFuel.capacity ?? 0,
+    cargoTierName: CargoUpgrade.nameForLevel(_cargoLevel),
+  );
+
   Future<void> _initGarrison() async {
     if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
@@ -1802,6 +1863,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _saveOrbitalState();
       _saveMissileState();
       _saveNexusState();
+      _saveCacheState();
       _saveBattleRingState();
       _saveBloodRingState();
     }
@@ -1915,14 +1977,8 @@ class _CosmicScreenState extends State<CosmicScreen>
             // A fresh gate always greets the player expanded.
             _descentPlacardMinimized = false;
           });
-          // animate planet-meter in/out
           if (planet != null) {
-            _planetMeterCtrl.forward(from: 0.0);
             unawaited(_maybeShowPlanetRecipeArrivalIntro(planet));
-          } else if (_pinnedRecipeElement != null) {
-            _planetMeterCtrl.forward(from: _planetMeterCtrl.value);
-          } else {
-            _planetMeterCtrl.reverse();
           }
         }
       });
@@ -2220,6 +2276,85 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (_game == null) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_nexusPrefsKey, _game!.elementalNexus.serialise());
+  }
+
+  // ── Sealed elemental cache handlers ──
+
+  void _onNearCache(ElementalCache? cache) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || identical(_nearCache, cache)) return;
+      setState(() => _nearCache = cache);
+    });
+  }
+
+  Future<void> _saveCacheState() async {
+    if (_game == null || widget.memoryTutorial) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _cachesPrefsKey,
+      _game!.elementalCacheField.serialise(),
+    );
+  }
+
+  /// The player tapped the cache prompt. Either the seal takes the companion's
+  /// signature and the ritual starts, or we tell them what it is waiting for.
+  void _handleCacheTap() {
+    final game = _game;
+    final cache = _nearCache;
+    if (game == null || cache == null || _cacheUnsealing) return;
+    if (_homeBuildTutorialLock) {
+      _showQuote('Build your home base first.');
+      return;
+    }
+
+    if (!game.cacheAttunementReady(cache)) {
+      HapticFeedback.lightImpact();
+      _showQuote(
+        'The seal will not take. It needs ${cacheHintFor(cache.element)}.',
+        holdFor: const Duration(seconds: 4),
+      );
+      return;
+    }
+
+    if (!game.beginCacheUnseal(cache)) return;
+    HapticFeedback.heavyImpact();
+    _playCosmicSfx(SoundCue.cosmicPortalOpen);
+    setState(() => _cacheUnsealing = true);
+  }
+
+  void _onCacheOpened(ElementalCache cache) {
+    if (!mounted) return;
+    final reward = ElementalCacheReward.roll(cache.element, Random());
+    unawaited(_grantCacheReward(reward));
+    unawaited(_saveCacheState());
+    HapticFeedback.heavyImpact();
+    _playCosmicSfx(SoundCue.cosmicAnomalyBurst);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Hold the world still while the player reads the payout.
+      _game?.pauseEngine();
+      setState(() {
+        _cacheUnsealing = false;
+        _cacheReward = reward;
+      });
+    });
+  }
+
+  void _dismissCacheReward() {
+    setState(() => _cacheReward = null);
+    if (!_showMiniMap && !_anyOverlayOpen) _game?.resumeEngine();
+  }
+
+  Future<void> _grantCacheReward(ElementalCacheReward reward) async {
+    if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
+    if (reward.gold > 0) {
+      await db.currencyDao.addGold(reward.gold);
+    }
+    for (final entry in reward.itemGrants.entries) {
+      await db.inventoryDao.addItemQty(entry.key, entry.value);
+    }
   }
 
   // ── Battle Ring handlers ──
@@ -4378,6 +4513,83 @@ class _CosmicScreenState extends State<CosmicScreen>
     _showQuote('Signal source confirmed: Survival Portal unlocked.');
   }
 
+  /// First-ever arrival in cosmic space plays the prologue, then hands over to
+  /// the normal exploration tutorial.
+  Future<void> _runFirstCrossingThenIntro() async {
+    await _maybeRunCosmicPrologue();
+    if (!mounted) return;
+    await _maybeRunCosmicIntro();
+  }
+
+  /// THE FIRST CROSSING — the one-time cinematic where the player finds a
+  /// Stabilized Harvester, picks one of four elemental lights, and catches the
+  /// prismatic Let waiting behind it.
+  Future<void> _maybeRunCosmicPrologue() async {
+    if (widget.memoryTutorial || !mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_cosmicPrologueCompletedKey) ?? false) return;
+
+    // Anyone already past the old cosmic intro is not a first-timer — mark the
+    // prologue as spent rather than dropping a cutscene on an established save.
+    final alreadyStarted =
+        (prefs.getBool(_cosmicIntroPromptedKey) ?? false) ||
+        (prefs.getBool(_cosmicIntroCompletedKey) ?? false) ||
+        _homePlanet != null;
+    if (alreadyStarted) {
+      await prefs.setBool(_cosmicPrologueCompletedKey, true);
+      return;
+    }
+
+    if (!mounted) return;
+    final game = _game;
+    game?.pauseEngine();
+    try {
+      await Navigator.of(context).push<CosmicPrologueResult>(
+        MaterialPageRoute(
+          builder: (_) => const CosmicPrologueScreen(),
+          fullscreenDialog: true,
+        ),
+      );
+      await prefs.setBool(_cosmicPrologueCompletedKey, true);
+    } finally {
+      if (mounted &&
+          identical(_game, game) &&
+          !_showMiniMap &&
+          !_anyOverlayOpen) {
+        game?.resumeEngine();
+      }
+    }
+
+    // A Let caught at the crossing should be selectable right away.
+    if (mounted) _initCosmicParty();
+  }
+
+  /// DEVELOPER TOOL — play THE FIRST CROSSING on demand, regardless of whether
+  /// this save has already spent it. Runs the real flow, so it really does hand
+  /// over a Stabilized Harvester and a catchable prismatic Let each time.
+  Future<void> _debugReplayPrologue() async {
+    if (!mounted) return;
+    final game = _game;
+    game?.pauseEngine();
+    try {
+      await Navigator.of(context).push<CosmicPrologueResult>(
+        MaterialPageRoute(
+          builder: (_) => const CosmicPrologueScreen(),
+          fullscreenDialog: true,
+        ),
+      );
+    } finally {
+      if (mounted &&
+          identical(_game, game) &&
+          !_showMiniMap &&
+          !_anyOverlayOpen) {
+        game?.resumeEngine();
+      }
+    }
+    if (mounted) _initCosmicParty();
+  }
+
   Future<void> _maybeRunCosmicIntro() async {
     if (_runningCosmicIntro || !mounted || _game == null) return;
 
@@ -4473,7 +4685,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   static const int _starDustScanCost = 50;
   static const int _planetScanCost = 50;
 
-  void _handleMoveHomePlanet() {
+  Future<void> _handleMoveHomePlanet() async {
     if (_game == null || _homePlanet == null) return;
     final wallet = _game!.shipWallet;
     if (wallet.shards < _relocateCost) {
@@ -4483,6 +4695,31 @@ class _CosmicScreenState extends State<CosmicScreen>
       HapticFeedback.heavyImpact();
       return;
     }
+
+    // Relocating spends shards and abandons the spot the player picked, so it
+    // asks first rather than moving out from under them on a stray tap.
+    final confirmed = await LandscapeDialog.show(
+      context,
+      title: 'Move Home Planet?',
+      message:
+          'Anchor your home base at this position? '
+          'It will be lifted from where it stands now, and this costs '
+          '$_relocateCost carried shards.',
+      kind: LandscapeDialogKind.info,
+      showIcon: false,
+      primaryLabel: 'Move It Here',
+      secondaryLabel: 'Cancel',
+    );
+    if (confirmed != true || !mounted) return;
+    if (_game == null || _homePlanet == null) return;
+    // Re-check: the dialog was open for a while.
+    if (wallet.shards < _relocateCost) {
+      _showQuote(
+        'Not enough ship shards! Need $_relocateCost carried to relocate.',
+      );
+      return;
+    }
+
     final warning = _game!.moveHomePlanet();
     if (warning != null) {
       _showQuote(warning);
@@ -4769,7 +5006,10 @@ class _CosmicScreenState extends State<CosmicScreen>
         Tooltip(
           message: 'Home base',
           child: GestureDetector(
-            onTap: () => setState(() => _showHomeMenu = true),
+            onTap: () {
+              setState(() => _showHomeMenu = true);
+              unawaited(_refreshWalletCurrencies());
+            },
             child: _CosmicSquareHudButton(
               accent: CosmicScreenStyles.amber,
               active: true,
@@ -5542,6 +5782,85 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
+  /// Set whenever the lab changes something you can actually SEE on the home
+  /// planet. Drives the PREVIEW affordance.
+  bool _homePreviewDirty = false;
+
+  /// True while the lab is hidden so the player can look at their planet.
+  bool _previewingHome = false;
+
+  /// What to reopen as each sub-panel is backed out of, innermost last.
+  final List<_CosmicPanel> _panelStack = [];
+
+  /// Open [panel]'s child, remembering to come back here.
+  void _openSubPanel(_CosmicPanel from, VoidCallback open) {
+    _panelStack.add(from);
+    setState(open);
+  }
+
+  /// Dismiss the whole panel stack straight to the world. This is what the X
+  /// does; BACK ([_closeSubPanel]) only steps up one level.
+  void _dismissPanels() {
+    _panelStack.clear();
+    setState(() {
+      _showCustomizationMenu = false;
+      _showGarrisonPicker = false;
+      _showPartyPicker = false;
+      _showChamberPicker = false;
+      _showHomeMenu = false;
+      _showShipMenu = false;
+      _homePreviewDirty = false;
+    });
+  }
+
+  /// Back out of whichever sub-panel is showing and restore its parent.
+  void _closeSubPanel() {
+    final parent = _panelStack.isEmpty
+        ? _CosmicPanel.none
+        : _panelStack.removeLast();
+    setState(() {
+      _showCustomizationMenu = false;
+      _showGarrisonPicker = false;
+      _showPartyPicker = false;
+      _showChamberPicker = false;
+      _homePreviewDirty = false;
+      switch (parent) {
+        case _CosmicPanel.home:
+          _showHomeMenu = true;
+        case _CosmicPanel.ship:
+          _showShipMenu = true;
+        case _CosmicPanel.lab:
+          _showCustomizationMenu = true;
+        case _CosmicPanel.none:
+          break;
+      }
+    });
+  }
+
+  /// Which customization lab tab the player was last on. Held here rather than
+  /// in the lab's State because preview unmounts the whole overlay — State-local
+  /// memory does not survive that.
+  int _labTab = 0;
+
+  void _markHomeVisualChanged() {
+    if (!_homePreviewDirty) setState(() => _homePreviewDirty = true);
+  }
+
+  void _startHomePreview() {
+    setState(() {
+      _showCustomizationMenu = false;
+      _previewingHome = true;
+    });
+    _game?.resumeEngine();
+  }
+
+  void _endHomePreview() {
+    setState(() {
+      _previewingHome = false;
+      _showCustomizationMenu = true;
+    });
+  }
+
   Future<void> _handleUpgradePlanetSize() async {
     if (_homePlanet == null) return;
     final cost = _homePlanet!.nextTierCost;
@@ -5561,6 +5880,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _saveHomePlanet();
     _showQuote('Unlocked ${_homePlanet!.sizeTier} size!');
     setState(() {});
+    _markHomeVisualChanged();
   }
 
   void _handleSelectPlanetSize(int tier) async {
@@ -5578,6 +5898,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       }
       await _initGarrison();
     }
+    _markHomeVisualChanged();
     setState(() {});
   }
 
@@ -5600,6 +5921,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _homePlanet!.activeColor = element;
     _saveHomePlanet();
     _showQuote('Unlocked $element color!');
+    _markHomeVisualChanged();
     setState(() {});
   }
 
@@ -5610,6 +5932,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     _homePlanet!.activeColor = element;
     _saveHomePlanet();
+    _markHomeVisualChanged();
     setState(() {});
   }
 
@@ -6060,7 +6383,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       planet.element,
       _raidEligibleElements,
     );
-    if (raid != null) _showQuote('${planet.element} is overrun (debug raid).');
+    if (raid != null) {
+      _showQuote('${planetName(planet.element)} is overrun (debug raid).');
+    }
     await _refreshRaidState();
   }
 
@@ -6084,7 +6409,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     } else {
       HapticFeedback.heavyImpact();
       _showQuote(
-        'The beacon flares — ${planet.element} is overrun. The raid window is open.',
+        'The beacon flares — ${planetName(planet.element)} is overrun. '
+        'The raid window is open.',
       );
     }
     await _refreshRaidState();
@@ -6093,106 +6419,97 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// Compact "sealed" chip shown when near a dungeon-gated planet without the
   /// required element trio in the cosmic party. Checks off elements carried.
   /// Space-view raid alert: which planet is overrun and how long remains.
-  /// The live-raid countdown, shaped as a full-width strip that bands across
-  /// the top HUD card directly above the alchemical meter.
-  Widget _raidMeterStrip() {
+  /// Live-raid badge, parked under the mini-map radar.
+  ///
+  /// It used to be a full-width strip banded into the top HUD, which made the
+  /// HUD grow and pushed everything below it around. As a badge it costs the
+  /// layout nothing, and it collapses away with the rest of the HUD chrome.
+  Widget _raidBadge() {
     final raid = _raid!;
     final left = raid.remaining(DateTime.now().toUtc());
     String two(int v) => v.toString().padLeft(2, '0');
     final clock =
         '${two(left.inHours)}:${two(left.inMinutes % 60)}:${two(left.inSeconds % 60)}';
+    final closing = left.inMinutes < 60;
+
     const ember = Color(0xFFE25544);
-    final elColor = elementColor(raid.element);
-    return Container(
-      height: 30,
-      padding: const EdgeInsets.fromLTRB(6, 0, 12, 0),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            ember.withValues(alpha: 0.24),
-            ember.withValues(alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: ember.withValues(alpha: 0.7), width: 1.1),
+    final font = appFontFamily(context);
+
+    return CustomPaint(
+      foregroundPainter: const DungeonBracketPainter(
+        color: ember,
+        bracketSize: 6,
+        strokeWidth: 1.1,
       ),
-      child: Row(
-        children: [
-          // Ember medallion — the raid's warning sigil.
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  ember.withValues(alpha: 0.6),
-                  ember.withValues(alpha: 0.12),
-                ],
-              ),
-              border: Border.all(color: ember.withValues(alpha: 0.9)),
-            ),
-            child: const Icon(
-              Icons.whatshot_rounded,
-              color: Color(0xFFFFE0D6),
-              size: 13,
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Text(
-            'RAID',
-            style: TextStyle(
-              color: ember,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2.6,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: elColor,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: elColor.withValues(alpha: 0.7),
-                  blurRadius: 5,
+      child: Container(
+        width: 124,
+        padding: const EdgeInsets.fromLTRB(0, 5, 7, 5),
+        decoration: BoxDecoration(
+          color: CosmicScreenStyles.bg1.withValues(alpha: 0.92),
+          border: Border.all(color: ember.withValues(alpha: 0.45)),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 3, color: ember),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'RAID',
+                          style: TextStyle(
+                            fontFamily: font,
+                            color: ember,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.8,
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            planetName(raid.element).toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: font,
+                              color: CosmicScreenStyles.textPrimary,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      clock,
+                      style: TextStyle(
+                        color: closing
+                            ? ember
+                            : CosmicScreenStyles.textSecondary,
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        height: 1.0,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 5),
-          Text(
-            raid.element.toUpperCase(),
-            style: TextStyle(
-              color: const Color(0xFFEDE3CF).withValues(alpha: 0.8),
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.6,
-            ),
-          ),
-          const Spacer(),
-          Icon(
-            Icons.timer_outlined,
-            size: 12,
-            color: const Color(0xFFEDE3CF).withValues(alpha: 0.55),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            clock,
-            style: const TextStyle(
-              color: Color(0xFFF3ECDC),
-              fontFamily: 'monospace',
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -6933,7 +7250,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     _meterPulse.dispose();
     _quoteFade.dispose();
     _miniMapCtrl.dispose();
-    _planetMeterCtrl.dispose();
     _bloodRitualCtrl.dispose();
     _screenShakeCtrl.dispose();
     _survivalSignalArrowCtrl.dispose();
@@ -7006,20 +7322,14 @@ class _CosmicScreenState extends State<CosmicScreen>
       setState(() => _showShipMenu = false);
       return true;
     }
-    if (_showGarrisonPicker) {
-      setState(() => _showGarrisonPicker = false);
-      return true;
-    }
-    if (_showPartyPicker) {
-      setState(() => _showPartyPicker = false);
-      return true;
-    }
-    if (_showChamberPicker) {
-      setState(() => _showChamberPicker = false);
-      return true;
-    }
-    if (_showCustomizationMenu) {
-      setState(() => _showCustomizationMenu = false);
+    // System back goes through the same path as the BACK button, so it
+    // returns to the parent panel too and never leaves a stale entry on the
+    // return stack.
+    if (_showGarrisonPicker ||
+        _showPartyPicker ||
+        _showChamberPicker ||
+        _showCustomizationMenu) {
+      _closeSubPanel();
       return true;
     }
     if (_showHomeMenu) {
@@ -7069,11 +7379,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     if (!mounted) return;
     setState(() => _pinnedRecipeElement = next);
-    if (next != null) {
-      _planetMeterCtrl.forward(from: _planetMeterCtrl.value);
-    } else if (_nearPlanet == null) {
-      _planetMeterCtrl.reverse();
-    }
     HapticFeedback.selectionClick();
     _showQuote(next == null ? 'Recipe unpinned.' : 'Recipe pinned.');
   }
@@ -7175,7 +7480,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     // once the player has packed enough matching essence into the meter.
     final hudCanAct = _nearPlanet != null && _game!.meter.isFull;
     const starDustTotal = 50;
-    final baseMapColumnTop = 120.0 + (recipeHudVisible ? 240.0 : 0.0);
+    // The top HUD is a constant height now — the raid moved out of it into a
+    // badge under the radar, so nothing below the HUD shifts when one starts.
+    const recipeColumnTop = 94.0;
+    const baseMapColumnTop = 120.0;
     final mapColumnTop = (_topHudCollapsed ? 0.0 : baseMapColumnTop)
         .clamp(0.0, 400.0)
         .toDouble();
@@ -7237,6 +7545,25 @@ class _CosmicScreenState extends State<CosmicScreen>
                     onPointerUp: _handleTapShootPointerUp,
                     onPointerCancel: _handleTapShootPointerCancel,
                   ),
+                ),
+
+              // ── Live-raid badge, tucked under the radar ──
+              // Hides with the rest of the HUD chrome when the player
+              // collapses it.
+              if (showCosmicHud &&
+                  _raidLive &&
+                  !_topHudCollapsed &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen &&
+                  !_awaitingShipMenuTap)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  // Clears whichever map affordance is showing: the 44pt
+                  // button, or the 84pt pinned radar.
+                  top: mapColumnTop + (_showPinnedMiniMap ? 84 : 44) + 6,
+                  left: 12,
+                  child: SafeArea(child: _raidBadge()),
                 ),
 
               // ── Map button (hidden when pinned mini-map is active) ──
@@ -7472,149 +7799,23 @@ class _CosmicScreenState extends State<CosmicScreen>
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 280),
                   curve: Curves.easeOutCubic,
-                  top: 76,
+                  top: recipeColumnTop,
                   left: 0,
                   right: 0,
                   child: SafeArea(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Animated alchemical meter above the planet HUD
-                        AnimatedBuilder(
-                          animation: _planetMeterCtrl,
-                          builder: (context, child) {
-                            final t = Curves.easeOut.transform(
-                              _planetMeterCtrl.value,
-                            );
-                            return Opacity(
-                              opacity: t.clamp(0.0, 1.0),
-                              child: Transform.translate(
-                                offset: Offset(0, (1 - t) * 8),
-                                child: child,
-                              ),
-                            );
-                          },
-                          child: GestureDetector(
-                            onTap: _handleMeterTap,
-                            child: AnimatedBuilder(
-                              animation: _meterPulse,
-                              builder: (context, child) {
-                                final meter = _game!.meter;
-                                final glow = meter.isFull
-                                    ? _meterPulse.value * 0.4
-                                    : 0.0;
-                                return CustomPaint(
-                                  painter: BracketFramePainter(
-                                    color: meter.isFull
-                                        ? const Color(
-                                            0xFFE4C16A,
-                                          ).withValues(alpha: 0.6 + glow * 0.4)
-                                        : _cosmicMeterPalette.line.withValues(
-                                            alpha: 0.7,
-                                          ),
-                                    bracketSize: 6,
-                                    strokeWidth: 1.05,
-                                  ),
-                                  child: SizedBox(height: 24, child: child),
-                                );
-                              },
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final meter = _game!.meter;
-                                  final breakdown = meter.breakdown;
-                                  final total = meter.total;
-                                  if (total <= 0) {
-                                    return ColoredBox(
-                                      color: _cosmicMeterPalette.bg1,
-                                      child: Center(
-                                        child: Text(
-                                          'ALCHEMICAL METER',
-                                          style: TextStyle(
-                                            color: _cosmicMeterPalette.muted,
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 1.0,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }
-
-                                  final sorted = breakdown.entries.toList()
-                                    ..sort(
-                                      (a, b) => b.value.compareTo(a.value),
-                                    );
-
-                                  return Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: ColoredBox(
-                                          color: _cosmicMeterPalette.bg1,
-                                        ),
-                                      ),
-                                      Positioned.fill(
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: sorted.map((e) {
-                                            final pct =
-                                                e.value /
-                                                ElementMeter.maxCapacity;
-                                            return Expanded(
-                                              flex: (pct * 1000).round().clamp(
-                                                1,
-                                                1000,
-                                              ),
-                                              child: ColoredBox(
-                                                color: elementColor(e.key),
-                                              ),
-                                            );
-                                          }).toList(),
-                                        ),
-                                      ),
-                                      Center(
-                                        child: Text(
-                                          meter.isFull
-                                              ? 'METER FULL — FLY TO A PLANET'
-                                              : '${(meter.fillPct * 100).toStringAsFixed(0)}% ALCHEMICAL',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: 0.8,
-                                            shadows: [
-                                              Shadow(
-                                                color: Colors.black,
-                                                blurRadius: 4,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        PlanetRecipeHud(
-                          planet: hudPlanet,
-                          recipe: _getRecipeForPlanet(hudPlanet),
-                          meter: _game!.meter,
-                          actionLabel: 'UNSEAL GATE',
-                          hideLevel: true,
-                          onSummon: hudCanAct
-                              ? _triggerScreenShakeAndSummon
-                              : null,
-                          onTogglePin: () => _togglePinnedRecipe(hudPlanet),
-                          isPinned: _pinnedRecipeElement == hudPlanet.element,
-                          showPinnedTag:
-                              hasPinnedRecipe &&
-                              _pinnedRecipeElement == hudPlanet.element,
-                        ),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: PlanetRecipeStrip(
+                        planet: hudPlanet,
+                        recipe: _getRecipeForPlanet(hudPlanet),
+                        meter: _game!.meter,
+                        onSummon: hudCanAct
+                            ? _triggerScreenShakeAndSummon
+                            : null,
+                        onDetail: _handleMeterTap,
+                        onTogglePin: () => _togglePinnedRecipe(hudPlanet),
+                        isPinned: _pinnedRecipeElement == hudPlanet.element,
+                      ),
                     ),
                   ),
                 ),
@@ -7754,8 +7955,17 @@ class _CosmicScreenState extends State<CosmicScreen>
                           : setState(() => _showSettingsMenu = true),
                       onMiniMap: _toggleMiniMap,
                       onMeterTap: _handleMeterTap,
-                      showMeter: !recipeHudVisible,
-                      raidStrip: _raidLive ? _raidMeterStrip() : null,
+                      // The meter never moves or resizes. It used to be
+                      // hidden here and re-drawn inside the planet column,
+                      // which read as the bar shrinking on approach.
+                      showMeter: true,
+                      dustCollected: _collectedDust.length,
+                      dustTotal: starDustTotal,
+                      // Targets drawn onto the meter itself — see
+                      // PlanetRecipeStrip for why the card is gone.
+                      recipe: recipeHudVisible
+                          ? _getRecipeForPlanet(hudPlanet)
+                          : null,
                       collapsed: _topHudCollapsed,
                       onCollapsedChanged: (collapsed) {
                         if (_topHudCollapsed == collapsed) return;
@@ -7808,18 +8018,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                     child: Center(
                       child: _buildComingSoonPlacard(_nearPlanet!),
                     ),
-                  ),
-                ),
-
-              if (showCosmicHud &&
-                  !_anyOverlayOpen &&
-                  _collectedDust.isNotEmpty)
-                Positioned(
-                  top: 14,
-                  right: 18,
-                  child: _StarDustCollectorBadge(
-                    count: _collectedDust.length,
-                    total: starDustTotal,
                   ),
                 ),
 
@@ -7929,14 +8127,15 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: HomePlanetMenuOverlay(
                     homePlanet: _homePlanet!,
                     elementStorage: _elementStorage,
-                    onCustomize: () {
-                      setState(() => _showHomeMenu = false);
-                      setState(() => _showCustomizationMenu = true);
-                    },
-                    onGarrison: () {
-                      setState(() => _showHomeMenu = false);
-                      setState(() => _showGarrisonPicker = true);
-                    },
+                    stats: _homeBaseStats,
+                    onCustomize: () => _openSubPanel(_CosmicPanel.home, () {
+                      _showHomeMenu = false;
+                      _showCustomizationMenu = true;
+                    }),
+                    onGarrison: () => _openSubPanel(_CosmicPanel.home, () {
+                      _showHomeMenu = false;
+                      _showGarrisonPicker = true;
+                    }),
                     onClose: () => setState(() => _showHomeMenu = false),
                   ),
                 ),
@@ -7955,18 +8154,22 @@ class _CosmicScreenState extends State<CosmicScreen>
                     onSelectSize: _handleSelectPlanetSize,
                     onUnlockColor: _handleUnlockColor,
                     onSelectColor: _handleSelectColor,
-                    onClose: () =>
-                        setState(() => _showCustomizationMenu = false),
+                    canPreview: _homePreviewDirty && _homePlanet != null,
+                    onPreview: _startHomePreview,
+                    initialTab: _labTab,
+                    onTabChanged: (i) => _labTab = i,
+                    onBack: _closeSubPanel,
+                    onClose: _dismissPanels,
                     cargoLevel: _cargoLevel,
                     isNearHome: _isNearHome,
                     onUpgradeCargo: () async {
                       await _handleUpgradeCargo();
                       if (mounted) setState(() {});
                     },
-                    onChambers: () {
-                      setState(() => _showCustomizationMenu = false);
-                      setState(() => _showChamberPicker = true);
-                    },
+                    onChambers: () => _openSubPanel(_CosmicPanel.lab, () {
+                      _showCustomizationMenu = false;
+                      _showChamberPicker = true;
+                    }),
                     onUpgradePowerUp: _handleUpgradePowerUp,
                   ),
                 ),
@@ -7978,7 +8181,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     chambers: _game?.orbitalChambers ?? [],
                     onAssign: _handleAssignChamber,
                     onClear: _handleClearChamber,
-                    onClose: () => setState(() => _showChamberPicker = false),
+                    onClose: _closeSubPanel,
                   ),
                 ),
 
@@ -7993,7 +8196,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                     onClear: _handleClearPartySlot,
                     onSummon: _handleSummonCompanion,
                     onReturn: _handleReturnCompanion,
-                    onClose: () => setState(() => _showPartyPicker = false),
+                    onClose: _dismissPanels,
+                    onBack: _closeSubPanel,
                     excludeInstanceIds: _garrisonMembers
                         .whereType<CosmicPartyMember>()
                         .map((m) => m.instanceId)
@@ -8011,7 +8215,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                     partyMembers: _garrisonMembers,
                     onAssign: _handleAssignGarrisonSlot,
                     onClear: _handleClearGarrisonSlot,
-                    onClose: () => setState(() => _showGarrisonPicker = false),
+                    onClose: _dismissPanels,
+                    onBack: _closeSubPanel,
                     hintText:
                         'Tap a slot to station an Alchemon.\nGarrison size grows with planet tier!',
                     excludeInstanceIds: _partyMembers
@@ -8398,6 +8603,36 @@ class _CosmicScreenState extends State<CosmicScreen>
                           ],
                         ),
                       ),
+                    ),
+                  ),
+                ),
+
+              // ── Sealed elemental cache prompt ──
+              // Seven prompts share the bottom:100 slot. The cache is the
+              // newest arrival, so it yields to every landmark that can also
+              // be standing here.
+              if (showCosmicHud &&
+                  _game != null &&
+                  _nearCache != null &&
+                  !_cacheUnsealing &&
+                  _cacheReward == null &&
+                  _nearMarketPOI == null &&
+                  _nearContestArena == null &&
+                  !_isNearRift &&
+                  !_isNearNexus &&
+                  !_isNearBattleRing &&
+                  !_isNearBloodRing &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 100,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: ElementalCachePrompt(
+                      game: _game!,
+                      cache: _nearCache!,
+                      onTap: _handleCacheTap,
                     ),
                   ),
                 ),
@@ -8833,9 +9068,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOut,
                   right: 12,
-                  top: isMemoryTutorial
-                      ? 88
-                      : 120 + (recipeHudVisible ? 240.0 : 0.0),
+                  top: isMemoryTutorial ? 88 : 120,
                   child: SafeArea(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -8970,7 +9203,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   },
                   onRelocateHome: () {
                     setState(() => _showShipMenu = false);
-                    _handleMoveHomePlanet();
+                    unawaited(_handleMoveHomePlanet());
                   },
                   onJettisonCargo: () {
                     setState(() => _showShipMenu = false);
@@ -8999,12 +9232,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                   tutorialBuildHomeMode:
                       _awaitingBuildHomeTap && _homePlanet == null,
                   hasParty: _cosmicPartySlotsUnlocked > 0,
-                  onParty: () {
-                    setState(() {
-                      _showShipMenu = false;
-                      _showPartyPicker = true;
-                    });
-                  },
+                  onParty: () => _openSubPanel(_CosmicPanel.ship, () {
+                    _showShipMenu = false;
+                    _showPartyPicker = true;
+                  }),
                 ),
 
               // ── Settings overlay ──
@@ -9047,6 +9278,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                     });
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setBool('cosmic_boost_toggle', v);
+                  },
+                  onReplayPrologue: () {
+                    setState(() => _showSettingsMenu = false);
+                    unawaited(_debugReplayPrologue());
                   },
                 ),
 
@@ -9106,6 +9341,74 @@ class _CosmicScreenState extends State<CosmicScreen>
                     ),
                   ),
                 ),
+
+              // ── END PREVIEW (customization lab is hidden) ──
+              if (showCosmicHud && _previewingHome)
+                Positioned(
+                  bottom: 100,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: _endHomePreview,
+                        behavior: HitTestBehavior.opaque,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.92),
+                            border: Border.all(
+                              color: CosmicScreenStyles.teal,
+                              width: 1.6,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: CosmicScreenStyles.teal.withValues(
+                                  alpha: 0.4,
+                                ),
+                                blurRadius: 22,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                AppIcons.visibility_off_rounded,
+                                size: 15,
+                                color: CosmicScreenStyles.teal,
+                              ),
+                              const SizedBox(width: 9),
+                              Text(
+                                'END PREVIEW',
+                                style: TextStyle(
+                                  fontFamily: appFontFamily(context),
+                                  color: CosmicScreenStyles.teal,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Cache payout card ──
+              if (_cacheReward != null)
+                Positioned.fill(
+                  child: ElementalCachePopup(
+                    reward: _cacheReward!,
+                    onDismiss: _dismissCacheReward,
+                  ),
+                ),
+
             ],
           ),
         ),
@@ -10189,6 +10492,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
     required this.onToggleLargeJoystick,
     required this.onToggleTapToShoot,
     required this.onToggleBoostToggle,
+    required this.onReplayPrologue,
   });
 
   final bool joystickEnabled;
@@ -10201,6 +10505,9 @@ class _CosmicSettingsOverlay extends StatelessWidget {
   final ValueChanged<bool> onToggleLargeJoystick;
   final ValueChanged<bool> onToggleTapToShoot;
   final ValueChanged<bool> onToggleBoostToggle;
+
+  /// Developer tool: replay THE FIRST CROSSING from here.
+  final VoidCallback onReplayPrologue;
 
   @override
   Widget build(BuildContext context) {
@@ -10346,6 +10653,77 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                     value: boostToggleEnabled,
                     onChanged: onToggleBoostToggle,
                   ),
+                  if (DebugSettingsService.toolsVisible) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Text(
+                          'DEVELOPER',
+                          style: TextStyle(
+                            fontFamily: appFontFamily(context),
+                            color: const Color(0xFF7BE88C).withValues(
+                              alpha: 0.8,
+                            ),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.6,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: const Color(
+                              0xFF7BE88C,
+                            ).withValues(alpha: 0.28),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: GestureDetector(
+                        onTap: onReplayPrologue,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF7BE88C,
+                            ).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(
+                              color: const Color(
+                                0xFF7BE88C,
+                              ).withValues(alpha: 0.7),
+                              width: 1.3,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                AppIcons.auto_awesome_rounded,
+                                color: Color(0xFF7BE88C),
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'REPLAY: THE FIRST CROSSING',
+                                style: TextStyle(
+                                  fontFamily: appFontFamily(context),
+                                  color: const Color(0xFF7BE88C),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -10482,54 +10860,6 @@ class _SettingsToggleRow extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StarDustCollectorBadge extends StatelessWidget {
-  const _StarDustCollectorBadge({required this.count, required this.total});
-
-  final int count;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    const gold = Color(0xFFFFD54F);
-    final safeTotal = total <= 0 ? 50 : total;
-
-    return RepaintBoundary(
-      child: Tooltip(
-        message: 'Star dust collected',
-        child: CustomPaint(
-          painter: BracketFramePainter(
-            color: gold.withValues(alpha: 0.66),
-            bracketSize: 5,
-            strokeWidth: 1.05,
-          ),
-          child: Container(
-            height: 26,
-            padding: const EdgeInsets.symmetric(horizontal: 7),
-            color: _cosmicMeterPalette.bg0.withValues(alpha: 0.84),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(AppIcons.auto_awesome, color: gold, size: 13),
-                const SizedBox(width: 4),
-                Text(
-                  '$count/$safeTotal',
-                  style: bracketText(
-                    context,
-                    11,
-                    gold,
-                    weight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

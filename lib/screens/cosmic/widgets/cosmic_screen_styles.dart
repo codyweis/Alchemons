@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 class CosmicScreenStyles {
@@ -25,3 +26,20 @@ class CosmicScreenStyles {
 // ─────────────────────────────────────────────────────────
 // SHIP MENU OVERLAY
 // ─────────────────────────────────────────────────────────
+
+
+/// Element colours are tuned for planets against a starfield. Several of them —
+/// Dark (#4A148C), Mud (#5D4037), Earth (#795548), Spirit (#3F51B5) — are close
+/// to invisible as small text or hairline borders on the panel chrome, which is
+/// near-black. Lift toward white before using an element colour as UI ink.
+///
+/// The portal painter does the same thing for the same reason.
+Color elementInk(String element) =>
+    Color.lerp(elementColor(element), Colors.white, 0.32)!;
+
+/// Whether a stored key is an element the game still knows about.
+///
+/// Saves can carry keys from builds where the element list was different, and
+/// `elementColor` renders anything unknown as flat grey — so it shows up as a
+/// real-looking resource with no colour. Filter storage listings through this.
+bool isKnownElement(String key) => kElementColors.containsKey(key);

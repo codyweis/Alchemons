@@ -10,6 +10,7 @@ import 'dart:ui' as ui;
 import 'cosmic_contests.dart';
 import 'cosmic_ability_runtime.dart';
 import 'cosmic_projectile_vfx.dart';
+import 'cosmic_enemy_vfx.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/effect_size.dart';
@@ -21,6 +22,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import 'cosmic_data.dart';
+import 'cosmic_cache_data.dart';
+import 'cosmic_cache_vfx.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
@@ -31,6 +34,7 @@ part 'cosmic_game_components.dart';
 part 'cosmic_game_companions_contests.dart';
 part 'cosmic_game_world_systems.dart';
 part 'cosmic_game_home_visuals.dart';
+part 'cosmic_game_caches.dart';
 
 // ─────────────────────────────────────────────────────────
 // MAIN GAME
@@ -161,6 +165,18 @@ class CosmicGame extends FlameGame with PanDetector {
   final VoidCallback? onBattleRingCancelled;
   final void Function(CosmicContestArena? arena)? onNearContestArena;
   final void Function(CosmicContestHintNote note)? onContestHintCollected;
+
+  /// Fires when the ship parks at (or leaves) a sealed elemental cache.
+  void Function(ElementalCache? cache)? onNearCache;
+
+  /// Fires once the three-second unsealing ritual completes.
+  void Function(ElementalCache cache)? onCacheOpened;
+
+  /// Fires the first time the ship gets right on top of a cache.
+  void Function(ElementalCache cache)? onCacheDiscovered;
+
+  /// Fires when a claimed cache re-forms elsewhere in the cosmos.
+  void Function(ElementalCache cache)? onCacheRespawned;
 
   // ── state ──────────────────────────────────────────────
   final ElementMeter meter = ElementMeter();
@@ -449,6 +465,28 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // Space POIs
   late List<SpacePOI> spacePOIs;
+
+  // Sealed elemental caches — one per element, cracked by summoning a
+  // companion of the matching element beside them. Built lazily so the screen
+  // can restore saved cache state without racing onLoad.
+  late final ElementalCacheField elementalCacheField =
+      ElementalCacheField.generate(
+        seed:
+            world_.planets.first.position.dx.round() ^
+            world_.planets.first.position.dy.round(),
+        worldSize: world_.worldSize,
+        planets: world_.planets,
+        landmarks: [
+          world_.elementalNexus.position,
+          world_.battleRing.position,
+          world_.bloodRing.position,
+          world_.prismaticField.position,
+          ...world_.riftPortals.map((r) => r.position),
+          ...world_.contestArenas.map((a) => a.position),
+        ],
+      );
+  ElementalCache? _nearestCache;
+  ElementalCache? openingCache;
 
   // Prismatic Field (aurora easter-egg)
   late PrismaticField prismaticField = world_.prismaticField;
@@ -6382,6 +6420,9 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // ── sealed elemental caches ──
+    _updateElementalCaches(dt);
+
     // ── space POI update ──
     for (final poi in spacePOIs) {
       poi.life += dt;
@@ -7352,6 +7393,9 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // ── prismatic field (aurora easter-egg) ──
     _renderPrismaticField(canvas, cx, cy, screenW, screenH);
+
+    // ── sealed elemental caches ──
+    _renderElementalCaches(canvas, cx, cy, screenW, screenH);
 
     // ── space POIs ──
     for (final poi in spacePOIs) {
@@ -8866,490 +8910,10 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
 
-      final eColor = elementColor(e.element);
-      final variantScale = switch (e.variant) {
-        CosmicEnemyVariant.crusher => 1.12,
-        CosmicEnemyVariant.pouncer => 0.92,
-        CosmicEnemyVariant.standard => 1.0,
-      };
-      final variantYScale = switch (e.variant) {
-        CosmicEnemyVariant.crusher => 0.92,
-        CosmicEnemyVariant.pouncer => 1.12,
-        CosmicEnemyVariant.standard => 1.0,
-      };
-
-      // Dive telegraph: a tightening ring while the enemy rears back for its
-      // attack run (shared hover/dive steering), so swoops are dodgeable.
-      final steering = e.flightSteering;
-      if (steering != null && steering.showTelegraphRing) {
-        canvas.drawCircle(
-          ep,
-          e.radius + 6 + steering.windupTimer * 52,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.7
-            ..color = Color.lerp(
-              eColor,
-              Colors.white,
-              0.5,
-            )!.withValues(alpha: 0.7),
-        );
-      }
-
-      canvas.save();
-      canvas.translate(ep.dx, ep.dy);
-      if (e.variant != CosmicEnemyVariant.standard) {
-        canvas.rotate(e.angle * 0.08);
-        canvas.scale(variantScale, variantYScale);
-      }
-
-      // Outer elemental aura
-      canvas.drawCircle(
-        Offset.zero,
-        e.radius * 2.0,
-        Paint()
-          ..color = eColor.withValues(alpha: 0.10)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, e.radius * 1.2),
-      );
-
-      if (e.tier == EnemyTier.wisp) {
-        // Wisps: ethereal flickering orb with soft radial gradient
-        final flicker = 0.7 + 0.3 * sin(_elapsed * 6 + e.angle * 5);
-        final wobble = e.radius * flicker;
-        canvas.drawCircle(
-          Offset.zero,
-          wobble,
-          Paint()
-            ..shader = ui.Gradient.radial(
-              const Offset(-1, -1),
-              wobble,
-              [
-                Colors.white.withValues(alpha: 0.7 * flicker),
-                eColor.withValues(alpha: 0.5 * flicker),
-                eColor.withValues(alpha: 0.0),
-              ],
-              [0.0, 0.5, 1.0],
-            ),
-        );
-        // Tiny red dot at center — marks them as hostile
-        canvas.drawCircle(
-          Offset.zero,
-          e.radius * 0.15,
-          Paint()
-            ..color = Colors.red.withValues(alpha: 0.9 * flicker)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
-        );
-      } else if (e.tier == EnemyTier.sentinel) {
-        // Sentinels: round body with orbiting satellites
-        final r = e.radius;
-
-        // Main body — solid sphere with gradient
-        canvas.drawCircle(
-          Offset.zero,
-          r,
-          Paint()
-            ..shader = ui.Gradient.radial(
-              Offset(-r * 0.25, -r * 0.25),
-              r * 1.2,
-              [
-                Color.lerp(eColor, Colors.white, 0.35)!.withValues(alpha: 0.9),
-                eColor.withValues(alpha: 0.8),
-                Color.lerp(eColor, Colors.black, 0.5)!.withValues(alpha: 0.7),
-              ],
-              [0.0, 0.5, 1.0],
-            ),
-        );
-
-        // Specular highlight on sphere
-        canvas.drawCircle(
-          Offset(-r * 0.2, -r * 0.25),
-          r * 0.3,
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.3)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-        );
-
-        // Orbiting ring track (faint ellipse)
-        canvas.save();
-        canvas.rotate(_elapsed * 0.3 + e.angle);
-        final ringR = r * 1.8;
-        canvas.drawCircle(
-          Offset.zero,
-          ringR,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.12)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8,
-        );
-
-        // 3 orbiting satellites at different speeds/phases
-        for (var i = 0; i < 3; i++) {
-          final orbitAngle = _elapsed * (1.2 + i * 0.4) + i * pi * 2 / 3;
-          final ox = cos(orbitAngle) * ringR;
-          final oy = sin(orbitAngle) * ringR;
-          final satR = r * (0.18 + i * 0.04);
-
-          // Satellite glow
-          canvas.drawCircle(
-            Offset(ox, oy),
-            satR * 2,
-            Paint()
-              ..color = eColor.withValues(alpha: 0.2)
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, satR),
-          );
-
-          // Satellite body
-          canvas.drawCircle(
-            Offset(ox, oy),
-            satR,
-            Paint()
-              ..shader = ui.Gradient.radial(
-                Offset(ox - satR * 0.3, oy - satR * 0.3),
-                satR,
-                [
-                  Colors.white.withValues(alpha: 0.7),
-                  eColor.withValues(alpha: 0.8),
-                ],
-              ),
-          );
-        }
-        canvas.restore();
-
-        // Inner glow core
-        canvas.drawCircle(
-          Offset.zero,
-          r * 0.25,
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.5)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-        );
-      } else if (e.tier == EnemyTier.drone) {
-        // Drones: small angular hexagon, fast & twitchy
-        final r = e.radius;
-        final twitch = sin(_elapsed * 12 + e.angle * 7) * r * 0.08;
-
-        // Hexagon body
-        final hexPath = Path();
-        for (var i = 0; i < 6; i++) {
-          final a = i * pi / 3 - pi / 6; // flat-top hexagon
-          final hr = r * (1.0 + (i.isEven ? twitch / r : -twitch / r));
-          final hx = cos(a) * hr;
-          final hy = sin(a) * hr;
-          if (i == 0) {
-            hexPath.moveTo(hx, hy);
-          } else {
-            hexPath.lineTo(hx, hy);
-          }
-        }
-        hexPath.close();
-
-        canvas.drawPath(
-          hexPath,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              Offset(0, -r),
-              Offset(0, r),
-              [
-                Color.lerp(eColor, Colors.white, 0.4)!.withValues(alpha: 0.9),
-                eColor.withValues(alpha: 0.85),
-                Color.lerp(eColor, Colors.black, 0.3)!.withValues(alpha: 0.7),
-              ],
-              [0.0, 0.5, 1.0],
-            ),
-        );
-
-        // Sharp edge highlight
-        canvas.drawPath(
-          hexPath,
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.25)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0,
-        );
-
-        // Central eye/core — bright flickering dot
-        final eyePulse = 0.6 + 0.4 * sin(_elapsed * 8 + e.angle * 3);
-        canvas.drawCircle(
-          Offset.zero,
-          r * 0.2,
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.9 * eyePulse)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-        );
-
-        // Exhaust trail sparks (2 small behind)
-        for (var s = 0; s < 2; s++) {
-          final sparkAngle = e.angle + pi + (s - 0.5) * 0.4;
-          final sparkDist = r * (1.2 + 0.3 * sin(_elapsed * 10 + s * 3));
-          canvas.drawCircle(
-            Offset(cos(sparkAngle) * sparkDist, sin(sparkAngle) * sparkDist),
-            r * 0.12,
-            Paint()
-              ..color = eColor.withValues(alpha: 0.5 * eyePulse)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-          );
-        }
-      } else if (e.tier == EnemyTier.phantom) {
-        // Phantoms: ghostly, semi-transparent with wispy tendrils
-        final r = e.radius;
-        final ghostPhase = _elapsed * 1.5 + e.angle * 2;
-        final breathe = 1.0 + 0.12 * sin(ghostPhase);
-
-        // Outer ghostly cloak — large soft blur
-        canvas.drawCircle(
-          Offset.zero,
-          r * 1.6 * breathe,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.06 + 0.03 * sin(ghostPhase))
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.8),
-        );
-
-        // Main body — translucent oval
-        canvas.save();
-        canvas.scale(0.8, 1.1 * breathe);
-        canvas.drawCircle(
-          Offset.zero,
-          r,
-          Paint()
-            ..shader = ui.Gradient.radial(
-              Offset(-r * 0.15, -r * 0.2),
-              r * 1.2,
-              [
-                Colors.white.withValues(alpha: 0.25),
-                eColor.withValues(alpha: 0.18),
-                eColor.withValues(alpha: 0.04),
-              ],
-              [0.0, 0.4, 1.0],
-            ),
-        );
-        canvas.restore();
-
-        // Wispy tendrils trailing downward
-        for (var t = 0; t < 4; t++) {
-          final tAngle = t * pi / 2 + ghostPhase * 0.3;
-          final tLen = r * (1.5 + 0.4 * sin(ghostPhase + t * 1.5));
-          final tendril = Path()
-            ..moveTo(cos(tAngle) * r * 0.4, sin(tAngle) * r * 0.4);
-
-          final ctrlX = cos(tAngle + 0.3 * sin(ghostPhase + t)) * r * 1.0;
-          final ctrlY = sin(tAngle + 0.3 * sin(ghostPhase + t)) * r * 1.0;
-          tendril.quadraticBezierTo(
-            ctrlX,
-            ctrlY,
-            cos(tAngle) * tLen,
-            sin(tAngle) * tLen,
-          );
-
-          canvas.drawPath(
-            tendril,
-            Paint()
-              ..color = eColor.withValues(
-                alpha: 0.15 + 0.08 * sin(ghostPhase + t * 2),
-              )
-              ..strokeWidth = 1.5
-              ..style = PaintingStyle.stroke
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-          );
-        }
-
-        // Hollow eyes — two dim points
-        final eyeSpread = r * 0.25;
-        final eyeY = -r * 0.15;
-        for (final ex in [-eyeSpread, eyeSpread]) {
-          canvas.drawCircle(
-            Offset(ex, eyeY),
-            r * 0.1,
-            Paint()
-              ..color = Colors.white.withValues(
-                alpha: 0.4 + 0.2 * sin(ghostPhase * 2),
-              )
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
-          );
-        }
-      } else if (e.tier == EnemyTier.colossus) {
-        // Colossi: massive armored body with tentacle appendages + HP bar
-        final r = e.radius;
-        final pulse = 0.95 + 0.05 * sin(_elapsed * 1.2 + e.angle);
-
-        // Armored core — large dark sphere with elemental tint
-        canvas.drawCircle(
-          Offset.zero,
-          r * pulse,
-          Paint()
-            ..shader = ui.Gradient.radial(
-              Offset(-r * 0.3, -r * 0.3),
-              r * 1.5,
-              [
-                Color.lerp(eColor, Colors.white, 0.15)!.withValues(alpha: 0.85),
-                Color.lerp(eColor, Colors.black, 0.3)!.withValues(alpha: 0.8),
-                Colors.black.withValues(alpha: 0.7),
-              ],
-              [0.0, 0.4, 1.0],
-            ),
-        );
-
-        // Tentacle appendages radiating outward
-        for (var t = 0; t < 6; t++) {
-          final baseAngle = t * pi / 3 + _elapsed * 0.08;
-          final wave = sin(_elapsed * 1.5 + t * 1.2) * 0.3;
-          final tentacle = Path()
-            ..moveTo(cos(baseAngle) * r * 0.8, sin(baseAngle) * r * 0.8);
-
-          final midDist = r * 1.6;
-          final tipDist = r * (2.2 + 0.3 * sin(_elapsed * 0.8 + t));
-          final ctrlAngle = baseAngle + wave;
-          tentacle.quadraticBezierTo(
-            cos(ctrlAngle) * midDist,
-            sin(ctrlAngle) * midDist,
-            cos(baseAngle + wave * 0.5) * tipDist,
-            sin(baseAngle + wave * 0.5) * tipDist,
-          );
-
-          canvas.drawPath(
-            tentacle,
-            Paint()
-              ..color = eColor.withValues(
-                alpha: 0.35 + 0.15 * sin(_elapsed + t),
-              )
-              ..strokeWidth = 2.5 - t * 0.2
-              ..style = PaintingStyle.stroke
-              ..strokeCap = StrokeCap.round
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-          );
-        }
-
-        // Central maw — glowing core
-        canvas.drawCircle(
-          Offset.zero,
-          r * 0.35,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.4 + 0.2 * sin(_elapsed * 2))
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.2),
-        );
-        canvas.drawCircle(
-          Offset.zero,
-          r * 0.15,
-          Paint()..color = Colors.white.withValues(alpha: 0.5),
-        );
-
-        // Heavy pulsing aura
-        canvas.drawCircle(
-          Offset.zero,
-          r * 1.5,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.05)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.6),
-        );
-
-        // Health bar (colossi are very tanky)
-        final levHpFrac = (e.health / e.maxHealth).clamp(0.0, 1.0);
-        if (levHpFrac < 1.0) {
-          final barW = r * 3.0;
-          final barH = 4.0;
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromCenter(
-                center: Offset(0, -r - 10),
-                width: barW,
-                height: barH,
-              ),
-              const Radius.circular(2),
-            ),
-            Paint()..color = Colors.black.withValues(alpha: 0.6),
-          );
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTWH(
-                -barW / 2,
-                -r - 10 - barH / 2,
-                barW * levHpFrac,
-                barH,
-              ),
-              const Radius.circular(2),
-            ),
-            Paint()..color = Color.lerp(Colors.red, eColor, levHpFrac)!,
-          );
-        }
-      } else if (e.tier == EnemyTier.brute) {
-        // Brutes: heavy armored body with elemental cracks
-        final r = e.radius;
-
-        // Dark armored body
-        canvas.drawCircle(
-          Offset.zero,
-          r,
-          Paint()
-            ..shader = ui.Gradient.radial(
-              Offset(-r * 0.2, -r * 0.2),
-              r * 1.3,
-              [
-                Color.lerp(eColor, Colors.black, 0.3)!.withValues(alpha: 0.9),
-                Color.lerp(eColor, Colors.black, 0.6)!.withValues(alpha: 0.8),
-                Colors.black.withValues(alpha: 0.7),
-              ],
-              [0.0, 0.5, 1.0],
-            ),
-        );
-
-        // Elemental cracks glowing through armor
-        for (var crack = 0; crack < 5; crack++) {
-          final ca = crack * pi * 2 / 5 + _elapsed * 0.2;
-          final crackPath = Path()
-            ..moveTo(0, 0)
-            ..lineTo(cos(ca) * r * 0.9, sin(ca) * r * 0.9);
-          canvas.drawPath(
-            crackPath,
-            Paint()
-              ..color = eColor.withValues(
-                alpha: 0.6 + 0.2 * sin(_elapsed * 2 + crack),
-              )
-              ..strokeWidth = 2.0
-              ..style = PaintingStyle.stroke
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-          );
-        }
-
-        // Heavy pulsing aura
-        canvas.drawCircle(
-          Offset.zero,
-          r * 1.3,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.08)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.5),
-        );
-
-        // Health bar (brutes are tanky)
-        final bruteHpFrac = (e.health / e.maxHealth).clamp(0.0, 1.0);
-        if (bruteHpFrac < 1.0) {
-          final barW = r * 2.5;
-          final barH = 3.0;
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromCenter(
-                center: Offset(0, -r - 8),
-                width: barW,
-                height: barH,
-              ),
-              const Radius.circular(1.5),
-            ),
-            Paint()..color = Colors.black.withValues(alpha: 0.6),
-          );
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTWH(
-                -barW / 2,
-                -r - 8 - barH / 2,
-                barW * bruteHpFrac,
-                barH,
-              ),
-              const Radius.circular(1.5),
-            ),
-            Paint()..color = Color.lerp(Colors.red, eColor, bruteHpFrac)!,
-          );
-        }
-      }
-
-      canvas.restore();
+      // Body drawing lives in the shared cosmic enemy VFX layer so the
+      // preview harness can render the open-world roster, and so this pass can
+      // be compared against survival's.
+      drawOpenWorldEnemy(canvas: canvas, e: e, time: _elapsed);
     }
 
     // ── boss lairs (waiting markers) ──
@@ -9360,320 +8924,18 @@ class CosmicGame extends FlameGame with PanDetector {
           (lp.dy - cy - screenH / 2).abs() > screenH * 1.5) {
         continue;
       }
-
-      final lColor = elementColor(lair.template.element);
-      final pulse = 0.5 + 0.3 * sin(_elapsed * 2.0);
-
-      // Ominous aura
-      canvas.drawCircle(
-        Offset(lp.dx, lp.dy),
-        BossLair.activationRadius * 0.4,
-        Paint()
-          ..color = const Color(0xFFFF1744).withValues(alpha: 0.06 * pulse)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40),
-      );
-
-      // Rotating diamond shape
-      canvas.save();
-      canvas.translate(lp.dx, lp.dy);
-      canvas.rotate(_elapsed * 0.5);
-      final diamondPath = Path()
-        ..moveTo(0, -18)
-        ..lineTo(14, 0)
-        ..lineTo(0, 18)
-        ..lineTo(-14, 0)
-        ..close();
-      canvas.drawPath(
-        diamondPath,
-        Paint()..color = lColor.withValues(alpha: 0.25 * pulse),
-      );
-      canvas.drawPath(
-        diamondPath,
-        Paint()
-          ..color = const Color(0xFFFF1744).withValues(alpha: 0.4 * pulse)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
-      );
-      canvas.restore();
-
-      // Inner glow dot
-      canvas.drawCircle(
-        Offset(lp.dx, lp.dy),
-        6,
-        Paint()
-          ..color = const Color(0xFFFF1744).withValues(alpha: 0.5 * pulse)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-      );
-      canvas.drawCircle(
-        Offset(lp.dx, lp.dy),
-        3,
-        Paint()..color = lColor.withValues(alpha: 0.7),
-      );
-
-      // Level label
-      final lairLabel = TextPainter(
-        text: TextSpan(
-          text: 'Lv${lair.level} ${lair.template.name}',
-          style: TextStyle(
-            color: const Color(0xFFFF5252).withValues(alpha: 0.7 * pulse),
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      lairLabel.paint(canvas, Offset(lp.dx - lairLabel.width / 2, lp.dy + 22));
+      drawBossLair(canvas: canvas, lair: lair, time: _elapsed);
     }
 
     // ── boss ──
     if (activeBoss != null && !activeBoss!.dead) {
       final boss = activeBoss!;
       final bp = boss.position;
+      // Cull stays here — this pass owns the camera. The body itself lives in
+      // the shared cosmic enemy VFX layer.
       if ((bp.dx - cx - screenW / 2).abs() < screenW * 1.2 &&
           (bp.dy - cy - screenH / 2).abs() < screenH * 1.2) {
-        final bColor = elementColor(boss.element);
-
-        canvas.save();
-        canvas.translate(bp.dx, bp.dy);
-
-        // Outer aura — breathing glow (warden enrage turns it red)
-        final pulse = 0.8 + 0.2 * sin(_elapsed * 2.5);
-        final auraColor = (boss.enraged)
-            ? Color.lerp(bColor, Colors.red, 0.6)!
-            : bColor;
-        canvas.drawCircle(
-          Offset.zero,
-          boss.radius * 3.0 * pulse,
-          Paint()
-            ..color = auraColor.withValues(alpha: boss.enraged ? 0.12 : 0.06)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, boss.radius * 1.5),
-        );
-        // Secondary aura ring
-        canvas.drawCircle(
-          Offset.zero,
-          boss.radius * 2.0 * pulse,
-          Paint()
-            ..color = auraColor.withValues(alpha: boss.enraged ? 0.15 : 0.08)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, boss.radius * 0.8),
-        );
-
-        // ── Charger: directional wedge indicator + charge trail ──
-        if (boss.type == BossType.charger) {
-          canvas.save();
-          canvas.rotate(boss.angle);
-          // Pointed wedge in front
-          final wedge = Path()
-            ..moveTo(boss.radius * 1.5, 0)
-            ..lineTo(boss.radius * 0.4, -boss.radius * 0.5)
-            ..lineTo(boss.radius * 0.4, boss.radius * 0.5)
-            ..close();
-          canvas.drawPath(
-            wedge,
-            Paint()
-              ..color = bColor.withValues(alpha: boss.charging ? 0.8 : 0.3)
-              ..maskFilter = boss.charging
-                  ? const MaskFilter.blur(BlurStyle.normal, 4)
-                  : null,
-          );
-          // Charge trail glow behind boss when dashing
-          if (boss.charging) {
-            canvas.drawCircle(
-              Offset(-boss.radius * 1.5, 0),
-              boss.radius * 0.8,
-              Paint()
-                ..color = bColor.withValues(alpha: 0.4)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
-            );
-          }
-          canvas.restore();
-        }
-
-        // ── Gunner: shield ring ──
-        if ((boss.type == BossType.gunner || boss.type == BossType.bulwark) &&
-            boss.shieldUp) {
-          final shieldAlpha =
-              (boss.shieldHealth /
-                      (boss.type == BossType.bulwark
-                          ? CosmicBalance.bossShieldHealth(boss.level) * 1.4
-                          : CosmicBalance.bossShieldHealth(boss.level)))
-                  .clamp(0.0, 1.0);
-          canvas.drawCircle(
-            Offset.zero,
-            boss.type == BossType.bulwark
-                ? boss.radius * 1.85
-                : boss.radius * 1.6,
-            Paint()
-              ..color = Colors.cyanAccent.withValues(alpha: 0.2 * shieldAlpha)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-          );
-          canvas.drawCircle(
-            Offset.zero,
-            boss.type == BossType.bulwark
-                ? boss.radius * 1.55
-                : boss.radius * 1.4,
-            Paint()
-              ..color = Colors.cyanAccent.withValues(alpha: 0.5 * shieldAlpha)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.0,
-          );
-        }
-
-        // Orbiting rune motes
-        final moteCount = switch (boss.type) {
-          BossType.charger => 4,
-          BossType.gunner => 6,
-          BossType.skirmisher => 5,
-          BossType.bulwark => 6,
-          BossType.carrier => 7,
-          BossType.warden => 8,
-        };
-        for (var i = 0; i < moteCount; i++) {
-          final moteA = _elapsed * 1.2 + i * pi * 2 / moteCount;
-          final moteR = boss.radius * (1.3 + 0.15 * sin(_elapsed * 3 + i));
-          final mp = Offset(cos(moteA) * moteR, sin(moteA) * moteR);
-          canvas.drawCircle(
-            mp,
-            2.5,
-            Paint()
-              ..color = (boss.enraged ? Colors.red : bColor).withValues(
-                alpha: 0.7,
-              )
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-          );
-        }
-
-        // Core body — radial gradient orb
-        canvas.drawCircle(
-          Offset.zero,
-          boss.radius,
-          Paint()
-            ..shader = ui.Gradient.radial(
-              Offset(-boss.radius * 0.2, -boss.radius * 0.2),
-              boss.radius * 1.1,
-              [
-                Colors.white.withValues(alpha: 0.5 * pulse),
-                Color.lerp(
-                  bColor,
-                  Colors.white,
-                  0.2,
-                )!.withValues(alpha: 0.8 * pulse),
-                bColor.withValues(alpha: 0.6 * pulse),
-                bColor.withValues(alpha: 0.0),
-              ],
-              [0.0, 0.25, 0.6, 1.0],
-            ),
-        );
-
-        // Inner sigil — type determines complexity
-        canvas.save();
-        canvas.rotate(_elapsed * 0.6);
-        final sigR = boss.radius * 0.55;
-        canvas.drawCircle(
-          Offset.zero,
-          sigR,
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.2)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0,
-        );
-        // Star points scale with type
-        final starPoints = switch (boss.type) {
-          BossType.charger => 5,
-          BossType.gunner => 7,
-          BossType.skirmisher => 8,
-          BossType.bulwark => 4,
-          BossType.carrier => 6,
-          BossType.warden => 9,
-        };
-        final sigPath = Path();
-        for (var i = 0; i < starPoints; i++) {
-          final a1 = i * pi * 2 / starPoints - pi / 2;
-          final a2 = a1 + pi * 2 / starPoints * 3;
-          final p1 = Offset(cos(a1) * sigR, sin(a1) * sigR);
-          final p2 = Offset(cos(a2) * sigR, sin(a2) * sigR);
-          sigPath.moveTo(p1.dx, p1.dy);
-          sigPath.lineTo(p2.dx, p2.dy);
-        }
-        canvas.drawPath(
-          sigPath,
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.15)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8,
-        );
-        // Warden: second inner inscribed ring when enraged
-        if (boss.type == BossType.warden && boss.enraged) {
-          canvas.drawCircle(
-            Offset.zero,
-            sigR * 0.6,
-            Paint()
-              ..color = Colors.red.withValues(alpha: 0.3)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5,
-          );
-        }
-        canvas.restore();
-
-        // Health bar above boss
-        final barWidth = boss.radius * 2.5;
-        final barHeight = 4.0;
-        final barY = -boss.radius - 14.0;
-        final hpFrac = (boss.health / boss.maxHealth).clamp(0.0, 1.0);
-
-        // Background
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: Offset(0, barY),
-              width: barWidth,
-              height: barHeight,
-            ),
-            const Radius.circular(2),
-          ),
-          Paint()..color = Colors.black.withValues(alpha: 0.6),
-        );
-        // Fill
-        final fillW = barWidth * hpFrac;
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(
-              -barWidth / 2,
-              barY - barHeight / 2,
-              fillW,
-              barHeight,
-            ),
-            const Radius.circular(2),
-          ),
-          Paint()..color = Color.lerp(Colors.red, bColor, hpFrac)!,
-        );
-
-        // Boss name + level + type
-        final typeTag = switch (boss.type) {
-          BossType.charger => '⚡',
-          BossType.gunner => '🔫',
-          BossType.skirmisher => '🎯',
-          BossType.bulwark => '🛡️',
-          BossType.carrier => '🛸',
-          BossType.warden => '👑',
-        };
-        final namePainter = TextPainter(
-          text: TextSpan(
-            text: '$typeTag Lv${boss.level} ${boss.name}',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.8),
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        namePainter.paint(
-          canvas,
-          Offset(-namePainter.width / 2, barY - barHeight - 14),
-        );
-
-        canvas.restore();
+        drawOpenWorldBoss(canvas: canvas, boss: boss, time: _elapsed);
       }
     }
 

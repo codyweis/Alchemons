@@ -5,6 +5,8 @@
 
 import 'dart:math';
 import 'dart:ui';
+import 'package:alchemons/games/shared/enemy_movement.dart';
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/systems/effects/has_effects.dart';
@@ -3269,6 +3271,10 @@ class CosmicEnemy {
   /// Current behavior archetype.
   EnemyBehavior behavior;
 
+  /// Converged taxonomy: the single movement authority.
+  /// See docs/enemy_taxonomy.md.
+  final EnemyConduct conduct;
+
   /// Whether this enemy has been provoked (feeding/territorial → aggressive).
   bool provoked;
 
@@ -3309,7 +3315,7 @@ class CosmicEnemy {
     this.angle = 0,
     this.driftTimer = 0,
     this.dead = false,
-    this.behavior = EnemyBehavior.aggressive,
+    EnemyBehavior behavior = EnemyBehavior.aggressive,
     this.provoked = false,
     this.packId = -1,
     this.homePos,
@@ -3321,7 +3327,13 @@ class CosmicEnemy {
     this.maneRootTimer = 0,
     this.pipMudTrail = false,
     this.pipMudTrailTimer = 0,
-  });
+  }) : // Not an initializing formal: behavior must be in scope so conduct can
+       // be derived from it below.
+       // ignore: prefer_initializing_formals
+       behavior = behavior,
+       // Converged taxonomy, derived during migration. See
+       // docs/enemy_taxonomy.md.
+       conduct = conductFromOpenWorld(behavior, variant);
 
   Color get color => elementColor(element);
 

@@ -25,6 +25,7 @@ class CosmicPartyPickerOverlay extends StatefulWidget {
     this.onSummon,
     this.onReturn,
     required this.onClose,
+    this.onBack,
     this.title = 'ALCHEMONS PARTY',
     this.maxSlots = 3,
     this.hintText =
@@ -39,7 +40,11 @@ class CosmicPartyPickerOverlay extends StatefulWidget {
   final Future<void> Function(int slotIndex) onClear;
   final void Function(int slotIndex)? onSummon;
   final void Function()? onReturn;
+  /// Dismiss the whole panel stack back to the world.
   final VoidCallback onClose;
+
+  /// Step up one level to whatever opened this. Falls back to [onClose].
+  final VoidCallback? onBack;
   final String title;
   final int maxSlots;
   final String hintText;
@@ -241,11 +246,8 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                           ],
                         ),
                       ),
-                      CosmicIconButton(
-                        icon: AppIcons.close,
-                        accent: CosmicScreenStyles.textSecondary,
-                        onTap: widget.onClose,
-                      ),
+                      // X closes out entirely; the docked BACK steps up.
+                      CosmicCloseButton(onTap: widget.onClose),
                     ],
                   ),
                 ),
@@ -447,7 +449,66 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                     ),
                   ),
                 ),
+
+              // ── Docked BACK ──
+              // Full-screen overlay: the header X alone is easy to miss, so
+              // the way out is also pinned where every other cosmic panel
+              // puts it.
+              _backDock(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom-docked exit. When assigning a slot it steps back to the slot grid
+  /// first, so BACK always means "up one level", never "abandon the panel".
+  Widget _backDock() {
+    final assigning = _assigningSlot >= 0;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: const BoxDecoration(
+        color: CosmicScreenStyles.bg1,
+        border: Border(
+          top: BorderSide(color: CosmicScreenStyles.borderMid, width: 1.2),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: assigning
+              ? () => setState(() => _assigningSlot = -1)
+              : (widget.onBack ?? widget.onClose),
+          child: Container(
+            width: double.infinity,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: CosmicScreenStyles.borderMid),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  AppIcons.arrow_back,
+                  size: 15,
+                  color: CosmicScreenStyles.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  assigning ? 'BACK TO SLOTS' : 'BACK',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    color: CosmicScreenStyles.textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

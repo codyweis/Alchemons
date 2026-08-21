@@ -7,6 +7,8 @@
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:alchemons/games/shared/enemy_movement.dart';
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
@@ -52,13 +54,7 @@ enum SurvivalWavePattern {
   swarmRush,
 }
 
-enum SurvivalEliteAffix {
-  bulwarked,
-  volatile,
-  vampiric,
-  overclocked,
-  relentless,
-}
+
 
 enum SurvivalWaveMutator {
   orbSiege,
@@ -86,6 +82,12 @@ class CosmicSurvivalEnemy {
   final String element;
   final CosmicEnemyRole role;
   final SurvivalEnemyVariant variant;
+
+  /// Converged taxonomy (docs/enemy_taxonomy.md). Derived from role+variant
+  /// during migration; once the spawner picks these directly, role and variant
+  /// go away.
+  final EnemyConduct conduct;
+  final EnemyTrait? trait;
   CosmicEnemyTarget target;
   bool isDead;
   double hitFlash;
@@ -94,7 +96,7 @@ class CosmicSurvivalEnemy {
   double attackCooldown;
   double retargetTimer;
   final bool isElite;
-  final SurvivalEliteAffix? eliteAffix;
+  final EliteAffix? eliteAffix;
   // Mane+Plant pierce sets this to the source slot index. If the
   // enemy dies while still flagged, the resolver triggers an AOE
   // explosion at the kill site.
@@ -140,8 +142,8 @@ class CosmicSurvivalEnemy {
     required this.radius,
     required this.tier,
     required this.element,
-    required this.role,
-    this.variant = SurvivalEnemyVariant.standard,
+    required CosmicEnemyRole role,
+    SurvivalEnemyVariant variant = SurvivalEnemyVariant.standard,
     required this.target,
     this.isDead = false,
     this.hitFlash = 0,
@@ -161,25 +163,47 @@ class CosmicSurvivalEnemy {
     this.frostBuildup = 0,
     this.summonCooldown = 0,
     this.maskBloodDrainSlot,
-  });
+  }) : // Not initializing formals: role and variant must be in scope here so
+       // conduct and trait can be derived from them below.
+       // ignore: prefer_initializing_formals
+       role = role,
+       // ignore: prefer_initializing_formals
+       variant = variant,
+       // Derived, not stored twice: one place decides what the old pair means
+       // under the new taxonomy.
+       conduct = conductFromRoleVariant(role, variant),
+       trait = traitFromVariant(variant);
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
+  /// True for bodies heavy enough to earn the charge speed bonus that the old
+  /// `crusher` variant used to smuggle into its movement vector.
+  bool get hasHeavyBody =>
+      tier == EnemyTier.brute || tier == EnemyTier.colossus;
+
   double get effectiveSpeed {
     if (maneRootTimer > 0 ||
         hornPlantRootTimer > 0 ||
         slowMultiplier <= 0) {
       return 0;
     }
-    if (slowTimer <= 0) return speed;
-    return speed * (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
+    // The crusher's old `* 1.08` lived in the direction vector, which made a
+    // stat look like a steering rule. It is an explicit speed term now.
+    final conductBonus = conductSpeedMultiplier(
+      conduct,
+      heavyBody: hasHeavyBody,
+    );
+    if (slowTimer <= 0) return speed * conductBonus;
+    return speed *
+        conductBonus *
+        (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }
 
   bool get isShooter => role == CosmicEnemyRole.shooter;
-  bool get hasBulwark => eliteAffix == SurvivalEliteAffix.bulwarked;
-  bool get isVolatile => eliteAffix == SurvivalEliteAffix.volatile;
-  bool get isVampiric => eliteAffix == SurvivalEliteAffix.vampiric;
-  bool get isOverclocked => eliteAffix == SurvivalEliteAffix.overclocked;
-  bool get isRelentless => eliteAffix == SurvivalEliteAffix.relentless;
+  bool get hasBulwark => eliteAffix == EliteAffix.bulwarked;
+  bool get isVolatile => eliteAffix == EliteAffix.volatile;
+  bool get isVampiric => eliteAffix == EliteAffix.vampiric;
+  bool get isOverclocked => eliteAffix == EliteAffix.overclocked;
+  bool get isRelentless => eliteAffix == EliteAffix.relentless;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -726,15 +750,15 @@ class CosmicSurvivalSpawner {
         (isElite ? 1.15 : 1.0) *
         (currentMutator == SurvivalWaveMutator.hunterSwarm ? 1.10 : 1.0) *
         (currentMutator == SurvivalWaveMutator.shatteredSpace ? 1.10 : 1.0) *
-        (eliteAffix == SurvivalEliteAffix.relentless ? 1.05 : 1.0) *
-        (eliteAffix == SurvivalEliteAffix.overclocked ? 1.18 : 1.0);
+        (eliteAffix == EliteAffix.relentless ? 1.05 : 1.0) *
+        (eliteAffix == EliteAffix.overclocked ? 1.18 : 1.0);
     final baseDamage =
         tierBaseDamage(tier) *
         CosmicSurvivalBalance.enemyWaveDamageScale(currentWave) *
         (isElite ? 1.5 : 1.0) *
         (currentMutator == SurvivalWaveMutator.orbSiege ? 1.08 : 1.0) *
         (currentMutator == SurvivalWaveMutator.shatteredSpace ? 1.10 : 1.0) *
-        (eliteAffix == SurvivalEliteAffix.vampiric ? 1.10 : 1.0);
+        (eliteAffix == EliteAffix.vampiric ? 1.10 : 1.0);
     // Past mid-game some enemies get more interesting specials. Roll them
     // here (after the basic variant) so they don't replace siege/crusher
     // builds that already make sense for their tier+role.
@@ -1386,33 +1410,33 @@ class CosmicSurvivalSpawner {
     return ((wave - 20) * 0.010 + 0.05).clamp(0.0, 0.22);
   }
 
-  static List<SurvivalEliteAffix> eliteAffixPoolForWave(int wave) {
+  static List<EliteAffix> eliteAffixPoolForWave(int wave) {
     if (wave < 14) return const [];
     if (wave < 22) {
       return const [
-        SurvivalEliteAffix.bulwarked,
-        SurvivalEliteAffix.overclocked,
+        EliteAffix.bulwarked,
+        EliteAffix.overclocked,
       ];
     }
     if (wave < 30) {
       return const [
-        SurvivalEliteAffix.bulwarked,
-        SurvivalEliteAffix.volatile,
-        SurvivalEliteAffix.overclocked,
+        EliteAffix.bulwarked,
+        EliteAffix.volatile,
+        EliteAffix.overclocked,
       ];
     }
     if (wave < 38) {
       return const [
-        SurvivalEliteAffix.bulwarked,
-        SurvivalEliteAffix.volatile,
-        SurvivalEliteAffix.vampiric,
-        SurvivalEliteAffix.overclocked,
+        EliteAffix.bulwarked,
+        EliteAffix.volatile,
+        EliteAffix.vampiric,
+        EliteAffix.overclocked,
       ];
     }
-    return List<SurvivalEliteAffix>.of(SurvivalEliteAffix.values);
+    return List<EliteAffix>.of(EliteAffix.values);
   }
 
-  static SurvivalEliteAffix? rollEliteAffixForWave(int wave, Random rng) {
+  static EliteAffix? rollEliteAffixForWave(int wave, Random rng) {
     final pool = eliteAffixPoolForWave(wave);
     if (pool.isEmpty) return null;
     return pool[rng.nextInt(pool.length)];

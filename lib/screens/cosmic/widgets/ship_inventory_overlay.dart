@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'cosmic_overlay_chrome.dart';
+import 'package:alchemons/screens/inventory_screen.dart'
+    show InventoryImageHelper;
 import 'cosmic_screen_styles.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -250,10 +252,18 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                                                 width: 0.8,
                                               ),
                                             ),
-                                            child: Icon(
-                                              _invIcon(e.key),
-                                              color: col,
-                                              size: 16,
+                                            padding: const EdgeInsets.all(3),
+                                            // Real item art where the catalog
+                                            // has it; the generic glyph is
+                                            // only a fallback now.
+                                            child: InventoryImageHelper.getVisualWidget(
+                                              key: e.key,
+                                              assetName:
+                                                  InventoryImageHelper.getImage(
+                                                    e.key,
+                                                  ),
+                                              icon: _invIcon(e.key),
+                                              size: 26,
                                             ),
                                           ),
                                           const SizedBox(width: 12),

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -194,19 +195,19 @@ void main() {
       expect(CosmicSurvivalSpawner.eliteAffixPoolForWave(12), isEmpty);
       expect(
         CosmicSurvivalSpawner.eliteAffixPoolForWave(14),
-        contains(SurvivalEliteAffix.bulwarked),
+        contains(EliteAffix.bulwarked),
       );
       expect(
         CosmicSurvivalSpawner.eliteAffixPoolForWave(24),
-        contains(SurvivalEliteAffix.volatile),
+        contains(EliteAffix.volatile),
       );
       expect(
         CosmicSurvivalSpawner.eliteAffixPoolForWave(30),
-        contains(SurvivalEliteAffix.vampiric),
+        contains(EliteAffix.vampiric),
       );
       expect(
         CosmicSurvivalSpawner.eliteAffixPoolForWave(38),
-        containsAll(SurvivalEliteAffix.values),
+        containsAll(EliteAffix.values),
       );
     });
 

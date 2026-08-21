@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -18,7 +19,12 @@ class CustomizationMenuOverlay extends StatefulWidget {
     required this.onSelectSize,
     required this.onUnlockColor,
     required this.onSelectColor,
+    this.canPreview = false,
+    this.onPreview,
+    this.initialTab = 0,
+    this.onTabChanged,
     required this.onClose,
+    this.onBack,
     required this.cargoLevel,
     required this.isNearHome,
     required this.onUpgradeCargo,
@@ -39,7 +45,27 @@ class CustomizationMenuOverlay extends StatefulWidget {
   final void Function(int tier) onSelectSize;
   final void Function(String element) onUnlockColor;
   final void Function(String? element) onSelectColor;
+
+  /// True once the lab has changed something visible on the home planet.
+  final bool canPreview;
+
+  /// Hides the lab so the player can look at the planet itself.
+  final VoidCallback? onPreview;
+
+  /// Which tab to open on: 0 = SHIP, 1 = HOME.
+  ///
+  /// Owned by the cosmic screen, not by this widget's State. Preview tears the
+  /// whole overlay down and rebuilds it, so State-local tab memory does not
+  /// survive the round trip — it has to be held above.
+  final int initialTab;
+
+  /// Reports tab changes upward so [initialTab] can be kept current.
+  final ValueChanged<int>? onTabChanged;
+  /// Dismiss the whole panel stack back to the world.
   final VoidCallback onClose;
+
+  /// Step up one level to whatever opened this. Falls back to [onClose].
+  final VoidCallback? onBack;
   final VoidCallback onUpgradeCargo;
   final VoidCallback onChambers;
   final void Function(String type) onUpgradePowerUp;
@@ -54,8 +80,18 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
   String? _detailRecipeId;
 
   /// Which tab is active: 0 = SHIP, 1 = HOME
-  int _activeTab = 0;
-  late final PageController _pageController = PageController();
+  late int _activeTab = widget.initialTab;
+  late PageController _pageController = PageController(
+    initialPage: widget.initialTab,
+  );
+
+  @visibleForTesting
+  int get activeTabForTest => _activeTab;
+
+  void _setTab(int index) {
+    _activeTab = index;
+    widget.onTabChanged?.call(index);
+  }
 
   @override
   void dispose() {
@@ -185,14 +221,60 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         ),
                       ),
                     ),
-                    _OverlayHeaderButton(
-                      icon: AppIcons.close_rounded,
-                      onTap: widget.onClose,
-                    ),
+                    // X closes out entirely; the docked BACK steps up a level.
+                    CosmicCloseButton(onTap: widget.onClose),
                   ],
                 ),
               ),
               _etchedDivider(),
+
+              // ── Preview ──
+              // Sits above everything else: once you have changed how the
+              // planet looks, the next thing you want is to go look at it.
+              if (widget.canPreview && widget.onPreview != null) ...[
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: GestureDetector(
+                    onTap: widget.onPreview,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: double.infinity,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: CosmicScreenStyles.teal.withValues(alpha: 0.14),
+                        border: Border.all(
+                          color: CosmicScreenStyles.teal.withValues(
+                            alpha: 0.75,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            AppIcons.visibility_rounded,
+                            size: 15,
+                            color: CosmicScreenStyles.teal,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'PREVIEW ON PLANET',
+                            style: TextStyle(
+                              fontFamily: appFontFamily(context),
+                              color: CosmicScreenStyles.teal,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
 
               // Tab bar
@@ -276,7 +358,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               Expanded(
                 child: PageView(
                   controller: _pageController,
-                  onPageChanged: (i) => setState(() => _activeTab = i),
+                  onPageChanged: (i) => setState(() => _setTab(i)),
                   children: [
                     _buildShipTab(weapons, systems, ammos, skins),
                     _buildHomeTab(
@@ -290,7 +372,59 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   ],
                 ),
               ),
+
+              // ── Docked BACK ──
+              _backDock(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom-docked exit, matching the other cosmic panels.
+  Widget _backDock() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: const BoxDecoration(
+        color: CosmicScreenStyles.bg1,
+        border: Border(
+          top: BorderSide(color: CosmicScreenStyles.borderMid, width: 1.2),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onBack ?? widget.onClose,
+          child: Container(
+            width: double.infinity,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: CosmicScreenStyles.borderMid),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  AppIcons.arrow_back,
+                  size: 15,
+                  color: CosmicScreenStyles.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'BACK',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    color: CosmicScreenStyles.textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -322,8 +456,12 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
 
   void _showResourcesPopup(BuildContext context, int bankBalance) {
     final stored = widget.elementStorage.stored;
-    // Sort elements by amount descending, filter out zero
-    final entries = stored.entries.where((e) => e.value > 0).toList()
+    // Sort by amount descending, drop zeroes, and drop keys the game no longer
+    // knows — stale saves carry elements that were renamed or removed, and
+    // `elementColor` renders those as flat grey so they read as real resources.
+    final entries = stored.entries
+        .where((e) => e.value > 0 && isKnownElement(e.key))
+        .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     showDialog(
@@ -546,7 +684,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          setState(() => _activeTab = index);
+          setState(() => _setTab(index));
           _pageController.animateToPage(
             index,
             duration: const Duration(milliseconds: 250),
@@ -589,6 +727,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     List<HomeRecipe> skins,
   ) {
     return ListView(
+      // The whole body is swapped out for the recipe detail view, so these
+      // ListViews unmount and lose their offset. A PageStorageKey parks the
+      // offset in the route's bucket and restores it on the way back.
+      key: const PageStorageKey<String>('cosmic.lab.ship'),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
         _sectionHeader('CARGO UPGRADE'),
@@ -649,6 +791,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     List<HomeRecipe> stations,
   ) {
     return ListView(
+      key: const PageStorageKey<String>('cosmic.lab.home'),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
         // Planet size
@@ -1806,11 +1949,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: elementColor(e.key).withValues(alpha: 0.1),
+                    color: elementInk(e.key).withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(3),
                     border: Border.all(
                       color: enough
-                          ? elementColor(e.key).withValues(alpha: 0.4)
+                          ? elementInk(e.key).withValues(alpha: 0.45)
                           : CosmicScreenStyles.borderDim,
                     ),
                   ),
@@ -1819,7 +1962,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     style: TextStyle(
                       fontFamily: appFontFamily(context),
                       color: enough
-                          ? elementColor(e.key)
+                          ? elementInk(e.key)
                           : CosmicScreenStyles.textMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -1887,7 +2030,18 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => setState(() => _detailRecipeId = null),
+                      onTap: () => setState(() {
+                        _detailRecipeId = null;
+                        // The PageView unmounts while the detail view is up. A
+                        // reattached PageController restores to its
+                        // initialPage, which fires onPageChanged(0) and throws
+                        // the player back to the SHIP tab. Rebuild it pointing
+                        // at the tab they were actually on.
+                        _pageController.dispose();
+                        _pageController = PageController(
+                          initialPage: _activeTab,
+                        );
+                      }),
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(

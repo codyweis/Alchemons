@@ -68,6 +68,11 @@ class EncounterOverlay extends StatefulWidget {
   // encounters have their own exit affordance, so they hide it.
   final bool showMapAction;
 
+  /// Whether to show the rarity classification badge above the creature name.
+  /// Scripted encounters where the rarity is a fixed authored detail (the
+  /// cosmic prologue) hide it rather than announce "LEGENDARY".
+  final bool showRarityBadge;
+
   const EncounterOverlay({
     super.key,
     required this.encounter,
@@ -82,6 +87,7 @@ class EncounterOverlay extends StatefulWidget {
     this.warnOnRun = false,
     this.showFusionAction = true,
     this.showMapAction = true,
+    this.showRarityBadge = true,
   });
 
   @override
@@ -407,6 +413,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                 child: _WildCreatureTitle(
                   creature: wildCreature,
                   rarity: widget.encounter.rarity,
+                  showRarityBadge: widget.showRarityBadge,
                   status: _status,
                   breedChance: _supportsFusion ? _breedChance : null,
                 ),
@@ -984,6 +991,7 @@ class _EncounterStatusStyle {
 class _WildCreatureTitle extends StatelessWidget {
   final Creature creature;
   final String rarity;
+  final bool showRarityBadge;
   final String status;
   final double? breedChance;
 
@@ -991,6 +999,7 @@ class _WildCreatureTitle extends StatelessWidget {
     required this.creature,
     required this.rarity,
     required this.status,
+    this.showRarityBadge = true,
     this.breedChance,
   });
 
@@ -1100,24 +1109,26 @@ class _WildCreatureTitle extends StatelessWidget {
           ),
         ),
         // Classification rank badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: _rarityColor.withValues(alpha: 0.16),
-            border: Border(left: BorderSide(color: _rarityColor, width: 2)),
-          ),
-          child: Text(
-            rarity.toUpperCase(),
-            style: bracketText(
-              context,
-              11,
-              _rarityColor,
-              weight: FontWeight.w800,
-              letterSpacing: 1.0,
+        if (showRarityBadge) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: _rarityColor.withValues(alpha: 0.16),
+              border: Border(left: BorderSide(color: _rarityColor, width: 2)),
+            ),
+            child: Text(
+              rarity.toUpperCase(),
+              style: bracketText(
+                context,
+                11,
+                _rarityColor,
+                weight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
+          const SizedBox(height: 6),
+        ],
         // Creature designation
         _DigitalAnimatedText(
           text: creature.name.toUpperCase(),
