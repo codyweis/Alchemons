@@ -49,21 +49,38 @@ class StatPotentialBar extends StatelessWidget {
 
     return Row(
       children: [
+        // Scale-to-fit rather than overflow: the longest label
+        // (INTELLIGENCE) was running straight into the bar, because this box
+        // was fixed at 112 with overflow left visible.
         SizedBox(
-          width: 112,
-          child: Text(
-            statName.toUpperCase(),
-            style: ft.label,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.visible,
+          width: 116,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                statName.toUpperCase(),
+                style: ft.label,
+                maxLines: 1,
+                softWrap: false,
+              ),
+            ),
           ),
         ),
+        const SizedBox(width: 10),
 
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
               final availableWidth = constraints.maxWidth;
+              // The track Container draws a 1px border, so its content box is
+              // 2px narrower. Sizing the fills off the full width overflowed
+              // by exactly that whenever a stat sat at full potential.
+              final fillWidth = (availableWidth - 2).clamp(
+                0.0,
+                double.infinity,
+              );
               final markerLeft = (availableWidth * potentialPercent - 1).clamp(
                 0.0,
                 (availableWidth - 2).clamp(0.0, double.infinity),
@@ -82,7 +99,7 @@ class StatPotentialBar extends StatelessWidget {
                       child: Row(
                         children: [
                           Container(
-                            width: availableWidth * potentialPercent,
+                            width: fillWidth * potentialPercent,
                             color: potentialZoneColor,
                           ),
                         ],
@@ -90,22 +107,25 @@ class StatPotentialBar extends StatelessWidget {
                     ),
                   ),
 
-                  Container(
-                    height: 16,
-                    decoration: const BoxDecoration(
-                      borderRadius: BorderRadius.all(Radius.circular(2)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(1),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: availableWidth * currentPercent,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(colors: currentFill),
+                  // Inset by the same 1px so the current fill lines up with
+                  // the potential zone behind it instead of sitting a pixel
+                  // proud of it on the left.
+                  Padding(
+                    padding: const EdgeInsets.all(1),
+                    child: SizedBox(
+                      height: 14,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(1),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: fillWidth * currentPercent,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(colors: currentFill),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -130,21 +150,42 @@ class StatPotentialBar extends StatelessWidget {
 
         const SizedBox(width: 8),
 
+        // Wide enough for the worst case ("10.0 / 10.0"). At 70 the potential
+        // was clipped clean off, so every row read "2.5 /" with no cap shown.
         SizedBox(
-          width: 70,
+          width: 92,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '${currentValue.toStringAsFixed(1)} / ${potential.toStringAsFixed(1)}',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  textBaseline: TextBaseline.alphabetic,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  children: [
+                    Text(
+                      currentValue.toStringAsFixed(1),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: fc.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      ' / ${potential.toStringAsFixed(1)}',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: fc.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                overflow: TextOverflow.clip,
-                maxLines: 1,
               ),
               if (isNearMax)
                 Text(
@@ -152,7 +193,7 @@ class StatPotentialBar extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: fc.amberBright,
-                    fontSize: 12,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
                 )
@@ -162,7 +203,7 @@ class StatPotentialBar extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: fc.textMuted,
-                    fontSize: 12,
+                    fontSize: 10,
                   ),
                 ),
             ],
