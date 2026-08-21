@@ -2678,8 +2678,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       var score = 220.0 - dist;
       if (enemy.target == CosmicEnemyTarget.orb) score += 170;
       if (enemy.target == CosmicEnemyTarget.ship) score += 90;
-      if (enemy.role == CosmicEnemyRole.shooter) score += 120;
-      if (enemy.role == CosmicEnemyRole.hunter) score += 70;
+      if (enemy.conduct == EnemyConduct.standoff) score += 120;
+      if (enemy.conduct == EnemyConduct.stalk) score += 70;
       if (enemy.isElite) score += 80;
       score += (1.0 - enemy.hpFraction) * 70;
       final orbDist = sqrt(_distanceSquared(enemy.position, orb.position));
@@ -3741,8 +3741,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // orbiters and crushers keep their authored movement so siege
       // pressure and standoff behaviour are unchanged.
       final usesFlightSteering =
-          (enemy.role == CosmicEnemyRole.striker ||
-              enemy.role == CosmicEnemyRole.hunter) &&
+          (enemy.conduct == EnemyConduct.charge ||
+              enemy.conduct == EnemyConduct.stalk) &&
           enemy.target != CosmicEnemyTarget.orb &&
           !(enemy.conduct == EnemyConduct.charge && enemy.hasHeavyBody);
 
@@ -3899,17 +3899,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // CosmicEnemyTarget.companion retargets to ship (or orb).
     final cloaked = _isAnyKinDarkCloakActive();
     if (spawner.currentMutator == SurvivalWaveMutator.orbSiege &&
-        enemy.role != CosmicEnemyRole.hunter) {
+        enemy.conduct != EnemyConduct.stalk) {
       return CosmicEnemyTarget.orb;
     }
-    if (enemy.role == CosmicEnemyRole.striker) return CosmicEnemyTarget.orb;
-    if (enemy.role == CosmicEnemyRole.hunter && !ship.isDead) {
+    if (enemy.conduct == EnemyConduct.charge) return CosmicEnemyTarget.orb;
+    if (enemy.conduct == EnemyConduct.stalk && !ship.isDead) {
       final roll = _rng.nextDouble();
       if (roll < 0.25) return CosmicEnemyTarget.orb;
       if (roll < 0.65) return CosmicEnemyTarget.ship;
       return cloaked ? CosmicEnemyTarget.ship : CosmicEnemyTarget.companion;
     }
-    if (enemy.role == CosmicEnemyRole.shooter) {
+    if (enemy.conduct == EnemyConduct.standoff) {
       if (enemy.conduct == EnemyConduct.standoff &&
           _rng.nextDouble() < 0.72) {
         return CosmicEnemyTarget.orb;
@@ -4124,7 +4124,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _ => 1.0,
     };
     final variantMult = traitMult * conductMult;
-    final roleMult = enemy.role == CosmicEnemyRole.orbiter ? 1.15 : 1.0;
+    final roleMult = enemy.conduct == EnemyConduct.orbit ? 1.15 : 1.0;
     return tierMult * variantMult * roleMult;
   }
 
@@ -4932,9 +4932,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         size.y / _currentZoom,
       );
       for (final add in adds) {
-        add.target = switch (add.role) {
-          CosmicEnemyRole.shooter => CosmicEnemyTarget.orb,
-          CosmicEnemyRole.hunter => CosmicEnemyTarget.ship,
+        add.target = switch (add.conduct) {
+          EnemyConduct.standoff => CosmicEnemyTarget.orb,
+          EnemyConduct.stalk => CosmicEnemyTarget.ship,
           _ => CosmicEnemyTarget.companion,
         };
       }
@@ -4993,9 +4993,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         size.y / _currentZoom,
       );
       for (final add in adds.take(4)) {
-        add.target = switch (add.role) {
-          CosmicEnemyRole.shooter => CosmicEnemyTarget.companion,
-          CosmicEnemyRole.hunter => CosmicEnemyTarget.ship,
+        add.target = switch (add.conduct) {
+          EnemyConduct.standoff => CosmicEnemyTarget.companion,
+          EnemyConduct.stalk => CosmicEnemyTarget.ship,
           _ => CosmicEnemyTarget.orb,
         };
       }
@@ -11936,8 +11936,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     var score = 0.0;
     if (enemy.isElite) score += 220;
     if (enemy.target == CosmicEnemyTarget.orb) score += 180;
-    if (enemy.role == CosmicEnemyRole.shooter) score += 140;
-    if (enemy.role == CosmicEnemyRole.hunter) score += 90;
+    if (enemy.conduct == EnemyConduct.standoff) score += 140;
+    if (enemy.conduct == EnemyConduct.stalk) score += 90;
     score += (1 - enemy.hpFraction) * 60;
     score += max(0.0, blastRadius - (enemy.position - orb.position).distance);
     score += _countEnemiesNear(enemy.position, 90, exclude: enemy) * 18;
@@ -12189,8 +12189,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final dist = sqrt(distSq);
       var score = 200.0 - dist;
       if (enemy.target == CosmicEnemyTarget.orb) score += 140;
-      if (enemy.role == CosmicEnemyRole.shooter) score += 80;
-      if (enemy.role == CosmicEnemyRole.hunter) score += 45;
+      if (enemy.conduct == EnemyConduct.standoff) score += 80;
+      if (enemy.conduct == EnemyConduct.stalk) score += 45;
       if (enemy.isElite) score += 110;
       score += (1.0 - enemy.hpFraction) * 55;
       if (score > bestScore) {

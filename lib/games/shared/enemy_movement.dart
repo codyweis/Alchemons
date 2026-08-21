@@ -12,7 +12,6 @@
 
 import 'dart:ui';
 
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 
@@ -48,15 +47,6 @@ Offset conductMoveVector({
   EnemyConduct.graze => dist > 320 ? norm * 0.35 : Offset.zero,
   EnemyConduct.patrol => dist > 260 ? Offset.zero : norm * 0.9,
   EnemyConduct.swarm => norm * 0.92 + tangent * 0.25,
-};
-
-/// Old role → new conduct. The last remnant of the legacy pair; goes away
-/// with `CosmicEnemyRole`.
-EnemyConduct conductFromRole(CosmicEnemyRole role) => switch (role) {
-  CosmicEnemyRole.striker => EnemyConduct.charge,
-  CosmicEnemyRole.hunter => EnemyConduct.stalk,
-  CosmicEnemyRole.orbiter => EnemyConduct.orbit,
-  CosmicEnemyRole.shooter => EnemyConduct.standoff,
 };
 
 /// Open-world behaviour → conduct. One-to-one; the two enums were the same

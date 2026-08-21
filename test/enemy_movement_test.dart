@@ -1,5 +1,4 @@
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,12 +95,6 @@ void main() {
       );
     });
 
-    test('survival roles still resolve to a conduct while the enum lives', () {
-      expect(conductFromRole(CosmicEnemyRole.striker), EnemyConduct.charge);
-      expect(conductFromRole(CosmicEnemyRole.hunter), EnemyConduct.stalk);
-      expect(conductFromRole(CosmicEnemyRole.orbiter), EnemyConduct.orbit);
-      expect(conductFromRole(CosmicEnemyRole.shooter), EnemyConduct.standoff);
-    });
   });
 
   group('stats that used to hide inside the movement vector', () {

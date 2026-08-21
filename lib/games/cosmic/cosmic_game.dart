@@ -443,6 +443,25 @@ class CosmicGame extends FlameGame with PanDetector {
   int _bossesDefeated = 0;
   int _nextPackId = 0; // unique pack ID counter
   static const int _maxEnemies = 220;
+
+  /// Squared distance between two world points, respecting the world's
+  /// toroidal wrap — a naive distance would read two points either side of the
+  /// seam as maximally far apart.
+  double _wrappedDistanceSq(Offset a, Offset b) {
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+    var dx = (a.dx - b.dx).abs();
+    var dy = (a.dy - b.dy).abs();
+    if (dx > ww / 2) dx = ww - dx;
+    if (dy > wh / 2) dy = wh - dy;
+    return dx * dx + dy * dy;
+  }
+
+  /// How far from the ship an unanchored enemy may drift before it is
+  /// despawned. Generous enough that nothing vanishes on screen or just past
+  /// the edge — roughly three screens out.
+  static const double _enemyCullDist = 3600.0;
+  static const double _enemyCullDistSq = _enemyCullDist * _enemyCullDist;
   static const double _enemySpawnInterval = 1.0; // seconds between checks
   static const double _meterPickupMultiplier = 3.0;
 
@@ -5695,6 +5714,27 @@ class CosmicGame extends FlameGame with PanDetector {
     for (var i = enemies.length - 1; i >= 0; i--) {
       final e = enemies[i];
       if (e.dead) {
+        enemies.removeAt(i);
+        continue;
+      }
+
+      // Distance cull.
+      //
+      // Enemies were ONLY ever removed when killed, so the population climbed
+      // to _maxEnemies and stayed there for the session — every one of them
+      // steering and rendering, including ones far off-screen, and the
+      // aggressive/stalking ones walking toward the player the whole time.
+      // Parking at base for a while therefore ended in a permanent crowd.
+      //
+      // Anything anchored to a place is exempt: territorial patrols guard a
+      // homePos, whirl guardians belong to a whirl, and pack members are
+      // culled with their pack rather than piecemeal (dropping half a swarm
+      // looks worse than keeping it).
+      if (!e.provoked &&
+          e.homePos == null &&
+          e.whirlIndex < 0 &&
+          e.packId < 0 &&
+          _wrappedDistanceSq(e.position, ship.pos) > _enemyCullDistSq) {
         enemies.removeAt(i);
         continue;
       }

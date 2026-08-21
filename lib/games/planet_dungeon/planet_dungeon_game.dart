@@ -2662,7 +2662,6 @@ class PlanetDungeonGame extends FlameGame {
         radius: 13,
         tier: EnemyTier.wisp,
         element: specs[i].$1,
-        role: CosmicEnemyRole.striker,
         conduct: specs[i].$2,
         target: CosmicEnemyTarget.companion,
       );
@@ -4017,7 +4016,6 @@ class PlanetDungeonGame extends FlameGame {
           radius: unstable ? 15 : 12,
           tier: EnemyTier.wisp,
           element: element,
-          role: CosmicEnemyRole.striker,
           conduct: unstable ? EnemyConduct.stalk : EnemyConduct.charge,
           target: CosmicEnemyTarget.companion,
         ),
@@ -4118,7 +4116,6 @@ class PlanetDungeonGame extends FlameGame {
       radius: 38,
       tier: EnemyTier.phantom,
       element: g.encounter?.element ?? 'Air',
-      role: CosmicEnemyRole.hunter,
       conduct: EnemyConduct.charge,
       target: CosmicEnemyTarget.companion,
       isElite: true,
@@ -4160,7 +4157,6 @@ class PlanetDungeonGame extends FlameGame {
         radius: 13,
         tier: i.isEven ? EnemyTier.wisp : EnemyTier.drone,
         element: g.element,
-        role: CosmicEnemyRole.hunter,
         conduct: EnemyConduct.stalk,
         target: CosmicEnemyTarget.companion,
       );

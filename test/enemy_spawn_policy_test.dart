@@ -67,7 +67,6 @@ void main() {
         radius: 9,
         tier: EnemyTier.wisp,
         element: 'Fire',
-        role: CosmicEnemyRole.striker,
         target: CosmicEnemyTarget.orb,
         conduct: EnemyConduct.charge,
         trait: EnemyTrait.summoner,
@@ -87,7 +86,6 @@ void main() {
         radius: 11,
         tier: EnemyTier.drone,
         element: 'Ice',
-        role: CosmicEnemyRole.striker,
         target: CosmicEnemyTarget.orb,
         conduct: EnemyConduct.stalk,
         trait: EnemyTrait.splitter,
@@ -105,7 +103,6 @@ void main() {
         radius: 5,
         tier: EnemyTier.colossus,
         element: 'Dark',
-        role: CosmicEnemyRole.shooter,
         target: CosmicEnemyTarget.orb,
         conduct: EnemyConduct.graze,
         trait: EnemyTrait.breaker,
@@ -113,6 +110,50 @@ void main() {
       // Explicit values must win over the legacy derivation.
       expect(e.conduct, EnemyConduct.graze);
       expect(e.trait, EnemyTrait.breaker);
+    });
+  });
+
+  group('the open world despawns what drifts away', () {
+    test('an unanchored far enemy is culled; anchored ones are not', () {
+      // Regression guard for the original bug: enemies were only ever removed
+      // when killed, so parking at base grew a permanent crowd of 220.
+      //
+      // The cull is in CosmicGame.update and needs a live world, so this
+      // asserts the exemption predicate the cull uses rather than the loop.
+      bool cullable(CosmicEnemy e) =>
+          !e.provoked && e.homePos == null && e.whirlIndex < 0 && e.packId < 0;
+
+      CosmicEnemy plain() => CosmicEnemy(
+        position: const Offset(9999, 9999),
+        element: 'Fire',
+        tier: EnemyTier.wisp,
+        radius: 9,
+        health: 10,
+        speed: 10,
+      );
+
+      expect(cullable(plain()), isTrue, reason: 'a drifter should despawn');
+
+      expect(
+        cullable(plain()..provoked = true),
+        isFalse,
+        reason: 'something you angered should not vanish',
+      );
+      expect(
+        cullable(plain()..homePos = Offset.zero),
+        isFalse,
+        reason: 'a territorial patrol guards a place',
+      );
+      expect(
+        cullable(plain()..whirlIndex = 2),
+        isFalse,
+        reason: 'a whirl guardian belongs to its whirl',
+      );
+      expect(
+        cullable(plain()..packId = 5),
+        isFalse,
+        reason: 'packs are culled together, not piecemeal',
+      );
     });
   });
 }

@@ -265,13 +265,38 @@ summon cooldown, and the visual squash. Stat multipliers that had a row per
 variant are split into independent trait and conduct terms, which is why
 `breaker` and `crusher` no longer need separate rows for the same idea.
 
-Not yet done:
-- The 65 `EnemyBehavior` sites in `cosmic_game_world_systems.dart` still steer
-  open-world enemies ad hoc; they do not yet call `conductMoveVector`.
-- Wave patterns bias the conduct roll but do not yet filter over the whole
-  taxonomy (they cannot pick "mostly standoff, some breaker" declaratively).
-- `CosmicEnemyRole` still exists and still feeds `conductFromRole`. It is the
-  last legacy axis; `isShooter` and the orbiter damage bonus are its remaining
-  real readers.
-- Traits are carried but not yet read: `summoner`/`splitter` behaviour still
-  keys off the old variant.
+Fourth pass — **`CosmicEnemyRole` is deleted too.** Both legacy enums are gone;
+`grep -rn 'CosmicEnemyRole\|SurvivalEnemyVariant' lib test` returns nothing.
+
+- `_roleForWave` became `_conductForWave`, so **wave patterns now filter over
+  the taxonomy directly** rather than through a second vocabulary.
+- Boss disciplines field a `(conduct, trait)` pair per add instead of a role
+  they then translated.
+- Targeting, threat scoring, `isShooter` and the orbiter damage bonus all read
+  conduct.
+
+## 8. Status
+
+The four axes are real, shared, and each has exactly one definition:
+
+| Axis | Enum | Where it lives |
+| --- | --- | --- |
+| BODY | `EnemyTier` | `cosmic_data.dart` |
+| CONDUCT | `EnemyConduct` | `shared/enemy_taxonomy.dart` |
+| TRAIT | `EnemyTrait` | `shared/enemy_taxonomy.dart` |
+| AFFIX | `EliteAffix` | `shared/enemy_taxonomy.dart` |
+
+Mode differences live only where §5 says they should: spawn policy, targets,
+and lifecycle.
+
+Remaining, and deliberately not done:
+
+- The open world's 65 `EnemyBehavior` sites still steer ad hoc rather than
+  calling `conductMoveVector`. `EnemyBehavior` maps cleanly onto conduct and
+  the mapping is tested, but the steering itself is bespoke per behaviour
+  (feeding packs, territorial leashes, swarm cohesion) and is not a mechanical
+  substitution. This is the last real piece.
+- Conduct has no visual channel: of the eight, only `charge` (on a heavy body),
+  `stalk` and `standoff` differ in silhouette. The other four are identical
+  stills because conduct is expressed through MOTION. Defensible, but a
+  stationary patroller and a drifter are indistinguishable until they move.

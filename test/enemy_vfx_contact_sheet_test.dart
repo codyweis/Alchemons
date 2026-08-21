@@ -46,7 +46,6 @@ void main() {
     required String element,
     EnemyConduct conduct = EnemyConduct.charge,
     EnemyTrait? trait,
-    CosmicEnemyRole role = CosmicEnemyRole.striker,
     bool isElite = false,
     EliteAffix? affix,
     double radius = 16,
@@ -62,7 +61,6 @@ void main() {
       radius: radius,
       tier: tier,
       element: element,
-      role: role,
       conduct: conduct,
       trait: trait,
       target: CosmicEnemyTarget.orb,
@@ -256,16 +254,21 @@ void main() {
   }, skip: outDir == null);
 
   testWidgets('enemy roles and elites', (tester) async {
-    await sheetOf(tester, 'enemy_roles_sheet', 'ROLES & ELITE AFFIXES', [
-      for (final role in CosmicEnemyRole.values)
+    await sheetOf(tester, 'enemy_roles_sheet', 'CONDUCTS & ELITE AFFIXES', [
+      for (final c in [
+        EnemyConduct.charge,
+        EnemyConduct.stalk,
+        EnemyConduct.orbit,
+        EnemyConduct.standoff,
+      ])
         (
-          'ROLE: ${role.name.toUpperCase()}',
-          'sentinel · ${role.name}',
+          'CONDUCT: ${c.name.toUpperCase()}',
+          'sentinel · conduct',
           enemyDrawer(
             make(
               tier: EnemyTier.sentinel,
               element: 'Water',
-              role: role,
+              conduct: c,
               radius: 17,
             ),
           ),

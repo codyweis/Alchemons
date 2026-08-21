@@ -15,11 +15,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 
-enum CosmicEnemyRole { striker, orbiter, shooter, hunter }
-
 enum CosmicEnemyTarget { orb, ship, companion }
-
-
 
 enum SurvivalBossDiscipline {
   standard,
@@ -46,8 +42,6 @@ enum SurvivalWavePattern {
   swarmRush,
 }
 
-
-
 enum SurvivalWaveMutator {
   orbSiege,
   hunterSwarm,
@@ -72,7 +66,6 @@ class CosmicSurvivalEnemy {
   final double radius;
   final EnemyTier tier;
   final String element;
-  final CosmicEnemyRole role;
 
   /// Converged taxonomy (docs/enemy_taxonomy.md). Derived from role+variant
   /// during migration; once the spawner picks these directly, role and variant
@@ -133,8 +126,7 @@ class CosmicSurvivalEnemy {
     required this.radius,
     required this.tier,
     required this.element,
-    required CosmicEnemyRole role,
-    EnemyConduct? conduct,
+    required this.conduct,
     this.trait,
     required this.target,
     this.isDead = false,
@@ -155,24 +147,17 @@ class CosmicSurvivalEnemy {
     this.frostBuildup = 0,
     this.summonCooldown = 0,
     this.maskBloodDrainSlot,
-  }) : // Not initializing formals: role and variant must be in scope here so
-       // conduct and trait can be derived from them below.
-       // Not an initializing formal: role must be in scope so conduct can be
-       // derived from it when the caller does not supply one.
-       // ignore: prefer_initializing_formals
-       role = role,
-       conduct = conduct ?? conductFromRole(role);
+  });
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
+
   /// True for bodies heavy enough to earn the charge speed bonus that the old
   /// `crusher` variant used to smuggle into its movement vector.
   bool get hasHeavyBody =>
       tier == EnemyTier.brute || tier == EnemyTier.colossus;
 
   double get effectiveSpeed {
-    if (maneRootTimer > 0 ||
-        hornPlantRootTimer > 0 ||
-        slowMultiplier <= 0) {
+    if (maneRootTimer > 0 || hornPlantRootTimer > 0 || slowMultiplier <= 0) {
       return 0;
     }
     // The crusher's old `* 1.08` lived in the direction vector, which made a
@@ -187,7 +172,7 @@ class CosmicSurvivalEnemy {
         (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }
 
-  bool get isShooter => role == CosmicEnemyRole.shooter;
+  bool get isShooter => conduct == EnemyConduct.standoff;
   bool get hasBulwark => eliteAffix == EliteAffix.bulwarked;
   bool get isVolatile => eliteAffix == EliteAffix.volatile;
   bool get isVampiric => eliteAffix == EliteAffix.vampiric;
@@ -247,9 +232,11 @@ class SurvivalBoss {
   // Movement profile chosen at spawn — drives whether the boss chases,
   // strafes a ring, or sits back firing.
   final SurvivalBossMovementStyle movementStyle;
+
   /// Preferred distance the boss tries to hold from its anchor target.
   /// Each AI uses this as the radial setpoint instead of a hardcoded value.
   final double engagementRange;
+
   /// 0..1 — how aggressively the boss tangentially strafes its ring.
   /// Snipers ≈ 0.15 (mostly still), orbiters ≈ 0.7, chasers ≈ 1.0.
   final double strafeWeight;
@@ -706,12 +693,8 @@ class CosmicSurvivalSpawner {
   CosmicSurvivalEnemy _spawnEnemy(double viewW, double viewH, Offset orbPos) {
     final tier = _tierForWave(currentWave);
     final element = _kElements[_rng.nextInt(_kElements.length)];
-    final role = _roleForWave(currentWave, tier);
-
-    // CONDUCT — how it moves. Rolled from the wave's shape, not from the body.
-    // The old code derived a `variant` here and let it override the role's
-    // movement; conduct is now the single authority (docs/enemy_taxonomy.md).
-    var conduct = conductFromRole(role);
+    // CONDUCT — how it moves, straight from the wave's shape.
+    var conduct = _conductForWave(currentWave, tier);
     if ((currentPattern == SurvivalWavePattern.siegePush ||
             currentMutator == SurvivalWaveMutator.fortified) &&
         _rng.nextDouble() < 0.34) {
@@ -730,7 +713,6 @@ class CosmicSurvivalSpawner {
     // combination space was unreachable by construction. Any body can now
     // carry any trait — a summoner wisp is a thing that can happen.
     final trait = _traitForWave(currentWave);
-
 
     // Spawn outside view
     final margin = max(viewW, viewH) * 0.55;
@@ -832,11 +814,9 @@ class CosmicSurvivalSpawner {
       radius: tierRadius(tier) * (isElite ? 1.3 : 1.0),
       tier: tier,
       element: element,
-      role: role,
-      // Picked directly, not derived — the whole point of the change.
       conduct: conduct,
       trait: trait,
-      target: _initialTargetForRole(role),
+      target: _initialTargetFor(conduct),
       isElite: isElite,
       eliteAffix: eliteAffix,
       summonCooldown: trait == EnemyTrait.summoner
@@ -881,7 +861,6 @@ class CosmicSurvivalSpawner {
           radius: tierRadius(tier),
           tier: tier,
           element: parent.element,
-          role: CosmicEnemyRole.striker,
           conduct: EnemyConduct.charge,
           target: CosmicEnemyTarget.orb,
         ),
@@ -925,7 +904,6 @@ class CosmicSurvivalSpawner {
           radius: tierRadius(tier) * 0.95,
           tier: tier,
           element: parent.element,
-          role: CosmicEnemyRole.striker,
           conduct: EnemyConduct.stalk,
           target: CosmicEnemyTarget.orb,
         ),
@@ -934,65 +912,70 @@ class CosmicSurvivalSpawner {
     return out;
   }
 
-  CosmicEnemyRole _roleForWave(int wave, EnemyTier tier) {
+  /// The wave's shape as a conduct distribution — this IS the wave pattern
+  /// filtering over the taxonomy. It used to yield a `role`, a second
+  /// vocabulary for the same idea.
+  EnemyConduct _conductForWave(int wave, EnemyTier tier) {
     if (currentMutator == SurvivalWaveMutator.hunterSwarm) {
       return _rng.nextDouble() < 0.65
-          ? CosmicEnemyRole.hunter
-          : CosmicEnemyRole.striker;
+          ? EnemyConduct.stalk
+          : EnemyConduct.charge;
     }
     if (currentMutator == SurvivalWaveMutator.arcStorm &&
         _rng.nextDouble() < 0.55) {
-      return CosmicEnemyRole.shooter;
+      return EnemyConduct.standoff;
     }
     if (currentMutator == SurvivalWaveMutator.shatteredSpace &&
         _rng.nextDouble() < 0.34) {
-      return _rng.nextBool() ? CosmicEnemyRole.hunter : CosmicEnemyRole.shooter;
+      return _rng.nextBool() ? EnemyConduct.stalk : EnemyConduct.standoff;
     }
     switch (currentPattern) {
       case SurvivalWavePattern.wispHorde:
         return _rng.nextDouble() < 0.75
-            ? CosmicEnemyRole.striker
-            : CosmicEnemyRole.orbiter;
+            ? EnemyConduct.charge
+            : EnemyConduct.orbit;
       case SurvivalWavePattern.hunterPack:
         final roll = _rng.nextDouble();
-        if (roll < 0.56) return CosmicEnemyRole.hunter;
-        if (roll < 0.84) return CosmicEnemyRole.striker;
-        return CosmicEnemyRole.orbiter;
+        if (roll < 0.56) return EnemyConduct.stalk;
+        if (roll < 0.84) return EnemyConduct.charge;
+        return EnemyConduct.orbit;
       case SurvivalWavePattern.siegePush:
         if (tier.index >= EnemyTier.sentinel.index &&
             _rng.nextDouble() < 0.42) {
-          return CosmicEnemyRole.orbiter;
+          return EnemyConduct.orbit;
         }
-        return CosmicEnemyRole.striker;
+        return EnemyConduct.charge;
       case SurvivalWavePattern.shooterScreen:
         final roll = _rng.nextDouble();
-        if (roll < 0.48) return CosmicEnemyRole.shooter;
-        if (roll < 0.78) return CosmicEnemyRole.orbiter;
-        return CosmicEnemyRole.striker;
+        if (roll < 0.48) return EnemyConduct.standoff;
+        if (roll < 0.78) return EnemyConduct.orbit;
+        return EnemyConduct.charge;
       case SurvivalWavePattern.swarmRush:
         final roll = _rng.nextDouble();
-        if (roll < 0.58) return CosmicEnemyRole.striker;
-        if (roll < 0.92) return CosmicEnemyRole.orbiter;
-        return CosmicEnemyRole.hunter;
+        if (roll < 0.58) return EnemyConduct.charge;
+        if (roll < 0.92) return EnemyConduct.orbit;
+        return EnemyConduct.stalk;
       case SurvivalWavePattern.mixed:
         break;
     }
 
     final roll = _rng.nextDouble();
     if (wave >= 12 && tier.index >= EnemyTier.drone.index && roll < 0.14) {
-      return CosmicEnemyRole.shooter;
+      return EnemyConduct.standoff;
     }
-    if (wave >= 10 && roll < 0.28) return CosmicEnemyRole.hunter;
-    if (roll < 0.62) return CosmicEnemyRole.orbiter;
-    return CosmicEnemyRole.striker;
+    if (wave >= 10 && roll < 0.28) return EnemyConduct.stalk;
+    if (roll < 0.62) return EnemyConduct.orbit;
+    return EnemyConduct.charge;
   }
 
-  CosmicEnemyTarget _initialTargetForRole(CosmicEnemyRole role) {
-    return switch (role) {
-      CosmicEnemyRole.striker => CosmicEnemyTarget.orb,
-      CosmicEnemyRole.orbiter => CosmicEnemyTarget.orb,
-      CosmicEnemyRole.shooter => CosmicEnemyTarget.companion,
-      CosmicEnemyRole.hunter => CosmicEnemyTarget.ship,
+  /// What an enemy goes for first, from its conduct. Target stays mode-aware
+  /// (survival has an orb to defend; the open world does not) — see
+  /// docs/enemy_taxonomy.md §5.
+  CosmicEnemyTarget _initialTargetFor(EnemyConduct conduct) {
+    return switch (conduct) {
+      EnemyConduct.standoff => CosmicEnemyTarget.companion,
+      EnemyConduct.stalk => CosmicEnemyTarget.ship,
+      _ => CosmicEnemyTarget.orb,
     };
   }
 
@@ -1330,37 +1313,29 @@ class CosmicSurvivalSpawner {
               : EnemyTier.drone,
         _ => boss.level >= 10 ? EnemyTier.sentinel : EnemyTier.drone,
       };
-      final role = switch (boss.discipline) {
-        SurvivalBossDiscipline.artillery =>
-          i == 0 ? CosmicEnemyRole.shooter : CosmicEnemyRole.orbiter,
-        SurvivalBossDiscipline.duelist =>
-          i.isEven ? CosmicEnemyRole.hunter : CosmicEnemyRole.striker,
-        SurvivalBossDiscipline.siegebreaker =>
-          i.isEven ? CosmicEnemyRole.striker : CosmicEnemyRole.orbiter,
-        SurvivalBossDiscipline.trickster =>
-          i.isEven ? CosmicEnemyRole.hunter : CosmicEnemyRole.shooter,
-        SurvivalBossDiscipline.riftcaller =>
-          i.isEven ? CosmicEnemyRole.shooter : CosmicEnemyRole.orbiter,
-        SurvivalBossDiscipline.conductor =>
-          i.isEven ? CosmicEnemyRole.orbiter : CosmicEnemyRole.striker,
-        _ => CosmicEnemyRole.striker,
-      };
+      // Each discipline fields a pair of conducts, alternating across the
+      // adds, plus an optional trait. One vocabulary — this used to pick a
+      // role and then translate it.
       final (conduct, trait) = switch (boss.discipline) {
-        SurvivalBossDiscipline.duelist => (EnemyConduct.stalk, null),
-        SurvivalBossDiscipline.siegebreaker
-            when role == CosmicEnemyRole.striker =>
-          (EnemyConduct.charge, null),
-        SurvivalBossDiscipline.siegebreaker => (
-          conductFromRole(role),
-          EnemyTrait.breaker,
+        SurvivalBossDiscipline.artillery => (
+          i == 0 ? EnemyConduct.standoff : EnemyConduct.orbit,
+          null,
         ),
+        SurvivalBossDiscipline.duelist => (EnemyConduct.stalk, null),
+        SurvivalBossDiscipline.siegebreaker =>
+          i.isEven
+              ? (EnemyConduct.charge, null)
+              : (EnemyConduct.orbit, EnemyTrait.breaker),
         SurvivalBossDiscipline.trickster => (EnemyConduct.stalk, null),
-        SurvivalBossDiscipline.riftcaller
-            when role == CosmicEnemyRole.shooter =>
-          (EnemyConduct.standoff, null),
-        SurvivalBossDiscipline.conductor when role == CosmicEnemyRole.orbiter =>
-          (EnemyConduct.orbit, EnemyTrait.breaker),
-        _ => (conductFromRole(role), null),
+        SurvivalBossDiscipline.riftcaller => (
+          i.isEven ? EnemyConduct.standoff : EnemyConduct.orbit,
+          null,
+        ),
+        SurvivalBossDiscipline.conductor =>
+          i.isEven
+              ? (EnemyConduct.orbit, EnemyTrait.breaker)
+              : (EnemyConduct.charge, null),
+        _ => (EnemyConduct.charge, null),
       };
       final hp =
           tierBaseHp(tier) *
@@ -1417,24 +1392,21 @@ class CosmicSurvivalSpawner {
           radius: tierRadius(tier),
           tier: tier,
           element: boss.template.element,
-          role: role,
           conduct: conduct,
           trait: trait,
-          target: switch (role) {
-            CosmicEnemyRole.shooter
-                when boss.discipline == SurvivalBossDiscipline.artillery =>
+          target: switch (conduct) {
+            EnemyConduct.standoff
+                when boss.discipline == SurvivalBossDiscipline.artillery ||
+                    boss.discipline == SurvivalBossDiscipline.riftcaller =>
               CosmicEnemyTarget.orb,
-            CosmicEnemyRole.hunter
+            EnemyConduct.stalk
                 when boss.discipline == SurvivalBossDiscipline.duelist =>
               CosmicEnemyTarget.companion,
-            CosmicEnemyRole.striker
+            EnemyConduct.charge
                 when boss.discipline == SurvivalBossDiscipline.siegebreaker =>
               CosmicEnemyTarget.orb,
-            CosmicEnemyRole.shooter
-                when boss.discipline == SurvivalBossDiscipline.riftcaller =>
-              CosmicEnemyTarget.orb,
-            CosmicEnemyRole.shooter => CosmicEnemyTarget.companion,
-            CosmicEnemyRole.hunter => CosmicEnemyTarget.ship,
+            EnemyConduct.standoff => CosmicEnemyTarget.companion,
+            EnemyConduct.stalk => CosmicEnemyTarget.ship,
             _ => CosmicEnemyTarget.orb,
           },
         ),
@@ -1451,10 +1423,7 @@ class CosmicSurvivalSpawner {
   static List<EliteAffix> eliteAffixPoolForWave(int wave) {
     if (wave < 14) return const [];
     if (wave < 22) {
-      return const [
-        EliteAffix.bulwarked,
-        EliteAffix.overclocked,
-      ];
+      return const [EliteAffix.bulwarked, EliteAffix.overclocked];
     }
     if (wave < 30) {
       return const [
