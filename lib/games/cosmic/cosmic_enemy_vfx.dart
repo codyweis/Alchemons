@@ -102,7 +102,11 @@ class EnemyVisual {
     element: e.element,
     tier: e.tier,
     hpFraction: e.hpFraction,
-    sigilPoints: variantSigilPoints(e.variant),
+    // Trait first: it is the axis that actually carries a mechanic. Falls back
+    // to the variant so conduct-only enemies still read distinctly.
+    sigilPoints: e.trait != null
+        ? traitSigilPoints(e.trait)
+        : variantSigilPoints(e.variant),
     // Survival had its own squash table; it moves here rather than being
     // duplicated a third time inside the renderer.
     squash: switch (e.variant) {
@@ -1353,7 +1357,18 @@ final ui.Paint _markPaint = ui.Paint()
   ..strokeCap = ui.StrokeCap.round
   ..strokeJoin = ui.StrokeJoin.round;
 
-/// Star points per survival variant — the archetype's signature.
+/// Star points per trait — the archetype's signature under the converged
+/// taxonomy. Traits are body-independent, so this mark now means the same
+/// thing on a wisp as on a colossus.
+int traitSigilPoints(EnemyTrait? t) => switch (t) {
+  null => 0,
+  EnemyTrait.breaker => 3,
+  EnemyTrait.summoner => 7,
+  EnemyTrait.splitter => 8,
+};
+
+/// Legacy variant mapping, kept while non-migrated call sites still pass a
+/// variant. Delete with the enum.
 int variantSigilPoints(SurvivalEnemyVariant v) => switch (v) {
   SurvivalEnemyVariant.standard => 0,
   SurvivalEnemyVariant.orbBreaker => 3,

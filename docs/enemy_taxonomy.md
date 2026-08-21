@@ -245,11 +245,20 @@ mapping hunter onto `charge`-like movement would have carried §2.2's redundancy
 forward. Enemies that were hunters now hold at range and lunge. There is a test
 asserting this difference is intentional.
 
-Not yet done:
+Also landed (second pass):
 
-- The spawner still picks `role` + `variant` and derives conduct from them.
-  Until it picks conduct + trait directly, the old enums remain the source of
-  truth and the unreachable-combination problem in §2.4 persists.
+- **§2.4 fixed.** The spawner picks conduct and trait directly. Traits are
+  rolled independently of the body, so any tier can carry any trait — summoner
+  was previously reachable only on sentinel/phantom and splitter only on
+  brute/colossus. `test/enemy_spawn_policy_test.dart` asserts each rolled trait
+  appears on more than one tier.
+- The body-locked summoner/splitter roll is deleted.
+- The archetype sigil keys off `trait`, not `variant`, so the mark means the
+  same thing on a wisp as on a colossus.
+- `variant` is now *derived* from conduct+trait for the call sites that have
+  not migrated, so the two cannot disagree.
+
+Not yet done:
 - The 65 `EnemyBehavior` sites in `cosmic_game_world_systems.dart` still steer
   open-world enemies ad hoc; they do not yet call `conductMoveVector`.
 - Wave patterns still select variants rather than filtering over the taxonomy.

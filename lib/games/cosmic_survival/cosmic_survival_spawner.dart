@@ -5,6 +5,8 @@
 // Boss encounters at milestone waves (every 5 waves).
 
 import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import 'dart:ui';
 
 import 'package:alchemons/games/shared/enemy_movement.dart';
@@ -144,6 +146,8 @@ class CosmicSurvivalEnemy {
     required this.element,
     required CosmicEnemyRole role,
     SurvivalEnemyVariant variant = SurvivalEnemyVariant.standard,
+    EnemyConduct? conduct,
+    EnemyTrait? trait,
     required this.target,
     this.isDead = false,
     this.hitFlash = 0,
@@ -171,8 +175,10 @@ class CosmicSurvivalEnemy {
        variant = variant,
        // Derived, not stored twice: one place decides what the old pair means
        // under the new taxonomy.
-       conduct = conductFromRoleVariant(role, variant),
-       trait = traitFromVariant(variant);
+       // The spawner may pick these directly; otherwise they are derived from
+       // the legacy pair while the migration finishes.
+       conduct = conduct ?? conductFromRoleVariant(role, variant),
+       trait = trait ?? traitFromVariant(variant);
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
   /// True for bodies heavy enough to earn the charge speed bonus that the old
@@ -479,6 +485,11 @@ class CosmicSurvivalSpawner {
     _advanceWave();
   }
 
+  /// Advances the wave without requiring the arena to be cleared. Test-only:
+  /// spawn-policy tests need to reach the deep-wave trait gates.
+  @visibleForTesting
+  void forceNextWaveForTest() => _advanceWave();
+
   void _advanceWave() {
     currentWave++;
     intermission = false;
@@ -696,29 +707,67 @@ class CosmicSurvivalSpawner {
     return spawned;
   }
 
+  /// Rolls an optional extra mechanic. Body-independent by design.
+  EnemyTrait? _traitForWave(int wave) {
+    if (wave >= 14 && _rng.nextDouble() < 0.10) return EnemyTrait.splitter;
+    if (wave >= 12 && _rng.nextDouble() < 0.10) return EnemyTrait.summoner;
+    if (wave >= 8 && _rng.nextDouble() < 0.12) return EnemyTrait.breaker;
+    return null;
+  }
+
+  /// The legacy variant, reconstructed from the new axes. Read only by code
+  /// that has not migrated yet; delete with the enum.
+  SurvivalEnemyVariant _variantForDisplay(
+    EnemyConduct conduct,
+    EnemyTrait? trait,
+    CosmicEnemyRole role,
+  ) {
+    if (trait == EnemyTrait.summoner) return SurvivalEnemyVariant.summoner;
+    if (trait == EnemyTrait.splitter) return SurvivalEnemyVariant.splitter;
+    if (trait == EnemyTrait.breaker) return SurvivalEnemyVariant.orbBreaker;
+    if (conduct == EnemyConduct.stalk) return SurvivalEnemyVariant.pouncer;
+    if (conduct == EnemyConduct.charge &&
+        role != CosmicEnemyRole.striker &&
+        role != CosmicEnemyRole.hunter) {
+      return SurvivalEnemyVariant.crusher;
+    }
+    if (role == CosmicEnemyRole.shooter) {
+      return SurvivalEnemyVariant.siegeShooter;
+    }
+    return SurvivalEnemyVariant.standard;
+  }
+
   CosmicSurvivalEnemy _spawnEnemy(double viewW, double viewH, Offset orbPos) {
     final tier = _tierForWave(currentWave);
     final element = _kElements[_rng.nextInt(_kElements.length)];
     final role = _roleForWave(currentWave, tier);
-    var variant = SurvivalEnemyVariant.standard;
-    if (role == CosmicEnemyRole.shooter && _rng.nextDouble() < 0.36) {
-      variant = SurvivalEnemyVariant.siegeShooter;
-    } else if ((tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
-        (currentPattern == SurvivalWavePattern.siegePush ||
+
+    // CONDUCT — how it moves. Rolled from the wave's shape, not from the body.
+    // The old code derived a `variant` here and let it override the role's
+    // movement; conduct is now the single authority (docs/enemy_taxonomy.md).
+    var conduct = conductFromRoleVariant(role, SurvivalEnemyVariant.standard);
+    if ((currentPattern == SurvivalWavePattern.siegePush ||
             currentMutator == SurvivalWaveMutator.fortified) &&
         _rng.nextDouble() < 0.34) {
-      variant = SurvivalEnemyVariant.crusher;
-    } else if ((role == CosmicEnemyRole.striker ||
-            role == CosmicEnemyRole.orbiter) &&
-        (tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
-        _rng.nextDouble() < 0.34) {
-      variant = SurvivalEnemyVariant.orbBreaker;
-    } else if ((tier == EnemyTier.drone || tier == EnemyTier.phantom) &&
-        (currentPattern == SurvivalWavePattern.hunterPack ||
+      conduct = EnemyConduct.charge;
+    } else if ((currentPattern == SurvivalWavePattern.hunterPack ||
             currentPattern == SurvivalWavePattern.swarmRush) &&
         _rng.nextDouble() < 0.32) {
-      variant = SurvivalEnemyVariant.pouncer;
+      conduct = EnemyConduct.stalk;
     }
+
+    // TRAIT — an extra mechanic, rolled INDEPENDENTLY of the body.
+    //
+    // This is the §2.4 fix. Traits used to be locked to the tier that implied
+    // them: summoner only on sentinel/phantom, splitter only on
+    // brute/colossus, breaker only on a heavy striker. So most of the nominal
+    // combination space was unreachable by construction. Any body can now
+    // carry any trait — a summoner wisp is a thing that can happen.
+    final trait = _traitForWave(currentWave);
+
+    // Legacy display/logic value, derived so the two cannot disagree while the
+    // remaining consumers migrate.
+    final variant = _variantForDisplay(conduct, trait, role);
 
     // Spawn outside view
     final margin = max(viewW, viewH) * 0.55;
@@ -759,20 +808,10 @@ class CosmicSurvivalSpawner {
         (currentMutator == SurvivalWaveMutator.orbSiege ? 1.08 : 1.0) *
         (currentMutator == SurvivalWaveMutator.shatteredSpace ? 1.10 : 1.0) *
         (eliteAffix == EliteAffix.vampiric ? 1.10 : 1.0);
-    // Past mid-game some enemies get more interesting specials. Roll them
-    // here (after the basic variant) so they don't replace siege/crusher
-    // builds that already make sense for their tier+role.
-    if (variant == SurvivalEnemyVariant.standard) {
-      if (currentWave >= 12 &&
-          (tier == EnemyTier.sentinel || tier == EnemyTier.phantom) &&
-          _rng.nextDouble() < 0.18) {
-        variant = SurvivalEnemyVariant.summoner;
-      } else if (currentWave >= 14 &&
-          (tier == EnemyTier.brute || tier == EnemyTier.colossus) &&
-          _rng.nextDouble() < 0.22) {
-        variant = SurvivalEnemyVariant.splitter;
-      }
-    }
+    // (The old body-locked summoner/splitter roll lived here. It only ever
+    // fired on sentinel/phantom and brute/colossus respectively, which is the
+    // unreachable-combination problem; _traitForWave replaces it and is rolled
+    // above, independent of tier.)
 
     final variantHpMult = switch (variant) {
       SurvivalEnemyVariant.orbBreaker => 1.22,
@@ -814,6 +853,9 @@ class CosmicSurvivalSpawner {
       element: element,
       role: role,
       variant: variant,
+      // Picked directly, not derived — the whole point of the change.
+      conduct: conduct,
+      trait: trait,
       target: _initialTargetForRole(role),
       isElite: isElite,
       eliteAffix: eliteAffix,
