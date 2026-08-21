@@ -31,11 +31,14 @@ import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
+import 'package:alchemons/widgets/background/alchemical_particle_background.dart'
+    show routeObserver;
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
+import 'package:alchemons/widgets/perf/viewport_ticker_gate.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -52,12 +55,18 @@ class ShopScreen extends StatefulWidget {
   State<ShopScreen> createState() => _ShopScreenState();
 }
 
-class _ShopScreenState extends State<ShopScreen> {
+class _ShopScreenState extends State<ShopScreen> with RouteAware {
   ForgeTokens get t => ForgeTokens(context.read<FactionTheme>());
 
   int _slotsUnlocked = 1;
   int _cosmicPartySlots = 0;
   bool _showPurchased = false;
+
+  /// False while something is pushed over the shop (the item-detail dialog,
+  /// the black market, the exchange). Everything animated in the shop body is
+  /// under a TickerMode keyed on this, so nothing keeps driving frames behind
+  /// a route the player is actually looking at.
+  bool _routeIsCurrent = true;
 
   late final Map<String, int> _slot2Cost;
   late final Map<String, int> _slot3Cost;
@@ -80,6 +89,35 @@ class _ShopScreenState extends State<ShopScreen> {
 
     _refreshAll();
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) routeObserver.subscribe(this, route);
+    _syncRouteIsCurrent();
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  void _syncRouteIsCurrent() {
+    final isCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    if (!mounted || _routeIsCurrent == isCurrent) return;
+    setState(() => _routeIsCurrent = isCurrent);
+  }
+
+  @override
+  void didPush() => _syncRouteIsCurrent();
+
+  @override
+  void didPopNext() => _syncRouteIsCurrent();
+
+  @override
+  void didPushNext() => _syncRouteIsCurrent();
 
   Future<void> _refreshAll() async {
     final db = context.read<AlchemonsDatabase>();
@@ -177,8 +215,16 @@ class _ShopScreenState extends State<ShopScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              _buildHeader(theme),
-              Expanded(child: _buildShopContent(theme, db)),
+              // The header animates continuously (black-market pulse, currency
+              // and resource tickers). Without its own layer every one of those
+              // frames re-records the whole screen, scroll content included.
+              RepaintBoundary(child: _buildHeader(theme)),
+              Expanded(
+                child: TickerMode(
+                  enabled: _routeIsCurrent,
+                  child: _buildShopContent(theme, db),
+                ),
+              ),
             ],
           ),
         ),
@@ -518,7 +564,11 @@ class _ShopScreenState extends State<ShopScreen> {
                         AppIcons.science_rounded,
                       ),
                       const SizedBox(height: 10),
-                      _buildDailyVialSection(theme, allCurrencies),
+                      // Runs a live brewing particle field; own layer, and
+                      // paused once it scrolls out of the viewport.
+                      ViewportTickerGate(
+                        child: _buildDailyVialSection(theme, allCurrencies),
+                      ),
 
                       _buildSectionHeader(
                         'SPECIAL UNLOCKS',
@@ -537,7 +587,11 @@ class _ShopScreenState extends State<ShopScreen> {
                         AppIcons.hexagon_rounded,
                         coin: CoinKind.gold,
                       ),
-                      _buildGoldVaultSection(theme),
+                      // GraphX mote scene + shimmer/float controllers; own
+                      // layer, and paused once it scrolls out of the viewport.
+                      ViewportTickerGate(
+                        child: _buildGoldVaultSection(theme),
+                      ),
 
                       _buildSectionHeader(
                         'HARVEST DEVICES',
@@ -556,10 +610,14 @@ class _ShopScreenState extends State<ShopScreen> {
                         const Color(0xFFB58CFF),
                         AppIcons.blur_circular_rounded,
                       ),
-                      _buildAlchemicalPowerupsRow(
-                        theme,
-                        allCurrencies,
-                        inventoryByKey,
+                      // Five floating/pulsing orbs, each with a blurred glow;
+                      // own layer, paused once out of the viewport.
+                      ViewportTickerGate(
+                        child: _buildAlchemicalPowerupsRow(
+                          theme,
+                          allCurrencies,
+                          inventoryByKey,
+                        ),
                       ),
 
                       _buildSectionHeader(
@@ -2143,6 +2201,16 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
   late final AnimationController _floatCtrl;
   int _selectedIndex = 0;
 
+  /// GraphX drives its scenes off a bare [Ticker] rather than a
+  /// TickerProvider, so it is deaf to [TickerMode] — the mote field would keep
+  /// simulating and repainting while scrolled out of view. Hold the controller
+  /// so its ticker can be paused by hand instead.
+  late final SceneController _moteScene = SceneController(
+    front: _GoldMoteScene(),
+    config: SceneConfig.autoRender,
+  );
+  bool _moteTickerEnabled = true;
+
   @override
   void initState() {
     super.initState();
@@ -2160,7 +2228,24 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
   void dispose() {
     _shimmerCtrl.dispose();
     _floatCtrl.dispose();
+    // _moteScene is owned by SceneBuilderWidget, which disposes it.
     super.dispose();
+  }
+
+  /// Mirrors the ambient [TickerMode] onto the GraphX ticker. Only ever runs
+  /// on a transition, and defers to a post-frame callback so the scene is
+  /// guaranteed to have been initialised by SceneBuilderWidget first.
+  void _syncMoteTicker(bool enabled) {
+    if (_moteTickerEnabled == enabled) return;
+    _moteTickerEnabled = enabled;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _moteTickerEnabled != enabled) return;
+      if (enabled) {
+        _moteScene.resumeTicker();
+      } else {
+        _moteScene.ticker?.pause();
+      }
+    });
   }
 
   static const _tierColors = [
@@ -2180,6 +2265,7 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(widget.theme);
+    _syncMoteTicker(TickerMode.valuesOf(context).enabled);
 
     if (widget.packs.isEmpty) {
       return const EmptySection(
@@ -2210,10 +2296,7 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
                   child: IgnorePointer(
                     child: SceneBuilderWidget(
                       autoSize: true,
-                      builder: () => SceneController(
-                        front: _GoldMoteScene(),
-                        config: SceneConfig.autoRender,
-                      ),
+                      builder: () => _moteScene,
                     ),
                   ),
                 ),

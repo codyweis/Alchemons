@@ -12,6 +12,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -579,10 +580,18 @@ class _ForgeCostRow extends StatelessWidget {
 }
 
 // ============= CENTRALIZED PREVIEW BUILDER =============
+/// Builds the artwork for a shop offer.
+///
+/// [animate] decides whether the alchemy sprite effects run live. Grid cards
+/// pass `false`: they get a one-off bake of the effect's resting frame, drawn
+/// with a single drawImageRect, so scrolling the shop does not drive eleven
+/// blur-heavy animations at once. The item-detail dialog passes `true` and
+/// still shows the real, fully animated effect.
 Widget _buildOfferPreview(
   ShopOffer offer, {
   double size = 64.0,
   required FactionTheme theme,
+  bool animate = true,
 }) {
   // 0b. Alchemical powerup orb — render glowing sphere in stat color
   if (offer.id.startsWith('boost.powerup.')) {
@@ -634,10 +643,16 @@ Widget _buildOfferPreview(
       size: size,
     );
     if (preview != null) {
+      final live = SizedBox.square(
+        dimension: size,
+        child: ExcludeSemantics(child: preview),
+      );
+      if (animate) return Center(child: live);
       return Center(
-        child: SizedBox.square(
-          dimension: size,
-          child: ExcludeSemantics(child: preview),
+        child: StaticEffectSnapshot(
+          cacheKey: 'shop.alchemy.${offer.inventoryKey}',
+          boxSize: size,
+          child: live,
         ),
       );
     }
@@ -727,8 +742,9 @@ Widget _buildOfferPreviewForDialog(
     );
   }
 
-  // Otherwise use the standard preview logic
-  return _buildOfferPreview(offer, size: size, theme: theme);
+  // Otherwise use the standard preview logic. The dialog is the item preview:
+  // this is where the alchemy effects play live, exactly as they always have.
+  return _buildOfferPreview(offer, size: size, theme: theme, animate: true);
 }
 
 // ============= NEW GAME SHOP CARD =============
@@ -789,6 +805,9 @@ class GameShopCard extends StatelessWidget {
                       offer,
                       size: 64.0,
                       theme: theme,
+                      // Cards at rest render a baked raster, never a live
+                      // animation. The live effect plays in the detail dialog.
+                      animate: false,
                     ),
                   ),
                 ),

@@ -217,12 +217,19 @@ class _AlchemicalParticleBackgroundState
           repaint: _controller,
         );
 
-        Widget layer = SizedBox(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-          child: CustomPaint(
-            size: Size(constraints.maxWidth, constraints.maxHeight),
-            painter: painter,
+        // The painter repaints every frame off [_controller]. Without a
+        // boundary of its own it marks the nearest ancestor boundary dirty —
+        // which, sitting as a bare Stack sibling of the screen's Scaffold, is
+        // the whole screen. Every scrolling list drawn above this background
+        // would be re-recorded 60x/s for the sake of a few drifting motes.
+        Widget layer = RepaintBoundary(
+          child: SizedBox(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            child: CustomPaint(
+              size: Size(constraints.maxWidth, constraints.maxHeight),
+              painter: painter,
+            ),
           ),
         );
 
