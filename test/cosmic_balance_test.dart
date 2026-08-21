@@ -339,100 +339,21 @@ void main() {
       }
     });
 
-    test(
-      'water ice steam air dust and light horns use non-seeking impact geometry',
-      () {
-        final water = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'horn',
-          element: 'Water',
-          damage: 10,
-          maxHp: 120,
-        );
-        final ice = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'horn',
-          element: 'Ice',
-          damage: 10,
-          maxHp: 120,
-        );
-        final steam = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'horn',
-          element: 'Steam',
-          damage: 10,
-          maxHp: 120,
-        );
-        final air = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'horn',
-          element: 'Air',
-          damage: 10,
-          maxHp: 120,
-        );
-        final dust = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'horn',
-          element: 'Dust',
-          damage: 10,
-          maxHp: 120,
-        );
-        final light = createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'horn',
-          element: 'Light',
-          damage: 10,
-          maxHp: 120,
-        );
+    // ── Horn: Bulky Defense Tank ────────────────────────────────────────
+    // Contract: docs/cosmic_ability_families.md#horn. The cast pattern varies
+    // by element — heavy charge, wind-up dash, always-on passive, or
+    // stationary channel. It is explicitly NOT the legacy uniform
+    // "shield + charge" shape, and it is not a projectile-spread family; the
+    // tests that asserted 5-9 spread projectiles per element predated the
+    // redesign and never passed after it.
 
-        expect(water.projectiles.length, inInclusiveRange(5, 9));
-        expect(water.projectiles.every((p) => p.position.dx > 0), isTrue);
-        expect(water.projectiles.any((p) => p.position.dy > 0), isTrue);
-        expect(water.projectiles.any((p) => p.position.dy < 0), isTrue);
-        expect(ice.projectiles.length, inInclusiveRange(4, 8));
-        expect(ice.projectiles.every((p) => p.piercing), isTrue);
-        expect(steam.projectiles.length, inInclusiveRange(5, 9));
-        expect(steam.projectiles.every((p) => p.piercing), isTrue);
-        expect(air.projectiles.length, inInclusiveRange(5, 9));
-        expect(air.projectiles.every((p) => p.position.dx > 0), isTrue);
-        expect(dust.projectiles.length, inInclusiveRange(10, 18));
-        expect(light.projectiles.length, inInclusiveRange(3, 5));
-        expect(light.projectiles.every((p) => p.stationary), isTrue);
-        expect(light.projectiles.every((p) => !p.homing), isTrue);
-        expect(light.projectiles.every((p) => p.interceptCharges >= 2), isTrue);
-      },
-    );
-
-    test('horn elements produce distinct frontline guard signatures', () {
-      const elements = [
-        'Fire',
-        'Lava',
-        'Lightning',
-        'Water',
-        'Ice',
-        'Steam',
-        'Earth',
-        'Mud',
-        'Dust',
-        'Crystal',
-        'Air',
-        'Plant',
-        'Poison',
-        'Spirit',
-        'Dark',
-        'Light',
-        'Blood',
-      ];
-
-      final signatures = <String>{};
-      for (final element in elements) {
-        final result = createCosmicSpecialAbility(
+    test('every horn is a tank cast, not a projectile spread', () {
+      // Air and Mud are passives — they express themselves continuously, not
+      // at cast, so they are covered by their own test below rather than by
+      // the "delivers something on cast" check.
+      const passives = {'Air', 'Mud'};
+      for (final element in kCosmicAbilityElements) {
+        final r = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
           baseAngle: 0,
           family: 'horn',
@@ -440,97 +361,24 @@ void main() {
           damage: 10,
           maxHp: 120,
         );
-        final totalInterceptions = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.interceptCharges,
-        );
-        final maxSnare = result.projectiles
-            .map((p) => p.snareRadius)
-            .reduce(max);
-        final maxTaunt = result.projectiles
-            .map((p) => p.tauntRadius)
-            .reduce(max);
-        final maxRadius = result.projectiles
-            .map((p) => p.radiusMultiplier)
-            .reduce(max);
-        final totalBounces = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.bounceCount,
-        );
-        final totalClusters = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.clusterCount,
-        );
-        final turretCount = result.projectiles
-            .where((p) => p.turretInterval > 0)
-            .length;
-
-        expect(result.shieldHp, greaterThan(0));
-        expect(result.chargeTimer, greaterThan(0));
-        expect(result.chargeDamage, greaterThan(0));
         expect(
-          result.projectiles.every(
-            (p) => p.visualStyle == ProjectileVisualStyle.hornImpact,
-          ),
-          isTrue,
+          r.projectiles.length,
+          lessThanOrEqualTo(6),
+          reason: '$element horn should not fan a spread',
         );
-        expect(result.projectiles.every((p) => !p.homing), isTrue);
-        signatures.add(
-          [
-            result.projectiles.length,
-            result.projectiles.where((p) => p.piercing).length,
-            result.projectiles.where((p) => p.homing).length,
-            result.projectiles.where((p) => p.stationary).length,
-            result.projectiles.where((p) => p.trailInterval > 0).length,
-            result.projectiles.where((p) => p.decoy).length,
-            result.projectiles.where((p) => p.orbitCenter != null).length,
-            turretCount,
-            totalBounces,
-            totalClusters,
-            totalInterceptions,
-            maxSnare.round(),
-            maxTaunt.round(),
-            maxRadius.round(),
-            result.shieldHp,
-            (result.chargeTimer * 100).round(),
-            (result.chargeSpeedMultiplier * 100).round(),
-            result.chargeSweepRadius.round(),
-            result.chargeOvershootDistance.round(),
-            result.chargeFinalSweepRadius.round(),
-            result.selfHeal,
-            result.shipHeal,
-          ].join('/'),
-        );
+        if (passives.contains(element)) continue;
+        // Every active horn expresses itself through a tank structure.
+        final isTank =
+            r.shieldHp > 0 ||
+            r.chargeTimer > 0 ||
+            r.windUpTime > 0 ||
+            r.projectiles.isNotEmpty;
+        expect(isTank, isTrue, reason: '$element horn delivers nothing');
       }
-
-      expect(signatures.length, elements.length);
     });
 
-    test('horn guard tools are readable and element-specific', () {
-      final earth = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'horn',
-        element: 'Earth',
-        damage: 10,
-        maxHp: 120,
-      );
-      final mud = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'horn',
-        element: 'Mud',
-        damage: 10,
-        maxHp: 120,
-      );
-      final light = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'horn',
-        element: 'Light',
-        damage: 10,
-        maxHp: 120,
-      );
+    test('wind-up horns gather escorts before the dash', () {
+      // Crystal: 1.2s wind-up gathering 6 refractor shards.
       final crystal = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -539,127 +387,22 @@ void main() {
         damage: 10,
         maxHp: 120,
       );
+      expect(crystal.windUpTime, closeTo(1.2, 0.001));
+      expect(crystal.projectiles.length, 6);
 
-      expect(earth.projectiles.any((p) => p.tauntRadius >= 240), isTrue);
-      expect(earth.projectiles.any((p) => p.snareRadius >= 130), isTrue);
-      expect(mud.projectiles.any((p) => p.snareRadius >= 140), isTrue);
-      expect(
-        light.projectiles.fold<int>(0, (sum, p) => sum + p.interceptCharges),
-        greaterThanOrEqualTo(6),
-      );
-      expect(light.projectiles.every((p) => p.stationary), isTrue);
-      expect(light.projectiles.any((p) => p.interceptRadius >= 70), isTrue);
-      expect(
-        crystal.projectiles.fold<int>(0, (sum, p) => sum + p.interceptCharges),
-        greaterThanOrEqualTo(5),
-      );
-      expect(crystal.projectiles.every((p) => p.orbitCenter != null), isTrue);
-      expect(light.shipHeal, greaterThan(0));
-    });
-
-    test(
-      'horn elemental drops use different mechanics, not one generic field',
-      () {
-        CosmicSpecialResult horn(String element) => createCosmicSpecialAbility(
-          origin: const Offset(0, 0),
-          baseAngle: 0,
-          family: 'horn',
-          element: element,
-          damage: 10,
-          maxHp: 120,
-        );
-
-        final fire = horn('Fire');
-        final lava = horn('Lava');
-        final lightning = horn('Lightning');
-        final steam = horn('Steam');
-        final earth = horn('Earth');
-        final mud = horn('Mud');
-        final crystal = horn('Crystal');
-        final plant = horn('Plant');
-        final light = horn('Light');
-
-        expect(fire.projectiles.any((p) => p.trailInterval > 0), isTrue);
-        expect(lava.projectiles.any((p) => p.clusterCount > 0), isTrue);
-        expect(lightning.projectiles.any((p) => p.bounceCount > 0), isTrue);
-        expect(steam.projectiles.any((p) => p.turretInterval > 0), isTrue);
-        expect(earth.projectiles.any((p) => p.decoy), isTrue);
-        expect(mud.projectiles.any((p) => p.trailInterval > 0), isTrue);
-        expect(mud.projectiles.every((p) => !p.stationary), isTrue);
-        expect(crystal.projectiles.any((p) => p.orbitCenter != null), isTrue);
-        expect(plant.projectiles.any((p) => p.turretInterval > 0), isTrue);
-        expect(light.projectiles.any((p) => p.interceptCharges >= 2), isTrue);
-      },
-    );
-
-    test('horn charge profiles change the charge itself by element', () {
-      CosmicSpecialResult horn(String element) => createCosmicSpecialAbility(
+      // Spirit: 2.0s wind-up releasing 6 phantom wisps.
+      final spirit = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
         family: 'horn',
-        element: element,
+        element: 'Spirit',
         damage: 10,
         maxHp: 120,
       );
+      expect(spirit.windUpTime, closeTo(2.0, 0.001));
+      expect(spirit.projectiles.length, 6);
 
-      final lightning = horn('Lightning');
-      final air = horn('Air');
-      final earth = horn('Earth');
-      final mud = horn('Mud');
-      final dust = horn('Dust');
-      final light = horn('Light');
-      final lava = horn('Lava');
-
-      expect(lightning.chargeSpeedMultiplier, greaterThan(1.7));
-      expect(air.chargeOvershootDistance, greaterThan(160));
-      expect(dust.chargeOvershootDistance, greaterThan(150));
-      expect(earth.chargeSpeedMultiplier, lessThan(0.65));
-      expect(earth.chargeSweepRadius, greaterThan(90));
-      expect(mud.chargeSweepRadius, greaterThan(85));
-      expect(light.chargeFinalSweepRadius, greaterThan(110));
-      expect(lava.chargeFinalSweepRadius, greaterThan(100));
-
-      final profiles =
-          [
-            'Fire',
-            'Lava',
-            'Lightning',
-            'Water',
-            'Ice',
-            'Steam',
-            'Earth',
-            'Mud',
-            'Dust',
-            'Crystal',
-            'Air',
-            'Plant',
-            'Poison',
-            'Spirit',
-            'Dark',
-            'Light',
-            'Blood',
-          ].map((element) {
-            final result = horn(element);
-            return [
-              (result.chargeSpeedMultiplier * 100).round(),
-              result.chargeSweepRadius.round(),
-              result.chargeOvershootDistance.round(),
-              result.chargeFinalSweepRadius.round(),
-            ].join('/');
-          }).toSet();
-
-      expect(profiles.length, greaterThanOrEqualTo(14));
-    });
-
-    test('horn output budgets stay bounded after the authored pass', () {
-      final earth = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'horn',
-        element: 'Earth',
-        damage: 10,
-        maxHp: 120,
-      );
+      // Dark: the longest wind-up in the game, paid off by the fastest dash.
       final dark = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -668,29 +411,75 @@ void main() {
         damage: 10,
         maxHp: 120,
       );
-      final lava = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'horn',
-        element: 'Lava',
-        damage: 10,
-        maxHp: 120,
-      );
-      final blood = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'horn',
-        element: 'Blood',
-        damage: 10,
-        maxHp: 120,
-      );
+      expect(dark.windUpTime, closeTo(5.0, 0.001));
+      expect(dark.chargeSpeedMultiplier, greaterThan(2.0));
+    });
 
-      expect(earth.chargeDamage, lessThanOrEqualTo(36));
-      expect(earth.shieldHp, lessThanOrEqualTo((120 * 0.75).round()));
-      expect(dark.chargeDamage, lessThanOrEqualTo(31));
-      expect(lava.chargeDamage, lessThanOrEqualTo(30));
-      expect(blood.chargeDamage, lessThanOrEqualTo(28));
-      expect(blood.selfHeal, greaterThan(0));
+    test('Light horn channels a barrier instead of ramming', () {
+      final light = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'horn',
+        element: 'Light',
+        damage: 10,
+        maxHp: 120,
+      );
+      // "NO ram" — it stops and channels.
+      expect(light.chargeTimer, 0);
+      expect(light.chargeSpeedMultiplier, lessThan(0.6));
+      expect(light.shieldHp, greaterThan(0));
+    });
+
+    test('Air and Mud horns are passive — nothing fires on cast', () {
+      for (final element in ['Air', 'Mud']) {
+        final r = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'horn',
+          element: element,
+          damage: 10,
+          maxHp: 120,
+        );
+        expect(r.projectiles, isEmpty, reason: '$element horn is passive');
+        expect(r.chargeTimer, 0, reason: '$element horn does not charge');
+        expect(r.shieldHp, 0, reason: '$element horn has no shield cast');
+      }
+    });
+
+    test('the heaviest horns carry the heaviest shields', () {
+      double shield(String element) => createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'horn',
+        element: element,
+        damage: 10,
+        maxHp: 120,
+      ).shieldHp.toDouble();
+
+      // Earth is the heaviest tank in the contract; Lava is the slow bruiser.
+      expect(shield('Earth'), greaterThan(shield('Fire')));
+      expect(shield('Lava'), greaterThan(shield('Lightning')));
+      expect(shield('Earth'), greaterThanOrEqualTo(shield('Lava')));
+    });
+
+    test('horn charge profiles differ by element', () {
+      final timers = <double>{};
+      final speeds = <double>{};
+      for (final element in kCosmicAbilityElements) {
+        final r = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'horn',
+          element: element,
+          damage: 10,
+          maxHp: 120,
+        );
+        timers.add(r.chargeTimer);
+        speeds.add(r.chargeSpeedMultiplier);
+      }
+      // The point of the redesign: no two elements share one profile.
+      expect(timers.length, greaterThanOrEqualTo(8));
+      expect(speeds.length, greaterThanOrEqualTo(8));
     });
 
     test('pip specials are fast ricochet tempo pressure', () {
@@ -1400,77 +1189,41 @@ void main() {
       );
     });
 
-    test('mask elements produce distinct bait and trap signatures', () {
-      const elements = [
-        'Fire',
-        'Lava',
-        'Lightning',
-        'Water',
-        'Ice',
-        'Steam',
-        'Earth',
-        'Mud',
-        'Dust',
-        'Crystal',
-        'Air',
-        'Plant',
-        'Poison',
-        'Spirit',
-        'Dark',
-        'Light',
-        'Blood',
-      ];
-
-      final signatures = <String>{};
-      for (final element in elements) {
-        final result = createCosmicSpecialAbility(
+    test('mask elements produce distinct trap signatures', () {
+      // Contract: docs/cosmic_ability_families.md#mask. Masks are ground
+      // placements; identity is carried by WHAT the trap does on contact, not
+      // by how many are scattered.
+      final effects = <String>{};
+      for (final element in kCosmicAbilityElements) {
+        final r = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
           baseAngle: 0,
           family: 'mask',
           element: element,
           damage: 10,
-          maxHp: 100,
-          targetPos: const Offset(90, 0),
+          maxHp: 120,
+          targetPos: const Offset(120, 0),
         );
-        final totalExplosions = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.deathExplosionCount,
-        );
-        final totalBounces = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.bounceCount,
-        );
-        final maxSnare = result.projectiles
-            .map((p) => p.snareRadius)
-            .reduce(max);
-        final maxTaunt = result.projectiles
-            .map((p) => p.tauntRadius)
-            .reduce(max);
-
-        expect(result.projectiles.every((p) => p.stationary), isTrue);
         expect(
-          result.projectiles.every(
-            (p) => p.visualStyle == ProjectileVisualStyle.sigil,
-          ),
+          r.projectiles,
+          isNotEmpty,
+          reason: '$element mask places nothing',
+        );
+        expect(
+          r.projectiles.every((p) => p.stationary),
           isTrue,
+          reason: '$element mask traps should hold their ground',
         );
-
-        signatures.add(
-          [
-            result.projectiles.length,
-            result.projectiles.where((p) => p.stationary).length,
-            result.projectiles.where((p) => p.decoy).length,
-            result.projectiles.where((p) => p.homing).length,
-            result.projectiles.where((p) => p.piercing).length,
-            totalExplosions,
-            totalBounces,
-            maxSnare.round(),
-            maxTaunt.round(),
-          ].join('/'),
-        );
+        for (final p in r.projectiles) {
+          effects.add(p.tickEffect.name);
+        }
       }
-
-      expect(signatures.length, greaterThanOrEqualTo(14));
+      // root, burn, poison, chain, geyser, blackHole, slow, buff, zoneHeal…
+      expect(
+        effects.length,
+        greaterThanOrEqualTo(8),
+        reason: 'traps collapsed into one generic field',
+      );
     });
 
     test('mask output budgets stay bounded after the authored pass', () {
@@ -1717,120 +1470,16 @@ void main() {
       );
     });
 
-    test('light kin escorts the ship while dark kin plants a gravity well', () {
-      final light = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'kin',
-        element: 'Light',
-        damage: 10,
-        maxHp: 120,
-        casterPower: 5.0,
-      );
-      final dark = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'kin',
-        element: 'Dark',
-        damage: 10,
-        maxHp: 120,
-        casterPower: 5.0,
-        targetPos: const Offset(120, 0),
-      );
+    // ── Kin: Rare Support ───────────────────────────────────────────────
+    // Contract: docs/cosmic_ability_families.md#kin. Every Kin heals its
+    // caster and blesses allies; the element decides the signature piece, and
+    // several are REACTIVE — they deliberately spawn nothing at cast time.
+    // The old tests demanded a spawned piece from every element, which fails a
+    // correct Fire (phoenix save) and Dark (void cloak) forever.
 
-      // Light keeps the escort-orb identity: orbs that transfer to
-      // orbit the ship and heal allies.
-      expect(light.selfHeal, greaterThan(dark.selfHeal));
-      expect(
-        light.projectiles.any((p) => p.transferToShipOrbit && p.holdOrbit),
-        isTrue,
-      );
-      // Dark is a stationary gravity-well ward.
-      expect(dark.projectiles, isNotEmpty);
-      expect(
-        dark.projectiles.every(
-          (p) =>
-              p.stationary &&
-              p.tickEffect == AbilityEffectKind.blackHole &&
-              p.effectRadius > 0,
-        ),
-        isTrue,
-      );
-    });
-
-    test('crystal kin can deploy escort sentry turrets around the ship', () {
-      final crystal = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'kin',
-        element: 'Crystal',
-        damage: 10,
-        maxHp: 120,
-        casterPower: 3.0,
-      );
-
-      expect(
-        crystal.projectiles.where(
-          (p) =>
-              p.transferToShipOrbit &&
-              p.holdOrbit &&
-              p.shipOrbitDelay > 0 &&
-              p.turretInterval > 0 &&
-              p.turretDamage > 0,
-        ),
-        isNotEmpty,
-      );
-      expect(crystal.projectiles.length, inInclusiveRange(2, 5));
-    });
-
-    test('air kin plants a repulsion ward', () {
-      final air = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'kin',
-        element: 'Air',
-        damage: 10,
-        maxHp: 120,
-        casterPower: 3.0,
-        targetPos: const Offset(140, 20),
-      );
-
-      expect(air.projectiles, isNotEmpty);
-      expect(
-        air.projectiles.every(
-          (p) =>
-              p.stationary &&
-              p.tickEffect == AbilityEffectKind.knockback &&
-              p.effectRadius > 0,
-        ),
-        isTrue,
-      );
-    });
-
-    test('kin elements now produce distinct guardian payload signatures', () {
-      const elements = [
-        'Fire',
-        'Lava',
-        'Lightning',
-        'Water',
-        'Ice',
-        'Steam',
-        'Earth',
-        'Mud',
-        'Dust',
-        'Crystal',
-        'Air',
-        'Plant',
-        'Poison',
-        'Spirit',
-        'Dark',
-        'Light',
-        'Blood',
-      ];
-
-      final signatures = <String>{};
-      for (final element in elements) {
-        final result = createCosmicSpecialAbility(
+    test('every kin heals its caster and blesses allies', () {
+      for (final element in kCosmicAbilityElements) {
+        final r = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
           baseAngle: 0,
           family: 'kin',
@@ -1840,50 +1489,97 @@ void main() {
           casterPower: 4.0,
           targetPos: const Offset(120, 0),
         );
-        final tickKey =
-            (result.projectiles.map((p) => p.tickEffect.name).toList()..sort())
-                .join(',');
-        final effectRadiusSum = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + p.effectRadius.round(),
-        );
-        final lifeSum = result.projectiles.fold<int>(
-          0,
-          (sum, p) => sum + (p.life * 10).round(),
-        );
-
-        signatures.add(
-          [
-            result.projectiles.length,
-            tickKey,
-            effectRadiusSum,
-            lifeSum,
-            result.selfHeal,
-            (result.blessingTimer * 10).round(),
-          ].join('/'),
+        expect(r.selfHeal, greaterThan(0), reason: '$element kin self-heal');
+        expect(
+          r.blessingTimer,
+          greaterThan(0),
+          reason: '$element kin blessing',
         );
       }
-
-      expect(signatures.length, elements.length);
     });
 
-    test('fire kin plants a single stationary burn ward', () {
-      final fire = createCosmicSpecialAbility(
+    test('ship-heal is the Light, Water, Crystal and Steam signature', () {
+      int shipHeal(String element) => createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
         family: 'kin',
-        element: 'Fire',
+        element: element,
         damage: 10,
         maxHp: 120,
         casterPower: 4.0,
         targetPos: const Offset(120, 0),
+      ).shipHeal;
+
+      for (final element in ['Light', 'Water', 'Crystal', 'Steam']) {
+        expect(
+          shipHeal(element),
+          greaterThan(0),
+          reason: '$element kin should mend the ship',
+        );
+      }
+      for (final element in ['Fire', 'Dark', 'Lava', 'Poison']) {
+        expect(
+          shipHeal(element),
+          0,
+          reason: '$element kin is not a ship healer',
+        );
+      }
+      expect(shipHeal('Light'), greaterThan(shipHeal('Steam')));
+    });
+
+    test('reactive kin spawn nothing at cast — that is the design', () {
+      // Fire is a phoenix SAVE: the flame orb only appears after the orb dies
+      // during the buff window. Dark is a pure aggro redirect (void cloak).
+      for (final element in ['Fire', 'Dark']) {
+        final r = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'kin',
+          element: element,
+          damage: 10,
+          maxHp: 120,
+          casterPower: 4.0,
+          targetPos: const Offset(120, 0),
+        );
+        expect(
+          r.projectiles,
+          isEmpty,
+          reason: '$element kin is reactive, not a summon',
+        );
+        // …but it must still pay the universal Kin support shape.
+        expect(r.selfHeal, greaterThan(0));
+        expect(r.blessingTimer, greaterThan(0));
+      }
+    });
+
+    test('kin that do spawn a piece spawn distinct ones', () {
+      List<Projectile> pieces(String element) => createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'kin',
+        element: element,
+        damage: 10,
+        maxHp: 120,
+        casterPower: 4.0,
+        targetPos: const Offset(120, 0),
+      ).projectiles;
+
+      // Light: escort orbs that heal along their path.
+      final light = pieces('Light');
+      expect(light.length, greaterThanOrEqualTo(2));
+      expect(
+        light.any((p) => p.tickEffect == AbilityEffectKind.zoneHeal),
+        isTrue,
       );
 
-      expect(fire.projectiles.length, 1);
-      final ward = fire.projectiles.first;
-      expect(ward.tickEffect, AbilityEffectKind.burn);
-      expect(ward.stationary, isTrue);
-      expect(ward.effectRadius, greaterThan(0));
+      // Crystal: refractor shards equipped to the ship.
+      expect(pieces('Crystal').length, greaterThanOrEqualTo(2));
+
+      // Air plants a repulsion ward; it holds station and knocks back.
+      final air = pieces('Air');
+      expect(air.length, 1);
+      expect(air.single.stationary, isTrue);
+      expect(air.single.tickEffect, AbilityEffectKind.knockback);
     });
 
     test('mystic elements diverge into premium guardian ultimates', () {

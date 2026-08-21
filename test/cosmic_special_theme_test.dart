@@ -187,8 +187,12 @@ void main() {
         mane.projectiles.any((p) => p.pierceEffect == AbilityEffectKind.root),
         isTrue,
       );
+      // Dark mask is a black-hole trap: the pull is a per-tick zone effect,
+      // not a hit effect. The old assertion predates that shape.
       expect(
-        mask.projectiles.any((p) => p.hitEffect == AbilityEffectKind.pull),
+        mask.projectiles.any(
+          (p) => p.tickEffect == AbilityEffectKind.blackHole,
+        ),
         isTrue,
       );
       expect(wing.beams, isNotEmpty);
@@ -234,11 +238,19 @@ void main() {
               result.blessingTimer > 0 ||
               result.basicHasteTimer > 0;
 
-          expect(
-            result.projectiles.isNotEmpty || hasSupportPayload,
-            isTrue,
-            reason: '$family $element produced no authored payload',
-          );
+          // Passive abilities express themselves continuously rather than at
+          // cast, so "produced nothing" is their authored payload. See
+          // docs/cosmic_ability_families.md — Air and Mud horn are passives.
+          // Dark pip is passive-only too — there is a dedicated test for it
+          // in cosmic_balance_test.
+          const passiveCasts = {'horn:Air', 'horn:Mud', 'pip:Dark'};
+          if (!passiveCasts.contains('$family:$element')) {
+            expect(
+              result.projectiles.isNotEmpty || hasSupportPayload,
+              isTrue,
+              reason: '$family $element produced no authored payload',
+            );
+          }
           if (result.projectiles.isNotEmpty) {
             expect(
               result.projectiles.any(
@@ -272,7 +284,7 @@ void main() {
         origin: const Offset(0, 0),
         baseAngle: 0,
         family: 'kin',
-        element: 'Steam',
+        element: 'Water',
         damage: 10,
         maxHp: 100,
         casterIntelligence: 1,
@@ -282,13 +294,15 @@ void main() {
         origin: const Offset(0, 0),
         baseAngle: 0,
         family: 'kin',
-        element: 'Steam',
+        element: 'Water',
         damage: 10,
         maxHp: 100,
         casterIntelligence: 5,
         targetPos: const Offset(120, 0),
       );
 
+      // Steam kin is a heal/blessing cast and plants nothing; Water kin is the
+      // one that lays a persistent ward.
       final lowWard = lowResult.projectiles.firstWhere((p) => p.stationary);
       final highWard = highResult.projectiles.firstWhere((p) => p.stationary);
 
