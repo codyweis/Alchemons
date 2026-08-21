@@ -157,6 +157,29 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   double? _introFadeStart;
   bool _showIntro = true;
 
+  /// The descent's element is reparented (not rebuilt) when `_ready` flips and
+  /// the screen swaps from "loading shell" to "live dungeon + overlay". Without
+  /// this the painter's whole render subtree is torn down and recreated in the
+  /// middle of the dive — a spike exactly where it shows.
+  final GlobalKey _descentKey = GlobalKey(debugLabel: 'descent');
+
+  /// True while the dungeon is loaded and mounted but deliberately NOT ticking
+  /// because the descent is covering it.
+  ///
+  /// The dungeon used to load AND RUN under the descent: from the moment
+  /// Flame finished `onLoad` (a few hundred ms in) the full scene — fullscreen
+  /// sky fragment shader, drifting clouds, ambient motes and ~25 world passes —
+  /// was updated and rendered at 60fps behind an opaque overlay, plus a 10Hz
+  /// HUD rebuild on top of it. That is what made the dive stutter; the descent
+  /// painter itself is a few hundred cheap draws. So the dungeon loads under
+  /// the descent (as designed) but stays frozen until the descent starts
+  /// fading. See [_thawDungeon].
+  bool _dungeonFrozen = true;
+
+  /// Whether the frozen dungeon has been stepped once to warm its first-paint
+  /// costs (notably the sky shader's runtime compile) while it is still hidden.
+  bool _dungeonWarmed = false;
+
   @override
   void initState() {
     super.initState();
@@ -172,11 +195,16 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     _introTicker = createTicker((elapsed) {
       if (!mounted) return;
       final secs = elapsed.inMicroseconds / 1e6;
+      _warmFrozenDungeon();
       if (_introFadeStart == null && secs >= _descentSeconds && _ready) {
         _introFadeStart = secs;
+        // The fade is the first moment the dungeon is visible, so it is the
+        // first moment it is allowed to cost anything.
+        _thawDungeon();
       }
       if (_introFadeStart != null && secs > _introFadeStart! + 0.5) {
         _introTicker.stop();
+        _thawDungeon(); // belt and braces — never leave the run frozen
         setState(() => _showIntro = false);
         return;
       }
@@ -234,14 +262,55 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           );
 
     if (!mounted) return;
+    // Freeze the engine BEFORE the GameWidget ever enters the tree: Flame only
+    // starts its game loop on attach when `paused` is false, so this costs
+    // nothing and skips the loop entirely. `onLoad` is driven by the widget's
+    // loader future, not by the loop, so the dungeon still loads its sprites,
+    // its baked FX images and its sky shader while the dive plays — which was
+    // always the point of the descent. It just doesn't also render 100 hidden
+    // frames while doing it. Thawed in [_thawDungeon].
+    game.pauseEngine();
     setState(() {
       _game = game;
       _ready = true;
     });
 
     _hudTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (mounted) _tick.value++;
+      // Skip while the descent covers the screen: the five `_tick` subtrees
+      // (minimap, action cluster, swap rail, hint capsule, star tracker) are
+      // invisible and, with the engine frozen, have nothing new to show.
+      if (mounted && !_dungeonFrozen) _tick.value++;
     });
+  }
+
+  /// Draw the frozen dungeon exactly once, while the descent still hides it.
+  ///
+  /// This is the one hidden frame worth paying for: it is where the fullscreen
+  /// sky `FragmentShader` gets compiled by the driver and every first-use paint
+  /// path is walked, so the reveal doesn't pay for them. `stepTime: 0` means no
+  /// simulation time passes — the dungeon is still at t=0 when you land, so the
+  /// entry hint gets its full 5.5s instead of burning 1.7s of it unseen.
+  void _warmFrozenDungeon() {
+    if (_dungeonWarmed || !_dungeonFrozen) return;
+    final game = _game;
+    // `isAttached` is the precise signal: Flame only puts its render box in
+    // the tree inside the loader future's `done` branch, so attached ⇒ loaded
+    // and mounted.
+    if (game == null || !game.isAttached) return;
+    _dungeonWarmed = true;
+    game.stepEngine(stepTime: 0);
+  }
+
+  /// Hand the frame budget back: the dungeon runs, and its HUD resumes
+  /// ticking, from the instant the descent begins to fade.
+  void _thawDungeon() {
+    if (!_dungeonFrozen) return;
+    _dungeonFrozen = false;
+    // The descent overlay ignores pointers, so END RUN is reachable (blind)
+    // mid-dive. If that already handed the pause to a reward popup, leave it
+    // paused — the thaw only ever undoes the DESCENT'S freeze.
+    if (_rewardStars != null || _showRaidReward) return;
+    _game?.resumeEngine();
   }
 
   Future<void> _onStarEarned(int index) async {
@@ -838,43 +907,89 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     );
   }
 
-  /// Raid HUD chip: window countdown + the guardian's remaining strength.
+  /// Raid HUD chip: which planet is overrun and how long the window has left.
+  ///
+  /// Same chrome as the space-view raid strip — hard edges, bracketed corners,
+  /// an ember accent rail — so the raid reads as one thing across both views.
   Widget _raidChip() {
     final end = widget.raidEndUtc;
     String clock = '';
+    bool closing = false;
     if (end != null) {
       final left = end.difference(DateTime.now().toUtc());
       if (left.isNegative) {
         clock = 'WINDOW CLOSED';
+        closing = true;
       } else {
         String two(int v) => v.toString().padLeft(2, '0');
         clock =
             '${two(left.inHours)}:${two(left.inMinutes % 60)}:${two(left.inSeconds % 60)}';
+        closing = left.inMinutes < 60;
       }
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: _C.bg.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.danger.withValues(alpha: 0.7)),
+    const ember = Color(0xFFE25544);
+
+    return CustomPaint(
+      foregroundPainter: const DungeonBracketPainter(
+        color: ember,
+        bracketSize: 7,
+        strokeWidth: 1.2,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.whatshot_rounded, color: _C.danger, size: 14),
-          const SizedBox(width: 7),
-          Text(
-            clock.isEmpty ? 'RAID' : 'RAID  ·  $clock',
-            style: const TextStyle(
-              color: _C.text,
-              fontFamily: 'monospace',
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
+      child: Container(
+        height: 30,
+        padding: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _C.bg.withValues(alpha: 0.82),
+          border: Border.all(color: ember.withValues(alpha: 0.42)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 3, height: 30, color: ember),
+            const SizedBox(width: 10),
+            const Text(
+              'RAID',
+              style: TextStyle(
+                color: ember,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2.6,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Text(
+              '·',
+              style: TextStyle(
+                color: _C.text.withValues(alpha: 0.6),
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              planetName(widget.element).toUpperCase(),
+              style: const TextStyle(
+                color: _C.text,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.8,
+              ),
+            ),
+            if (clock.isNotEmpty) ...[
+              const SizedBox(width: 14),
+              Text(
+                clock,
+                style: TextStyle(
+                  color: closing ? ember : _C.text,
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -884,10 +999,17 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// title card in HUD chrome. Doubles as the loading screen.
   Widget _descentIntro() {
     final accent = elementColor(widget.element);
-    return RepaintBoundary(
-      child: ValueListenableBuilder<double>(
-        valueListenable: _introTime,
-        builder: (_, elapsed, _) => _descentIntroFrame(elapsed, accent),
+    // KeyedSubtree + a GlobalKey: when `_ready` flips, the screen's root
+    // changes shape (loading Scaffold → PopScope/Stack) and the descent moves
+    // with it. The global key REPARENTS this subtree instead of destroying and
+    // rebuilding the painter's render objects mid-dive.
+    return KeyedSubtree(
+      key: _descentKey,
+      child: RepaintBoundary(
+        child: ValueListenableBuilder<double>(
+          valueListenable: _introTime,
+          builder: (_, elapsed, _) => _descentIntroFrame(elapsed, accent),
+        ),
       ),
     );
   }

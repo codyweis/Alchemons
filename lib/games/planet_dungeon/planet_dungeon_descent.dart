@@ -8,7 +8,13 @@
 // No MaskFilter blurs (soft puffs are 3 layered discs), no saveLayers, and
 // the two fullscreen gradients are cached per size instead of being rebuilt
 // every frame. Deterministic hashed particles — no per-frame allocations
-// beyond Offsets.
+// beyond Offsets and a single reused scratch Path.
+//
+// 2026-08-20, VERIFIED: this painter is NOT what made the dive stutter. At
+// worst it is ~180 small draws plus two cached fullscreen gradients. The jank
+// was the dungeon itself, which used to load AND RUN at 60fps behind the
+// opaque overlay; PlanetDungeonScreen now freezes it until the descent fades
+// (see `_dungeonFrozen` there). Keep it that way before blaming this file.
 
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -268,6 +274,11 @@ class DescentPainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
+  /// One scratch path, reset per use. Shards (earth/crystal) and rays (light)
+  /// used to allocate one `Path` — a native object — per particle per frame:
+  /// ~2000 of them over a single dive, all garbage. Same geometry, no churn.
+  static final Path _path = Path();
+
   DescentStyle get _style =>
       kDescentStyles[element.toLowerCase()] ??
       DescentStyle(
@@ -439,7 +450,8 @@ class DescentPainter extends CustomPainter {
         _fill.color = color;
         final ca = cos(angle);
         final sa = sin(angle);
-        final path = Path()
+        final path = _path
+          ..reset()
           ..moveTo(pos.dx + ca * r * 1.6, pos.dy + sa * r * 1.6)
           ..lineTo(pos.dx - sa * r * 0.7, pos.dy + ca * r * 0.7)
           ..lineTo(pos.dx - ca * r * 1.6, pos.dy - sa * r * 1.6)
@@ -455,7 +467,8 @@ class DescentPainter extends CustomPainter {
     for (var i = 0; i < 10; i++) {
       final a = rot + i * 2 * pi / 10;
       final w = 0.05 + 0.03 * _hash(i + 40);
-      final path = Path()
+      final path = _path
+        ..reset()
         ..moveTo(c.dx, c.dy)
         ..lineTo(c.dx + cos(a - w) * maxR * 1.3, c.dy + sin(a - w) * maxR * 1.3)
         ..lineTo(c.dx + cos(a + w) * maxR * 1.3, c.dy + sin(a + w) * maxR * 1.3)
@@ -483,7 +496,9 @@ class DescentPainter extends CustomPainter {
     // Jagged bolt from the top toward the vanishing point.
     final startX = size.width * (0.2 + 0.6 * _hash(seed * 13 + 1));
     var p = Offset(startX, -10);
-    final path = Path()..moveTo(p.dx, p.dy);
+    final path = _path
+      ..reset()
+      ..moveTo(p.dx, p.dy);
     const segs = 6;
     for (var s = 1; s <= segs; s++) {
       final t = s / segs;
