@@ -2032,29 +2032,14 @@ extension StormCircuit on PlanetDungeonGame {
   /// A crackling lightning segment between [a] and [b] (a jittering zigzag so
   /// the converted beam reads as a real bolt, not a straight line).
   void _drawJaggedBolt(Canvas canvas, Offset a, Offset b) {
-    final len = (b - a).distance;
-    if (len < 1) return;
-    final dir = (b - a) / len;
-    final nrm = Offset(-dir.dy, dir.dx);
-    final steps = (len / 26).clamp(2, 18).floor();
-    final p = Path()..moveTo(a.dx, a.dy);
-    for (var i = 1; i < steps; i++) {
-      final t = i / steps;
-      final base = a + (b - a) * t;
-      final j = sin(_time * 22 + i * 1.7 + a.dx * 0.05) * 6.0;
-      final pt = base + nrm * j;
-      p.lineTo(pt.dx, pt.dy);
-    }
-    p.lineTo(b.dx, b.dy);
-    canvas.drawPath(
-      p,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xFFEAF6FF)
-        ..strokeWidth = 3.4,
-    );
+    // The bolt itself now lives in the shared cosmic VFX layer
+    // (`drawLightningBolt`) so survival, cosmic space and the dungeons all
+    // draw the identical storm instead of each keeping its own zigzag.
+    // Same numbers this room always used — 26px segments, 6px wobble, a
+    // 3.4px #EAF6FF core — plus the layered halo the shared version adds.
+    // No forks here on purpose: this bolt is a puzzle beam and the player
+    // reads which terminals it lies on, so its silhouette stays exact.
+    drawLightningBolt(canvas, a, b, time: _time);
   }
 
   /// A station pad keyed to [element]: a ring with a ghost mote of its element,
