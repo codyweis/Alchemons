@@ -51,4 +51,68 @@ void main() {
       }
     });
   });
+
+  group('traits drive behaviour, not just the sigil', () {
+    test('a summoner of ANY body can summon wisps', () {
+      final spawner = CosmicSurvivalSpawner()..startFirstWave();
+      // A summoner on a light body was impossible before: the roll was gated
+      // on sentinel/phantom. Build one directly and confirm the spawner will
+      // produce adds for it.
+      final wispSummoner = CosmicSurvivalEnemy(
+        position: Offset.zero,
+        hp: 50,
+        maxHp: 50,
+        speed: 60,
+        damage: 5,
+        radius: 9,
+        tier: EnemyTier.wisp,
+        element: 'Fire',
+        role: CosmicEnemyRole.striker,
+        target: CosmicEnemyTarget.orb,
+        conduct: EnemyConduct.charge,
+        trait: EnemyTrait.summoner,
+      );
+      expect(wispSummoner.trait, EnemyTrait.summoner);
+      expect(spawner.spawnSummonerWisps(wispSummoner), isNotEmpty);
+    });
+
+    test('a splitter of ANY body sheds shards', () {
+      final spawner = CosmicSurvivalSpawner()..startFirstWave();
+      final droneSplitter = CosmicSurvivalEnemy(
+        position: Offset.zero,
+        hp: 40,
+        maxHp: 40,
+        speed: 70,
+        damage: 6,
+        radius: 11,
+        tier: EnemyTier.drone,
+        element: 'Ice',
+        role: CosmicEnemyRole.striker,
+        target: CosmicEnemyTarget.orb,
+        conduct: EnemyConduct.stalk,
+        trait: EnemyTrait.splitter,
+      );
+      expect(spawner.spawnSplitterShards(droneSplitter), isNotEmpty);
+    });
+
+    test('conduct and trait survive the constructor unchanged', () {
+      final e = CosmicSurvivalEnemy(
+        position: Offset.zero,
+        hp: 10,
+        maxHp: 10,
+        speed: 10,
+        damage: 1,
+        radius: 5,
+        tier: EnemyTier.colossus,
+        element: 'Dark',
+        role: CosmicEnemyRole.shooter,
+        target: CosmicEnemyTarget.orb,
+        conduct: EnemyConduct.graze,
+        trait: EnemyTrait.breaker,
+      );
+      // Explicit values must win over the legacy derivation.
+      expect(e.conduct, EnemyConduct.graze);
+      expect(e.trait, EnemyTrait.breaker);
+    });
+  });
 }

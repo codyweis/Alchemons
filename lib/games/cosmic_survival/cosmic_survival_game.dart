@@ -9,6 +9,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
@@ -3581,7 +3582,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         enemy.frostBuildup = max(0.0, enemy.frostBuildup - dt * 0.35);
       }
       // Summoner variant pulses out small wisp swarms on a fixed cooldown.
-      if (enemy.variant == SurvivalEnemyVariant.summoner) {
+      // Trait, not variant: a summoner wisp summons now.
+      if (enemy.trait == EnemyTrait.summoner) {
         enemy.summonCooldown = max(0, enemy.summonCooldown - dt);
         if (enemy.summonCooldown <= 0 && enemies.length < 220) {
           enemy.summonCooldown = 6.5;
@@ -3742,7 +3744,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           (enemy.role == CosmicEnemyRole.striker ||
               enemy.role == CosmicEnemyRole.hunter) &&
           enemy.target != CosmicEnemyTarget.orb &&
-          enemy.variant != SurvivalEnemyVariant.crusher;
+          !(enemy.conduct == EnemyConduct.charge && enemy.hasHeavyBody);
 
       if (usesFlightSteering) {
         var moveSpeedMult = 1.0;
@@ -3756,7 +3758,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final steering = enemy.flightSteering ??= FlightSteeringState(_rng);
         final tick = tickFlightSteering(
           state: steering,
-          profile: enemy.variant == SurvivalEnemyVariant.pouncer
+          profile: enemy.conduct == EnemyConduct.stalk
               ? FlightSteeringProfile.survivalPouncer
               : FlightSteeringProfile.survivalMelee,
           toTarget: dir,
@@ -3846,7 +3848,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         }
         final isSiegeShooter =
-            enemy.variant == SurvivalEnemyVariant.siegeShooter;
+            enemy.conduct == EnemyConduct.standoff;
         enemy.attackCooldown =
             (1.7 - min(enemy.tier.index * 0.12, 0.5)) *
             (isSiegeShooter ? 1.12 : 1.0) *
@@ -3908,7 +3910,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return cloaked ? CosmicEnemyTarget.ship : CosmicEnemyTarget.companion;
     }
     if (enemy.role == CosmicEnemyRole.shooter) {
-      if (enemy.variant == SurvivalEnemyVariant.siegeShooter &&
+      if (enemy.conduct == EnemyConduct.standoff &&
           _rng.nextDouble() < 0.72) {
         return CosmicEnemyTarget.orb;
       }
@@ -4107,22 +4109,30 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       EnemyTier.brute => 2.10,
       EnemyTier.colossus => 2.85,
     };
-    final variantMult = switch (enemy.variant) {
-      SurvivalEnemyVariant.orbBreaker => 1.55,
-      SurvivalEnemyVariant.siegeShooter => 1.12,
-      SurvivalEnemyVariant.crusher => 1.45,
-      SurvivalEnemyVariant.pouncer => 1.15,
-      SurvivalEnemyVariant.summoner => 1.0,
-      SurvivalEnemyVariant.splitter => 1.15,
-      SurvivalEnemyVariant.standard => 1.0,
+    // Split along the new axes: what it does (trait) and how it closes
+    // (conduct) are separate contributions, where the variant conflated them.
+    final traitMult = switch (enemy.trait) {
+      EnemyTrait.breaker => 1.55,
+      EnemyTrait.splitter => 1.15,
+      EnemyTrait.summoner => 1.0,
+      null => 1.0,
     };
+    final conductMult = switch (enemy.conduct) {
+      EnemyConduct.charge => enemy.hasHeavyBody ? 1.45 : 1.0,
+      EnemyConduct.stalk => 1.15,
+      EnemyConduct.standoff => 1.12,
+      _ => 1.0,
+    };
+    final variantMult = traitMult * conductMult;
     final roleMult = enemy.role == CosmicEnemyRole.orbiter ? 1.15 : 1.0;
     return tierMult * variantMult * roleMult;
   }
 
   bool _enemyExplodesOnOrbImpact(CosmicSurvivalEnemy enemy) {
-    if (enemy.variant == SurvivalEnemyVariant.orbBreaker ||
-        enemy.variant == SurvivalEnemyVariant.crusher) {
+    // A breaker is built to crack the orb; a heavy charger arrives with
+    // enough mass to do it too.
+    if (enemy.trait == EnemyTrait.breaker ||
+        (enemy.conduct == EnemyConduct.charge && enemy.hasHeavyBody)) {
       return true;
     }
     return enemy.tier == EnemyTier.brute || enemy.tier == EnemyTier.colossus;
@@ -4134,12 +4144,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       EnemyTier.colossus => 135.0,
       _ => 70.0,
     };
-    final variantBoost = switch (enemy.variant) {
-      SurvivalEnemyVariant.orbBreaker => 18.0,
-      SurvivalEnemyVariant.crusher => 12.0,
-      _ => 0.0,
-    };
-    return base + variantBoost;
+    final traitBoost = enemy.trait == EnemyTrait.breaker ? 18.0 : 0.0;
+    final conductBoost =
+        (enemy.conduct == EnemyConduct.charge && enemy.hasHeavyBody)
+        ? 12.0
+        : 0.0;
+    return base + traitBoost + conductBoost;
   }
 
   double _enemyOrbExplosionDamage(CosmicSurvivalEnemy enemy) {
@@ -4148,12 +4158,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       EnemyTier.colossus => enemy.damage * 2.4,
       _ => enemy.damage * 1.1,
     };
-    final variantBoost = switch (enemy.variant) {
-      SurvivalEnemyVariant.orbBreaker => 1.4,
-      SurvivalEnemyVariant.crusher => 1.25,
-      _ => 1.0,
-    };
-    return base * variantBoost;
+    final traitBoost = enemy.trait == EnemyTrait.breaker ? 1.4 : 1.0;
+    final conductBoost =
+        (enemy.conduct == EnemyConduct.charge && enemy.hasHeavyBody)
+        ? 1.25
+        : 1.0;
+    return base * traitBoost * conductBoost;
   }
 
   void _applyDecoyContactDamage(
@@ -4414,8 +4424,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     _spawnHitSpark(enemy.position, elementColor(enemy.element));
-    if (enemy.variant == SurvivalEnemyVariant.splitter &&
-        enemies.length < 220) {
+    if (enemy.trait == EnemyTrait.splitter && enemies.length < 220) {
       final shards = spawner.spawnSplitterShards(enemy);
       enemies.addAll(shards);
       for (final shard in shards) {
@@ -4838,7 +4847,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         size.y / _currentZoom,
       );
       for (final add in adds.take(3)) {
-        add.target = add.variant == SurvivalEnemyVariant.crusher
+        add.target =
+            (add.conduct == EnemyConduct.charge && add.hasHeavyBody)
             ? CosmicEnemyTarget.orb
             : CosmicEnemyTarget.companion;
       }
