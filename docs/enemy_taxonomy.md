@@ -258,10 +258,20 @@ Also landed (second pass):
 - `variant` is now *derived* from conduct+trait for the call sites that have
   not migrated, so the two cannot disagree.
 
+Third pass — **`SurvivalEnemyVariant` is deleted.** Zero references remain in
+`lib/` or `test/`. Everything that read it now reads `trait` or `conduct`:
+the dungeon's anvil waves and shard spawns, the boss-adds table, the
+summon cooldown, and the visual squash. Stat multipliers that had a row per
+variant are split into independent trait and conduct terms, which is why
+`breaker` and `crusher` no longer need separate rows for the same idea.
+
 Not yet done:
 - The 65 `EnemyBehavior` sites in `cosmic_game_world_systems.dart` still steer
   open-world enemies ad hoc; they do not yet call `conductMoveVector`.
-- Wave patterns still select variants rather than filtering over the taxonomy.
-- `planet_dungeon_game.dart` still references `SurvivalEnemyVariant`.
+- Wave patterns bias the conduct roll but do not yet filter over the whole
+  taxonomy (they cannot pick "mostly standoff, some breaker" declaratively).
+- `CosmicEnemyRole` still exists and still feeds `conductFromRole`. It is the
+  last legacy axis; `isShooter` and the orbiter damage bonus are its remaining
+  real readers.
 - Traits are carried but not yet read: `summoner`/`splitter` behaviour still
   keys off the old variant.

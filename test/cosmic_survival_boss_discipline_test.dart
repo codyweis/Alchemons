@@ -108,29 +108,29 @@ void main() {
 
       expect(
         artilleryAdds.any(
-          (add) => add.variant == SurvivalEnemyVariant.siegeShooter,
+          (add) => add.conduct == EnemyConduct.standoff,
         ),
         isTrue,
       );
       expect(
-        duelistAdds.every((add) => add.variant == SurvivalEnemyVariant.pouncer),
+        duelistAdds.every((add) => add.conduct == EnemyConduct.stalk),
         isTrue,
       );
       expect(
         conductorAdds.any(
-          (add) => add.variant == SurvivalEnemyVariant.orbBreaker,
+          (add) => add.trait == EnemyTrait.breaker,
         ),
         isTrue,
       );
       expect(
         siegebreakerAdds.any(
-          (add) => add.variant == SurvivalEnemyVariant.crusher,
+          (add) => add.conduct == EnemyConduct.charge,
         ),
         isTrue,
       );
       expect(
         riftcallerAdds.any(
-          (add) => add.variant == SurvivalEnemyVariant.siegeShooter,
+          (add) => add.conduct == EnemyConduct.standoff,
         ),
         isTrue,
       );

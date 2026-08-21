@@ -19,17 +19,7 @@ enum CosmicEnemyRole { striker, orbiter, shooter, hunter }
 
 enum CosmicEnemyTarget { orb, ship, companion }
 
-enum SurvivalEnemyVariant {
-  standard,
-  orbBreaker,
-  siegeShooter,
-  crusher,
-  pouncer,
-  // Periodically summons a small swarm of wisps while alive.
-  summoner,
-  // On death, bursts into multiple fast pouncer drones.
-  splitter,
-}
+
 
 enum SurvivalBossDiscipline {
   standard,
@@ -83,7 +73,6 @@ class CosmicSurvivalEnemy {
   final EnemyTier tier;
   final String element;
   final CosmicEnemyRole role;
-  final SurvivalEnemyVariant variant;
 
   /// Converged taxonomy (docs/enemy_taxonomy.md). Derived from role+variant
   /// during migration; once the spawner picks these directly, role and variant
@@ -145,9 +134,8 @@ class CosmicSurvivalEnemy {
     required this.tier,
     required this.element,
     required CosmicEnemyRole role,
-    SurvivalEnemyVariant variant = SurvivalEnemyVariant.standard,
     EnemyConduct? conduct,
-    EnemyTrait? trait,
+    this.trait,
     required this.target,
     this.isDead = false,
     this.hitFlash = 0,
@@ -169,16 +157,11 @@ class CosmicSurvivalEnemy {
     this.maskBloodDrainSlot,
   }) : // Not initializing formals: role and variant must be in scope here so
        // conduct and trait can be derived from them below.
+       // Not an initializing formal: role must be in scope so conduct can be
+       // derived from it when the caller does not supply one.
        // ignore: prefer_initializing_formals
        role = role,
-       // ignore: prefer_initializing_formals
-       variant = variant,
-       // Derived, not stored twice: one place decides what the old pair means
-       // under the new taxonomy.
-       // The spawner may pick these directly; otherwise they are derived from
-       // the legacy pair while the migration finishes.
-       conduct = conduct ?? conductFromRoleVariant(role, variant),
-       trait = trait ?? traitFromVariant(variant);
+       conduct = conduct ?? conductFromRole(role);
 
   double get hpFraction => maxHp > 0 ? (hp / maxHp).clamp(0, 1) : 0;
   /// True for bodies heavy enough to earn the charge speed bonus that the old
@@ -707,34 +690,17 @@ class CosmicSurvivalSpawner {
     return spawned;
   }
 
+  /// Bodies heavy enough to earn the charge stat profile the old `crusher`
+  /// variant carried.
+  static bool hasHeavyBody(EnemyTier tier) =>
+      tier == EnemyTier.brute || tier == EnemyTier.colossus;
+
   /// Rolls an optional extra mechanic. Body-independent by design.
   EnemyTrait? _traitForWave(int wave) {
     if (wave >= 14 && _rng.nextDouble() < 0.10) return EnemyTrait.splitter;
     if (wave >= 12 && _rng.nextDouble() < 0.10) return EnemyTrait.summoner;
     if (wave >= 8 && _rng.nextDouble() < 0.12) return EnemyTrait.breaker;
     return null;
-  }
-
-  /// The legacy variant, reconstructed from the new axes. Read only by code
-  /// that has not migrated yet; delete with the enum.
-  SurvivalEnemyVariant _variantForDisplay(
-    EnemyConduct conduct,
-    EnemyTrait? trait,
-    CosmicEnemyRole role,
-  ) {
-    if (trait == EnemyTrait.summoner) return SurvivalEnemyVariant.summoner;
-    if (trait == EnemyTrait.splitter) return SurvivalEnemyVariant.splitter;
-    if (trait == EnemyTrait.breaker) return SurvivalEnemyVariant.orbBreaker;
-    if (conduct == EnemyConduct.stalk) return SurvivalEnemyVariant.pouncer;
-    if (conduct == EnemyConduct.charge &&
-        role != CosmicEnemyRole.striker &&
-        role != CosmicEnemyRole.hunter) {
-      return SurvivalEnemyVariant.crusher;
-    }
-    if (role == CosmicEnemyRole.shooter) {
-      return SurvivalEnemyVariant.siegeShooter;
-    }
-    return SurvivalEnemyVariant.standard;
   }
 
   CosmicSurvivalEnemy _spawnEnemy(double viewW, double viewH, Offset orbPos) {
@@ -745,7 +711,7 @@ class CosmicSurvivalSpawner {
     // CONDUCT — how it moves. Rolled from the wave's shape, not from the body.
     // The old code derived a `variant` here and let it override the role's
     // movement; conduct is now the single authority (docs/enemy_taxonomy.md).
-    var conduct = conductFromRoleVariant(role, SurvivalEnemyVariant.standard);
+    var conduct = conductFromRole(role);
     if ((currentPattern == SurvivalWavePattern.siegePush ||
             currentMutator == SurvivalWaveMutator.fortified) &&
         _rng.nextDouble() < 0.34) {
@@ -765,9 +731,6 @@ class CosmicSurvivalSpawner {
     // carry any trait — a summoner wisp is a thing that can happen.
     final trait = _traitForWave(currentWave);
 
-    // Legacy display/logic value, derived so the two cannot disagree while the
-    // remaining consumers migrate.
-    final variant = _variantForDisplay(conduct, trait, role);
 
     // Spawn outside view
     final margin = max(viewW, viewH) * 0.55;
@@ -813,33 +776,51 @@ class CosmicSurvivalSpawner {
     // unreachable-combination problem; _traitForWave replaces it and is rolled
     // above, independent of tier.)
 
-    final variantHpMult = switch (variant) {
-      SurvivalEnemyVariant.orbBreaker => 1.22,
-      SurvivalEnemyVariant.siegeShooter => 0.92,
-      SurvivalEnemyVariant.crusher => 1.38,
-      SurvivalEnemyVariant.pouncer => 0.88,
-      SurvivalEnemyVariant.summoner => 1.15,
-      SurvivalEnemyVariant.splitter => 1.05,
-      SurvivalEnemyVariant.standard => 1.0,
+    // Stats split along the two axes the variant conflated. A trait says what
+    // the enemy DOES (and costs HP/damage accordingly); a conduct says how it
+    // closes (and costs speed). The old single table had to invent a row per
+    // combination, which is why breaker and crusher each needed one.
+    final traitHp = switch (trait) {
+      EnemyTrait.breaker => 1.22,
+      EnemyTrait.summoner => 1.15,
+      EnemyTrait.splitter => 1.05,
+      null => 1.0,
     };
-    final variantSpeedMult = switch (variant) {
-      SurvivalEnemyVariant.orbBreaker => 0.84,
-      SurvivalEnemyVariant.siegeShooter => 0.95,
-      SurvivalEnemyVariant.crusher => 0.76,
-      SurvivalEnemyVariant.pouncer => 1.22,
-      SurvivalEnemyVariant.summoner => 0.78,
-      SurvivalEnemyVariant.splitter => 0.82,
-      SurvivalEnemyVariant.standard => 1.0,
+    final conductHp = switch (conduct) {
+      EnemyConduct.charge => hasHeavyBody(tier) ? 1.38 : 1.0,
+      EnemyConduct.standoff => 0.92,
+      EnemyConduct.stalk => 0.88,
+      _ => 1.0,
     };
-    final variantDamageMult = switch (variant) {
-      SurvivalEnemyVariant.orbBreaker => 1.2,
-      SurvivalEnemyVariant.siegeShooter => 1.16,
-      SurvivalEnemyVariant.crusher => 1.26,
-      SurvivalEnemyVariant.pouncer => 1.10,
-      SurvivalEnemyVariant.summoner => 1.00,
-      SurvivalEnemyVariant.splitter => 1.18,
-      SurvivalEnemyVariant.standard => 1.0,
+    final variantHpMult = traitHp * conductHp;
+
+    final traitSpeed = switch (trait) {
+      EnemyTrait.breaker => 0.84,
+      EnemyTrait.summoner => 0.78,
+      EnemyTrait.splitter => 0.82,
+      null => 1.0,
     };
+    final conductSpeed = switch (conduct) {
+      EnemyConduct.charge => hasHeavyBody(tier) ? 0.76 : 1.0,
+      EnemyConduct.standoff => 0.95,
+      EnemyConduct.stalk => 1.22,
+      _ => 1.0,
+    };
+    final variantSpeedMult = traitSpeed * conductSpeed;
+
+    final traitDamage = switch (trait) {
+      EnemyTrait.breaker => 1.2,
+      EnemyTrait.summoner => 1.0,
+      EnemyTrait.splitter => 1.18,
+      null => 1.0,
+    };
+    final conductDamage = switch (conduct) {
+      EnemyConduct.charge => hasHeavyBody(tier) ? 1.26 : 1.0,
+      EnemyConduct.standoff => 1.16,
+      EnemyConduct.stalk => 1.10,
+      _ => 1.0,
+    };
+    final variantDamageMult = traitDamage * conductDamage;
 
     return CosmicSurvivalEnemy(
       position: pos,
@@ -852,14 +833,13 @@ class CosmicSurvivalSpawner {
       tier: tier,
       element: element,
       role: role,
-      variant: variant,
       // Picked directly, not derived — the whole point of the change.
       conduct: conduct,
       trait: trait,
       target: _initialTargetForRole(role),
       isElite: isElite,
       eliteAffix: eliteAffix,
-      summonCooldown: variant == SurvivalEnemyVariant.summoner
+      summonCooldown: trait == EnemyTrait.summoner
           ? 5.0 + _rng.nextDouble() * 2.0
           : 0,
     );
@@ -902,7 +882,7 @@ class CosmicSurvivalSpawner {
           tier: tier,
           element: parent.element,
           role: CosmicEnemyRole.striker,
-          variant: SurvivalEnemyVariant.standard,
+          conduct: EnemyConduct.charge,
           target: CosmicEnemyTarget.orb,
         ),
       );
@@ -946,7 +926,7 @@ class CosmicSurvivalSpawner {
           tier: tier,
           element: parent.element,
           role: CosmicEnemyRole.striker,
-          variant: SurvivalEnemyVariant.pouncer,
+          conduct: EnemyConduct.stalk,
           target: CosmicEnemyTarget.orb,
         ),
       );
@@ -1365,53 +1345,68 @@ class CosmicSurvivalSpawner {
           i.isEven ? CosmicEnemyRole.orbiter : CosmicEnemyRole.striker,
         _ => CosmicEnemyRole.striker,
       };
-      final variant = switch (boss.discipline) {
-        SurvivalBossDiscipline.artillery when role == CosmicEnemyRole.shooter =>
-          SurvivalEnemyVariant.siegeShooter,
-        SurvivalBossDiscipline.artillery => SurvivalEnemyVariant.standard,
-        SurvivalBossDiscipline.duelist => SurvivalEnemyVariant.pouncer,
+      final (conduct, trait) = switch (boss.discipline) {
+        SurvivalBossDiscipline.duelist => (EnemyConduct.stalk, null),
         SurvivalBossDiscipline.siegebreaker
             when role == CosmicEnemyRole.striker =>
-          SurvivalEnemyVariant.crusher,
-        SurvivalBossDiscipline.siegebreaker => SurvivalEnemyVariant.orbBreaker,
-        SurvivalBossDiscipline.trickster => SurvivalEnemyVariant.pouncer,
+          (EnemyConduct.charge, null),
+        SurvivalBossDiscipline.siegebreaker => (
+          conductFromRole(role),
+          EnemyTrait.breaker,
+        ),
+        SurvivalBossDiscipline.trickster => (EnemyConduct.stalk, null),
         SurvivalBossDiscipline.riftcaller
             when role == CosmicEnemyRole.shooter =>
-          SurvivalEnemyVariant.siegeShooter,
+          (EnemyConduct.standoff, null),
         SurvivalBossDiscipline.conductor when role == CosmicEnemyRole.orbiter =>
-          SurvivalEnemyVariant.orbBreaker,
-        _ => SurvivalEnemyVariant.standard,
+          (EnemyConduct.orbit, EnemyTrait.breaker),
+        _ => (conductFromRole(role), null),
       };
       final hp =
           tierBaseHp(tier) *
           CosmicSurvivalBalance.enemyWaveHpScale(currentWave);
-      final variantHpMult = switch (variant) {
-        SurvivalEnemyVariant.orbBreaker => 1.22,
-        SurvivalEnemyVariant.siegeShooter => 0.92,
-        SurvivalEnemyVariant.crusher => 1.38,
-        SurvivalEnemyVariant.pouncer => 0.88,
-        SurvivalEnemyVariant.summoner => 1.15,
-        SurvivalEnemyVariant.splitter => 1.05,
-        SurvivalEnemyVariant.standard => 1.0,
-      };
-      final variantSpeedMult = switch (variant) {
-        SurvivalEnemyVariant.orbBreaker => 0.84,
-        SurvivalEnemyVariant.siegeShooter => 0.95,
-        SurvivalEnemyVariant.crusher => 0.76,
-        SurvivalEnemyVariant.pouncer => 1.22,
-        SurvivalEnemyVariant.summoner => 0.78,
-        SurvivalEnemyVariant.splitter => 0.82,
-        SurvivalEnemyVariant.standard => 1.0,
-      };
-      final variantDamageMult = switch (variant) {
-        SurvivalEnemyVariant.orbBreaker => 1.2,
-        SurvivalEnemyVariant.siegeShooter => 1.16,
-        SurvivalEnemyVariant.crusher => 1.26,
-        SurvivalEnemyVariant.pouncer => 1.10,
-        SurvivalEnemyVariant.summoner => 1.00,
-        SurvivalEnemyVariant.splitter => 1.18,
-        SurvivalEnemyVariant.standard => 1.0,
-      };
+      // Same split as the wave spawner: trait says what it does, conduct says
+      // how it closes.
+      final heavy = hasHeavyBody(tier);
+      final variantHpMult =
+          (switch (trait) {
+            EnemyTrait.breaker => 1.22,
+            EnemyTrait.summoner => 1.15,
+            EnemyTrait.splitter => 1.05,
+            null => 1.0,
+          }) *
+          (switch (conduct) {
+            EnemyConduct.charge => heavy ? 1.38 : 1.0,
+            EnemyConduct.standoff => 0.92,
+            EnemyConduct.stalk => 0.88,
+            _ => 1.0,
+          });
+      final variantSpeedMult =
+          (switch (trait) {
+            EnemyTrait.breaker => 0.84,
+            EnemyTrait.summoner => 0.78,
+            EnemyTrait.splitter => 0.82,
+            null => 1.0,
+          }) *
+          (switch (conduct) {
+            EnemyConduct.charge => heavy ? 0.76 : 1.0,
+            EnemyConduct.standoff => 0.95,
+            EnemyConduct.stalk => 1.22,
+            _ => 1.0,
+          });
+      final variantDamageMult =
+          (switch (trait) {
+            EnemyTrait.breaker => 1.2,
+            EnemyTrait.summoner => 1.0,
+            EnemyTrait.splitter => 1.18,
+            null => 1.0,
+          }) *
+          (switch (conduct) {
+            EnemyConduct.charge => heavy ? 1.26 : 1.0,
+            EnemyConduct.standoff => 1.16,
+            EnemyConduct.stalk => 1.10,
+            _ => 1.0,
+          });
       adds.add(
         CosmicSurvivalEnemy(
           position: pos,
@@ -1423,7 +1418,8 @@ class CosmicSurvivalSpawner {
           tier: tier,
           element: boss.template.element,
           role: role,
-          variant: variant,
+          conduct: conduct,
+          trait: trait,
           target: switch (role) {
             CosmicEnemyRole.shooter
                 when boss.discipline == SurvivalBossDiscipline.artillery =>

@@ -11,6 +11,7 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
@@ -2646,9 +2647,9 @@ class PlanetDungeonGame extends FlameGame {
     // The trio guards the storm-heart: one spark of each entry element.
     _anvilWave.clear();
     final specs = [
-      ('Lightning', SurvivalEnemyVariant.pouncer),
-      ('Air', SurvivalEnemyVariant.standard),
-      ('Fire', SurvivalEnemyVariant.standard),
+      ('Lightning', EnemyConduct.stalk),
+      ('Air', EnemyConduct.charge),
+      ('Fire', EnemyConduct.charge),
     ];
     for (var i = 0; i < specs.length; i++) {
       final ang = i * pi * 2 / specs.length + _combatRng.nextDouble() * 0.4;
@@ -2656,13 +2657,13 @@ class PlanetDungeonGame extends FlameGame {
         position: sealed.position + Offset(cos(ang), sin(ang)) * 110,
         hp: 30,
         maxHp: 30,
-        speed: specs[i].$2 == SurvivalEnemyVariant.pouncer ? 96 : 80,
+        speed: specs[i].$2 == EnemyConduct.stalk ? 96 : 80,
         damage: 11,
         radius: 13,
         tier: EnemyTier.wisp,
         element: specs[i].$1,
         role: CosmicEnemyRole.striker,
-        variant: specs[i].$2,
+        conduct: specs[i].$2,
         target: CosmicEnemyTarget.companion,
       );
       _anvilWave.add(enemy);
@@ -3082,7 +3083,7 @@ class PlanetDungeonGame extends FlameGame {
 
       final profile = isGuardian
           ? FlightSteeringProfile.dungeonGuardian
-          : enemy.variant == SurvivalEnemyVariant.pouncer
+          : enemy.conduct == EnemyConduct.stalk
           ? FlightSteeringProfile.dungeonPouncer
           : FlightSteeringProfile.dungeonWisp;
       final tick = tickFlightSteering(
@@ -4017,9 +4018,7 @@ class PlanetDungeonGame extends FlameGame {
           tier: EnemyTier.wisp,
           element: element,
           role: CosmicEnemyRole.striker,
-          variant: unstable
-              ? SurvivalEnemyVariant.pouncer
-              : SurvivalEnemyVariant.standard,
+          conduct: unstable ? EnemyConduct.stalk : EnemyConduct.charge,
           target: CosmicEnemyTarget.companion,
         ),
       );
@@ -4120,7 +4119,7 @@ class PlanetDungeonGame extends FlameGame {
       tier: EnemyTier.phantom,
       element: g.encounter?.element ?? 'Air',
       role: CosmicEnemyRole.hunter,
-      variant: SurvivalEnemyVariant.crusher,
+      conduct: EnemyConduct.charge,
       target: CosmicEnemyTarget.companion,
       isElite: true,
     );
@@ -4162,7 +4161,7 @@ class PlanetDungeonGame extends FlameGame {
         tier: i.isEven ? EnemyTier.wisp : EnemyTier.drone,
         element: g.element,
         role: CosmicEnemyRole.hunter,
-        variant: SurvivalEnemyVariant.pouncer,
+        conduct: EnemyConduct.stalk,
         target: CosmicEnemyTarget.companion,
       );
       add.flightSteering = FlightSteeringState(rng);

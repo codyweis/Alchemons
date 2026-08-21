@@ -4,216 +4,67 @@ import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Characterisation tests: these pin the movement behaviour AS IT IS, so the
-/// taxonomy change (role + variant → one conduct, docs/enemy_taxonomy.md §3)
-/// can be proved to preserve it. They are not a statement that the current
-/// behaviour is desirable — §2.2 argues it is not.
+/// Conduct is the single movement authority (docs/enemy_taxonomy.md §2.2).
+///
+/// This file previously also held characterisation tests pinning the old
+/// role+variant behaviour, and equivalence tests proving charge==striker,
+/// orbit==orbiter and standoff==shooter across the migration. Those did their
+/// job and were deleted with the legacy code path — there is no longer a
+/// second implementation to compare against, which was the point.
 void main() {
   const norm = Offset(1, 0);
   const tangent = Offset(0, 1);
 
-  Offset move(
-    CosmicEnemyRole role,
-    SurvivalEnemyVariant variant,
-    double dist,
-  ) => enemyMoveVector(
-    role: role,
-    variant: variant,
+  Offset move(EnemyConduct conduct, double dist) => conductMoveVector(
+    conduct: conduct,
     dist: dist,
     norm: norm,
     tangent: tangent,
   );
 
-  group('role movement', () {
-    test('striker drives straight at the target', () {
-      expect(
-        move(CosmicEnemyRole.striker, SurvivalEnemyVariant.standard, 300),
-        norm,
-      );
+  group('conduct decides movement, and nothing overrides it', () {
+    test('charge drives straight at the target', () {
+      expect(move(EnemyConduct.charge, 300), norm);
     });
 
-    test('hunter is IDENTICAL to striker — two roles, one vector', () {
-      for (final d in [50.0, 200.0, 400.0]) {
-        expect(
-          move(CosmicEnemyRole.hunter, SurvivalEnemyVariant.standard, d),
-          move(CosmicEnemyRole.striker, SurvivalEnemyVariant.standard, d),
-          reason: 'documented redundancy at distance $d',
-        );
-      }
+    test('stalk holds at range and lunges when far', () {
+      // Deliberately the old POUNCER vector, not the old hunter one: hunter
+      // and striker produced an identical vector, so carrying that forward
+      // would have preserved a redundancy for nothing.
+      final far = move(EnemyConduct.stalk, 400);
+      expect(far.dx, closeTo(1.15, 1e-9));
+      expect(far.dy, closeTo(0.12, 1e-9));
+      expect(move(EnemyConduct.stalk, 100), norm);
     });
 
-    test('orbiter mixes approach with strafe', () {
-      final m = move(
-        CosmicEnemyRole.orbiter,
-        SurvivalEnemyVariant.standard,
-        300,
-      );
+    test('orbit mixes approach with strafe', () {
+      final m = move(EnemyConduct.orbit, 300);
       expect(m.dx, closeTo(0.55, 1e-9));
       expect(m.dy, closeTo(0.85, 1e-9));
     });
 
-    test('shooter closes beyond 240 and strafes inside it', () {
-      expect(
-        move(CosmicEnemyRole.shooter, SurvivalEnemyVariant.standard, 300),
-        norm,
-      );
-      final near = move(
-        CosmicEnemyRole.shooter,
-        SurvivalEnemyVariant.standard,
-        100,
-      );
+    test('standoff closes beyond 240 and kites inside it', () {
+      expect(move(EnemyConduct.standoff, 300), norm);
+      final near = move(EnemyConduct.standoff, 100);
       expect(near.dx, closeTo(0.0, 1e-9));
       expect(near.dy, closeTo(0.8, 1e-9));
     });
-  });
 
-  group('variant overrides role', () {
-    test('crusher ignores its role entirely', () {
-      for (final role in CosmicEnemyRole.values) {
-        final m = move(role, SurvivalEnemyVariant.crusher, 300);
-        expect(m.dx, closeTo(1.08, 1e-9), reason: 'role $role was discarded');
-        expect(m.dy, closeTo(0.0, 1e-9));
-      }
+    test('drift does not move — it is provoked, not driven', () {
+      expect(move(EnemyConduct.drift, 100), Offset.zero);
     });
 
-    test('pouncer ignores its role, and darts only when far', () {
-      final far = move(
-        CosmicEnemyRole.orbiter,
-        SurvivalEnemyVariant.pouncer,
-        300,
-      );
-      expect(far.dx, closeTo(1.15, 1e-9));
-      expect(far.dy, closeTo(0.12, 1e-9));
-      expect(
-        move(CosmicEnemyRole.orbiter, SurvivalEnemyVariant.pouncer, 100),
-        norm,
-      );
-    });
-
-    test('every other variant leaves the role vector alone', () {
-      const passthrough = [
-        SurvivalEnemyVariant.standard,
-        SurvivalEnemyVariant.orbBreaker,
-        SurvivalEnemyVariant.siegeShooter,
-        SurvivalEnemyVariant.summoner,
-        SurvivalEnemyVariant.splitter,
-      ];
-      for (final v in passthrough) {
-        expect(
-          move(CosmicEnemyRole.orbiter, v, 300),
-          move(CosmicEnemyRole.orbiter, SurvivalEnemyVariant.standard, 300),
-          reason: '$v should not touch movement',
-        );
+    test('every conduct yields a finite vector at any distance', () {
+      for (final c in EnemyConduct.values) {
+        for (final d in [0.0, 100.0, 500.0]) {
+          final m = move(c, d);
+          expect(m.dx.isFinite && m.dy.isFinite, isTrue, reason: '$c at $d');
+        }
       }
     });
   });
 
-  group('conduct equivalence with the old scheme', () {
-    Offset c(EnemyConduct conduct, double dist) => conductMoveVector(
-      conduct: conduct,
-      dist: dist,
-      norm: norm,
-      tangent: tangent,
-    );
-
-    test('charge == striker', () {
-      for (final d in [50.0, 200.0, 400.0]) {
-        expect(
-          c(EnemyConduct.charge, d),
-          move(CosmicEnemyRole.striker, SurvivalEnemyVariant.standard, d),
-        );
-      }
-    });
-
-    test('orbit == orbiter', () {
-      for (final d in [50.0, 200.0, 400.0]) {
-        expect(
-          c(EnemyConduct.orbit, d),
-          move(CosmicEnemyRole.orbiter, SurvivalEnemyVariant.standard, d),
-        );
-      }
-    });
-
-    test('standoff == shooter, including the 240 threshold', () {
-      for (final d in [100.0, 239.0, 241.0, 400.0]) {
-        expect(
-          c(EnemyConduct.standoff, d),
-          move(CosmicEnemyRole.shooter, SurvivalEnemyVariant.standard, d),
-          reason: 'distance $d',
-        );
-      }
-    });
-
-    test('stalk == the old POUNCER, not the old hunter', () {
-      for (final d in [100.0, 139.0, 141.0, 400.0]) {
-        expect(
-          c(EnemyConduct.stalk, d),
-          move(CosmicEnemyRole.orbiter, SurvivalEnemyVariant.pouncer, d),
-          reason: 'distance $d',
-        );
-      }
-    });
-
-    test('stalk deliberately DIFFERS from the old hunter when far', () {
-      // The intended behaviour change: hunters used to drive straight in.
-      expect(
-        c(EnemyConduct.stalk, 400),
-        isNot(move(CosmicEnemyRole.hunter, SurvivalEnemyVariant.standard, 400)),
-      );
-    });
-  });
-
-  group('mappings', () {
-    test('crusher and pouncer become conducts, carrying no trait', () {
-      expect(
-        conductFromRoleVariant(
-          CosmicEnemyRole.orbiter,
-          SurvivalEnemyVariant.crusher,
-        ),
-        EnemyConduct.charge,
-      );
-      expect(
-        conductFromRoleVariant(
-          CosmicEnemyRole.shooter,
-          SurvivalEnemyVariant.pouncer,
-        ),
-        EnemyConduct.stalk,
-      );
-      expect(traitFromVariant(SurvivalEnemyVariant.crusher), isNull);
-      expect(traitFromVariant(SurvivalEnemyVariant.pouncer), isNull);
-    });
-
-    test('only the three real mechanics survive as traits', () {
-      expect(
-        traitFromVariant(SurvivalEnemyVariant.summoner),
-        EnemyTrait.summoner,
-      );
-      expect(
-        traitFromVariant(SurvivalEnemyVariant.splitter),
-        EnemyTrait.splitter,
-      );
-      expect(
-        traitFromVariant(SurvivalEnemyVariant.orbBreaker),
-        EnemyTrait.breaker,
-      );
-      expect(traitFromVariant(SurvivalEnemyVariant.siegeShooter), isNull);
-      expect(traitFromVariant(SurvivalEnemyVariant.standard), isNull);
-    });
-
-    test("the crusher's hidden speed bonus survives as an explicit stat", () {
-      expect(
-        conductSpeedMultiplier(EnemyConduct.charge, heavyBody: true),
-        closeTo(1.08, 1e-9),
-      );
-      expect(
-        conductSpeedMultiplier(EnemyConduct.charge, heavyBody: false),
-        1.0,
-      );
-      expect(conductSpeedMultiplier(EnemyConduct.stalk, heavyBody: true), 1.0);
-    });
-  });
-
-  group('the two modes now agree', () {
+  group('one vocabulary across both modes', () {
     test('open-world behaviours map one-to-one onto conduct', () {
       expect(
         conductFromBehavior(EnemyBehavior.aggressive),
@@ -229,54 +80,43 @@ void main() {
       expect(conductFromBehavior(EnemyBehavior.swarming), EnemyConduct.swarm);
     });
 
-    test('crusher means the same thing in both modes', () {
+    test('crusher and pouncer mean one thing now, not two', () {
+      // These names existed independently in BOTH mode enums — the
+      // duplication the convergence exists to remove.
       expect(
         conductFromOpenWorld(
           EnemyBehavior.drifting,
           CosmicEnemyVariant.crusher,
         ),
-        conductFromRoleVariant(
-          CosmicEnemyRole.shooter,
-          SurvivalEnemyVariant.crusher,
-        ),
-        reason: 'the duplication this whole change exists to remove',
+        EnemyConduct.charge,
       );
-    });
-
-    test('pouncer means the same thing in both modes', () {
       expect(
         conductFromOpenWorld(EnemyBehavior.feeding, CosmicEnemyVariant.pouncer),
-        conductFromRoleVariant(
-          CosmicEnemyRole.orbiter,
-          SurvivalEnemyVariant.pouncer,
-        ),
+        EnemyConduct.stalk,
       );
     });
 
-    test('every conduct yields a finite vector', () {
-      for (final c in EnemyConduct.values) {
-        for (final d in [0.0, 100.0, 500.0]) {
-          final m = conductMoveVector(
-            conduct: c,
-            dist: d,
-            norm: norm,
-            tangent: tangent,
-          );
-          expect(m.dx.isFinite && m.dy.isFinite, isTrue, reason: '$c at $d');
-        }
-      }
+    test('survival roles still resolve to a conduct while the enum lives', () {
+      expect(conductFromRole(CosmicEnemyRole.striker), EnemyConduct.charge);
+      expect(conductFromRole(CosmicEnemyRole.hunter), EnemyConduct.stalk);
+      expect(conductFromRole(CosmicEnemyRole.orbiter), EnemyConduct.orbit);
+      expect(conductFromRole(CosmicEnemyRole.shooter), EnemyConduct.standoff);
     });
+  });
 
-    test('drift does not move — it is provoked, not driven', () {
+  group('stats that used to hide inside the movement vector', () {
+    test("the crusher's speed bonus is an explicit stat now", () {
+      // It used to multiply the DIRECTION by 1.08 — a stat wearing a steering
+      // rule's clothes.
       expect(
-        conductMoveVector(
-          conduct: EnemyConduct.drift,
-          dist: 100,
-          norm: norm,
-          tangent: tangent,
-        ),
-        Offset.zero,
+        conductSpeedMultiplier(EnemyConduct.charge, heavyBody: true),
+        closeTo(1.08, 1e-9),
       );
+      expect(
+        conductSpeedMultiplier(EnemyConduct.charge, heavyBody: false),
+        1.0,
+      );
+      expect(conductSpeedMultiplier(EnemyConduct.stalk, heavyBody: true), 1.0);
     });
   });
 }

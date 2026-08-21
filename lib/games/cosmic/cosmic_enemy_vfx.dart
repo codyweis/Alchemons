@@ -102,31 +102,12 @@ class EnemyVisual {
     element: e.element,
     tier: e.tier,
     hpFraction: e.hpFraction,
-    // Trait first: it is the axis that actually carries a mechanic. Falls back
-    // to the variant so conduct-only enemies still read distinctly.
-    sigilPoints: e.trait != null
-        ? traitSigilPoints(e.trait)
-        : variantSigilPoints(e.variant),
-    // Survival had its own squash table; it moves here rather than being
-    // duplicated a third time inside the renderer.
-    squash: switch (e.variant) {
-      SurvivalEnemyVariant.orbBreaker => 1.12,
-      SurvivalEnemyVariant.siegeShooter => 0.94,
-      SurvivalEnemyVariant.crusher => 1.20,
-      SurvivalEnemyVariant.pouncer => 0.90,
-      SurvivalEnemyVariant.summoner => 1.08,
-      SurvivalEnemyVariant.splitter => 1.04,
-      SurvivalEnemyVariant.standard => 1.0,
-    },
-    stretch: switch (e.variant) {
-      SurvivalEnemyVariant.orbBreaker => 0.93,
-      SurvivalEnemyVariant.siegeShooter => 1.10,
-      SurvivalEnemyVariant.crusher => 0.88,
-      SurvivalEnemyVariant.pouncer => 1.16,
-      SurvivalEnemyVariant.summoner => 1.08,
-      SurvivalEnemyVariant.splitter => 0.96,
-      SurvivalEnemyVariant.standard => 1.0,
-    },
+    sigilPoints: traitSigilPoints(e.trait),
+    // Squash derived from the two real axes rather than a variant table.
+    // A heavy charger reads squat, a stalker reads elongated, a standoff
+    // shooter reads tall and thin.
+    squash: _squashFor(e.conduct, e.trait, e.tier),
+    stretch: _stretchFor(e.conduct, e.trait, e.tier),
     hitFlash: e.hitFlash,
     isElite: e.isElite,
     eliteAffix: e.eliteAffix,
@@ -156,6 +137,29 @@ class EnemyVisual {
     },
     flightSteering: e.flightSteering,
   );
+}
+
+bool _heavy(EnemyTier t) =>
+    t == EnemyTier.brute || t == EnemyTier.colossus;
+
+double _squashFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
+  if (t == EnemyTrait.breaker) return 1.12;
+  if (t == EnemyTrait.summoner) return 1.08;
+  if (t == EnemyTrait.splitter) return 1.04;
+  if (c == EnemyConduct.charge && _heavy(tier)) return 1.20;
+  if (c == EnemyConduct.stalk) return 0.90;
+  if (c == EnemyConduct.standoff) return 0.94;
+  return 1.0;
+}
+
+double _stretchFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
+  if (t == EnemyTrait.breaker) return 0.93;
+  if (t == EnemyTrait.summoner) return 1.08;
+  if (t == EnemyTrait.splitter) return 0.96;
+  if (c == EnemyConduct.charge && _heavy(tier)) return 0.88;
+  if (c == EnemyConduct.stalk) return 1.16;
+  if (c == EnemyConduct.standoff) return 1.10;
+  return 1.0;
 }
 
 /// Open-world variants mapped onto the same mark vocabulary as survival's, so
@@ -1365,18 +1369,6 @@ int traitSigilPoints(EnemyTrait? t) => switch (t) {
   EnemyTrait.breaker => 3,
   EnemyTrait.summoner => 7,
   EnemyTrait.splitter => 8,
-};
-
-/// Legacy variant mapping, kept while non-migrated call sites still pass a
-/// variant. Delete with the enum.
-int variantSigilPoints(SurvivalEnemyVariant v) => switch (v) {
-  SurvivalEnemyVariant.standard => 0,
-  SurvivalEnemyVariant.orbBreaker => 3,
-  SurvivalEnemyVariant.siegeShooter => 4,
-  SurvivalEnemyVariant.crusher => 6,
-  SurvivalEnemyVariant.pouncer => 5,
-  SurvivalEnemyVariant.summoner => 7,
-  SurvivalEnemyVariant.splitter => 8,
 };
 
 /// Orbiting mote count per boss archetype. Kept independent of the sigil

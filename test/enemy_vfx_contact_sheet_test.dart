@@ -44,7 +44,8 @@ void main() {
   CosmicSurvivalEnemy make({
     required EnemyTier tier,
     required String element,
-    SurvivalEnemyVariant variant = SurvivalEnemyVariant.standard,
+    EnemyConduct conduct = EnemyConduct.charge,
+    EnemyTrait? trait,
     CosmicEnemyRole role = CosmicEnemyRole.striker,
     bool isElite = false,
     EliteAffix? affix,
@@ -62,7 +63,8 @@ void main() {
       tier: tier,
       element: element,
       role: role,
-      variant: variant,
+      conduct: conduct,
+      trait: trait,
       target: CosmicEnemyTarget.orb,
       isElite: isElite,
       eliteAffix: affix,
@@ -221,18 +223,31 @@ void main() {
     await sheetOf(
       tester,
       'enemy_variants_sheet',
-      'SURVIVAL VARIANTS — behaviour skins over a shared body',
+      'TRAITS & CONDUCTS — the converged taxonomy',
       [
-        for (final v in SurvivalEnemyVariant.values)
+        for (final t in [null, ...EnemyTrait.values])
           (
-            v.name.toUpperCase(),
-            'sentinel · striker',
+            (t?.name ?? 'none').toUpperCase(),
+            'sentinel · trait',
             enemyDrawer(
               make(
                 tier: EnemyTier.sentinel,
                 element: 'Lightning',
-                variant: v,
+                trait: t,
                 radius: 17,
+              ),
+            ),
+          ),
+        for (final c in EnemyConduct.values)
+          (
+            'CONDUCT: ${c.name.toUpperCase()}',
+            'sentinel · conduct',
+            enemyDrawer(
+              make(
+                tier: EnemyTier.brute,
+                element: 'Lightning',
+                conduct: c,
+                radius: 20,
               ),
             ),
           ),
