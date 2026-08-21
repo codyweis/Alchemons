@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -70,11 +71,17 @@ class MiniMapOverlay extends StatefulWidget {
   State<MiniMapOverlay> createState() => MiniMapOverlayState();
 }
 
+/// Whether the planet carousel is collapsed. Module-level so the choice
+/// survives closing and reopening the chart within a session — a player who
+/// wants the big map does not want to re-collapse it every time.
+bool _planetsCollapsed = false;
+
 class MiniMapOverlayState extends State<MiniMapOverlay> {
   final TransformationController _transformCtrl = TransformationController();
   final ScrollController _planetScrollCtrl = ScrollController();
   int _selectedColor = 0;
   bool _markerMode = false;
+  bool _eraseMode = false;
   bool _showMarkerColors = false;
   int _planetIndex = 0;
   bool _didPrimeMapTransform = false;
@@ -127,36 +134,82 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
   }
 
   void _primeMapTransform({
-    required double viewportSize,
+    required Size viewport,
+    required Size content,
     required double scale,
   }) {
-    if (_didPrimeMapTransform || viewportSize <= 0 || scale <= 0) return;
+    if (_didPrimeMapTransform ||
+        viewport.isEmpty ||
+        content.isEmpty ||
+        scale <= 0) {
+      return;
+    }
     _didPrimeMapTransform = true;
 
     const initialZoom = 1.25;
     final shipScene = widget.game.ship.pos * scale;
-    final minTranslate = viewportSize - (viewportSize * initialZoom);
-    final tx = (viewportSize / 2 - shipScene.dx * initialZoom).clamp(
-      minTranslate,
+    // Clamp per axis against the painted content, not one square dimension:
+    // the chart is now cover-scaled, so the two axes overflow differently.
+    final minTx = viewport.width - content.width * initialZoom;
+    final minTy = viewport.height - content.height * initialZoom;
+    final tx = (viewport.width / 2 - shipScene.dx * initialZoom).clamp(
+      min(minTx, 0.0),
       0.0,
     );
-    final ty = (viewportSize / 2 - shipScene.dy * initialZoom).clamp(
-      minTranslate,
+    final ty = (viewport.height / 2 - shipScene.dy * initialZoom).clamp(
+      min(minTy, 0.0),
       0.0,
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _transformCtrl.value = Matrix4.identity()
-        ..translateByDouble(tx, ty, 0, 1)
+        ..translateByDouble(tx.toDouble(), ty.toDouble(), 0, 1)
         ..scaleByDouble(initialZoom, initialZoom, 1, 1);
     });
+  }
+
+  /// World-space distance corresponding to [screenPx] on screen right now, so
+  /// the pick radius feels the same whether zoomed out or all the way in.
+  double _worldTolerance(double scale, double screenPx) {
+    final zoom = _transformCtrl.value.getMaxScaleOnAxis();
+    final denom = scale * (zoom <= 0 ? 1.0 : zoom);
+    return denom <= 0 ? 800.0 : screenPx / denom;
+  }
+
+  /// Removes the marker nearest [tapWorld] if one is within reach. Returns
+  /// whether anything was removed.
+  bool _removeMarkerNear(Offset tapWorld, double scale) {
+    var closestDist = double.infinity;
+    var closestIdx = -1;
+    for (var i = 0; i < widget.markers.length; i++) {
+      final d = (widget.markers[i].worldPos - tapWorld).distance;
+      if (d < closestDist) {
+        closestDist = d;
+        closestIdx = i;
+      }
+    }
+    final tol = max(_worldTolerance(scale, 26), 240.0);
+    if (closestIdx >= 0 && closestDist < tol) {
+      final updated = List<MapMarker>.from(widget.markers)
+        ..removeAt(closestIdx);
+      widget.onMarkersChanged(updated);
+      HapticFeedback.lightImpact();
+      return true;
+    }
+    return false;
   }
 
   void _handleTapUp(TapUpDetails details, double scale) {
     final tapWorld = _worldFromViewport(details.localPosition, scale);
     final wx = tapWorld.dx;
     final wy = tapWorld.dy;
+
+    if (_eraseMode) {
+      setState(() => _travelPrompt = null);
+      _removeMarkerNear(tapWorld, scale);
+      return;
+    }
 
     if (_markerMode) {
       HapticFeedback.selectionClick();
@@ -415,24 +468,9 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
   }
 
   void _handleLongPress(LongPressStartDetails details, double scale) {
-    final tapWorld = _worldFromViewport(details.localPosition, scale);
-
-    var closestDist = double.infinity;
-    var closestIdx = -1;
-    for (var i = 0; i < widget.markers.length; i++) {
-      final d = (widget.markers[i].worldPos - tapWorld).distance;
-      if (d < closestDist) {
-        closestDist = d;
-        closestIdx = i;
-      }
-    }
-
-    if (closestIdx >= 0 && closestDist < 800) {
-      final updated = List<MapMarker>.from(widget.markers)
-        ..removeAt(closestIdx);
-      widget.onMarkersChanged(updated);
-      HapticFeedback.lightImpact();
-    }
+    // Kept as a shortcut, but it is no longer the only way to remove one —
+    // it competes with the viewer's pan gesture and often never fires.
+    _removeMarkerNear(_worldFromViewport(details.localPosition, scale), scale);
   }
 
   void _navigateToSelected() {
@@ -509,82 +547,205 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
               onGoHome: () => _runAfterBuild(widget.onGoHome),
               onClose: widget.onClose,
             ),
-            _MarkerToolbar(
-              markerMode: _markerMode,
-              showMarkerColors: _showMarkerColors,
-              selectedColor: _selectedColor,
-              hasMarkers: widget.markers.isNotEmpty,
-              onToggleMode: () => setState(() {
-                final nextOpen = !_showMarkerColors;
-                _showMarkerColors = nextOpen;
-                if (!nextOpen) _markerMode = false;
-              }),
-              onSelectColor: (i) => setState(() {
-                _selectedColor = i;
-                _showMarkerColors = true;
-                _markerMode = true;
-              }),
-              onClearAll: () => widget.onMarkersChanged([]),
-            ),
-            // ── Carousel + Navigate button ─────────────────────────────────
+            // ── Carousel + Navigate button (collapsible) ───────────────────
             if (_discoveredPlanets.isNotEmpty) ...[
-              SizedBox(
-                height: 136,
-                child: _PlanetCarousel(
-                  planets: _discoveredPlanets,
-                  selectedIndex: _planetIndex,
-                  scrollController: _planetScrollCtrl,
-                  dungeonStarsFor: widget.dungeonStarsFor,
-                  onChanged: (i) {
-                    setState(() => _planetIndex = i);
-                    HapticFeedback.selectionClick();
-                  },
+              // One row: marker tools on the left, planets toggle on the
+              // right. They were stacked, which cost the chart a whole extra
+              // row the moment the tools appeared.
+              _ChartToolRow(
+                showMarkerTools: _planetsCollapsed,
+                markerMode: _markerMode,
+                eraseMode: _eraseMode,
+                showMarkerColors: _showMarkerColors,
+                selectedColor: _selectedColor,
+                hasMarkers: widget.markers.isNotEmpty,
+                onToggleMarkerMode: () => setState(() {
+                  final nextOpen = !_showMarkerColors;
+                  _showMarkerColors = nextOpen;
+                  if (!nextOpen) _markerMode = false;
+                  if (nextOpen) _eraseMode = false;
+                }),
+                onToggleErase: () => setState(() {
+                  _eraseMode = !_eraseMode;
+                  if (_eraseMode) {
+                    _markerMode = false;
+                    _showMarkerColors = false;
+                  }
+                }),
+                onSelectColor: (i) => setState(() {
+                  _selectedColor = i;
+                  _showMarkerColors = true;
+                  _markerMode = true;
+                  _eraseMode = false;
+                }),
+                onClearAll: () => widget.onMarkersChanged([]),
+                collapsed: _planetsCollapsed,
+                onToggle: () {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _planetsCollapsed = !_planetsCollapsed;
+                    if (!_planetsCollapsed) {
+                      // The marker toolbar goes with it — leaving place or
+                      // erase armed with no visible control would silently
+                      // hijack the next tap on the chart.
+                      _markerMode = false;
+                      _eraseMode = false;
+                      _showMarkerColors = false;
+                    }
+                  });
+                },
+              ),
+              // Collapsing hands the carousel's ~190px straight to the chart.
+              //
+              // Deliberately NOT animated. An AnimatedSize here re-lays-out
+              // the chart on every frame of the transition, and the map
+              // painter is isComplex — it redraws the whole galaxy at a new
+              // size each time. That is ~13 full repaints for a 220ms slide,
+              // which is exactly the hitch it was supposed to smooth over.
+              // One reflow is cheaper and reads as snappier.
+              if (!_planetsCollapsed)
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 136,
+                      child: _PlanetCarousel(
+                        planets: _discoveredPlanets,
+                        selectedIndex: _planetIndex,
+                        scrollController: _planetScrollCtrl,
+                        dungeonStarsFor: widget.dungeonStarsFor,
+                        onChanged: (i) {
+                          setState(() => _planetIndex = i);
+                          HapticFeedback.selectionClick();
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _NavigateButton(
+                      planet:
+                          _discoveredPlanets[_planetIndex.clamp(
+                            0,
+                            _discoveredPlanets.length - 1,
+                          )],
+                      onTap: _navigateToSelected,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              _NavigateButton(
-                planet:
-                    _discoveredPlanets[_planetIndex.clamp(
-                      0,
-                      _discoveredPlanets.length - 1,
-                    )],
-                onTap: _navigateToSelected,
-              ),
-              const SizedBox(height: 8),
             ],
-            // ── Map takes all remaining space ───────────────────────────────
+            if (_discoveredPlanets.isEmpty)
+              _ChartToolRow(
+                showMarkerTools: true,
+                markerMode: _markerMode,
+                eraseMode: _eraseMode,
+                showMarkerColors: _showMarkerColors,
+                selectedColor: _selectedColor,
+                hasMarkers: widget.markers.isNotEmpty,
+                onToggleMarkerMode: () => setState(() {
+                  final nextOpen = !_showMarkerColors;
+                  _showMarkerColors = nextOpen;
+                  if (!nextOpen) _markerMode = false;
+                  if (nextOpen) _eraseMode = false;
+                }),
+                onToggleErase: () => setState(() {
+                  _eraseMode = !_eraseMode;
+                  if (_eraseMode) {
+                    _markerMode = false;
+                    _showMarkerColors = false;
+                  }
+                }),
+                onSelectColor: (i) => setState(() {
+                  _selectedColor = i;
+                  _showMarkerColors = true;
+                  _markerMode = true;
+                  _eraseMode = false;
+                }),
+                onClearAll: () => widget.onMarkersChanged([]),
+                collapsed: true,
+                onToggle: null,
+              ),
+            // ── Map takes all remaining space, edge to edge ────────────────
             Expanded(
-              child: _MapView(
-                world: widget.world,
-                game: widget.game,
-                markers: widget.markers,
-                transformCtrl: _transformCtrl,
-                onTapDown: _handleTapDown,
-                onTapUp: _handleTapUp,
-                onLongPress: _handleLongPress,
-                onViewportReady: _primeMapTransform,
-                showAllContestArenas: widget.debugShowAllContestArenasOnMap,
-                tutorialTargetPos: widget.tutorialTargetPos,
-                tutorialTargetColor: widget.tutorialTargetColor,
-                tutorialTargetLabel: widget.tutorialTargetLabel,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: _MapView(
+                      world: widget.world,
+                      game: widget.game,
+                      markers: widget.markers,
+                      transformCtrl: _transformCtrl,
+                      onTapDown: _handleTapDown,
+                      onTapUp: _handleTapUp,
+                      onLongPress: _handleLongPress,
+                      onViewportReady: _primeMapTransform,
+                      showAllContestArenas:
+                          widget.debugShowAllContestArenasOnMap,
+                      tutorialTargetPos: widget.tutorialTargetPos,
+                      tutorialTargetColor: widget.tutorialTargetColor,
+                      tutorialTargetLabel: widget.tutorialTargetLabel,
+                    ),
+                  ),
+                  // Prompt and legend float ON the chart now. Stacked below it
+                  // they stole height and forced the map back off the bottom
+                  // edge, which is the boxed-in look we are getting rid of.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      ignoring: true,
+                      child: Container(
+                        height: 132,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              CosmicScreenStyles.bg1.withValues(alpha: 0.0),
+                              CosmicScreenStyles.bg1.withValues(alpha: 0.82),
+                              CosmicScreenStyles.bg1.withValues(alpha: 0.96),
+                            ],
+                            stops: const [0.0, 0.55, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: SafeArea(
+                      top: false,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_travelPrompt != null)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                              child: _TravelPromptCard(
+                                prompt: _travelPrompt!,
+                                onDismiss: () =>
+                                    setState(() => _travelPrompt = null),
+                                onConfirm: () {
+                                  final prompt = _travelPrompt;
+                                  setState(() => _travelPrompt = null);
+                                  prompt?.onConfirm?.call();
+                                },
+                              ),
+                            ),
+                          _Legend(
+                            markerMode: _markerMode,
+                            eraseMode: _eraseMode,
+                            showContestTip:
+                                widget.debugEnableContestArenaTeleport,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            if (_travelPrompt != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                child: _TravelPromptCard(
-                  prompt: _travelPrompt!,
-                  onDismiss: () => setState(() => _travelPrompt = null),
-                  onConfirm: () {
-                    final prompt = _travelPrompt;
-                    setState(() => _travelPrompt = null);
-                    prompt?.onConfirm?.call();
-                  },
-                ),
-              ),
-            _Legend(
-              markerMode: _markerMode,
-              showContestTip: widget.debugEnableContestArenaTeleport,
             ),
           ],
         ),
@@ -798,6 +959,175 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// The chart's one control row: marker tools on the left, planets toggle on
+/// the right. They used to be stacked, which cost the chart a whole extra row
+/// the moment the marker tools appeared.
+class _ChartToolRow extends StatelessWidget {
+  const _ChartToolRow({
+    required this.showMarkerTools,
+    required this.markerMode,
+    required this.eraseMode,
+    required this.showMarkerColors,
+    required this.selectedColor,
+    required this.hasMarkers,
+    required this.onToggleMarkerMode,
+    required this.onToggleErase,
+    required this.onSelectColor,
+    required this.onClearAll,
+    required this.collapsed,
+    required this.onToggle,
+  });
+
+  final bool showMarkerTools;
+  final bool markerMode;
+  final bool eraseMode;
+  final bool showMarkerColors;
+  final int selectedColor;
+  final bool hasMarkers;
+  final VoidCallback onToggleMarkerMode;
+  final VoidCallback onToggleErase;
+  final ValueChanged<int> onSelectColor;
+  final VoidCallback onClearAll;
+  final bool collapsed;
+
+  /// Null when there are no planets to show or hide.
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = CosmicScreenStyles.amber;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
+      child: SizedBox(
+        height: 34,
+        child: Row(
+          children: [
+            if (showMarkerTools) ...[
+              _ModeButton(
+                icon: AppIcons.push_pin,
+                active: markerMode,
+                accent: MapMarker
+                    .colors[selectedColor.clamp(0, MapMarker.typeCount - 1)],
+                onTap: onToggleMarkerMode,
+              ),
+              const SizedBox(width: 6),
+              // Erase mode — one marker at a time. Removal used to exist only
+              // as a long-press, which competes with the map's own pan gesture
+              // and so was close to unusable; this makes it explicit.
+              _ModeButton(
+                icon: AppIcons.delete_outline_rounded,
+                active: eraseMode,
+                accent: const Color(0xFFFF6B6B),
+                onTap: onToggleErase,
+              ),
+              const SizedBox(width: 6),
+              if (showMarkerColors)
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < MapMarker.typeCount; i++) ...[
+                        Expanded(
+                          child: _MarkerSwatch(
+                            index: i,
+                            selected: selectedColor == i && markerMode,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              onSelectColor(i);
+                            },
+                          ),
+                        ),
+                        if (i < MapMarker.typeCount - 1)
+                          const SizedBox(width: 3),
+                      ],
+                    ],
+                  ),
+                )
+              else
+                const Spacer(),
+              if (hasMarkers) ...[
+                const SizedBox(width: 6),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    onClearAll();
+                  },
+                  // Small and quiet: it wipes every marker, so it should not
+                  // be the most inviting control in the row.
+                  child: Container(
+                    height: 26,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: CosmicScreenStyles.bg2,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: CosmicScreenStyles.borderMid.withValues(
+                          alpha: 0.7,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      'CLEAR',
+                      style: TextStyle(
+                        fontFamily: appFontFamily(context),
+                        color: CosmicScreenStyles.textMuted.withValues(
+                          alpha: 0.85,
+                        ),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ] else
+              const Spacer(),
+            if (onToggle != null) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onToggle,
+                child: Container(
+                  height: 28,
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: accent.withValues(alpha: 0.32),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        AppIcons.public_rounded,
+                        size: 13,
+                        color: accent.withValues(alpha: 0.8),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        collapsed
+                            ? AppIcons.keyboard_arrow_down_rounded
+                            : AppIcons.keyboard_arrow_up_rounded,
+                        size: 15,
+                        color: accent.withValues(alpha: 0.9),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _IconBtn extends StatelessWidget {
   const _IconBtn({
     required this.icon,
@@ -901,130 +1231,132 @@ class _StatChip extends StatelessWidget {
 // MARKER TOOLBAR
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MarkerToolbar extends StatelessWidget {
-  const _MarkerToolbar({
-    required this.markerMode,
-    required this.showMarkerColors,
-    required this.selectedColor,
-    required this.hasMarkers,
-    required this.onToggleMode,
-    required this.onSelectColor,
-    required this.onClearAll,
+class _ModeButton extends StatelessWidget {
+  const _ModeButton({
+    required this.icon,
+    required this.active,
+    required this.accent,
+    required this.onTap,
   });
 
-  final bool markerMode;
-  final bool showMarkerColors;
-  final int selectedColor;
-  final bool hasMarkers;
-  final VoidCallback onToggleMode;
-  final ValueChanged<int> onSelectColor;
-  final VoidCallback onClearAll;
+  final IconData icon;
+  final bool active;
+  final Color accent;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      child: Row(
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onToggleMode();
-            },
-            child: Container(
-              width: 38,
-              height: 38,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: markerMode
-                    ? CosmicScreenStyles.amber.withValues(alpha: 0.18)
-                    : CosmicScreenStyles.bg2,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: markerMode
-                      ? MapMarker.colors[selectedColor].withValues(alpha: 0.95)
-                      : CosmicScreenStyles.borderMid,
-                  width: markerMode ? 1.5 : 1.0,
-                ),
-              ),
-              child: Icon(
-                AppIcons.push_pin,
-                color: markerMode
-                    ? MapMarker.colors[selectedColor]
-                    : CosmicScreenStyles.textMuted,
-                size: 15,
-              ),
-            ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active
+              ? accent.withValues(alpha: 0.18)
+              : CosmicScreenStyles.bg2,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: active
+                ? accent.withValues(alpha: 0.95)
+                : CosmicScreenStyles.borderMid,
+            width: active ? 1.5 : 1.0,
           ),
-          if (showMarkerColors) ...[
-            const SizedBox(width: 8),
-            for (var i = 0; i < 3; i++) ...[
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onSelectColor(i);
-                },
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: MapMarker.colors[i].withValues(
-                      alpha: selectedColor == i && markerMode ? 0.86 : 0.28,
-                    ),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: selectedColor == i && markerMode
-                          ? CosmicScreenStyles.textPrimary
-                          : CosmicScreenStyles.borderMid,
-                      width: selectedColor == i && markerMode ? 1.8 : 1.0,
-                    ),
-                  ),
-                ),
-              ),
-              if (i < 2) const SizedBox(width: 6),
-            ],
-          ],
-          const Spacer(),
-          if (hasMarkers)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                onClearAll();
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 13,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: CosmicScreenStyles.bg2,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: CosmicScreenStyles.borderMid),
-                ),
-                child: Text(
-                  'CLEAR ALL',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ),
-        ],
+        ),
+        child: Icon(
+          icon,
+          color: active ? accent : CosmicScreenStyles.textMuted,
+          size: 16,
+        ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PLANET CAROUSEL  (flat horizontal scroll — one row, bigger planets)
-// ─────────────────────────────────────────────────────────────────────────────
+/// One of the six marker types, drawn as its real silhouette so the picker
+/// shows exactly what will land on the chart.
+class _MarkerSwatch extends StatelessWidget {
+  const _MarkerSwatch({
+    required this.index,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int index;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = MapMarker.colors[index];
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: selected ? 0.24 : 0.08),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.95)
+                : CosmicScreenStyles.borderMid.withValues(alpha: 0.7),
+            width: selected ? 1.6 : 1.0,
+          ),
+        ),
+        // Shape only. At the size these swatches get, 6.5px labels were
+        // unreadable anyway, and the silhouette already carries the identity.
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CustomPaint(
+              painter: _SwatchPainter(
+                shape: MapMarker.shapes[index],
+                color: color,
+                dim: !selected,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SwatchPainter extends CustomPainter {
+  const _SwatchPainter({
+    required this.shape,
+    required this.color,
+    required this.dim,
+  });
+
+  final MarkerShape shape;
+  final Color color;
+  final bool dim;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    paintMarkerShape(
+      canvas,
+      Offset(size.width / 2, size.height / 2),
+      6.4,
+      shape,
+      Paint()..color = color.withValues(alpha: dim ? 0.6 : 1.0),
+      Paint()
+        ..color = Colors.white.withValues(alpha: dim ? 0.25 : 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SwatchPainter old) =>
+      old.shape != shape || old.color != color || old.dim != dim;
+}
 
 class _PlanetCarousel extends StatefulWidget {
   const _PlanetCarousel({
@@ -1469,7 +1801,11 @@ class _MapView extends StatefulWidget {
   final void Function(TapDownDetails, double) onTapDown;
   final void Function(TapUpDetails, double) onTapUp;
   final void Function(LongPressStartDetails, double) onLongPress;
-  final void Function({required double viewportSize, required double scale})
+  final void Function({
+    required Size viewport,
+    required Size content,
+    required double scale,
+  })
   onViewportReady;
   final bool showAllContestArenas;
   final Offset? tutorialTargetPos;
@@ -1504,95 +1840,79 @@ class _MapViewState extends State<_MapView> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final fitSize = min(constraints.maxWidth, constraints.maxHeight);
-          final scale =
-              fitSize /
-              max(widget.world.worldSize.width, widget.world.worldSize.height);
-          final discoveredPlanetCount = widget.world.discoveredCount;
-          if (_lastFitSize != fitSize) {
-            _lastFitSize = fitSize;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              widget.onViewportReady(viewportSize: fitSize, scale: scale);
-            });
-          }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Full-bleed: the chart runs to the edges instead of sitting as a
+        // centred square card. The world is scaled to COVER the viewport, so
+        // whichever axis is short overflows and becomes pannable rather than
+        // being letterboxed away.
+        final vw = constraints.maxWidth;
+        final vh = constraints.maxHeight;
+        final worldW = widget.world.worldSize.width;
+        final worldH = widget.world.worldSize.height;
+        final scale = max(vw / worldW, vh / worldH);
+        final contentW = worldW * scale;
+        final contentH = worldH * scale;
+        final discoveredPlanetCount = widget.world.discoveredCount;
 
-          return Center(
-            child: SizedBox(
-              width: fitSize,
-              height: fitSize,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: CosmicScreenStyles.bg1,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: CosmicScreenStyles.borderMid.withValues(alpha: 0.9),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: CosmicScreenStyles.amber.withValues(alpha: 0.05),
-                      blurRadius: 24,
-                      spreadRadius: 2,
+        if (_lastFitSize != scale) {
+          _lastFitSize = scale;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            widget.onViewportReady(
+              viewport: Size(vw, vh),
+              content: Size(contentW, contentH),
+              scale: scale,
+            );
+          });
+        }
+
+        return ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColoredBox(color: CosmicScreenStyles.bg1),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (d) => widget.onTapDown(d, scale),
+                onTapUp: (d) => widget.onTapUp(d, scale),
+                onLongPressStart: (d) => widget.onLongPress(d, scale),
+                child: InteractiveViewer(
+                  transformationController: widget.transformCtrl,
+                  minScale: 1.0,
+                  maxScale: 8.0,
+                  boundaryMargin: EdgeInsets.zero,
+                  constrained: false,
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      isComplex: true,
+                      size: Size(contentW, contentH),
+                      painter: _MiniMapPainter(
+                        world: widget.world,
+                        game: widget.game,
+                        scale: scale,
+                        shipPos: widget.game.ship.pos,
+                        revealedCellCount: widget.game.revealedCells.length,
+                        discoveredPlanetCount: discoveredPlanetCount,
+                        showAllContestArenasOnMap: widget.showAllContestArenas,
+                        markers: widget.markers,
+                        tutorialTargetPos: widget.tutorialTargetPos,
+                        tutorialTargetColor: widget.tutorialTargetColor,
+                        tutorialTargetLabel: widget.tutorialTargetLabel,
+                        pulseTick: _pulseTick,
+                      ),
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapDown: (d) => widget.onTapDown(d, scale),
-                        onTapUp: (d) => widget.onTapUp(d, scale),
-                        onLongPressStart: (d) => widget.onLongPress(d, scale),
-                        child: InteractiveViewer(
-                          transformationController: widget.transformCtrl,
-                          minScale: 1.0,
-                          maxScale: 8.0,
-                          boundaryMargin: EdgeInsets.zero,
-                          child: RepaintBoundary(
-                            child: CustomPaint(
-                              isComplex: true,
-                              size: Size(fitSize, fitSize),
-                              painter: _MiniMapPainter(
-                                world: widget.world,
-                                game: widget.game,
-                                scale: scale,
-                                shipPos: widget.game.ship.pos,
-                                revealedCellCount:
-                                    widget.game.revealedCells.length,
-                                discoveredPlanetCount: discoveredPlanetCount,
-                                showAllContestArenasOnMap:
-                                    widget.showAllContestArenas,
-                                markers: widget.markers,
-                                tutorialTargetPos: widget.tutorialTargetPos,
-                                tutorialTargetColor: widget.tutorialTargetColor,
-                                tutorialTargetLabel: widget.tutorialTargetLabel,
-                                pulseTick: _pulseTick,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Star-chart chrome on top of the map, under no
-                      // gestures: corner brackets, range rings, cardinal
-                      // ticks and an edge vignette.
-                      const IgnorePointer(
-                        child: CustomPaint(painter: _ChartFramePainter()),
-                      ),
-                    ],
                   ),
                 ),
               ),
-            ),
-          );
-        },
-      ),
+              // Star-chart chrome, now drawn against the real screen edges.
+              const IgnorePointer(
+                child: CustomPaint(painter: _ChartFramePainter()),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1666,28 +1986,30 @@ class _ChartFramePainter extends CustomPainter {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.markerMode, required this.showContestTip});
+  const _Legend({
+    required this.markerMode,
+    required this.eraseMode,
+    required this.showContestTip,
+  });
   final bool markerMode;
+  final bool eraseMode;
   final bool showContestTip;
 
   @override
   Widget build(BuildContext context) {
-    final hint = markerMode
-        ? 'Tap to place marker  •  Long-press to remove'
+    final hint = eraseMode
+        ? 'Tap a marker to remove it'
+        : markerMode
+        ? 'Tap to place  •  Long-press a marker to remove'
         : showContestTip
         ? 'Tap destination, then travel  •  Pinch to zoom'
         : 'Tap destination, then travel  •  Pinch to zoom  •  Drag to pan';
 
+    // No top rule: the legend floats over the chart on its own scrim now, and
+    // a hard divider line across the map was exactly the boxed-in edge this
+    // layout is getting rid of.
     return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: CosmicScreenStyles.borderMid.withValues(alpha: 0.75),
-            width: 1,
-          ),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1699,16 +2021,6 @@ class _Legend extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.2,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            'Tip: Long-press the map icon to toggle it.',
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: CosmicScreenStyles.amber,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -2465,20 +2777,23 @@ class _MiniMapPainter extends CustomPainter {
       );
     }
 
-    // Map markers
+    // Map markers — each type has its own silhouette as well as its own
+    // colour, so they stay distinguishable at chart scale and without relying
+    // on hue alone.
     for (final marker in markers) {
       final mPos = marker.worldPos * scale;
-      canvas
-        ..drawCircle(mPos, 8, _glowPaint(marker.color, 0.35, 5))
-        ..drawCircle(mPos, 4, Paint()..color = marker.color)
-        ..drawCircle(
-          mPos,
-          4,
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.6)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1,
-        );
+      canvas.drawCircle(mPos, 9, _glowPaint(marker.color, 0.35, 5));
+      paintMarkerShape(
+        canvas,
+        mPos,
+        4.6,
+        marker.shape,
+        Paint()..color = marker.color,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.62)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
     }
 
     // Galaxy whirls
@@ -2739,6 +3054,41 @@ class _MiniMapPainter extends CustomPainter {
         } else {
           _paintLabel(canvas, '?', poiColor, 0.4, poiPos, poiDotR, fontSize: 7);
         }
+      }
+    }
+
+    // Sealed elemental caches — pinned to the chart for good once the ship
+    // has been right on top of one.
+    for (final cache in game.elementalCacheField.caches) {
+      if (!cache.discovered || !cache.isPresent) continue;
+      final cPos = cache.position * scale;
+      final cColor = cache.color;
+      canvas
+        ..drawCircle(cPos, 7, _glowPaint(cColor, 0.18, 4))
+        ..drawCircle(
+          cPos,
+          5,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = cColor.withValues(alpha: 0.75),
+        )
+        ..drawCircle(
+          cPos,
+          1.8,
+          Paint()..color = cColor.withValues(alpha: 0.95),
+        );
+      if (showStructureLabels) {
+        // Named by its riddle, not its element — the chart should not hand
+        // you the answer the seal is asking for.
+        _paintLabel(
+          canvas,
+          cacheHintFor(cache.element).toUpperCase(),
+          cColor,
+          0.7,
+          cPos,
+          5,
+        );
       }
     }
 

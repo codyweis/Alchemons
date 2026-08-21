@@ -227,6 +227,25 @@ class _MiniCirclePainter extends CustomPainter {
       }
     }
 
+    // Sealed elemental caches — the radar picks them up whenever they are in
+    // range, whether or not the ship has already been right on top of one.
+    for (final cache in game.elementalCacheField.caches) {
+      if (!cache.isPresent) continue;
+      final p = toMini(cache.position);
+      if ((p - center).distance > viewR + 8) continue;
+      final c = cache.color;
+      final pulse = 0.55 + 0.45 * sin(cache.life * 2.2);
+      canvas.drawCircle(p, 2.2, Paint()..color = c.withValues(alpha: 0.95));
+      canvas.drawCircle(
+        p,
+        5.2,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0
+          ..color = c.withValues(alpha: 0.25 + 0.4 * pulse),
+      );
+    }
+
     for (final arena in world.contestArenas) {
       if (!arena.discovered) continue;
       final p = toMini(arena.position);
