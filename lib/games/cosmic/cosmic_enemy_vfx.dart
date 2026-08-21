@@ -20,6 +20,7 @@ import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
+import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 /// Cached label painters — laying these out per frame was never acceptable.
@@ -59,6 +60,7 @@ TextPainter _eliteAffixPainter(String label, Color color) {
 
 class EnemyVisual {
   const EnemyVisual({
+    this.sprite,
     required this.position,
     required this.angle,
     required this.radius,
@@ -74,6 +76,15 @@ class EnemyVisual {
     this.flightSteering,
     this.rootTimer = 0,
   });
+
+  /// The body's sprite frame for this tick, when the species has one
+  /// authored. Null means draw the procedural body — the same
+  /// sprite-or-fallback arrangement the dungeon guardians already use.
+  ///
+  /// Deliberately a resolved frame rather than a ticker: the renderer stays
+  /// pure, and tickers can be shared per species instead of per enemy, which
+  /// matters at 220 of them.
+  final Sprite? sprite;
 
   final ui.Offset position;
   final double angle;
@@ -95,7 +106,9 @@ class EnemyVisual {
   final FlightSteeringState? flightSteering;
   final double rootTimer;
 
-  factory EnemyVisual.fromSurvival(CosmicSurvivalEnemy e) => EnemyVisual(
+  factory EnemyVisual.fromSurvival(CosmicSurvivalEnemy e, {Sprite? sprite}) =>
+      EnemyVisual(
+    sprite: sprite,
     position: e.position,
     angle: e.angle,
     radius: e.radius,
@@ -115,7 +128,9 @@ class EnemyVisual {
     rootTimer: e.hornPlantRootTimer,
   );
 
-  factory EnemyVisual.fromOpenWorld(CosmicEnemy e) => EnemyVisual(
+  factory EnemyVisual.fromOpenWorld(CosmicEnemy e, {Sprite? sprite}) =>
+      EnemyVisual(
+    sprite: sprite,
     position: e.position,
     angle: e.angle,
     radius: e.radius,
@@ -230,6 +245,38 @@ void drawEnemy({
   if (variantScale != 1.0 || variantYScale != 1.0) {
     canvas.rotate(enemy.angle * 0.08);
     canvas.scale(variantScale, variantYScale);
+  }
+
+  // Sprite bodies short-circuit the procedural silhouette.
+  //
+  // Same arrangement the dungeon guardians use: draw the authored art when it
+  // exists, fall back to the procedural body when it does not. The overlay
+  // channels below — archetype sigil, elite ring and pips, root vines, hit
+  // flash — are deliberately OUTSIDE this branch, so conduct, trait and affix
+  // read identically whether the body is drawn or painted.
+  final sprite = enemy.sprite;
+  if (sprite != null) {
+    final d = enemy.radius * 2.6;
+    sprite.render(
+      canvas,
+      position: Vector2.zero(),
+      size: Vector2(d, d),
+      anchor: Anchor.center,
+      overridePaint: ui.Paint()..filterQuality = ui.FilterQuality.medium,
+    );
+    if (enemy.hitFlash > 0) {
+      canvas.drawCircle(
+        ui.Offset.zero,
+        enemy.radius * 1.15,
+        ui.Paint()
+          ..color = const ui.Color(
+            0xFFFFFFFF,
+          ).withValues(alpha: 0.5 * enemy.hitFlash),
+      );
+    }
+    _drawEnemyOverlays(canvas, enemy, elapsed, eColor, r, reduceLabels);
+    canvas.restore();
+    return;
   }
 
   // Outer elemental aura (all tiers)
@@ -657,9 +704,22 @@ void drawEnemy({
       }
   }
 
-  // Variant mark. This is the only thing on an ordinary enemy that says which
-  // of the eight behaviours it is — a splitter that will burst into drones and
-  // a plain sentinel were pixel-identical before this.
+  _drawEnemyOverlays(canvas, enemy, elapsed, eColor, r, reduceLabels);
+
+  canvas.restore();
+}
+
+/// Channels that sit ON the body, whatever the body is: the trait sigil and
+/// the elite label. Shared by the sprite and procedural paths so an enemy's
+/// trait and affix read the same either way.
+void _drawEnemyOverlays(
+  Canvas canvas,
+  EnemyVisual enemy,
+  double elapsed,
+  Color eColor,
+  double r,
+  bool reduceLabels,
+) {
   drawEnemyArchetypeMark(
     canvas: canvas,
     centre: Offset.zero,
@@ -671,6 +731,13 @@ void drawEnemy({
   );
 
   if (!reduceLabels && enemy.isElite && enemy.eliteAffix != null) {
+    final affixColor = switch (enemy.eliteAffix!) {
+      EliteAffix.bulwarked => const Color(0xFF7DD3FC),
+      EliteAffix.volatile => const Color(0xFFFFA34A),
+      EliteAffix.vampiric => const Color(0xFFFB7185),
+      EliteAffix.overclocked => const Color(0xFFFDE047),
+      EliteAffix.relentless => const Color(0xFFA78BFA),
+    };
     final label = switch (enemy.eliteAffix!) {
       EliteAffix.bulwarked => 'BULWARK',
       EliteAffix.volatile => 'VOLATILE',
@@ -681,8 +748,6 @@ void drawEnemy({
     final tp = _eliteAffixPainter(label, affixColor);
     tp.paint(canvas, Offset(-tp.width / 2, -r - 18));
   }
-
-  canvas.restore();
 }
 
 /// Cached boss-name painters, module-level for the same reason the affix ones
