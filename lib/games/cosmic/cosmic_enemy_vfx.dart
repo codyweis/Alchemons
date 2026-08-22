@@ -295,42 +295,29 @@ void drawEnemy({
 
   switch (enemy.tier) {
     case EnemyTier.wisp:
-      // A comet mote, not a dim dot. The old wisp was a low-contrast radial
-      // circle: near-invisible against space (a dodging problem, not just an
-      // aesthetic one) and with no indication of where it was going — which
-      // matters most for the one body that arrives 30 at a time.
-      final flicker = 0.72 + 0.28 * sin(elapsed * 7 + enemy.angle * 5);
-      final dir = Offset(cos(enemy.angle), sin(enemy.angle));
-      final perp = Offset(-dir.dy, dir.dx);
-      final tail = -dir * (r * 3.0);
-      canvas.drawPath(
-        Path()
-          ..moveTo(perp.dx * r * 0.85, perp.dy * r * 0.85)
-          ..quadraticBezierTo(
-            perp.dx * r * 0.5 + tail.dx * 0.45,
-            perp.dy * r * 0.5 + tail.dy * 0.45,
-            tail.dx,
-            tail.dy,
-          )
-          ..quadraticBezierTo(
-            -perp.dx * r * 0.5 + tail.dx * 0.45,
-            -perp.dy * r * 0.5 + tail.dy * 0.45,
-            -perp.dx * r * 0.85,
-            -perp.dy * r * 0.85,
-          )
-          ..close(),
-        Paint()..color = flashColor.withValues(alpha: 0.34 * flicker),
-      );
+      final flicker = 0.7 + 0.3 * sin(elapsed * 6 + enemy.angle * 5);
+      final wobble = r * flicker;
       canvas.drawCircle(
-        dir * r * 0.25,
-        r * 1.05,
-        Paint()..color = flashColor.withValues(alpha: 0.85 * flicker),
-      );
-      canvas.drawCircle(
-        dir * r * 0.35,
-        r * 0.46,
+        Offset.zero,
+        wobble,
         Paint()
-          ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.95 * flicker),
+          ..shader = ui.Gradient.radial(
+            const Offset(-1, -1),
+            wobble,
+            [
+              Colors.white.withValues(alpha: 0.7 * flicker),
+              flashColor.withValues(alpha: 0.5 * flicker),
+              flashColor.withValues(alpha: 0.0),
+            ],
+            [0.0, 0.5, 1.0],
+          ),
+      );
+      canvas.drawCircle(
+        Offset.zero,
+        r * 0.15,
+        Paint()
+          ..color = Colors.red.withValues(alpha: 0.9 * flicker)
+          ..maskFilter = null,
       );
 
     case EnemyTier.sentinel:
@@ -502,50 +489,61 @@ void drawEnemy({
       );
 
     case EnemyTier.brute:
-      // Armour plates around a dark core. The old brute was a radial-gradient
-      // sphere with five cracks radiating from its centre — which renders as
-      // an asterisk laid over a ball, the same motif the Let meteors had to
-      // have removed.
-      const plates = 7;
-      final spin = elapsed * 0.35;
-      final core = Color.lerp(flashColor, Colors.black, 0.55)!;
       canvas.drawCircle(
         Offset.zero,
-        r * 0.82,
-        Paint()..color = core.withValues(alpha: 0.95),
-      );
-      // Element glow leaks through the seams between plates.
-      canvas.drawCircle(
-        Offset.zero,
-        r * 0.95,
+        r,
         Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = r * 0.18
-          ..color = eColor.withValues(
-            alpha: 0.45 + 0.2 * sin(elapsed * 2.2),
+          ..shader = ui.Gradient.radial(
+            Offset(-r * 0.2, -r * 0.2),
+            r * 1.3,
+            [
+              Color.lerp(flashColor, Colors.black, 0.3)!.withValues(alpha: 0.9),
+              Color.lerp(flashColor, Colors.black, 0.6)!.withValues(alpha: 0.8),
+              Colors.black.withValues(alpha: 0.7),
+            ],
+            [0.0, 0.5, 1.0],
           ),
       );
-      final plate = Paint()
-        ..color = Color.lerp(flashColor, Colors.black, 0.22)!;
-      final plateEdge = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..color = Color.lerp(eColor, Colors.white, 0.35)!.withValues(
-          alpha: 0.5,
+      for (var crack = 0; crack < 5; crack++) {
+        final ca = crack * pi * 2 / 5 + elapsed * 0.2;
+        final crackPath = Path()
+          ..moveTo(0, 0)
+          ..lineTo(cos(ca) * r * 0.9, sin(ca) * r * 0.9);
+        canvas.drawPath(
+          crackPath,
+          Paint()
+            ..color = eColor.withValues(
+              alpha: 0.6 + 0.2 * sin(elapsed * 2 + crack),
+            )
+            ..strokeWidth = 2.0
+            ..style = PaintingStyle.stroke
+            ..maskFilter = null,
         );
-      for (var i = 0; i < plates; i++) {
-        final a0 = spin + i * (pi * 2 / plates);
-        final a1 = a0 + (pi * 2 / plates) * 0.78;
-        final inner = r * 0.74;
-        final outer = r * 1.06;
-        final path = Path()
-          ..moveTo(cos(a0) * inner, sin(a0) * inner)
-          ..lineTo(cos(a0) * outer, sin(a0) * outer)
-          ..lineTo(cos(a1) * outer, sin(a1) * outer)
-          ..lineTo(cos(a1) * inner, sin(a1) * inner)
-          ..close();
-        canvas.drawPath(path, plate);
-        canvas.drawPath(path, plateEdge);
+      }
+      canvas.drawCircle(
+        Offset.zero,
+        r * 1.3,
+        Paint()
+          ..color = eColor.withValues(alpha: 0.08)
+          ..maskFilter = null,
+      );
+      final bruteHpFrac = enemy.hpFraction;
+      if (bruteHpFrac < 1.0) {
+        final barW = r * 2.5;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset(0, -r - 8), width: barW, height: 3),
+            const Radius.circular(1.5),
+          ),
+          Paint()..color = Colors.black.withValues(alpha: 0.6),
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(-barW / 2, -r - 8 - 1.5, barW * bruteHpFrac, 3),
+            const Radius.circular(1.5),
+          ),
+          Paint()..color = Color.lerp(Colors.red, eColor, bruteHpFrac)!,
+        );
       }
 
     case EnemyTier.colossus:
