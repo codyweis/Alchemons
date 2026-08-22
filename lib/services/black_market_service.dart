@@ -4,7 +4,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/constants/element_resources.dart';
-import 'package:alchemons/database/alchemons_db.dart'; // <-- use Settings table
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/creature_repository.dart'; // <-- use Settings table
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -34,7 +35,11 @@ class DailyOffer {
 }
 
 class BlackMarketService extends ChangeNotifier {
-  BlackMarketService(this._db, this._constellationEffectsService) {
+  BlackMarketService(
+    this._db,
+    this._constellationEffectsService,
+    this._catalog,
+  ) {
     _checkStatus();
     _updateWeeklyContent();
     _initFromSettings(); // fire-and-forget: restores week + purchased set
@@ -48,6 +53,10 @@ class BlackMarketService extends ChangeNotifier {
   // ----------------- deps -----------------
   final AlchemonsDatabase _db;
   final ConstellationEffectsService _constellationEffectsService;
+
+  /// Needed to avoid stocking vials that can never produce a specimen — the
+  /// market was able to sell an Arcane worn vial, which is a dead item.
+  final CreatureCatalog _catalog;
 
   // ----------------- constants ------------
   static const int _openHour = 18; // 6 PM
@@ -392,6 +401,18 @@ class BlackMarketService extends ChangeNotifier {
         } else {
           gaveLegendaryThisWeek = true;
         }
+      }
+
+      // Never stock a combination the catalog cannot fill. Arcane has no
+      // Common creatures, so an Arcane worn vial is a dead purchase; step it
+      // up to the cheapest rarity that group can actually deliver.
+      if (!vialCanProduceSpecimen(_catalog.creatures, g, rarity)) {
+        final usable = raritiesWithSpecimensFor(_catalog.creatures, g);
+        if (usable.isEmpty) continue; // nothing this group can ever give
+        rarity = usable.firstWhere(
+          (r) => r.index > rarity.index,
+          orElse: () => usable.last,
+        );
       }
 
       final price = _priceFor(rarity);

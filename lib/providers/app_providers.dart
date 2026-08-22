@@ -134,6 +134,7 @@ class AppProviders extends StatelessWidget {
           create: (ctx) => BlackMarketService(
             ctx.read<AlchemonsDatabase>(),
             ctx.read<ConstellationEffectsService>(),
+            ctx.read<CreatureCatalog>(),
           ),
         ),
 

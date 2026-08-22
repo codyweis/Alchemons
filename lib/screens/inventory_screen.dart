@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/screens/extract_vial_dialog.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -1113,7 +1114,6 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   Future<void> _useVial(ExtractionVial vial) async {
     final db = context.read<AlchemonsDatabase>();
-    final theme = context.read<FactionTheme>();
 
     final qty = await db.inventoryDao.getVialQty(
       vial.group,
@@ -1130,56 +1130,19 @@ class _InventoryScreenState extends State<InventoryScreen>
     }
 
     if (!mounted) return;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showExtractVialDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: bracketReadableAccent(
-              theme,
-              color: theme.accent,
-            ).withValues(alpha: 0.65),
-            width: 2,
-          ),
-        ),
-        title: Text(
-          'Extract Vial?',
-          style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
-        ),
-        content: Text(
-          'This will consume the vial and place the specimen in the extraction chamber.',
-          style: TextStyle(color: theme.textMuted, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: theme.accent),
-            child: Text('Extract', style: TextStyle(color: theme.text)),
-          ),
-        ],
-      ),
+      vial: vial,
+      owned: qty,
+      catalog: context.read<CreatureCatalog>().creatures,
     );
 
-    if (confirmed != true || !mounted) return;
-
-    final creatureRarity = switch (vial.rarity) {
-      VialRarity.common => 'Common',
-      VialRarity.uncommon => 'Uncommon',
-      VialRarity.rare => 'Rare',
-      VialRarity.legendary => 'Legendary',
-      VialRarity.mythic => 'Mythic',
-    };
+    if (!confirmed || !mounted) return;
 
     final res = await EggHatching.extractViaVial(
       context: context,
       group: vial.group,
-      rarity: creatureRarity,
+      rarity: creatureRarityForVial(vial.rarity),
       name: vial.name,
     );
 

@@ -2407,6 +2407,8 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
     // Grant rewards
     final rng = Random();
     final db = context.read<AlchemonsDatabase>();
+    // Read before the awaits below — this context must not be used after them.
+    final catalog = context.read<CreatureCatalog>();
     final silver = 150 + rng.nextInt(351); // 150–500
     final int gold = rng.nextDouble() < 0.15 ? 1 : 0;
     final bool givesVial = rng.nextDouble() < 0.25;
@@ -2418,10 +2420,22 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
     ElementalGroup? vialGroup;
     if (givesVial) {
       try {
-        final groups = ElementalGroup.values;
-        final group = groups[rng.nextInt(groups.length)];
-        await db.inventoryDao.addVial('Daily Vial', group, VialRarity.common);
-        vialGroup = group;
+        // Only groups that can actually yield a Common specimen. Arcane
+        // starts at Uncommon, so an arcane worn vial is a dead item that
+        // answers "No creatures available for this vial type" forever.
+        final groups = groupsWithSpecimensAt(
+          catalog.creatures,
+          VialRarity.common,
+        );
+        if (groups.isNotEmpty) {
+          final group = groups[rng.nextInt(groups.length)];
+          await db.inventoryDao.addVial(
+            'Daily Vial',
+            group,
+            VialRarity.common,
+          );
+          vialGroup = group;
+        }
       } catch (_) {}
     }
 
