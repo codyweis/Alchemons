@@ -110,6 +110,17 @@ class _ConstellationProgressOverviewScreenState
 
   @override
   Widget build(BuildContext context) {
+    // This screen is painted on a star field, so it is dark whatever the app's
+    // light/dark setting is. The forcing has to happen ABOVE the FactionTheme
+    // read below — in light mode that read returns light surfaces and near
+    // black text, which is what used to land on top of the stars.
+    return ForcedFactionBrightness(
+      brightness: Brightness.dark,
+      child: Builder(builder: _buildBody),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final catalog = context.watch<CreatureCatalog>();
     final constellationService = context.watch<ConstellationService>();
     final db = context.read<AlchemonsDatabase>();

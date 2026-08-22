@@ -98,6 +98,15 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Star field backdrop: always dark, whatever the app's theme setting is.
+    // The FactionTheme read below must happen underneath this.
+    return ForcedFactionBrightness(
+      brightness: Brightness.dark,
+      child: Builder(builder: _buildBody),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final constellationService = context.watch<ConstellationService>();
     final catalog = context.watch<CreatureCatalog>();
 

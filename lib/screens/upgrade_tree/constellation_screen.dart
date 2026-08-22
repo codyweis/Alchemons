@@ -474,6 +474,17 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The star chart is a dark surface by design — its own palette is
+    // hardcoded dark, and the node colours come from FactionTheme. In light
+    // mode that read handed the game light-theme colours to draw stars and
+    // hexes with, so the whole chart washed out.
+    return ForcedFactionBrightness(
+      brightness: Brightness.dark,
+      child: Builder(builder: _buildBody),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final theme = context.watch<FactionTheme>();
     final constellationService = context.watch<ConstellationService>();
 

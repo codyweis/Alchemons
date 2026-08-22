@@ -451,13 +451,25 @@ extension FactionMaterialTheme on FactionTheme {
             onSurface: text,
           );
 
+    // The caller passes the AMBIENT text theme (whatever brightness the app is
+    // currently in), so its colours must be re-tinted for THIS theme. Without
+    // this, a dark theme built while the app is in light mode reports
+    // `brightness: dark` and sets light icons, but every piece of text that
+    // relies on the inherited style renders near-black — invisible on the
+    // dark surfaces the theme is for.
+    final tintedText = textTheme.apply(
+      bodyColor: text,
+      displayColor: text,
+      decorationColor: text,
+    );
+
     return base.copyWith(
       colorScheme: scheme,
       scaffoldBackgroundColor: isDark
           ? const Color(0xFF0A0E27)
           : const Color(0xFFF7F8FC),
       cardColor: surface,
-      textTheme: textTheme,
+      textTheme: tintedText,
       appBarTheme: AppBarTheme(
         backgroundColor: surface,
         foregroundColor: text,

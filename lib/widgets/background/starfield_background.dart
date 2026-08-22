@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 
 /// A reusable starfield background — soft twinkling stars on a dark base,
@@ -185,20 +186,27 @@ class StarfieldBackgroundScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: StarfieldBackground(
-            baseColor: baseColor,
-            nebulaColor: nebulaColor,
+    // A starfield is dark by definition, so this scaffold pins its subtree to
+    // the dark faction theme regardless of the app's light/dark setting.
+    // Without this, running the app in light mode painted near-black inherited
+    // text straight onto the star field.
+    return ForcedFactionBrightness(
+      brightness: Brightness.dark,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: StarfieldBackground(
+              baseColor: baseColor,
+              nebulaColor: nebulaColor,
+            ),
           ),
-        ),
-        Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: appBar,
-          body: body,
-        ),
-      ],
+          Scaffold(
+            backgroundColor: Colors.transparent,
+            appBar: appBar,
+            body: body,
+          ),
+        ],
+      ),
     );
   }
 }
