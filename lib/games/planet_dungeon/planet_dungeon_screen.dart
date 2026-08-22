@@ -144,6 +144,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   // End-run reward popup.
   List<int>? _rewardStars;
 
+  /// A reward earned mid-run that is waiting for a safe beat to be offered.
+  ///
+  /// Rewards used to be handed out only by _endRun, so the payoff arrived at
+  /// the door rather than at the accomplishment. Now they are offered the
+  /// moment they are earned — but not mid-fight, because a modal choice while
+  /// something is shooting at you is worse than a short wait.
+  bool _rewardPending = false;
+
   bool get _isRaid => widget.raid != null;
   bool _showRaidReward = false;
 
@@ -280,6 +288,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       // (minimap, action cluster, swap rail, hint capsule, star tracker) are
       // invisible and, with the engine frozen, have nothing new to show.
       if (mounted && !_dungeonFrozen) _tick.value++;
+      // A reward earned mid-fight waits here for the room to go quiet.
+      if (mounted && _rewardPending) unawaited(_offerPendingRewardIfSafe());
     });
   }
 
@@ -313,6 +323,25 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     _game?.resumeEngine();
   }
 
+  /// Offers any unclaimed reward as soon as the room is safe. Called on star
+  /// earn and again each time combat ends.
+  Future<void> _offerPendingRewardIfSafe() async {
+    if (!_rewardPending || _rewardStars != null || _isRaid) return;
+    if (_game?.hasCombatTargets ?? false) return;
+    final prefs = await SharedPreferences.getInstance();
+    final state = PlanetStarState.deserialise(
+      prefs.getString(_starPrefsKey) ?? '',
+    );
+    final pending = state.pendingRewards(widget.element);
+    if (pending.isEmpty) {
+      _rewardPending = false;
+      return;
+    }
+    _rewardPending = false;
+    _game?.pauseEngine();
+    if (mounted) setState(() => _rewardStars = pending);
+  }
+
   Future<void> _onStarEarned(int index) async {
     // Bank instantly: persist immediately so death/quit can't undo it.
     final prefs = await SharedPreferences.getInstance();
@@ -321,6 +350,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     ).withStar(widget.element, index);
     await prefs.setString(_starPrefsKey, stars.serialise());
     _showToast('Star ${index + 1} secured');
+    // The payoff belongs next to the accomplishment, not at the exit door.
+    _rewardPending = true;
+    unawaited(_offerPendingRewardIfSafe());
     // Fly a star from where it was earned up to its tracker slot.
     if (mounted) {
       final game = _game;

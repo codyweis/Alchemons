@@ -11,6 +11,8 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 class _C {
@@ -130,17 +132,56 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
       child: GestureDetector(
         behavior: HitTestBehavior.opaque, // absorb taps to the game behind
         onTap: () {},
-        child: ColoredBox(
-          color: _C.bg.withValues(alpha: 0.78),
-          child: Center(
-            child: FadeTransition(
-              opacity: _intro,
-              child: ScaleTransition(
-                scale: Tween(begin: 0.85, end: 1.0).animate(curved),
-                child: _panel(),
-              ),
-            ),
-          ),
+        child: AnimatedBuilder(
+          animation: _intro,
+          builder: (context, _) {
+            final t = _intro.value;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                // Hard scrim. The old one was #080808 at 0.78 over an already
+                // dark dungeon, so the rarest moment in a run separated from
+                // the world about as much as a hint box does.
+                ColoredBox(color: Colors.black.withValues(alpha: 0.90 * t)),
+                // Radial light behind the panel: the reward is the only thing
+                // in the dungeon that emits its own light.
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        radius: 0.75,
+                        colors: [
+                          _C.amberBright.withValues(alpha: 0.20 * t),
+                          _C.amber.withValues(alpha: 0.06 * t),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.45, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+                // Rays, turning slowly. Nothing else in the game does this.
+                IgnorePointer(
+                  child: CustomPaint(
+                    painter: _RewardRaysPainter(
+                      progress: t,
+                      spin: _intro.value * 0.6,
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Opacity(
+                    opacity: t,
+                    child: Transform.scale(
+                      // Overshoots harder than a normal panel, and lands.
+                      scale: 0.72 + 0.28 * curved.value,
+                      child: _panel(),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -150,20 +191,31 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     return CustomPaint(
       painter: const DungeonBracketPainter(
         color: _C.amberBright,
-        bracketSize: 12,
+        bracketSize: 18,
+        strokeWidth: 2.4,
       ),
       child: Container(
-        width: 360,
-        constraints: const BoxConstraints(maxHeight: 560),
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+        width: 400,
+        constraints: const BoxConstraints(maxHeight: 600),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
         decoration: BoxDecoration(
-          color: _C.panel,
-          border: Border.all(color: _C.border, width: 1.2),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1B1710), _C.panel],
+          ),
+          // A real gold frame, not the hairline every other panel wears.
+          border: Border.all(color: _C.amberBright, width: 2.0),
           boxShadow: [
             BoxShadow(
-              color: _C.amber.withValues(alpha: 0.16),
-              blurRadius: 30,
-              spreadRadius: 2,
+              color: _C.amberBright.withValues(alpha: 0.30),
+              blurRadius: 46,
+              spreadRadius: 6,
+            ),
+            const BoxShadow(
+              color: Color(0xCC000000),
+              blurRadius: 24,
+              offset: Offset(0, 12),
             ),
           ],
         ),
@@ -684,4 +736,47 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
       ),
     );
   }
+}
+
+
+/// Slow rays behind the reward panel.
+///
+/// Deliberately unlike anything else in the dungeon: every other panel is
+/// amber-on-dark with bracket corners, so a reward wearing that same chrome
+/// read as another hint. This is the one moment allowed to look like an event.
+class _RewardRaysPainter extends CustomPainter {
+  const _RewardRaysPainter({required this.progress, required this.spin});
+
+  final double progress;
+  final double spin;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0.01) return;
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.longestSide * 0.75;
+    const rays = 14;
+    final paint = Paint()
+      ..color = _C.amberBright.withValues(alpha: 0.055 * progress);
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(spin);
+    for (var i = 0; i < rays; i++) {
+      final a = i * (pi * 2 / rays);
+      final half = 0.055;
+      canvas.drawPath(
+        Path()
+          ..moveTo(0, 0)
+          ..lineTo(cos(a - half) * r, sin(a - half) * r)
+          ..lineTo(cos(a + half) * r, sin(a + half) * r)
+          ..close(),
+        paint,
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _RewardRaysPainter old) =>
+      old.progress != progress || old.spin != spin;
 }
