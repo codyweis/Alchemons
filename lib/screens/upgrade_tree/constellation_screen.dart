@@ -1300,9 +1300,9 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
         content: Text('Not enough skill points for ${skill.name}'),
         backgroundColor: const Color(0xFF3A2418),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(9),
-          side: const BorderSide(color: Color(0xFFE0885A)),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.zero,
+          side: BorderSide(color: Color(0xFFE0885A)),
         ),
       ),
     );

@@ -102,7 +102,10 @@ class ConstellationSkillDialog extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 24),
             decoration: BoxDecoration(
               color: _bg,
-              borderRadius: BorderRadius.circular(14),
+              // Square corners throughout: the star chart is drawn from
+              // hexagons and straight connection lines, and rounded panels
+              // read as generic app chrome sitting on top of it.
+              borderRadius: BorderRadius.zero,
               border: Border.all(color: accent.withValues(alpha: 0.30)),
               boxShadow: [
                 BoxShadow(
@@ -201,7 +204,7 @@ class _Header extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+        borderRadius: BorderRadius.zero,
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
@@ -458,7 +461,7 @@ class _CostLedger extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: ConstellationSkillDialog._bgRaised,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: tone.withValues(alpha: warn ? 0.45 : 0.22)),
       ),
       child: Column(
@@ -735,7 +738,7 @@ class _DialogButton extends StatelessWidget {
             color: filled
                 ? accent.withValues(alpha: live ? 0.18 : 0.06)
                 : Colors.white.withValues(alpha: 0.03),
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
               color: filled
                   ? accent.withValues(alpha: live ? 0.85 : 0.25)
