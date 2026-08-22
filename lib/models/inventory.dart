@@ -427,20 +427,15 @@ class LootBoxConfig {
     ),
   ];
 
-  /// Two independent chances at a stat orb, so roughly one raid in three
-  /// yields one and a lucky raid can yield two.
-  static const int raidPowerupChances = 2;
-  static const double raidPowerupChance = 0.15;
-
-  static List<MapEntry<String, int>> rollRaidPowerupDrops(Random rng) {
-    final rewards = <String, int>{};
-    for (var i = 0; i < raidPowerupChances; i++) {
-      if (rng.nextDouble() >= raidPowerupChance) continue;
-      final drop = raidPowerupPool[rng.nextInt(raidPowerupPool.length)];
-      rewards.update(drop.itemKey, (v) => v + 1, ifAbsent: () => 1);
-    }
-    return rewards.entries.toList();
-  }
+  /// Every raid yields one of each stat orb — four in total, guaranteed.
+  ///
+  /// There are exactly four orb types, so "four orbs" is one of each rather
+  /// than four random picks: no raid can hand you four of a stat you do not
+  /// need, and the reward popup reads the same every time. This is the bulk
+  /// of what makes a 25 gold beacon worth spending.
+  static List<MapEntry<String, int>> rollRaidPowerupDrops(Random rng) => [
+    for (final drop in raidPowerupPool) MapEntry(drop.itemKey, drop.minQty),
+  ];
 
   static Map<String, int> rollBossRematchBonusCurrency(
     int bossOrder,

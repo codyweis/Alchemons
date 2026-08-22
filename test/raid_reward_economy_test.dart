@@ -7,6 +7,7 @@ import 'dart:math';
 
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -67,27 +68,23 @@ void main() {
       );
     });
 
-    test('roughly one orb every three raids', () {
-      var orbs = 0;
-      const n = 40000;
-      for (var i = 0; i < n; i++) {
-        for (final e in LootBoxConfig.rollRaidPowerupDrops(Random(i))) {
-          orbs += e.value;
-        }
+    test('every raid yields all four orbs, guaranteed', () {
+      for (var i = 0; i < 500; i++) {
+        final drops = LootBoxConfig.rollRaidPowerupDrops(Random(i));
+        expect(
+          drops.map((e) => e.key).toSet(),
+          orbKeys,
+          reason: 'one of each, so no raid gives four of a stat you have',
+        );
+        expect(drops.fold<int>(0, (a, e) => a + e.value), 4);
       }
-      final perRaid = orbs / n;
-      // Two independent 15% chances.
-      expect(perRaid, greaterThan(0.24));
-      expect(perRaid, lessThan(0.36));
     });
 
-    test('a single raid can never dump more than two', () {
-      for (var i = 0; i < 5000; i++) {
-        final total = LootBoxConfig.rollRaidPowerupDrops(
-          Random(i),
-        ).fold<int>(0, (a, e) => a + e.value);
-        expect(total, lessThanOrEqualTo(LootBoxConfig.raidPowerupChances));
-      }
+    test('the payout does not depend on the roll — it is not a chance', () {
+      final a = LootBoxConfig.rollRaidPowerupDrops(Random(1));
+      final b = LootBoxConfig.rollRaidPowerupDrops(Random(999));
+      expect(a.map((e) => '${e.key}:${e.value}').toSet(),
+          b.map((e) => '${e.key}:${e.value}').toSet());
     });
 
     test('orbs stay out of the shared boss pool, which survival farms', () {
@@ -110,23 +107,19 @@ void main() {
     expect(total / 5000.0, lessThan(0.10));
   });
 
-  test('a raid out-earns the 25 gold beacon that summons it', () {
-    // Valued at the shop's own rate: 1 gold = 1,000 silver.
-    const shopSilver = {
-      'item.stamina_potion': 2500,
-      'alchemy.glow': 10000,
-      'alchemy.elemental_aura': 10000,
-      'alchemy.volcanic_aura': 10000,
-      'item.harvest_guaranteed': 1000,
-      'item.boss_refresh': 25000,
-    };
-    int unit(String k) {
-      if (shopSilver.containsKey(k)) return shopSilver[k]!;
-      if (k.startsWith('item.powerup.')) return 40000;
-      if (k.startsWith('key.portal') || k.startsWith('item.portal_key')) {
-        return 5000;
+  test('a raid is worth roughly the beacon that summons it', () {
+    // Prices are resolved from the live offer list rather than transcribed.
+    // A hardcoded table is what got this wrong the first time: the stat orbs
+    // were assumed to be 40 gold (the price of the unrelated stat AURAS) when
+    // they are 5, which overstated a raid by more than 10,000 silver.
+    int unit(String key) {
+      for (final o in ShopService.allOffers) {
+        if (o.inventoryKey != key) continue;
+        final g = o.cost['gold'];
+        if (g != null) return g * 1000; // shop's own rate: 1 gold = 1,000
+        return o.cost['silver'] ?? 0;
       }
-      return 999; // harvesters
+      return 0;
     }
 
     const n = 20000;
@@ -147,12 +140,27 @@ void main() {
       value += (c['silver'] ?? 0) + (c['gold'] ?? 0) * 1000;
     }
     final goldEquivalent = value / n / 1000;
+    final beacon = ShopService.allOffers
+        .firstWhere((o) => o.inventoryKey == InvKeys.raidBeacon)
+        .cost['gold']!;
+
+    // A beacon buys immediacy on content the 48h rotation gives away, so a
+    // small premium is fine — but the raid must not pay only a fraction of
+    // what summoning it cost.
     expect(
       goldEquivalent,
-      greaterThan(25),
-      reason: 'a beacon must not cost more than the raid pays',
+      greaterThan(beacon.toDouble()),
+      reason:
+          'raid pays ${goldEquivalent.toStringAsFixed(1)}g '
+          'vs a ${beacon}g beacon — summoning must be worth it',
     );
-    // ...but not so far above that beacons are free money.
-    expect(goldEquivalent, lessThan(45));
+    // Generous by design, but a beacon that pays for two more is a loop that
+    // prints gold. Raids are also free on the 48h rotation, so this ceiling
+    // is what keeps beacon-buying a choice rather than an obligation.
+    expect(
+      goldEquivalent,
+      lessThan(beacon * 2.0),
+      reason: 'a raid must not fund two more beacons',
+    );
   });
 }
