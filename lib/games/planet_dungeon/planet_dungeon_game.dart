@@ -2902,6 +2902,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateCombatProjectiles(dt);
     _updateWingBeams(dt);
     _updateIdleCompanionAttacks();
+    _updateIdleCompanionMovement(dt, currentRoom);
     _updateRaidPhases();
     final guardian = currentRoom.guardian;
     if (guardian != null &&
@@ -4265,6 +4266,114 @@ class PlanetDungeonGame extends FlameGame {
     for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
       if (i == activeIndex) continue;
       _fireBasicAttack(i, cooldownScale: 1.35);
+    }
+  }
+
+  /// Reach at which a body can smother a geyser mouth. Mirrors the Steam
+  /// module's own constant; kept here so the base class can refuse to move a
+  /// creature that might be capping.
+  static const double _capReach = 48.0;
+
+  bool _isBodyPossiblyCapping(Offset pos, DungeonRoom room) {
+    for (final gy in room.geysers) {
+      if ((pos - gy.position).distance <= _capReach) return true;
+    }
+    return false;
+  }
+
+  /// How close an idle ally will get to what it is shooting, as a fraction of
+  /// its own attack range. Short of the edge so it keeps firing when the
+  /// target drifts, but not so close it eats melee meant for you.
+  static const double _idleEngageFraction = 0.72;
+
+  /// Idle allies must not stray further than this from whoever you are
+  /// driving, or they wander off and fight their own war.
+  static const double _idleLeash = 320.0;
+
+  /// Personal space, so the party does not collapse into one stack of sprites.
+  static const double _idleSpacing = 46.0;
+
+  /// Movement for the party members you are NOT driving.
+  ///
+  /// They already returned fire (above) — but only when something wandered
+  /// into range, and nothing ever moved them, so in a boss fight they stood
+  /// wherever you parked them and did nothing at all. This walks them into
+  /// their own effective range, keeps them near you, and keeps them apart.
+  ///
+  /// Deliberately simple: seek, leash, separate. No pathfinding — they use the
+  /// same collision the player walks with, so they behave sanely against
+  /// walls, and a stuck ally is a cosmetic problem rather than a broken one.
+  void _updateIdleCompanionMovement(double dt, DungeonRoom room) {
+    // FIGHTS ONLY. Outside combat a party member's position is frequently the
+    // puzzle state — Steam recomputes which geyser mouths are capped from body
+    // positions every frame — so wandering off a mouth would silently drop the
+    // player's pressure. Repositioning is for boss and raid fights, which is
+    // also the only place it was asked for.
+    if (!hasCombatTargets) return;
+
+    final leader = active;
+    if (leader == null) return;
+
+    for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
+      if (i == activeIndex) continue;
+      final c = creatures[i];
+      final comp = combatCompanions[i];
+      if (!c.alive || comp.isDead) continue;
+      // A creature mid-charge is being driven by its own ability.
+      if (comp.chargeTimer > 0 || comp.kinAutoChargeTimer > 0) continue;
+      // A body sitting on a geyser mouth is load-bearing even during a fight:
+      // it may be the cap holding the room's pressure up. Leave it planted.
+      if (_isBodyPossiblyCapping(c.position, room)) continue;
+
+      var desired = Offset.zero;
+
+      // 1. Seek: close to firing range on the nearest enemy.
+      final enemy = _nearestCombatEnemy(c.position, maxRange: double.infinity);
+      if (enemy != null) {
+        final toEnemy = enemy.position - c.position;
+        final dist = toEnemy.distance;
+        final want = comp.attackRange * _idleEngageFraction;
+        if (dist > 1) {
+          final unit = toEnemy / dist;
+          // Past the ring, close. Inside it, back off — a ranged ally that
+          // walks into the boss is worse than one that stands still.
+          if (dist > want) {
+            desired += unit;
+          } else if (dist < want * 0.65) {
+            desired -= unit;
+          }
+          c.aimAngle = atan2(toEnemy.dy, toEnemy.dx);
+          if (toEnemy.dx.abs() > 0.01) c.angle = toEnemy.dx >= 0 ? 0 : pi;
+        }
+      }
+
+      // 2. Leash: never lose the party.
+      final toLeader = leader.position - c.position;
+      if (toLeader.distance > _idleLeash) {
+        desired += toLeader / toLeader.distance * 1.6;
+      }
+
+      // 3. Separate: from the leader and from each other.
+      for (var j = 0; j < creatures.length; j++) {
+        if (j == i) continue;
+        final other = creatures[j];
+        if (!other.alive) continue;
+        final away = c.position - other.position;
+        final d = away.distance;
+        if (d > 0.01 && d < _idleSpacing) {
+          desired += away / d * (1.0 - d / _idleSpacing);
+        }
+      }
+
+      if (desired.distanceSquared < 0.0001) continue;
+      final unit = desired / desired.distance;
+      // Slightly slower than the player: the one you drive should feel like
+      // the one you drive.
+      c.position = _moveWithCollision(
+        c.position,
+        unit * _speed * 0.82 * dt,
+        room,
+      );
     }
   }
 
