@@ -678,7 +678,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '${item.qty} in satchel',
+                              '${item.qty} in inventory',
                               style: _display(
                                 context,
                                 12,
@@ -1062,7 +1062,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       context: context,
       builder: (ctx) => _InventoryChoiceDialog(
         title: 'Remove item',
-        subtitle: 'Choose how much to clear from your satchel.',
+        subtitle: 'Choose how much to clear from your inventory.',
         message: 'You currently carry ${item.qty} ${def.name}.',
         accent: bracketReadableAccent(theme),
         options: [
@@ -1167,7 +1167,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       context: context,
       builder: (ctx) => _InventoryChoiceDialog(
         title: 'Remove vial',
-        subtitle: 'Choose how much to clear from your satchel.',
+        subtitle: 'Choose how much to clear from your inventory.',
         message: 'This will discard ${vial.name} from your current stock.',
         accent: bracketReadableAccent(theme),
         options: [
