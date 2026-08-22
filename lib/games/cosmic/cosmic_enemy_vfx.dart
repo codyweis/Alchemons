@@ -980,6 +980,29 @@ void drawSurvivalBoss({
           : Color.lerp(Colors.red, bColor, hpFrac)!,
   );
 
+  // Venting: planted, overheated and open. This is the window that pays you
+  // for closing the distance, so it has to be unmistakable.
+  if (boss.isVenting) {
+    final vent = (boss.overheatTimer / 1.9).clamp(0.0, 1.0);
+    canvas.drawCircle(
+      Offset.zero,
+      r * (1.25 + 0.15 * sin(elapsed * 9)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.0
+        ..color = const Color(0xFFFF7043).withValues(alpha: 0.75 * vent),
+    );
+    for (var i = 0; i < 6; i++) {
+      final a = elapsed * 2.2 + i * pi / 3;
+      canvas.drawCircle(
+        Offset(cos(a), sin(a)) * r * 1.05,
+        3.0,
+        Paint()
+          ..color = const Color(0xFFFFC078).withValues(alpha: 0.85 * vent),
+      );
+    }
+  }
+
   // Discipline sigil — the lair boss's treatment, brought to survival. Seven
   // disciplines rendered as the same sphere before this, so an artillery boss
   // that snipes from the rim looked exactly like a duelist that closes.

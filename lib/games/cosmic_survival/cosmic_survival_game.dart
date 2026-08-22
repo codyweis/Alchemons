@@ -5447,26 +5447,59 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// How many volleys a ranged boss fires before it must vent.
+  static const int _bossBurstBeforeVent = 3;
+
+  /// How long it stands planted and exposed afterwards.
+  static const double _bossVentDuration = 1.9;
+
   void _updateBossGunner(double dt, SurvivalBoss boss) {
-    final anchor = ship.isDead ? orb.position : ship.position;
-    final toOrb = anchor - boss.position;
-    final dist = toOrb.distance;
-    final tangent = Offset(-toOrb.dy / dist, toOrb.dx / dist);
+    // The fight needs a PLACE. Position is held relative to the ORB — the
+    // thing you are defending — while aim tracks you. Anchoring position to
+    // the player meant the boss fled whenever you approached, so it could be
+    // dragged anywhere and the fight had no ground to stand on.
+    final aimAt = ship.isDead ? orb.position : ship.position;
+    final station = orb.position;
+
+    // Venting: after a burst it plants, stops firing, and is exposed. This is
+    // the counterplay that makes closing the distance worth doing.
+    if (boss.isVenting) {
+      boss.overheatTimer -= dt;
+      if (boss.overheatTimer <= 0) {
+        boss.shotsSinceVent = 0;
+      }
+      boss.angle = atan2(
+        aimAt.dy - boss.position.dy,
+        aimAt.dx - boss.position.dx,
+      );
+      return;
+    }
+
+    final toStation = station - boss.position;
+    final dist = max(1.0, toStation.distance);
+    final tangent = Offset(-toStation.dy / dist, toStation.dx / dist);
     final orbitDist = boss.engagementRange;
-    // Snipers are more eager to backpedal if pulled in close.
     final radialPull = boss.movementStyle == SurvivalBossMovementStyle.sniper
         ? 0.7
         : 0.5;
     final radialForce = (dist - orbitDist) * radialPull;
-    final norm = Offset(toOrb.dx / dist, toOrb.dy / dist);
+    final norm = Offset(toStation.dx / dist, toStation.dy / dist);
     boss.position +=
         (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.7) *
         dt;
-    boss.angle = atan2(toOrb.dy, toOrb.dx);
+    boss.angle = atan2(
+      aimAt.dy - boss.position.dy,
+      aimAt.dx - boss.position.dx,
+    );
 
     boss.shootTimer -= dt;
     if (boss.shootTimer <= 0) {
       boss.shootTimer = SurvivalBoss.shootCooldown;
+      // Count the burst; overheat once it is spent.
+      boss.shotsSinceVent++;
+      if (boss.shotsSinceVent >= _bossBurstBeforeVent) {
+        boss.overheatTimer = _bossVentDuration;
+      }
       final dmgScale = 0.7 + boss.level * 0.14;
       for (final offset in [-0.16, 0.16]) {
         bossProjectiles.add(
@@ -5557,7 +5590,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _updateBossCarrier(double dt, SurvivalBoss boss) {
-    final anchor = ship.isDead ? orb.position : ship.position;
+    // Same fix as the gunner: hold station on the objective, aim at the
+    // player. Anchoring position to the player made it retreat on approach.
+    final anchor = orb.position;
     final toOrb = anchor - boss.position;
     final dist = toOrb.distance;
     final tangent = dist > 1

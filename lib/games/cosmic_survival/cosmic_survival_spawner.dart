@@ -242,6 +242,14 @@ class SurvivalBoss {
   /// Each AI uses this as the radial setpoint instead of a hardcoded value.
   final double engagementRange;
 
+  /// Ranged bosses overheat after a burst: they plant, stop firing, and are
+  /// exposed. Retreat has to be a PHASE, not a permanent state, or the fight
+  /// is just a chase across the arena.
+  double overheatTimer = 0;
+  int shotsSinceVent = 0;
+
+  bool get isVenting => overheatTimer > 0;
+
   /// 0..1 — how aggressively the boss tangentially strafes its ring.
   /// Snipers ≈ 0.15 (mostly still), orbiters ≈ 0.7, chasers ≈ 1.0.
   final double strafeWeight;
@@ -1306,12 +1314,24 @@ class CosmicSurvivalSpawner {
     }
   }
 
+  /// Test hooks for the boss-reachability guards.
+  @visibleForTesting
+  double engagementRangeForTest(SurvivalBossMovementStyle s) =>
+      _engagementRangeFor(s);
+
+  @visibleForTesting
+  double strafeWeightForTest(SurvivalBossMovementStyle s) =>
+      _strafeWeightFor(s);
+
   double _engagementRangeFor(SurvivalBossMovementStyle style) {
     // Snipers/orbiters get a randomized ring distance so two bosses on the
     // same wave don't stack on the exact same circle.
     switch (style) {
       case SurvivalBossMovementStyle.sniper:
-        return 620.0 + _rng.nextDouble() * 140.0;
+        // Was 620-760, over half the arena radius (~1140): reaching one was a
+        // trek, and it backed away the whole time. Still clearly "ranged", but
+        // now on screen with you.
+        return 430.0 + _rng.nextDouble() * 90.0;
       case SurvivalBossMovementStyle.orbit:
         return 360.0 + _rng.nextDouble() * 90.0;
       case SurvivalBossMovementStyle.chase:
@@ -1322,7 +1342,10 @@ class CosmicSurvivalSpawner {
   double _strafeWeightFor(SurvivalBossMovementStyle style) {
     switch (style) {
       case SurvivalBossMovementStyle.sniper:
-        return 0.18;
+        // Was 0.18 — so it barely circled and mostly just reversed in a
+        // straight line. Strafing keeps the distance without the retreat
+        // reading as flight.
+        return 0.55;
       case SurvivalBossMovementStyle.orbit:
         return 0.70;
       case SurvivalBossMovementStyle.chase:
