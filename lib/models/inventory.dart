@@ -382,6 +382,66 @@ class LootBoxConfig {
     return null;
   }
 
+  /// Raid victory currency. Separate from [rollBossRematchBonusCurrency],
+  /// which is deliberately gold-scarce because rematches are repeatable —
+  /// raids are gated behind a 48h rotation or a 25 gold beacon, so they pay
+  /// in gold rather than teasing a 1-in-20 single coin.
+  static Map<String, int> rollRaidVictoryCurrency(int bossOrder, Random rng) {
+    final difficulty = bossOrder.clamp(1, 17);
+    final silver = 150 + (difficulty * 25) + rng.nextInt(151);
+    // 5..10, weighted up by the planet's altar order so late planets pay more.
+    final scaled = (difficulty / 17 * 3).round(); // 0..3
+    final gold = 5 + scaled + rng.nextInt(3);
+    return {'silver': silver, 'gold': gold};
+  }
+
+  /// The stat orbs, which drop nowhere else — they are otherwise 40 gold
+  /// apiece in the shop. Raid-only on purpose: the shared boss pool also
+  /// feeds survival, which is farmable, and seeding 40 gold items into a
+  /// repeatable loop is how an economy comes apart.
+  static const List<LootBoxDrop> raidPowerupPool = [
+    // Equal weights — which orb you get is a flat pick between the four.
+    LootBoxDrop(
+      itemKey: InvKeys.powerupSpeed,
+      minQty: 1,
+      maxQty: 1,
+      weight: 1.0,
+    ),
+    LootBoxDrop(
+      itemKey: InvKeys.powerupIntelligence,
+      minQty: 1,
+      maxQty: 1,
+      weight: 1.0,
+    ),
+    LootBoxDrop(
+      itemKey: InvKeys.powerupStrength,
+      minQty: 1,
+      maxQty: 1,
+      weight: 1.0,
+    ),
+    LootBoxDrop(
+      itemKey: InvKeys.powerupBeauty,
+      minQty: 1,
+      maxQty: 1,
+      weight: 1.0,
+    ),
+  ];
+
+  /// Two independent chances at a stat orb, so roughly one raid in three
+  /// yields one and a lucky raid can yield two.
+  static const int raidPowerupChances = 2;
+  static const double raidPowerupChance = 0.15;
+
+  static List<MapEntry<String, int>> rollRaidPowerupDrops(Random rng) {
+    final rewards = <String, int>{};
+    for (var i = 0; i < raidPowerupChances; i++) {
+      if (rng.nextDouble() >= raidPowerupChance) continue;
+      final drop = raidPowerupPool[rng.nextInt(raidPowerupPool.length)];
+      rewards.update(drop.itemKey, (v) => v + 1, ifAbsent: () => 1);
+    }
+    return rewards.entries.toList();
+  }
+
   static Map<String, int> rollBossRematchBonusCurrency(
     int bossOrder,
     Random rng,

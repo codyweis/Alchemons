@@ -46,9 +46,18 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
     );
   }
 
+  // Stat orbs. These drop nowhere else in the game, and are the reason a
+  // beacon is worth spending gold on rather than waiting out the rotation.
+  final orbs = LootBoxConfig.rollRaidPowerupDrops(r);
+  for (final orb in orbs) {
+    await db.inventoryDao.addItemQty(orb.key, orb.value);
+    final name = registry[orb.key]?.name ?? orb.key;
+    entries.add(RaidRewardEntry(itemKey: orb.key, label: '+${orb.value} $name'));
+  }
+
   // Currency scaled by the element's altar order (harder elements pay more).
   final order = altarEntryForElement(element)?.order ?? 1;
-  final currency = LootBoxConfig.rollBossRematchBonusCurrency(order, r);
+  final currency = LootBoxConfig.rollRaidVictoryCurrency(order, r);
   final silver = currency['silver'] ?? 0;
   final gold = currency['gold'] ?? 0;
   if (silver > 0) {
