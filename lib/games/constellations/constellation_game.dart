@@ -1,6 +1,7 @@
 // lib/games/constellations/constellation_game.dart
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:flame/components.dart';
@@ -1229,6 +1230,21 @@ class SkillNode extends PositionComponent with TapCallbacks {
   Paint? _corePaint;
   Paint? _readyPaint;
 
+  /// The six alchemical accent diamonds never move relative to the node, so
+  /// they are one static path built once — not six Paths and a Paint rebuilt
+  /// from trig every frame.
+  Path? _accentPath;
+  Paint? _accentPaint;
+
+  /// Particle diamonds are batched into a handful of alpha buckets and drawn
+  /// through reused Path/Paint objects. Twelve particles used to mean 24 fresh
+  /// Path + 24 fresh Paint allocations per node per frame; across a filled
+  /// tree that was over two thousand allocations a frame, which is what the
+  /// stutter actually was.
+  static const int _particleAlphaBuckets = 4;
+  List<Path>? _particlePaths;
+  List<Paint>? _particlePaints;
+
   void _rebuildVisualPaints() {
     final center = (size / 2).toOffset();
     _hexPath ??= _createHexagon(center, 35);
@@ -1527,41 +1543,58 @@ class SkillNode extends PositionComponent with TapCallbacks {
     }
   }
 
+  /// Particles are bucketed by opacity and batched into one path per bucket,
+  /// through Path/Paint objects that are reused frame to frame. Twelve
+  /// particles used to cost 24 Path + 24 Paint allocations per node per frame.
+  ///
+  /// The inner-glow diamond is folded into the same batch as a second, smaller
+  /// diamond in the bucket path rather than a separate draw with its own
+  /// colour — at these sizes the two read as one soft mote either way.
   void _renderParticles(Canvas canvas, Vector2 center) {
+    if (_particles.isEmpty) return;
+    final paths =
+        _particlePaths ??= List.generate(
+          _particleAlphaBuckets,
+          (_) => Path(),
+          growable: false,
+        );
+    final paints =
+        _particlePaints ??= List.generate(_particleAlphaBuckets, (i) {
+          // Bucket i represents the midpoint of its opacity band.
+          final band = (i + 0.5) / _particleAlphaBuckets;
+          return Paint()
+            ..color = Color.lerp(
+              primaryColor,
+              secondaryColor,
+              0.3,
+            )!.withValues(alpha: (band * 0.8).clamp(0.0, 1.0))
+            ..style = PaintingStyle.fill;
+        }, growable: false);
+
+    for (final path in paths) {
+      path.reset();
+    }
+
+    var any = false;
     for (final particle in _particles) {
       final pos = particle.getPosition(center);
       final opacity = particle.getOpacity().clamp(0.0, 1.0);
-
-      // Diamond shape
+      var bucket = (opacity * _particleAlphaBuckets).floor();
+      if (bucket >= _particleAlphaBuckets) bucket = _particleAlphaBuckets - 1;
+      if (bucket < 0) bucket = 0;
       final size = particle.size;
-      final paint = Paint()
-        ..color = primaryColor.withValues(
-          alpha: (opacity * 0.8).clamp(0.0, 1.0),
-        )
-        ..style = PaintingStyle.fill;
-
-      final path = Path()
+      paths[bucket]
         ..moveTo(pos.x, pos.y - size)
         ..lineTo(pos.x + size * 0.6, pos.y)
         ..lineTo(pos.x, pos.y + size)
         ..lineTo(pos.x - size * 0.6, pos.y)
         ..close();
+      any = true;
+    }
+    if (!any) return;
 
-      canvas.drawPath(path, paint);
-
-      // Inner glow
-      final glowPaint = Paint()
-        ..color = secondaryColor.withValues(
-          alpha: (opacity * 0.4).clamp(0.0, 1.0),
-        )
-        ..style = PaintingStyle.fill;
-      final glowPath = Path()
-        ..moveTo(pos.x, pos.y - size * 0.5)
-        ..lineTo(pos.x + size * 0.3, pos.y)
-        ..lineTo(pos.x, pos.y + size * 0.5)
-        ..lineTo(pos.x - size * 0.3, pos.y)
-        ..close();
-      canvas.drawPath(glowPath, glowPaint);
+    for (var i = 0; i < _particleAlphaBuckets; i++) {
+      canvas.drawPath(paths[i], paints[i]);
     }
   }
 
@@ -1582,26 +1615,30 @@ class SkillNode extends PositionComponent with TapCallbacks {
     return path;
   }
 
+  /// The accents are fixed relative to the node, so the whole six-diamond
+  /// figure is one path built once and drawn with one cached paint.
   void _drawAlchemicalAccents(Canvas canvas, Offset center, double radius) {
-    final paint = Paint()
-      ..color = secondaryColor.withValues(alpha: 0.7)
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < 6; i++) {
-      final angle = (math.pi / 3) * i - math.pi / 6;
-      final x = center.dx + radius * math.cos(angle);
-      final y = center.dy + radius * math.sin(angle);
-
-      final accentSize = 3.0;
-      final accentPath = Path()
-        ..moveTo(x, y - accentSize)
-        ..lineTo(x + accentSize * 0.6, y)
-        ..lineTo(x, y + accentSize)
-        ..lineTo(x - accentSize * 0.6, y)
-        ..close();
-
-      canvas.drawPath(accentPath, paint);
+    var path = _accentPath;
+    if (path == null) {
+      path = Path();
+      const accentSize = 3.0;
+      for (int i = 0; i < 6; i++) {
+        final angle = (math.pi / 3) * i - math.pi / 6;
+        final x = center.dx + radius * math.cos(angle);
+        final y = center.dy + radius * math.sin(angle);
+        path
+          ..moveTo(x, y - accentSize)
+          ..lineTo(x + accentSize * 0.6, y)
+          ..lineTo(x, y + accentSize)
+          ..lineTo(x - accentSize * 0.6, y)
+          ..close();
+      }
+      _accentPath = path;
+      _accentPaint = Paint()
+        ..color = secondaryColor.withValues(alpha: 0.7)
+        ..style = PaintingStyle.fill;
     }
+    canvas.drawPath(path, _accentPaint!);
   }
 
   Color _getRingColor() {
@@ -1627,6 +1664,13 @@ class SkillNode extends PositionComponent with TapCallbacks {
   }
 
   void updateState({required bool isUnlocked, required bool canUnlock}) {
+    // The screen calls this for every node on every widget rebuild, and both
+    // stream builders above it tick often. Rebuilding unchanged state meant
+    // re-allocating radial gradient shaders and TextPaints for all 43 nodes
+    // on each of those rebuilds, which is a visible hitch — shaders are not
+    // cheap to construct. Only do the work when something actually moved.
+    if (this.isUnlocked == isUnlocked && this.canUnlock == canUnlock) return;
+
     final wasLocked = !this.isUnlocked;
     this.isUnlocked = isUnlocked;
     this.canUnlock = canUnlock;
@@ -1768,13 +1812,21 @@ class ConnectionLine extends Component {
   final Paint _linePaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
+
+  // The glow used to be a MaskFilter.blur stroke. Every blurred draw is its
+  // own GPU filter pass, and with a filled tree that was ~72 gaussian passes
+  // per frame — the single most expensive thing on screen. Two plain
+  // translucent strokes of decreasing width read the same at these sizes and
+  // cost nothing beyond ordinary fill rate.
   final Paint _glowPaint = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+    ..strokeCap = StrokeCap.round;
+  final Paint _glowOuterPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
   final Paint _pulsePaint = Paint()..style = PaintingStyle.fill;
-  final Paint _pulseGlowPaint = Paint()
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+  final Paint _pulseGlowPaint = Paint()..style = PaintingStyle.fill;
+  final Paint _pulseGlowOuterPaint = Paint()..style = PaintingStyle.fill;
   final Paint _storyBackdropPaint = Paint()..style = PaintingStyle.fill;
   final Paint _storyBorderPaint = Paint()..style = PaintingStyle.stroke;
 
@@ -1927,12 +1979,14 @@ class ConnectionLine extends Component {
         ..maskFilter = null;
       canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
 
-      _glowPaint
-        ..color = primaryColor.withValues(
-          alpha: (0.18 + breath * 0.18).clamp(0.0, 1.0),
-        )
-        ..strokeWidth = 5.0;
-      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _glowPaint);
+      _drawSoftLine(
+        canvas,
+        fromPos.toOffset(),
+        currentEnd.toOffset(),
+        primaryColor,
+        (0.18 + breath * 0.18).clamp(0.0, 1.0),
+        5.0,
+      );
     } else {
       // ACTIVE: bright steady line + glow
       _linePaint
@@ -1943,12 +1997,14 @@ class ConnectionLine extends Component {
         ..maskFilter = null;
       canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
 
-      _glowPaint
-        ..color = primaryColor.withValues(
-          alpha: (0.35 + glowBoost * 0.5).clamp(0.0, 1.0),
-        )
-        ..strokeWidth = 7.0 + (_glowIntensity * 6.0);
-      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _glowPaint);
+      _drawSoftLine(
+        canvas,
+        fromPos.toOffset(),
+        currentEnd.toOffset(),
+        primaryColor,
+        (0.35 + glowBoost * 0.5).clamp(0.0, 1.0),
+        7.0 + (_glowIntensity * 6.0),
+      );
     }
 
     // Activation one-shot pulse (when line is being drawn)
@@ -1960,8 +2016,7 @@ class ConnectionLine extends Component {
         4.0 + _glowIntensity * 3.0,
         _pulsePaint,
       );
-      _pulseGlowPaint.color = primaryColor.withValues(alpha: 0.4);
-      canvas.drawCircle(pulsePos.toOffset(), 8.0, _pulseGlowPaint);
+      _drawSoftDot(canvas, pulsePos.toOffset(), primaryColor, 0.4, 8.0);
     }
 
     // Ambient traveling sparkle on active lines — quiet "energy flowing"
@@ -1973,14 +2028,50 @@ class ConnectionLine extends Component {
       final fade = edgeFade.clamp(0.0, 1.0);
       _pulsePaint.color = primaryColor.withValues(alpha: 0.85 * fade);
       canvas.drawCircle(pulsePos.toOffset(), 2.6, _pulsePaint);
-      _pulseGlowPaint.color = primaryColor.withValues(alpha: 0.38 * fade);
-      canvas.drawCircle(pulsePos.toOffset(), 7.0, _pulseGlowPaint);
+      _drawSoftDot(canvas, pulsePos.toOffset(), primaryColor, 0.38 * fade, 7.0);
     }
 
     // Story text
     if (_storyOpacity > 0 && storyText != null) {
       _drawStoryText(canvas, fromPos, toPos);
     }
+  }
+
+
+  /// A blur-free soft line: a wide faint stroke under a narrower brighter one.
+  /// Replaces a MaskFilter.blur stroke, which cost a GPU filter pass each.
+  void _drawSoftLine(
+    Canvas canvas,
+    Offset a,
+    Offset b,
+    Color color,
+    double alpha,
+    double width,
+  ) {
+    _glowOuterPaint
+      ..color = color.withValues(alpha: (alpha * 0.45).clamp(0.0, 1.0))
+      ..strokeWidth = width * 1.9;
+    canvas.drawLine(a, b, _glowOuterPaint);
+    _glowPaint
+      ..color = color.withValues(alpha: alpha.clamp(0.0, 1.0))
+      ..strokeWidth = width;
+    canvas.drawLine(a, b, _glowPaint);
+  }
+
+  /// The dot equivalent of [_drawSoftLine].
+  void _drawSoftDot(
+    Canvas canvas,
+    Offset at,
+    Color color,
+    double alpha,
+    double radius,
+  ) {
+    _pulseGlowOuterPaint.color = color.withValues(
+      alpha: (alpha * 0.40).clamp(0.0, 1.0),
+    );
+    canvas.drawCircle(at, radius * 1.7, _pulseGlowOuterPaint);
+    _pulseGlowPaint.color = color.withValues(alpha: alpha.clamp(0.0, 1.0));
+    canvas.drawCircle(at, radius, _pulseGlowPaint);
   }
 
   void _drawStoryText(Canvas canvas, Vector2 from, Vector2 to) {
@@ -2220,9 +2311,54 @@ class StarfieldBackground extends Component
     }
   }
 
+  // ---- Batched drawing ----
+  //
+  // Three thousand stars used to mean three thousand `drawCircle` calls and
+  // three thousand Vector2 allocations per frame, and zooming out (which shows
+  // ~25x the area) made it worse exactly when the player was moving. Stars are
+  // now bucketed by size and brightness and drawn with `drawRawPoints`, so the
+  // whole field costs at most `_sizeBuckets * _alphaBuckets` draw calls
+  // regardless of how many stars are on screen.
+  static const int _sizeBuckets = 4;
+  static const int _alphaBuckets = 6;
+  static const int _bucketCount = _sizeBuckets * _alphaBuckets;
+  static const double _maxStarSize = 3.5;
+
+  /// Reused per bucket across frames; `_bucketLengths` is the live extent.
+  final List<Float32List> _bucketPoints = List.generate(
+    _bucketCount,
+    (_) => Float32List(512),
+    growable: false,
+  );
+  final Int32List _bucketLengths = Int32List(_bucketCount);
+  final List<Paint> _bucketPaints = List.generate(_bucketCount, (i) {
+    final sizeIndex = i ~/ _alphaBuckets;
+    // Midpoint of each band, so quantisation error is symmetric. (Colour is
+    // set per frame in render; only the dot diameter is fixed per bucket.)
+    final diameter =
+        ((sizeIndex + 0.5) / _sizeBuckets) * _maxStarSize * 2.0;
+    return Paint()
+      ..strokeWidth = diameter
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+  }, growable: false);
+
+  void _push(int bucket, double x, double y) {
+    var buf = _bucketPoints[bucket];
+    final n = _bucketLengths[bucket];
+    if (n + 2 > buf.length) {
+      final grown = Float32List(buf.length * 2);
+      grown.setRange(0, n, buf);
+      _bucketPoints[bucket] = grown;
+      buf = grown;
+    }
+    buf[n] = x;
+    buf[n + 1] = y;
+    _bucketLengths[bucket] = n + 2;
+  }
+
   @override
   void render(Canvas canvas) {
-    final paint = Paint();
     final zoom = game.camera.viewfinder.zoom;
     final viewCenter = game.camera.viewfinder.position;
 
@@ -2236,21 +2372,47 @@ class StarfieldBackground extends Component
     final minY = viewCenter.y - worldHeight / 2 - marginY;
     final maxY = viewCenter.y + worldHeight / 2 + marginY;
 
+    // Parallax shift depends only on the layer, so it is hoisted out of the
+    // per-star loop (it used to allocate a Vector2 for every star).
+    final cx = viewCenter.x;
+    final cy = viewCenter.y;
+
+    _bucketLengths.fillRange(0, _bucketCount, 0);
+
     for (final star in stars) {
-      // Parallax: shift visual position toward camera for background layers.
       // depthFactor 1.0 = no shift, 0.0 = locked to viewport.
-      final shift = viewCenter * (1.0 - star.depthFactor);
-      final drawX = star.position.x + shift.x;
-      final drawY = star.position.y + shift.y;
+      final inv = 1.0 - star.depthFactor;
+      final drawX = star.position.x + cx * inv;
+      final drawY = star.position.y + cy * inv;
 
       if (drawX < minX || drawX > maxX || drawY < minY || drawY > maxY) {
         continue;
       }
 
-      paint.color = primaryColor.withValues(
-        alpha: star.currentOpacityAt(_time),
+      final alpha = star.currentOpacityAt(_time);
+      if (alpha <= 0.02) continue;
+
+      var alphaIndex = (alpha * _alphaBuckets).floor();
+      if (alphaIndex >= _alphaBuckets) alphaIndex = _alphaBuckets - 1;
+      var sizeIndex = ((star.size / _maxStarSize) * _sizeBuckets).floor();
+      if (sizeIndex >= _sizeBuckets) sizeIndex = _sizeBuckets - 1;
+      if (sizeIndex < 0) sizeIndex = 0;
+
+      _push(sizeIndex * _alphaBuckets + alphaIndex, drawX, drawY);
+    }
+
+    for (var i = 0; i < _bucketCount; i++) {
+      final n = _bucketLengths[i];
+      if (n == 0) continue;
+      final alphaIndex = i % _alphaBuckets;
+      _bucketPaints[i].color = primaryColor.withValues(
+        alpha: ((alphaIndex + 0.5) / _alphaBuckets).clamp(0.0, 1.0),
       );
-      canvas.drawCircle(Offset(drawX, drawY), star.size, paint);
+      canvas.drawRawPoints(
+        ui.PointMode.points,
+        Float32List.sublistView(_bucketPoints[i], 0, n),
+        _bucketPaints[i],
+      );
     }
   }
 
