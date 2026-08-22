@@ -2342,6 +2342,13 @@ class _DailyTreasureChest extends StatefulWidget {
   State<_DailyTreasureChest> createState() => _DailyTreasureChestState();
 }
 
+/// Every timing in the daily-chest sequence is scaled by this. The original
+/// pacing was correct in shape but slow to sit through once a day, every day.
+const double _kTreasureSpeedUp = 0.70;
+
+Duration _treasureMs(int ms) =>
+    Duration(milliseconds: (ms * _kTreasureSpeedUp).round());
+
 class _DailyTreasureChestState extends State<_DailyTreasureChest>
     with TickerProviderStateMixin {
   late final AnimationController _lottieCtrl;
@@ -2378,12 +2385,22 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
 
   Future<void> _onTap() async {
     if (_isClaimed || _isPlaying || !_ready) return;
+    // Tap: you touched it.
     HapticFeedback.lightImpact();
     setState(() => _isPlaying = true);
 
-    // Start lottie — show loot after 1.5 s without waiting for it to finish
+    // Start lottie — show loot partway through, without waiting for the end.
     _lottieCtrl.forward(from: 0);
-    await Future.delayed(const Duration(milliseconds: 1500));
+
+    // The lid breaking open is the moment worth feeling, so land a heavier
+    // beat partway in rather than only at the ends. Taken as a fraction of the
+    // clip's own length so it stays on the lid if the asset is ever replaced.
+    final burstAt = (_lottieCtrl.duration ?? _treasureMs(1500)) * 0.45;
+    Future.delayed(burstAt, () {
+      if (mounted) HapticFeedback.mediumImpact();
+    });
+
+    await Future.delayed(_treasureMs(1500));
 
     if (!mounted) return;
 
@@ -2478,7 +2495,7 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
                 repeat: false,
                 onLoaded: (comp) {
                   if (!mounted) return;
-                  _lottieCtrl.duration = comp.duration;
+                  _lottieCtrl.duration = comp.duration * _kTreasureSpeedUp;
                   _lottieCtrl.value = 0;
                   setState(() => _ready = true);
                 },
@@ -2519,7 +2536,7 @@ Future<void> _showTreasureLootDialog(
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.black.withValues(alpha: 0.80),
-    transitionDuration: const Duration(milliseconds: 350),
+    transitionDuration: _treasureMs(350),
     transitionBuilder: (ctx, anim, _, child) =>
         FadeTransition(opacity: anim, child: child),
     pageBuilder: (ctx, _, __) => _TreasureLootDialog(rewards: rewards),
@@ -2548,10 +2565,7 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
 
     _rowCtrls = List.generate(
       widget.rewards.length,
-      (_) => AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 480),
-      ),
+      (_) => AnimationController(vsync: this, duration: _treasureMs(480)),
     );
     _rowFade = _rowCtrls
         .map(
@@ -2570,23 +2584,30 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
         )
         .toList();
 
-    _btnCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 380),
-    );
+    _btnCtrl = AnimationController(vsync: this, duration: _treasureMs(380));
     _btnFade = CurvedAnimation(
       parent: _btnCtrl,
       curve: Curves.easeIn,
     ).drive(Tween(begin: 0.0, end: 1.0));
 
-    // Stagger rows then button
+    // Stagger rows then button. Each row gets its own tick as it lands — the
+    // count-up is the part that should feel like receiving something, and it
+    // was silent.
     for (int i = 0; i < _rowCtrls.length; i++) {
-      Future.delayed(Duration(milliseconds: 300 + i * 240), () {
-        if (mounted) _rowCtrls[i].forward();
+      Future.delayed(_treasureMs(300 + i * 240), () {
+        if (!mounted) return;
+        _rowCtrls[i].forward();
+        // Gold is the 15% drop — it should land harder than the silver that
+        // arrives every single day.
+        if (widget.rewards[i].coin == CoinKind.gold) {
+          HapticFeedback.heavyImpact();
+        } else {
+          HapticFeedback.selectionClick();
+        }
       });
     }
     final btnDelay = 300 + widget.rewards.length * 240 + 180;
-    Future.delayed(Duration(milliseconds: btnDelay), () {
+    Future.delayed(_treasureMs(btnDelay), () {
       if (mounted) _btnCtrl.forward();
     });
   }
@@ -2694,7 +2715,10 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
               FadeTransition(
                 opacity: _btnFade,
                 child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(context);
+                  },
                   child: Container(
                     width: double.infinity,
                     height: 50,
