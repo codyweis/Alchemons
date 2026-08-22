@@ -2413,11 +2413,15 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
 
     await db.currencyDao.addSilver(silver);
     if (gold > 0) await db.currencyDao.addGold(gold);
+    // Held so the reward row can name the group the player actually got —
+    // it used to say "COMMON VIAL" in verdant green whatever came out.
+    ElementalGroup? vialGroup;
     if (givesVial) {
       try {
         final groups = ElementalGroup.values;
         final group = groups[rng.nextInt(groups.length)];
         await db.inventoryDao.addVial('Daily Vial', group, VialRarity.common);
+        vialGroup = group;
       } catch (_) {}
     }
 
@@ -2432,7 +2436,6 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
     // Build loot rewards
     final rewards = [
       _TreasureReward(
-        icon: AppIcons.monetization_on_rounded,
         coin: CoinKind.silver,
         amount: '+$silver',
         name: 'SILVER',
@@ -2440,18 +2443,19 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
       ),
       if (gold > 0)
         _TreasureReward(
-          icon: AppIcons.stars_rounded,
           coin: CoinKind.gold,
           amount: '+$gold',
           name: 'GOLD',
           color: const Color(0xFFFFD700),
         ),
-      if (givesVial)
+      if (vialGroup != null)
         _TreasureReward(
-          icon: AppIcons.science_rounded,
+          // The game's own test-tube glyph. `science_rounded` is a conical
+          // flask, which is the alchemy-effect mark, not a vial.
+          icon: AppIcons.biotech_rounded,
           amount: '×1',
-          name: 'COMMON VIAL',
-          color: const Color(0xFF4CAF50),
+          name: '${vialGroup.displayName.toUpperCase()} VIAL',
+          color: vialGroup.skin.badge,
         ),
     ];
 
@@ -2513,14 +2517,15 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TreasureReward {
-  final IconData icon;
+  /// Only read when [coin] is null — a coin always draws its own SVG.
+  final IconData? icon;
   final CoinKind? coin;
   final String amount;
   final String name;
   final Color color;
 
   const _TreasureReward({
-    required this.icon,
+    this.icon,
     this.coin,
     required this.amount,
     required this.name,
