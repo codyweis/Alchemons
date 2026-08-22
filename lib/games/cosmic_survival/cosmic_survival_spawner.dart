@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:ui';
 
 import 'package:alchemons/games/shared/enemy_movement.dart';
+import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
@@ -114,6 +115,10 @@ class CosmicSurvivalEnemy {
   // Shared hover/dive steering state (lazily created by whichever mode is
   // driving this enemy). See games/shared/enemy_flight_steering.dart.
   FlightSteeringState? flightSteering;
+
+  /// The body's signature attack, as a four-phase performance.
+  /// See games/shared/enemy_action.dart.
+  final EnemyActionState action = EnemyActionState();
 
   CosmicSurvivalEnemy({
     required this.position,
@@ -348,6 +353,59 @@ class SurvivalEnemyProjectile {
     this.radius = 4.0,
     this.friendlyFire = false,
   });
+}
+
+/// A non-projectile enemy hazard: something with a shape and a lifetime rather
+/// than a position and a velocity.
+///
+/// Two shapes cover every body's commit phase, so the beam and the shockwave
+/// do not each need their own entity and collision path.
+enum EnemyHazardKind {
+  /// A line from [origin] along [angle]. Damages anything near the segment.
+  beam,
+
+  /// A ring expanding from [origin]. Damages anything the wavefront crosses.
+  shockwave,
+}
+
+class SurvivalEnemyHazard {
+  SurvivalEnemyHazard({
+    required this.kind,
+    required this.origin,
+    required this.angle,
+    required this.element,
+    required this.damage,
+    required this.life,
+    required this.maxLife,
+    this.length = 0,
+    this.width = 0,
+    this.maxRadius = 0,
+  });
+
+  final EnemyHazardKind kind;
+  final Offset origin;
+  final double angle;
+  final String element;
+  final double damage;
+
+  double life;
+  final double maxLife;
+
+  /// Beam geometry.
+  final double length;
+  final double width;
+
+  /// Shockwave geometry.
+  final double maxRadius;
+
+  /// Targets already hit — each hazard hits a given thing at most once.
+  final Set<Object> hit = <Object>{};
+
+  double get progress =>
+      maxLife <= 0 ? 1.0 : (1.0 - life / maxLife).clamp(0.0, 1.0);
+
+  /// Current wavefront radius for a shockwave.
+  double get radius => maxRadius * progress;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

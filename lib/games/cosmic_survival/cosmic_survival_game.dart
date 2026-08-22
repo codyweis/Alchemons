@@ -8,6 +8,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
+import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -830,6 +831,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   final List<SurvivalBossProjectile> bossProjectiles = [];
   final List<SurvivalEnemyProjectile> enemyProjectiles = [];
+
+  /// Beams and shockwaves — the commit phase of a body's signature action.
+  /// See games/shared/enemy_action.dart.
+  final List<SurvivalEnemyHazard> enemyHazards = [];
 
   // Companion projectiles (uses cosmic game Projectile class)
   final List<Projectile> companionProjectiles = [];
@@ -3571,6 +3576,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       enemy.hitFlash = (enemy.hitFlash - dt * 4).clamp(0, 1);
       enemy.attackCooldown = max(0, enemy.attackCooldown - dt);
       enemy.retargetTimer = max(0, enemy.retargetTimer - dt);
+      // Signature action: idle → windUp → commit → recover.
+      _updateEnemyAction(enemy, dt);
       if (enemy.disorientTimer > 0) {
         enemy.disorientTimer = max(0, enemy.disorientTimer - dt);
       }
@@ -3807,13 +3814,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final tangent = Offset(-norm.dy, norm.dx);
         // One authority for the movement vector — see
         // games/shared/enemy_movement.dart.
+        // A body performing its signature action plants itself — the stop is
+        // half the telegraph. Conduct still owns the vector otherwise.
+        final actDef = kEnemyActions[enemy.tier];
+        final planted =
+            actDef != null &&
+            ((enemy.action.phase == EnemyActionPhase.windUp &&
+                    actDef.freezesDuringWindUp) ||
+                (enemy.action.phase == EnemyActionPhase.commit &&
+                    actDef.freezesDuringCommit));
         // Conduct is the sole movement authority now — no variant override.
-        final move = conductMoveVector(
-          conduct: enemy.conduct,
-          dist: dist,
-          norm: norm,
-          tangent: tangent,
-        );
+        final move = planted
+            ? Offset.zero
+            : conductMoveVector(
+                conduct: enemy.conduct,
+                dist: dist,
+                norm: norm,
+                tangent: tangent,
+              );
         enemy.position = Offset(
           enemy.position.dx +
               move.dx *
@@ -5879,6 +5897,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
     enemyProjectiles.removeWhere((p) => p.life <= 0);
+    // Beams and shockwaves tick alongside the projectiles they replace.
+    _updateEnemyHazards(dt);
   }
 
   // == Companion Projectiles (cosmic game style) ===========================
@@ -12465,6 +12485,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _renderEnemy(canvas, enemy);
     }
 
+    // Beams and shockwaves sit above the bodies that threw them.
+    _renderEnemyHazards(canvas);
+
     if (activeBoss != null && !activeBoss!.isDead) {
       _renderBoss(canvas, activeBoss!);
     }
@@ -13318,6 +13341,258 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Enemy rendering: EXACT SAME visuals as cosmic game per tier.
   /// The enemy silhouette now lives in the shared cosmic enemy VFX layer so
   /// the preview harness can render the roster without playing the game.
+
+
+  /// Hazards: beams and shockwaves. Each hits any given target at most once,
+  /// tracked on the hazard itself, so a beam that lingers for half a second
+  /// does not tick damage every frame.
+  void _updateEnemyHazards(double dt) {
+    for (var i = enemyHazards.length - 1; i >= 0; i--) {
+      final h = enemyHazards[i];
+      h.life -= dt;
+      if (h.life <= 0) {
+        enemyHazards.removeAt(i);
+        continue;
+      }
+
+      bool reaches(Offset p, double r) {
+        switch (h.kind) {
+          case EnemyHazardKind.beam:
+            // Distance from the point to the beam segment.
+            final d = Offset(cos(h.angle), sin(h.angle));
+            final rel = p - h.origin;
+            final t = (rel.dx * d.dx + rel.dy * d.dy).clamp(0.0, h.length);
+            final closest = h.origin + d * t;
+            return (p - closest).distance <= h.width * 0.5 + r;
+          case EnemyHazardKind.shockwave:
+            // Only the wavefront hurts, not the whole disc.
+            final dist = (p - h.origin).distance;
+            return (dist - h.radius).abs() <= 26 + r;
+        }
+      }
+
+      if (!h.hit.contains(orb) && reaches(orb.position, 26)) {
+        h.hit.add(orb);
+        _damageOrb(h.damage);
+      }
+      if (!h.hit.contains(ship) && reaches(ship.position, 16)) {
+        h.hit.add(ship);
+        ship.currentHp -= h.damage;
+      }
+      for (final comp in activeCompanions.values) {
+        if (comp.isDead || h.hit.contains(comp)) continue;
+        if (reaches(comp.position, 14)) {
+          h.hit.add(comp);
+          _applyCompanionIncomingDamage(comp, h.damage);
+        }
+      }
+    }
+  }
+
+  void _renderEnemyHazards(Canvas canvas) {
+    for (final h in enemyHazards) {
+      final c = elementColor(h.element);
+      final fade = (1.0 - h.progress).clamp(0.0, 1.0);
+      switch (h.kind) {
+        case EnemyHazardKind.beam:
+          final d = Offset(cos(h.angle), sin(h.angle));
+          final end = h.origin + d * h.length;
+          canvas
+            ..drawLine(
+              h.origin,
+              end,
+              Paint()
+                ..color = c.withValues(alpha: 0.30 * fade)
+                ..strokeWidth = h.width * 1.7
+                ..strokeCap = StrokeCap.round,
+            )
+            ..drawLine(
+              h.origin,
+              end,
+              Paint()
+                ..color = c.withValues(alpha: 0.75 * fade)
+                ..strokeWidth = h.width * 0.8
+                ..strokeCap = StrokeCap.round,
+            )
+            ..drawLine(
+              h.origin,
+              end,
+              Paint()
+                ..color = Colors.white.withValues(alpha: 0.9 * fade)
+                ..strokeWidth = h.width * 0.28
+                ..strokeCap = StrokeCap.round,
+            );
+        case EnemyHazardKind.shockwave:
+          canvas
+            ..drawCircle(
+              h.origin,
+              h.radius,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 9 * fade + 2
+                ..color = c.withValues(alpha: 0.55 * fade),
+            )
+            ..drawCircle(
+              h.origin,
+              h.radius,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2.5
+                ..color = Colors.white.withValues(alpha: 0.7 * fade),
+            );
+      }
+    }
+  }
+
+  // ── Enemy signature actions ────────────────────────────────────────────
+  //
+  // idle → windUp → commit → recover. See games/shared/enemy_action.dart for
+  // why this exists: enemies had cooldowns, not actions, so nothing they did
+  // took time or showed intent.
+
+  /// Where this enemy is aiming — whatever it currently wants to hit.
+  Offset _enemyAimPoint(CosmicSurvivalEnemy enemy) => switch (enemy.target) {
+    CosmicEnemyTarget.ship => ship.position,
+    CosmicEnemyTarget.companion =>
+      _nearestCompanionPos(enemy.position) ?? orb.position,
+    _ => orb.position,
+  };
+
+  Offset? _nearestCompanionPos(Offset from) {
+    Offset? best;
+    var bestSq = double.infinity;
+    for (final c in activeCompanions.values) {
+      if (c.isDead) continue;
+      final d = _distanceSquared(c.position, from);
+      if (d < bestSq) {
+        bestSq = d;
+        best = c.position;
+      }
+    }
+    return best;
+  }
+
+  void _updateEnemyAction(CosmicSurvivalEnemy enemy, double dt) {
+    final def = kEnemyActions[enemy.tier];
+    if (def == null) return; // wisps fight by contact
+    final a = enemy.action;
+
+    if (a.phase == EnemyActionPhase.idle) {
+      // attackCooldown doubles as the idle gate, so existing slows and stuns
+      // that already push it out keep working.
+      if (enemy.attackCooldown > 0) return;
+      final aim = _enemyAimPoint(enemy);
+      if (_distanceSquared(aim, enemy.position) > def.range * def.range) return;
+      a.phase = EnemyActionPhase.windUp;
+      a.timer = def.windUp;
+      a.fired = false;
+      // Facing locks here: the attack lands where it was telegraphed, not
+      // wherever you dodged to. That is what makes the tell worth reading.
+      a.aimAngle = atan2(
+        aim.dy - enemy.position.dy,
+        aim.dx - enemy.position.dx,
+      );
+      return;
+    }
+
+    a.timer -= dt;
+    if (a.timer > 0) {
+      if (a.phase == EnemyActionPhase.commit && !a.fired) {
+        a.fired = true;
+        _fireEnemyAction(enemy);
+      }
+      return;
+    }
+
+    switch (a.phase) {
+      case EnemyActionPhase.windUp:
+        a.phase = EnemyActionPhase.commit;
+        a.timer = def.commit;
+        a.fired = true;
+        _fireEnemyAction(enemy);
+      case EnemyActionPhase.commit:
+        a.phase = EnemyActionPhase.recover;
+        a.timer = def.recover;
+      case EnemyActionPhase.recover:
+        a.phase = EnemyActionPhase.idle;
+        a.timer = 0;
+        enemy.attackCooldown = def.cooldown;
+      case EnemyActionPhase.idle:
+        break;
+    }
+  }
+
+  /// The payoff. One signature per body — this is what makes six bodies feel
+  /// like six creatures instead of six health bars.
+  void _fireEnemyAction(CosmicSurvivalEnemy enemy) {
+    final a = enemy.action;
+    final dir = Offset(cos(a.aimAngle), sin(a.aimAngle));
+
+    switch (enemy.tier) {
+      case EnemyTier.drone:
+        // Dash-strike: a committed lunge along the telegraphed line. Reuses
+        // knockbackVelocity, which the movement integrator already applies.
+        enemy.knockbackVelocity += dir * 520;
+
+      case EnemyTier.sentinel:
+        // Satellites gather in, then fan out.
+        const shots = 5;
+        for (var i = 0; i < shots; i++) {
+          final spread = (i - (shots - 1) / 2) * 0.20;
+          enemyProjectiles.add(
+            SurvivalEnemyProjectile(
+              position: enemy.position,
+              angle: a.aimAngle + spread,
+              element: enemy.element,
+              damage: enemy.damage * 0.55,
+              target: enemy.target,
+              speed: 250,
+              life: 2.6,
+            ),
+          );
+        }
+
+      case EnemyTier.phantom:
+        // Blink behind the target, then stand exposed through recover.
+        final aim = _enemyAimPoint(enemy);
+        enemy.position = aim + dir * 46;
+        enemy.hitFlash = max(enemy.hitFlash, 0.6);
+
+      case EnemyTier.brute:
+        // The siege beam.
+        enemyHazards.add(
+          SurvivalEnemyHazard(
+            kind: EnemyHazardKind.beam,
+            origin: enemy.position,
+            angle: a.aimAngle,
+            element: enemy.element,
+            damage: enemy.damage * 1.9,
+            life: kEnemyActions[EnemyTier.brute]!.commit,
+            maxLife: kEnemyActions[EnemyTier.brute]!.commit,
+            length: 900,
+            width: 16,
+          ),
+        );
+
+      case EnemyTier.colossus:
+        enemyHazards.add(
+          SurvivalEnemyHazard(
+            kind: EnemyHazardKind.shockwave,
+            origin: enemy.position,
+            angle: 0,
+            element: enemy.element,
+            damage: enemy.damage * 1.4,
+            life: kEnemyActions[EnemyTier.colossus]!.commit,
+            maxLife: kEnemyActions[EnemyTier.colossus]!.commit,
+            maxRadius: 340,
+          ),
+        );
+
+      case EnemyTier.wisp:
+        break;
+    }
+  }
+
   void _renderEnemy(Canvas canvas, CosmicSurvivalEnemy enemy) {
     drawSurvivalEnemy(
       canvas: canvas,

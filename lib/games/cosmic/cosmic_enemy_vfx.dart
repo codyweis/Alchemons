@@ -19,6 +19,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:flutter/material.dart';
 
@@ -69,6 +70,9 @@ class EnemyVisual {
     this.squash = 1.0,
     this.stretch = 1.0,
     this.hitFlash = 0,
+    this.actionPhase,
+    this.actionProgress = 0,
+    this.actionAngle = 0,
     this.isElite = false,
     this.eliteAffix,
     this.flightSteering,
@@ -90,6 +94,17 @@ class EnemyVisual {
   final double stretch;
 
   final double hitFlash;
+
+  /// The body's signature action, for the telegraph. Null when idle or when
+  /// the body has no action (wisps fight by contact).
+  final EnemyActionPhase? actionPhase;
+
+  /// 0 → 1 through the current phase.
+  final double actionProgress;
+
+  /// Facing the action was locked to at wind-up.
+  final double actionAngle;
+
   final bool isElite;
   final EliteAffix? eliteAffix;
   final FlightSteeringState? flightSteering;
@@ -109,6 +124,16 @@ class EnemyVisual {
     squash: _squashFor(e.conduct, e.trait, e.tier),
     stretch: _stretchFor(e.conduct, e.trait, e.tier),
     hitFlash: e.hitFlash,
+    actionPhase: e.action.isBusy ? e.action.phase : null,
+    actionProgress: e.action.progress(
+      switch (e.action.phase) {
+        EnemyActionPhase.windUp => kEnemyActions[e.tier]?.windUp ?? 0,
+        EnemyActionPhase.commit => kEnemyActions[e.tier]?.commit ?? 0,
+        EnemyActionPhase.recover => kEnemyActions[e.tier]?.recover ?? 0,
+        EnemyActionPhase.idle => 0,
+      },
+    ),
+    actionAngle: e.action.aimAngle,
     isElite: e.isElite,
     eliteAffix: e.eliteAffix,
     flightSteering: e.flightSteering,
@@ -633,6 +658,8 @@ void drawEnemy({
   // Variant mark. This is the only thing on an ordinary enemy that says which
   // of the eight behaviours it is — a splitter that will burst into drones and
   // a plain sentinel were pixel-identical before this.
+  _drawActionTelegraph(canvas, enemy, eColor, r, elapsed);
+
   drawEnemyArchetypeMark(
     canvas: canvas,
     centre: Offset.zero,
@@ -1328,6 +1355,77 @@ void drawBossLair({
 // by budget, not by style: a boss is one entity on screen and can afford the
 // full sigil, while enemies come in dozens and get a mark of a few strokes.
 // ─────────────────────────────────────────────────────────────────────────────
+
+
+/// The wind-up tell, drawn in the enemy's local space.
+///
+/// A charging ring that closes as the attack approaches, plus an aim line so
+/// you know WHERE it lands, not just that something is coming. Recover vents
+/// the body instead, marking the punish window.
+void _drawActionTelegraph(
+  Canvas canvas,
+  EnemyVisual enemy,
+  Color eColor,
+  double r,
+  double elapsed,
+) {
+  final phase = enemy.actionPhase;
+  if (phase == null) return;
+  final p = enemy.actionProgress;
+
+  switch (phase) {
+    case EnemyActionPhase.windUp:
+      // Closing ring: starts wide, tightens onto the body as it completes.
+      final ringR = r * (3.2 - 2.0 * p);
+      canvas.drawCircle(
+        Offset.zero,
+        ringR,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6 + 2.4 * p
+          ..color = Color.lerp(eColor, Colors.white, 0.45)!.withValues(
+            alpha: 0.35 + 0.5 * p,
+          ),
+      );
+      // The core charges — the circle building in the middle.
+      canvas.drawCircle(
+        Offset.zero,
+        r * 0.55 * p,
+        Paint()..color = Colors.white.withValues(alpha: 0.35 + 0.5 * p),
+      );
+      // Aim line: where it is going to land.
+      final d = Offset(cos(enemy.actionAngle), sin(enemy.actionAngle));
+      canvas.drawLine(
+        d * r * 1.1,
+        d * (r * 1.1 + 46 * p),
+        Paint()
+          ..strokeWidth = 1.0 + 1.4 * p
+          ..strokeCap = StrokeCap.round
+          ..color = eColor.withValues(alpha: 0.25 + 0.55 * p),
+      );
+
+    case EnemyActionPhase.commit:
+      canvas.drawCircle(
+        Offset.zero,
+        r * 1.35,
+        Paint()..color = Colors.white.withValues(alpha: 0.35 * (1 - p)),
+      );
+
+    case EnemyActionPhase.recover:
+      // Vented and open: the window that pays you for reading the tell.
+      canvas.drawCircle(
+        Offset.zero,
+        r * 1.2,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = Colors.white.withValues(alpha: 0.30 * (1 - p)),
+      );
+
+    case EnemyActionPhase.idle:
+      break;
+  }
+}
 
 final ui.Paint _markPaint = ui.Paint()
   ..style = ui.PaintingStyle.stroke
