@@ -251,6 +251,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             onChanged: () => _tick.value++,
             raid: widget.raid,
             onRaidCleared: _onRaidCleared,
+            onRaidWiped: _onRaidWiped,
             clearedGuardianCount: cleared,
             layoutOverride: buildRaidArenaLayout(widget.element),
           )
@@ -468,6 +469,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     _guardianIntroTimer = Timer(const Duration(milliseconds: 3200), () {
       if (mounted) setState(() => _guardianIntroVisible = false);
     });
+  }
+
+  /// A raid party wipe ends the attempt. Nothing is banked — the raid window
+  /// stays open, exactly as it does when you retreat.
+  void _onRaidWiped() {
+    if (!mounted) return;
+    _showToast('The raid drives you out');
+    _popDungeon(false);
   }
 
   void _onRaidCleared() {

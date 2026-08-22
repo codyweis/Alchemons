@@ -254,6 +254,7 @@ class PlanetDungeonGame extends FlameGame {
     required this.onChanged,
     this.raid,
     this.onRaidCleared,
+    this.onRaidWiped,
     this.clearedGuardianCount = 0,
     DungeonLayout? layoutOverride,
   }) : layout = layoutOverride ?? kPlanetDungeonLayouts[element]! {
@@ -300,6 +301,11 @@ class PlanetDungeonGame extends FlameGame {
   /// phase adds, and [onRaidCleared] instead of a star on victory.
   final RaidConfig? raid;
   final VoidCallback? onRaidCleared;
+
+  /// A raid party wipe. Elsewhere a wipe resets the run to the entrance with
+  /// everyone healed, which in a raid would hand the whole party back and make
+  /// the no-revival rule meaningless.
+  final VoidCallback? onRaidWiped;
   bool get isRaid => raid != null;
   int _raidPhaseIndex = 0;
 
@@ -806,6 +812,7 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Revive any downed creature whose timer has elapsed, back beside the party.
   void _updateRespawns(double dt) {
+    if (isRaid) return; // a raid down is permanent
     for (final c in creatures) {
       if (c.alive || c.respawnTimer <= 0) continue;
       c.respawnTimer -= dt;
@@ -2829,7 +2836,10 @@ class PlanetDungeonGame extends FlameGame {
         anyAlive = true;
       } else if (!c.downHandled) {
         c.downHandled = true;
-        c.respawnTimer = respawnSeconds; // revives in 10s (_updateRespawns)
+        // A raid has no second chances. Elsewhere a down is a setback you
+        // wait out; in a raid it is a loss you fight the rest of the fight
+        // without, which is what makes the attempt worth anything.
+        c.respawnTimer = isRaid ? 0 : respawnSeconds;
         _spawnAlchemyBurst(
           c.position,
           producedElement: c.member.element,
@@ -2837,13 +2847,23 @@ class PlanetDungeonGame extends FlameGame {
           intensity: 0.8,
         );
         _setHint(
-          '${c.member.element} ${c.member.family} is down — '
-          'reviving in ${respawnSeconds.round()}s',
+          isRaid
+              ? '${c.member.element} ${c.member.family} has fallen — '
+                    'no revival in a raid'
+              : '${c.member.element} ${c.member.family} is down — '
+                    'reviving in ${respawnSeconds.round()}s',
         );
         onChanged();
       }
     }
     if (!anyAlive) {
+      if (isRaid) {
+        // No free reset: the attempt is over. The raid window itself stays
+        // open for another try, same as retreating.
+        _setHint('The party has fallen — the raid drives you out', 4.0);
+        onRaidWiped?.call();
+        return;
+      }
       _resetRun();
       return;
     }
