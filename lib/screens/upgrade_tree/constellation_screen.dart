@@ -3,6 +3,7 @@ import 'package:alchemons/games/constellations/constellation_game.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/progress_overview_screen.dart';
+import 'package:alchemons/screens/upgrade_tree/constellation_skill_dialog.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,7 +18,6 @@ class _ConstellationPalette {
   static const bg0 = Color(0xFF080A0E);
   static const bg1 = Color(0xFF0E1117);
   static const bg2 = Color(0xFF141820);
-  static const bg3 = Color(0xFF1C2230);
   static const border = Color(0xFF252D3A);
   static const borderSoft = Color(0xFF3A3020);
   static const text = Color(0xFFE8DCC8);
@@ -61,6 +61,11 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   bool _treeAvailabilityInitialized = false;
   bool _isTreeRevealPlaying = false;
   Set<ConstellationTree> _availableTrees = const {ConstellationTree.breeder};
+
+  /// Mirrored from the streams in [build] so the skill dialog can show the
+  /// cost as a ledger (cost / balance / remainder) rather than a bare number.
+  int _currentPoints = 0;
+  Set<String> _currentUnlocked = const {};
 
   @override
   void initState() {
@@ -497,11 +502,13 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
             stream: constellationService.watchPointBalance(),
             builder: (context, pointsSnapshot) {
               final points = pointsSnapshot.data ?? 0;
+              _currentPoints = points;
 
               return StreamBuilder<Set<String>>(
                 stream: constellationService.watchUnlockedSkillIds(),
                 builder: (context, unlockedSnapshot) {
                   final unlockedSkills = unlockedSnapshot.data ?? {};
+                  _currentUnlocked = unlockedSkills;
                   if (unlockedSnapshot.hasData) {
                     _syncTreeAvailability(unlockedSkills);
                     if (_isFirstUnlockLocked &&
@@ -1199,328 +1206,103 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     final canUnlock = await service.canUnlockSkill(skill.id);
     if (!context.mounted) return;
 
-    if (isUnlocked) {
-      // Show info about unlocked skill
-      _showSkillInfoDialog(context, skill, theme, isUnlocked: true);
-    } else if (canUnlock) {
-      // Show unlock confirmation
-      _showUnlockDialog(context, skill, theme, service);
-    } else {
-      // Show why it's locked
-      _showSkillInfoDialog(context, skill, theme, isUnlocked: false);
-    }
-  }
-
-  void _showSkillInfoDialog(
-    BuildContext context,
-    ConstellationSkill skill,
-    FactionTheme theme, {
-    required bool isUnlocked,
-  }) {
-    final accent = isUnlocked ? theme.primary : _ConstellationPalette.textSoft;
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _ConstellationPalette.bg1,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isUnlocked
-                  ? theme.primary.withValues(alpha: 0.35)
-                  : _ConstellationPalette.border,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header row
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isUnlocked
-                          ? theme.primary.withValues(alpha: 0.14)
-                          : _ConstellationPalette.bg3,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(
-                      isUnlocked ? AppIcons.check_circle : AppIcons.lock_outline,
-                      color: isUnlocked
-                          ? theme.primary
-                          : _ConstellationPalette.textSoft,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          skill.name,
-                          style: const TextStyle(
-                            color: _ConstellationPalette.text,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        _ConstellationInlineBadge(
-                          label: 'T${skill.tier} • ${skill.pointsCost} PTS',
-                          color: accent,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-              Container(height: 1, color: _ConstellationPalette.border),
-              const SizedBox(height: 14),
-
-              // Description
-              Text(
-                skill.description,
-                style: const TextStyle(
-                  color: _ConstellationPalette.textSoft,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-
-              // Prerequisites section
-              if (!isUnlocked && skill.prerequisites.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'PREREQUISITES',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...skill.prerequisites.map((prereqId) {
-                  final prereq = ConstellationCatalog.byId(prereqId);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 5),
-                    child: Row(
-                      children: [
-                        Icon(
-                          AppIcons.chevron_right,
-                          color: accent.withValues(alpha: 0.7),
-                          size: 14,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          prereq?.name ?? prereqId,
-                          style: const TextStyle(
-                            color: _ConstellationPalette.textSoft,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-
-              const SizedBox(height: 20),
-
-              _ConstellationDialogButton(
-                theme: theme,
-                label: 'CLOSE',
-                onTap: () => Navigator.pop(context),
-                accent: accent,
-              ),
-            ],
-          ),
-        ),
-      ),
+    _showSkillDialog(
+      context,
+      skill,
+      theme,
+      service,
+      mode: isUnlocked
+          ? SkillDialogMode.owned
+          : canUnlock
+          ? SkillDialogMode.available
+          : SkillDialogMode.locked,
     );
   }
 
-  void _showUnlockDialog(
+  /// One dialog for all three node states — see
+  /// [ConstellationSkillDialog]. Replaces the two near-identical Material
+  /// dialogs that used to live here.
+  void _showSkillDialog(
     BuildContext context,
     ConstellationSkill skill,
     FactionTheme theme,
-    ConstellationService service,
-  ) {
-    showDialog(
+    ConstellationService service, {
+    required SkillDialogMode mode,
+  }) {
+    showGeneralDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: _ConstellationPalette.bg1,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _ConstellationPalette.borderSoft),
+      barrierDismissible: true,
+      barrierLabel: skill.name,
+      // Dark enough to sit the dialog forward without hiding the star chart
+      // it belongs to.
+      barrierColor: const Color(0xC404060A),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (dialogContext, _, _) => ConstellationSkillDialog(
+        skill: skill,
+        mode: mode,
+        primary: theme.primary,
+        secondary: theme.secondary,
+        pointsAvailable: _currentPoints,
+        prerequisiteStates: {
+          for (final id in skill.prerequisites)
+            id: _currentUnlocked.contains(id),
+        },
+        onUnlock: mode == SkillDialogMode.available
+            ? () => _performUnlock(dialogContext, skill, service)
+            : null,
+      ),
+      transitionBuilder: (context, anim, _, child) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          // A short rise, so it reads as the node opening up rather than a
+          // system alert dropping in.
+          child: SlideTransition(
+            position: Tween(
+              begin: const Offset(0, 0.04),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    skill.name,
-                    style: const TextStyle(
-                      color: _ConstellationPalette.text,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  _ConstellationInlineBadge(
-                    label: 'T${skill.tier}',
-                    color: theme.primary,
-                  ),
-                ],
-              ),
+        );
+      },
+    );
+  }
 
-              const SizedBox(height: 14),
-              Container(height: 1, color: _ConstellationPalette.border),
-              const SizedBox(height: 14),
+  Future<void> _performUnlock(
+    BuildContext dialogContext,
+    ConstellationSkill skill,
+    ConstellationService service,
+  ) async {
+    final settingsDao = context.read<AlchemonsDatabase>().settingsDao;
+    final success = await service.unlockSkill(skill.id);
+    if (success && skill.id == _firstUnlockSkillId) {
+      await settingsDao.clearConstellationFirstUnlockPending();
+    }
+    if (!dialogContext.mounted) return;
+    Navigator.of(dialogContext).pop();
 
-              Text(
-                skill.description,
-                style: const TextStyle(
-                  color: _ConstellationPalette.textSoft,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Cost badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: _ConstellationPalette.bg3,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: _ConstellationPalette.borderSoft),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      '${skill.pointsCost} skill points',
-                      style: const TextStyle(
-                        color: _ConstellationPalette.text,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'COST',
-                      style: TextStyle(
-                        color: theme.primary,
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Actions
-              Row(
-                children: [
-                  Expanded(
-                    child: _ConstellationDialogButton(
-                      theme: theme,
-                      label: 'CANCEL',
-                      onTap: () => Navigator.pop(context),
-                      filled: false,
-                      accent: _ConstellationPalette.textSoft,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: _ConstellationDialogButton(
-                      theme: theme,
-                      label: 'UNLOCK',
-                      onTap: () async {
-                        final settingsDao = context
-                            .read<AlchemonsDatabase>()
-                            .settingsDao;
-                        final success = await service.unlockSkill(skill.id);
-                        if (success && skill.id == _firstUnlockSkillId) {
-                          await settingsDao
-                              .clearConstellationFirstUnlockPending();
-                        }
-                        if (context.mounted) {
-                          Navigator.pop(context);
-
-                          if (success) {
-                            HapticFeedback.heavyImpact();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Row(
-                                  children: [
-                                    const Icon(
-                                      AppIcons.check_circle,
-                                      color: Colors.white,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        'Unlocked: ${skill.name}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                backgroundColor: theme.primary,
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Not enough skill points'),
-                                backgroundColor: Colors.red.shade800,
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      accent: theme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+    if (success) {
+      // No confirmation toast: the node fires its unlock burst and the
+      // connection line animates in behind the dialog. Covering that with a
+      // SnackBar hid the only part of this the player wants to watch.
+      HapticFeedback.heavyImpact();
+      return;
+    }
+    // The button is disabled when you cannot afford it, so this only fires on
+    // a genuine race. Still needs to say something.
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Not enough skill points for ${skill.name}'),
+        backgroundColor: const Color(0xFF3A2418),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(9),
+          side: const BorderSide(color: Color(0xFFE0885A)),
         ),
       ),
     );
@@ -1760,42 +1542,31 @@ class _ConstellationDialogButton extends StatelessWidget {
   final FactionTheme theme;
   final String label;
   final VoidCallback onTap;
-  final bool filled;
-  final Color? accent;
-
   const _ConstellationDialogButton({
     required this.theme,
     required this.label,
     required this.onTap,
-    this.filled = true,
-    this.accent,
   });
 
   @override
   Widget build(BuildContext context) {
-    final buttonColor = accent ?? theme.primary;
+    final buttonColor = theme.primary;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
-          color: filled
-              ? buttonColor.withValues(alpha: 0.16)
-              : _ConstellationPalette.bg2,
+          color: buttonColor.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: filled ? buttonColor : _ConstellationPalette.border,
-          ),
+          border: Border.all(color: buttonColor),
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: 'monospace',
-            color: filled
-                ? buttonColor
-                : (accent ?? _ConstellationPalette.textSoft),
+            color: buttonColor,
             fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.0,
