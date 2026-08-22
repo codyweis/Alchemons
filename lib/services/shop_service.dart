@@ -385,9 +385,10 @@ class ShopService extends ChangeNotifier {
       id: 'boost.instant_boss_refresh',
       name: 'Raid Beacon',
       description:
-          'Summons a raid on a conquered planet. Raids drop elemental loot caches.',
+          'Summons a raid on a conquered planet now, instead of waiting for '
+          'the 48h rotation. Raids drop three elemental loot caches.',
       icon: AppIcons.whatshot_rounded,
-      cost: const {'gold': 1},
+      cost: const {'gold': 25},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
