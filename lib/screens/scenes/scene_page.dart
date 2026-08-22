@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
+import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
@@ -284,7 +285,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
               !_riftSpawned &&
               mounted) {
             _riftSpawned = true;
-            _game.spawnRiftIfChance(sceneId: widget.sceneId);
+            unawaited(_resolveRift());
           }
         });
       }
@@ -976,6 +977,77 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     HapticFeedback.lightImpact();
   }
 
+
+  // ── Rift persistence ───────────────────────────────────────────────────────
+  //
+  // A rift used to live only in the Flame game, so leaving the scene destroyed
+  // it. Entering one needs a faction portal key you may not hold, which made
+  // the correct response — go buy the key — the thing that lost you the rift.
+  // It now survives for kRiftWindow so it can be returned to.
+
+  static const String _riftSettingKey = 'wild_rift_pending_v1';
+
+  Future<PendingRift?> _loadPendingRift() async {
+    final db = context.read<AlchemonsDatabase>();
+    return PendingRift.deserialise(
+      await db.settingsDao.getSetting(_riftSettingKey),
+    );
+  }
+
+  Future<void> _savePendingRift(PendingRift? rift) async {
+    final db = context.read<AlchemonsDatabase>();
+    await db.settingsDao.setSetting(_riftSettingKey, rift?.serialise() ?? '');
+  }
+
+  /// Decide whether this scene shows a rift: restore one pending here, roll for
+  /// a new one if none is pending anywhere, or do nothing while one waits in
+  /// another scene (only one rift is open at a time).
+  Future<void> _resolveRift() async {
+    if (!mounted) return;
+    final pending = await _loadPendingRift();
+    if (!mounted) return;
+
+    final action = riftActionForScene(
+      pending: pending,
+      sceneId: widget.sceneId,
+      nowUtc: DateTime.now().toUtc(),
+    );
+
+    switch (action) {
+      case RiftSceneAction.none:
+        return;
+
+      case RiftSceneAction.restore:
+        final faction = RiftFaction.values.firstWhere(
+          (f) => f.name == pending!.factionName,
+          orElse: () => RiftFaction.values.first,
+        );
+        _game.spawnRift(faction);
+
+      case RiftSceneAction.roll:
+        // An expired rift also lands here, so clear the stale record before
+        // rolling — otherwise the slot never frees up.
+        if (pending != null) await _savePendingRift(null);
+        final faction = _game.rollRiftFaction(widget.sceneId);
+        if (faction == null || !mounted) return;
+        _game.spawnRift(faction);
+        await _savePendingRift(
+          PendingRift(
+            factionName: faction.name,
+            sceneId: widget.sceneId,
+            spawnedUtc: DateTime.now().toUtc(),
+          ),
+        );
+    }
+  }
+
+  /// Consume the rift: it is gone from the world and from storage, which frees
+  /// the slot for the next roll.
+  Future<void> _consumeRift() async {
+    _game.clearRift();
+    await _savePendingRift(null);
+  }
+
   // ── Rift portal ─────────────────────────────────────────────────────────────
 
   void _onRiftTapped(RiftFaction faction) {
@@ -1002,7 +1074,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
               ),
             );
             if (success == true) {
-              _game.clearRift();
+              await _consumeRift();
             }
             if (!mounted) return;
             if (_isCosmicPlanetMode) {

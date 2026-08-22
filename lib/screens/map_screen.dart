@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/rift_state.dart';
 import 'dart:math' as math;
 
 import 'package:alchemons/navigation/world_transition.dart';
@@ -420,6 +423,8 @@ class _MapScreenState extends State<MapScreen>
 
                 const SizedBox(height: 12),
 
+                if (!widget.isTutorial) _RiftBanner(theme: theme),
+
                 if (!widget.isTutorial) const SizedBox(height: 16),
 
                 // Show tutorial hint
@@ -719,6 +724,131 @@ class _MapScreenState extends State<MapScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+// =====================================================
+// PENDING RIFT BANNER
+// =====================================================
+
+/// Surfaces the open rift so a persisted portal is findable.
+///
+/// A rift that survives leaving the scene is only half a fix if the player has
+/// to remember which biome it was in and guess how long is left. This names
+/// the biome, counts down, and says whether the required faction key is
+/// already in the bag — the whole point of the window is to go and get one.
+class _RiftBanner extends StatefulWidget {
+  const _RiftBanner({required this.theme});
+  final FactionTheme theme;
+
+  @override
+  State<_RiftBanner> createState() => _RiftBannerState();
+}
+
+class _RiftBannerState extends State<_RiftBanner> {
+  PendingRift? _rift;
+  int _keyQty = 0;
+  Timer? _tick;
+
+  static const _biomeNames = {
+    'valley': 'Verdant Valley',
+    'sky': 'Skyward Reach',
+    'volcano': 'Ashen Volcano',
+    'swamp': 'Sunken Swamp',
+    'arcane': 'Arcane Expanse',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    // Once a minute is enough for an 8h countdown shown in whole minutes.
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final db = context.read<AlchemonsDatabase>();
+    final rift = PendingRift.deserialise(
+      await db.settingsDao.getSetting('wild_rift_pending_v1'),
+    );
+    var qty = 0;
+    if (rift != null) {
+      qty = await db.inventoryDao.getItemQty(
+        InvKeys.portalKeyForFaction(rift.factionName),
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _rift = rift;
+      _keyQty = qty;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rift = _rift;
+    final now = DateTime.now().toUtc();
+    if (rift == null || !rift.isOpen(now)) return const SizedBox.shrink();
+
+    final faction = rift.factionName;
+    final label = faction[0].toUpperCase() + faction.substring(1);
+    final hasKey = _keyQty > 0;
+    final accent = hasKey
+        ? const Color(0xFF6FD08C)
+        : const Color(0xFFE0885A);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        border: Border.all(color: accent.withValues(alpha: 0.55)),
+      ),
+      child: Row(
+        children: [
+          Icon(AppIcons.auto_awesome_rounded, color: accent, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$label rift open in '
+                  '${_biomeNames[rift.sceneId] ?? rift.sceneId}',
+                  style: TextStyle(
+                    color: widget.theme.text,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hasKey
+                      ? 'Closes in ${rift.remainingLabel(now)} · key in hand'
+                      : 'Closes in ${rift.remainingLabel(now)} · '
+                            'needs a $label Portal Key',
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

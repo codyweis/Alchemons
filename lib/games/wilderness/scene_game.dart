@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
+import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/wild_spawn.dart';
@@ -455,18 +456,23 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   // ── Rift portal ────────────────────────────────────────────────────────────
 
-  /// Call once after initial setup. 10% chance to spawn a faction rift portal.
-  /// [sceneId] restricts which factions may appear (e.g. 'valley' → earthen/arcane).
-  void spawnRiftIfChance({required String sceneId}) {
+  /// Roll for a rift in [sceneId]. Returns the faction to spawn, or null.
+  ///
+  /// Split from [spawnRift] so the caller can decide between rolling for a new
+  /// rift and restoring one that is already pending from an earlier session —
+  /// see PendingRift in models/rift_state.dart.
+  RiftFaction? rollRiftFaction(String sceneId) {
+    if (_rng.nextDouble() > kRiftSpawnChance) return null;
+    return RiftFactionExt.randomForScene(sceneId, _rng);
+  }
+
+  /// Place the rift portal for [faction]. Safe to call when one is already up.
+  void spawnRift(RiftFaction faction) {
     // Evict any lingering stale rift from previous sessions.
     if (_riftPortalComp != null && !_riftPortalComp!.isMounted) {
       _riftPortalComp = null;
     }
     if (_riftPortalComp != null) return; // already active
-    if (_rng.nextDouble() > 0.05) return; // 5% chance
-
-    final faction = RiftFactionExt.randomForScene(sceneId, _rng);
-    if (faction == null) return; // no eligible factions for this biome
 
     // Normalised screen fractions where the portal should appear.
     final normX = 0.55 + _rng.nextDouble() * 0.20;
