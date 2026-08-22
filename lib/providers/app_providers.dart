@@ -125,6 +125,11 @@ class AppProviders extends StatelessWidget {
           create: (ctx) => HarvestService(ctx.read<AlchemonsDatabase>()),
         ),
 
+        // Creature repository ("repo catalog"). MultiProvider nests in order,
+        // so this must sit ABOVE every provider that reads it — including
+        // BlackMarketService just below.
+        Provider<CreatureCatalog>.value(value: gameDataService.catalog),
+
         ChangeNotifierProvider<ConstellationEffectsService>(
           create: (context) =>
               ConstellationEffectsService(context.read<AlchemonsDatabase>()),
@@ -170,9 +175,6 @@ class AppProviders extends StatelessWidget {
               .watchSpeciesWithInstances(),
           initialData: null,
         ),
-
-        // Creature repository provider (this is your "repo catalog")
-        Provider<CreatureCatalog>.value(value: gameDataService.catalog),
 
         ChangeNotifierProvider<FactionService>(
           create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
