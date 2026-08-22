@@ -136,7 +136,6 @@ class _ChipPalette {
   final List<Color> fillGradient;
   final Color topHighlight;
   final Color bottomShadow;
-  final Color border;
 
   const _ChipPalette({
     required this.tint,
@@ -145,7 +144,6 @@ class _ChipPalette {
     required this.fillGradient,
     required this.topHighlight,
     required this.bottomShadow,
-    required this.border,
   });
 }
 
@@ -159,7 +157,6 @@ _ChipPalette _paletteFor(_CurrencyKind kind, bool isDark) {
             fillGradient: [Color(0xFF2A1F08), Color(0xFF120B02)],
             topHighlight: Color(0x66FFE69A),
             bottomShadow: Color(0x99000000),
-            border: Color(0x66B07A1A),
           )
         : const _ChipPalette(
             tint: Color(0xFF8A5A00),
@@ -168,7 +165,6 @@ _ChipPalette _paletteFor(_CurrencyKind kind, bool isDark) {
             fillGradient: [Color(0xFFFFF5DA), Color(0xFFF0D7A2)],
             topHighlight: Color(0xCCFFFFFF),
             bottomShadow: Color(0x33000000),
-            border: Color(0x88B07A1A),
           );
   }
   return isDark
@@ -179,7 +175,6 @@ _ChipPalette _paletteFor(_CurrencyKind kind, bool isDark) {
           fillGradient: [Color(0xFF1B1F25), Color(0xFF0A0C0F)],
           topHighlight: Color(0x66EEF1F6),
           bottomShadow: Color(0x99000000),
-          border: Color(0x66747C88),
         )
       : const _ChipPalette(
           tint: Color(0xFF566270),
@@ -188,7 +183,6 @@ _ChipPalette _paletteFor(_CurrencyKind kind, bool isDark) {
           fillGradient: [Color(0xFFF6F8FB), Color(0xFFD8DDE5)],
           topHighlight: Color(0xCCFFFFFF),
           bottomShadow: Color(0x22000000),
-          border: Color(0x88747C88),
         );
 }
 
@@ -236,7 +230,6 @@ class _CurrencyChip extends StatelessWidget {
           colors: p.fillGradient,
         ),
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: p.border, width: 0.8),
         boxShadow: [
           // outer drop
           BoxShadow(
