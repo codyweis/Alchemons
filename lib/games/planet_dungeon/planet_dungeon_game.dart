@@ -20,6 +20,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
@@ -201,6 +202,42 @@ class _KinBeamFx {
 /// The guardian relic's victory ceremony: it drops from the fallen guardian,
 /// hovers glinting for a breath, then expands and dissolves into the player's
 /// keeping (the End Run popup re-presents it formally).
+/// The raid guardian's death throes, played before the reward screen.
+///
+/// A raid is the longest fight in the game; ending it with a UI panel
+/// appearing over a still-standing body gave the kill no weight. Four beats:
+/// the body seizes and cracks, everything implodes to the core, it detonates,
+/// then the light settles. Only then do rewards appear.
+class _RaidDeathFx {
+  _RaidDeathFx({
+    required this.position,
+    required this.radius,
+    required this.color,
+  });
+
+  final Offset position;
+  final double radius;
+  final Color color;
+  double t = 0;
+
+  static const double seize = 1.25;
+  static const double implode = 0.75;
+  static const double burst = 0.45;
+  static const double settle = 1.15;
+  static const double duration = seize + implode + burst + settle;
+
+  bool get done => t >= duration;
+
+  /// 0→1 within each beat; 0 before it starts, 1 after it ends.
+  double _beat(double start, double len) =>
+      ((t - start) / len).clamp(0.0, 1.0);
+
+  double get seizeT => _beat(0, seize);
+  double get implodeT => _beat(seize, implode);
+  double get burstT => _beat(seize + implode, burst);
+  double get settleT => _beat(seize + implode + burst, settle);
+}
+
 class _RelicDropFx {
   _RelicDropFx({required this.roomId, required this.position});
   final String roomId;
@@ -370,6 +407,18 @@ class PlanetDungeonGame extends FlameGame {
   final List<DungeonCreature> creatures = [];
   final List<CosmicSurvivalCompanion> combatCompanions = [];
   final List<CosmicSurvivalEnemy> combatEnemies = [];
+
+  /// Floating damage numbers. Only spawned during guardian and raid fights —
+  /// scattering numbers over ordinary trash would bury the puzzle the room is
+  /// actually about. Shared with survival's boss fights.
+  final DamageNumberField damageNumbers = DamageNumberField();
+
+  /// Non-null while the raid guardian is dying. Combat is suspended and the
+  /// reward screen is withheld until it finishes.
+  _RaidDeathFx? _raidDeath;
+
+  /// True while the death cinematic owns the screen.
+  bool get isRaidDeathPlaying => _raidDeath != null;
   final List<Projectile> combatProjectiles = [];
   final List<_DungeonWingBeam> _activeWingBeams = [];
   final List<_KinBeamFx> _kinBeams = [];
@@ -784,7 +833,9 @@ class PlanetDungeonGame extends FlameGame {
       _camFocus ?? (active?.position ?? currentRoom.bounds.center);
 
   void _updateCamera(double dt) {
-    final target = active?.position ?? currentRoom.bounds.center;
+    // The raid death is the shot — hold on the guardian, not the player.
+    final target =
+        _raidDeath?.position ?? active?.position ?? currentRoom.bounds.center;
     // Room change → snap (the new room is a different coordinate space).
     if (_camFocusRoom != currentRoomId || _camFocus == null) {
       _camFocus = target;
@@ -1385,7 +1436,7 @@ class PlanetDungeonGame extends FlameGame {
 
   /// The utility button is enabled whenever there's an active creature — what it
   /// does is context-driven (element-based interactions don't need a family).
-  bool get canAct => active != null;
+  bool get canAct => active != null && _raidDeath == null;
 
   /// The utility button is intentionally non-spoilery: the world response, not
   /// the label, teaches which specimen qualities and elements matter.
@@ -1868,7 +1919,8 @@ class PlanetDungeonGame extends FlameGame {
     // wind-up/dash/brew or a kin laser charge).
     final castLocked =
         activeCombat != null && _castLocksMovement(activeCombat!);
-    final dir = joystickDirection;
+    // The raid death cinematic takes the controls away.
+    final dir = _raidDeath != null ? Offset.zero : joystickDirection;
     // Swimming: flooded temple water slows everyone but Water itself.
     final moveSpeed =
         (flightActive ? _speed * _flightSpeedMul : _speed) *
@@ -2923,6 +2975,8 @@ class PlanetDungeonGame extends FlameGame {
     _updateWingBeams(dt);
     _updateIdleCompanionAttacks();
     _updateIdleCompanionMovement(dt, currentRoom);
+    damageNumbers.update(dt);
+    _updateRaidDeath(dt);
     _updateRaidPhases();
     final guardian = currentRoom.guardian;
     if (guardian != null &&
@@ -3688,7 +3742,9 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _damageEnemyFromBeam(CosmicSurvivalEnemy enemy, double damage) {
-    enemy.hp -= damage * _enemyDamageTakenScale(enemy);
+    final dealt = damage * _enemyDamageTakenScale(enemy);
+    _spawnDamageNumber(enemy, dealt);
+    enemy.hp -= dealt;
     enemy.hitFlash = 0.18;
     if (enemy.hp <= 0) enemy.isDead = true;
   }
@@ -5385,6 +5441,207 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Central damage funnel for player-sourced damage: applies the dungeon's
   /// boss-scaling, flashes, and fires the kill-verb hook on a lethal blow.
+
+  /// Whether this room's fight is important enough to be worth annotating.
+  ///
+  /// Guardians and raids only. Ordinary rooms are puzzles first — floating
+  /// numbers over trash mobs would clutter the thing the player is reading.
+  bool get _showsDamageNumbers => isRaid || guardianAwake;
+
+
+  // ---------------------------------------------------------------------
+  // Raid death sequence
+  // ---------------------------------------------------------------------
+
+  void _beginRaidDeath() {
+    if (_raidDeath != null) return;
+    final g = _guardianEnemy;
+    final at = g?.position ?? lastStarEarnPosition;
+    _raidDeath = _RaidDeathFx(
+      position: at,
+      radius: g?.radius ?? 60,
+      color: g != null ? elementColor(g.element) : elementColor(layout.element),
+    );
+    // The arena goes quiet: surviving adds are consumed by the collapse so
+    // nothing shoots the party during the cinematic.
+    for (final e in combatEnemies) {
+      if (identical(e, _guardianEnemy)) continue;
+      e.isDead = true;
+      _spawnAlchemyBurst(
+        e.position,
+        producedElement: e.element,
+        particleCount: 8,
+        intensity: 0.5,
+      );
+    }
+    damageNumbers.clear();
+  }
+
+  void _updateRaidDeath(double dt) {
+    final fx = _raidDeath;
+    if (fx == null) return;
+    final before = fx.t;
+    fx.t += dt;
+
+    // One burst at the detonation frame, not every frame of it.
+    const detonateAt = _RaidDeathFx.seize + _RaidDeathFx.implode;
+    if (before < detonateAt && fx.t >= detonateAt) {
+      _spawnAlchemyBurst(
+        fx.position,
+        producedElement: 'Light',
+        reagentElements: [layout.element],
+        particleCount: 40,
+        intensity: 1.6,
+        unstable: true,
+      );
+    }
+
+    if (fx.done) {
+      _raidDeath = null;
+      onRaidCleared?.call();
+      onChanged();
+    }
+  }
+
+  void _renderRaidDeath(Canvas canvas) {
+    final fx = _raidDeath;
+    if (fx == null) return;
+    final c = fx.position;
+    final r = fx.radius;
+
+    // Beat 1 — the body seizes: it shudders in place while seams of light
+    // tear open across it.
+    if (fx.seizeT < 1.0) {
+      final s = fx.seizeT;
+      // Shudder grows as it loses the fight.
+      final shake = 3.0 * s;
+      final jitter = Offset(
+        sin(fx.t * 47) * shake,
+        cos(fx.t * 39) * shake,
+      );
+      final body = c + jitter;
+      canvas.drawCircle(
+        body,
+        r * (1.0 + 0.05 * sin(fx.t * 18)),
+        Paint()..color = fx.color.withValues(alpha: 0.30 + 0.25 * s),
+      );
+      // Cracks: fixed spokes that brighten and lengthen.
+      final crack = Paint()
+        ..color = Color.lerp(fx.color, Colors.white, 0.7)!.withValues(
+          alpha: 0.25 + 0.75 * s,
+        )
+        ..strokeWidth = 1.5 + 2.5 * s
+        ..strokeCap = StrokeCap.round;
+      for (var i = 0; i < 7; i++) {
+        final a = (i / 7) * pi * 2 + 0.4;
+        final len = r * (0.35 + 0.75 * s);
+        canvas.drawLine(
+          body + Offset(cos(a), sin(a)) * (r * 0.12),
+          body + Offset(cos(a), sin(a)) * len,
+          crack,
+        );
+      }
+      // Escaping light, pulled outward and up.
+      final vent = Paint()
+        ..color = Colors.white.withValues(alpha: 0.10 + 0.35 * s)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + 14 * s);
+      canvas.drawCircle(body, r * (0.6 + 0.5 * s), vent);
+    }
+
+    // Beat 2 — implosion: rings race inward and the core whitens.
+    if (fx.implodeT > 0 && fx.implodeT < 1.0) {
+      final s = fx.implodeT;
+      final ease = s * s;
+      for (var i = 0; i < 3; i++) {
+        final phase = (ease + i / 3.0) % 1.0;
+        final ring = r * 5.0 * (1.0 - phase);
+        canvas.drawCircle(
+          c,
+          ring,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2 + 4 * phase
+            ..color = fx.color.withValues(alpha: 0.55 * (1.0 - phase)),
+        );
+      }
+      canvas.drawCircle(
+        c,
+        r * (1.0 - 0.75 * ease),
+        Paint()
+          ..color = Color.lerp(
+            fx.color,
+            Colors.white,
+            ease,
+          )!.withValues(alpha: 0.9),
+      );
+    }
+
+    // Beat 3 — detonation: a hard flash and one fast shockwave.
+    if (fx.burstT > 0 && fx.burstT < 1.0) {
+      final s = fx.burstT;
+      final out = Curves.easeOutQuart.transform(s);
+      canvas.drawCircle(
+        c,
+        r * (0.5 + 9.0 * out),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 14 * (1.0 - out) + 1
+          ..color = Colors.white.withValues(alpha: 0.85 * (1.0 - out)),
+      );
+      canvas.drawCircle(
+        c,
+        r * (0.4 + 5.0 * out),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 26 * (1.0 - out) + 1
+          ..color = fx.color.withValues(alpha: 0.5 * (1.0 - out)),
+      );
+      canvas.drawCircle(
+        c,
+        r * 2.4 * (1.0 - out),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.9 * (1.0 - out))
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
+      );
+    }
+
+    // Beat 4 — settling: embers rise off the empty space where it stood.
+    if (fx.settleT > 0) {
+      final s = fx.settleT;
+      final fade = 1.0 - s;
+      final ember = Paint()..color = fx.color.withValues(alpha: 0.55 * fade);
+      for (var i = 0; i < 14; i++) {
+        final a = (i / 14) * pi * 2 + 1.1;
+        final spread = r * (0.6 + 1.8 * ((i * 37) % 11) / 11.0);
+        final rise = 40 + 70 * s + ((i * 53) % 9) * 6.0;
+        canvas.drawCircle(
+          c + Offset(cos(a) * spread, sin(a) * spread * 0.5 - rise * s),
+          1.6 + 1.4 * fade,
+          ember,
+        );
+      }
+      canvas.drawCircle(
+        c,
+        r * (1.2 + 2.0 * s),
+        Paint()
+          ..color = fx.color.withValues(alpha: 0.16 * fade)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30),
+      );
+    }
+  }
+
+  void _spawnDamageNumber(CosmicSurvivalEnemy enemy, double dealt) {
+    if (!_showsDamageNumbers) return;
+    damageNumbers.spawn(
+      enemy.position,
+      dealt,
+      jitter: Offset(
+        (_combatRng.nextDouble() - 0.5) * enemy.radius * 1.2,
+        -enemy.radius * 0.7 - _combatRng.nextDouble() * 6,
+      ),
+    );
+  }
+
   void _damageEnemyDirect(
     CosmicSurvivalEnemy enemy,
     double amount, {
@@ -5392,8 +5649,10 @@ class PlanetDungeonGame extends FlameGame {
     bool fromPipSpecial = false,
   }) {
     if (enemy.isDead || amount <= 0) return;
-    enemy.hp -= amount * _enemyDamageTakenScale(enemy);
+    final dealt = amount * _enemyDamageTakenScale(enemy);
+    enemy.hp -= dealt;
     enemy.hitFlash = max(enemy.hitFlash, 0.14);
+    _spawnDamageNumber(enemy, dealt);
     if (enemy.hp <= 0) {
       enemy.isDead = true;
       _onEnemyKilledByPlayer(enemy, sourceSlot, fromPipSpecial: fromPipSpecial);
@@ -7313,6 +7572,14 @@ class PlanetDungeonGame extends FlameGame {
     _earnedStars.add(starIndex);
     starMask |= (1 << starIndex);
     lastStarEarnPosition = active?.position ?? currentRoom.bounds.center;
+    if (isRaid) {
+      // A raid has no stars to bank — the guardian falling IS the win.
+      // Rewards wait for the death sequence; see [_updateRaidDeath].
+      _setHint('The raid is broken — the storm releases the planet', 4.2);
+      _beginRaidDeath();
+      onChanged();
+      return;
+    }
     _spawnAlchemyBurst(
       lastStarEarnPosition,
       producedElement: 'Light',
@@ -7320,13 +7587,6 @@ class PlanetDungeonGame extends FlameGame {
       particleCount: 26,
       intensity: 1.1,
     );
-    if (isRaid) {
-      // A raid has no stars to bank — the guardian falling IS the win.
-      _setHint('The raid is broken — the storm releases the planet', 4.2);
-      onRaidCleared?.call();
-      onChanged();
-      return;
-    }
     onStarEarned(starIndex);
     // Star 3: the guardian relic drops on the spot — hovers, then expands
     // away into the player's keeping (End Run re-presents it formally).
@@ -7466,6 +7726,9 @@ class PlanetDungeonGame extends FlameGame {
     _renderCarriedCloud(canvas);
     _renderRelicDrop(canvas);
     _renderVaultCacheGlow(canvas, room);
+    _renderRaidDeath(canvas);
+    // Numbers sit above everything they annotate.
+    damageNumbers.render(canvas);
 
     canvas.restore();
 
@@ -11876,6 +12139,8 @@ class PlanetDungeonGame extends FlameGame {
       );
     }
   }
+
+
 
   void _renderCombatEnemies(Canvas canvas) {
     for (final enemy in combatEnemies) {

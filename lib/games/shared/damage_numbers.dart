@@ -1,0 +1,148 @@
+// lib/games/shared/damage_numbers.dart
+//
+// Floating damage numbers, shared by every mode that has a boss fight.
+//
+// Deliberately NOT shown for ordinary trash. Dungeon rooms are puzzles and
+// survival waves are crowd control; numbers over every contact tick would bury
+// the thing the player is actually reading. They earn their screen space only
+// in fights where "am I actually hurting this" is the open question — guardians,
+// raid bosses, survival bosses.
+//
+// Cost: one short-lived struct per hit, a hard cap on the list, and a cached
+// TextPainter per distinct label. Nothing lays out text per frame.
+
+import 'package:flutter/material.dart';
+
+/// One rising number.
+class DamageNumber {
+  DamageNumber({
+    required this.position,
+    required this.amount,
+    required this.drift,
+    this.isBig = false,
+    this.life = 0.85,
+  }) : maxLife = life;
+
+  Offset position;
+  final double amount;
+  final Offset drift;
+
+  /// Heavy hits get a larger, brighter treatment.
+  final bool isBig;
+
+  double life;
+  final double maxLife;
+
+  double get t => (1.0 - life / maxLife).clamp(0.0, 1.0);
+
+  /// Sub-1 chip damage would all render as "0", which reads as a bug.
+  String get label =>
+      amount >= 10 ? amount.round().toString() : amount.toStringAsFixed(1);
+}
+
+/// Owns a pool of numbers plus the painter cache. One per game instance.
+class DamageNumberField {
+  DamageNumberField({this.maxNumbers = 40, this.bigThreshold = 40});
+
+  /// Cap the list rather than the spawn rate: a big AoE tick should show every
+  /// hit, but a sustained beam must not grow this without bound.
+  final int maxNumbers;
+
+  /// At or above this, a hit is rendered large.
+  final double bigThreshold;
+
+  final List<DamageNumber> numbers = [];
+  final Map<String, TextPainter> _painters = {};
+
+  bool get isEmpty => numbers.isEmpty;
+  int get length => numbers.length;
+
+  void clear() => numbers.clear();
+
+  /// [jitter] spreads simultaneous hits so they don't stack into one
+  /// illegible blob; pass a per-call random offset.
+  void spawn(Offset at, double amount, {Offset jitter = Offset.zero}) {
+    if (amount < 1) return;
+    if (numbers.length >= maxNumbers) {
+      numbers.removeRange(0, numbers.length - maxNumbers + 1);
+    }
+    numbers.add(
+      DamageNumber(
+        position: at + jitter,
+        amount: amount,
+        drift: Offset(jitter.dx * 0.8, -46),
+        isBig: amount >= bigThreshold,
+      ),
+    );
+  }
+
+  void update(double dt) {
+    for (var i = numbers.length - 1; i >= 0; i--) {
+      final d = numbers[i];
+      d.life -= dt;
+      if (d.life <= 0) {
+        numbers.removeAt(i);
+        continue;
+      }
+      d.position += d.drift * dt;
+    }
+  }
+
+  TextPainter _painter(String text, bool big) {
+    final key = big ? 'b:$text' : 's:$text';
+    return _painters.putIfAbsent(key, () {
+      return TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: big ? 20 : 14,
+            fontWeight: big ? FontWeight.w900 : FontWeight.w700,
+            letterSpacing: 0.4,
+            shadows: const [
+              Shadow(color: Color(0xE6000000), blurRadius: 4),
+              Shadow(color: Color(0x99000000), blurRadius: 8),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    });
+  }
+
+  /// Draws in whatever space the canvas is currently in — callers place this
+  /// inside their world transform, above the things it annotates.
+  void render(Canvas canvas) {
+    if (numbers.isEmpty) return;
+    for (final d in numbers) {
+      final t = d.t;
+      // Pop in fast, hold, fade out. A number that fades the whole way is
+      // unreadable for most of its life.
+      final alpha = t < 0.15 ? t / 0.15 : (1.0 - (t - 0.15) / 0.85);
+      if (alpha <= 0.01) continue;
+      final scale = t < 0.15 ? (0.7 + 0.4 * (t / 0.15)) : 1.0;
+      final tp = _painter(d.label, d.isBig);
+      final offset = Offset(-tp.width / 2, -tp.height / 2);
+      canvas.save();
+      canvas.translate(d.position.dx, d.position.dy);
+      if (scale != 1.0) canvas.scale(scale);
+      if (alpha >= 0.99) {
+        tp.paint(canvas, offset);
+      } else {
+        // saveLayer only while actually fading, not for every number.
+        canvas.saveLayer(
+          Rect.fromLTWH(
+            offset.dx - 2,
+            offset.dy - 2,
+            tp.width + 4,
+            tp.height + 4,
+          ),
+          Paint()..color = Colors.white.withValues(alpha: alpha),
+        );
+        tp.paint(canvas, offset);
+        canvas.restore();
+      }
+      canvas.restore();
+    }
+  }
+}

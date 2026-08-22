@@ -17,6 +17,7 @@ import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/games/shared/type_effectiveness.dart';
@@ -809,6 +810,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final CosmicSurvivalSpawner spawner = CosmicSurvivalSpawner();
   final List<CosmicSurvivalEnemy> enemies = [];
   SurvivalBoss? activeBoss;
+
+  /// Floating damage numbers, shown on bosses only. Regular waves are crowd
+  /// control — a number per contact tick across thirty enemies is noise.
+  final DamageNumberField damageNumbers = DamageNumberField(bigThreshold: 60);
   // Additional bosses spawned on multi-boss waves. Updated/rendered/targeted
   // alongside [activeBoss]. Dead entries are pruned each wave cleanup.
   final List<SurvivalBoss> extraBosses = [];
@@ -1208,6 +1213,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _rebuildEnemySpatialGrid();
 
     stats.timeElapsed += dt;
+    damageNumbers.update(dt);
 
     // Zoom animation
     if (!_zoomAnimComplete) {
@@ -5723,6 +5729,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final hpBefore = boss.hp;
     boss.hp -= effectiveDamage;
     boss.hitFlash = 1.0;
+    damageNumbers.spawn(
+      boss.position,
+      effectiveDamage,
+      // Jittered so simultaneous hits don't stack into one illegible blob.
+      jitter: Offset(
+        (_rng.nextDouble() - 0.5) * boss.radius * 1.2,
+        -boss.radius * 0.75 - _rng.nextDouble() * 8,
+      ),
+    );
 
     if (sourceSlotIndex != null) {
       final dealt = hpBefore - max(boss.hp, 0.0);
@@ -12530,6 +12545,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (extra.isDead) continue;
       _renderBoss(canvas, extra);
     }
+    damageNumbers.render(canvas);
 
     // Boss projectiles
     for (final proj in bossProjectiles) {

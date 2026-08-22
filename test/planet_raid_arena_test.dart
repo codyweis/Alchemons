@@ -194,13 +194,83 @@ void main() {
 
       guardian.hp = 0;
       guardian.isDead = true;
-      _step(raid, 0.5);
+      _step(raid, 6.0); // through the death sequence
 
       expect(cleared, 1);
       expect(stars, 0);
       // And it only fires once even as the loop keeps running.
       _step(raid, 1.0);
       expect(cleared, 1);
+    });
+  });
+
+  group('the guardian death sequence', () {
+    // The reward screen used to appear over a still-standing body, which gave
+    // the longest fight in the game no ending.
+    PlanetDungeonGame killedRaid({void Function()? onCleared}) {
+      final raid = _buildRaid(onCleared: onCleared);
+      _step(raid, 2.2);
+      final guardian = raid.combatEnemies.singleWhere((e) => e.isElite);
+      guardian.hp = 0;
+      guardian.isDead = true;
+      _step(raid, 0.2);
+      return raid;
+    }
+
+    test('rewards are withheld until the sequence finishes', () {
+      var cleared = 0;
+      final raid = killedRaid(onCleared: () => cleared++);
+      expect(raid.isRaidDeathPlaying, isTrue);
+      expect(cleared, 0, reason: 'the reward screen must wait for the death');
+
+      _step(raid, 1.5);
+      expect(cleared, 0, reason: 'still mid-collapse');
+
+      _step(raid, 4.0);
+      expect(cleared, 1);
+      expect(raid.isRaidDeathPlaying, isFalse);
+    });
+
+    test('the arena goes quiet so nothing shoots during the cinematic', () {
+      final raid = _buildRaid();
+      _step(raid, 2.2);
+      final guardian = raid.combatEnemies.singleWhere((e) => e.isElite);
+      // Force a phase so there are adds alive at the moment of death.
+      guardian.hp = guardian.maxHp * 0.05;
+      _step(raid, 0.2);
+      expect(raid.combatEnemies.length, greaterThan(1));
+
+      guardian.hp = 0;
+      guardian.isDead = true;
+      _step(raid, 0.3);
+      expect(
+        raid.combatEnemies.where((e) => !e.isDead), 
+        isEmpty,
+        reason: 'surviving adds are consumed by the collapse',
+      );
+    });
+
+    test('the player cannot act during the sequence', () {
+      final raid = killedRaid();
+      expect(raid.canAct, isFalse);
+    });
+
+    test('hits on the guardian throw damage numbers', () {
+      final raid = _buildRaid();
+      // Companions auto-attack; a few seconds of the fight must produce
+      // visible feedback that the guardian is taking damage.
+      _step(raid, 6.0);
+      expect(
+        raid.damageNumbers.isEmpty,
+        isFalse,
+        reason: 'a raid boss fight with no damage feedback is unreadable',
+      );
+      expect(raid.damageNumbers.length, lessThanOrEqualTo(40));
+    });
+
+    test('damage numbers are cleared when the guardian falls', () {
+      final raid = killedRaid();
+      expect(raid.damageNumbers.isEmpty, isTrue);
     });
   });
 }

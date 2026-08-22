@@ -313,3 +313,4 @@ void drawVignette(Canvas canvas, Size size) {
       ),
   );
 }
+
