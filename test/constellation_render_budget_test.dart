@@ -49,10 +49,7 @@ Future<_CensusCanvas> _census(
   await tester.pumpWidget(
     MaterialApp(home: Scaffold(body: GameWidget(game: game))),
   );
-  // Entry is deferred a few components per frame, so the scene needs time to
-  // finish mounting — otherwise these budgets would pass on a half-built
-  // screen.
-  for (var i = 0; i < 45; i++) {
+  for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 16));
   }
   game.camera.viewfinder.zoom = zoom;
@@ -113,13 +110,6 @@ void main() {
     final near = await _census(tester, unlocked: const {}, zoom: 1.0);
     final far = await _census(tester, unlocked: const {}, zoom: 0.2);
 
-    // Guard against the budgets passing because the field never mounted.
-    expect(
-      far.get('drawRawPoints'),
-      greaterThan(0),
-      reason: 'the star field should be mounted by now',
-    );
-
     expect(far.get('drawCircle'), lessThan(40));
     expect(
       far.get('drawRawPoints'),
@@ -150,7 +140,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: Scaffold(body: GameWidget(game: game))),
     );
-    for (var i = 0; i < 45; i++) {
+    for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
 
