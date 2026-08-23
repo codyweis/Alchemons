@@ -82,6 +82,7 @@ class PartyPickerScreen extends StatefulWidget {
     super.key,
     this.showDeployConfirm = true,
     this.enforceUniqueSpecies = true,
+    this.enforceUniqueFamily = false,
     this.maxSelections,
     this.teamStorageKey = 'saved_teams_party_picker',
   });
@@ -91,6 +92,12 @@ class PartyPickerScreen extends StatefulWidget {
 
   /// When true, prevents selecting two instances of the same species.
   final bool enforceUniqueSpecies;
+
+  /// When true, at most one Alchemon per mutation family may be selected —
+  /// the raid rule. This is the existing "one Mystic per squad" restriction
+  /// generalised to every family, which is what forces a raid roster to be
+  /// broad instead of three copies of your best build.
+  final bool enforceUniqueFamily;
 
   /// Override max team size. When null, uses the default from SelectedPartyNotifier.
   final int? maxSelections;
@@ -679,22 +686,42 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
           return sel?.baseId == inst.baseId;
         });
 
-    final isMystic = species?.mutationFamily == 'Mystic';
-    final hasMysticAlready =
-        isMystic &&
-        party.members.any((m) {
-          final sel = allInstances.firstWhereOrNull(
-            (x) => x.instanceId == m.instanceId,
-          );
-          final selSp = sel != null ? repo.getCreatureById(sel.baseId) : null;
-          return selSp?.mutationFamily == 'Mystic';
-        });
+    String? familyOf(String instanceId) {
+      final sel = allInstances.firstWhereOrNull(
+        (x) => x.instanceId == instanceId,
+      );
+      if (sel == null) return null;
+      return repo.getCreatureById(sel.baseId)?.mutationFamily;
+    }
+
+    final family = species?.mutationFamily;
+    final isMystic = family == 'Mystic';
+    // Mystic is always unique. Under [enforceUniqueFamily] so is every other
+    // family, so the general rule subsumes the Mystic one.
+    final clashingFamily = family != null &&
+        (isMystic || widget.enforceUniqueFamily) &&
+        party.members.any((m) => familyOf(m.instanceId) == family);
+    final hasMysticAlready = isMystic && clashingFamily;
 
     if (hasSameSpecies) {
       ScaffoldMessenger.of(ctx).showSnackBar(
         SnackBar(
           content: Text(
             '${species?.name ?? 'This species'} is already in your squad.',
+            style: const TextStyle(fontFamily: 'monospace'),
+          ),
+          backgroundColor: _C.warn,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    if (clashingFamily && !hasMysticAlready) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Only one $family is allowed in a raid squad.',
             style: const TextStyle(fontFamily: 'monospace'),
           ),
           backgroundColor: _C.warn,

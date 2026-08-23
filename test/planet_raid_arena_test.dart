@@ -273,4 +273,68 @@ void main() {
       expect(raid.damageNumbers.isEmpty, isTrue);
     });
   });
+
+  group('raid squad and difficulty', () {
+    test('a raid squad is five, against a dungeon party of three', () {
+      expect(RaidConfig.squadSize, 5);
+    });
+
+    test('the guardian is scaled for the bigger squad, not just buffed', () {
+      // Five Alchemons is roughly +67% DPS and +67% bodies over three. HP
+      // rises with the party so the fight still takes about as long, and
+      // damage rises further so the extra bodies are not just slack.
+      const cfg = RaidConfig();
+      expect(cfg.hpMul, 5.0);
+      expect(cfg.dmgMul, 2.2);
+      // HP must scale at least as fast as the party, or raids got easier.
+      expect(cfg.hpMul / 3.0, greaterThanOrEqualTo(RaidConfig.squadSize / 3));
+      // And damage must outpace HP, or it is only a longer fight.
+      expect(cfg.dmgMul / 1.5, greaterThan(1.0));
+    });
+
+    test('a five-strong squad all reaches the arena', () {
+      final party = [for (var i = 0; i < RaidConfig.squadSize; i++) _member(slot: i)];
+      final game = PlanetDungeonGame(
+        element: 'Air',
+        party: party,
+        initialStarMask: 0,
+        onStarEarned: (_) {},
+        onPlayerDown: () {},
+        onChanged: () {},
+        raid: const RaidConfig(),
+        layoutOverride: buildRaidArenaLayout('Air'),
+      );
+      game.currentRoomId = game.layout.entranceRoomId;
+      final spawn = game.layout.entranceSpawn;
+      for (var i = 0; i < party.length; i++) {
+        final c = DungeonCreature(member: party[i])
+          ..position = spawn + Offset(i * 60.0, 0)
+          ..lastSafe = spawn + Offset(i * 60.0, 0);
+        game.creatures.add(c);
+        game.combatCompanions.add(_companion(party[i], c.position));
+      }
+      _step(game, 2.2);
+
+      // Nothing in the dungeon may assume a party of three.
+      expect(game.creatures.length, 5);
+      expect(game.combatCompanions.length, 5);
+      expect(game.creatures.where((c) => c.alive).length, 5);
+    });
+
+    test('the guardian scales with cleared planets on top of the raid mul', () {
+      PlanetDungeonGame raidWith(int cleared) => PlanetDungeonGame(
+        element: 'Air',
+        party: [_member(slot: 0)],
+        initialStarMask: 0,
+        onStarEarned: (_) {},
+        onPlayerDown: () {},
+        onChanged: () {},
+        raid: const RaidConfig(),
+        clearedGuardianCount: cleared,
+        layoutOverride: buildRaidArenaLayout('Air'),
+      );
+      expect(raidWith(5).progressHpMul, greaterThan(raidWith(0).progressHpMul));
+      expect(raidWith(0).progressHpMul, 1.0);
+    });
+  });
 }

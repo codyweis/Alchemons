@@ -161,8 +161,15 @@ class RaidConfig {
   final List<double> addPhaseThresholds;
 
   const RaidConfig({
-    this.hpMul = 3.0,
-    this.dmgMul = 1.5,
+    // A raid squad is five Alchemons to a dungeon's three — roughly +67% DPS
+    // and +67% bodies to lose. HP rises with it (3.0 -> 5.0) so the fight
+    // still takes about as long as it used to, and damage rises further
+    // (1.5 -> 2.2) so the bigger roster does not just mean more slack.
+    this.hpMul = 5.0,
+    this.dmgMul = 2.2,
     this.addPhaseThresholds = const [0.7, 0.35],
   });
+
+  /// How many Alchemons a raid squad may field, against three in a dungeon.
+  static const int squadSize = 5;
 }

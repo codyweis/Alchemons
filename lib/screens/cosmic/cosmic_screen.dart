@@ -1,5 +1,6 @@
 // Organized refactor of cosmic_screen.dart
 
+import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:async';
@@ -6352,13 +6353,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   Future<void> _enterRaid(CosmicPlanet planet) async {
     final raid = _raid;
     if (raid == null || raid.element != planet.element || !_raidLive) return;
-    final req = kCosmicPlanetEntry[planet.element];
-    if (req == null || !_unsealedGates.contains(planet.element)) return;
-    final roster = _partyMembers
-        .whereType<CosmicPartyMember>()
-        .where((m) => req.contains(m.element))
-        .toList();
-    if (roster.isEmpty) return;
+    if (!_unsealedGates.contains(planet.element)) return;
+    final roster = await _pickRaidSquad();
+    if (roster == null || !mounted) return;
 
     _game?.pauseEngine();
     await Navigator.of(context).push(
@@ -6375,6 +6372,70 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!mounted) return;
     await _refreshRaidState();
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
+  }
+
+
+  /// Ask the player to assemble a raid squad, then build it.
+  ///
+  /// Raids take five Alchemons to a dungeon's three, at most one per mutation
+  /// family. The family cap is the point: it stops a raid being solved by
+  /// three copies of your strongest build and makes you field a broad roster.
+  ///
+  /// Unlike a planet dungeon this is a free pick with no element requirement.
+  /// Dungeons gate entry to three elements because their puzzles need those
+  /// verbs; a raid arena is a generated single room with no puzzles at all,
+  /// so nothing in it is element-locked.
+  Future<List<CosmicPartyMember>?> _pickRaidSquad() async {
+    final picked = await Navigator.of(context).push<List<dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => const PartyPickerScreen(
+          showDeployConfirm: false,
+          enforceUniqueSpecies: true,
+          enforceUniqueFamily: true,
+          maxSelections: RaidConfig.squadSize,
+          teamStorageKey: 'saved_teams_raid',
+        ),
+      ),
+    );
+    if (picked == null || picked.isEmpty || !mounted) return null;
+
+    final db = context.read<AlchemonsDatabase>();
+    final catalog = context.read<CreatureCatalog>();
+    final squad = <CosmicPartyMember>[];
+    for (final m in picked) {
+      final inst = await db.creatureDao.getInstance(m.instanceId as String);
+      if (inst == null) continue;
+      final base = catalog.getCreatureById(inst.baseId);
+      squad.add(
+        CosmicPartyMember(
+          instanceId: inst.instanceId,
+          baseId: inst.baseId,
+          displayName: inst.nickname ?? base?.name ?? inst.baseId,
+          imagePath: base?.image != null
+              ? 'assets/images/${base!.image}'
+              : null,
+          element: (base?.types.isNotEmpty ?? false)
+              ? base!.types.first
+              : 'Spirit',
+          family: base?.mutationFamily ?? 'kin',
+          level: inst.level,
+          statSpeed: inst.statSpeed.toDouble(),
+          statIntelligence: inst.statIntelligence.toDouble(),
+          statStrength: inst.statStrength.toDouble(),
+          statBeauty: inst.statBeauty.toDouble(),
+          // Position in the squad, not a ship slot — a raid squad is picked
+          // fresh and has nothing to do with which Alchemons are aboard.
+          slotIndex: squad.length,
+          staminaBars: inst.staminaBars,
+          staminaMax: inst.staminaMax,
+          spriteSheet: base?.spriteData != null
+              ? sheetFromCreature(base!)
+              : null,
+          spriteVisuals: visualsFromInstance(base, inst),
+        ),
+      );
+    }
+    return squad.isEmpty ? null : squad;
   }
 
   /// Debug-only: start a raid here without spending a beacon.
