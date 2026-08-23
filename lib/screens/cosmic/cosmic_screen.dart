@@ -6364,7 +6364,6 @@ class _CosmicScreenState extends State<CosmicScreen>
           element: planet.element,
           party: roster,
           raid: const RaidConfig(),
-          raidEndUtc: raid.endUtc,
           onRaidCleared: () => _raidService.markCleared(),
         ),
       ),

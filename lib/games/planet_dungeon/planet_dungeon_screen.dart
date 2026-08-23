@@ -91,7 +91,6 @@ class PlanetDungeonScreen extends StatefulWidget {
     required this.element,
     required this.party,
     this.raid,
-    this.raidEndUtc,
     this.onRaidCleared,
   });
 
@@ -102,8 +101,6 @@ class PlanetDungeonScreen extends StatefulWidget {
   /// guardian, raid loot. Stars/clouds are neither read nor written.
   final RaidConfig? raid;
 
-  /// When the raid window closes (drives the HUD countdown).
-  final DateTime? raidEndUtc;
 
   /// Persist-the-clear callback (RaidService.markCleared), awaited right
   /// after the loot is granted.
@@ -912,7 +909,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                     child: ValueListenableBuilder<int>(
                       valueListenable: _tick,
                       builder: (_, __, ___) {
-                        if (_isRaid) return _raidChip();
+                        // Nothing up here in a raid. The window countdown
+                        // belonged to the decision to enter, not to the
+                        // fight; inside, it is a clock you cannot act on.
+                        // The star tracker and progress readout below are
+                        // meaningless in a raid too.
+                        if (_isRaid) return const SizedBox.shrink();
                         // Star tracker + the planet's progress readout, one
                         // glanceable row (§5.6: counters are state, not
                         // speech, so they never touch the capsule).
@@ -968,88 +970,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   ///
   /// Same chrome as the space-view raid strip — hard edges, bracketed corners,
   /// an ember accent rail — so the raid reads as one thing across both views.
-  Widget _raidChip() {
-    final end = widget.raidEndUtc;
-    String clock = '';
-    bool closing = false;
-    if (end != null) {
-      final left = end.difference(DateTime.now().toUtc());
-      if (left.isNegative) {
-        clock = 'WINDOW CLOSED';
-        closing = true;
-      } else {
-        String two(int v) => v.toString().padLeft(2, '0');
-        clock =
-            '${two(left.inHours)}:${two(left.inMinutes % 60)}:${two(left.inSeconds % 60)}';
-        closing = left.inMinutes < 60;
-      }
-    }
-    const ember = Color(0xFFE25544);
-
-    return CustomPaint(
-      foregroundPainter: const DungeonBracketPainter(
-        color: ember,
-        bracketSize: 7,
-        strokeWidth: 1.2,
-      ),
-      child: Container(
-        height: 30,
-        padding: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          color: _C.bg.withValues(alpha: 0.82),
-          border: Border.all(color: ember.withValues(alpha: 0.42)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 3, height: 30, color: ember),
-            const SizedBox(width: 10),
-            const Text(
-              'RAID',
-              style: TextStyle(
-                color: ember,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2.6,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '·',
-              style: TextStyle(
-                color: _C.text.withValues(alpha: 0.6),
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              planetName(widget.element).toUpperCase(),
-              style: const TextStyle(
-                color: _C.text,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.8,
-              ),
-            ),
-            if (clock.isNotEmpty) ...[
-              const SizedBox(width: 14),
-              Text(
-                clock,
-                style: TextStyle(
-                  color: closing ? ember : _C.text,
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
   /// The descent: diving through the planet's cloud deck — element-tinted
   /// cloud rings rushing past, converging wind lines, and the dungeon's
