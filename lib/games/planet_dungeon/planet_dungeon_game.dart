@@ -20,6 +20,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -4398,8 +4399,6 @@ class PlanetDungeonGame extends FlameGame {
 
   /// How close an idle ally will get to what it is shooting, as a fraction of
   /// its own attack range. Short of the edge so it keeps firing when the
-  /// target drifts, but not so close it eats melee meant for you.
-  static const double _idleEngageFraction = 0.72;
 
   /// Idle allies must not stray further than this from whoever you are
   /// driving, or they wander off and fight their own war.
@@ -4442,21 +4441,23 @@ class PlanetDungeonGame extends FlameGame {
 
       var desired = Offset.zero;
 
-      // 1. Seek: close to firing range on the nearest enemy.
+      // 1. Take up the family's stance on the nearest enemy. Horns close,
+      //    wings circle, manes/lets/pips hold back, kin sits as far off as
+      //    its range allows — see companion_stance.dart. Everyone used to
+      //    stand on the same ring regardless of family.
       final enemy = _nearestCombatEnemy(c.position, maxRange: double.infinity);
       if (enemy != null) {
         final toEnemy = enemy.position - c.position;
-        final dist = toEnemy.distance;
-        final want = comp.attackRange * _idleEngageFraction;
-        if (dist > 1) {
-          final unit = toEnemy / dist;
-          // Past the ring, close. Inside it, back off — a ranged ally that
-          // walks into the boss is worse than one that stands still.
-          if (dist > want) {
-            desired += unit;
-          } else if (dist < want * 0.65) {
-            desired -= unit;
-          }
+        if (toEnemy.distance > 1) {
+          desired += stanceMove(
+            self: c.position,
+            target: enemy.position,
+            attackRange: comp.attackRange,
+            stance: stanceForFamily(comp.member.family),
+            // Stable per slot, so two wings orbit the same way instead of
+            // grinding against each other.
+            orbitSign: i.isEven ? 1 : -1,
+          );
           c.aimAngle = atan2(toEnemy.dy, toEnemy.dx);
           if (toEnemy.dx.abs() > 0.01) c.angle = toEnemy.dx >= 0 ? 0 : pi;
         }
@@ -4481,12 +4482,16 @@ class PlanetDungeonGame extends FlameGame {
       }
 
       if (desired.distanceSquared < 0.0001) continue;
+      // Scale by magnitude rather than normalising: a stance at its preferred
+      // distance contributes only its small orbit term, and normalising would
+      // turn that into full-speed sideways drift for every family.
+      final mag = min(1.0, desired.distance);
       final unit = desired / desired.distance;
       // Slightly slower than the player: the one you drive should feel like
       // the one you drive.
       c.position = _moveWithCollision(
         c.position,
-        unit * _speed * 0.82 * dt,
+        unit * _speed * 0.82 * mag * dt,
         room,
       );
     }
