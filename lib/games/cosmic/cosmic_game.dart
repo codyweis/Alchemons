@@ -97,6 +97,31 @@ class _ActiveWingBeam {
   }
 }
 
+
+/// True when [p] is far enough outside the viewport to skip drawing.
+///
+/// [cx]/[cy] are the viewport's top-left in world coordinates, so the test is
+/// against the distance from its centre. [margin] is in screen-fulls beyond
+/// that centre: 1.0 keeps roughly half a screen of slack past each edge.
+///
+/// Extracted because the four cull sites in the render loop were written out
+/// by hand and one of them had `&&` where the others had `||` — a planet was
+/// only skipped when it was off screen horizontally AND vertically, so
+/// anything off to the side but vertically aligned still drew in full, blurs
+/// and all.
+@visibleForTesting
+bool isOutsideViewport(
+  Offset p,
+  double cx,
+  double cy,
+  double screenW,
+  double screenH, {
+  double margin = 1.0,
+}) {
+  return (p.dx - cx - screenW / 2).abs() > screenW * margin ||
+      (p.dy - cy - screenH / 2).abs() > screenH * margin;
+}
+
 class CosmicGame extends FlameGame with PanDetector {
   static const double _planetRecipeParticleCollectionMultiplier = 1.15;
   static const double _planetRecipeParticlePickupRadius =
@@ -7210,8 +7235,7 @@ class CosmicGame extends FlameGame with PanDetector {
     // ── planets ──
     for (final pc in planetComps) {
       final planet = pc.planet;
-      if ((planet.position.dx - cx - screenW / 2).abs() > screenW &&
-          (planet.position.dy - cy - screenH / 2).abs() > screenH) {
+      if (isOutsideViewport(planet.position, cx, cy, screenW, screenH)) {
         continue;
       }
 
@@ -7250,8 +7274,7 @@ class CosmicGame extends FlameGame with PanDetector {
     for (final dust in starDusts) {
       if (dust.collected) continue;
       final dp = dust.position;
-      if ((dp.dx - cx - screenW / 2).abs() > screenW ||
-          (dp.dy - cy - screenH / 2).abs() > screenH) {
+      if (isOutsideViewport(dp, cx, cy, screenW, screenH)) {
         continue;
       }
 
@@ -7288,8 +7311,7 @@ class CosmicGame extends FlameGame with PanDetector {
     // ── galaxy whirls ──
     for (final whirl in galaxyWhirls) {
       final wp = whirl.position;
-      if ((wp.dx - cx - screenW / 2).abs() > screenW * 1.5 ||
-          (wp.dy - cy - screenH / 2).abs() > screenH * 1.5) {
+      if (isOutsideViewport(wp, cx, cy, screenW, screenH, margin: 1.5)) {
         continue;
       }
 
@@ -7440,8 +7462,7 @@ class CosmicGame extends FlameGame with PanDetector {
     // ── space POIs ──
     for (final poi in spacePOIs) {
       final pp = poi.position;
-      if ((pp.dx - cx - screenW / 2).abs() > screenW * 1.5 ||
-          (pp.dy - cy - screenH / 2).abs() > screenH * 1.5) {
+      if (isOutsideViewport(pp, cx, cy, screenW, screenH, margin: 1.5)) {
         continue;
       }
 
