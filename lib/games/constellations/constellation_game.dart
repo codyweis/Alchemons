@@ -145,8 +145,34 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   };
 
   double _baseScaleForGesture = 1.0;
-  static const double _minScale = 0.2;
+  // 0.2 could not frame the whole chart: three trees span ~2500 world units
+  // and fitting that on a phone needs ~0.13. Lowered so the overview the
+  // screen now opens on is also reachable by pinching out.
+  static const double _minScale = 0.12;
   static const double _maxScale = 2.0;
+
+  /// Fallback framing when there is nothing measurable to fit. The finale
+  /// uses this fixed value for its reveal.
+  static const double _overviewZoom = 0.4;
+
+  /// World-space breathing room left around the nodes when framing them.
+  static const double _overviewPadding = 220.0;
+
+  /// The pinch-out limit, exposed so the default framing can be asserted to
+  /// sit inside the range a player can reach by hand.
+  @visibleForTesting
+  static double get minZoom => _minScale;
+
+  /// Zoom used when a single tree is chosen — the old entry zoom.
+  static const double _treeZoom = 1.0;
+
+  /// The midpoint of the three trees.
+  Vector2 get _constellationCentre {
+    final b = _treePositions[ConstellationTree.breeder]!;
+    final c = _treePositions[ConstellationTree.combat]!;
+    final e = _treePositions[ConstellationTree.extraction]!;
+    return Vector2((b.x + c.x + e.x) / 3, (b.y + c.y + e.y) / 3);
+  }
 
   bool _isTransitioning = false;
   ConstellationTree? _queuedTree;
@@ -193,9 +219,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     await _buildAllSkillTrees();
     if (_pendingFocusSkillId != null) {
+      // A deep link or the first-unlock tutorial asked for a specific node.
       _applyPendingFocus();
     } else {
-      camera.viewfinder.position = _treePositions[selectedTree]!;
+      frameVisibleTrees();
     }
   }
 
@@ -605,6 +632,56 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     return unlockedCount.clamp(0, kCombatStoryLines.length);
   }
 
+
+  /// Open on the whole chart rather than dropping into whichever tree happened
+  /// to be selected.
+  ///
+  /// The zoom is measured from the nodes actually on screen rather than fixed:
+  /// a new player sees one tree, a finished one sees three spanning 1400 world
+  /// units, and no single constant frames both. Only visible trees count —
+  /// fitting all three while two are still hidden would open on empty space.
+  void frameVisibleTrees() {
+    final nodes = _nodes.values
+        .where((n) => _visibleTrees.contains(n.tree))
+        .toList();
+    if (nodes.isEmpty) {
+      camera.viewfinder.position = _constellationCentre;
+      camera.viewfinder.zoom = _overviewZoom;
+      return;
+    }
+
+    var minX = double.infinity;
+    var maxX = -double.infinity;
+    var minY = double.infinity;
+    var maxY = -double.infinity;
+    for (final n in nodes) {
+      final half = n.size.x / 2;
+      final c = n.position;
+      if (c.x - half < minX) minX = c.x - half;
+      if (c.x + half > maxX) maxX = c.x + half;
+      if (c.y - half < minY) minY = c.y - half;
+      if (c.y + half > maxY) maxY = c.y + half;
+    }
+
+    final width = (maxX - minX) + _overviewPadding;
+    final height = (maxY - minY) + _overviewPadding;
+    final viewport = camera.viewport.size;
+    if (width <= 0 || height <= 0 || viewport.x <= 0 || viewport.y <= 0) {
+      camera.viewfinder.position = _constellationCentre;
+      camera.viewfinder.zoom = _overviewZoom;
+      return;
+    }
+
+    camera.viewfinder.position = Vector2(
+      (minX + maxX) / 2,
+      (minY + maxY) / 2,
+    );
+    // Whichever axis is tighter decides, so nothing is cut off.
+    camera.viewfinder.zoom = math
+        .min(viewport.x / width, viewport.y / height)
+        .clamp(_minScale, _treeZoom);
+  }
+
   Future<void> transitionToTree(ConstellationTree tree) async {
     if (tutorialLocked) return;
     if (!_visibleTrees.contains(tree)) return;
@@ -619,13 +696,17 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     selectedTree = tree;
 
     final targetPosition = _treePositions[tree]!;
+    EffectController controller() =>
+        EffectController(duration: 0.8, curve: Curves.easeInOutCubic);
 
-    camera.viewfinder.add(
-      MoveEffect.to(
-        targetPosition,
-        EffectController(duration: 0.8, curve: Curves.easeInOutCubic),
-      ),
-    );
+    camera.viewfinder.add(MoveEffect.to(targetPosition, controller()));
+    // Entering at the overview zoom means panning alone would leave the tree
+    // unreadably small, so choosing one zooms in with the move.
+    if ((camera.viewfinder.zoom - _treeZoom).abs() > 0.01) {
+      camera.viewfinder.add(
+        ScaleEffect.to(Vector2.all(_treeZoom), controller()),
+      );
+    }
 
     await Future.delayed(const Duration(milliseconds: 800));
     _isTransitioning = false;
@@ -823,20 +904,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     _finaleTriggered = true;
 
-    final centerX =
-        (_treePositions[ConstellationTree.breeder]!.x +
-            _treePositions[ConstellationTree.combat]!.x +
-            _treePositions[ConstellationTree.extraction]!.x) /
-        3;
-    final centerY =
-        (_treePositions[ConstellationTree.breeder]!.y +
-            _treePositions[ConstellationTree.combat]!.y +
-            _treePositions[ConstellationTree.extraction]!.y) /
-        3;
-    final centerPosition = Vector2(centerX, centerY);
+    final centerPosition = _constellationCentre;
 
     camera.viewfinder.position = centerPosition;
-    camera.viewfinder.zoom = 0.4;
+    camera.viewfinder.zoom = _overviewZoom;
 
     final sprite = await Sprite.load('ui/constellationbackgroundimg.png');
     final originalWidth = sprite.originalSize.x;
