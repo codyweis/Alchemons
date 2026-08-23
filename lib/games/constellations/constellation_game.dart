@@ -212,6 +212,12 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   String? _pendingFocusSkillId;
   double? _pendingFocusZoom;
 
+  // Entry used to mount all three trees plus 3136 stars in one frame. Only
+  // the selected tree is on screen at that moment, so the rest is built one
+  // item per frame afterwards and the star field arrives last, faded in.
+  final List<Future<void> Function()> _deferredWork = [];
+  bool _runningDeferredWork = false;
+
   bool _finaleTriggered = false;
   bool _isPlayingFinale = false;
   SpriteComponent? _constellationImage;
@@ -242,25 +248,48 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     final nebula = NebulaBackground();
     await world.add(nebula);
 
-    final starfield = StarfieldBackground(
-      primaryColor: primaryColor,
-      secondaryColor: secondaryColor,
-    );
-    _starfield = starfield;
-    await world.add(starfield);
-
-    await _buildAllSkillTrees();
+    // Only the tree the camera will open on. The other two are off screen at
+    // entry, and the star field is pure backdrop — both can arrive later
+    // without the player seeing a gap.
+    // The coda blocks are long text; their first layout is the expensive part
+    // of mounting a tree, and they sit above the nodes rather than among them.
+    await _buildSkillTree(selectedTree, deferCoda: true);
     if (_pendingFocusSkillId != null) {
       // A deep link or the first-unlock tutorial asked for a specific node.
       _applyPendingFocus();
     } else {
       frameTree(selectedTree);
     }
+
+    for (final tree in ConstellationTree.values) {
+      if (tree == selectedTree) continue;
+      // Picks up the current unlocked and visible state at construction, so a
+      // late tree is never stale.
+      _deferredWork.add(() => _buildSkillTree(tree));
+    }
+    _deferredWork.add(() async {
+      final starfield = StarfieldBackground(
+        primaryColor: primaryColor,
+        secondaryColor: secondaryColor,
+      );
+      _starfield = starfield;
+      await world.add(starfield);
+    });
+  }
+
+  /// One deferred unit per frame, in the order it was queued: the selected
+  /// tree's text, then the other trees, then the backdrop.
+  void _advanceDeferredBuild() {
+    if (_runningDeferredWork || _deferredWork.isEmpty) return;
+    final work = _deferredWork.removeAt(0);
+    _runningDeferredWork = true;
+    work().whenComplete(() => _runningDeferredWork = false);
   }
 
   @override
   void update(double dt) {
     super.update(dt);
+    _advanceDeferredBuild();
 
     // Smooth screen shake in update loop
     if (_shakeDuration > 0 && _shakeOriginalPosition != null) {
@@ -294,13 +323,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     }
   }
 
-  Future<void> _buildAllSkillTrees() async {
-    for (final tree in ConstellationTree.values) {
-      await _buildSkillTree(tree);
-    }
-  }
-
-  Future<void> _buildSkillTree(ConstellationTree tree) async {
+  Future<void> _buildSkillTree(
+    ConstellationTree tree, {
+    bool deferCoda = false,
+  }) async {
     final skills = ConstellationCatalog.forTree(tree);
     final treeOffset = _treePositions[tree]!;
 
@@ -315,6 +341,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     final baseY = (maxTier * verticalSpacing) / 2;
 
     final tempNodes = <String, SkillNode>{};
+    final pendingMount = <Component>[];
     for (final tier in tierMap.keys) {
       final skillsInTier = tierMap[tier]!;
       final horizontalSpacing = skillsInTier.length > 1 ? 220.0 : 0.0;
@@ -371,16 +398,41 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
           connectionIndex++;
           _connections[connectionKey] = connection;
-          await world.add(connection);
+          pendingMount.add(connection);
         }
       }
     }
 
+    // Registered immediately even when mounting is spread out, so framing,
+    // unlock state and visibility all see the whole tree straight away.
     for (final entry in tempNodes.entries) {
       _nodes[entry.key] = entry.value;
-      await world.add(entry.value);
+      pendingMount.add(entry.value);
     }
 
+    if (deferCoda) {
+      pendingMount.addAll(_buildTreeCodaBlocks(tree, treeOffset, baseY));
+      // Flame mounts everything queued in one update, and mounting plus first
+      // painting a whole tree at once was a 29ms frame. A few per frame is
+      // imperceptible and has no spike.
+      const chunk = 4;
+      for (var i = 0; i < pendingMount.length; i += chunk) {
+        final slice = pendingMount.sublist(
+          i,
+          math.min(i + chunk, pendingMount.length),
+        );
+        _deferredWork.insert(i ~/ chunk, () async {
+          for (final c in slice) {
+            await world.add(c);
+          }
+        });
+      }
+      return;
+    }
+
+    for (final c in pendingMount) {
+      await world.add(c);
+    }
     await _maybeAddTreeCodaBlock(tree, treeOffset, baseY);
   }
 
@@ -498,8 +550,24 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     Vector2 treeOffset,
     double baseY,
   ) async {
+    for (final block in _buildTreeCodaBlocks(tree, treeOffset, baseY)) {
+      await world.add(block);
+    }
+  }
+
+  /// Constructs the coda blocks and registers them, but does not mount them.
+  ///
+  /// Their first text layout is the single most expensive thing in entering
+  /// this screen — 27ms of a 31ms frame — so the caller mounts them one per
+  /// frame rather than in a lump.
+  List<TreeStoryBlock> _buildTreeCodaBlocks(
+    ConstellationTree tree,
+    Vector2 treeOffset,
+    double baseY,
+  ) {
+    final built = <TreeStoryBlock>[];
     final coda = kTreeCodaSegments[tree];
-    if (coda == null || coda.isEmpty) return;
+    if (coda == null || coda.isEmpty) return built;
 
     if (tree == ConstellationTree.breeder) {
       final positions = <Vector2>[
@@ -524,9 +592,9 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           ),
         );
         _storyBlocks.add(block);
-        await world.add(block);
+        built.add(block);
       }
-      return;
+      return built;
     }
 
     if (tree == ConstellationTree.extraction) {
@@ -554,9 +622,9 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           ),
         );
         _storyBlocks.add(block);
-        await world.add(block);
+        built.add(block);
       }
-      return;
+      return built;
     }
 
     final block = TreeStoryBlock(
@@ -572,7 +640,8 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       revealUnlocked: _treeCodaRevealedLineCount(tree, _unlockedSkills) > 0,
     );
     _storyBlocks.add(block);
-    await world.add(block);
+    built.add(block);
+    return built;
   }
 
   int _treeCodaProgressCount(
@@ -2373,6 +2442,11 @@ class StarfieldBackground extends Component
   final List<Star> stars = [];
   double _time = 0.0;
 
+  /// The field arrives a few frames after the tree, so it eases in rather
+  /// than popping into an already-settled screen.
+  double _fadeIn = 0.0;
+  static const double _fadeInSeconds = 0.9;
+
   static const int _farLayerCount = 1664;
   static const int _midLayerCount = 1216;
   static const int _nearLayerCount = 256;
@@ -2543,12 +2617,13 @@ class StarfieldBackground extends Component
       _push(sizeIndex * _alphaBuckets + alphaIndex, drawX, drawY);
     }
 
+    final fade = Curves.easeOut.transform(_fadeIn);
     for (var i = 0; i < _bucketCount; i++) {
       final n = _bucketLengths[i];
       if (n == 0) continue;
       final alphaIndex = i % _alphaBuckets;
       _bucketPaints[i].color = primaryColor.withValues(
-        alpha: ((alphaIndex + 0.5) / _alphaBuckets).clamp(0.0, 1.0),
+        alpha: (((alphaIndex + 0.5) / _alphaBuckets) * fade).clamp(0.0, 1.0),
       );
       canvas.drawRawPoints(
         ui.PointMode.points,
@@ -2562,6 +2637,9 @@ class StarfieldBackground extends Component
   void update(double dt) {
     super.update(dt);
     _time += dt;
+    if (_fadeIn < 1.0) {
+      _fadeIn = math.min(1.0, _fadeIn + dt / _fadeInSeconds);
+    }
   }
 }
 
