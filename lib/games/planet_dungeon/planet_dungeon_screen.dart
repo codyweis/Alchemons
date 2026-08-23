@@ -250,6 +250,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             onRaidCleared: _onRaidCleared,
             onRaidWiped: _onRaidWiped,
             onRaidCreatureDown: _onRaidCreatureDown,
+            onRaidExpired: _onRaidExpired,
             clearedGuardianCount: cleared,
             layoutOverride: buildRaidArenaLayout(widget.element),
           )
@@ -490,6 +491,59 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     if (!mounted) return;
     _showToast('The raid drives you out');
     _popDungeon(false);
+  }
+
+  /// The fight timer ran out with the guardian still standing.
+  ///
+  /// A raid is a DPS check as well as an endurance one: bring a squad that
+  /// cannot finish and you lose the attempt, not just the beacon.
+  void _onRaidExpired() {
+    if (!mounted) return;
+    _showToast('Out of time — the guardian holds');
+    _popDungeon(false);
+  }
+
+
+  /// The raid's kill timer. Turns urgent under a minute.
+  Widget _raidFightClock(PlanetDungeonGame game) {
+    final left = game.raidTimeRemaining;
+    if (left == null) return const SizedBox.shrink();
+    final urgent = left.inSeconds <= 60;
+    final colour = urgent ? const Color(0xFFE25544) : const Color(0xFFE4C16A);
+    String two(int v) => v.toString().padLeft(2, '0');
+
+    return CustomPaint(
+      foregroundPainter: DungeonBracketPainter(
+        color: colour,
+        bracketSize: 7,
+        strokeWidth: 1.2,
+      ),
+      child: Container(
+        height: 30,
+        padding: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _C.bg.withValues(alpha: 0.82),
+          border: Border.all(color: colour.withValues(alpha: 0.42)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 3, height: 30, color: colour),
+            const SizedBox(width: 10),
+            Text(
+              '${two(left.inMinutes)}:${two(left.inSeconds % 60)}',
+              style: TextStyle(
+                color: colour,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _onRaidCleared() {
@@ -909,12 +963,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                     child: ValueListenableBuilder<int>(
                       valueListenable: _tick,
                       builder: (_, __, ___) {
-                        // Nothing up here in a raid. The window countdown
-                        // belonged to the decision to enter, not to the
-                        // fight; inside, it is a clock you cannot act on.
-                        // The star tracker and progress readout below are
-                        // meaningless in a raid too.
-                        if (_isRaid) return const SizedBox.shrink();
+                        // In a raid this is the FIGHT clock, not the world
+                        // window. The window countdown belonged to the
+                        // decision to enter and was removed; this one you can
+                        // act on, because running it out loses the attempt.
+                        if (_isRaid) return _raidFightClock(game);
                         // Star tracker + the planet's progress readout, one
                         // glanceable row (§5.6: counters are state, not
                         // speech, so they never touch the capsule).

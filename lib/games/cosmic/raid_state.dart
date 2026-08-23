@@ -16,6 +16,16 @@ import 'dart:math';
 /// How long a raid stays attackable once it spawns.
 const Duration kRaidWindow = Duration(hours: 24);
 
+/// How long you get to fell the guardian once the fight begins.
+///
+/// A hard fail state, so a raid is a DPS check and not just an endurance one.
+/// Measured against the codebase's own headless party-damage figures, scaled
+/// to a five-Alchemon squad: a competent roster kills in two to five minutes
+/// at any progression, while an under-levelled one facing a late guardian
+/// (110k+ HP) runs past ten. That is the intent — the wall should only be hit
+/// by bringing a squad that is not ready.
+const Duration kRaidFightLimit = Duration(minutes: 10);
+
 /// How often the rotation tries to spawn a raid (measured from the end of
 /// the previous raid, or from first launch).
 const Duration kRaidRotationPeriod = Duration(hours: 48);

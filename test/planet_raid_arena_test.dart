@@ -337,4 +337,76 @@ void main() {
       expect(raidWith(0).progressHpMul, 1.0);
     });
   });
+
+  group('the raid fight timer', () {
+    PlanetDungeonGame timed({void Function()? onExpired}) {
+      final party = [for (var i = 0; i < 2; i++) _member(slot: i)];
+      final game = PlanetDungeonGame(
+        element: 'Air',
+        party: party,
+        initialStarMask: 0,
+        onStarEarned: (_) {},
+        onPlayerDown: () {},
+        onChanged: () {},
+        raid: const RaidConfig(),
+        onRaidExpired: onExpired,
+        layoutOverride: buildRaidArenaLayout('Air'),
+      );
+      game.currentRoomId = game.layout.entranceRoomId;
+      final spawn = game.layout.entranceSpawn;
+      for (var i = 0; i < party.length; i++) {
+        final c = DungeonCreature(member: party[i])
+          ..position = spawn + Offset(i * 60.0, 0)
+          ..lastSafe = spawn + Offset(i * 60.0, 0);
+        game.creatures.add(c);
+        game.combatCompanions.add(_companion(party[i], c.position));
+      }
+      return game;
+    }
+
+    test('ten minutes, counting down', () {
+      expect(kRaidFightLimit, const Duration(minutes: 10));
+      final g = timed();
+      _step(g, 2.0);
+      final left = g.raidTimeRemaining!;
+      expect(left.inSeconds, lessThanOrEqualTo(600));
+      expect(left.inSeconds, greaterThan(560));
+    });
+
+    test('a normal dungeon has no fight clock', () {
+      expect(_buildNormalDungeon().raidTimeRemaining, isNull);
+    });
+
+    test('running it out loses the attempt', () {
+      var expired = 0;
+      final g = timed(onExpired: () => expired++);
+      _step(g, kRaidFightLimit.inSeconds + 2.0, dt: 1 / 6);
+      expect(expired, 1);
+      expect(g.raidTimeRemaining, Duration.zero);
+    });
+
+    test('it fires once, not every frame after', () {
+      var expired = 0;
+      final g = timed(onExpired: () => expired++);
+      _step(g, kRaidFightLimit.inSeconds + 30.0, dt: 1 / 6);
+      expect(expired, 1);
+    });
+
+    test('felling the guardian stops the clock', () {
+      var expired = 0;
+      final g = timed(onExpired: () => expired++);
+      _step(g, 2.2);
+      final guardian = g.combatEnemies.singleWhere((e) => e.isElite);
+      guardian.hp = 0;
+      guardian.isDead = true;
+      _step(g, 1.0);
+      final atDeath = g.raidTimeRemaining!;
+
+      // Far past the limit — a slow death sequence must never lose you a
+      // fight you already won.
+      _step(g, kRaidFightLimit.inSeconds + 10.0, dt: 1 / 6);
+      expect(expired, 0);
+      expect(g.raidTimeRemaining, atDeath);
+    });
+  });
 }

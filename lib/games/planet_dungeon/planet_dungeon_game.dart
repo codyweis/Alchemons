@@ -292,6 +292,7 @@ class PlanetDungeonGame extends FlameGame {
     this.raid,
     this.onRaidCleared,
     this.onRaidCreatureDown,
+    this.onRaidExpired,
     this.onRaidWiped,
     this.clearedGuardianCount = 0,
     DungeonLayout? layoutOverride,
@@ -339,6 +340,9 @@ class PlanetDungeonGame extends FlameGame {
   /// phase adds, and [onRaidCleared] instead of a star on victory.
   final RaidConfig? raid;
   final VoidCallback? onRaidCleared;
+
+  /// Fired once when the raid's fight timer runs out with the guardian alive.
+  final VoidCallback? onRaidExpired;
 
   /// Fired once, with the instance id, when an Alchemon falls in a raid.
   ///
@@ -426,6 +430,32 @@ class PlanetDungeonGame extends FlameGame {
 
   /// True while the death cinematic owns the screen.
   bool get isRaidDeathPlaying => _raidDeath != null;
+
+  /// Seconds left to fell the raid guardian. Null outside a raid.
+  double? _raidFightRemaining;
+  bool _raidExpiredFired = false;
+
+  Duration? get raidTimeRemaining => _raidFightRemaining == null
+      ? null
+      : Duration(milliseconds: (_raidFightRemaining! * 1000).round());
+
+  void _updateRaidFightTimer(double dt) {
+    if (!isRaid || _raidExpiredFired) return;
+    // The clock stops the moment the guardian falls — the death sequence and
+    // the loot that follows are not part of the check.
+    if (_raidDeath != null) return;
+    final g = _guardianEnemy;
+    if (g != null && (g.isDead || g.hp <= 0)) return;
+
+    _raidFightRemaining ??= kRaidFightLimit.inSeconds.toDouble();
+    _raidFightRemaining = _raidFightRemaining! - dt;
+    if (_raidFightRemaining! > 0) return;
+
+    _raidFightRemaining = 0;
+    _raidExpiredFired = true;
+    _setHint('The storm outlasts you — the raid is lost', 4.0);
+    onRaidExpired?.call();
+  }
   final List<Projectile> combatProjectiles = [];
   final List<_DungeonWingBeam> _activeWingBeams = [];
   final List<_KinBeamFx> _kinBeams = [];
@@ -2984,6 +3014,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateIdleCompanionAttacks();
     _updateIdleCompanionMovement(dt, currentRoom);
     damageNumbers.update(dt);
+    _updateRaidFightTimer(dt);
     _updateRaidDeath(dt);
     _updateRaidPhases();
     final guardian = currentRoom.guardian;
