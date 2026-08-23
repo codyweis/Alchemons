@@ -247,6 +247,13 @@ double _seedRand(int seed, double offset) {
 /// Soft drifting clouds in the style of the faction backgrounds: blurred ovals
 /// that drift across, bob on a sine wave, and fade in/out at the edges.
 /// Screen-space; [t] is seconds. Bounded count keeps the per-frame cost low.
+///
+/// [puff] is the baked soft blob from [DungeonFxAssets]. Pass it and the bands
+/// are blitted; omit it and they fall back to blurred ovals, which is what
+/// this did everywhere until it turned up as the most expensive thing in a
+/// raid frame — eight large MaskFilter.blur ovals per frame, in the one file
+/// whose header promises none. Blur cost scales with the blurred area, and
+/// these are 150x66 at blur 12.
 void drawDriftingClouds(
   Canvas canvas,
   Size size,
@@ -255,6 +262,7 @@ void drawDriftingClouds(
   Color secondary = const Color(0xFFB9C7D6),
   int count = 8,
   double maxAlpha = 0.16,
+  ui.Image? puff,
 }) {
   for (var i = 0; i < count; i++) {
     final randomY = _seedRand(i, 0) * size.height * 0.72 + size.height * 0.1;
@@ -284,16 +292,18 @@ void drawDriftingClouds(
       final w = 150 + sin(phase * 3 * pi + j) * 26 + i * 10;
       final h = 66 + j * 8;
       final op = ((maxAlpha - j * 0.03) * fade).clamp(0.0, 1.0);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(x + j * 22, y + j * 7),
-          width: w,
-          height: h.toDouble(),
-        ),
-        Paint()
-          ..color = (j.isEven ? primary : secondary).withValues(alpha: op)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
-      );
+      final tint = (j.isEven ? primary : secondary).withValues(alpha: op);
+      final centre = Offset(x + j * 22, y + j * 7);
+      if (puff != null) {
+        drawPuff(canvas, puff, centre, w * 1.35, tint);
+      } else {
+        canvas.drawOval(
+          Rect.fromCenter(center: centre, width: w, height: h.toDouble()),
+          Paint()
+            ..color = tint
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+        );
+      }
     }
   }
 }

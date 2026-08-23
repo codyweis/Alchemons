@@ -7656,6 +7656,7 @@ class PlanetDungeonGame extends FlameGame {
         secondary: const Color(0xFF6E4A38),
         count: 6,
         maxAlpha: 0.11,
+        puff: _fx.puff,
       );
       _drawEmberDrift(canvas, vp);
     } else if (_isTemple) {
@@ -7668,6 +7669,7 @@ class PlanetDungeonGame extends FlameGame {
         secondary: const Color(0xFF3A6070),
         count: 6,
         maxAlpha: 0.10,
+        puff: _fx.puff,
       );
       _drawBubbleDrift(canvas, vp);
     } else if (_isBarrow) {
@@ -7680,10 +7682,16 @@ class PlanetDungeonGame extends FlameGame {
         secondary: const Color(0xFF5E4C34),
         count: 6,
         maxAlpha: 0.10,
+        puff: _fx.puff,
       );
       _drawDustSift(canvas, vp);
     } else {
-      drawDriftingClouds(canvas, vp, _time); // soft faction-style clouds
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        puff: _fx.puff,
+      ); // soft faction-style clouds
       _drawWindStreaks(canvas, vp); // the air itself, always moving
     }
     _ambient.ensure(vp);
