@@ -54,6 +54,12 @@ class DamageNumberField {
   final List<DamageNumber> numbers = [];
   final Map<String, TextPainter> _painters = {};
 
+  /// Fade is quantised so a painter can be cached per opacity step. The
+  /// alternative — one saveLayer per fading number — costs a render-target
+  /// switch each, which is brutal on a tile-based mobile GPU and showed up as
+  /// raster spikes in a raid.
+  static const int _fadeSteps = 8;
+
   bool get isEmpty => numbers.isEmpty;
   int get length => numbers.length;
 
@@ -88,20 +94,25 @@ class DamageNumberField {
     }
   }
 
-  TextPainter _painter(String text, bool big) {
-    final key = big ? 'b:$text' : 's:$text';
+  /// Cached per label, size and opacity step, so a fading number costs a map
+  /// lookup rather than a layer or a re-layout.
+  TextPainter _painter(String text, bool big, int fadeStep) {
+    final key = '${big ? 'b' : 's'}$fadeStep:$text';
     return _painters.putIfAbsent(key, () {
+      final a = (fadeStep + 1) / _fadeSteps;
       return TextPainter(
         text: TextSpan(
           text: text,
           style: TextStyle(
-            color: Colors.white,
+            color: Colors.white.withValues(alpha: a),
             fontSize: big ? 20 : 14,
             fontWeight: big ? FontWeight.w900 : FontWeight.w700,
             letterSpacing: 0.4,
-            shadows: const [
-              Shadow(color: Color(0xE6000000), blurRadius: 4),
-              Shadow(color: Color(0x99000000), blurRadius: 8),
+            shadows: [
+              Shadow(color: Color(0xE6000000).withValues(alpha: 0.90 * a),
+                  blurRadius: 4),
+              Shadow(color: Color(0x99000000).withValues(alpha: 0.60 * a),
+                  blurRadius: 8),
             ],
           ),
         ),
@@ -121,27 +132,15 @@ class DamageNumberField {
       final alpha = t < 0.15 ? t / 0.15 : (1.0 - (t - 0.15) / 0.85);
       if (alpha <= 0.01) continue;
       final scale = t < 0.15 ? (0.7 + 0.4 * (t / 0.15)) : 1.0;
-      final tp = _painter(d.label, d.isBig);
+      var step = (alpha * _fadeSteps).ceil() - 1;
+      if (step < 0) step = 0;
+      if (step >= _fadeSteps) step = _fadeSteps - 1;
+      final tp = _painter(d.label, d.isBig, step);
       final offset = Offset(-tp.width / 2, -tp.height / 2);
       canvas.save();
       canvas.translate(d.position.dx, d.position.dy);
       if (scale != 1.0) canvas.scale(scale);
-      if (alpha >= 0.99) {
-        tp.paint(canvas, offset);
-      } else {
-        // saveLayer only while actually fading, not for every number.
-        canvas.saveLayer(
-          Rect.fromLTWH(
-            offset.dx - 2,
-            offset.dy - 2,
-            tp.width + 4,
-            tp.height + 4,
-          ),
-          Paint()..color = Colors.white.withValues(alpha: alpha),
-        );
-        tp.paint(canvas, offset);
-        canvas.restore();
-      }
+      tp.paint(canvas, offset);
       canvas.restore();
     }
   }
