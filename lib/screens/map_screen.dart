@@ -382,7 +382,6 @@ class _MapScreenState extends State<MapScreen>
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
-    final spawnService = context.watch<WildernessSpawnService>();
 
     return ParticleBackgroundScaffold(
       whiteBackground: theme.brightness == Brightness.light,
@@ -467,48 +466,6 @@ class _MapScreenState extends State<MapScreen>
                     ),
                   ),
                   const SizedBox(height: 16),
-                ],
-
-                // Top scorched spawn boxes row (replaces debug toggle/panel)
-                if (!widget.isTutorial) ...[
-                  // Compact 2x2 grid of spawn boxes (reduced top margin)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        _ScorchedSpawnBox(
-                          biomeId: 'valley',
-                          spawnService: spawnService,
-                          compact: true,
-                        ),
-                        _ScorchedSpawnBox(
-                          biomeId: 'sky',
-                          spawnService: spawnService,
-                          compact: true,
-                        ),
-                        _ScorchedSpawnBox(
-                          biomeId: 'volcano',
-                          spawnService: spawnService,
-                          compact: true,
-                        ),
-                        _ScorchedSpawnBox(
-                          biomeId: 'swamp',
-                          spawnService: spawnService,
-                          compact: true,
-                        ),
-                        if (_arcaneUnlocked)
-                          _ScorchedSpawnBox(
-                            biomeId: 'arcane',
-                            spawnService: spawnService,
-                            compact: true,
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 2),
                 ],
 
                 // MAP AREA
@@ -1124,6 +1081,16 @@ class _ExpeditionMap extends StatelessWidget {
                         color: Colors.red,
                         clipOval: true,
                       ),
+                    // Below centre, clear of the biome name painted into the
+                    // map art.
+                    Align(
+                      alignment: const Alignment(0, 0.62),
+                      child: _BiomeTimerPill(
+                        biomeId: biomeId,
+                        spawnService: spawnService,
+                        hasSpawns: hasSpawns,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1178,12 +1145,28 @@ class _ExpeditionMap extends StatelessWidget {
                 ),
 
                 // ARCANE PORTAL VORTEX — centre of map
-                if (arcaneUnlocked)
+                if (arcaneUnlocked) ...[
                   _ArcaneVortex(
                     mapSize: size,
                     hasSpawns: spawnService.getSceneSpawnCount('arcane') > 0,
                     onTap: () => onSelectRegion('arcane', arcaneScene),
                   ),
+                  Positioned(
+                    left: size * 0.5 - 45,
+                    top: size * 0.5 + 34,
+                    child: SizedBox(
+                      width: 90,
+                      child: Center(
+                        child: _BiomeTimerPill(
+                          biomeId: 'arcane',
+                          spawnService: spawnService,
+                          hasSpawns:
+                              spawnService.getSceneSpawnCount('arcane') > 0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1193,83 +1176,98 @@ class _ExpeditionMap extends StatelessWidget {
   }
 }
 
-// =====================================================
-// SCORCHED SPAWN BOX
-// =====================================================
-class _ScorchedSpawnBox extends StatelessWidget {
-  final String biomeId;
-  final WildernessSpawnService spawnService;
-  final bool compact;
 
-  const _ScorchedSpawnBox({
+// =====================================================
+// BIOME SPAWN TIMER PILL
+// =====================================================
+
+/// The spawn countdown, sitting on the biome it belongs to.
+///
+/// These used to be a row of boxes above the map, which meant reading
+/// "Swamp 47m 28s" and then hunting for Swamp on the map — two lookups for one
+/// decision — while printing each biome's name a second time next to the one
+/// already painted into the artwork.
+///
+/// Carries its own one-second ticker rather than rebuilding the map screen:
+/// the parent holds the map image and the hotspot stack, and none of that
+/// needs to repaint to advance a clock.
+class _BiomeTimerPill extends StatefulWidget {
+  const _BiomeTimerPill({
     required this.biomeId,
     required this.spawnService,
-    this.compact = false,
+    required this.hasSpawns,
   });
 
-  String _formatTime(int? dueMs) {
-    if (dueMs == null) return 'Calculating...';
-    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-    final diff = dueMs - now;
-    if (diff <= 0) return 'Due now!';
-    final minutes = diff ~/ 60000;
-    final seconds = (diff % 60000) ~/ 1000;
-    if (minutes > 0) return '${minutes}m ${seconds}s';
-    return '${seconds}s';
+  final String biomeId;
+  final WildernessSpawnService spawnService;
+
+  /// Something is already waiting to be caught — more useful than a countdown.
+  final bool hasSpawns;
+
+  @override
+  State<_BiomeTimerPill> createState() => _BiomeTimerPillState();
+}
+
+class _BiomeTimerPillState extends State<_BiomeTimerPill> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  /// Seconds only matter when the wait is short; above an hour they are noise.
+  String _label(int? dueMs) {
+    if (dueMs == null) return '--';
+    final diff = dueMs - DateTime.now().toUtc().millisecondsSinceEpoch;
+    if (diff <= 0) return 'DUE';
+    final total = diff ~/ 1000;
+    final h = total ~/ 3600;
+    final m = (total % 3600) ~/ 60;
+    final sec = total % 60;
+    if (h > 0) return '${h}h ${m}m';
+    if (m > 0) return '${m}m ${sec}s';
+    return '${sec}s';
   }
 
   @override
   Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final nextDue = spawnService.getNextSpawnTime(biomeId);
-    final boxWidth = compact ? 140.0 : 180.0;
-    final titleSize = compact ? 13.0 : 14.0;
-    final timeSize = compact ? 11.0 : 12.0;
+    final ready = widget.hasSpawns;
+    final text = ready
+        ? 'READY'
+        : _label(widget.spawnService.getNextSpawnTime(widget.biomeId));
+    final accent = ready ? const Color(0xFF7BE38B) : const Color(0xFFE4C16A);
 
-    return CustomPaint(
-      painter: _BracketFramePainter(
-        color: fc.borderAccent.withValues(alpha: 0.55),
-        bracketSize: 8,
-        strokeWidth: 1.0,
-      ),
-      child: Container(
-        width: boxWidth,
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 10 : 12,
-          vertical: compact ? 7 : 8,
-        ),
-        decoration: BoxDecoration(color: fc.bg1.withValues(alpha: 0.9)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Text(
-                    biomeId[0].toUpperCase() + biomeId.substring(1),
-                    style: _display(
-                      context,
-                      titleSize,
-                      fc.amberBright,
-                      weight: FontWeight.w700,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _formatTime(nextDue),
-                  style: _display(
-                    context,
-                    timeSize,
-                    fc.textSecondary,
-                    weight: FontWeight.w600,
-                  ),
-                ),
-              ],
+    // Isolated so the ticking text cannot dirty the map behind it.
+    return RepaintBoundary(
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xE60A0D12),
+            border: Border.all(color: accent.withValues(alpha: 0.7)),
+            boxShadow: const [
+              BoxShadow(color: Color(0xAA000000), blurRadius: 6),
+            ],
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: ready ? accent : const Color(0xFFEDE3CF),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.6,
             ),
-          ],
+          ),
         ),
       ),
     );
