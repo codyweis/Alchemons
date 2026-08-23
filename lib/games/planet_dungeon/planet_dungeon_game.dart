@@ -291,6 +291,7 @@ class PlanetDungeonGame extends FlameGame {
     required this.onChanged,
     this.raid,
     this.onRaidCleared,
+    this.onRaidCreatureDown,
     this.onRaidWiped,
     this.clearedGuardianCount = 0,
     DungeonLayout? layoutOverride,
@@ -338,6 +339,12 @@ class PlanetDungeonGame extends FlameGame {
   /// phase adds, and [onRaidCleared] instead of a star on victory.
   final RaidConfig? raid;
   final VoidCallback? onRaidCleared;
+
+  /// Fired once, with the instance id, when an Alchemon falls in a raid.
+  ///
+  /// A raid down is permanent for the run; the host also burns the
+  /// Alchemon's stamina so the loss outlives the attempt.
+  final void Function(String instanceId)? onRaidCreatureDown;
 
   /// A raid party wipe. Elsewhere a wipe resets the run to the entrance with
   /// everyone healed, which in a raid would hand the whole party back and make
@@ -2892,6 +2899,7 @@ class PlanetDungeonGame extends FlameGame {
         // wait out; in a raid it is a loss you fight the rest of the fight
         // without, which is what makes the attempt worth anything.
         c.respawnTimer = isRaid ? 0 : respawnSeconds;
+        if (isRaid) onRaidCreatureDown?.call(c.member.instanceId);
         _spawnAlchemyBurst(
           c.position,
           producedElement: c.member.element,

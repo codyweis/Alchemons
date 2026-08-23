@@ -252,6 +252,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             raid: widget.raid,
             onRaidCleared: _onRaidCleared,
             onRaidWiped: _onRaidWiped,
+            onRaidCreatureDown: _onRaidCreatureDown,
             clearedGuardianCount: cleared,
             layoutOverride: buildRaidArenaLayout(widget.element),
           )
@@ -473,6 +474,21 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
   /// A raid party wipe ends the attempt. Nothing is banked — the raid window
   /// stays open, exactly as it does when you retreat.
+
+  /// A raid death costs the Alchemon all of its stamina, not just the run.
+  ///
+  /// Permadeath within the attempt was already the rule; this makes the loss
+  /// carry past it, so a wipe is a real setback rather than something you
+  /// immediately re-queue with the same squad.
+  Future<void> _onRaidCreatureDown(String instanceId) async {
+    final db = context.read<AlchemonsDatabase>();
+    await db.creatureDao.updateStamina(
+      instanceId: instanceId,
+      staminaBars: 0,
+      staminaLastUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+    );
+  }
+
   void _onRaidWiped() {
     if (!mounted) return;
     _showToast('The raid drives you out');
@@ -1423,13 +1439,19 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               ),
             ),
           ),
-        _utilityButton(
-          label: label,
-          enabled: enabled,
-          active: active,
-          onTap: game.activateAbility,
-        ),
-        const SizedBox(height: 10),
+        // No UTILITY in a raid. The button drives the element verbs that solve
+        // a dungeon's puzzles, and a raid arena is a generated single room
+        // with nothing to solve — it was a dead control taking the best spot
+        // on the pad.
+        if (!_isRaid) ...[
+          _utilityButton(
+            label: label,
+            enabled: enabled,
+            active: active,
+            onTap: game.activateAbility,
+          ),
+          const SizedBox(height: 10),
+        ],
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [

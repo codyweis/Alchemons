@@ -8238,18 +8238,27 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Mud':
+      // Design board: "First enemy hit, ball breaks apart and goes in 10
+      // different ways." One heavy aimed ball; the ten-way shatter is wired
+      // on collision in both survival and the dungeon, and consumes it.
+      //
+      // This was a six-lane 90-degree fan, which never fired at the target at
+      // all — aimed at a boss it sprayed +-45 degrees either side, so most
+      // lanes missed and the shatter went off nowhere near what you aimed at.
+      //
+      // The family forces piercing on every mane projectile, but it is moot
+      // here: the shatter marks the ball consumed on its first enemy hit.
       return finalize(
         fanResult(
-          lanes: scaledCount(6, min: 5, max: 8),
-          arc: pi * 0.50,
-          damageMultiplier: 1.45,
+          lanes: 1,
+          arc: 0,
+          damageMultiplier: 2.10,
           life: 3.1,
           speed: 0.90,
-          visualScale: 1.45,
-          piercing: true,
+          visualScale: 1.60,
           snareRadius: 124,
           snareMoveMultiplier: 0.56,
-          radiusMultiplier: 1.35,
+          radiusMultiplier: 1.55,
           basicHasteTimer: 1.2,
           basicHasteMultiplier: 0.90,
         ),
