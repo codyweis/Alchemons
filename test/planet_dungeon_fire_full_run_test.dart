@@ -987,8 +987,8 @@ void main() {
         reason: 'the ORDER is the bullet pattern: $ranksSeen');
   });
 
-  test('the telegraph is exempt in raids (the generated arena has no '
-      'braziers to re-light)', () {
+  test('the telegraph runs in a raid — the arena carries its own braziers',
+      () {
     final game = PlanetDungeonGame(
       element: 'Fire',
       party: [_member(0, 'Fire', 'mask')],
@@ -1009,8 +1009,18 @@ void main() {
       game.update(1 / 60);
       c.hp = c.maxHp;
     }
-    expect(game.simurghPillars, isEmpty,
-        reason: 'a raid never re-lights a rite it never held');
+    // This used to assert the opposite. The telegraph was exempt because the
+    // generated arena had no braziers, which left Simurgh — and every other
+    // guardian — playing as a plain charging phantom. The arena now generates
+    // the furniture its own mechanic reads.
+    expect(
+      game.simurghTelegraphSpots(game.currentRoom),
+      isNotEmpty,
+      reason: 'the raid arena should carry braziers for the telegraph',
+    );
+    // The braziers are here for the telegraph only; a raid has no rite to
+    // solve, so the lighting puzzle stays switched off.
+    expect(game.currentRoom.brazierStarIndex, isNull);
   });
 
   // ── The full run: every star, the egg, the cache, the relic ──

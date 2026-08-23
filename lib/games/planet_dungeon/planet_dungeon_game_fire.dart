@@ -1916,7 +1916,11 @@ extension CinderCathedral on PlanetDungeonGame {
   /// scaled in around the roost. The bullet pattern is the rite, laid out the
   /// way the player already learned it.
   List<Offset> simurghTelegraphSpots(DungeonRoom room) {
-    final choir = _choirRoom;
+    // A raid arena carries its own braziers and has no authored choir room to
+    // borrow the pattern from. Deliberately not given a brazierStarIndex —
+    // that is the puzzle's plumbing, and a raid has no puzzle to solve; the
+    // braziers are here only because the telegraph reads them.
+    final choir = _choirRoom ?? (room.braziers.length >= 2 ? room : null);
     if (choir == null) return const [];
     final c = room.bounds.center;
     return [
@@ -1942,7 +1946,10 @@ extension CinderCathedral on PlanetDungeonGame {
     double dt,
   ) {
     final g = room.guardian;
-    if (g == null || isRaid || hasStar(g.starIndex)) return;
+    // Raids used to be excluded here. The spots lookup already returns empty
+    // when there are no braziers, so that guard was redundant once the arena
+    // started carrying them.
+    if (g == null || hasStar(g.starIndex)) return;
     final spots = simurghTelegraphSpots(room);
     if (spots.isEmpty) return;
 

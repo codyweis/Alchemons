@@ -122,7 +122,12 @@ void main() {
         expect(room.anchors, isEmpty, reason: element);
         expect(room.conduits, isEmpty, reason: element);
         expect(room.gustShrines, isEmpty, reason: element);
-        expect(room.stormRods, isEmpty, reason: element);
+        // Guardian furniture is allowed and expected — Roc needs its rod
+        // field, Simurgh its braziers. What must stay out is anything the
+        // player would have to SOLVE, which is asserted above.
+        if (element != 'Air') {
+          expect(room.stormRods, isEmpty, reason: element);
+        }
         expect(room.stormOrbit, isNull, reason: element);
         expect(room.summit, isNull, reason: element);
         expect(room.guardian, isNotNull, reason: element);

@@ -1359,9 +1359,14 @@ void main() {
       expect(guardianRelicName('Air'), isNotEmpty);
     });
 
-    test('raids stay exempt — a generated arena has no rod field', () {
+    test('a raid arena carries the rod field the drag needs', () {
+      // This used to assert the opposite. Raids were exempt because the
+      // generated arena had no rods — which meant Roc, and every other
+      // guardian, played as a plain charging phantom. The arena now generates
+      // the furniture its own mechanic reads.
       final layout = buildRaidArenaLayout('Air');
-      expect(layout.entranceRoom.stormRods, isEmpty);
+      expect(layout.entranceRoom.stormRods, isNotEmpty);
+      // The Star 2 puzzle furniture stays out: a raid has nothing to solve.
       expect(layout.entranceRoom.stormOrbit, isNull);
       expect(layout.entranceRoom.gustShrines, isEmpty);
     });

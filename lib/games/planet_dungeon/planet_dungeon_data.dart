@@ -7,7 +7,7 @@
 // doorways, a test hazard, and placeholder star pickups. Slice 3 replaces the
 // placeholders with each planet's bespoke puzzles. See `project-planet-dungeons`.
 
-import 'dart:math' show cos, sin;
+import 'dart:math' show cos, pi, sin;
 import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
@@ -3961,6 +3961,47 @@ String? _guardianMysticId(DungeonLayout layout) {
   return null;
 }
 
+
+/// Roc drags its storm-cell across a rod field; without rods the drag is a
+/// no-op. A ring gives the bird somewhere to be led from any approach, which
+/// the authored spire's staircase does not need to do.
+List<StormRod> _raidStormRods(String element) {
+  if (element != 'Air') return const [];
+  const centre = Offset(700, 400);
+  const radius = 300.0;
+  return [
+    for (var i = 0; i < 6; i++)
+      StormRod(
+        id: 'raid_rod_$i',
+        position: Offset(
+          centre.dx + radius * cos(i * pi / 3),
+          centre.dy + radius * 0.62 * sin(i * pi / 3),
+        ),
+        // Staggered heights so the field can be ranked, same as the spire.
+        initialHeight: i % 3,
+      ),
+  ];
+}
+
+/// Simurgh's telegraph IS the brazier order — it re-lights them as it strikes
+/// and the sequence is the bullet pattern. Ordered around the ring so the
+/// pattern sweeps rather than jumping across the arena.
+List<RitualBrazier> _raidBraziers(String element) {
+  if (element != 'Fire') return const [];
+  const centre = Offset(700, 400);
+  const radius = 320.0;
+  return [
+    for (var i = 0; i < 6; i++)
+      RitualBrazier(
+        order: i,
+        position: Offset(
+          centre.dx + radius * cos(i * pi / 3 - pi / 2),
+          centre.dy + radius * 0.60 * sin(i * pi / 3 - pi / 2),
+        ),
+      ),
+  ];
+}
+
 /// A raid is one big open planet-themed arena — no rooms, no puzzles, just
 /// the empowered guardian under the storm. Generated, not authored, so every
 /// element in [kRaidGuardianIds] gets one for free.
@@ -3970,6 +4011,13 @@ DungeonLayout buildRaidArenaLayout(String element) {
   final room = DungeonRoom(
     id: 'raid_arena',
     bounds: const Rect.fromLTWH(0, 0, 1400, 900),
+    // The guardian's signature furniture. Each mystic's mechanic is gated on
+    // the props its dungeon room carries, so a bare arena reduced every raid
+    // to the same charging phantom. Generated per element, ringed around the
+    // guardian at (700, 380) rather than laid out for a puzzle — nothing here
+    // is solved, it is only what the mechanic reads.
+    stormRods: _raidStormRods(element),
+    braziers: _raidBraziers(element),
     // Element-flavored crosswinds give gliders play without gating walkers.
     currents: const [
       WindCurrent(

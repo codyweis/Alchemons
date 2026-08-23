@@ -1234,7 +1234,10 @@ extension WindCrownSpire on PlanetDungeonGame {
 
   void _applyRocDrag(DungeonRoom room, double dt) {
     final g = room.guardian;
-    if (g == null || isRaid || room.stormRods.isEmpty) return;
+    // Raids used to be excluded here. The empty-rod-field check already
+    // covers any arena without a field, so the raid guard was redundant once
+    // the arena started generating one.
+    if (g == null || room.stormRods.isEmpty) return;
     if (hasStar(g.starIndex)) return;
     final bird = _guardianPosition(g);
     // The cell trails the bird on a leash: it can never reach the Roc unaided.
