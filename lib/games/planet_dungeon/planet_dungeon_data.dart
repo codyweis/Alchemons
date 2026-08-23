@@ -3937,14 +3937,29 @@ PlanetStarState stampClearedPlanetFamilyGates(PlanetStarState state) {
 /// Elements whose mystic guardian can host a raid, mapped to the mystic id the
 /// arena spawns. Add an element here only after its spritesheet is wired into
 /// the game's guardian sheet map.
-const Map<String, String> kRaidGuardianIds = {
-  'Air': 'Roc',
-  'Fire': 'Simurgh',
-  'Water': 'Leviathan',
-  'Earth': 'Terradon',
-  'Lightning': 'Raikuma',
-  'Steam': 'Boilrog',
+/// Raid guardians, derived from the authored dungeon layouts.
+///
+/// This used to be a second hand-maintained map beside
+/// [kPlanetDungeonLayouts], listing the same six mystics by name. Every
+/// layout's guardian node already carries its mysticId, so the copy could
+/// only ever drift: build a new dungeon, forget this map, and the planet is
+/// enterable but silently unraidable. With eleven elements still to author
+/// that is eleven chances to miss it.
+///
+/// Deriving it means a new dungeon brings its raid with it.
+final Map<String, String> kRaidGuardianIds = {
+  for (final entry in kPlanetDungeonLayouts.entries)
+    if (_guardianMysticId(entry.value) != null)
+      entry.key: _guardianMysticId(entry.value)!,
 };
+
+String? _guardianMysticId(DungeonLayout layout) {
+  for (final room in layout.rooms.values) {
+    final id = room.guardian?.encounter?.mysticId;
+    if (id != null) return id;
+  }
+  return null;
+}
 
 /// A raid is one big open planet-themed arena — no rooms, no puzzles, just
 /// the empowered guardian under the storm. Generated, not authored, so every

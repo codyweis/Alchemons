@@ -440,6 +440,35 @@ class PlanetDungeonGame extends FlameGame {
       ? null
       : Duration(milliseconds: (_raidFightRemaining! * 1000).round());
 
+
+  // TEMPORARY probe: how much of the frame is the dungeon itself?
+  static double _probeLastUpdateMs = 0;
+  static double _pu = 0;
+  static double _pr = 0;
+  static int _pn = 0;
+  static double _puWorst = 0;
+  static double _prWorst = 0;
+
+  void _probeAccum(double u, double r) {
+    _pu += u;
+    _pr += r;
+    if (u > _puWorst) _puWorst = u;
+    if (r > _prWorst) _prWorst = r;
+    _pn++;
+    if (_pn % 120 == 0) {
+      debugPrint(
+        'GAMEPROBE n=$_pn avgUpdate=${(_pu / _pn).toStringAsFixed(2)}ms '
+        'avgRender=${(_pr / _pn).toStringAsFixed(2)}ms '
+        'worstUpdate=${_puWorst.toStringAsFixed(2)} '
+        'worstRender=${_prWorst.toStringAsFixed(2)} '
+        'enemies=${combatEnemies.length} proj=${combatProjectiles.length} '
+        'nums=${damageNumbers.length}',
+      );
+      _puWorst = 0;
+      _prWorst = 0;
+    }
+  }
+
   void _updateRaidFightTimer(double dt) {
     if (!isRaid || _raidExpiredFired) return;
     // The clock stops the moment the guardian falls — the death sequence and
@@ -1898,6 +1927,7 @@ class PlanetDungeonGame extends FlameGame {
 
   @override
   void update(double dt) {
+    final swU = Stopwatch()..start();
     super.update(dt);
     _time += dt;
     if (_doorCooldown > 0) _doorCooldown -= dt;
@@ -2069,6 +2099,7 @@ class PlanetDungeonGame extends FlameGame {
     }
     _doorRevealFx.removeWhere((fx) => fx.ttl <= 0);
     _handleDowns();
+    _probeLastUpdateMs = swU.elapsedMicroseconds / 1000.0;
   }
 
   bool _overGap(Offset p, DungeonRoom room) {
@@ -7671,6 +7702,7 @@ class PlanetDungeonGame extends FlameGame {
 
   @override
   void render(Canvas canvas) {
+    final swR = Stopwatch()..start();
     super.render(canvas);
     final vp = Size(size.x, size.y);
     final room = currentRoom;
@@ -7788,6 +7820,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isTemple) _drawTideGauge(canvas, vp);
     if (_isVapor) _drawSteamPhaseHud(canvas, vp);
     drawVignette(canvas, vp);
+    _probeAccum(_probeLastUpdateMs, swR.elapsedMicroseconds / 1000.0);
   }
 
   /// The guardian relic's victory ceremony: drops from the fallen guardian,
