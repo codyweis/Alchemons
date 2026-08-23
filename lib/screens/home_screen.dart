@@ -1706,242 +1706,230 @@ class _HomeScreenState extends State<HomeScreen>
                   child: child,
                 );
               },
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Background is always the home background here
-                  Positioned.fill(
-                    child: TickerMode(
-                      enabled: _animationsEnabled,
-                      child: RepaintBoundary(
-                        child: InteractiveBackground(
-                          particleController: _particleController,
-                          rotationController: _rotationController,
-                          waveController: _waveController,
-                          primaryColor: theme.primary,
-                          secondaryColor: theme.secondary,
-                          accentColor: theme.accent,
-                          factionType: currentFaction,
-                          particleSpeed: speeds.particle,
-                          rotationSpeed: speeds.rotation,
-                          elementalSpeed: speeds.elemental,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  SafeArea(
-                    top: true,
-                    child: Column(
-                      children: [
-                        _buildHeader(theme),
-
-                        if (_featuredData != null) ...[
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            height: 260,
-                            child: Center(
-                              child: TickerMode(
-                                enabled: _animationsEnabled,
-                                child: FeaturedHeroInteractive(
-                                  data: _featuredData!,
-                                  theme: theme,
-                                  breathing: _breathingController,
-                                  onLongPressChoose:
-                                      _handleChooseFeaturedInstance,
-                                  onTapDetails: _handleOpenFeaturedDetails,
-                                  instance: _featuredData!.instance,
-                                  creature: _featuredData!.creature,
-                                ),
-                              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // One factor for every hard-coded dimension below; see
+                  // _homeScaleFor.
+                  final hs = _homeScaleFor(constraints.maxHeight);
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Background is always the home background here
+                      Positioned.fill(
+                        child: TickerMode(
+                          enabled: _animationsEnabled,
+                          child: RepaintBoundary(
+                            child: InteractiveBackground(
+                              particleController: _particleController,
+                              rotationController: _rotationController,
+                              waveController: _waveController,
+                              primaryColor: theme.primary,
+                              secondaryColor: theme.secondary,
+                              accentColor: theme.accent,
+                              factionType: currentFaction,
+                              particleSpeed: speeds.particle,
+                              rotationSpeed: speeds.rotation,
+                              elementalSpeed: speeds.elemental,
                             ),
                           ),
-                        ],
-
-                        Expanded(child: _buildHomeContent(theme)),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 140,
-                    left: 0,
-                    child: Consumer<WildernessSpawnService>(
-                      builder: (context, spawnService, child) {
-                        final visibleBiomes = [
-                          ..._coreWildernessBiomes,
-                          if (_arcanePortalUnlocked) 'arcane',
-                        ];
-                        final hasSpawns = visibleBiomes.any(
-                          (biomeId) =>
-                              spawnService.getSceneSpawnCount(biomeId) > 0,
-                        );
-                        return Stack(
-                          children: [
-                            child!,
-                            if (hasSpawns)
-                              Positioned(
-                                top: 0,
-                                right: 10,
-                                child: Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.red.withValues(
-                                          alpha: 0.6,
-                                        ),
-                                        blurRadius: 8,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
-                      child: SideDockFloating(
-                        theme: theme,
-                        lockNonField: _isFieldTutorialActive,
-                        lockEnhance: !enhanceUnlocked,
-                        enhanceRevealAnimation: _enhanceRevealController,
-                        highlightEnhance: _enhanceHighlightActive,
-                        showHarvestDot:
-                            !_isFieldTutorialActive &&
-                            context.select<HarvestService, bool>(
-                              (s) => s.biomes.any(
-                                (f) => f.unlocked && f.completed,
-                              ),
-                            ),
-                        highlightField: _isFieldTutorialActive,
-                        onField: () {
-                          if (_isFieldTutorialActive) {
-                            _handleFieldTutorialTap();
-                          } else {
-                            Navigator.push(
-                              context,
-                              CupertinoPageRoute(
-                                builder: (_) => const MapScreen(),
-                                fullscreenDialog: true,
-                              ),
-                            );
-                          }
-                        },
-                        onEnhance: _isFieldTutorialActive || !enhanceUnlocked
-                            ? () {}
-                            : () {
-                                HapticFeedback.mediumImpact();
-                                if (_enhanceHighlightActive) {
-                                  setState(
-                                    () => _enhanceHighlightActive = false,
-                                  );
-                                }
-                                Navigator.push(
-                                  context,
-                                  CupertinoPageRoute(
-                                    builder: (_) => const FeedingScreen(),
-                                    fullscreenDialog: true,
-                                  ),
-                                );
-                              },
-                        onHarvest: _isFieldTutorialActive
-                            ? () {}
-                            : () {
-                                HapticFeedback.mediumImpact();
-                                Navigator.push(
-                                  context,
-                                  CupertinoPageRoute(
-                                    builder: (_) => const ExtractionHubScreen(),
-                                    fullscreenDialog: true,
-                                  ),
-                                );
-                              },
-                        onCompetitions: _isFieldTutorialActive
-                            ? () {}
-                            : () {
-                                HapticFeedback.mediumImpact();
-                                Navigator.push(
-                                  context,
-                                  CupertinoPageRoute(
-                                    builder: (_) =>
-                                        const CompetitionHubScreen(),
-                                    fullscreenDialog: true,
-                                  ),
-                                );
-                              },
-
-                        onBattle: _isFieldTutorialActive
-                            ? () {}
-                            : () => async.unawaited(_openCosmicSurvival()),
-                        onMysticAltar: null,
+                        ),
                       ),
-                    ),
-                  ),
 
-                  // RIGHT-SIDE BUTTON (new)
-                  Stack(
-                    children: [
-                      // --- 1. First Icon (Your existing "BATTLE" icon) ---
-                      Positioned(
-                        top: MediaQuery.of(context).padding.top + 125,
-                        right: 0,
-                        child: Opacity(
-                          opacity: _isFieldTutorialActive ? 0.4 : 1.0,
-                          child: IgnorePointer(
-                            ignoring: _isFieldTutorialActive,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                _AnimatedCosmicOrb(onPulse: _playHomeShake),
-                                const SizedBox(height: 4),
-                                Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Transform.translate(
-                                      offset: const Offset(0, 6),
-                                      child: const ConstellationPointsWidget(),
-                                    ),
-                                    Transform.translate(
-                                      offset: const Offset(0, -6),
-                                      child: Text(
-                                        'UPGRADE',
-                                        style: TextStyle(
-                                          color: theme.text,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 1.1,
-                                        ),
+                      SafeArea(
+                        top: true,
+                        child: Column(
+                          children: [
+                            _buildHeader(theme),
+
+                            if (_featuredData != null) ...[
+                              SizedBox(height: 20 * hs),
+                              // Flexible, not fixed: SizedBox's tight height is
+                              // normalised against the incoming constraint, so on
+                              // a short viewport the hero takes whatever is left
+                              // instead of overflowing the column by the
+                              // difference. This is what actually fixes the
+                              // overflow; the scale factor only makes it
+                              // proportionate on the way down.
+                              Flexible(
+                                child: SizedBox(
+                                  height: 260 * hs,
+                                  child: Center(
+                                    child: TickerMode(
+                                      enabled: _animationsEnabled,
+                                      child: FeaturedHeroInteractive(
+                                        data: _featuredData!,
+                                        theme: theme,
+                                        breathing: _breathingController,
+                                        onLongPressChoose:
+                                            _handleChooseFeaturedInstance,
+                                        onTapDetails:
+                                            _handleOpenFeaturedDetails,
+                                        instance: _featuredData!.instance,
+                                        creature: _featuredData!.creature,
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                                if (_hasAnyRelic) ...[
-                                  const SizedBox(height: 4),
-                                  GestureDetector(
-                                    onTap: () {
-                                      HapticFeedback.heavyImpact();
-                                      VoidPortal.push(
-                                        context,
-                                        page: const MysticAltarScreen(),
+                              ),
+                            ],
+
+                            // Renders nothing today; it used to be wrapped in an
+                            // Expanded, which would now compete with the hero's
+                            // Flexible for the same remaining space.
+                            _buildHomeContent(theme),
+                          ],
+                        ),
+                      ),
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 140 * hs,
+                        left: 0,
+                        child: Consumer<WildernessSpawnService>(
+                          builder: (context, spawnService, child) {
+                            final visibleBiomes = [
+                              ..._coreWildernessBiomes,
+                              if (_arcanePortalUnlocked) 'arcane',
+                            ];
+                            final hasSpawns = visibleBiomes.any(
+                              (biomeId) =>
+                                  spawnService.getSceneSpawnCount(biomeId) > 0,
+                            );
+                            return Stack(
+                              children: [
+                                child!,
+                                if (hasSpawns)
+                                  Positioned(
+                                    top: 0,
+                                    right: 10,
+                                    child: Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.red.withValues(
+                                              alpha: 0.6,
+                                            ),
+                                            blurRadius: 8,
+                                            spreadRadius: 2,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                          child: SideDockFloating(
+                            theme: theme,
+                            lockNonField: _isFieldTutorialActive,
+                            lockEnhance: !enhanceUnlocked,
+                            enhanceRevealAnimation: _enhanceRevealController,
+                            highlightEnhance: _enhanceHighlightActive,
+                            showHarvestDot:
+                                !_isFieldTutorialActive &&
+                                context.select<HarvestService, bool>(
+                                  (s) => s.biomes.any(
+                                    (f) => f.unlocked && f.completed,
+                                  ),
+                                ),
+                            highlightField: _isFieldTutorialActive,
+                            onField: () {
+                              if (_isFieldTutorialActive) {
+                                _handleFieldTutorialTap();
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(
+                                    builder: (_) => const MapScreen(),
+                                    fullscreenDialog: true,
+                                  ),
+                                );
+                              }
+                            },
+                            onEnhance:
+                                _isFieldTutorialActive || !enhanceUnlocked
+                                ? () {}
+                                : () {
+                                    HapticFeedback.mediumImpact();
+                                    if (_enhanceHighlightActive) {
+                                      setState(
+                                        () => _enhanceHighlightActive = false,
                                       );
-                                    },
-                                    child: Column(
+                                    }
+                                    Navigator.push(
+                                      context,
+                                      CupertinoPageRoute(
+                                        builder: (_) => const FeedingScreen(),
+                                        fullscreenDialog: true,
+                                      ),
+                                    );
+                                  },
+                            onHarvest: _isFieldTutorialActive
+                                ? () {}
+                                : () {
+                                    HapticFeedback.mediumImpact();
+                                    Navigator.push(
+                                      context,
+                                      CupertinoPageRoute(
+                                        builder: (_) =>
+                                            const ExtractionHubScreen(),
+                                        fullscreenDialog: true,
+                                      ),
+                                    );
+                                  },
+                            onCompetitions: _isFieldTutorialActive
+                                ? () {}
+                                : () {
+                                    HapticFeedback.mediumImpact();
+                                    Navigator.push(
+                                      context,
+                                      CupertinoPageRoute(
+                                        builder: (_) =>
+                                            const CompetitionHubScreen(),
+                                        fullscreenDialog: true,
+                                      ),
+                                    );
+                                  },
+
+                            onBattle: _isFieldTutorialActive
+                                ? () {}
+                                : () => async.unawaited(_openCosmicSurvival()),
+                            onMysticAltar: null,
+                          ),
+                        ),
+                      ),
+
+                      // RIGHT-SIDE BUTTON (new)
+                      Stack(
+                        children: [
+                          // --- 1. First Icon (Your existing "BATTLE" icon) ---
+                          Positioned(
+                            top: MediaQuery.of(context).padding.top + 125 * hs,
+                            right: 0,
+                            child: Opacity(
+                              opacity: _isFieldTutorialActive ? 0.4 : 1.0,
+                              child: IgnorePointer(
+                                ignoring: _isFieldTutorialActive,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    _AnimatedCosmicOrb(onPulse: _playHomeShake),
+                                    const SizedBox(height: 4),
+                                    Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Image.asset(
-                                          'assets/images/ui/relicicon.png',
-                                          width: 80,
-                                          height: 80,
-                                          fit: BoxFit.contain,
+                                        Transform.translate(
+                                          offset: const Offset(0, 6),
+                                          child:
+                                              const ConstellationPointsWidget(),
                                         ),
                                         Transform.translate(
                                           offset: const Offset(0, -6),
                                           child: Text(
-                                            'RELICS',
+                                            'UPGRADE',
                                             style: TextStyle(
                                               color: theme.text,
                                               fontSize: 12,
@@ -1952,55 +1940,90 @@ class _HomeScreenState extends State<HomeScreen>
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ],
-                                if (hasLineageAnalyzer) ...[
-                                  const SizedBox(height: 4),
-                                  _AnimatedPurebloodRiteIcon(
-                                    enabled: _animationsEnabled,
-                                    onPulse: _playHomeShake,
-                                    onTap: () {
-                                      HapticFeedback.heavyImpact();
-                                      VoidPortal.push(
-                                        context,
-                                        page: const PurebloodRiteScreen(),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ],
+                                    if (_hasAnyRelic) ...[
+                                      const SizedBox(height: 4),
+                                      GestureDetector(
+                                        onTap: () {
+                                          HapticFeedback.heavyImpact();
+                                          VoidPortal.push(
+                                            context,
+                                            page: const MysticAltarScreen(),
+                                          );
+                                        },
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Image.asset(
+                                              'assets/images/ui/relicicon.png',
+                                              width: 80,
+                                              height: 80,
+                                              fit: BoxFit.contain,
+                                            ),
+                                            Transform.translate(
+                                              offset: const Offset(0, -6),
+                                              child: Text(
+                                                'RELICS',
+                                                style: TextStyle(
+                                                  color: theme.text,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: 1.1,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                    if (hasLineageAnalyzer) ...[
+                                      const SizedBox(height: 4),
+                                      _AnimatedPurebloodRiteIcon(
+                                        enabled: _animationsEnabled,
+                                        onPulse: _playHomeShake,
+                                        onTap: () {
+                                          HapticFeedback.heavyImpact();
+                                          VoidPortal.push(
+                                            context,
+                                            page: const PurebloodRiteScreen(),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Daily Treasure Chest — bottom center above nav bar
+                      Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: EdgeInsets.only(bottom: 90 * hs),
+                          child: Opacity(
+                            opacity: _isFieldTutorialActive ? 0.35 : 1.0,
+                            child: IgnorePointer(
+                              ignoring: _isFieldTutorialActive,
+                              child: _DailyTreasureChest(scale: hs),
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
 
-                  // Daily Treasure Chest — bottom center above nav bar
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 90),
-                      child: Opacity(
-                        opacity: _isFieldTutorialActive ? 0.35 : 1.0,
-                        child: IgnorePointer(
-                          ignoring: _isFieldTutorialActive,
-                          child: _DailyTreasureChest(),
+                      if (_activeNotifications.isNotEmpty)
+                        NotificationBannerStack(
+                          key: ValueKey(
+                            _activeNotifications
+                                .map((n) => '${n.type.toKey()}|${n.stateKey}')
+                                .join(','),
+                          ),
+                          notifications: _activeNotifications,
                         ),
-                      ),
-                    ),
-                  ),
-
-                  if (_activeNotifications.isNotEmpty)
-                    NotificationBannerStack(
-                      key: ValueKey(
-                        _activeNotifications
-                            .map((n) => '${n.type.toKey()}|${n.stateKey}')
-                            .join(','),
-                      ),
-                      notifications: _activeNotifications,
-                    ),
-                ],
+                    ],
+                  );
+                },
               ),
             );
           },
@@ -2335,8 +2358,39 @@ class _HomeScreenState extends State<HomeScreen>
 // Daily Treasure Chest
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Home is a fixed-composition screen: a hero, a side dock, a right-hand orb
+/// column and the daily chest, all anchored to the edges at hard-coded pixel
+/// sizes. On a short viewport they collide — the hero ends around 348px down,
+/// the chest occupies the bottom 250px, and the side dock runs down from 140.
+/// That is roughly 600px of committed height before anything flexes.
+///
+/// Rather than reposition each piece independently, every fixed dimension is
+/// multiplied by one factor derived from the available height. Screens at or
+/// above the height the layout was composed for are untouched (k == 1).
+const double _kHomeDesignHeight = 780.0;
+
+/// Floor chosen so text and touch targets stay usable — below this the screen
+/// is too short for this composition and shrinking further would not help.
+const double _kHomeMinScale = 0.68;
+
+double _homeScaleFor(double availableHeight) =>
+    (availableHeight / _kHomeDesignHeight).clamp(_kHomeMinScale, 1.0);
+
+/// Test hooks — the layout maths is worth pinning, the widget tree needs a
+/// database and fifteen providers to pump.
+@visibleForTesting
+double homeScaleForTest(double availableHeight) =>
+    _homeScaleFor(availableHeight);
+
+@visibleForTesting
+const double homeMinScaleForTest = _kHomeMinScale;
+
 class _DailyTreasureChest extends StatefulWidget {
-  const _DailyTreasureChest();
+  const _DailyTreasureChest({this.scale = 1.0});
+
+  /// Shrinks the chest on short screens so it does not run into the hero
+  /// above it. See [_homeScaleFor].
+  final double scale;
 
   @override
   State<_DailyTreasureChest> createState() => _DailyTreasureChestState();
@@ -2429,11 +2483,7 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
         );
         if (groups.isNotEmpty) {
           final group = groups[rng.nextInt(groups.length)];
-          await db.inventoryDao.addVial(
-            'Daily Vial',
-            group,
-            VialRarity.common,
-          );
+          await db.inventoryDao.addVial('Daily Vial', group, VialRarity.common);
           vialGroup = group;
         }
       } catch (_) {}
@@ -2488,8 +2538,8 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
           // Glow ring when unclaimed
           if (!_isClaimed)
             Container(
-              width: 81,
-              height: 81,
+              width: 81 * widget.scale,
+              height: 81 * widget.scale,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 boxShadow: [
@@ -2504,8 +2554,8 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
           Opacity(
             opacity: 1.0,
             child: SizedBox(
-              width: 160,
-              height: 160,
+              width: 160 * widget.scale,
+              height: 160 * widget.scale,
               child: Lottie.asset(
                 'assets/animations/treasure_lottie.json',
                 controller: _lottieCtrl,
