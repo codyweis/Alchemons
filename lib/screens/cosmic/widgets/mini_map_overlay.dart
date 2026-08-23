@@ -695,17 +695,23 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                     child: IgnorePointer(
                       ignoring: true,
                       child: Container(
-                        height: 132,
+                        // This backs the controls below it. It was 132px tall
+                        // reaching 96% opacity, with the ramp starting at 55%
+                        // — so it was near-solid well above the controls and
+                        // swallowed the bottom of the chart. Shorter, and the
+                        // darkening now happens late, close to the controls
+                        // that actually need it.
+                        height: 108,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
                               CosmicScreenStyles.bg1.withValues(alpha: 0.0),
-                              CosmicScreenStyles.bg1.withValues(alpha: 0.82),
-                              CosmicScreenStyles.bg1.withValues(alpha: 0.96),
+                              CosmicScreenStyles.bg1.withValues(alpha: 0.40),
+                              CosmicScreenStyles.bg1.withValues(alpha: 0.86),
                             ],
-                            stops: const [0.0, 0.55, 1.0],
+                            stops: const [0.0, 0.62, 1.0],
                           ),
                         ),
                       ),
