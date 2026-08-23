@@ -159,10 +159,21 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   /// World-space breathing room left around the nodes when framing them.
   static const double _overviewPadding = 220.0;
 
+  /// Framing never goes below this, even when the tree does not fit.
+  ///
+  /// Combat is a cross whose horizontal arms are about three times breeder's
+  /// width; fitting them whole put it at 0.17, where the nodes are specks.
+  /// Better to open it readable and let the arms run off the sides — they are
+  /// a straight line of nodes, and panning along them is easy.
+  static const double _minFramingZoom = 0.34;
+
   /// The pinch-out limit, exposed so the default framing can be asserted to
   /// sit inside the range a player can reach by hand.
   @visibleForTesting
   static double get minZoom => _minScale;
+
+  @visibleForTesting
+  static double get minFramingZoom => _minFramingZoom;
 
   /// World-space bounds of a tree's nodes, so a test can assert the framing
   /// actually contains them.
@@ -691,10 +702,11 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     }
 
     camera.viewfinder.position = Vector2((minX + maxX) / 2, (minY + maxY) / 2);
-    // Whichever axis is tighter decides, so no branch is cut off.
+    // Whichever axis is tighter decides, floored so a very wide tree stays
+    // readable rather than fitting at any cost.
     camera.viewfinder.zoom = math
         .min(viewport.x / width, viewport.y / height)
-        .clamp(_minScale, _treeZoom);
+        .clamp(_minFramingZoom, _treeZoom);
   }
 
   /// The zoom that would frame [tree] — used so a transition lands on the
@@ -868,6 +880,13 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   }
 
   void setVisibleTrees(Set<ConstellationTree> trees) {
+    // Called from the screen's build, so it runs on every stream tick. The
+    // sweep below touches every node, connection and story block; doing that
+    // when nothing changed is pure waste.
+    if (_visibleTrees.length == trees.length &&
+        _visibleTrees.containsAll(trees)) {
+      return;
+    }
     _visibleTrees = Set<ConstellationTree>.from(trees);
 
     for (final node in _nodes.values) {
@@ -884,7 +903,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     if (!_visibleTrees.contains(selectedTree)) {
       selectedTree = ConstellationTree.breeder;
-      camera.viewfinder.position = _treePositions[selectedTree]!;
+      frameTree(selectedTree);
     }
   }
 
@@ -1318,6 +1337,16 @@ class SkillNode extends PositionComponent with TapCallbacks {
   // These depend only on locked/unlocked state, not on per-frame animation,
   // so we build them once (and rebuild on state change) instead of allocating
   // fresh gradient shaders every frame in render().
+  // Every node is Vector2.all(80), so its centre is (40,40) and all of this
+  // geometry is byte-identical across the 43 instances. Building it per node
+  // dominated the screen's mount cost — 43 hexagon paths and 86 radial
+  // gradient shaders, all the same. Shared, keyed by colour where colour
+  // matters.
+  static final Map<double, Path> _sharedHexes = {};
+  static Paint? _sharedOrbit;
+  static final Map<int, Paint> _sharedGlow = {};
+  static final Map<int, Paint> _sharedAura = {};
+
   Path? _hexPath;
   Path? _coreHexPath;
   Path? _keystoneHexPath;
@@ -1346,40 +1375,48 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   void _rebuildVisualPaints() {
     final center = (size / 2).toOffset();
-    _hexPath ??= _createHexagon(center, 35);
-    _coreHexPath ??= _createHexagon(center, 28);
+    _hexPath ??= _hexFor(center, 35);
+    _coreHexPath ??= _hexFor(center, 28);
 
     final ringColor = _getRingColor();
     final coreColor = _getCoreColor();
     final availableColor = _getAvailableAccentColor();
 
     if (isUnlocked) {
-      _glowPaint = Paint()
-        ..shader = ui.Gradient.radial(
-          center,
-          55.0,
-          [
-            Colors.white.withValues(alpha: 0.42),
-            Colors.white.withValues(alpha: 0.16),
-            Colors.transparent,
-          ],
-          [0.55, 0.78, 1.0],
-        );
-      _auraPaint = Paint()
-        ..shader = ui.Gradient.radial(
-          center,
-          62.0,
-          [
-            primaryColor.withValues(alpha: 0.32),
-            primaryColor.withValues(alpha: 0.10),
-            Colors.transparent,
-          ],
-          [0.0, 0.6, 1.0],
-        );
-      _orbitPaint = Paint()
+      // Identical for every node — the white glow takes no colour at all, and
+      // the aura only varies by the game's primary.
+      _glowPaint = _sharedGlow.putIfAbsent(
+        0,
+        () => Paint()
+          ..shader = ui.Gradient.radial(
+            center,
+            55.0,
+            [
+              Colors.white.withValues(alpha: 0.42),
+              Colors.white.withValues(alpha: 0.16),
+              Colors.transparent,
+            ],
+            [0.55, 0.78, 1.0],
+          ),
+      );
+      _auraPaint = _sharedAura.putIfAbsent(
+        primaryColor.toARGB32(),
+        () => Paint()
+          ..shader = ui.Gradient.radial(
+            center,
+            62.0,
+            [
+              primaryColor.withValues(alpha: 0.32),
+              primaryColor.withValues(alpha: 0.10),
+              Colors.transparent,
+            ],
+            [0.0, 0.6, 1.0],
+          ),
+      );
+      _orbitPaint = _sharedOrbit ??= (Paint()
         ..color = Colors.white.withValues(alpha: 0.14)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
+        ..strokeWidth = 1.0);
     } else {
       _glowPaint = null;
       _auraPaint = null;
@@ -1387,7 +1424,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
     }
 
     if (isRootNode) {
-      _keystoneHexPath ??= _createHexagon(center, 46);
+      _keystoneHexPath ??= _hexFor(center, 46);
       _keystonePaint = Paint()
         ..color =
             (isUnlocked
@@ -1696,6 +1733,12 @@ class SkillNode extends PositionComponent with TapCallbacks {
       canvas.drawPath(paths[i], paints[i]);
     }
   }
+
+  /// Keyed by radius, since the centre is the same for every node — they are
+  /// all Vector2.all(80). Keying rather than a bare static so a node of a
+  /// different size could never silently pick up the wrong path.
+  Path _hexFor(Offset center, double radius) =>
+      _sharedHexes.putIfAbsent(radius, () => _createHexagon(center, radius));
 
   Path _createHexagon(Offset center, double radius) {
     final path = Path();

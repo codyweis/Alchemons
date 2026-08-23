@@ -1,10 +1,12 @@
 // The screen used to open at zoom 1.0 positioned on the selected tree, which
-// drops the camera into the middle of a branch. It now frames that tree so all
-// of it is on screen.
+// drops the camera into the middle of a branch.
 //
-// The zoom is measured from the tree's own nodes rather than fixed: the
-// branches are very different sizes — breeder fits at 0.51, combat needs 0.17
-// — and any constant that shows all of one shows only part of another.
+// It now frames the tree's own nodes, with a readability floor. The branches
+// are very different sizes: breeder fits whole at 0.51, extraction at 0.40,
+// but combat's arms are three times breeder's width and fitting them needs
+// 0.17 — where the nodes are specks. So a very wide tree is floored and its
+// arms run off the sides instead, which is fine: they are a straight line of
+// nodes and panning along them is easy.
 
 import 'package:alchemons/games/constellations/constellation_game.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
@@ -50,31 +52,66 @@ void main() {
     );
   });
 
-  group('every tree is framed whole', () {
+  group('framing', () {
     for (final tree in ConstellationTree.values) {
-      testWidgets('${tree.name} fits on screen', (tester) async {
+      testWidgets('${tree.name} is centred on its own nodes', (tester) async {
         final game = await _boot(tester, selected: tree);
-        final zoom = game.camera.viewfinder.zoom;
+        final bounds = game.treeBoundsForTest(tree)!;
         final centre = game.camera.viewfinder.position;
-        final halfW = game.size.x / zoom / 2;
-        final halfH = game.size.y / zoom / 2;
+        expect(centre.x, closeTo(bounds.center.dx, 1.0));
+        expect(centre.y, closeTo(bounds.center.dy, 1.0));
+      });
 
-        final bounds = game.treeBoundsForTest(tree);
-        expect(bounds, isNotNull, reason: '${tree.name} has no nodes');
+      testWidgets('${tree.name} is never cut off vertically', (tester) async {
+        // Height is the axis that matters — a tree running off the top or
+        // bottom reads as broken, where arms running off the sides read as
+        // something to pan along.
+        final game = await _boot(tester, selected: tree);
+        final bounds = game.treeBoundsForTest(tree)!;
+        final halfH = game.size.y / game.camera.viewfinder.zoom / 2;
+        final centre = game.camera.viewfinder.position;
         expect(
-          (bounds!.left - centre.x).abs() < halfW &&
-              (bounds.right - centre.x).abs() < halfW,
-          isTrue,
-          reason: '${tree.name} is cut off horizontally',
-        );
-        expect(
-          (bounds.top - centre.y).abs() < halfH &&
-              (bounds.bottom - centre.y).abs() < halfH,
-          isTrue,
+          (bounds.top - centre.y).abs(),
+          lessThan(halfH),
           reason: '${tree.name} is cut off vertically',
         );
       });
     }
+
+    testWidgets('trees that fit are shown whole', (tester) async {
+      for (final tree in [
+        ConstellationTree.breeder,
+        ConstellationTree.extraction,
+      ]) {
+        final game = await _boot(tester, selected: tree);
+        final bounds = game.treeBoundsForTest(tree)!;
+        final halfW = game.size.x / game.camera.viewfinder.zoom / 2;
+        final centre = game.camera.viewfinder.position;
+        expect(
+          (bounds.left - centre.x).abs(),
+          lessThan(halfW),
+          reason: '${tree.name} is cut off horizontally',
+        );
+      }
+    });
+
+    testWidgets('a tree too wide to fit stays readable rather than fitting', (
+      tester,
+    ) async {
+      final game = await _boot(tester, selected: ConstellationTree.combat);
+      expect(
+        game.camera.viewfinder.zoom,
+        closeTo(ConstellationGame.minFramingZoom, 1e-6),
+        reason: 'combat should sit on the readability floor, not below it',
+      );
+    });
+
+    testWidgets('framing never zooms in past a full-size tree', (tester) async {
+      for (final tree in ConstellationTree.values) {
+        final game = await _boot(tester, selected: tree);
+        expect(game.camera.viewfinder.zoom, lessThanOrEqualTo(1.0));
+      }
+    });
   });
 
   testWidgets('a wide tree frames further out than a narrow one', (
