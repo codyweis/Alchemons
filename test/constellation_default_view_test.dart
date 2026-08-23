@@ -1,10 +1,10 @@
-// The screen used to open at zoom 1.0 on whichever tree happened to be
-// selected, so you landed inside one branch with no sense of the chart. It now
-// opens framed on everything visible.
+// The screen used to open at zoom 1.0 positioned on the selected tree, which
+// drops the camera into the middle of a branch. It now frames that tree so all
+// of it is on screen.
 //
-// The zoom is measured from the nodes rather than fixed: the three trees span
-// ~2500 world units, and no constant frames both that and a new player's
-// single tree.
+// The zoom is measured from the tree's own nodes rather than fixed: the
+// branches are very different sizes — breeder fits at 0.51, combat needs 0.17
+// — and any constant that shows all of one shows only part of another.
 
 import 'package:alchemons/games/constellations/constellation_game.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 Future<ConstellationGame> _boot(
   WidgetTester tester, {
-  Set<ConstellationTree>? visible,
+  ConstellationTree selected = ConstellationTree.breeder,
   Size size = const Size(1080, 2100),
 }) async {
   tester.view.physicalSize = size;
@@ -22,9 +22,9 @@ Future<ConstellationGame> _boot(
   addTearDown(tester.view.reset);
 
   final game = ConstellationGame(
-    selectedTree: ConstellationTree.breeder,
+    selectedTree: selected,
     unlockedSkills: {for (final s in ConstellationCatalog.allSkills) s.id},
-    visibleTrees: visible ?? ConstellationTree.values.toSet(),
+    visibleTrees: ConstellationTree.values.toSet(),
     onSkillTapped: (_) {},
     primaryColor: const Color(0xFF4DA3FF),
     secondaryColor: const Color(0xFFE8DCC8),
@@ -39,68 +39,74 @@ Future<ConstellationGame> _boot(
 }
 
 void main() {
-  testWidgets('opens zoomed out, not at full zoom on one tree', (tester) async {
+  testWidgets('opens zoomed out, not at full zoom inside the tree', (
+    tester,
+  ) async {
     final game = await _boot(tester);
     expect(
       game.camera.viewfinder.zoom,
-      lessThan(0.5),
-      reason: 'it used to open at 1.0 inside a single branch',
+      lessThan(1.0),
+      reason: 'it used to open at 1.0 in the middle of a branch',
     );
   });
 
-  testWidgets('frames every visible tree, nothing cropped', (tester) async {
-    final game = await _boot(tester);
-    final zoom = game.camera.viewfinder.zoom;
-    final centre = game.camera.viewfinder.position;
-    final viewW = game.size.x / zoom;
-    final viewH = game.size.y / zoom;
+  group('every tree is framed whole', () {
+    for (final tree in ConstellationTree.values) {
+      testWidgets('${tree.name} fits on screen', (tester) async {
+        final game = await _boot(tester, selected: tree);
+        final zoom = game.camera.viewfinder.zoom;
+        final centre = game.camera.viewfinder.position;
+        final halfW = game.size.x / zoom / 2;
+        final halfH = game.size.y / zoom / 2;
 
-    // Tree anchors, which sit inside their own node clusters.
-    const anchors = {
-      'breeder': Offset(0, -600),
-      'combat': Offset(-700, 400),
-      'extraction': Offset(700, 400),
-    };
-    for (final entry in anchors.entries) {
-      expect(
-        (entry.value.dx - centre.x).abs(),
-        lessThan(viewW / 2),
-        reason: '${entry.key} is off screen horizontally',
-      );
-      expect(
-        (entry.value.dy - centre.y).abs(),
-        lessThan(viewH / 2),
-        reason: '${entry.key} is off screen vertically',
-      );
+        final bounds = game.treeBoundsForTest(tree);
+        expect(bounds, isNotNull, reason: '${tree.name} has no nodes');
+        expect(
+          (bounds!.left - centre.x).abs() < halfW &&
+              (bounds.right - centre.x).abs() < halfW,
+          isTrue,
+          reason: '${tree.name} is cut off horizontally',
+        );
+        expect(
+          (bounds.top - centre.y).abs() < halfH &&
+              (bounds.bottom - centre.y).abs() < halfH,
+          isTrue,
+          reason: '${tree.name} is cut off vertically',
+        );
+      });
     }
   });
 
-  testWidgets('a single visible tree is framed closer than three', (
+  testWidgets('a wide tree frames further out than a narrow one', (
     tester,
   ) async {
-    // A new player has only the breeder tree. Framing all three anyway would
-    // open on empty space.
-    final one = await _boot(tester, visible: {ConstellationTree.breeder});
-    final oneZoom = one.camera.viewfinder.zoom;
-    final all = await _boot(tester);
-    expect(oneZoom, greaterThan(all.camera.viewfinder.zoom));
+    // combat's arms span roughly three times breeder's width, so a single
+    // constant cannot serve both.
+    final breeder = await _boot(tester, selected: ConstellationTree.breeder);
+    final breederZoom = breeder.camera.viewfinder.zoom;
+    final combat = await _boot(tester, selected: ConstellationTree.combat);
+    expect(combat.camera.viewfinder.zoom, lessThan(breederZoom));
   });
 
   testWidgets('the framing zoom is reachable by pinching out', (tester) async {
     // The default must sit inside the manual zoom range, or the player can
-    // never get back to the view they started on.
-    final game = await _boot(tester);
-    expect(
-      game.camera.viewfinder.zoom,
-      greaterThanOrEqualTo(ConstellationGame.minZoom),
-    );
+    // never get back to the view they started on. The floor was 0.2, which
+    // clipped combat.
+    for (final tree in ConstellationTree.values) {
+      final game = await _boot(tester, selected: tree);
+      expect(
+        game.camera.viewfinder.zoom,
+        greaterThanOrEqualTo(ConstellationGame.minZoom),
+        reason: tree.name,
+      );
+    }
   });
 
   testWidgets('re-framing is idempotent', (tester) async {
     final game = await _boot(tester);
     final zoom = game.camera.viewfinder.zoom;
     final pos = game.camera.viewfinder.position.clone();
-    game.frameVisibleTrees();
+    game.frameTree(ConstellationTree.breeder);
     expect(game.camera.viewfinder.zoom, closeTo(zoom, 1e-6));
     expect(game.camera.viewfinder.position.x, closeTo(pos.x, 1e-6));
     expect(game.camera.viewfinder.position.y, closeTo(pos.y, 1e-6));
