@@ -189,11 +189,10 @@ double _stretchFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
 
 /// Open-world variants mapped onto the same mark vocabulary as survival's, so
 /// a crusher reads the same in both modes.
-int openWorldVariantSigilPoints(CosmicEnemyVariant v) => switch (v) {
-  CosmicEnemyVariant.standard => 0,
-  CosmicEnemyVariant.crusher => 6,
-  CosmicEnemyVariant.pouncer => 5,
-};
+/// Same one-shape rule as [traitSigilPoints] — a 5- or 6-pointed star at
+/// enemy scale reads as clutter rather than as a variant tell.
+int openWorldVariantSigilPoints(CosmicEnemyVariant v) =>
+    v == CosmicEnemyVariant.standard ? 0 : 3;
 
 /// Survival's entry point.
 void drawSurvivalEnemy({
@@ -1257,18 +1256,13 @@ void drawOpenWorldBoss({
     Paint()..color = Color.lerp(Colors.red, bColor, hpFrac)!,
   );
 
-  // Boss name + level + type
-  final typeTag = switch (boss.type) {
-    BossType.charger => '⚡',
-    BossType.gunner => '🔫',
-    BossType.skirmisher => '🎯',
-    BossType.bulwark => '🛡️',
-    BossType.carrier => '🛸',
-    BossType.warden => '👑',
-  };
+  // Boss name + level. The type used to be prefixed as an emoji — a pistol, a
+  // crown, a dart board — which read as chat decoration on top of a hand-drawn
+  // alchemical game. The archetype is already legible from the boss's own
+  // silhouette and its orbiting mote count; it did not need a sticker.
   final namePainter = TextPainter(
     text: TextSpan(
-      text: '$typeTag Lv${boss.level} ${boss.name}',
+      text: 'Lv${boss.level} ${boss.name}',
       style: TextStyle(
         color: Colors.white.withValues(alpha: 0.8),
         fontSize: 10,
@@ -1455,15 +1449,15 @@ final ui.Paint _markPaint = ui.Paint()
   ..strokeCap = ui.StrokeCap.round
   ..strokeJoin = ui.StrokeJoin.round;
 
-/// Star points per trait — the archetype's signature under the converged
-/// taxonomy. Traits are body-independent, so this mark now means the same
-/// thing on a wisp as on a colossus.
-int traitSigilPoints(EnemyTrait? t) => switch (t) {
-  null => 0,
-  EnemyTrait.breaker => 3,
-  EnemyTrait.summoner => 7,
-  EnemyTrait.splitter => 8,
-};
+/// Whether a trait carries a mark, and how many points it has.
+///
+/// One shape for every trait. This used to vary — 3 points for breaker, 7 for
+/// summoner, 8 for splitter — on the theory that the point count would teach
+/// you which behaviour you were facing. At enemy scale a spinning 7- or
+/// 8-pointed star is not read as information; it just looks busy, especially
+/// on the phantom, whose body is already broken arcs. A single clean triangle
+/// says "this one is special" and leaves the telling to behaviour.
+int traitSigilPoints(EnemyTrait? t) => t == null ? 0 : 3;
 
 /// Orbiting mote count per boss archetype. Kept independent of the sigil
 /// points so the two axes read separately: points tell you the discipline

@@ -1,15 +1,6 @@
 part of 'cosmic_game.dart';
 
 extension CosmicGameWorldSystems on CosmicGame {
-  String _bossTypeTag(BossType type) => switch (type) {
-    BossType.charger => '⚡',
-    BossType.gunner => '🔫',
-    BossType.skirmisher => '🎯',
-    BossType.bulwark => '🛡️',
-    BossType.carrier => '🛸',
-    BossType.warden => '👑',
-  };
-
   void _revealAround(Offset center, double radius) {
     final cellR = (radius / CosmicGame.fogCellSize).ceil();
     final cx = (center.dx / CosmicGame.fogCellSize).floor();
@@ -515,7 +506,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     );
     bossProjectiles.clear();
     onBossSpawned?.call(
-      '${_bossTypeTag(activeBoss!.type)} Lv$safeLevel ${template.name}',
+      'Lv$safeLevel ${template.name}',
     );
   }
 
@@ -1521,7 +1512,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       colossalTrait: lair.template.colossalTrait,
     );
     onBossSpawned?.call(
-      '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${lair.template.name}',
+      'Lv$lvl ${lair.template.name}',
     );
   }
 
@@ -1597,7 +1588,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       colossalTrait: template.colossalTrait,
     );
     onBossSpawned?.call(
-      '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${template.name}',
+      'Lv$lvl ${template.name}',
     );
   }
 
@@ -1644,7 +1635,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       colossalTrait: template.colossalTrait,
     );
     onBossSpawned?.call(
-      '${_bossTypeTag(activeBoss!.type)} Lv$lvl ${template.name}',
+      'Lv$lvl ${template.name}',
     );
   }
 
