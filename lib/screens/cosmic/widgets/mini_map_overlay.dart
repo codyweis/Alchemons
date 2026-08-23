@@ -2868,19 +2868,13 @@ class _MiniMapPainter extends CustomPainter {
             ..strokeWidth = 1.5,
         );
 
-      final tag = switch (lair.template.preferredType ??
-          bossTypeForLevel(lair.level)) {
-        BossType.charger => '⚡',
-        BossType.gunner => '🔫',
-        BossType.skirmisher => '🎯',
-        BossType.bulwark => '🛡️',
-        BossType.carrier => '🛸',
-        BossType.warden => '👑',
-      };
       if (showStructureLabels) {
+        // No boss-type emoji here either — this was the third copy of that
+        // same six-emoji switch, after the survival label and the open-world
+        // ones.
         _paintLabel(
           canvas,
-          '$tag Lv${lair.level} ${lair.template.name.toUpperCase()}',
+          'Lv${lair.level} ${lair.template.name.toUpperCase()}',
           const Color(0xFFFF5252),
           1.0,
           lPos,
