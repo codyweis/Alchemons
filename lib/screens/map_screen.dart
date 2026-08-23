@@ -793,17 +793,36 @@ class _ExpeditionMap extends StatelessWidget {
                         color: Colors.red,
                         clipOval: true,
                       ),
-                    // Below centre, clear of the biome name painted into the
-                    // map art.
-                    Align(
-                      alignment: const Alignment(0, 0.62),
-                      child: _BiomeTimerPill(
-                        biomeId: biomeId,
-                        spawnService: spawnService,
-                        hasSpawns: hasSpawns,
-                      ),
-                    ),
                   ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        // The biome names are painted into map.png at different heights per
+        // landmass, so a single offset below each hotspot cannot clear them
+        // all — SKY and VOLCANO sat directly on their own labels. These are
+        // tuned against the artwork, per biome.
+        Widget pill({
+          required double leftPct,
+          required double topPct,
+          required String biomeId,
+          required SceneDefinition scene,
+        }) {
+          final hasSpawns = scene.spawnPoints.any(
+            (sp) => spawnService.hasSpawnAt(biomeId, sp.id),
+          );
+          return Positioned(
+            left: size * leftPct - 60,
+            top: size * topPct,
+            child: SizedBox(
+              width: 120,
+              child: Center(
+                child: _BiomeTimerPill(
+                  biomeId: biomeId,
+                  spawnService: spawnService,
+                  hasSpawns: hasSpawns,
                 ),
               ),
             ),
@@ -856,6 +875,34 @@ class _ExpeditionMap extends StatelessWidget {
                   scene: swampScene,
                 ),
 
+                // TIMERS — placed to sit clear of the painted biome names.
+                pill(
+                  leftPct: 0.30,
+                  topPct: 0.34,
+                  biomeId: 'valley',
+                  scene: valleySceneCorrected,
+                ),
+                // SKY's label sits lower in the art than VALLEY's.
+                pill(
+                  leftPct: 0.72,
+                  topPct: 0.40,
+                  biomeId: 'sky',
+                  scene: skyScene,
+                ),
+                // VOLCANO's label is at the foot of the landmass.
+                pill(
+                  leftPct: 0.25,
+                  topPct: 0.85,
+                  biomeId: 'volcano',
+                  scene: volcanoScene,
+                ),
+                pill(
+                  leftPct: 0.75,
+                  topPct: 0.76,
+                  biomeId: 'swamp',
+                  scene: swampScene,
+                ),
+
                 // ARCANE PORTAL VORTEX — centre of map
                 if (arcaneUnlocked) ...[
                   _ArcaneVortex(
@@ -867,10 +914,10 @@ class _ExpeditionMap extends StatelessWidget {
                         : () => onPeekRegion!('arcane'),
                   ),
                   Positioned(
-                    left: size * 0.5 - 45,
+                    left: size * 0.5 - 60,
                     top: size * 0.5 + 34,
                     child: SizedBox(
-                      width: 90,
+                      width: 120,
                       child: Center(
                         child: _BiomeTimerPill(
                           biomeId: 'arcane',
