@@ -1,3 +1,4 @@
+import 'package:alchemons/screens/wilderness_peek_dialog.dart';
 import 'dart:async';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/rift_state.dart';
@@ -141,10 +142,17 @@ class _MapScreenState extends State<MapScreen>
     });
   }
 
+  static const Map<String, String> _biomeDisplayNames = {
+    'valley': 'Verdant Valley',
+    'sky': 'Skyward Reach',
+    'volcano': 'Ashen Volcano',
+    'swamp': 'Sunken Swamp',
+    'arcane': 'Arcane Expanse',
+  };
+
   Future<void> _handlePeekRegion(String biomeId) async {
     if (widget.isTutorial) return;
 
-    final theme = context.read<FactionTheme>();
     final spawnService = context.read<WildernessSpawnService>();
     final constellations = context.read<ConstellationEffectsService>();
 
@@ -171,203 +179,35 @@ class _MapScreenState extends State<MapScreen>
     }
 
     final repo = context.read<CreatureCatalog>();
-
-    Color rarityColor0(String rarityName) {
-      switch (rarityName) {
-        case 'legendary':
-          return const Color(0xFFFFD700);
-        case 'rare':
-          return Colors.cyanAccent;
-        case 'uncommon':
-          return Colors.lightGreenAccent;
-        default:
-          return theme.textMuted;
+    final spawns = <PeekedSpawn>[];
+    for (final id in spawnPointIds) {
+      final roll = spawnService.getSpawnAt(biomeId, id);
+      if (roll == null) {
+        spawns.add(const PeekedSpawn(rarityName: 'unknown'));
+        continue;
       }
+      spawns.add(
+        PeekedSpawn(
+          rarityName: roll.rarity.name,
+          creature: repo.getCreatureById(roll.speciesId),
+          fallbackId: roll.speciesId,
+        ),
+      );
     }
 
-    await showDialog<void>(
+    if (!mounted) return;
+    await showWildernessPeekDialog(
       context: context,
-      builder: (ctx) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.accent, width: 1.4),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  AppIcons.remove_red_eye_rounded,
-                  color: theme.accent,
-                  size: 26,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Wilderness Peek',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Current wild spawns in this biome:',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-
-                // List of spawns
-                SizedBox(
-                  height: 220,
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: spawnPointIds.length,
-                    itemBuilder: (context, index) {
-                      final spawnPointId = spawnPointIds[index];
-                      final roll = spawnService.getSpawnAt(
-                        biomeId,
-                        spawnPointId,
-                      );
-                      if (roll == null) {
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            'Unknown creature',
-                            style: TextStyle(
-                              color: theme.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        );
-                      }
-
-                      final base = repo.getCreatureById(roll.speciesId);
-                      final rarityName = roll.rarity.name;
-                      final rarityColor = rarityColor0(rarityName);
-
-                      return ListTile(
-                        dense: true,
-
-                        title: Text(
-                          base?.name ?? roll.speciesId,
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: rarityColor.withValues(alpha: .16),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: rarityColor, width: 1),
-                          ),
-                          child: Text(
-                            rarityName.toUpperCase(),
-                            style: TextStyle(
-                              color: rarityColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .6,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Buttons
-                Row(
-                  children: [
-                    // Close
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: theme.surfaceAlt,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: theme.accent.withValues(alpha: .3),
-                              width: 1.2,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'CLOSE',
-                            style: TextStyle(
-                              color: theme.text,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              letterSpacing: .5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-
-                    // Reset spawns
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () async {
-                          Navigator.pop(ctx);
-                          await spawnService.clearSceneSpawns(biomeId);
-                          if (!mounted) return;
-                          _showToast(
-                            context,
-                            'Spawns reset for this biome.',
-                            AppIcons.refresh_rounded,
-                            theme.accent,
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: theme.surface,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: theme.accent, width: 1.4),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'RESET SPAWNS',
-                            style: TextStyle(
-                              color: theme.text,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              letterSpacing: .5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+      biomeName: _biomeDisplayNames[biomeId] ?? biomeId,
+      spawns: spawns,
+      onResetSpawns: () async {
+        await spawnService.clearSceneSpawns(biomeId);
+        if (!mounted) return;
+        _showToast(
+          context,
+          'Spawns cleared for this biome.',
+          AppIcons.refresh_rounded,
+          Colors.orange.shade400,
         );
       },
     );
