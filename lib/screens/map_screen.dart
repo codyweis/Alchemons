@@ -205,7 +205,7 @@ class _MapScreenState extends State<MapScreen>
         if (!mounted) return;
         _showToast(
           context,
-          'Spawns cleared for this biome.',
+          'Spawns reset for this biome.',
           AppIcons.refresh_rounded,
           Colors.orange.shade400,
         );

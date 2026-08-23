@@ -265,25 +265,27 @@ class WildernessPeekDialog extends StatelessWidget {
   }
 
   Widget _actions(BuildContext context) {
+    final reset = onResetSpawns;
     return Row(
       children: [
         Expanded(
-          flex: 2,
+          // Equal halves rather than 2:1 — "RESET SPAWNS" does not fit the
+          // narrow slot on a small phone.
           child: _Btn(
             label: 'CLOSE',
             accent: _textSoft,
             onTap: () => Navigator.of(context).pop(),
           ),
         ),
-        if (onResetSpawns != null) ...[
+        if (reset != null) ...[
           const SizedBox(width: 10),
           Expanded(
             child: _Btn(
-              label: 'CLEAR',
+              label: 'RESET SPAWNS',
               accent: const Color(0xFFE0885A),
               onTap: () {
                 Navigator.of(context).pop();
-                onResetSpawns!();
+                reset();
               },
             ),
           ),
@@ -318,13 +320,18 @@ class _Btn extends StatelessWidget {
                   : WildernessPeekDialog._hairline,
             ),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: accent,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                color: accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
         ),
