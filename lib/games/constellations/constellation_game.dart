@@ -1357,6 +1357,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
   Paint? _borderPaint;
   Paint? _corePaint;
   Paint? _readyPaint;
+  Paint? _readyOuterPaint;
 
   /// The six alchemical accent diamonds never move relative to the node, so
   /// they are one static path built once — not six Paths and a Paint rebuilt
@@ -1464,13 +1465,21 @@ class SkillNode extends PositionComponent with TapCallbacks {
     }
 
     if (canUnlock && !isUnlocked) {
-      _readyPaint = Paint()
-        ..color = availableColor.withValues(alpha: 0.22)
+      // Was a MaskFilter.blur stroke. Blur is a GPU filter pass per draw and
+      // its first use pays pipeline creation, which lands on the frame the
+      // screen appears — and no widget test can see it, because tests never
+      // rasterise. Two plain strokes read the same at this size.
+      _readyOuterPaint = Paint()
+        ..color = availableColor.withValues(alpha: 0.10)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+        ..strokeWidth = 7.0;
+      _readyPaint = Paint()
+        ..color = availableColor.withValues(alpha: 0.30)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5;
     } else {
       _readyPaint = null;
+      _readyOuterPaint = null;
     }
   }
 
@@ -1605,6 +1614,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
     }
 
     if (canUnlock && !isUnlocked) {
+      canvas.drawPath(_coreHexPath!, _readyOuterPaint!);
       canvas.drawPath(_coreHexPath!, _readyPaint!);
     }
 
@@ -1645,19 +1655,25 @@ class SkillNode extends PositionComponent with TapCallbacks {
       // Expanding ring
       final ringRadius = 30.0 + eased * 90.0;
       final ringPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.85 * fade)
+        ..color = Colors.white.withValues(alpha: 0.30 * fade)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.0 * fade + 1.0
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4.0 + eased * 6.0);
+        ..strokeWidth = (3.0 * fade + 1.0) * 2.6;
+      canvas.drawCircle(center.toOffset(), ringRadius, ringPaint);
+      ringPaint
+        ..color = Colors.white.withValues(alpha: 0.85 * fade)
+        ..strokeWidth = 3.0 * fade + 1.0;
       canvas.drawCircle(center.toOffset(), ringRadius, ringPaint);
 
       // Color-tinted secondary ring trailing slightly behind
       final trailRadius = 18.0 + eased * 70.0;
       final trailPaint = Paint()
-        ..color = primaryColor.withValues(alpha: 0.7 * fade)
+        ..color = primaryColor.withValues(alpha: 0.25 * fade)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+        ..strokeWidth = 6.0;
+      canvas.drawCircle(center.toOffset(), trailRadius, trailPaint);
+      trailPaint
+        ..color = primaryColor.withValues(alpha: 0.7 * fade)
+        ..strokeWidth = 2.0;
       canvas.drawCircle(center.toOffset(), trailRadius, trailPaint);
 
       // Bright center flash — quick fade

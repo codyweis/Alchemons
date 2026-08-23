@@ -70,14 +70,23 @@ void main() {
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
 
-    final c = await _census(tester, unlocked: allSkills, zoom: 1.0);
-    // Was 72: two MaskFilter.blur draws for every active connection line.
-    // Each one is its own GPU filter pass.
-    expect(
-      c.blurredDraws,
-      lessThanOrEqualTo(8),
-      reason: 'blurred draws are the most expensive thing on this screen',
-    );
+    // Was 72 across the connection lines, then 6 on the unlockable nodes.
+    // Now none at all: a blur is a GPU filter pass per draw, and its first use
+    // pays pipeline creation on the frame the screen appears. Nothing here
+    // needs one — layered translucent strokes read the same at these sizes.
+    //
+    // Worth stating plainly: this budget is the ONLY check on blur, because
+    // widget tests never rasterise. Blur cost is invisible to frame timings.
+    for (final unlocked in [allSkills, <String>{}]) {
+      final c = await _census(tester, unlocked: unlocked, zoom: 1.0);
+      expect(
+        c.blurredDraws,
+        0,
+        reason: unlocked.isEmpty
+            ? 'a fresh tree draws unlockable nodes — those used to blur'
+            : 'a filled tree',
+      );
+    }
   });
 
   testWidgets('node particles and accents are batched, not per-shape', (
