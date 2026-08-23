@@ -1,6 +1,5 @@
 import 'package:alchemons/screens/wilderness_peek_dialog.dart';
 import 'dart:async';
-import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/rift_state.dart';
 import 'dart:math' as math;
 
@@ -535,8 +534,8 @@ class _MapScreenState extends State<MapScreen>
 ///
 /// A rift that survives leaving the scene is only half a fix if the player has
 /// to remember which biome it was in and guess how long is left. This names
-/// the biome, counts down, and says whether the required faction key is
-/// already in the bag — the whole point of the window is to go and get one.
+/// the biome and counts down; whether you hold the key is left for you to
+/// work out, same as every other gated thing in the game.
 class _RiftBanner extends StatefulWidget {
   const _RiftBanner({required this.theme});
   final FactionTheme theme;
@@ -547,7 +546,6 @@ class _RiftBanner extends StatefulWidget {
 
 class _RiftBannerState extends State<_RiftBanner> {
   PendingRift? _rift;
-  int _keyQty = 0;
   Timer? _tick;
 
   static const _biomeNames = {
@@ -579,17 +577,8 @@ class _RiftBannerState extends State<_RiftBanner> {
     final rift = PendingRift.deserialise(
       await db.settingsDao.getSetting('wild_rift_pending_v1'),
     );
-    var qty = 0;
-    if (rift != null) {
-      qty = await db.inventoryDao.getItemQty(
-        InvKeys.portalKeyForFaction(rift.factionName),
-      );
-    }
     if (!mounted) return;
-    setState(() {
-      _rift = rift;
-      _keyQty = qty;
-    });
+    setState(() => _rift = rift);
   }
 
   @override
@@ -600,10 +589,7 @@ class _RiftBannerState extends State<_RiftBanner> {
 
     final faction = rift.factionName;
     final label = faction[0].toUpperCase() + faction.substring(1);
-    final hasKey = _keyQty > 0;
-    final accent = hasKey
-        ? const Color(0xFF6FD08C)
-        : const Color(0xFFE0885A);
+    const accent = Color(0xFFE4C16A);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -614,7 +600,11 @@ class _RiftBannerState extends State<_RiftBanner> {
       ),
       child: Row(
         children: [
-          Icon(AppIcons.auto_awesome_rounded, color: accent, size: 18),
+          const Icon(
+            AppIcons.auto_awesome_rounded,
+            color: accent,
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -632,11 +622,8 @@ class _RiftBannerState extends State<_RiftBanner> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  hasKey
-                      ? 'Closes in ${rift.remainingLabel(now)} · key in hand'
-                      : 'Closes in ${rift.remainingLabel(now)} · '
-                            'needs a $label Portal Key',
-                  style: TextStyle(
+                  'Closes in ${rift.remainingLabel(now)}',
+                  style: const TextStyle(
                     color: accent,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
