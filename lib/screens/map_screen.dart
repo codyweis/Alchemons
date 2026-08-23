@@ -862,6 +862,9 @@ class _ExpeditionMap extends StatelessWidget {
                     mapSize: size,
                     hasSpawns: spawnService.getSceneSpawnCount('arcane') > 0,
                     onTap: () => onSelectRegion('arcane', arcaneScene),
+                    onLongPress: onPeekRegion == null
+                        ? null
+                        : () => onPeekRegion!('arcane'),
                   ),
                   Positioned(
                     left: size * 0.5 - 45,
@@ -992,10 +995,16 @@ class _BiomeTimerPillState extends State<_BiomeTimerPill> {
 class _ArcaneVortex extends StatefulWidget {
   final double mapSize;
   final VoidCallback onTap;
+
+  /// Long-press to peek, same as the four biome hotspots. Arcane is drawn as
+  /// its own widget rather than through the shared hotspot builder, so it did
+  /// not inherit the gesture.
+  final VoidCallback? onLongPress;
   final bool hasSpawns;
   const _ArcaneVortex({
     required this.mapSize,
     required this.onTap,
+    this.onLongPress,
     this.hasSpawns = false,
   });
 
@@ -1034,6 +1043,12 @@ class _ArcaneVortexState extends State<_ArcaneVortex>
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
+        onLongPress: widget.onLongPress == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                widget.onLongPress!();
+              },
         child: SizedBox(
           width: vortexSize,
           height: vortexSize,
