@@ -4002,6 +4002,29 @@ List<RitualBrazier> _raidBraziers(String element) {
   ];
 }
 
+
+/// Leviathan hauls the tide a stand on every roar, and its lull only opens on
+/// SETTLED water — so without tide zones the mechanic is inert and the fight
+/// is a plain charge.
+///
+/// The bands leave a dry central corridor at every stand. A raid arena that
+/// floods completely would be unplayable, and unlike the temple there are no
+/// authored ledges to retreat to. Rising water squeezes the fight inward
+/// instead of drowning it.
+List<TideZone> _raidTideZones(String element) {
+  if (element != 'Water') return const [];
+  return const [
+    // Mid tide takes the margins.
+    TideZone(rect: Rect.fromLTWH(0, 0, 230, 900), floodedAt: 1),
+    TideZone(rect: Rect.fromLTWH(1170, 0, 230, 900), floodedAt: 1),
+    TideZone(rect: Rect.fromLTWH(230, 0, 940, 130), floodedAt: 1),
+    // High tide closes in, leaving roughly 540x770 of standing room around
+    // the guardian and the entrance.
+    TideZone(rect: Rect.fromLTWH(230, 130, 200, 770), floodedAt: 2),
+    TideZone(rect: Rect.fromLTWH(970, 130, 200, 770), floodedAt: 2),
+  ];
+}
+
 /// A raid is one big open planet-themed arena — no rooms, no puzzles, just
 /// the empowered guardian under the storm. Generated, not authored, so every
 /// element in [kRaidGuardianIds] gets one for free.
@@ -4018,6 +4041,7 @@ DungeonLayout buildRaidArenaLayout(String element) {
     // is solved, it is only what the mechanic reads.
     stormRods: _raidStormRods(element),
     braziers: _raidBraziers(element),
+    tideZones: _raidTideZones(element),
     // Element-flavored crosswinds give gliders play without gating walkers.
     currents: const [
       WindCurrent(

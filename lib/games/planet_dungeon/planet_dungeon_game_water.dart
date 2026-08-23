@@ -1275,7 +1275,12 @@ extension MirrorTide on PlanetDungeonGame {
   /// `_updateAltar`), AFTER the cycle has set [guardianVulnerable].
   void _applyLeviathanTide(DungeonRoom room, double dt) {
     final g = room.guardian;
-    if (g == null || isRaid || room.tideZones.isEmpty) return;
+    // Raids used to be excluded here. The empty-zone check already covers an
+    // arena without a tide, so the raid guard was redundant once the arena
+    // started generating one. The tide settles on a timer, needing no verb
+    // from the party — which is what makes this safe for a raid squad picked
+    // with no element requirement.
+    if (g == null || room.tideZones.isEmpty) return;
     if (hasStar(g.starIndex)) return;
     // The roar rides the SHUT of the lull — the raw cycle's falling edge, so
     // it fires on a fixed beat and always has a full strike phase in which

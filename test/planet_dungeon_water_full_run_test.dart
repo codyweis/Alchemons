@@ -968,11 +968,18 @@ void main() {
     }
   });
 
-  test('raids are exempt: the generated arena has no tide to turn', () {
+  test('the tide turns in a raid — the arena carries its own zones', () {
+    // This used to assert the opposite. Leviathan was exempt because the
+    // generated arena had no tide, which left it — and every other guardian —
+    // playing as a plain charging phantom.
+    //
+    // Also note the star mask: this test used to pass 7, which would have
+    // short-circuited the mechanic on hasStar regardless. Raids really run
+    // with 0.
     final game = PlanetDungeonGame(
       element: 'Water',
       party: [_member(0, 'Water', 'pip')],
-      initialStarMask: 7,
+      initialStarMask: 0,
       onStarEarned: (_) {},
       onPlayerDown: () {},
       onChanged: () {},
@@ -984,19 +991,16 @@ void main() {
       ..lastSafe = game.layout.entranceSpawn;
     game.creatures.add(c);
     game.currentRoomId = game.layout.entranceRoomId;
-    expect(
-      game.currentRoom.tideZones,
-      isEmpty,
-      reason: 'the raid arena is generated, and has no tide zones',
-    );
-    for (var i = 0; i < 60 * 20; i++) {
+    expect(game.currentRoom.tideZones, isNotEmpty);
+
+    for (var i = 0; i < 60 * 25; i++) {
       game.update(1 / 60);
       c.hp = c.maxHp;
     }
     expect(
       game.leviathanRoars,
-      0,
-      reason: 'no tide-turn in a raid — the shared cycle carries it',
+      greaterThan(0),
+      reason: 'the guardian should be hauling the tide on its cycle',
     );
   });
 

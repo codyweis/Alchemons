@@ -37,6 +37,32 @@ void main() {
       expect(rods.map((r) => r.initialHeight).toSet().length, greaterThan(1));
     });
 
+    test('Water gets tide zones for Leviathan to haul', () {
+      final room = buildRaidArenaLayout('Water').entranceRoom;
+      expect(room.tideZones, isNotEmpty);
+      // Both stands must exist or the tide has nothing to move between.
+      final levels = room.tideZones.map((z) => z.floodedAt).toSet();
+      expect(levels, containsAll([1, 2]));
+    });
+
+    test('a dry corridor survives high tide', () {
+      // A fully flooded arena is unplayable, and unlike the temple there are
+      // no authored ledges to retreat to.
+      final room = buildRaidArenaLayout('Water').entranceRoom;
+      final flooded = room.tideZones.map((z) => z.rect).toList();
+      for (final p in [
+        const Offset(700, 380), // the guardian
+        const Offset(700, 740), // the entrance
+        const Offset(700, 500), // between them
+      ]) {
+        expect(
+          flooded.any((r) => r.contains(p)),
+          isFalse,
+          reason: '$p is under water at high tide',
+        );
+      }
+    });
+
     test('rod ids are unique', () {
       final rods = buildRaidArenaLayout('Air').entranceRoom.stormRods;
       expect(rods.map((r) => r.id).toSet().length, rods.length);
@@ -61,6 +87,28 @@ void main() {
           isEmpty,
           reason: '$el should not have braziers',
         );
+      }
+    });
+
+    test('only Water gets a tide', () {
+      for (final el in kRaidGuardianIds.keys.where((e) => e != 'Water')) {
+        expect(
+          buildRaidArenaLayout(el).entranceRoom.tideZones,
+          isEmpty,
+          reason: '$el should not have a tide',
+        );
+      }
+    });
+
+    test('no raid carries the Raikuma trunk apparatus', () {
+      // Deliberately NOT enabled. Grounding the trunk needs beam emitters and
+      // fulminate vats; without them activeTrunk stays seized, the guardian
+      // never becomes vulnerable, and the ten-minute timer makes that an
+      // unlosable-by-design fight. See the Raikuma note in the commit.
+      for (final el in kRaidGuardianIds.keys) {
+        final layout = buildRaidArenaLayout(el);
+        expect(layout.entranceRoom.coreBreaker, isNull, reason: el);
+        expect(layout.dynamoTrunks, isEmpty, reason: el);
       }
     });
 
