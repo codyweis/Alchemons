@@ -9,14 +9,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('the derivation reproduces what was hand-maintained', () {
-    // Pinned so deriving it did not quietly change any guardian.
-    expect(kRaidGuardianIds, {
+    // Pinned so deriving it did not quietly change any guardian. Deliberately
+    // a containment check, not equality: the six below are the ones the old
+    // hand-written map named, and they must never move. Authoring a new
+    // dungeon is supposed to add a raid with no second edit, so a new element
+    // appearing here is the feature working — not a regression to re-pin.
+    const wasHandMaintained = {
       'Air': 'Roc',
       'Fire': 'Simurgh',
       'Water': 'Leviathan',
       'Earth': 'Terradon',
       'Lightning': 'Raikuma',
       'Steam': 'Boilrog',
+    };
+    wasHandMaintained.forEach((element, mystic) {
+      expect(kRaidGuardianIds[element], mystic, reason: element);
     });
   });
 
