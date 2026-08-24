@@ -12,6 +12,7 @@ import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
     show PlanetStarState;
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1057,6 +1058,18 @@ class DungeonRoom {
   final Offset? stokePort; // firebox: Fire stokes the main (+pressure, +wisps)
   final BurstDisc? burstDisc; // vault passage blown open by venting the main
 
+  // Poison (Venom Monastery) authored content — see
+  // planet_dungeon_layout_poison.dart, where the fixtures themselves live.
+  /// This room IS a quarantine ward (null = it is not one).
+  final WardCell? ward;
+
+  /// The infirmary still, or the crypt's carrion font: four taps of physic.
+  final Apothecary? apothecary;
+
+  /// The prior's seal — where the triage is committed, and where Poison
+  /// declares its two non-guardian star indices.
+  final PriorsSeal? priorsSeal;
+
   const DungeonRoom({
     required this.id,
     required this.bounds,
@@ -1124,6 +1137,9 @@ class DungeonRoom {
     this.pressureSeals = const [],
     this.stokePort,
     this.burstDisc,
+    this.ward,
+    this.apothecary,
+    this.priorsSeal,
   });
 }
 
@@ -1286,6 +1302,13 @@ class DungeonLayout {
       // field both carry their planet's star on the object, not on a room flag.
       if (room.garth != null) seen.add(room.garth!.starIndex);
       if (room.capstone != null) seen.add(room.capstone!.starIndex);
+      // Poison carries BOTH of its non-guardian stars on the prior's seal: a
+      // cure can bank Star 1 in any of the four wards, so no ward owns it.
+      final seal = room.priorsSeal;
+      if (seal != null) {
+        seen.add(seal.diagnosisStarIndex);
+        seen.add(seal.triageStarIndex);
+      }
     }
     return seen;
   }
@@ -3905,6 +3928,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Earth': _earthLayout,
   'Lightning': _lightningLayout,
   'Steam': _steamLayout,
+  'Poison': poisonLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

@@ -493,6 +493,13 @@ void main() {
             if (room.capstone != null) {
               nonGuardianStars.add(room.capstone!.starIndex);
             }
+            // Poison declares BOTH of its non-guardian stars on the prior's
+            // seal: a cure can bank Star 1 in any of the four wards, so no
+            // ward owns it.
+            if (room.priorsSeal != null) {
+              nonGuardianStars.add(room.priorsSeal!.diagnosisStarIndex);
+              nonGuardianStars.add(room.priorsSeal!.triageStarIndex);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));

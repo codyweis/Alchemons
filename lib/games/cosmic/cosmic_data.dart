@@ -1652,6 +1652,11 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // and halts its creep) + Earth (Horn dams the flood with raised walls) + Fire
   // (Earth+Fire→Lava melts rock to molten). Each room is a spreading-lava grid.
   'Steam': ['Steam', 'Earth', 'Fire'],
+  // Venom Monastery (Toxica): Poison (the wax seals, the still, the physic) +
+  // Lava (a horn burns through the charnel's brick) + Mud (a mane's trail
+  // carries a live phial clean through a ward). Lava+Mud→Poison brews the
+  // counter-strains when no Poison hand is free.
+  'Poison': ['Poison', 'Lava', 'Mud'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1669,6 +1674,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Earth': ['Horn', 'Pip', 'Mask'], // Earthhorn · Lightningpip · Crystalmask
   'Lightning': ['Horn', 'Wing', 'Mask'], // Lightninghorn · Airwing · Firemask
   'Steam': ['Pip', 'Horn', 'Mask'], // Steampip · Earthhorn · Firemask
+  'Poison': ['Mask', 'Horn', 'Mane'], // Poisonmask · Lavahorn · Mudmane
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1683,7 +1689,6 @@ const Set<String> kComingSoonDungeons = {
   'Dust',
   'Crystal',
   'Plant',
-  'Poison',
   'Spirit',
   'Dark',
   'Light',

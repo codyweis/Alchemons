@@ -24,6 +24,7 @@ import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -41,6 +42,7 @@ part 'planet_dungeon_game_water.dart';
 part 'planet_dungeon_game_earth.dart';
 part 'planet_dungeon_game_lightning.dart';
 part 'planet_dungeon_game_steam.dart';
+part 'planet_dungeon_game_poison.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
@@ -1180,6 +1182,13 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isVapor => layout.element == 'Steam';
 
+  // ── Poison (Venom Monastery) run-state ──
+  /// The whole quarantine run — the triage rules plus the live strains. One
+  /// field, because everything this planet tracks lives inside it (see
+  /// planet_dungeon_game_poison.dart).
+  final VenomMonastery monastery = VenomMonastery();
+  bool get _isVenom => layout.element == 'Poison';
+
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
   final Map<String, double> _conduitMaxEnergy = {};
@@ -1245,6 +1254,14 @@ class PlanetDungeonGame extends FlameGame {
     // MYS03 sheet verified 2048×512 — 4 frames of 512×512, one row.
     'Terradon': SpriteSheetDef(
       path: 'creatures/mystic/MYS03_earthmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+    // MYS13 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Blightfang': SpriteSheetDef(
+      path: 'creatures/mystic/MYS13_poisonmystic_spritesheet.png',
       totalFrames: 4,
       rows: 1,
       frameSize: Vector2(512, 512),
@@ -1350,6 +1367,12 @@ class PlanetDungeonGame extends FlameGame {
             Color(0xFFBFE6FF), // arc-white spark
             Color(0xFF6BA8FF), // charged blue
             Color(0xFFE9D27A), // brass conductor
+          ]
+        : _isVenom
+        ? const [
+            Color(0xFF8FD14F), // live spore
+            Color(0xFFB86FE0), // fed strain
+            Color(0xFFD8CBA8), // old linen
           ]
         : _isVapor
         ? const [
@@ -1465,6 +1488,7 @@ class PlanetDungeonGame extends FlameGame {
   /// tide stand) already render as their own HUDs and stay there.
   DungeonProgressReadout? get progressReadout {
     if (_isCathedral) return _cathedralProgressReadout;
+    if (_isVenom) return _monasteryProgressReadout;
     if (_isBarrow) return _barrowProgressReadout;
     // Lightning: terminal/socket counters + the dynamo's trunk state.
     if (_isCircuit) return _circuitProgressReadout();
@@ -1816,6 +1840,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetBarrowState();
     _resetCircuitState();
     _resetPressureState();
+    _resetMonasteryState();
   }
 
   void _resetRun() {
@@ -2070,6 +2095,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateCircuit(a, room, dt);
     _updatePressure(a, room, dt);
     _updateGeyserField(a, room, dt);
+    _updateMonastery(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2251,6 +2277,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) _barrowAmbientHint(a, room);
     if (_isCircuit) _circuitAmbientHint(a, room);
     if (_isVapor) _steamAmbientHint(a, room);
+    if (_isVenom) _monasteryAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -2852,6 +2879,10 @@ class PlanetDungeonGame extends FlameGame {
       // rods, Star 3's own vocabulary — forces a window the cycle never would.
       // Air-only, and raids have no rod field to rank.
       if (_isSpire) _applyRocDrag(room, dt);
+      // Blightfang never opens a lull on a clock (§7): only the draught that
+      // answers the strain it is WEARING forces the window, and it takes a
+      // fresh habit the moment the window shuts. Poison-only; raids exempt.
+      if (_isVenom) _applyBlightfangStrain(room, dt);
       final stormCenter = _guardianPosition(g);
       // Half-HP escalation: one screech — feather-wisps rise, lulls tighten.
       if (!_rocEnraged &&
@@ -6806,6 +6837,13 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // Venom Monastery: a phial in hand outranks the guardian's own catch —
+    // the dose IS the fight's verb (§7: Blightfang's lull answers physic, not
+    // a clock). Empty-handed this declines and the strike path runs.
+    if (_isVenom && _tryDoseBlightfang(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -6849,6 +6887,12 @@ class PlanetDungeonGame extends FlameGame {
     // Pressure Cathedral interactions (vents/seals steer the clock, boiler
     // pack+ignite, the escapement, the entry vent).
     if (_tryPressure(a)) {
+      onChanged();
+      return;
+    }
+    // Venom Monastery interactions (the wax seals, the still's four taps, a
+    // ward's censer, the prior's cross, the oubliette, the sick wisp).
+    if (_tryMonastery(a)) {
       onChanged();
       return;
     }
@@ -6962,6 +7006,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVapor) {
       _steamReveal(a, room);
+      return;
+    }
+    if (_isVenom) {
+      _monasteryReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7415,6 +7463,8 @@ class PlanetDungeonGame extends FlameGame {
         if (ref.matches(room, door)) return true;
       }
     }
+    // Poison: the oubliette exists only in the ward that was surrendered.
+    if (_isVenom && _monasteryDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -7436,6 +7486,7 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_guardianDoorSealed(door)) return true;
     if (_isVapor && _sealBlocked(room, door)) return true;
+    if (_isVenom && _monasteryDoorLocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7462,6 +7513,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVapor && _sealBlocked(room, door)) {
       return _sealDoorHint(room, door);
+    }
+    if (_isVenom && _monasteryDoorLocked(room, door)) {
+      return _monasteryDoorHint(room, door);
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
@@ -7508,6 +7562,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) return _barrowObjectiveHint(room);
     if (_isCircuit) return _circuitObjectiveHint(room);
     if (_isVapor) return _steamObjectiveHint(room);
+    if (_isVenom) return _monasteryObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -7784,6 +7839,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) _renderBarrow(canvas, room);
     if (_isCircuit) _renderCircuit(canvas, room);
     if (_isVapor) _renderSteam(canvas, room);
+    if (_isVenom) _renderMonastery(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8104,6 +8160,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) return _barrowMoodTarget;
     if (_isCircuit) return _circuitMoodTarget;
     if (_isVapor) return _steamMoodTarget;
+    if (_isVenom) return _monasteryMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||
