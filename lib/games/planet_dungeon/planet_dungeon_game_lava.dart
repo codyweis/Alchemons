@@ -346,7 +346,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     for (final n in s.line.nodesIn(room.id)) {
       if (n.kind != FoundryNodeKind.mold) continue;
       if ((a.position - n.position).distance > _kWorksReach) continue;
-      if (_tryTakeKey(n)) return true;
+      if (_tryTakeKey(a, n)) return true;
     }
 
     // 7) Turn a ward with the key in hand.
@@ -576,14 +576,26 @@ extension MoltenReliquary on PlanetDungeonGame {
     return false;
   }
 
-  bool _tryTakeKey(FoundryNode mold) {
+  bool _tryTakeKey(DungeonCreature a, FoundryNode mold) {
     final s = works.line;
     final what = s.molds[mold.id];
     if (what == null) return false;
     if (what == 'span_a') return false; // a road is not carried
+    // A ruined key has no footprint on the floor for the re-melt sweep to
+    // find, so the form itself is where a Lava hand takes it back out.
     if (!s.cast(what)) {
-      if (a0OrNull()?.member.element == 'Lava') return false; // let remelt run
-      _setHint('Only slag in this form');
+      if (a.member.element != 'Lava') {
+        _setBlockedHint('Only slag in this form — and only Lava melts it out');
+        return true;
+      }
+      s.remelt('cast:$what');
+      _setHint('The ruined key goes back to running metal');
+      _spawnAlchemyBurst(
+        mold.position,
+        producedElement: 'Lava',
+        particleCount: 16,
+        intensity: 0.7,
+      );
       return true;
     }
     if (s.carried != null) {
@@ -596,10 +608,6 @@ extension MoltenReliquary on PlanetDungeonGame {
         : 'The reliquary key comes out of the sand, still ticking');
     return true;
   }
-
-  /// The active creature, or null — small helper so [_tryTakeKey] can defer
-  /// to the re-melt verb when a Lava hand is the one standing there.
-  DungeonCreature? a0OrNull() => active;
 
   /// THE FIGHT'S VERB (§7). Throwing a head as Magmara comes past beaches it;
   /// throwing it into empty channel just clangs. Costs no charge — the heart
