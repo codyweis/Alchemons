@@ -21,6 +21,24 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+// STATUS: eight tests in this file fail against the current Steam content.
+//
+// They are stale, not evidence of a broken dungeon — the same situation the
+// Fire file was in before its ash-garden pass. But unlike Fire they are NOT
+// uniformly mechanical:
+//
+//   • Some are pure coordinate drift. The crucible's meltable '#' band sits on
+//     row 5 of its authored rows; tests written against an older art still
+//     look at row 6. Fixing the lookup is enough.
+//
+//   • At least one is semantic. 'each molten verb answers only its own family'
+//     melts in the crucible and expects ember_causeway to wake; the crucible
+//     wakes instead. That needs the flood-propagation rule settled before the
+//     test can be trusted either way.
+//
+// Do not bulk-shift every row index by one. Check each against the authored
+// rows in planet_dungeon_data.dart.
+
 CosmicPartyMember _member(int slot, String element, String family) {
   return CosmicPartyMember(
     instanceId: 'inst_$slot',
@@ -403,8 +421,9 @@ void main() {
     game.update(1 / 60);
     final cells = game.moltenCells['crucible']!;
 
-    // The dry meltable face sits at col5/row6.
-    const wc = 5, wr = 6;
+    // The dry meltable face sits at col5/row5 — the '#' band in the
+    // crucible's authored rows. (Was row6, stale by one after an art edit.)
+    const wc = 5, wr = 5;
     expect(cells[wr][wc], 1);
 
     void faceWallAs(int idx) {
@@ -423,6 +442,10 @@ void main() {
     faceWallAs(2); // Fire
     game.activateAbility();
     expect(cells[wr][wc], 3, reason: 'Fire melts the wall to lava');
+    // STALE, and not just a coordinate: this melts in the crucible and
+    // expects ember_causeway to wake, but the crucible wakes instead. Whether
+    // the propagation rule changed or the test always meant its own room is a
+    // design question, not a lookup — see the note at the top of this file.
     expect(game.wokeRooms, contains('ember_causeway'),
         reason: 'the first melt wakes the room');
 
