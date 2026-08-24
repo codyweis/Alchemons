@@ -286,14 +286,14 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Water** (built) | Hub + wings, but rooms CHANGE with tide state | which tide stand to settle, and when | low-tide-only passage (shipped) |
 | **Earth** (built) | The map IS a body — anatomy as architecture | hunt the scale's answer through rooms you've walked | beyond the chasm, needs the ribs (shipped) |
 | **Steam** (built) | Pressure ring-main: NO hub — a clamped boiler loop spending one global pressure budget | junctions cost 15 from a head of 40 — pick a direction; cooling condenses fuel back, stoking pays in wisps | vent the WHOLE main (≥60) into a burst-disc — the sacrifice must be whole (shipped) |
-| Lava | Foundry line: one long production line the player re-routes | limited molten pours — what do you cast, in what order | cast a key whose mold is hidden elsewhere on the line |
+| **Lava** (built) | Foundry line: one long production line the player re-routes | limited molten pours — what do you cast, in what order | cast a key whose mold is hidden elsewhere on the line |
 | **Lightning** (built; rework §9.1) | Hub dynamo + zero-sum branch circuit (the "ring" claim is retired — it shipped as a hub and Steam owns the ring; the loop promise is honored LOGICALLY: door states follow circuit state) | powering one trunk darkens the others — where does the power go, and what must you do in the dark | walk the DEAD segment in the dark: the vault only opens unpowered (rework) |
 | Mud | Shifting field: one huge open bog, no fixed rooms — islands whose connections you terraform | every path you harden sinks another — shape the map you'll have to live with | let the vault knoll SINK, ride it down to the drowned level |
-| Ice | Vertical shaft: descending is one-way slides; ascending must be engineered | plan the descent so you can climb back — refrozen slides are your only ladder | visible only in a mirror; enterable only from a slide you can't repeat |
+| **Ice** (built) | Vertical shaft: descending is one-way slides; ascending must be engineered | plan the descent so you can climb back — refrozen slides are your only ladder | visible only in a mirror; enterable only from a slide you can't repeat |
 | Dust | Buried city, two Z-layers: streets above, excavation below; digging swaps layers | conservation of dust — uncovering one thing buries another | a fully buried building visible only as a roof bump on the streets |
 | Crystal | Rearranging 3×3 sliding grid — sliding moves rooms AND you | every slide solves one adjacency and breaks another | a room that only ENTERS the grid in one configuration |
 | Plant | Nested scales: the same map at tiny and huge, overlaid | which scale to be, where — passages exist at one scale only | visible at huge scale, enterable only at tiny |
-| Poison | Quarantine wards: sealed wards; opening one lets the contagion in | you cannot cure every ward — choose what to sacrifice | inside the ward you chose NOT to save |
+| **Poison** (built) | Quarantine wards: sealed wards; opening one lets the contagion in | you cannot cure every ward — choose what to sacrifice | inside the ward you chose NOT to save |
 | Spirit | Two overlaid worlds: living/ghost layers, same geometry, different doors | which layer to cross each junction in — deaths in one open doors in the other | exists only in the ghost layer, marked only in the living one |
 | Dark | Inverting maze: light/dark flips swap walls and doors | every flip you make for a door closes one elsewhere | the vault room only EXISTS in the dark state |
 | Light | One great hall: no corridors — light beams partition the space into moving "rooms" | aiming light builds paths AND exposes you — illuminate as little as possible | stands in plain sight; reachable only through un-lit ground |
@@ -314,16 +314,25 @@ new. The ledger grows with every build:
 | **Earth** | track-notch sokoban shoves · clue-hunt logic deduction (answers carved into REMOTE architecture, rolled per run — the treasure-hunt variant; Fire's forensic variant reads the object itself) |
 | **Lightning** | beam routing/reflection via rotatable mirrors (+ *(rework)* negative constraints, provably unique) · element STATIONING pads · decoy-pad deduction · *(rework)* zero-sum power routing (power here = dark there) |
 | **Steam** | global resource economy (spend/condense/stoke one shared budget) · sacrifice-the-whole-budget vault |
+| **Poison** (BUILT 2026-08-24) | **diagnosis-by-behaviour** (a strain is identified by how it MOVES, not by a label or a clue — CLAIMED: no other planet may make observation-of-motion the read) · **forced partial sacrifice** (a budget that provably covers all but one target, so the question is which one you abandon — CLAIMED, and distinct from Steam's spend-it-all: here the shortfall is structural and the choice is named) |
+| **Ice** (BUILT 2026-08-24) | **one-way descent with an engineered return** (traversal that consumes the route behind you; the ladder home is something you must have built on the way down — CLAIMED) · **treasure-or-ladder exclusivity** (each edit serves one of two purposes and you commit before you know which you need) · costly full-state reset valve as the anti-softlock (a pattern, not a claim — reusable) |
+| **Lava** (BUILT 2026-08-24) | **production-line re-routing** (program a path, then spend a limited fungible charge down it; what the charge BECOMES is decided by where it went — CLAIMED) · **the dual-purpose product** (the thing you cast is both a road and a plug, so ordering falls out of physics rather than instruction — this is how Lava stays out of Fire's order-memory seat; any planet reusing it must derive the order, never hand it over) |
 | **Nexus** (reserved) | RULE MANIPULATION — transmutation circles rewriting element bindings (the Baba Is You seat; no planet may touch it) |
 
-**Open archetype pool for the remaining 11** (match against the §6 matrix;
+**Open archetype pool for the remaining 8** (match against the §6 matrix;
 each planet claims patterns no ledger row owns): rhythm/timing windows
 (Blood) · light-cone occlusion + exposure management (Light) · state-flip
 maze inversion (Dark) · two-overlaid-worlds layer swap (Spirit, Dust) ·
-scale shift tiny/huge (Plant) · one-way-descent route planning (Ice) ·
-irreversible sacrifice choice (Poison, Mud) · production-line re-routing +
-mold casting (Lava) · self-rearranging map / sliding rooms (Crystal) ·
-conservation (uncovering one thing buries another — Dust).
+scale shift tiny/huge (Plant) · self-rearranging map / sliding rooms
+(Crystal) · conservation (uncovering one thing buries another — Dust) ·
+terraforming whose edits are the map you must then live in (Mud).
+
+~~one-way-descent route planning~~ (CLAIMED by Ice) ·
+~~irreversible sacrifice choice~~ (CLAIMED by Poison — Mud must claim
+terraforming-as-map-authoring instead, and must also differ from Air's
+irreversible wind-authoring, whose ORDER is the question; Mud's question is
+the resulting SHAPE) · ~~production-line re-routing + mold casting~~
+(CLAIMED by Lava).
 
 **VISUAL GRAMMAR RULE:** every core mechanic gets its own rendering language,
 distinct from every prior planet that shares a surface resemblance. Light's
@@ -1114,10 +1123,10 @@ frame count/size before adding to `_guardianSheets` + `kRaidGuardianIds`).
 MYS01 Simurgh=Fire (built: 6×512² frames, 1 row) ·
 MYS02 Leviathan=Water (built: 4×512² frames, 1 row) ·
 MYS03 Terradon=Earth (built: 4×512² frames, 1 row) ·
-MYS04 Roc=Air (built) · MYS05 Boilrog=Steam · MYS06 Magmara=Lava ·
-MYS07 Raikuma=Lightning · MYS08 Bogdrya=Mud · MYS09 Frowyrm=Ice ·
+MYS04 Roc=Air (built) · MYS05 Boilrog=Steam · MYS06 Magmara=Lava (built) ·
+MYS07 Raikuma=Lightning · MYS08 Bogdrya=Mud · MYS09 Frowyrm=Ice (built) ·
 MYS10 Ashdjinn=Dust · MYS11 Prismalith=Crystal · MYS12 Botanica=Plant ·
-MYS13 Blightfang=Poison · MYS14 Wraithord=Spirit · MYS15 Noctryos=Dark ·
+MYS13 Blightfang=Poison (built) · MYS14 Wraithord=Spirit · MYS15 Noctryos=Dark ·
 MYS16 Solarin=Light · MYS17 Sanguorath=Blood.
 
 ### Vault caches (one per planet, +5 gold once — built for Air/Fire/Water/Earth)
@@ -1562,15 +1571,61 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   burst-disc (≥60) vault sacrifice, molten tile grids (Earth+Fire→Lava,
   Steam cools, Earth dams). Boilrog. Hidden Harmony egg. Full-run +
   ring-economy layout tests. 228 dungeon/raid tests green at time of build.
+- ✅ **Poison — The Venom Monastery (Toxica) built** (2026-08-24): quarantine
+  wards off one ambulatory, joined by inner squints — physic for three of
+  four, and the cistern's dregs refill ONLY while a ward can still be saved,
+  so a run cures exactly three, never four, never fewer. Strains are read by
+  BEHAVIOUR (beat / cling / leap / play-dead), and a wrong draught FEEDS one
+  permanently. The oubliette hangs under whichever ward you surrendered.
+  Blightfang's lull answers a correct dose, never a clock. Gates: Lava HORN
+  breaches the charnel (steers the triage, blocks no star), Mud MANE crosses
+  a live squint. Proof brute-forces the whole reachable state space across
+  all 24 strain arrangements: never four cures, never fewer than three, any
+  ward can be the sacrifice, and no choice strands the run.
+  DEVIATION: §5.5 wants the vault INSIDE the surrendered ward; the layout
+  test enforces one authored `vaultCache` and the ward is a runtime choice,
+  so the cache sits one level down, reachable only through that ward's floor.
+- ✅ **Ice — The Frozen Observatory (Glacius) built** (2026-08-24): a vertical
+  shaft joined by FLUES, each of which is a drift (ride it, land on its
+  shelf), a stair (frozen, two-way, and its shelf is sealed for the run), or
+  scoured (ridden once, takes no frost again). Every flue is your ladder home
+  or the only way onto its treasure shelf, never both, and you commit at its
+  head on the way down. The cache is visible only as a glow in the gallery's
+  mirror-pool, and the ride that reaches it scours the drift that caught you.
+  Frowyrm eats your stairs as you fight it.
+  NOTE: the spec as literally written is a STRANDING MACHINE — the same
+  search with the valve removed reports 120 of 122 reachable states
+  strandable. Shipped with the RIMEFALL: Ice freezes it from the sump
+  (element-only), and it thaws the whole shaft back to its opening state, a
+  full re-descent rather than a shortcut. One-way descent is preserved.
+  Proof is two-level: BFS all 122 reachable states, then from EACH of them
+  BFS that every room — vault shelf and maxim niche included — is still
+  reachable. `strandable == 0`.
+- ✅ **Lava — The Molten Reliquary (Magmora) built** (2026-08-24): a foundry
+  line with no hub, cut along its whole length by its own plumbing (a channel
+  is not a floor — it stops walkers AND gliders). Five crucible charges,
+  never refilled; five levers program the line, and what a pour BECOMES is
+  decided by where it went. The ordering question is DERIVED, never handed
+  over: cold metal is both a road and a plug, so freezing the chiller kills
+  the plain arm and laying the sump road too early blocks the mold's own
+  feed. Fire's order-memory ledger seat is untouched — the solver proves
+  more than one order of the same four pours works.
+  CALL: a wasted pour costs a charge, never the run (a Lava heart melts any
+  casting back out). Budget 5 against a tightest plan of 4 — one blunder
+  survivable, two not.
+  DEVIATION: §6.2 wants the chiller to harden into a bypassable bridge;
+  shipped as an in-line shroud, because a bypass lets the north arm survive
+  its own plug and deletes the ordering question.
 - ⬜ **§9.0 INTERACTION REFIT v2 + hint/popup cleanup** — convert all six
   built planets to the §4 element-first / hard-family-gate model, implement
   "the seal remembers" descent chips, apply the §5.6 hint standard, rewrite
   the slow-and-loud tests. NEXT UP before any new planet.
-- ⬜ Device tuning pending: Air, Fire, Lightning, Steam (timings/feel — user
-  playtest; Water + Earth already device-tested good).
+- ⬜ Device tuning pending: Air, Fire, Lightning, Steam, **Poison, Ice,
+  Lava** (timings/feel — user playtest; Water + Earth already device-tested
+  good). NONE of the 2026-08-24 three has ever been run on a device.
 - ⬜ More Mystic guardian sprites for future planets (map in
   `_guardianSheets`, enroll in `kRaidGuardianIds`; roster in §6).
-- ⬜ The other 11 planets' signature mechanics (+ their shaders).
+- ⬜ The other 8 planets' signature mechanics (+ their shaders).
 
 ## 8.5 Ability parity with survival — status
 
