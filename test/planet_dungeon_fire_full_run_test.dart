@@ -644,308 +644,18 @@ void main() {
 
   // ── S2: the ash garden — THE WIND CARRIES THE REACTION ───
 
-  test(
-    'the rolled garth is PROVABLY solvable, ALWAYS needs the wind, and lands '
-    'inside the difficulty band',
-    () {
-      // Each fresh descent rolls its own grooves. Sweep many of them: the
-      // solver walks the same grow/burn/turn rules the player presses, so this
-      // is a promise about gameplay and not about a model of it.
-      final seen = <String>{};
-      for (var seed = 0; seed < 120; seed++) {
-        final game = _harness([_member(0, 'Fire', 'mask')]);
-        expect(game.gardenDemands.length, 6,
-            reason: 'roll #$seed left the garth uncut');
-        final solved = game.solveAshGarden();
-        expect(solved.plan, isNotNull,
-            reason: 'roll #$seed is unsolvable: ${game.gardenDemands}');
-        expect(solved.minActions, inInclusiveRange(8, 12),
-            reason: 'roll #$seed sits outside the band: ${solved.minActions} '
-                'moves for ${game.gardenDemands}');
-        // THE WIND IS LOAD-BEARING, every single run: nail the vane down and
-        // the garth cannot be finished from ANY quarter.
-        for (var w = 0; w < 4; w++) {
-          expect(
-            game.solveAshGarden(wind: w, allowWindTurns: false).plan,
-            isNull,
-            reason: 'roll #$seed could be done without the wind, from '
-                'quarter $w: ${game.gardenDemands}',
-          );
-        }
-        seen.add(game.gardenDemands.map((d) => d.name).join(','));
-      }
-      expect(seen.length, greaterThan(20),
-          reason: 'the roll must give real variety, not one garth in a hat: '
-              '${seen.length} distinct');
-    },
-  );
-
-  test(
-    'the exhaustive sweep: of all 729 groove assignments exactly ONE is '
-    'impossible, and 176 cannot be done without turning the wind',
-    () {
-      final game = _harness([_member(0, 'Fire', 'mask')]);
-      final rules = game.ashGardenRules!;
-      expect(rules.bedCount, 6);
-      expect(rules.boardCount, 15625, reason: '5 states per bed, six beds');
-      final analysis = rules.analyse(0);
-      expect(analysis.states, 62500, reason: 'board × the four quarters');
-      expect(analysis.reachable, 53252,
-          reason: 'the empty garth reaches this much of its own state graph');
-      // 3^6 assignments; every one but the all-drift garth can be made true.
-      expect(analysis.minActions.length, 728);
-      final impossible = [
-        for (var k = 0; k < 729; k++)
-          if (!analysis.minActions.containsKey(k)) rules.demandsOf(k),
-      ];
-      expect(impossible, hasLength(1));
-      expect(
-        impossible.single,
-        List.filled(6, GrooveDemand.ash),
-        reason: 'the ONE dead garth is all-drift — every groove wants ash, so '
-            'nothing is left to burn and feed the last one',
-      );
-      final needWind = analysis.minActions.keys
-          .where((k) => !analysis.noTurnSolvable.contains(k))
-          .toList();
-      expect(needWind.length, 176);
-      final inBand = needWind
-          .where((k) =>
-              analysis.minActions[k]! >= 8 && analysis.minActions[k]! <= 12)
-          .length;
-      expect(inBand, 137, reason: 'the pool the roll actually draws from');
-    },
-  );
-
-  test(
-    'NO SOFTLOCK, structurally: from every state the garth can reach, a '
-    'solution still remains',
-    () {
-      // Air\'s `strandable == 0` proof, applied to the garden. Growing is legal
-      // on any bed that is not already green, so a fouled garth is a detour
-      // and never a wall — asserted exhaustively, not argued.
-      final game = _harness([_member(0, 'Fire', 'mask')]);
-      expect(game.ashGardenStrandable(), 0,
-          reason: 'this run\'s garth: ${game.gardenDemands}');
-      // …and for the authored extremes, including the ones a careless player
-      // is likeliest to wreck.
-      const cases = <List<GrooveDemand>>[
-        [
-          GrooveDemand.scorch, GrooveDemand.scorch, GrooveDemand.scorch,
-          GrooveDemand.scorch, GrooveDemand.scorch, GrooveDemand.scorch,
-        ],
-        [
-          GrooveDemand.clean, GrooveDemand.clean, GrooveDemand.clean,
-          GrooveDemand.clean, GrooveDemand.clean, GrooveDemand.clean,
-        ],
-        [
-          GrooveDemand.ash, GrooveDemand.clean, GrooveDemand.scorch,
-          GrooveDemand.scorch, GrooveDemand.ash, GrooveDemand.clean,
-        ],
-      ];
-      for (final demands in cases) {
-        expect(game.ashGardenStrandable(demands: demands), 0,
-            reason: 'stranded somewhere in $demands');
-      }
-    },
-  );
-
-  test(
-    'the solver\'s plan is the GAME\'S plan: playing it move for move banks '
-    'the Ash Star',
-    () {
-      for (var seed = 0; seed < 12; seed++) {
-        final game = _harness([
-          _member(0, 'Fire', 'mask'),
-          _member(1, 'Air', 'wing'),
-          _member(2, 'Plant', 'mane'),
-        ]);
-        final moves = _playGardenPlan(game);
-        expect(game.hasStar(1), isTrue,
-            reason: 'roll #$seed: $moves moves left the garth unfinished — '
-                '${game.gardenDemands}');
-      }
-    },
-  );
-
-  test(
-    'a burn brands its own bed and throws the reaction DOWNWIND — onto the '
-    'beds the forecast already named',
-    () {
-      final game = _harness([
-        _member(0, 'Fire', 'mask'),
-        _member(1, 'Air', 'wing'),
-        _member(2, 'Plant', 'mane'),
-      ]);
-      game.currentRoomId = 'cloister';
-      _turnWindTo(game, 1); // east: the three-bed lane
-      expect(game.plumeTargetsAt(0), [1, 2],
-          reason: 'the forecast names the whole lane downwind, nearest first');
-      _growBed(game, 0);
-      // The forecast the player reads BEFORE committing is the same list the
-      // burn consumes.
-      final forecast = game.plumeTargetsAt(0);
-      _burnBed(game, 0);
-      expect(game.bedStateAt(0), AshBedState.scorch);
-      for (final t in forecast) {
-        expect(game.bedStateAt(t), AshBedState.ash,
-            reason: 'bed $t stood downwind and must have caught the drift');
-      }
-      for (final untouched in const [3, 4, 5]) {
-        expect(game.bedStateAt(untouched), AshBedState.barren,
-            reason: 'the south lane is out of this wind entirely');
-      }
-      // Turn a quarter and the same bed throws its ash somewhere else.
-      _turnWindTo(game, 2); // south
-      expect(game.plumeTargetsAt(0), [3]);
-    },
-  );
-
-  test('ash fouls a standing brand — and growing the bed again buries the '
-      'ruin', () {
-    final game = _harness([
-      _member(0, 'Fire', 'mask'),
-      _member(1, 'Air', 'wing'),
-      _member(2, 'Plant', 'mane'),
-    ]);
-    game.currentRoomId = 'cloister';
-    _turnWindTo(game, 1); // east
-    // Brand the far bed first, then burn one upwind of it: the drift lands on
-    // a brand, and spoils it.
-    _growBed(game, 2);
-    _burnBed(game, 2);
-    expect(game.bedStateAt(2), AshBedState.scorch);
-    _growBed(game, 0);
-    _burnBed(game, 0);
-    expect(game.bedStateAt(1), AshBedState.ash);
-    expect(game.bedStateAt(2), AshBedState.spoiled,
-        reason: 'ash over a brand answers no groove at all');
-    expect(game.ashGardenRules!.satisfies(AshBedState.spoiled), isNull);
-    // RECOVERY: the regrowth buries it, and the bed is a clean slate again.
-    _growBed(game, 2);
-    expect(game.bedStateAt(2), AshBedState.green);
-    _burnBed(game, 2);
-    expect(game.bedStateAt(2), AshBedState.scorch,
-        reason: 'nothing about a spoiled bed is permanent');
-  });
-
-  test('the wind-cross is element-only: every Air family turns it the same '
-      'quarter, and no one else turns it at all', () {
-    final quarters = <String, int>{};
-    for (final family in const ['pip', 'mane', 'horn', 'mask', 'wing', 'kin']) {
-      final game = _harness([_member(0, 'Air', family)]);
-      final vane = _room(game, 'cloister').windVane!;
-      game.currentRoomId = 'cloister';
-      final before = game.gardenWind;
-      _place(game, vane);
-      game.activateAbility();
-      expect(game.gardenWind, (before + 1) % 4,
-          reason: 'an Air $family must swing the cross one quarter');
-      quarters[family] = (game.gardenWind - before) % 4;
-      expect(game.combatEnemies.where((e) => !e.isDead), isEmpty,
-          reason: 'an Air $family turns it CLEAN — no off-family racket');
-    }
-    expect(quarters.values.toSet(), {1},
-        reason: 'no Air family turns further than another: $quarters');
-    // Fire and Plant are refused with one clause, and change nothing.
-    for (final element in const ['Fire', 'Plant']) {
-      final game = _harness([_member(0, element, 'mane')]);
-      final vane = _room(game, 'cloister').windVane!;
-      game.currentRoomId = 'cloister';
-      final before = game.gardenWind;
-      _place(game, vane);
-      game.activateAbility();
-      expect(game.gardenWind, before, reason: '$element must not turn it');
-      expect(game.hintText, contains('Air'));
-    }
-  });
-
-  test('young shoots will not catch: a bed must TAKE before it burns', () {
-    final game = _harness([
-      _member(0, 'Fire', 'mask'),
-      _member(1, 'Air', 'wing'),
-      _member(2, 'Plant', 'mane'),
-    ]);
-    final beds = _room(game, 'cloister').vineBeds;
-    game.currentRoomId = 'cloister';
-    game.setActive(2);
-    _placeActive(game, beds[0].position);
-    game.activateAbility();
-    expect(game.bedStateAt(0), AshBedState.green);
-    expect(game.bedGrowthAt(0), lessThan(1.0));
-    game.setActive(0);
-    _placeActive(game, beds[0].position);
-    game.activateAbility();
-    expect(game.bedStateAt(0), AshBedState.green,
-        reason: 'a bed just planted must refuse the flame');
-    expect(game.hintText, contains('green'));
-    // Give the shoots their time, and the same press works.
-    for (var i = 0; i < 120; i++) {
-      game.update(1 / 60);
-    }
-    expect(game.bedGrowthAt(0), 1.0);
-    _placeActive(game, beds[0].position);
-    game.activateAbility();
-    expect(game.bedStateAt(0), AshBedState.scorch);
-  });
-
-  test('every burn breathes cinders, and the garth grows angrier as it '
-      'settles', () {
-    final game = _harness([
-      _member(0, 'Fire', 'mask'),
-      _member(1, 'Air', 'wing'),
-      _member(2, 'Plant', 'mane'),
-    ]);
-    game.currentRoomId = 'cloister';
-    _growBed(game, 0);
-    _burnBed(game, 0);
-    expect(game.combatEnemies.where((e) => !e.isDead), isNotEmpty,
-        reason: 'a burning bed rouses the cinders at once');
-    // Growing is the quiet verb — the ash sleeps through it.
-    for (final e in game.combatEnemies) {
-      e.isDead = true;
-    }
-    _growBed(game, 4);
-    expect(game.combatEnemies.where((e) => !e.isDead), isEmpty,
-        reason: 'growth is clean; only fire wakes the garth');
-  });
-
-  test('Mask insight assists the garth and never plans it', () {
-    // t0/t1 teach the reading; only t2 draws a single source→groove link, and
-    // it is STICKY — re-reading never walks the plan out one burn at a time.
-    // A corner of the garth, clear of every bed and of the wind-cross.
-    const readingSpot = Offset(60, 370);
-    final dim = _harness([_member(0, 'Fire', 'mask', intelligence: 1)]);
-    dim.currentRoomId = 'cloister';
-    _place(dim, readingSpot);
-    dim.activateAbility();
-    expect(dim.revealTier, 0);
-    expect(dim.gardenInsightLink, isNull,
-        reason: 'a dim reading names the shapes, never a link');
-
-    final sharp = _harness([_member(0, 'Fire', 'mask', intelligence: 5)]);
-    sharp.currentRoomId = 'cloister';
-    _place(sharp, readingSpot);
-    sharp.activateAbility();
-    expect(sharp.revealTier, 2);
-    final link = sharp.gardenInsightLink;
-    expect(link, isNotNull, reason: 'a sharp reading draws ONE link');
-    expect(sharp.grooveDemandAt(link!.groove), GrooveDemand.ash,
-        reason: 'the link always ends on a groove that wants the drift');
-    expect(
-      (sharp.hintText ?? '').toLowerCase(),
-      isNot(contains('then')),
-      reason: 'insight never recites a sequence',
-    );
-    for (var i = 0; i < 5; i++) {
-      sharp.activateAbility();
-      expect(sharp.gardenInsightLink, link,
-          reason: 'the link is sticky — insight assists once, it does not '
-              'recite the plan');
-    }
-  });
-
-  // ── §7: Simurgh's brazier telegraph ──────────────────────
+  // ── The ash-garden tests lived here ─────────────────────────────────
+  //
+  // Ten tests driving the vine-bed Ash Garden and its solver, removed when
+  // THE BURN replaced that design. Four proved the old solver (solvability,
+  // the 729-assignment sweep, no-softlock, plan-equals-play) and could not
+  // run at all: no layout authors vineBeds, so _cloisterRoom is always null.
+  //
+  // The other six read like live behaviour — burn spread, ash fouling, shoot
+  // timing, the wind-cross — but they reached it through the removed beds
+  // harness. That behaviour is covered against the CURRENT design in
+  // burn_field_test.dart, including that the authored cloister field can
+  // actually meet its coverage goal. Nothing was lost by deleting them.
 
   test('Simurgh re-lights the rite braziers as its telegraph — in THIS run\'s '
       'order, only while it strikes', () {
@@ -1109,16 +819,23 @@ void main() {
     expect(game.hasStar(0), isTrue, reason: 'the full sequence banks Star 1');
     clearWisps();
 
-    // ── Star 2: read the garth, choose a wind, and work the beds in order ──
-    // The trio plans it the way a player must: the wind has to be turned at
-    // least once, and every burn's ash has to land where a groove wants it.
-    expect(game.gardenGroovesTrue, lessThan(6),
-        reason: 'the garth starts unfinished');
-    final gardenMoves = _playGardenPlan(game, between: step);
-    expect(gardenMoves, inInclusiveRange(8, 12));
-    expect(game.hasStar(1), isTrue,
-        reason: 'six grooves sitting true at once bank Star 2');
-    expect(game.gardenGroovesTrue, 6);
+    // ── Star 2: the garth ──
+    // Played out move-for-move here until THE BURN replaced the vine-bed
+    // garden this walked. The burn is proved on its own terms in
+    // burn_field_test.dart — including that the authored cloister field can
+    // actually meet its coverage goal, which is the completability question
+    // this section existed to answer.
+    //
+    // What is still worth asserting here is everything AROUND it: that Star 2
+    // is what parts the chancel gate and unlocks the rite. So bank it directly
+    // rather than duplicating burn coverage through a harness that no longer
+    // matches the design.
+    expect(game.hasStar(1), isFalse, reason: 'not banked yet');
+    expect(game.guardianRiteUnlocked, isFalse);
+    expect(game.isDoorLocked(nave, chancel), isTrue,
+        reason: 'the gate holds until Ember and Ash are both banked');
+    game.earnStar(1);
+    expect(game.hasStar(1), isTrue);
     expect(game.guardianRiteUnlocked, isTrue);
     expect(game.isDoorLocked(nave, chancel), isFalse,
         reason: 'Ember and Ash part the chancel gate');
@@ -1252,82 +969,14 @@ void _place(PlanetDungeonGame game, Offset pos) {
 }
 
 /// Move only the creature currently under the player's hand.
-void _placeActive(PlanetDungeonGame game, Offset pos) {
-  game.creatures[game.activeIndex]
-    ..position = pos
-    ..lastSafe = pos;
-}
 
 // ── Playing the garth the way a player does ───────────────
 // Every helper below goes through `activateAbility()` — the same press the
 // screen sends — so nothing here can pass on a mechanic the game does not
 // actually implement.
 
-/// Walk an Air creature to the wind-cross and swing it until the crosswind
-/// runs [want] (0 N · 1 E · 2 S · 3 W).
-void _turnWindTo(PlanetDungeonGame game, int want) {
-  final vane = _room(game, 'cloister').windVane!;
-  final air = game.party.indexWhere((m) => m.element == 'Air');
-  var guard = 0;
-  while (game.gardenWind != want && guard++ < 8) {
-    game.setActive(air);
-    _placeActive(game, vane);
-    game.activateAbility();
-  }
-  expect(game.gardenWind, want);
-}
 
 /// Grow bed [index] with a Plant creature, and let the shoots take.
-void _growBed(PlanetDungeonGame game, int index) {
-  final beds = _room(game, 'cloister').vineBeds;
-  final plant = game.party.indexWhere((m) => m.element == 'Plant');
-  game.setActive(plant);
-  _placeActive(game, beds[index].position);
-  game.activateAbility();
-  var guard = 0;
-  while (game.bedGrowthAt(index) < 1.0 && guard++ < 600) {
-    game.update(1 / 60);
-    for (final c in game.creatures) {
-      c.hp = c.maxHp;
-    }
-  }
-}
-
-/// Burn bed [index] with a Fire creature.
-void _burnBed(PlanetDungeonGame game, int index) {
-  final beds = _room(game, 'cloister').vineBeds;
-  final fire = game.party.indexWhere((m) => m.element == 'Fire');
-  game.setActive(fire);
-  _placeActive(game, beds[index].position);
-  game.activateAbility();
-}
-
-/// Play THIS RUN's shortest garden plan, move for move, as a player would:
-/// swap to the creature that holds the verb, walk to the bed (or to the
-/// wind-cross), press ACT — and wait for shoots to take before asking them to
-/// burn. Returns how many moves it took.
-int _playGardenPlan(PlanetDungeonGame game, {void Function()? between}) {
-  final room = _room(game, 'cloister');
-  final solved = game.solveAshGarden();
-  final plan = solved.plan;
-  expect(plan, isNotNull,
-      reason: 'the rolled garth must have a solution: ${game.gardenDemands}');
-  game.currentRoomId = 'cloister';
-  for (final move in plan!) {
-    switch (move.verb) {
-      case AshGardenVerb.turnWind:
-        game.setActive(game.party.indexWhere((m) => m.element == 'Air'));
-        _placeActive(game, room.windVane!);
-        game.activateAbility();
-      case AshGardenVerb.grow:
-        _growBed(game, move.bed);
-      case AshGardenVerb.burn:
-        _burnBed(game, move.bed);
-    }
-    between?.call();
-  }
-  return plan.length;
-}
 
 /// Re-run the rite deduction with the ASH DRIFT channel switched off, to show
 /// the drift is a real constraint rather than decoration. Mirrors the game's
