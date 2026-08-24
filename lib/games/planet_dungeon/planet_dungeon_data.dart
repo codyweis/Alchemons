@@ -15,6 +15,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart'
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1083,6 +1084,12 @@ class DungeonRoom {
   /// authored whole in planet_dungeon_layout_ice.dart rather than per room.
   final IceShaft? rime;
 
+  /// Mud (the Sinking Altar): this room's fen content — the knoll it IS, its
+  /// moor-altar, the sinking altar's socket, the sough, the sink-pit, the
+  /// hollow's mire anchor. One field, because the fen's own crossing graph is
+  /// authored whole in planet_dungeon_layout_mud.dart rather than per room.
+  final BogFen? fen;
+
   const DungeonRoom({
     required this.id,
     required this.bounds,
@@ -1155,6 +1162,7 @@ class DungeonRoom {
     this.apothecary,
     this.priorsSeal,
     this.rime,
+    this.fen,
   });
 }
 
@@ -1329,6 +1337,14 @@ class DungeonLayout {
       }
       // Ice's two puzzle levels carry their star on the room's shaft content.
       if (room.rime?.starIndex != null) seen.add(room.rime!.starIndex!);
+      // Mud declares BOTH of its non-guardian stars on the Sinking Altar's
+      // socket: the Moor Star completes in whichever of the three moor knolls
+      // is dried last, so no knoll owns it.
+      final socket = room.fen?.altar;
+      if (socket != null) {
+        seen.add(socket.sarsenStarIndex);
+        seen.add(socket.moorStarIndex);
+      }
     }
     return seen;
   }
@@ -3951,6 +3967,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Lava': kLavaLayout,
   'Poison': poisonLayout,
   'Ice': iceLayout,
+  'Mud': mudLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

@@ -25,6 +25,7 @@ import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
@@ -45,6 +46,7 @@ part 'planet_dungeon_game_earth.dart';
 part 'planet_dungeon_game_lightning.dart';
 part 'planet_dungeon_game_steam.dart';
 part 'planet_dungeon_game_lava.dart';
+part 'planet_dungeon_game_mud.dart';
 part 'planet_dungeon_game_poison.dart';
 part 'planet_dungeon_game_ice.dart';
 
@@ -330,6 +332,9 @@ class PlanetDungeonGame extends FlameGame {
     // reason as the spire: the HUD and every headless sim read this state
     // before Flame finishes loading.
     _resetShaftState();
+    // The fen opens with every crossing quaking mire and the sarsen in the
+    // gate's silt — seeded here for the same reason as the shaft.
+    _resetBogState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1191,6 +1196,12 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isVapor => layout.element == 'Steam';
 
+  // ── Mud (the Sinking Altar) run-state ──
+  /// The whole fen run — the pure terraforming rules plus its live timers.
+  /// One field, because everything this planet tracks lives inside it (see
+  /// planet_dungeon_game_mud.dart).
+  final SinkingFen bog = SinkingFen();
+
   // ── Lava (Molten Reliquary) run-state ──
   /// The whole foundry run — the line's pure rules plus its live timers. One
   /// field, because everything this planet tracks lives inside it (see
@@ -1344,6 +1355,14 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
+    // MYS08 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Bogdrya': SpriteSheetDef(
+      path: 'creatures/mystic/MYS08_mudmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
   };
 
   /// Half-HP escalation copy, per mystic.
@@ -1355,6 +1374,7 @@ class PlanetDungeonGame extends FlameGame {
     'Raikuma': 'Raikuma roars — the whole circuit overloads white!',
     'Boilrog': 'Boilrog bellows — the pressure spikes to a scream!',
     'Frowyrm': 'Frowyrm keens — the whole shaft cracks and runs!',
+    'Bogdrya': 'Bogdrya swallows — the whole fen shudders and drops!',
   };
   SpriteAnimationTicker? _guardianTicker;
   double _guardianSpriteScale = 1.0;
@@ -1568,6 +1588,7 @@ class PlanetDungeonGame extends FlameGame {
     // with the §9.1 rework), then the loom's anchors, then the conduits.
     if (_isSpire) return _spireProgressReadout();
     if (_isShaft) return _shaftProgressReadout();
+    if (_isBog) return _bogProgressReadout();
     return null;
   }
 
@@ -1914,6 +1935,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetFoundryState();
     _resetMonasteryState();
     _resetShaftState();
+    _resetBogState();
   }
 
   void _resetRun() {
@@ -2172,6 +2194,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateFoundry(a, room, dt);
     _updateMonastery(a, room, dt);
     _updateShaft(a, room, dt);
+    _updateBog(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2356,6 +2379,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isFoundry) _foundryAmbientHint(a, room);
     if (_isVenom) _monasteryAmbientHint(a, room);
     if (_isShaft) _shaftAmbientHint(a, room);
+    if (_isBog) _bogAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -6940,6 +6964,13 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // The Sinking Altar: the drag, the haul, the basins, the sough, the
+    // sink-pit and Bogdrya's mire anchor all ride one dispatcher — and the
+    // anchor, like Ice's pillar, must outrank the guardian's own catch.
+    if (_isBog && _tryBogVerb(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -7120,6 +7151,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isShaft) {
       _shaftReveal(a, room);
+      return;
+    }
+    if (_isBog) {
+      _bogReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7535,6 +7570,9 @@ class PlanetDungeonGame extends FlameGame {
         // Ice: the ride SCOURS the flue and the rimefall THAWS the shaft —
         // bookkeeping that has to happen on the transit itself.
         if (_isShaft) _onShaftTransit(currentRoom, d);
+        // Mud: climbing a risen wallow HEAVES the fen back to its opening
+        // state — bookkeeping that has to happen on the transit itself.
+        if (_isBog) _onBogTransit(currentRoom, d);
         currentRoomId = d.targetRoomId;
         _spreadCreaturesAround(d.targetSpawn);
         _carryPursuersThroughDoor(d.targetSpawn);
@@ -7582,6 +7620,7 @@ class PlanetDungeonGame extends FlameGame {
     // Poison: the oubliette exists only in the ward that was surrendered.
     if (_isVenom && _monasteryDoorHidden(room, door)) return true;
     if (_isShaft && _iceDoorHidden(room, door)) return true;
+    if (_isBog && _bogDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -7606,6 +7645,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isFoundry && _foundryDoorLocked(room, door)) return true;
     if (_isVenom && _monasteryDoorLocked(room, door)) return true;
     if (_isShaft && _iceDoorBlocked(room, door)) return true;
+    if (_isBog && _bogDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7641,6 +7681,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isShaft && _iceDoorBlocked(room, door)) {
       return _iceDoorHint(room, door);
+    }
+    if (_isBog && _bogDoorBlocked(room, door)) {
+      return _bogDoorHint(room, door);
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
@@ -7690,6 +7733,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isFoundry) return _foundryObjectiveHint(room);
     if (_isVenom) return _monasteryObjectiveHint(room);
     if (_isShaft) return _shaftObjectiveHint(room);
+    if (_isBog) return _bogObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -7969,6 +8013,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isFoundry) _renderFoundry(canvas, room);
     if (_isVenom) _renderMonastery(canvas, room);
     if (_isShaft) _renderShaft(canvas, room);
+    if (_isBog) _renderBog(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8292,6 +8337,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isFoundry) return _foundryMoodTarget;
     if (_isVenom) return _monasteryMoodTarget;
     if (_isShaft) return _shaftMoodTarget;
+    if (_isBog) return _bogMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||

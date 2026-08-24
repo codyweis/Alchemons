@@ -1667,6 +1667,12 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // Ice (a mane sets a running pour where it stands). Ice+Lava→Steam drives
   // the mill's dead die.
   'Lava': ['Lava', 'Earth', 'Ice'],
+  // The Sinking Altar (Palusia): Mud (drags a ford to sod, wallows down to
+  // the fane, frees the sough) + Plant (roots; Plant+Mud→Poison eats the
+  // socket's resin cap) + Water (sluices the gate's weed, fills the moor
+  // basins, and its Mask finds the one under black water). Plant+Water→Mud
+  // is the braid that drags a ford when no Mud hand is free.
+  'Mud': ['Mud', 'Plant', 'Water'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1687,6 +1693,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Poison': ['Mask', 'Horn', 'Mane'], // Poisonmask · Lavahorn · Mudmane
   'Ice': ['Mane', 'Mask', 'Wing'], // Icemane · Lightmask · Airwing
   'Lava': ['Horn', 'Mask', 'Mane'], // Lavahorn · Earthmask · Icemane
+  'Mud': ['Mane', 'Pip', 'Mask'], // Mudmane · Plantpip · Watermask
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1695,7 +1702,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
-  'Mud',
   'Dust',
   'Crystal',
   'Plant',
