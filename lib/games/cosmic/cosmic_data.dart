@@ -1662,6 +1662,11 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // thaws a glaze, and its Mask strikes the lodestone) + Air (sweeps the
   // gallery's thaw back and turns the rite's last breath down the throat).
   'Ice': ['Ice', 'Light', 'Air'],
+  // Molten Reliquary (Magmora): Lava (the crucible tap, and melting a bad
+  // casting back out) + Earth (the points levers, and the works' manifest) +
+  // Ice (a mane sets a running pour where it stands). Ice+Lava→Steam drives
+  // the mill's dead die.
+  'Lava': ['Lava', 'Earth', 'Ice'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1681,6 +1686,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Steam': ['Pip', 'Horn', 'Mask'], // Steampip · Earthhorn · Firemask
   'Poison': ['Mask', 'Horn', 'Mane'], // Poisonmask · Lavahorn · Mudmane
   'Ice': ['Mane', 'Mask', 'Wing'], // Icemane · Lightmask · Airwing
+  'Lava': ['Horn', 'Mask', 'Mane'], // Lavahorn · Earthmask · Icemane
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1689,7 +1695,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
-  'Lava',
   'Mud',
   'Dust',
   'Crystal',

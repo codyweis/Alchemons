@@ -12,6 +12,7 @@ import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
     show PlanetStarState;
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
@@ -1061,6 +1062,12 @@ class DungeonRoom {
 
   // Poison (Venom Monastery) authored content — see
   // planet_dungeon_layout_poison.dart, where the fixtures themselves live.
+  // Lava (Molten Reliquary) authored content — the line itself lives in
+  // planet_dungeon_layout_lava.dart (nodes, channels and rules together), so
+  // a room only has to say which star it holds.
+  /// The star this stretch of the foundry line banks, and where it stands.
+  final FoundryStarSpot? foundryStar;
+
   /// This room IS a quarantine ward (null = it is not one).
   final WardCell? ward;
 
@@ -1143,6 +1150,7 @@ class DungeonRoom {
     this.pressureSeals = const [],
     this.stokePort,
     this.burstDisc,
+    this.foundryStar,
     this.ward,
     this.apothecary,
     this.priorsSeal,
@@ -1309,6 +1317,9 @@ class DungeonLayout {
       // field both carry their planet's star on the object, not on a room flag.
       if (room.garth != null) seen.add(room.garth!.starIndex);
       if (room.capstone != null) seen.add(room.capstone!.starIndex);
+      // Lava carries each of its non-guardian stars on the room the line
+      // leaves you in.
+      if (room.foundryStar != null) seen.add(room.foundryStar!.starIndex);
       // Poison carries BOTH of its non-guardian stars on the prior's seal: a
       // cure can bank Star 1 in any of the four wards, so no ward owns it.
       final seal = room.priorsSeal;
@@ -3937,6 +3948,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Earth': _earthLayout,
   'Lightning': _lightningLayout,
   'Steam': _steamLayout,
+  'Lava': kLavaLayout,
   'Poison': poisonLayout,
   'Ice': iceLayout,
 };

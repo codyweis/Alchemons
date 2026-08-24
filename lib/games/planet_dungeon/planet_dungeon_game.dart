@@ -24,6 +24,7 @@ import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
@@ -43,6 +44,7 @@ part 'planet_dungeon_game_water.dart';
 part 'planet_dungeon_game_earth.dart';
 part 'planet_dungeon_game_lightning.dart';
 part 'planet_dungeon_game_steam.dart';
+part 'planet_dungeon_game_lava.dart';
 part 'planet_dungeon_game_poison.dart';
 part 'planet_dungeon_game_ice.dart';
 
@@ -1189,6 +1191,12 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isVapor => layout.element == 'Steam';
 
+  // ── Lava (Molten Reliquary) run-state ──
+  /// The whole foundry run — the line's pure rules plus its live timers. One
+  /// field, because everything this planet tracks lives inside it (see
+  /// planet_dungeon_game_lava.dart).
+  final MoltenWorks works = MoltenWorks();
+
   // ── Poison (Venom Monastery) run-state ──
   /// The whole quarantine run — the triage rules plus the live strains. One
   /// field, because everything this planet tracks lives inside it (see
@@ -1291,6 +1299,14 @@ class PlanetDungeonGame extends FlameGame {
     // MYS03 sheet verified 2048×512 — 4 frames of 512×512, one row.
     'Terradon': SpriteSheetDef(
       path: 'creatures/mystic/MYS03_earthmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+    // MYS06 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Magmara': SpriteSheetDef(
+      path: 'creatures/mystic/MYS06_lavamystic_spritesheet.png',
       totalFrames: 4,
       rows: 1,
       frameSize: Vector2(512, 512),
@@ -1414,6 +1430,12 @@ class PlanetDungeonGame extends FlameGame {
             Color(0xFF6BA8FF), // charged blue
             Color(0xFFE9D27A), // brass conductor
           ]
+        : _isFoundry
+        ? const [
+            Color(0xFFFFF1CF), // white-hot metal
+            Color(0xFF39424C), // cold iron
+            Color(0xFF6C7A68), // slag
+          ]
         : _isVenom
         ? const [
             Color(0xFF8FD14F), // live spore
@@ -1534,6 +1556,7 @@ class PlanetDungeonGame extends FlameGame {
   /// tide stand) already render as their own HUDs and stay there.
   DungeonProgressReadout? get progressReadout {
     if (_isCathedral) return _cathedralProgressReadout;
+    if (_isFoundry) return _foundryProgressReadout;
     if (_isVenom) return _monasteryProgressReadout;
     if (_isBarrow) return _barrowProgressReadout;
     // Lightning: terminal/socket counters + the dynamo's trunk state.
@@ -1561,6 +1584,7 @@ class PlanetDungeonGame extends FlameGame {
       room.pillarStarIndex ??
       room.circuitStarIndex ??
       room.molten?.starIndex ??
+      room.foundryStar?.starIndex ??
       room.guardian?.starIndex;
 
   /// True once this room's star is earned — its objectives/obstacles are then
@@ -1887,6 +1911,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetBarrowState();
     _resetCircuitState();
     _resetPressureState();
+    _resetFoundryState();
     _resetMonasteryState();
     _resetShaftState();
   }
@@ -1978,6 +2003,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow && _barrowBlocksAt(p, room)) return true;
     if (_isCircuit && _circuitBlocksAt(p, room)) return true;
     if (_isVapor && _steamBlocksAt(p, room)) return true;
+    if (_isFoundry && _foundryBlocksAt(p, room)) return true;
     return !_onSolidGround(p, room);
   }
 
@@ -2143,6 +2169,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateCircuit(a, room, dt);
     _updatePressure(a, room, dt);
     _updateGeyserField(a, room, dt);
+    _updateFoundry(a, room, dt);
     _updateMonastery(a, room, dt);
     _updateShaft(a, room, dt);
     _syncCombatFromCreatures();
@@ -2326,6 +2353,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) _barrowAmbientHint(a, room);
     if (_isCircuit) _circuitAmbientHint(a, room);
     if (_isVapor) _steamAmbientHint(a, room);
+    if (_isFoundry) _foundryAmbientHint(a, room);
     if (_isVenom) _monasteryAmbientHint(a, room);
     if (_isShaft) _shaftAmbientHint(a, room);
   }
@@ -2932,6 +2960,10 @@ class PlanetDungeonGame extends FlameGame {
       // Blightfang never opens a lull on a clock (§7): only the draught that
       // answers the strain it is WEARING forces the window, and it takes a
       // fresh habit the moment the window shuts. Poison-only; raids exempt.
+      // Magmara rides the heart's own conveyor (§7): no clock ever bares it,
+      // and the ring's two heads — the works' verb, in the fight — are what
+      // beach it. Lava-only; raids have no ring to ride.
+      if (_isFoundry) _applyMagmaraRide(room, dt);
       if (_isVenom) _applyBlightfangStrain(room, dt);
       final stormCenter = _guardianPosition(g);
       // Half-HP escalation: one screech — feather-wisps rise, lulls tighten.
@@ -6887,6 +6919,12 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // Molten Reliquary: the ring's heads outrank the guardian's own catch —
+    // they sit inside its radius and they ARE the fight's verb (§7).
+    if (_isFoundry && _tryHeartHead(a)) {
+      onChanged();
+      return;
+    }
     // Venom Monastery: a phial in hand outranks the guardian's own catch —
     // the dose IS the fight's verb (§7: Blightfang's lull answers physic, not
     // a clock). Empty-handed this declines and the strike path runs.
@@ -6945,6 +6983,12 @@ class PlanetDungeonGame extends FlameGame {
     // Pressure Cathedral interactions (vents/seals steer the clock, boiler
     // pack+ignite, the escapement, the entry vent).
     if (_tryPressure(a)) {
+      onChanged();
+      return;
+    }
+    // Molten Reliquary interactions (the crucible and its font, the points,
+    // the accumulator, a hand chill, melting a casting out, keys and wards).
+    if (_tryFoundry(a)) {
       onChanged();
       return;
     }
@@ -7064,6 +7108,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVapor) {
       _steamReveal(a, room);
+      return;
+    }
+    if (_isFoundry) {
+      _foundryReveal(a, room);
       return;
     }
     if (_isVenom) {
@@ -7438,6 +7486,9 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCircuit && _circuitBlocksAt(center, room)) return true;
     // Pistons: footing only where a piston is extended in the current phase.
     if (_isVapor && _steamBlocksAt(center, room)) return true;
+    // Lava: a channel is not a floor — running metal blocks walkers AND
+    // gliders until something is cast across it.
+    if (_isFoundry && _foundryBlocksAt(center, room)) return true;
     // When walking, you can't leave solid ground (gaps / open sky block you).
     if (!flightActive && !_onSolidGround(center, room)) return true;
     return false;
@@ -7552,6 +7603,7 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_guardianDoorSealed(door)) return true;
     if (_isVapor && _sealBlocked(room, door)) return true;
+    if (_isFoundry && _foundryDoorLocked(room, door)) return true;
     if (_isVenom && _monasteryDoorLocked(room, door)) return true;
     if (_isShaft && _iceDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
@@ -7580,6 +7632,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVapor && _sealBlocked(room, door)) {
       return _sealDoorHint(room, door);
+    }
+    if (_isFoundry && _foundryDoorLocked(room, door)) {
+      return _foundryDoorHint(room, door);
     }
     if (_isVenom && _monasteryDoorLocked(room, door)) {
       return _monasteryDoorHint(room, door);
@@ -7632,6 +7687,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) return _barrowObjectiveHint(room);
     if (_isCircuit) return _circuitObjectiveHint(room);
     if (_isVapor) return _steamObjectiveHint(room);
+    if (_isFoundry) return _foundryObjectiveHint(room);
     if (_isVenom) return _monasteryObjectiveHint(room);
     if (_isShaft) return _shaftObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
@@ -7910,6 +7966,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) _renderBarrow(canvas, room);
     if (_isCircuit) _renderCircuit(canvas, room);
     if (_isVapor) _renderSteam(canvas, room);
+    if (_isFoundry) _renderFoundry(canvas, room);
     if (_isVenom) _renderMonastery(canvas, room);
     if (_isShaft) _renderShaft(canvas, room);
     _renderRoomLandmarks(canvas, room);
@@ -8232,6 +8289,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBarrow) return _barrowMoodTarget;
     if (_isCircuit) return _circuitMoodTarget;
     if (_isVapor) return _steamMoodTarget;
+    if (_isFoundry) return _foundryMoodTarget;
     if (_isVenom) return _monasteryMoodTarget;
     if (_isShaft) return _shaftMoodTarget;
     return switch (_themeFor(currentRoom)) {

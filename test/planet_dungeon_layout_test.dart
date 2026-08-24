@@ -496,6 +496,11 @@ void main() {
             // Poison declares BOTH of its non-guardian stars on the prior's
             // seal: a cure can bank Star 1 in any of the four wards, so no
             // ward owns it.
+            // Lava carries each non-guardian star on the room the line
+            // leaves you standing in.
+            if (room.foundryStar != null) {
+              nonGuardianStars.add(room.foundryStar!.starIndex);
+            }
             if (room.priorsSeal != null) {
               nonGuardianStars.add(room.priorsSeal!.diagnosisStarIndex);
               nonGuardianStars.add(room.priorsSeal!.triageStarIndex);
