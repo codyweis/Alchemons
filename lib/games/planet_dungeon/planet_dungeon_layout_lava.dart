@@ -1138,7 +1138,9 @@ const DungeonLayout kLavaLayout = DungeonLayout(
         ),
       ],
       guardian: GuardianNode(
-        position: Offset(520, 300),
+        // ON the ring, west side: it is riding the conveyor when you walk in,
+        // and the west head is the first thing that can catch it.
+        position: Offset(284, 400),
         starIndex: 2,
         encounter: GuardianEncounterRequirement(
           element: 'Lava',
