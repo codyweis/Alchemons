@@ -22,9 +22,93 @@
 // way and for the same reason.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
+    show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+CosmicPartyMember _member(int slot, String element, String family) =>
+    CosmicPartyMember(
+      instanceId: 'inst_$slot',
+      baseId: 'base_$slot',
+      displayName: '$element $family',
+      element: element,
+      family: family,
+      level: 10,
+      statSpeed: 3,
+      statIntelligence: 3,
+      statStrength: 3,
+      statBeauty: 3,
+      slotIndex: slot,
+      staminaBars: 3,
+      staminaMax: 3,
+    );
+
+/// The §6 ideal trio: Poisonmask · Lavahorn · Mudmane.
+List<CosmicPartyMember> _idealTrio() => [
+      _member(0, 'Poison', 'mask'),
+      _member(1, 'Lava', 'horn'),
+      _member(2, 'Mud', 'mane'),
+    ];
+
+PlanetDungeonGame _harness(
+  List<CosmicPartyMember> party, {
+  void Function(int)? onStar,
+  void Function(String)? onCloud,
+}) {
+  final game = PlanetDungeonGame(
+    element: 'Poison',
+    party: party,
+    initialStarMask: 0,
+    onStarEarned: onStar ?? (_) {},
+    onCloudDiscovered: onCloud,
+    onPlayerDown: () => fail('the scripted run must never wipe'),
+    onChanged: () {},
+  );
+  game.currentRoomId = game.layout.entranceRoomId;
+  for (final m in party) {
+    final c = DungeonCreature(member: m)
+      ..position = game.layout.entranceSpawn
+      ..lastSafe = game.layout.entranceSpawn;
+    game.creatures.add(c);
+    final stats = deriveCosmicSurvivalCompanionStats(member: m);
+    game.combatCompanions.add(
+      CosmicSurvivalCompanion(
+        member: m,
+        slotIndex: m.slotIndex,
+        position: c.position,
+        anchor: c.position,
+        maxHp: stats.maxHp,
+        currentHp: stats.maxHp,
+        physAtk: stats.physAtk,
+        elemAtk: stats.elemAtk,
+        physDef: stats.physDef,
+        elemDef: stats.elemDef,
+        cooldownReduction: stats.cooldownReduction,
+        critChance: stats.critChance,
+        attackRange: stats.attackRange,
+        specialAbilityRange: stats.specialAbilityRange,
+        tethered: false,
+        invincibleTimer: 0,
+      ),
+    );
+  }
+  // Pin the roll so the script is a DIAGNOSIS and not a lucky shuffle; the
+  // exhaustive sweep above already covers all 24 arrangements.
+  game.monastery.triage = WardTriage(
+    wardIds: kMonasteryWardIds,
+    strains: const {
+      'ward_bell': WardStrain.pulse,
+      'ward_scriptorium': WardStrain.creep,
+      'ward_refectory': WardStrain.leap,
+      'ward_charnel': WardStrain.feign,
+    },
+  );
+  return game;
+}
 
 /// Every arrangement of the four strains over the four wards (4! = 24). The
 /// engine rolls one of these per run, so a proof has to cover all of them.
@@ -433,6 +517,244 @@ void main() {
         layout.familyGates.map((g) => '${g.element}+${g.family}').toSet(),
         {'Lava+Horn', 'Mud+Mane'},
       );
+    });
+  });
+
+  group('the run, played against the real engine', () {
+    /// Stand the whole trio at [pos] in [roomId] and press UTILITY as [idx].
+    void actAt(PlanetDungeonGame g, String roomId, int idx, Offset pos) {
+      g.currentRoomId = roomId;
+      for (final c in g.creatures) {
+        c
+          ..position = pos
+          ..lastSafe = pos;
+      }
+      g.setActive(idx);
+      g.activateAbility();
+      g.update(1 / 60);
+    }
+
+    void step(PlanetDungeonGame g, [double seconds = 0.1]) {
+      var t = 0.0;
+      while (t < seconds) {
+        g.update(1 / 60);
+        t += 1 / 60;
+      }
+      for (final c in g.creatures) {
+        c.hp = c.maxHp;
+      }
+    }
+
+    // Where each fixture stands, read off the authored layout.
+    const gateDoor = Offset(650, 240);
+    const wardDoors = {
+      'ward_bell': Offset(205, 60),
+      'ward_scriptorium': Offset(525, 60),
+      'ward_refectory': Offset(845, 60),
+      'ward_charnel': Offset(1165, 60),
+    };
+    const censer = Offset(140, 120);
+    const oubliette = Offset(280, 310);
+    const priorsSeal = Offset(1230, 330);
+    const poison = 0, lava = 1, mud = 2;
+
+    Offset spoutOf(PlanetDungeonGame g, String roomId, WardDraught d) => g
+        .layout
+        .rooms[roomId]!
+        .apothecary!
+        .spouts
+        .firstWhere((s) => s.draught == d)
+        .position;
+
+    test('the ideal trio earns all three Poison stars end-to-end', () {
+      final earned = <int>[];
+      final found = <String>[];
+      final game =
+          _harness(_idealTrio(), onStar: earned.add, onCloud: found.add);
+      final t = game.monastery.triage;
+
+      // ── Entry rite: the quarantine wax answers Poison.
+      expect(game.entryDoorRevealed, isFalse);
+      actAt(game, 'lazar_gate', lava, gateDoor);
+      expect(game.entryDoorRevealed, isFalse, reason: 'Lava is not physic');
+      actAt(game, 'lazar_gate', poison, gateDoor);
+      expect(game.entryDoorRevealed, isTrue);
+
+      // ── A ward is not a room until you break its seal (§5.5 topology).
+      final amb = game.layout.rooms['ambulatory']!;
+      final bellDoor =
+          amb.doors.firstWhere((d) => d.targetRoomId == 'ward_bell');
+      expect(game.isDoorLocked(amb, bellDoor), isTrue);
+
+      // ── Cure three wards, each by its own diagnosis.
+      const plan = {
+        'ward_bell': WardDraught.stilling, // it keeps a beat
+        'ward_scriptorium': WardDraught.quicklime, // it clings to the stone
+        'ward_refectory': WardDraught.binding, // it jumps the gap
+      };
+      var first = true;
+      plan.forEach((ward, draught) {
+        actAt(game, 'ambulatory', poison, wardDoors[ward]!);
+        expect(t.opened, contains(ward), reason: '$ward never opened');
+        actAt(game, 'apothecary', poison, spoutOf(game, 'apothecary', draught));
+        expect(t.carried, draught, reason: 'the phial was not drawn');
+        actAt(game, ward, poison, censer);
+        expect(t.cured, contains(ward), reason: '$ward was not cured');
+        if (first) {
+          expect(game.hasStar(0), isTrue,
+              reason: 'the first cure banks the Physician\'s Star');
+          first = false;
+        }
+      });
+      expect(game.isDoorLocked(amb, bellDoor), isFalse,
+          reason: 'an opened ward is walkable');
+
+      // ── The house has no physic for a fourth (the whole planet).
+      actAt(game, 'ambulatory', lava, wardDoors['ward_charnel']!);
+      expect(t.opened, contains('ward_charnel'),
+          reason: 'the Lava HORN breaches the brick');
+      actAt(game, 'apothecary', poison,
+          spoutOf(game, 'apothecary', WardDraught.rousing));
+      expect(t.carried, isNull,
+          reason: 'three cured — the cistern refuses a fourth draught');
+
+      // ── The cross goes up. Star 1, and the sacrifice is irreversible.
+      expect(game.hasStar(1), isFalse);
+      actAt(game, 'ambulatory', mud, priorsSeal);
+      expect(game.hasStar(1), isTrue);
+      expect(t.surrendered, 'ward_charnel');
+      expect(earned, containsAllInOrder([0, 1]));
+
+      // ── The plague-cross bars the ward, then rots off it.
+      final charnelDoor =
+          amb.doors.firstWhere((d) => d.targetRoomId == 'ward_charnel');
+      expect(game.isDoorLocked(amb, charnelDoor), isTrue,
+          reason: 'the cross bars what it crossed off');
+      step(game, 4.4);
+      expect(game.isDoorLocked(amb, charnelDoor), isFalse,
+          reason: 'the strain you left alive eats its own door open');
+
+      // ── The oubliette: only in the ward you gave up, and only after the
+      // rite. The vault is reachable BECAUSE of the sacrifice.
+      final charnel = game.layout.rooms['ward_charnel']!;
+      final hatch =
+          charnel.doors.firstWhere((d) => d.targetRoomId == 'lazar_crypt');
+      expect(game.isDoorHidden(charnel, hatch), isTrue);
+      for (final saved in ['ward_bell', 'ward_scriptorium', 'ward_refectory']) {
+        final r = game.layout.rooms[saved]!;
+        expect(
+          game.isDoorHidden(
+            r,
+            r.doors.firstWhere((d) => d.targetRoomId == 'lazar_crypt'),
+          ),
+          isTrue,
+          reason: 'a ward you SAVED keeps its floor shut',
+        );
+      }
+      actAt(game, 'ward_charnel', poison, oubliette);
+      expect(game.monastery.oublietteOpen, isTrue);
+      expect(game.guardianAwake, isTrue);
+      expect(game.isDoorHidden(charnel, hatch), isFalse);
+
+      // ── The vault: the bottled essence lies under the ward you let go.
+      game.currentRoomId = 'lazar_crypt';
+      final vault = game.layout.rooms['lazar_crypt']!.vaultCache!;
+      for (final c in game.creatures) {
+        c
+          ..position = vault
+          ..lastSafe = vault;
+      }
+      step(game, 0.2);
+      expect(found, contains('cache:poison_vault'));
+
+      // ── Blightfang: the lull answers physic, never a clock (§7).
+      game.monastery.blightStrain = WardStrain.creep;
+      final g = game.layout.rooms['lazar_crypt']!.guardian!;
+      actAt(game, 'lazar_crypt', poison,
+          spoutOf(game, 'lazar_crypt', WardDraught.binding));
+      expect(game.monastery.triage.carried, WardDraught.binding,
+          reason: 'the carrion font never runs dry');
+      game.guardianVulnerable = false;
+      actAt(game, 'lazar_crypt', poison, g.position);
+      expect(game.guardianVulnerable, isFalse,
+          reason: 'the wrong physic only feeds it');
+
+      actAt(game, 'lazar_crypt', poison,
+          spoutOf(game, 'lazar_crypt', WardDraught.quicklime));
+      actAt(game, 'lazar_crypt', poison, g.position);
+      expect(game.guardianVulnerable, isTrue,
+          reason: 'the answering draught forces the window');
+      expect(game.monastery.blightLull, greaterThan(0));
+    });
+
+    test('a wrong draught FEEDS the ward, and the run survives it', () {
+      final game = _harness(_idealTrio());
+      final t = game.monastery.triage;
+      actAt(game, 'ambulatory', poison, wardDoors['ward_bell']!);
+      // ward_bell keeps a beat; quicklime is for what clings to stone.
+      actAt(game, 'apothecary', poison,
+          spoutOf(game, 'apothecary', WardDraught.quicklime));
+      actAt(game, 'ward_bell', poison, censer);
+      expect(t.virulent, contains('ward_bell'));
+      expect(t.cured, isEmpty);
+      expect(game.hasStar(0), isFalse);
+      // The dregs put a draught back, because wards can still be saved.
+      expect(t.canStillFinish, isTrue);
+      actAt(game, 'apothecary', poison,
+          spoutOf(game, 'apothecary', WardDraught.stilling));
+      actAt(game, 'ward_bell', poison, censer);
+      expect(t.cured, contains('ward_bell'));
+      expect(game.hasStar(0), isTrue,
+          reason: 'a misdiagnosis costs danger, never a star');
+    });
+
+    test('THE SEAL REMEMBERS: the brick and the squint stamp their chips', () {
+      final found = <String>[];
+      // No Lava horn and no Mud mane anywhere in this party.
+      final game = _harness([
+        _member(0, 'Poison', 'mask'),
+        _member(1, 'Lava', 'pip'),
+        _member(2, 'Mud', 'wing'),
+      ], onCloud: found.add);
+      final t = game.monastery.triage;
+
+      actAt(game, 'ambulatory', 1, wardDoors['ward_charnel']!);
+      expect(t.opened.contains('ward_charnel'), isFalse,
+          reason: 'a Lava PIP is not a Lava HORN');
+      expect(found, contains('gate:lava_horn'));
+
+      // The squint: shut for everyone but a Mud mane — and the ambulatory
+      // still reaches the ward, so nothing is walled off.
+      actAt(game, 'ambulatory', 0, wardDoors['ward_bell']!);
+      actAt(game, 'ambulatory', 0, wardDoors['ward_scriptorium']!);
+      final bell = game.layout.rooms['ward_bell']!;
+      final squint =
+          bell.doors.firstWhere((d) => d.targetRoomId == 'ward_scriptorium');
+      game.currentRoomId = 'ward_bell';
+      game.setActive(0);
+      expect(game.isDoorLocked(bell, squint), isTrue);
+      final amb = game.layout.rooms['ambulatory']!;
+      expect(
+        game.isDoorLocked(
+          amb,
+          amb.doors.firstWhere((d) => d.targetRoomId == 'ward_scriptorium'),
+        ),
+        isFalse,
+        reason: 'the clean corridor is always open — the squint is a shortcut',
+      );
+    });
+
+    test('THE DOSE: the sick wisp is cured, not killed', () {
+      final found = <String>[];
+      final game = _harness(_idealTrio(), onCloud: found.add);
+      final m = game.monastery;
+      m.wispStrain = WardStrain.feign; // it lies still until touched
+      actAt(game, 'apothecary', poison,
+          spoutOf(game, 'apothecary', WardDraught.rousing));
+      final wisp = m.wisp!;
+      actAt(game, 'ambulatory', poison, wisp);
+      expect(found, contains(kPoisonDoseEggId));
+      expect(m.wisp, isNull);
     });
   });
 }

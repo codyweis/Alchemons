@@ -30,6 +30,7 @@
 // with the older planets') so this planet's diff against shared files stays
 // to a handful of additive lines while other elements are built in parallel.
 
+import 'dart:math' show Random;
 import 'dart:ui';
 
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -390,6 +391,20 @@ const List<String> kMonasteryWardIds = [
   'ward_refectory',
   'ward_charnel',
 ];
+
+/// Roll a fresh run's triage: every strain present exactly once, spread over
+/// the four wards. ROLLED PER RUN (Earth's scale is the precedent) so the
+/// diagnosis is always a reading of the world and never a memorised answer.
+WardTriage rollWardTriage([Random? rng]) {
+  final order = List.of(WardStrain.values)..shuffle(rng ?? Random());
+  return WardTriage(
+    wardIds: kMonasteryWardIds,
+    strains: {
+      for (var i = 0; i < kMonasteryWardIds.length; i++)
+        kMonasteryWardIds[i]: order[i],
+    },
+  );
+}
 
 /// VENOM MONASTERY — the Poison dungeon.
 ///

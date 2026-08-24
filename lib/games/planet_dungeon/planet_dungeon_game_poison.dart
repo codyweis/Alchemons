@@ -82,9 +82,11 @@ const double _kBlightFeedHeal = 0.06;
 /// Everything the Venom Monastery tracks for one run. Bundled into a single
 /// object so the shared engine class carries ONE new field for this planet.
 class VenomMonastery {
-  /// The pure rules (planet_dungeon_layout_poison.dart). Replaced on reset;
-  /// empty for every non-Poison planet.
-  WardTriage triage = WardTriage(wardIds: const [], strains: const {});
+  /// The pure rules (planet_dungeon_layout_poison.dart). Rolled here rather
+  /// than in `_resetPuzzleState` because that only runs on a wipe/restart —
+  /// a fresh run's state has to come from the field initialisers, the same
+  /// way Steam's starting pressure does.
+  WardTriage triage = rollWardTriage();
 
   /// Shared strain clock — the pulse's beat rides it.
   double clock = 0;
@@ -108,7 +110,7 @@ class VenomMonastery {
   bool oublietteOpen = false;
 
   /// The sick wisp (the lost maxim), drifting the ambulatory.
-  Offset? wisp;
+  Offset? wisp = const Offset(560, 260);
   WardStrain wispStrain = WardStrain.pulse;
   double wispDrift = 0;
 
@@ -125,14 +127,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final m = monastery;
     // ROLLED PER RUN, like Earth's scale: the diagnosis is a reading of the
     // world, so a wiki must never be able to name which ward holds what.
-    final strains = List.of(WardStrain.values)..shuffle(Random());
-    m.triage = WardTriage(
-      wardIds: kMonasteryWardIds,
-      strains: {
-        for (var i = 0; i < kMonasteryWardIds.length; i++)
-          kMonasteryWardIds[i]: strains[i % strains.length],
-      },
-    );
+    m.triage = rollWardTriage();
     m.clock = 0;
     m.creepHead.clear();
     m.leapMote.clear();
