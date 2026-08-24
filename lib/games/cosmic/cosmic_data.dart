@@ -1657,6 +1657,11 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // carries a live phial clean through a ward). Lava+Mud→Poison brews the
   // counter-strains when no Poison hand is free.
   'Poison': ['Poison', 'Lava', 'Mud'],
+  // Frozen Observatory (Glacius): Ice (freezes flues into stairs, glazes the
+  // orrery floor, silvers the mirrors) + Light (melts the mouth's ice cap,
+  // thaws a glaze, and its Mask strikes the lodestone) + Air (sweeps the
+  // gallery's thaw back and turns the rite's last breath down the throat).
+  'Ice': ['Ice', 'Light', 'Air'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1675,6 +1680,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Lightning': ['Horn', 'Wing', 'Mask'], // Lightninghorn · Airwing · Firemask
   'Steam': ['Pip', 'Horn', 'Mask'], // Steampip · Earthhorn · Firemask
   'Poison': ['Mask', 'Horn', 'Mane'], // Poisonmask · Lavahorn · Mudmane
+  'Ice': ['Mane', 'Mask', 'Wing'], // Icemane · Lightmask · Airwing
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1685,7 +1691,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 const Set<String> kComingSoonDungeons = {
   'Lava',
   'Mud',
-  'Ice',
   'Dust',
   'Crystal',
   'Plant',

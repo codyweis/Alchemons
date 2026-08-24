@@ -13,6 +13,7 @@ import 'dart:ui';
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
     show PlanetStarState;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1069,6 +1070,11 @@ class DungeonRoom {
   /// The prior's seal — where the triage is committed, and where Poison
   /// declares its two non-guardian star indices.
   final PriorsSeal? priorsSeal;
+  /// Ice (the Frozen Observatory): this level's shaft content — its star, the
+  /// orrery/mirror puzzle, and the single objects (cap, rimefall, font,
+  /// hoarfrost, telescope). One field, because the shaft's own graph is
+  /// authored whole in planet_dungeon_layout_ice.dart rather than per room.
+  final IceShaft? rime;
 
   const DungeonRoom({
     required this.id,
@@ -1140,6 +1146,7 @@ class DungeonRoom {
     this.ward,
     this.apothecary,
     this.priorsSeal,
+    this.rime,
   });
 }
 
@@ -1309,6 +1316,8 @@ class DungeonLayout {
         seen.add(seal.diagnosisStarIndex);
         seen.add(seal.triageStarIndex);
       }
+      // Ice's two puzzle levels carry their star on the room's shaft content.
+      if (room.rime?.starIndex != null) seen.add(room.rime!.starIndex!);
     }
     return seen;
   }
@@ -3929,6 +3938,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Lightning': _lightningLayout,
   'Steam': _steamLayout,
   'Poison': poisonLayout,
+  'Ice': iceLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

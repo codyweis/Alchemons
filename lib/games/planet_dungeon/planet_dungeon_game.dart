@@ -25,6 +25,7 @@ import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -43,6 +44,7 @@ part 'planet_dungeon_game_earth.dart';
 part 'planet_dungeon_game_lightning.dart';
 part 'planet_dungeon_game_steam.dart';
 part 'planet_dungeon_game_poison.dart';
+part 'planet_dungeon_game_ice.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
@@ -321,6 +323,11 @@ class PlanetDungeonGame extends FlameGame {
     // already on its authored mark — seeded here, not in onLoad, because the
     // HUD (and every headless sim) reads this state before Flame finishes.
     _resetSpireState();
+    // The Frozen Observatory opens with every flue heaped in fresh snow and
+    // its orrery blocks on their authored cells — seeded here for the same
+    // reason as the spire: the HUD and every headless sim read this state
+    // before Flame finishes loading.
+    _resetShaftState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1188,6 +1195,36 @@ class PlanetDungeonGame extends FlameGame {
   /// planet_dungeon_game_poison.dart).
   final VenomMonastery monastery = VenomMonastery();
   bool get _isVenom => layout.element == 'Poison';
+  // ── Ice · the Rime Shaft (planet_dungeon_game_ice.dart) ──
+  // Per-run puzzle state. Extensions cannot carry fields, so — as with every
+  // other planet — Ice's live state sits here behind the `_isShaft` guard.
+  /// Every flue's drift/stair/scoured state, keyed by RimeFlue.id.
+  final Map<String, RimeFlueState> flueState = {};
+
+  /// Whether the sump's melt-fall stands as the climb home.
+  bool rimefallFrozen = false;
+
+  /// How many times THE THAW has run (the rimefall's price, and a readout).
+  int shaftThaws = 0;
+
+  /// Frames currently showing the chart, and each one's remaining hold.
+  final Set<int> silveredMirrors = {};
+  final Map<int, double> mirrorThaw = {};
+  bool lodestoneLit = false;
+  double mirrorSweep = 0; // Air-sweep cooldown
+
+  /// The orrery: glazed cells, block positions and seated blocks, all as
+  /// `row * cols + col` indices into the authored grid.
+  final Set<int> orreryGlass = {};
+  final Map<int, int> orreryBlocks = {};
+  final Set<int> orrerySeated = {};
+
+  /// Frowyrm's pillar, and the beat-edge its shatter is detected on.
+  bool hoarfrostWhole = false;
+  double _hoarfrostDown = 0;
+  bool _frowyrmBitLastFrame = false;
+
+  bool get _isShaft => layout.element == 'Ice';
 
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
@@ -1283,6 +1320,14 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
+    // MYS09 sheet verified 2048x512 — 4 frames of 512x512, one row.
+    'Frowyrm': SpriteSheetDef(
+      path: 'creatures/mystic/MYS09_icemystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
   };
 
   /// Half-HP escalation copy, per mystic.
@@ -1293,6 +1338,7 @@ class PlanetDungeonGame extends FlameGame {
     'Terradon': 'Terradon heaves — the whole barrow shudders!',
     'Raikuma': 'Raikuma roars — the whole circuit overloads white!',
     'Boilrog': 'Boilrog bellows — the pressure spikes to a scream!',
+    'Frowyrm': 'Frowyrm keens — the whole shaft cracks and runs!',
   };
   SpriteAnimationTicker? _guardianTicker;
   double _guardianSpriteScale = 1.0;
@@ -1498,6 +1544,7 @@ class PlanetDungeonGame extends FlameGame {
     // Air: WINDS (the RINGS counter's replacement — the ring sequence retired
     // with the §9.1 rework), then the loom's anchors, then the conduits.
     if (_isSpire) return _spireProgressReadout();
+    if (_isShaft) return _shaftProgressReadout();
     return null;
   }
 
@@ -1841,6 +1888,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetCircuitState();
     _resetPressureState();
     _resetMonasteryState();
+    _resetShaftState();
   }
 
   void _resetRun() {
@@ -2096,6 +2144,7 @@ class PlanetDungeonGame extends FlameGame {
     _updatePressure(a, room, dt);
     _updateGeyserField(a, room, dt);
     _updateMonastery(a, room, dt);
+    _updateShaft(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2278,6 +2327,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCircuit) _circuitAmbientHint(a, room);
     if (_isVapor) _steamAmbientHint(a, room);
     if (_isVenom) _monasteryAmbientHint(a, room);
+    if (_isShaft) _shaftAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -6844,6 +6894,14 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // The Frozen Observatory: freezing a flue, the rimefall, the orrery's
+    // glaze/shove, the mirror ring, the font and Frowyrm's pillar all ride
+    // one dispatcher — and the pillar, like Lightning's spike, must outrank
+    // the guardian's own catch.
+    if (_isShaft && _tryShaftVerb(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -7010,6 +7068,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVenom) {
       _monasteryReveal(a, room);
+      return;
+    }
+    if (_isShaft) {
+      _shaftReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7419,6 +7481,9 @@ class PlanetDungeonGame extends FlameGame {
         continue;
       }
       if (d.rect.contains(a.position)) {
+        // Ice: the ride SCOURS the flue and the rimefall THAWS the shaft —
+        // bookkeeping that has to happen on the transit itself.
+        if (_isShaft) _onShaftTransit(currentRoom, d);
         currentRoomId = d.targetRoomId;
         _spreadCreaturesAround(d.targetSpawn);
         _carryPursuersThroughDoor(d.targetSpawn);
@@ -7465,6 +7530,7 @@ class PlanetDungeonGame extends FlameGame {
     }
     // Poison: the oubliette exists only in the ward that was surrendered.
     if (_isVenom && _monasteryDoorHidden(room, door)) return true;
+    if (_isShaft && _iceDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -7487,6 +7553,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_guardianDoorSealed(door)) return true;
     if (_isVapor && _sealBlocked(room, door)) return true;
     if (_isVenom && _monasteryDoorLocked(room, door)) return true;
+    if (_isShaft && _iceDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7516,6 +7583,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVenom && _monasteryDoorLocked(room, door)) {
       return _monasteryDoorHint(room, door);
+    }
+    if (_isShaft && _iceDoorBlocked(room, door)) {
+      return _iceDoorHint(room, door);
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
@@ -7563,6 +7633,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCircuit) return _circuitObjectiveHint(room);
     if (_isVapor) return _steamObjectiveHint(room);
     if (_isVenom) return _monasteryObjectiveHint(room);
+    if (_isShaft) return _shaftObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -7840,6 +7911,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCircuit) _renderCircuit(canvas, room);
     if (_isVapor) _renderSteam(canvas, room);
     if (_isVenom) _renderMonastery(canvas, room);
+    if (_isShaft) _renderShaft(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8161,6 +8233,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCircuit) return _circuitMoodTarget;
     if (_isVapor) return _steamMoodTarget;
     if (_isVenom) return _monasteryMoodTarget;
+    if (_isShaft) return _shaftMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||

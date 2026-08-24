@@ -500,6 +500,11 @@ void main() {
               nonGuardianStars.add(room.priorsSeal!.diagnosisStarIndex);
               nonGuardianStars.add(room.priorsSeal!.triageStarIndex);
             }
+            // Ice's two puzzle levels carry their star on the room's shaft
+            // content (the orrery floor and the mirror gallery).
+            if (room.rime?.starIndex != null) {
+              nonGuardianStars.add(room.rime!.starIndex!);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));
