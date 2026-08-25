@@ -20,6 +20,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dar
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1101,6 +1102,14 @@ class DungeonRoom {
   /// exactly as Ice's shaft and Dust's mounds are.
   final CryptGrove? grove;
 
+  /// Dark (the Eclipse Vault): which QUARTER of the eclipse this room lies in,
+  /// its star, and the single objects (the pall, the analemma, the snuffer,
+  /// the abyss, the arena's shadow-vane). One field, because the vault's
+  /// spans, gnomons and anchors are authored whole in
+  /// planet_dungeon_layout_dark.dart rather than per room, exactly as Ice's
+  /// shaft and Plant's crypt are.
+  final EclipseHall? eclipse;
+
   /// Dust (the Ruins of Time): this room's content on the buried city's two
   /// Z-layers — its star, the drift yard, and the single objects (vane, silt,
   /// armillary, glass, the hollow's cut). One field, because the city's mounds
@@ -1201,6 +1210,7 @@ class DungeonRoom {
     this.prism,
     this.grave,
     this.grove,
+    this.eclipse,
   });
 }
 
@@ -1407,6 +1417,9 @@ class DungeonLayout {
         seen.add(vigil.roadStarIndex);
         seen.add(vigil.sigilStarIndex);
       }
+      // Dark carries its two non-guardian stars on the quarter a room lies
+      // in: the analemma court in the pall, the ossuary ring in the bones.
+      if (room.eclipse?.starIndex != null) seen.add(room.eclipse!.starIndex!);
     }
     return seen;
   }
@@ -4034,6 +4047,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Crystal': crystalLayout,
   'Plant': plantLayout,
   'Spirit': spiritLayout,
+  'Dark': darkLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

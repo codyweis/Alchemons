@@ -542,6 +542,12 @@ void main() {
               nonGuardianStars.add(room.grave!.vigil!.roadStarIndex);
               nonGuardianStars.add(room.grave!.vigil!.sigilStarIndex);
             }
+            // Dark declares its two non-guardian stars on the hall a room
+            // is: the analemma court in the pall quarter, the ossuary ring
+            // in the bones.
+            if (room.eclipse?.starIndex != null) {
+              nonGuardianStars.add(room.eclipse!.starIndex!);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));

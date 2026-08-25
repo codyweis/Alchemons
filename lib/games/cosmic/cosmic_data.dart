@@ -1701,6 +1701,14 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // the living can take; **Crystal+Spirit→Light** is what makes a light in a
   // place that has never had one.
   'Spirit': ['Spirit', 'Water', 'Crystal'],
+  // Eclipse Vault (Nythralor): Dark (draws the pall, turns every gnomon —
+  // the planet's whole verb — seats two of the analemma's stones, and its
+  // Mask reads the nave's black reredos) + Poison (seats the ossuary stone,
+  // and its Pip eats the rust out of the shadow-anchors) + Spirit (seats the
+  // gallery stone and reads where an anchor's far end comes out).
+  // Poison+Spirit→Dark is the braid that snuffs the nave's lamps when no
+  // Dark hand is free.
+  'Dark': ['Dark', 'Poison', 'Spirit'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1726,6 +1734,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Crystal': ['Mask', 'Horn', 'Pip'], // Crystalmask · Lightninghorn · Spiritpip
   'Plant': ['Mane', 'Mask', 'Pip'], // Plantmane · Lightmask · Mudpip
   'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Waterpip · Crystalwing
+  'Dark': ['Mask', 'Pip', 'Mane'], // Darkmask · Poisonpip · Spiritmane
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1734,7 +1743,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
-  'Dark',
   'Light',
   'Blood',
 };
