@@ -104,10 +104,15 @@
 // on the hall's floor, visible from the doorway across an open room, and the
 // player will see it in the first ten seconds — and the only sill onto it is
 // the heartway, a mirror shelf in sector 1, which is a floor exactly while
-// sector 1 is NOT lit. Sector 1 is also the only way onto the rim (the
-// narthex leaf), so the light that opens the whole archive to you is the
-// light that takes the reliquary away. You get it by putting everything out
-// and walking there in the dark — which is also how the Lost Maxim is earned
+// sector 1's INNER band is not lit. Sector 1 is also the only way onto the rim
+// (the narthex leaf), and that is the trick: the beam that opens the archive
+// to you is the beam that takes the heart away — unless you throw it LOW, so
+// that the great stack standing in sector 1 keeps the shelf behind it in
+// shadow. The vault is the planet's own thesis as an errand: a road and a
+// shadow out of one act of light. The archive left blazing (the keepers threw
+// the narthex beacon HIGH) hides it completely, and a player who never learns
+// the pitch never sees the floor appear. The absolute version — everything
+// out, and the walk made in total darkness — is how the Lost Maxim is earned
 // (§6). No prior planet's trick is this: Dark's room does not exist in the
 // light, Plant's is visible-but-too-small, Ice's a mirror plus an
 // unrepeatable slide, Dust's a house you bury HARDER, Poison's the ward you
