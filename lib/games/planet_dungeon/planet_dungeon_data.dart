@@ -22,6 +22,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart'
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1118,6 +1119,13 @@ class DungeonRoom {
   /// whole in planet_dungeon_layout_light.dart rather than per room, exactly
   /// as Ice's shaft and Dark's quarters are.
   final ArchiveHall? hall;
+  /// Blood (the Sanguine Orrery): this chamber's content on the figure-eight
+  /// of veins — its star, and the single objects (the pericardium, the rite's
+  /// balance, the heart-drum, the arena's vagal node). One field, because the
+  /// orrery's passages, ostia and collaterals are authored whole in
+  /// planet_dungeon_layout_blood.dart rather than per room, exactly as Ice's
+  /// shaft, Plant's crypt and Dark's vault are.
+  final SanguineChamber? sanguine;
 
   /// Dust (the Ruins of Time): this room's content on the buried city's two
   /// Z-layers — its star, the drift yard, and the single objects (vane, silt,
@@ -1221,6 +1229,7 @@ class DungeonRoom {
     this.grove,
     this.eclipse,
     this.hall,
+    this.sanguine,
   });
 }
 
@@ -1433,6 +1442,12 @@ class DungeonLayout {
       // Light does the same with the sector a bay lies in: the shadow court in
       // the court bay, the dark stacks out past both great stacks.
       if (room.hall?.starIndex != null) seen.add(room.hall!.starIndex!);
+      // Blood carries its two non-guardian stars on the chamber a room is:
+      // the vena crossing where the eight crosses itself, and the capillary
+      // weave at the far end of the lung.
+      if (room.sanguine?.starIndex != null) {
+        seen.add(room.sanguine!.starIndex!);
+      }
     }
     return seen;
   }
@@ -4062,6 +4077,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Spirit': spiritLayout,
   'Dark': darkLayout,
   'Light': lightLayout,
+  'Blood': bloodLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

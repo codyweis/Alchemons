@@ -1717,6 +1717,14 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // the slips). **Crystal+Spirit→Light** is the planet's own braid and works
   // the shutter-ring when no Light hand is free.
   'Light': ['Light', 'Crystal', 'Spirit'],
+  // Sanguine Orrery (Hemavorn): Blood (the pericardium, two of the four
+  // mouths, the rite's balance — and its Kin steadies the cannula in a wall
+  // that will not hold still) + Dark (the arch mouth, and its Mask is the
+  // only sight that can graft a dead vessel's unlit lumen) + Light (the weave
+  // mouth, and it flags which collaterals are thrombosed before you open
+  // one). **Dark+Light→Blood** is the planet's own braid and balances the
+  // heart when no Blood hand is free.
+  'Blood': ['Blood', 'Dark', 'Light'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1744,6 +1752,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Waterpip · Crystalwing
   'Dark': ['Mask', 'Pip', 'Mane'], // Darkmask · Poisonpip · Spiritmane
   'Light': ['Mask', 'Mask', 'Pip'], // Lightmask · Crystalmask · Spiritpip
+  'Blood': ['Kin', 'Mask', 'Mask'], // Bloodkin · Darkmask · Lightmask
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1751,9 +1760,13 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// unseal them — but instead of a DESCEND action they show a "descent coming
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
-const Set<String> kComingSoonDungeons = {
-  'Blood',
-};
+///
+/// **EMPTY since 2026-08-25.** Blood was the seventeenth and last dungeon;
+/// every planet is now built. The set stays as the mechanism (it is what
+/// [isDungeonGatePlanet] and the placard branch read), and the roster tests
+/// keep pinning `built + coming-soon == 17` — which now holds with nothing on
+/// this side of the sum.
+const Set<String> kComingSoonDungeons = <String>{};
 
 /// True if [element]'s planet uses the gate ritual at all — whether its dungeon
 /// is built ([kCosmicPlanetEntry]) or merely coming soon ([kComingSoonDungeons]).
