@@ -294,8 +294,8 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Crystal** (built) | Rearranging 3×3 sliding grid — sliding moves rooms AND you | every slide solves one adjacency and breaks another | a room that only ENTERS the grid in one configuration |
 | **Plant** (built) | Nested scales: the same map at tiny and huge, overlaid | which scale to be, where — passages exist at one scale only | visible at huge scale, enterable only at tiny |
 | **Poison** (built) | Quarantine wards: sealed wards; opening one lets the contagion in | you cannot cure every ward — choose what to sacrifice | inside the ward you chose NOT to save |
-| Spirit | Two overlaid worlds: living/ghost layers, same geometry, different doors | which layer to cross each junction in — deaths in one open doors in the other | exists only in the ghost layer, marked only in the living one |
-| Dark | Inverting maze: light/dark flips swap walls and doors | every flip you make for a door closes one elsewhere | the vault room only EXISTS in the dark state |
+| **Spirit** (built) | Two overlaid worlds: living/ghost layers, same geometry, different doors | which layer to cross each junction in — deaths in one open doors in the other | exists only in the ghost layer, marked only in the living one |
+| **Dark** (built) | Inverting maze: light/dark flips swap walls and doors | every flip you make for a door closes one elsewhere | the vault room only EXISTS in the dark state |
 | Light | One great hall: no corridors — light beams partition the space into moving "rooms" | aiming light builds paths AND exposes you — illuminate as little as possible | stands in plain sight; reachable only through un-lit ground |
 | Blood | Systole loop: a figure-eight of veins around the heart; surges circle it on the beat | move WITH the pulse or against it — timing is the map | reachable only in the flatline window between beats |
 
@@ -321,14 +321,15 @@ new. The ledger grows with every build:
 | **Dust** (BUILT 2026-08-24) | **conservation as the cost function** (one object owns every write, and every mutator is a PAIRED TRANSFER — dig here, heap there, atomically, so the total cannot leak; CLAIMED: no other planet may make a conserved quantity the puzzle) · **Z-layer swap driven by load count** (0 bared = the street is a pit and the cellar opens · 1 = plain street · 2 drifted = a dune-wall, and a ramp opens instead — the layer you are on is a CONSEQUENCE of the ledger, not a toggle; Spirit's living/ghost layer swap is a different reading and stays free) · **the inverted vault verb** (the buried house is the one thing digging cannot reach — you bury it HARDER until the weight cracks the wall) |
 | **Crystal** (BUILT 2026-08-25) | **the self-rearranging map as a permutation group** (the 8-puzzle as architecture: nine fixed lattice cells, eight glass chambers and one hollow permuting through them, and the player rides or hauls — CLAIMED) · **REVERSIBLE world-edits** (the only built planet whose mechanic cannot strand, so it carries no reset valve; its risk is authoring an UNREACHABLE target, not a dead end) · **mutually exclusive stars** (Stars 0 and 1 are provably never holdable at once — 0 states — which is the strategic question expressed as a number) |
 | **Plant** (BUILT 2026-08-25) | **scale as a property of the OBSERVER** (one geometry, seventeen passages, each cut for exactly one size of body; the ground never changes, you do — CLAIMED, and deliberately distinct from Dust's Z-layer, where the deck you are on is a consequence of a load ledger) · **scale-determined authorship** (a seed set by a huge hand comes up a creeper only a small body walks; set by a tiny hand it comes up a trunk only a giant walks — each product is a road for the size you were NOT, so the route dictates the product; distinct from Ice's treasure-or-ladder, where you choose between two uses of one edit) |
+| **Spirit** (BUILT 2026-08-25) | **the living/ghost reading of two overlaid worlds** (one deck of rooms, two worlds over it; every crossing walkable in exactly one world — CLAIMED; Dust holds the Z-layer reading, Plant the observer-scale reading) · **death as an irreversible world-edit** (a revenant holds the ghost lintel up while the stone that killed them blocks the living way; hearing them out finishes the death, clears the living way and drops the ghost way — the doc's "deaths in one open doors in the other", verbatim) |
+| **Dark** (BUILT 2026-08-25) | **state-flip maze inversion** (a GLOBAL flip rewrites the whole maze at once and every flip made for one door closes another — CLAIMED; distinct from Spirit, whose layers coexist and are chosen at a junction, and from Lightning's electrical zero-sum: this one is spatial) · **safety by additivity** (the only irreversible edits are portals that open and never close; an additive edit cannot shrink reachability, so it cannot strand — a reusable argument, not a claim) |
 | **Nexus** (reserved) | RULE MANIPULATION — transmutation circles rewriting element bindings (the Baba Is You seat; no planet may touch it) |
 
-**Open archetype pool for the remaining 4** (match against the §6 matrix;
+**Open archetype pool for the remaining 2** (match against the §6 matrix;
 each planet claims patterns no ledger row owns): rhythm/timing windows
-(Blood) · light-cone occlusion + exposure management (Light) · state-flip
-maze inversion (Dark) · two-overlaid-worlds layer swap (Spirit — the
-LIVING/GHOST reading only; Dust has taken the Z-layer/excavation reading and
-Plant the observer-scale reading).
+(Blood) · light-cone occlusion + exposure management (Light — and NOT beam
+routing, which is Lightning's: Light's question is EXPOSURE, since the beam
+is both the floor you walk on and the thing that reveals you).
 
 ~~one-way-descent route planning~~ (CLAIMED by Ice) ·
 ~~irreversible sacrifice choice~~ (CLAIMED by Poison — Mud must claim
@@ -341,7 +342,10 @@ there, not shape-authoring; excavation and terraforming are close enough
 neighbours that a cold author will reach for the wrong one) ·
 ~~conservation~~ (CLAIMED by Dust) ·
 ~~self-rearranging map / sliding rooms~~ (CLAIMED by Crystal) ·
-~~scale shift tiny/huge~~ (CLAIMED by Plant).
+~~scale shift tiny/huge~~ (CLAIMED by Plant) ·
+~~two-overlaid-worlds layer swap~~ (all three readings now CLAIMED — Dust
+Z-layer, Plant observer-scale, Spirit living/ghost) ·
+~~state-flip maze inversion~~ (CLAIMED by Dark).
 
 **VISUAL GRAMMAR RULE:** every core mechanic gets its own rendering language,
 distinct from every prior planet that shares a surface resemblance. Light's
@@ -1135,7 +1139,7 @@ MYS03 Terradon=Earth (built: 4×512² frames, 1 row) ·
 MYS04 Roc=Air (built) · MYS05 Boilrog=Steam · MYS06 Magmara=Lava (built) ·
 MYS07 Raikuma=Lightning · MYS08 Bogdrya=Mud (built) · MYS09 Frowyrm=Ice (built) ·
 MYS10 Ashdjinn=Dust (built) · MYS11 Prismalith=Crystal (built) · MYS12 Botanica=Plant (built) ·
-MYS13 Blightfang=Poison (built) · MYS14 Wraithord=Spirit · MYS15 Noctryos=Dark ·
+MYS13 Blightfang=Poison (built) · MYS14 Wraithord=Spirit (built) · MYS15 Noctryos=Dark (built) ·
 MYS16 Solarin=Light · MYS17 Sanguorath=Blood.
 
 ### Vault caches (one per planet, +5 gold once — built for Air/Fire/Water/Earth)
@@ -1738,16 +1742,60 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   terrain, a per-door size glyph, and a SIZE tiny/huge readout. **Open
   question for a device playtest: whether that reads as scale without the
   radius change.**
+- ✅ **Spirit — Requia, the Echo Grave (built 2026-08-25)**: one grave-field
+  read twice. Seven barrows on a corpse round plus two chords; every crossing
+  is walkable in exactly one world, and six of them have not yet decided
+  which. A crossing is both / living-only (salted) / ghost-only (a road that
+  fell) / **a revenant** — somebody still dying there, holding the ghost
+  lintel up while the stone that killed them lies across the living way. A
+  Spirit hand in the cold world hears them out: the death finishes, the living
+  way clears, the ghost way falls in. Irreversible.
+  The mere has two dead: stand there ALIVE and you must finish one; stand
+  there DEAD and you must leave one restless. Finish both and you own the
+  mere forever and the hollow grave behind it never — **544 of 2,276 states
+  have lost the vault for good**, which is the strategic question biting, not
+  a bug (Mud's precedent).
+  **0 strandable of 2,276 states with NO VALVE**, by geometry: the lych road
+  and drowned cut can never be told, so a ghost spine survives every state;
+  and all six dead are heard out from spine barrows, so a body can never be
+  standing in the pendant barrow whose last ghost road it is closing. The
+  counterfactual is pinned — move each telling to the pendant side and **54
+  of 369** reachable states strand.
+  DEVIATION: §6's Spiritmask gate moved from Star 1 to the rite (§4).
+  NOT DONE: §6.14 asks for the ghost half of the sigil on the actual minimap
+  widget; it renders diegetically instead (a great arc struck over the field
+  in the ghost world), because editing `dungeon_minimap.dart` was outside the
+  file discipline. Small follow-up if it should be literal.
+- ✅ **Dark — Nythralor, the Eclipse Vault (built 2026-08-25)**: a global
+  light/dark flip rewrites the whole maze at once, and every flip made for one
+  door closes another. The vault room only EXISTS in the dark state — in light
+  it is not there at all and its slot is a blank face of stone.
+  **0 strandable of 392 states with NO VALVE**, and structurally rather than
+  by luck: (1) a turn is its own undo — you turn a gnomon by standing at it
+  and are still standing there after, so the walk/turn relation is symmetric;
+  (2) a room with no gnomon can never be shut on you; (3) every gnomon stands
+  in the UPPER of the two quarters it commands, never behind the door it
+  opens. Underneath those sit THE PROMISE RULES, authored one room at a time:
+  seven of ten rooms carry a TWINNED crossing (a shadow-way and a light-walk
+  through the same quarter, so exactly one is always there), the pall's two
+  rooms carry the GNOMON'S PROMISE, the reliquary is a one-door pocket, and
+  the arena's rood door is phase-free. The only irreversible edits are
+  ADDITIVE — a portal opens and never closes — and an additive edit cannot
+  shrink reachability.
+  Two counterfactuals pinned so the safety is demonstrably designed: put the
+  stair's gnomon in the deep, behind the gulf it opens, and the lower half
+  becomes a one-way trip — **124 states strand**. Pull the arena's vane and
+  phase-cut the rood door and **22 states strand**.
 - ⬜ **§9.0 INTERACTION REFIT v2 + hint/popup cleanup** — convert all six
   built planets to the §4 element-first / hard-family-gate model, implement
   "the seal remembers" descent chips, apply the §5.6 hint standard, rewrite
   the slow-and-loud tests. NEXT UP before any new planet.
 - ⬜ Device tuning pending: Air, Fire, Lightning, Steam, **Poison, Ice,
-  Lava, Mud, Dust, Crystal, Plant** (timings/feel — user playtest; Water + Earth already device-tested
+  Lava, Mud, Dust, Crystal, Plant, Spirit, Dark** (timings/feel — user playtest; Water + Earth already device-tested
   good). NONE of the 2026-08-24 three has ever been run on a device.
 - ⬜ More Mystic guardian sprites for future planets (map in
   `_guardianSheets`, enroll in `kRaidGuardianIds`; roster in §6).
-- ⬜ The other 4 planets' signature mechanics (+ their shaders).
+- ⬜ The other 2 planets' signature mechanics (+ their shaders).
 
 ## 8.5 Ability parity with survival — status
 
