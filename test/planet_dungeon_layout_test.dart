@@ -510,6 +510,13 @@ void main() {
             if (room.rime?.starIndex != null) {
               nonGuardianStars.add(room.rime!.starIndex!);
             }
+            // Mud declares BOTH of its non-guardian stars on the Sinking
+            // Altar's socket: the Moor Star completes in whichever of the
+            // three moor knolls is dried last, so no knoll owns it.
+            if (room.fen?.altar != null) {
+              nonGuardianStars.add(room.fen!.altar!.sarsenStarIndex);
+              nonGuardianStars.add(room.fen!.altar!.moorStarIndex);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));

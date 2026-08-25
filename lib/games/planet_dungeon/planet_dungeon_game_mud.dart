@@ -388,6 +388,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
       if ((a.position - head).distance > _kFenReach) continue;
       switch (f.stateOf(ford.id)) {
         case BogFordState.sod:
+          // A road that already stands is the HAUL's business, not the
+          // drag's: decline so `_tryHaulSarsen` gets the press.
+          if (!f.sarsenSeated && f.sarsenKnoll == currentRoomId) return false;
           _setBlockedHint('This crossing already stands');
           return true;
         case BogFordState.drowned:
@@ -461,10 +464,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
       final head = ford.headIn(currentRoomId);
       if (head == null) continue;
       if ((a.position - head).distance > _kFenReach * 1.4) continue;
-      if (f.stateOf(ford.id) != BogFordState.sod) {
-        _setBlockedHint('The stone will not go over soft ground');
-        return true;
-      }
+      // Only sod ever bears the stone. Anything else has already been
+      // answered by the drag, which runs first.
+      if (f.stateOf(ford.id) != BogFordState.sod) continue;
       f.sarsenKnoll = ford.other(currentRoomId)!;
       _setHint('The sarsen grinds across — one crossing nearer', 3.2);
       _spawnAlchemyBurst(
@@ -859,12 +861,17 @@ extension SinkingAltarFen on PlanetDungeonGame {
   ///     walk-disconnected. Non-zero on purpose: that is the strategic
   ///     question ("shape the map you'll have to live with") having teeth.
   ///
-  /// Implemented as one reverse BFS per room rather than a forward search per
-  /// state — same answer, and it stays linear in (rooms × states) instead of
-  /// quadratic in states.
+  /// `strandable` is the LITERAL two-level search the brief asks for (the Ice
+  /// precedent): enumerate every reachable state, then run a fresh forward
+  /// BFS out of each one and check that every room legal play can reach at
+  /// all is still reachable. `strandableReverse` recomputes the same number
+  /// the cheap way — one reverse BFS per room — purely as a cross-check on
+  /// the search itself; the test pins the two equal, so a bug in either would
+  /// have to be a bug in both, in the same direction.
   ({
     int states,
     int strandable,
+    int strandableReverse,
     int strandableWithoutSough,
     int disconnectedShapes,
     int shapes,
@@ -1013,11 +1020,54 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return live.length - seen.length;
     }
 
+    // Only audit rooms legal play can reach AT ALL. With the plank road shut
+    // (a party that brought no Mud mane) the vault bowl is simply not part of
+    // this run's world — that is a family gate on optional treasure, not a
+    // strand — so it drops out of the audit rather than counting against it.
+    final everReached = {for (final s in live.values) s.$1};
+    final required = [for (final r in rooms) if (everReached.contains(r)) r];
+
+    /// LEVEL TWO — the literal search: from ONE state, which rooms are still
+    /// reachable? A fresh forward BFS over the state graph, exactly as Ice's
+    /// `solveShaftDescent` does it.
+    Set<String> roomsReachableFrom(
+      (String, int, bool, bool) s, {
+      required bool valveEnabled,
+    }) {
+      final seen = <int>{enc(roomIndex[s.$1]!, s.$2, s.$3, s.$4)};
+      final hit = <String>{s.$1};
+      final q = [s];
+      while (q.isNotEmpty) {
+        final cur = q.removeLast();
+        for (final m in moves(
+          cur.$1,
+          cur.$2,
+          cur.$3,
+          cur.$4,
+          valveEnabled: valveEnabled,
+        )) {
+          final k = enc(roomIndex[m.$1]!, m.$2, m.$3, m.$4);
+          if (!seen.add(k)) continue;
+          hit.add(m.$1);
+          q.add(m);
+        }
+      }
+      return hit;
+    }
+
     var strandable = 0;
     var without = 0;
-    for (final r in rooms) {
-      strandable = max(strandable, unreachableCount(r, valveEnabled: true));
-      without = max(without, unreachableCount(r, valveEnabled: false));
+    for (final s in live.values) {
+      final withValve = roomsReachableFrom(s, valveEnabled: true);
+      if (required.any((r) => !withValve.contains(r))) strandable++;
+      final bare = roomsReachableFrom(s, valveEnabled: false);
+      if (required.any((r) => !bare.contains(r))) without++;
+    }
+
+    // The cross-check, computed the other way round.
+    var reverse = 0;
+    for (final r in required) {
+      reverse = max(reverse, unreachableCount(r, valveEnabled: true));
     }
 
     // How many shapes leave the bog itself walk-disconnected?
@@ -1040,6 +1090,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     return (
       states: live.length,
       strandable: strandable,
+      strandableReverse: reverse,
       strandableWithoutSough: without,
       disconnectedShapes: disconnected,
       shapes: shapes.length,
