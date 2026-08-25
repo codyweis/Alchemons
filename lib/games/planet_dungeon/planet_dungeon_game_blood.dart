@@ -551,13 +551,21 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       _setBlockedHint('Only Blood gets an answer out of this skin');
       return true;
     }
-    if (!_drumInWindow() || heart.drumStruckThisBeat) {
+    final beat = _drumWindowBeat();
+    if (beat == null) {
       heart.drumStreak = 0;
+      heart.drumBeatStruck = -1;
       _setHint('Off the beat — the drum swallows it');
       return true;
     }
-    heart.drumStruckThisBeat = true;
-    heart.drumStreak++;
+    if (beat == heart.drumBeatStruck) {
+      _setAmbientHint('Once a beat, and no oftener');
+      return true;
+    }
+    // Consecutive or not, decided by the beat NUMBER rather than by anything
+    // the frame loop happened to see.
+    heart.drumStreak = beat == heart.drumBeatStruck + 1 ? heart.drumStreak + 1 : 1;
+    heart.drumBeatStruck = beat;
     if (heart.drumStreak < _kDrumBeats) {
       _setHint('${heart.drumStreak} of $_kDrumBeats', 1.2);
       return true;
@@ -575,29 +583,38 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     return true;
   }
 
-  /// True while the beat is within [_kDrumWindow] of a systole onset — which
-  /// is the top of the cycle, so the window straddles the wrap.
-  bool _drumInWindow() {
-    if (heart.arrest > 0) return false;
+  /// Which BEAT the drum's window is currently open for, or null when it is
+  /// shut. The window straddles the top of the cycle — a systole onset is the
+  /// wrap — so the tail of one beat belongs to the NEXT one's onset.
+  int? _drumWindowBeat() {
+    if (heart.arrest > 0) return null;
     final t = heart.clock;
-    return t <= _kDrumWindow || t >= kPulseCycleSeconds - _kDrumWindow;
+    if (t <= _kDrumWindow) return heart.beats;
+    if (t >= kPulseCycleSeconds - _kDrumWindow) return heart.beats + 1;
+    return null;
   }
 
-  /// A beat that comes and goes unanswered breaks the streak. Run every frame
-  /// so the drum needs no verb to notice a miss.
+  /// True while the drum's window is open — the render reads it, and so does
+  /// nothing else: the streak itself is decided by beat NUMBER.
+  bool _drumInWindow() => _drumWindowBeat() != null;
+
+  /// A beat that comes round unanswered breaks the streak, and leaving the
+  /// gallery breaks it too. Frame-rate independent: it fires as soon as the
+  /// window belongs to a beat more than one past the last one answered, so no
+  /// edge can be missed by a slow frame.
   void _updateDrum(DungeonRoom room, double dt) {
     if (room.sanguine?.heartDrum == null || heart.drumHeard) {
       heart.drumStreak = 0;
-      heart.drumWindowLast = false;
-      heart.drumStruckThisBeat = false;
+      heart.drumBeatStruck = -1;
       return;
     }
-    final inWindow = _drumInWindow();
-    if (heart.drumWindowLast && !inWindow) {
-      if (!heart.drumStruckThisBeat) heart.drumStreak = 0;
-      heart.drumStruckThisBeat = false;
+    final beat = _drumWindowBeat();
+    if (beat != null &&
+        heart.drumStreak > 0 &&
+        beat > heart.drumBeatStruck + 1) {
+      heart.drumStreak = 0;
+      heart.drumBeatStruck = -1;
     }
-    heart.drumWindowLast = inWindow;
   }
 
   // ── Per-frame ────────────────────────────────────────────

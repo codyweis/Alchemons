@@ -212,7 +212,15 @@ enum HeartLobe {
 /// to satisfy is in the header: the SHORTEST of them is the shortest window
 /// on the planet, and it must be long enough to walk through a door you are
 /// already standing at without hurrying.
-const List<double> kPulsePhaseSeconds = [7.0, 4.0, 7.0, 5.0];
+/// The DIASTOLE is the longest on purpose: the lesser lobe is three chambers
+/// deep and one-way, so it is the phase that has to cover the most ground,
+/// while the greater lobe gets two shorter phases because it can be walked
+/// both ways. THE FIRST NUMBER A DEVICE PASS SHOULD LOOK AT is the ratio of
+/// the diastole to how long a body actually takes to cross a lung chamber; if
+/// the lung feels like standing about, shorten the chambers before lengthening
+/// the phase, because every second added here is also a second added to the
+/// longest wait on the planet (sitting in the reliquary for the next pause).
+const List<double> kPulsePhaseSeconds = [7.0, 4.0, 9.0, 5.0];
 
 /// One full beat, in seconds. Derived so it can never drift from the phases.
 double get kPulseCycleSeconds =>
@@ -855,13 +863,12 @@ class SanguineHeart {
   int drumStreak = 0;
   bool drumHeard = false;
 
-  /// True while this beat's systole onset has already been answered, so one
-  /// strike cannot count twice.
-  bool drumStruckThisBeat = false;
-
-  /// Whether the drum's window was open on the previous frame, so the module
-  /// can see the window CLOSE and break a streak nobody answered.
-  bool drumWindowLast = false;
+  /// Which BEAT the drum was last answered on, or -1. Recording the beat
+  /// NUMBER rather than a per-frame edge is what makes the streak logic
+  /// frame-rate independent: a second strike on the same beat is ignored, a
+  /// strike on the next beat continues the streak, and a strike on any later
+  /// beat starts a new one — all decidable from one integer.
+  int drumBeatStruck = -1;
 
   /// Seconds left on the pulse ring the render throws at a phase turn.
   double turn = 0;
@@ -882,8 +889,7 @@ class SanguineHeart {
     vagalCooldown = 0;
     drumStreak = 0;
     drumHeard = false;
-    drumStruckThisBeat = false;
-    drumWindowLast = false;
+    drumBeatStruck = -1;
     turn = 0;
     // The corruption is NOT cleared here: a death inside the run must not
     // re-roll which vessels are sound, or the Light flagging would be a lie.
