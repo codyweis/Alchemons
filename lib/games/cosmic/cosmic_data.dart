@@ -1710,8 +1710,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
-  'Dust',
-  'Mud',
   'Crystal',
   'Plant',
   'Spirit',
