@@ -853,6 +853,12 @@ class BeaconArchive {
   /// the render has nowhere else to keep it.
   double bloom = 0;
 
+  /// Where Solarin is looking, in radians. ARENA-LOCAL and deliberately not
+  /// part of the hall's lighting at all — the mystic's glare never reaches a
+  /// beacon, which is the one authoring decision the no-strand proof rests on
+  /// (see the header, reason 4).
+  double glare = 0;
+
   /// How many lumens the archive has shown at once, at its worst. The
   /// readout's second line, and the closest thing this planet has to a bill.
   int worstLumens = 0;
@@ -875,6 +881,7 @@ class BeaconArchive {
     hushWalk = false;
     hushWalked = false;
     bloom = 0;
+    glare = 0;
     worstLumens = 0;
   }
 

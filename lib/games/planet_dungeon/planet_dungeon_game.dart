@@ -33,6 +33,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dar
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -59,6 +60,7 @@ part 'planet_dungeon_game_crystal.dart';
 part 'planet_dungeon_game_plant.dart';
 part 'planet_dungeon_game_spirit.dart';
 part 'planet_dungeon_game_dark.dart';
+part 'planet_dungeon_game_light.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
@@ -350,6 +352,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetGraveState();
     _resetCryptState();
     _resetVaultState();
+    _resetArchiveState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1310,6 +1313,14 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isVault => layout.element == 'Dark';
 
+  // ── Light · the Beacon Archive (planet_dungeon_game_light.dart) ──
+  /// The whole archive: what each rim beacon is set to, and what that has lit.
+  /// ONE field, because on this planet the light IS the floor (see
+  /// planet_dungeon_layout_light.dart).
+  final BeaconArchive archive = BeaconArchive();
+
+  bool get _isArchive => layout.element == 'Light';
+
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
   final Map<String, double> _conduitMaxEnergy = {};
@@ -1436,6 +1447,14 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
+    // MYS16 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Solarin': SpriteSheetDef(
+      path: 'creatures/mystic/MYS16_lightmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
     // MYS08 sheet verified 2048×512 — 4 frames of 512×512, one row.
     'Bogdrya': SpriteSheetDef(
       path: 'creatures/mystic/MYS08_mudmystic_spritesheet.png',
@@ -1458,6 +1477,7 @@ class PlanetDungeonGame extends FlameGame {
     'Bogdrya': 'Bogdrya swallows — the whole fen shudders and drops!',
     'Wraithord':
         'Wraithord thins — it is barely in either world now, and faster!',
+    'Solarin': 'Solarin opens — it is looking at all of you at once now!',
   };
   SpriteAnimationTicker? _guardianTicker;
   double _guardianSpriteScale = 1.0;
@@ -1677,6 +1697,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isWake) return _graveProgressReadout();
     if (_isCrypt) return _cryptProgressReadout();
     if (_isVault) return _vaultProgressReadout();
+    if (_isArchive) return _archiveProgressReadout();
     return null;
   }
 
@@ -2029,6 +2050,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetGraveState();
     _resetCryptState();
     _resetVaultState();
+    _resetArchiveState();
   }
 
   void _resetRun() {
@@ -2293,6 +2315,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateGrave(a, room, dt);
     _updateCrypt(a, room, dt);
     _updateVault(a, room, dt);
+    _updateArchive(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2483,6 +2506,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isWake) _graveAmbientHint(a, room);
     if (_isCrypt) _cryptAmbientHint(a, room);
     if (_isVault) _vaultAmbientHint(a, room);
+    if (_isArchive) _archiveAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -7123,6 +7147,13 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // The Beacon Archive: the door-shutter, the beacons, the court's effigies,
+    // the slips behind the shelves and the reading floor's shutter-ring all
+    // ride one dispatcher.
+    if (_isArchive && _tryArchiveVerb(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -7327,6 +7358,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVault) {
       _vaultReveal(a, room);
+      return;
+    }
+    if (_isArchive) {
+      _archiveReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7797,6 +7832,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isWake && _graveDoorHidden(room, door)) return true;
     if (_isCrypt && _cryptDoorHidden(room, door)) return true;
     if (_isVault && _vaultDoorHidden(room, door)) return true;
+    if (_isArchive && _archiveDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -7827,6 +7863,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isWake && _graveDoorBlocked(room, door)) return true;
     if (_isCrypt && _cryptDoorBlocked(room, door)) return true;
     if (_isVault && _vaultDoorBlocked(room, door)) return true;
+    if (_isArchive && _archiveDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7880,6 +7917,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isVault && _vaultDoorBlocked(room, door)) {
       return _vaultDoorHint(room, door);
+    }
+    if (_isArchive && _archiveDoorBlocked(room, door)) {
+      return _archiveDoorHint(room, door);
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
@@ -7935,6 +7975,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isWake) return _graveObjectiveHint(room);
     if (_isCrypt) return _cryptObjectiveHint(room);
     if (_isVault) return _vaultObjectiveHint(room);
+    if (_isArchive) return _archiveObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -8225,6 +8266,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isWake) _renderGrave(canvas, room);
     if (_isCrypt) _renderCrypt(canvas, room);
     if (_isVault) _renderVault(canvas, room);
+    if (_isArchive) _renderArchive(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8556,6 +8598,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isWake) return _graveMoodTarget;
     if (_isCrypt) return _cryptMoodTarget;
     if (_isVault) return _vaultMoodTarget;
+    if (_isArchive) return _archiveMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||
