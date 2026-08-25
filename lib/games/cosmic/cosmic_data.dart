@@ -1687,6 +1687,13 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // west lamp; **Lightning+Crystal→Spirit** stands in for a Spirit hand that
   // is down.
   'Crystal': ['Crystal', 'Lightning', 'Spirit'],
+  // Verdant Crypt (Verdanthos): Plant (unknots the lich-gate briar, quickens
+  // the boles that change your size, and sets every seed) + Light (relights
+  // the grave-lamps, and its Mask shows the heart-seed a sun the crypt has
+  // not had in an age) + Mud (loams the growth altar, cracks the sepulchre's
+  // clay, and turns the mulch pits that call the withering). Mud+Light→Plant
+  // is the braid that plants when no Plant hand is free.
+  'Plant': ['Plant', 'Light', 'Mud'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1710,6 +1717,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Mud': ['Mane', 'Pip', 'Mask'], // Mudmane · Plantpip · Watermask
   'Dust': ['Mask', 'Wing', 'Horn'], // Dustmask · Airwing · Earthhorn
   'Crystal': ['Mask', 'Horn', 'Pip'], // Crystalmask · Lightninghorn · Spiritpip
+  'Plant': ['Mane', 'Mask', 'Pip'], // Plantmane · Lightmask · Mudpip
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1718,7 +1726,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
-  'Plant',
   'Spirit',
   'Dark',
   'Light',

@@ -18,6 +18,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1091,6 +1092,14 @@ class DungeonRoom {
   /// hollow's mire anchor. One field, because the fen's own crossing graph is
   /// authored whole in planet_dungeon_layout_mud.dart rather than per room.
   final BogFen? fen;
+  /// Plant (the Verdant Crypt): this room's content in the crypt that is one
+  /// geometry at two sizes — its star, the boles and mulch pits, and the
+  /// single objects (briar, lamp, growth altar, sepulchre, shade seed, the
+  /// arena's root-gall). One field, because the crypt's spans and beds are
+  /// authored whole in planet_dungeon_layout_plant.dart rather than per room,
+  /// exactly as Ice's shaft and Dust's mounds are.
+  final CryptGrove? grove;
+
   /// Dust (the Ruins of Time): this room's content on the buried city's two
   /// Z-layers — its star, the drift yard, and the single objects (vane, silt,
   /// armillary, glass, the hollow's cut). One field, because the city's mounds
@@ -1181,6 +1190,7 @@ class DungeonRoom {
     this.fen,
     this.ruins,
     this.prism,
+    this.grove,
   });
 }
 
@@ -1375,6 +1385,9 @@ class DungeonLayout {
         seen.add(keep.spectrumStarIndex);
         seen.add(keep.throneStarIndex);
       }
+      // Plant does the same with its one geometry at two sizes: the lantern
+      // court above and the islet across the rill.
+      if (room.grove?.starIndex != null) seen.add(room.grove!.starIndex!);
     }
     return seen;
   }
@@ -4000,6 +4013,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Mud': mudLayout,
   'Dust': dustLayout,
   'Crystal': crystalLayout,
+  'Plant': plantLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

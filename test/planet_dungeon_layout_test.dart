@@ -529,6 +529,11 @@ void main() {
               nonGuardianStars.add(room.prism!.keep!.spectrumStarIndex);
               nonGuardianStars.add(room.prism!.keep!.throneStarIndex);
             }
+            // Plant does the same across its one geometry at two sizes: the
+            // lantern court and the islet.
+            if (room.grove?.starIndex != null) {
+              nonGuardianStars.add(room.grove!.starIndex!);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));
