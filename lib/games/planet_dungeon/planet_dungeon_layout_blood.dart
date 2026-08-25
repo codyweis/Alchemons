@@ -859,6 +859,10 @@ class SanguineHeart {
   /// strike cannot count twice.
   bool drumStruckThisBeat = false;
 
+  /// Whether the drum's window was open on the previous frame, so the module
+  /// can see the window CLOSE and break a streak nobody answered.
+  bool drumWindowLast = false;
+
   /// Seconds left on the pulse ring the render throws at a phase turn.
   double turn = 0;
 
@@ -879,6 +883,7 @@ class SanguineHeart {
     drumStreak = 0;
     drumHeard = false;
     drumStruckThisBeat = false;
+    drumWindowLast = false;
     turn = 0;
     // The corruption is NOT cleared here: a death inside the run must not
     // re-roll which vessels are sound, or the Light flagging would be a lie.
@@ -931,14 +936,10 @@ class SanguineHeart {
       return was != phase;
     }
     final was = phase;
-    final before = clock;
     clock += dt;
     if (clock >= kPulseCycleSeconds) {
       clock -= kPulseCycleSeconds * (clock ~/ kPulseCycleSeconds);
       beats++;
-      drumStruckThisBeat = false;
-    } else if (before < pulsePhaseStart(PulsePhase.systole)) {
-      drumStruckThisBeat = false;
     }
     phase = pulsePhaseAt(clock);
     return was != phase;

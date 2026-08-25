@@ -34,6 +34,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart'
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -61,6 +62,7 @@ part 'planet_dungeon_game_plant.dart';
 part 'planet_dungeon_game_spirit.dart';
 part 'planet_dungeon_game_dark.dart';
 part 'planet_dungeon_game_light.dart';
+part 'planet_dungeon_game_blood.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
@@ -353,6 +355,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetCryptState();
     _resetVaultState();
     _resetArchiveState();
+    _resetHeartState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1320,6 +1323,17 @@ class PlanetDungeonGame extends FlameGame {
   final BeaconArchive archive = BeaconArchive();
 
   bool get _isArchive => layout.element == 'Light';
+  // ── Blood · the Sanguine Orrery (planet_dungeon_game_blood.dart) ──
+  /// The whole orrery: where the beat is, and what that has opened. ONE
+  /// field, because on this planet the CLOCK is the map — and it is the first
+  /// planet in the set whose state the player cannot author at all (see
+  /// planet_dungeon_layout_blood.dart).
+  final SanguineHeart heart = SanguineHeart();
+
+  /// The strike-beat edge Sanguorath throws the pulse forward on.
+  bool _sanguorathBitLastFrame = false;
+
+  bool get _isHeart => layout.element == 'Blood';
 
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
@@ -1463,6 +1477,14 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
+    // MYS17 sheet verified 2048x512 — 4 frames of 512x512, one row.
+    'Sanguorath': SpriteSheetDef(
+      path: 'creatures/mystic/MYS17_bloodmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
   };
 
   /// Half-HP escalation copy, per mystic.
@@ -1478,6 +1500,7 @@ class PlanetDungeonGame extends FlameGame {
     'Wraithord':
         'Wraithord thins — it is barely in either world now, and faster!',
     'Solarin': 'Solarin opens — it is looking at all of you at once now!',
+    'Sanguorath': 'Sanguorath races — the whole orrery beats double!',
   };
   SpriteAnimationTicker? _guardianTicker;
   double _guardianSpriteScale = 1.0;
@@ -1698,6 +1721,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCrypt) return _cryptProgressReadout();
     if (_isVault) return _vaultProgressReadout();
     if (_isArchive) return _archiveProgressReadout();
+    if (_isHeart) return _heartProgressReadout();
     return null;
   }
 
@@ -2051,6 +2075,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetCryptState();
     _resetVaultState();
     _resetArchiveState();
+    _resetHeartState();
   }
 
   void _resetRun() {
@@ -2316,6 +2341,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateCrypt(a, room, dt);
     _updateVault(a, room, dt);
     _updateArchive(a, room, dt);
+    _updateHeart(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2507,6 +2533,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCrypt) _cryptAmbientHint(a, room);
     if (_isVault) _vaultAmbientHint(a, room);
     if (_isArchive) _archiveAmbientHint(a, room);
+    if (_isHeart) _heartAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -7154,6 +7181,14 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // The Sanguine Orrery: the pericardium, the arena's vagal node, the four
+    // mouths, the collateral cocks, the rite's balance, the heart-drum and
+    // the Kin's steadying all ride one dispatcher — and the vagal node, like
+    // Dark's shadow-vane, must outrank the guardian's own catch.
+    if (_isHeart && _tryHeartVerb(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -7362,6 +7397,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isArchive) {
       _archiveReveal(a, room);
+      return;
+    }
+    if (_isHeart) {
+      _heartReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7833,6 +7872,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCrypt && _cryptDoorHidden(room, door)) return true;
     if (_isVault && _vaultDoorHidden(room, door)) return true;
     if (_isArchive && _archiveDoorHidden(room, door)) return true;
+    if (_isHeart && _heartDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -7864,6 +7904,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCrypt && _cryptDoorBlocked(room, door)) return true;
     if (_isVault && _vaultDoorBlocked(room, door)) return true;
     if (_isArchive && _archiveDoorBlocked(room, door)) return true;
+    if (_isHeart && _heartDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7921,6 +7962,9 @@ class PlanetDungeonGame extends FlameGame {
     if (_isArchive && _archiveDoorBlocked(room, door)) {
       return _archiveDoorHint(room, door);
     }
+    if (_isHeart && _heartDoorBlocked(room, door)) {
+      return _heartDoorHint(room, door);
+    }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
           'The chamber is sealed — nothing in there wakes until this '
@@ -7976,6 +8020,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCrypt) return _cryptObjectiveHint(room);
     if (_isVault) return _vaultObjectiveHint(room);
     if (_isArchive) return _archiveObjectiveHint(room);
+    if (_isHeart) return _heartObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -8267,6 +8312,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCrypt) _renderCrypt(canvas, room);
     if (_isVault) _renderVault(canvas, room);
     if (_isArchive) _renderArchive(canvas, room);
+    if (_isHeart) _renderHeart(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8599,6 +8645,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCrypt) return _cryptMoodTarget;
     if (_isVault) return _vaultMoodTarget;
     if (_isArchive) return _archiveMoodTarget;
+    if (_isHeart) return _heartMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||
