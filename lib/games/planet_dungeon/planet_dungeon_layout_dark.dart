@@ -110,8 +110,7 @@
 //      opens. This is the one placement the geometry actually depends on: put
 //      the stair's gnomon down in the deep instead, where it would be behind
 //      the very gulf it opens, and the whole lower half of the vault becomes
-//      a one-way trip (the counterfactual is pinned in the test, and it is
-//      not a near miss — it strands from EVERY state).
+//      a one-way trip — 124 states strand, and the test pins the number.
 //   4. **The one thing that can flip the vault while you are not at a gnomon
 //      is Noctryos**, and the arena is proofed against it twice: the rood
 //      door is the vault's only phase-free passage, and the arena floor

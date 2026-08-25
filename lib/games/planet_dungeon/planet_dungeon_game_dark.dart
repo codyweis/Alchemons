@@ -45,8 +45,8 @@
 // opens · and the arena, the one place the world flips the vault without you,
 // is proofed twice (a phase-free rood door and the floor-vane). The measured
 // result agrees: **0 strandable of 392 reachable states, with no reset
-// valve** — and moving the stair gnomon down into the deep, where it would
-// stand behind its own gulf, strands from EVERY state.
+// valve** — against 124 if the fingers are dropped behind the doors they
+// open, and 22 if the arena loses its two belts.
 
 part of 'planet_dungeon_game.dart';
 
