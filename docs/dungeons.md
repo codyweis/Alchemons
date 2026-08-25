@@ -290,7 +290,7 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Lightning** (built; rework §9.1) | Hub dynamo + zero-sum branch circuit (the "ring" claim is retired — it shipped as a hub and Steam owns the ring; the loop promise is honored LOGICALLY: door states follow circuit state) | powering one trunk darkens the others — where does the power go, and what must you do in the dark | walk the DEAD segment in the dark: the vault only opens unpowered (rework) |
 | **Mud** (built) | Shifting field: one huge open bog, no fixed rooms — islands whose connections you terraform | every path you harden sinks another — shape the map you'll have to live with | let the vault knoll SINK, ride it down to the drowned level |
 | **Ice** (built) | Vertical shaft: descending is one-way slides; ascending must be engineered | plan the descent so you can climb back — refrozen slides are your only ladder | visible only in a mirror; enterable only from a slide you can't repeat |
-| Dust | Buried city, two Z-layers: streets above, excavation below; digging swaps layers | conservation of dust — uncovering one thing buries another | a fully buried building visible only as a roof bump on the streets |
+| **Dust** (built) | Buried city, two Z-layers: streets above, excavation below; digging swaps layers | conservation of dust — uncovering one thing buries another | a fully buried building visible only as a roof bump on the streets |
 | Crystal | Rearranging 3×3 sliding grid — sliding moves rooms AND you | every slide solves one adjacency and breaks another | a room that only ENTERS the grid in one configuration |
 | Plant | Nested scales: the same map at tiny and huge, overlaid | which scale to be, where — passages exist at one scale only | visible at huge scale, enterable only at tiny |
 | **Poison** (built) | Quarantine wards: sealed wards; opening one lets the contagion in | you cannot cure every ward — choose what to sacrifice | inside the ward you chose NOT to save |
@@ -318,14 +318,16 @@ new. The ledger grows with every build:
 | **Ice** (BUILT 2026-08-24) | **one-way descent with an engineered return** (traversal that consumes the route behind you; the ladder home is something you must have built on the way down — CLAIMED) · **treasure-or-ladder exclusivity** (each edit serves one of two purposes and you commit before you know which you need) · costly full-state reset valve as the anti-softlock (a pattern, not a claim — reusable) |
 | **Lava** (BUILT 2026-08-24) | **production-line re-routing** (program a path, then spend a limited fungible charge down it; what the charge BECOMES is decided by where it went — CLAIMED) · **the dual-purpose product** (the thing you cast is both a road and a plug, so ordering falls out of physics rather than instruction — this is how Lava stays out of Fire's order-memory seat; any planet reusing it must derive the order, never hand it over) |
 | **Mud** (BUILT 2026-08-24) | **terraforming-as-map-authoring** (the player authors the EDGES, not the rooms; the question is the SHAPE left behind — CLAIMED, and deliberately ORDER-INDEPENDENT: A-then-B lands on the same fen as B-then-A, pinned by a test, which is what keeps it out of Air's ordering seat) · **drainage as the cost function** (hardening a crossing drowns its neighbours up- and downstream, so you choose what to KEEP and the physics decides what dies — distinct from Poison's triage, where you choose what to abandon) |
+| **Dust** (BUILT 2026-08-24) | **conservation as the cost function** (one object owns every write, and every mutator is a PAIRED TRANSFER — dig here, heap there, atomically, so the total cannot leak; CLAIMED: no other planet may make a conserved quantity the puzzle) · **Z-layer swap driven by load count** (0 bared = the street is a pit and the cellar opens · 1 = plain street · 2 drifted = a dune-wall, and a ramp opens instead — the layer you are on is a CONSEQUENCE of the ledger, not a toggle; Spirit's living/ghost layer swap is a different reading and stays free) · **the inverted vault verb** (the buried house is the one thing digging cannot reach — you bury it HARDER until the weight cracks the wall) |
 | **Nexus** (reserved) | RULE MANIPULATION — transmutation circles rewriting element bindings (the Baba Is You seat; no planet may touch it) |
 
-**Open archetype pool for the remaining 7** (match against the §6 matrix;
+**Open archetype pool for the remaining 6** (match against the §6 matrix;
 each planet claims patterns no ledger row owns): rhythm/timing windows
 (Blood) · light-cone occlusion + exposure management (Light) · state-flip
-maze inversion (Dark) · two-overlaid-worlds layer swap (Spirit, Dust) ·
+maze inversion (Dark) · two-overlaid-worlds layer swap (Spirit — the
+LIVING/GHOST reading only; Dust has taken the Z-layer/excavation reading) ·
 scale shift tiny/huge (Plant) · self-rearranging map / sliding rooms
-(Crystal) · conservation (uncovering one thing buries another — Dust).
+(Crystal).
 
 ~~one-way-descent route planning~~ (CLAIMED by Ice) ·
 ~~irreversible sacrifice choice~~ (CLAIMED by Poison — Mud must claim
@@ -335,7 +337,8 @@ the resulting SHAPE) · ~~production-line re-routing + mold casting~~
 (CLAIMED by Lava) · ~~terraforming as map-authoring~~ (CLAIMED by Mud — Dust
 must claim CONSERVATION, the invariant that dust moved from here arrives
 there, not shape-authoring; excavation and terraforming are close enough
-neighbours that a cold author will reach for the wrong one).
+neighbours that a cold author will reach for the wrong one) ·
+~~conservation~~ (CLAIMED by Dust).
 
 **VISUAL GRAMMAR RULE:** every core mechanic gets its own rendering language,
 distinct from every prior planet that shares a surface resemblance. Light's
@@ -1128,7 +1131,7 @@ MYS02 Leviathan=Water (built: 4×512² frames, 1 row) ·
 MYS03 Terradon=Earth (built: 4×512² frames, 1 row) ·
 MYS04 Roc=Air (built) · MYS05 Boilrog=Steam · MYS06 Magmara=Lava (built) ·
 MYS07 Raikuma=Lightning · MYS08 Bogdrya=Mud (built) · MYS09 Frowyrm=Ice (built) ·
-MYS10 Ashdjinn=Dust · MYS11 Prismalith=Crystal · MYS12 Botanica=Plant ·
+MYS10 Ashdjinn=Dust (built) · MYS11 Prismalith=Crystal · MYS12 Botanica=Plant ·
 MYS13 Blightfang=Poison (built) · MYS14 Wraithord=Spirit · MYS15 Noctryos=Dark ·
 MYS16 Solarin=Light · MYS17 Sanguorath=Blood.
 
@@ -1647,16 +1650,43 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   lotus_knoll` permanently blocked, `drowned_fane → sunken_lotus` permanently
   hidden), which exist only so the bowl has a legal way out under the
   every-door-has-a-reciprocal layout invariant.
+- ✅ **Dust — Sablis, the Ruins of Time (Cindrath) built** (2026-08-24): a
+  buried city on two Z-layers — five street rooms above, six excavation rooms
+  below — where each of five mounds carries a LOAD, and the load count IS the
+  layer swap: 0 bared = the street is a pit and the cellar below opens · 1 =
+  a plain street square · 2 drifted = a dune-wall, and a ramp opens instead.
+  Conservation is structural rather than asserted: `RuinsOfTime` is the only
+  object that can write a load, and every mutator is a PAIRED TRANSFER (one
+  mound 1→0 while a chosen neighbour goes +1), so the total cannot leak. A
+  bared square has nothing left and a drifted one is packed too hard for a
+  spade, so both edits are irreversible for the run, as Ice and Mud kept
+  theirs. The vault verb is inverted: the sunken house is the one thing
+  digging cannot reach — heap a SECOND load on and the weight cracks the
+  party wall in the undercity.
+  NOTE: the fourth mutable-world planet in a row to be a stranding machine —
+  **319 of 396 reachable states (81%) strandable without the valve, 0 with
+  it** (Ice 120/122, Mud 1200/1284). Valve is THE LEVELLING WIND: an Air hand
+  winds any iron vane and the sirocco restores every load, costing every
+  cellar, ramp and spadeful. Element-only, so no party can be locked out.
+  Star 0's survey yard is exhausted over all **45,474 reachable ledgers** —
+  11 solvable, shortest 8 verbs, **0 deadlocked**, conservation holding at
+  every one — and the shortest solution is replayed through the real engine.
+  DEVIATION: §6 puts the Earthhorn gate on Star 0 (the Three Seals), which
+  §4's first-descent guarantee forbids. The gate moved to the rite's false
+  wall; Star 0 is element-only, and §6's Airwing gate stays on Star 1.
+  DEVIATION: `Air+Earth→Dust` is wired as a two-body recipe standing in for a
+  downed Dust hand, NOT as §6's "lays spoil remotely" verb — remote laying
+  would break the throw geometry the survey yard is built on.
 - ⬜ **§9.0 INTERACTION REFIT v2 + hint/popup cleanup** — convert all six
   built planets to the §4 element-first / hard-family-gate model, implement
   "the seal remembers" descent chips, apply the §5.6 hint standard, rewrite
   the slow-and-loud tests. NEXT UP before any new planet.
 - ⬜ Device tuning pending: Air, Fire, Lightning, Steam, **Poison, Ice,
-  Lava, Mud** (timings/feel — user playtest; Water + Earth already device-tested
+  Lava, Mud, Dust** (timings/feel — user playtest; Water + Earth already device-tested
   good). NONE of the 2026-08-24 three has ever been run on a device.
 - ⬜ More Mystic guardian sprites for future planets (map in
   `_guardianSheets`, enroll in `kRaidGuardianIds`; roster in §6).
-- ⬜ The other 7 planets' signature mechanics (+ their shaders).
+- ⬜ The other 6 planets' signature mechanics (+ their shaders).
 
 ## 8.5 Ability parity with survival — status
 
