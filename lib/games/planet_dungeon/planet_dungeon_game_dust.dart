@@ -97,6 +97,10 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       if (m.crossFrom == room.id && m.crossTo == to) return (m, 'cross');
       if (m.crossTo == room.id && m.crossFrom == to) return (m, 'cross');
       if (m.roomId == room.id && m.cellarRoomId == to) return (m, 'cellar');
+      // The climb back out is the same hole: fill it in and it is not there
+      // any more. A cellar is still never a trap, because the drift tunnels
+      // below it never close.
+      if (m.cellarRoomId == room.id && m.roomId == to) return (m, 'cellar');
       if (m.roomId == room.id && m.rampRoomId == to) return (m, 'ramp');
       if (m.rampRoomId == room.id && m.roomId == to) return (m, 'ramp');
       // The vault crack is ENTRY-ONLY. The way back out of the sunken house is
