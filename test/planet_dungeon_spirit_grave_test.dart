@@ -832,7 +832,16 @@ void main() {
           reason: '$e is built and must not be "coming soon"',
         );
       }
-      expect(kComingSoonDungeons, {'Dark', 'Light', 'Blood'});
+      // Deliberately NOT an equality pin on {Dark, Light, Blood}: those three
+      // are the planets still to author, so pinning the set makes the next
+      // build fail a Spirit test for doing exactly the right thing. The
+      // invariant above is the one that matters, and it keeps holding as the
+      // set shrinks to empty.
+      expect(
+        kComingSoonDungeons.length + kPlanetDungeonLayouts.length,
+        17,
+        reason: 'every planet is either built or coming soon, never neither',
+      );
     });
 
     test('the riddle names one line per entry slot, and no body part', () {
