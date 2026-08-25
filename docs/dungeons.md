@@ -291,8 +291,8 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Mud** (built) | Shifting field: one huge open bog, no fixed rooms — islands whose connections you terraform | every path you harden sinks another — shape the map you'll have to live with | let the vault knoll SINK, ride it down to the drowned level |
 | **Ice** (built) | Vertical shaft: descending is one-way slides; ascending must be engineered | plan the descent so you can climb back — refrozen slides are your only ladder | visible only in a mirror; enterable only from a slide you can't repeat |
 | **Dust** (built) | Buried city, two Z-layers: streets above, excavation below; digging swaps layers | conservation of dust — uncovering one thing buries another | a fully buried building visible only as a roof bump on the streets |
-| Crystal | Rearranging 3×3 sliding grid — sliding moves rooms AND you | every slide solves one adjacency and breaks another | a room that only ENTERS the grid in one configuration |
-| Plant | Nested scales: the same map at tiny and huge, overlaid | which scale to be, where — passages exist at one scale only | visible at huge scale, enterable only at tiny |
+| **Crystal** (built) | Rearranging 3×3 sliding grid — sliding moves rooms AND you | every slide solves one adjacency and breaks another | a room that only ENTERS the grid in one configuration |
+| **Plant** (built) | Nested scales: the same map at tiny and huge, overlaid | which scale to be, where — passages exist at one scale only | visible at huge scale, enterable only at tiny |
 | **Poison** (built) | Quarantine wards: sealed wards; opening one lets the contagion in | you cannot cure every ward — choose what to sacrifice | inside the ward you chose NOT to save |
 | Spirit | Two overlaid worlds: living/ghost layers, same geometry, different doors | which layer to cross each junction in — deaths in one open doors in the other | exists only in the ghost layer, marked only in the living one |
 | Dark | Inverting maze: light/dark flips swap walls and doors | every flip you make for a door closes one elsewhere | the vault room only EXISTS in the dark state |
@@ -319,15 +319,16 @@ new. The ledger grows with every build:
 | **Lava** (BUILT 2026-08-24) | **production-line re-routing** (program a path, then spend a limited fungible charge down it; what the charge BECOMES is decided by where it went — CLAIMED) · **the dual-purpose product** (the thing you cast is both a road and a plug, so ordering falls out of physics rather than instruction — this is how Lava stays out of Fire's order-memory seat; any planet reusing it must derive the order, never hand it over) |
 | **Mud** (BUILT 2026-08-24) | **terraforming-as-map-authoring** (the player authors the EDGES, not the rooms; the question is the SHAPE left behind — CLAIMED, and deliberately ORDER-INDEPENDENT: A-then-B lands on the same fen as B-then-A, pinned by a test, which is what keeps it out of Air's ordering seat) · **drainage as the cost function** (hardening a crossing drowns its neighbours up- and downstream, so you choose what to KEEP and the physics decides what dies — distinct from Poison's triage, where you choose what to abandon) |
 | **Dust** (BUILT 2026-08-24) | **conservation as the cost function** (one object owns every write, and every mutator is a PAIRED TRANSFER — dig here, heap there, atomically, so the total cannot leak; CLAIMED: no other planet may make a conserved quantity the puzzle) · **Z-layer swap driven by load count** (0 bared = the street is a pit and the cellar opens · 1 = plain street · 2 drifted = a dune-wall, and a ramp opens instead — the layer you are on is a CONSEQUENCE of the ledger, not a toggle; Spirit's living/ghost layer swap is a different reading and stays free) · **the inverted vault verb** (the buried house is the one thing digging cannot reach — you bury it HARDER until the weight cracks the wall) |
+| **Crystal** (BUILT 2026-08-25) | **the self-rearranging map as a permutation group** (the 8-puzzle as architecture: nine fixed lattice cells, eight glass chambers and one hollow permuting through them, and the player rides or hauls — CLAIMED) · **REVERSIBLE world-edits** (the only built planet whose mechanic cannot strand, so it carries no reset valve; its risk is authoring an UNREACHABLE target, not a dead end) · **mutually exclusive stars** (Stars 0 and 1 are provably never holdable at once — 0 states — which is the strategic question expressed as a number) |
+| **Plant** (BUILT 2026-08-25) | **scale as a property of the OBSERVER** (one geometry, seventeen passages, each cut for exactly one size of body; the ground never changes, you do — CLAIMED, and deliberately distinct from Dust's Z-layer, where the deck you are on is a consequence of a load ledger) · **scale-determined authorship** (a seed set by a huge hand comes up a creeper only a small body walks; set by a tiny hand it comes up a trunk only a giant walks — each product is a road for the size you were NOT, so the route dictates the product; distinct from Ice's treasure-or-ladder, where you choose between two uses of one edit) |
 | **Nexus** (reserved) | RULE MANIPULATION — transmutation circles rewriting element bindings (the Baba Is You seat; no planet may touch it) |
 
-**Open archetype pool for the remaining 6** (match against the §6 matrix;
+**Open archetype pool for the remaining 4** (match against the §6 matrix;
 each planet claims patterns no ledger row owns): rhythm/timing windows
 (Blood) · light-cone occlusion + exposure management (Light) · state-flip
 maze inversion (Dark) · two-overlaid-worlds layer swap (Spirit — the
-LIVING/GHOST reading only; Dust has taken the Z-layer/excavation reading) ·
-scale shift tiny/huge (Plant) · self-rearranging map / sliding rooms
-(Crystal).
+LIVING/GHOST reading only; Dust has taken the Z-layer/excavation reading and
+Plant the observer-scale reading).
 
 ~~one-way-descent route planning~~ (CLAIMED by Ice) ·
 ~~irreversible sacrifice choice~~ (CLAIMED by Poison — Mud must claim
@@ -338,7 +339,9 @@ the resulting SHAPE) · ~~production-line re-routing + mold casting~~
 must claim CONSERVATION, the invariant that dust moved from here arrives
 there, not shape-authoring; excavation and terraforming are close enough
 neighbours that a cold author will reach for the wrong one) ·
-~~conservation~~ (CLAIMED by Dust).
+~~conservation~~ (CLAIMED by Dust) ·
+~~self-rearranging map / sliding rooms~~ (CLAIMED by Crystal) ·
+~~scale shift tiny/huge~~ (CLAIMED by Plant).
 
 **VISUAL GRAMMAR RULE:** every core mechanic gets its own rendering language,
 distinct from every prior planet that shares a surface resemblance. Light's
@@ -1131,7 +1134,7 @@ MYS02 Leviathan=Water (built: 4×512² frames, 1 row) ·
 MYS03 Terradon=Earth (built: 4×512² frames, 1 row) ·
 MYS04 Roc=Air (built) · MYS05 Boilrog=Steam · MYS06 Magmara=Lava (built) ·
 MYS07 Raikuma=Lightning · MYS08 Bogdrya=Mud (built) · MYS09 Frowyrm=Ice (built) ·
-MYS10 Ashdjinn=Dust (built) · MYS11 Prismalith=Crystal · MYS12 Botanica=Plant ·
+MYS10 Ashdjinn=Dust (built) · MYS11 Prismalith=Crystal (built) · MYS12 Botanica=Plant (built) ·
 MYS13 Blightfang=Poison (built) · MYS14 Wraithord=Spirit · MYS15 Noctryos=Dark ·
 MYS16 Solarin=Light · MYS17 Sanguorath=Blood.
 
@@ -1677,16 +1680,74 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   DEVIATION: `Air+Earth→Dust` is wired as a two-body recipe standing in for a
   downed Dust hand, NOT as §6's "lays spoil remotely" verb — remote laying
   would break the throw geometry the survey yard is built on.
+- ✅ **Crystal — Vitrea, the Prism Labyrinth (built 2026-08-25)**: the 8-puzzle
+  as architecture. Nine fixed lattice cells in a stone frame; eight glass
+  chambers and one hollow permute through them, and whoever stands at the
+  boundary rides or hauls with them. THE STATIC LAYOUT INVARIANT IS HONOURED
+  RATHER THAN WEAKENED — the twelve arches are constants, every door authored
+  reciprocally, nothing created or destroyed at runtime; what a slide changes
+  is whether the two chambers meeting at an arch are both CUT on that face.
+  (Plant reused this trick; hand it to any future planet whose connectivity
+  moves.) Stars 0 and 1 are provably never holdable together — 0 states.
+  PARITY, the thing that could have shipped an unsolvable dungeon: reachable
+  orbit is **181,440 = 9!/2**, with the other half proven unreachable
+  arrangement-by-arrangement across all 362,880 rather than merely unvisited.
+  With the hollow home the chamber rearrangements are exactly **A₈** (20,160
+  × 9 = 181,440); Wilson's theorem applies because the 3×3 grid graph is
+  2-connected, not a cycle, not θ₀, and bipartite — the alternating case.
+  Player-aware search over (arrangement × where the body stands) explores
+  **1,592,585** states as one strongly-connected component; every required
+  configuration is inside it and shares the start's parity class.
+  The proof paid for itself twice before passing: draft 1 had **2 of 181,440**
+  arrangements reachable (a body could not reach a shove-plate); draft 2's
+  valve carried the ringer with their own chamber, so using it in a walled-in
+  corner restored the same trap forever. 7,404 of the reachable states are
+  jams (0.46%), so the valve is load-bearing. Also caught by hand: a Crystal
+  press in the choir shoved instead of striking during the lull, making the
+  fight unwinnable WITH THE IDEAL TRIO.
+  DEVIATION: §6.10 gates the first star behind Crystalmask; §4 wins, the gate
+  moved and Star 0 is element-only + braid.
+  NOTE: no `dungeon_minimap.dart` atlas entry (Mud, Ice and Dust have none
+  either — it falls back to centre).
+- ✅ **Plant — The Verdant Crypt (Verdanthos) built** (2026-08-25): ten rooms,
+  one geometry, seventeen passages, each cut for exactly ONE size of body. At
+  huge a rill is a stride and a crack is a hairline; at tiny every crack is a
+  corridor and every rill a river. Scale belongs to the OBSERVER, never the
+  ground — which is what keeps it out of Dust's Z-layer seat. Three seed beds
+  carry the world-edit: a seed set by a huge hand goes in shallow and comes up
+  a CREEPER (a road only a small body walks); set by a tiny hand it goes in at
+  the root and comes up a TRUNK (a road only a giant walks) that fills the
+  fissure it grew in. Each product is a road for the size you were not, and
+  the route dictates the product. THE TRAP: `b_root`'s creeper is the only
+  small road to the islet — Star 1's seeding and the vault both — while its
+  trunk is a bough that costs the worm-run.
+  Proof: 448 states / 27 arrangements, **strandable 0**, and **142 of 448
+  strandable with the withering deleted** — every one of them a b_root trunk,
+  so the valve is load-bearing. Valve is THE WITHERING (two turns of any mulch
+  pit, element-only Mud, in every room but the arena): every vine to mould,
+  out at the gate in your own body.
+  BEST RESULT IN THE SET: **size-lock is 0 measured WITHOUT the valve** — the
+  named hazard (stuck at the wrong scale) is eliminated by GEOMETRY, not paid
+  for, because the three galls are placed so every small component legal play
+  can reach contains one. A test is named for it so anyone moving a gall
+  breaks it.
+  DEVIATION: §6's Plantmane gate moved to the rite (§4 first-descent).
+  NOT DONE: the party's rendered radius does not halve at tiny — `_radius` is
+  a `static const` on the core class and plumbing it exceeded the one-line
+  hook discipline. Scale is expressed by redrawing the room's furniture as
+  terrain, a per-door size glyph, and a SIZE tiny/huge readout. **Open
+  question for a device playtest: whether that reads as scale without the
+  radius change.**
 - ⬜ **§9.0 INTERACTION REFIT v2 + hint/popup cleanup** — convert all six
   built planets to the §4 element-first / hard-family-gate model, implement
   "the seal remembers" descent chips, apply the §5.6 hint standard, rewrite
   the slow-and-loud tests. NEXT UP before any new planet.
 - ⬜ Device tuning pending: Air, Fire, Lightning, Steam, **Poison, Ice,
-  Lava, Mud, Dust** (timings/feel — user playtest; Water + Earth already device-tested
+  Lava, Mud, Dust, Crystal, Plant** (timings/feel — user playtest; Water + Earth already device-tested
   good). NONE of the 2026-08-24 three has ever been run on a device.
 - ⬜ More Mystic guardian sprites for future planets (map in
   `_guardianSheets`, enroll in `kRaidGuardianIds`; roster in §6).
-- ⬜ The other 6 planets' signature mechanics (+ their shaders).
+- ⬜ The other 4 planets' signature mechanics (+ their shaders).
 
 ## 8.5 Ability parity with survival — status
 
