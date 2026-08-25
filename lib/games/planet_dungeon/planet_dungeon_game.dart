@@ -32,6 +32,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -57,6 +58,7 @@ part 'planet_dungeon_game_dust.dart';
 part 'planet_dungeon_game_crystal.dart';
 part 'planet_dungeon_game_plant.dart';
 part 'planet_dungeon_game_spirit.dart';
+part 'planet_dungeon_game_dark.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
@@ -347,6 +349,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetKeepState();
     _resetGraveState();
     _resetCryptState();
+    _resetVaultState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1296,6 +1299,17 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isCrypt => layout.element == 'Plant';
 
+  // ── Dark · the Eclipse Vault (planet_dungeon_game_dark.dart) ──
+  /// The whole vault: where each gnomon's shadow lies, and what that has
+  /// opened. ONE field, because on this planet the shadow's position IS the
+  /// map (see planet_dungeon_layout_dark.dart).
+  final EclipseVault vault = EclipseVault();
+
+  /// The beat-edge Noctryos throws the Deep's shadow on.
+  bool _noctryosBitLastFrame = false;
+
+  bool get _isVault => layout.element == 'Dark';
+
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
   final Map<String, double> _conduitMaxEnergy = {};
@@ -1662,6 +1676,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isKeep) return _keepProgressReadout();
     if (_isWake) return _graveProgressReadout();
     if (_isCrypt) return _cryptProgressReadout();
+    if (_isVault) return _vaultProgressReadout();
     return null;
   }
 
@@ -2013,6 +2028,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetKeepState();
     _resetGraveState();
     _resetCryptState();
+    _resetVaultState();
   }
 
   void _resetRun() {
@@ -2276,6 +2292,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateKeep(a, room, dt);
     _updateGrave(a, room, dt);
     _updateCrypt(a, room, dt);
+    _updateVault(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2465,6 +2482,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isKeep) _keepAmbientHint(a, room);
     if (_isWake) _graveAmbientHint(a, room);
     if (_isCrypt) _cryptAmbientHint(a, room);
+    if (_isVault) _vaultAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -7097,6 +7115,14 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // The Eclipse Vault: the pall, the gnomons, the arena's vane, the
+    // analemma's stones, the shadow-anchors and the nave's snuffer all ride
+    // one dispatcher — and the vane, like Plant's root-gall, must outrank the
+    // guardian's own catch.
+    if (_isVault && _tryVaultVerb(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -7297,6 +7323,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isCrypt) {
       _cryptReveal(a, room);
+      return;
+    }
+    if (_isVault) {
+      _vaultReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7766,6 +7796,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isRuins && _ruinsDoorHidden(room, door)) return true;
     if (_isWake && _graveDoorHidden(room, door)) return true;
     if (_isCrypt && _cryptDoorHidden(room, door)) return true;
+    if (_isVault && _vaultDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -7795,6 +7826,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isKeep && _keepDoorBlocked(room, door)) return true;
     if (_isWake && _graveDoorBlocked(room, door)) return true;
     if (_isCrypt && _cryptDoorBlocked(room, door)) return true;
+    if (_isVault && _vaultDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7845,6 +7877,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isCrypt && _cryptDoorBlocked(room, door)) {
       return _cryptDoorHint(room, door);
+    }
+    if (_isVault && _vaultDoorBlocked(room, door)) {
+      return _vaultDoorHint(room, door);
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
@@ -7899,6 +7934,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isKeep) return _keepObjectiveHint(room);
     if (_isWake) return _graveObjectiveHint(room);
     if (_isCrypt) return _cryptObjectiveHint(room);
+    if (_isVault) return _vaultObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -8188,6 +8224,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isKeep) _renderKeep(canvas, room);
     if (_isWake) _renderGrave(canvas, room);
     if (_isCrypt) _renderCrypt(canvas, room);
+    if (_isVault) _renderVault(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8518,6 +8555,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isKeep) return _keepMoodTarget;
     if (_isWake) return _graveMoodTarget;
     if (_isCrypt) return _cryptMoodTarget;
+    if (_isVault) return _vaultMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||

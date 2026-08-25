@@ -11,19 +11,23 @@
 // passage in it, whether that passage is a door or a wall:
 //
 //     ── the vault, ONE geometry, four quarters ─────────────
-//      I  THE PALL      pall_porch ·gnomon· ── analemma_court
-//                          ╵pall(u.II)          ╵lych-way(u.II)
-//      II THE GALLERY   shade_gallery ────── penumbral_walk ·gnomon·
-//                          ╵shaft(u.III)        ╵stair head(u.III)
+//      I   THE PALL     pall_porch ·gnomon· ~~ analemma_court
+//                          ╵pall arch(s.II)     ╵lych-way(s.II)
+//      II  THE GALLERY  shade_gallery ────── penumbral_walk ·gnomon·
+//                          ╵shaft(s.III)        ╵stair head(s.III)
 //      III THE OSSUARY  ossuary_ring ─────── gnomon_stair ·gnomon·
-//                          ╵causeway(u.IV)      ╵gulf(u.IV)
-//      IV THE DEEP      eclipse_nave ─────── abyssal_font ── umbral_reliquary
-//                          ╵rood                                (THE VAULT)
+//                          ╵causeway(s.IV)      ╵gulf(s.IV)
+//      IV  THE DEEP     eclipse_nave ─────── abyssal_font ~~ umbral_reliquary
+//                          ╵rood (unmoved)                     (THE VAULT)
 //                       noctryos_totality
 //
-//     (a horizontal pairing inside a quarter is a LIGHT-WALK — it exists only
-//      while that quarter stands in the light. Every vertical crossing is a
-//      SHADOW-WAY — it exists only while the quarter BELOW lies in shadow.)
+//     (──  a LIGHT-WALK inside a quarter: it exists only while that quarter
+//          stands in the light, so a lit quarter is whole and a dark one is
+//          split from itself.
+//      ╵   a SHADOW-WAY down to the next quarter: it exists only while the
+//          quarter BELOW lies in shadow. You only ever go DOWN through dark.
+//      ~~  the two shadow-ways that are not crossings — the pall's own creep,
+//          and the slot into the vault.)
 //
 // WORLD RULE — *a lamp here does not light the room; it turns it inside out.*
 //
@@ -88,8 +92,8 @@
 // ── WHY THERE IS NO RESET VALVE ───────────────────────────
 // Ice, Mud, Dust and Plant all shipped a costly full-reset valve. Nythralor
 // does not need one, and the reason is structural rather than measured (the
-// measurement is in `solveEclipseVault`, and it agrees: **0 strandable of 542
-// reachable states**):
+// measurement is in `solveEclipseVault`, and it agrees: **0 strandable of the
+// 392 states the world can put the party in, with no valve**):
 //
 //   1. **A turn is its own undo.** You turn a gnomon by standing at it, and
 //      you are still standing at it afterwards — so every turn can be turned
@@ -112,8 +116,23 @@
 //      is Noctryos**, and the arena is proofed against it twice: the rood
 //      door is the vault's only phase-free passage, and the arena floor
 //      carries a VANE that turns the stair gnomon from where you stand. Pull
-//      the vane and phase-cut the rood door and 28 states strand — which is
+//      the vane and phase-cut the rood door and 22 states strand — which is
 //      the number that says the arena's two belts are load-bearing.
+//
+// **THE PROMISE RULES — what every room's ways out are actually built on.**
+// Reasons 1–3 are only true because no room can ever have all its passages
+// shut at once, and that is authored one room at a time:
+//
+//   • Seven of the ten rooms carry a **TWINNED crossing** — a shadow-way and
+//     a light-walk cut through the SAME quarter. A quarter is either in
+//     shadow or in light, so exactly one of the pair is always there.
+//   • The pall's two rooms instead carry the **GNOMON'S PROMISE** — both
+//     their ways out are cut through the two quarters of the porch gnomon,
+//     whose shadow is always in one of them. The pall can afford this because
+//     it is the one quarter with its gnomon standing inside it.
+//   • The reliquary is a POCKET (one door, and only the deep's state can
+//     close it, which nothing inside can change), and the arena's rood door
+//     is phase-free.
 //
 // So the anchors (below) are the only irreversible edits on the planet, and
 // they are purely ADDITIVE — a portal opens and never closes. An additive
@@ -334,13 +353,18 @@ class VaultSpan {
 /// drift from the doors the player actually meets.
 const List<VaultSpan> kVaultSpans = [
   // ── QUARTER I · THE PALL ─────────────────────────────
+  // The pall quarter is the only one whose gnomon stands INSIDE it, so it is
+  // the only one that can afford both its ways out to be shadow-ways: the
+  // creep and the pall arch are the two leaves of the porch gnomon, and its
+  // shadow is always in one of them. Every other quarter is held open by a
+  // TWINNED crossing instead (see the header's promise rules).
   VaultSpan(
-    id: 'sp_glimmer',
+    id: 'sp_creep',
     from: 'pall_porch',
     to: 'analemma_court',
-    cut: SpanCut.lightWalk,
+    cut: SpanCut.shadowWay,
     leaf: EclipseLeaf.pall,
-    look: 'the glimmer along the porch wall',
+    look: 'the creep along the porch wall',
   ),
   // The entrance's other way out, and the vault's first lesson: one of these
   // two is always shut, and the finger that decides stands between them.
@@ -670,6 +694,15 @@ class EclipseVault {
   double abyssStillness = 0;
   bool abyssGazed = false;
 
+  /// Where every body was when the current vigil started. The abyss answers
+  /// stillness, so the check is against a MARK rather than a velocity — the
+  /// dungeon's creatures do not carry one.
+  List<Offset> abyssMarks = const [];
+
+  /// Seconds left on the inversion wipe. Purely visual, and named here so the
+  /// render has nowhere else to keep it.
+  double wipe = 0;
+
   /// How many times the vault has been turned inside out — the readout's
   /// second line, and the closest thing this planet has to a price tag.
   int inversions = 0;
@@ -690,6 +723,8 @@ class EclipseVault {
     portalsWalked.clear();
     abyssStillness = 0;
     abyssGazed = false;
+    abyssMarks = const [];
+    wipe = 0;
     inversions = 0;
   }
 
