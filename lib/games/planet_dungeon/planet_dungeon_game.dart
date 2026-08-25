@@ -29,6 +29,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -51,6 +52,7 @@ part 'planet_dungeon_game_mud.dart';
 part 'planet_dungeon_game_poison.dart';
 part 'planet_dungeon_game_ice.dart';
 part 'planet_dungeon_game_dust.dart';
+part 'planet_dungeon_game_crystal.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
@@ -338,6 +340,7 @@ class PlanetDungeonGame extends FlameGame {
     // gate's silt — seeded here for the same reason as the shaft.
     _resetBogState();
     _resetRuinsState();
+    _resetKeepState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1261,6 +1264,14 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isRuins => layout.element == 'Dust';
 
+  // ── Crystal · the Prism Labyrinth (planet_dungeon_game_crystal.dart) ──
+  /// The whole sliding keep — the pure permutation rules plus the live slide
+  /// and choir state. ONE field, because everything this planet tracks lives
+  /// inside it (see planet_dungeon_layout_crystal.dart).
+  final PrismLabyrinth prism = PrismLabyrinth();
+
+  bool get _isKeep => layout.element == 'Crystal';
+
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
   final Map<String, double> _conduitMaxEnergy = {};
@@ -1614,6 +1625,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft) return _shaftProgressReadout();
     if (_isBog) return _bogProgressReadout();
     if (_isRuins) return _ruinsProgressReadout();
+    if (_isKeep) return _keepProgressReadout();
     return null;
   }
 
@@ -1962,6 +1974,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetShaftState();
     _resetBogState();
     _resetRuinsState();
+    _resetKeepState();
   }
 
   void _resetRun() {
@@ -2222,6 +2235,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateShaft(a, room, dt);
     _updateBog(a, room, dt);
     _updateRuins(a, room, dt);
+    _updateKeep(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2408,6 +2422,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft) _shaftAmbientHint(a, room);
     if (_isBog) _bogAmbientHint(a, room);
     if (_isRuins) _ruinsAmbientHint(a, room);
+    if (_isKeep) _keepAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -7006,6 +7021,14 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // The Prism Labyrinth: the glass face, the lamp, the hearth shard, the
+    // font, the berth chain, the anneal, the choir floor and the shunt itself
+    // all ride one dispatcher — and the choir plate, like Ice's pillar, must
+    // outrank the guardian's own catch.
+    if (_isKeep && _tryKeepVerb(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -7194,6 +7217,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isRuins) {
       _ruinsReveal(a, room);
+      return;
+    }
+    if (_isKeep) {
+      _keepReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7687,6 +7714,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft && _iceDoorBlocked(room, door)) return true;
     if (_isBog && _bogDoorBlocked(room, door)) return true;
     if (_isRuins && _ruinsDoorBlocked(room, door)) return true;
+    if (_isKeep && _keepDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7728,6 +7756,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isRuins && _ruinsDoorBlocked(room, door)) {
       return _ruinsDoorHint(room, door);
+    }
+    if (_isKeep && _keepDoorBlocked(room, door)) {
+      return _keepDoorHint(room, door);
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
@@ -7779,6 +7810,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft) return _shaftObjectiveHint(room);
     if (_isBog) return _bogObjectiveHint(room);
     if (_isRuins) return _ruinsObjectiveHint(room);
+    if (_isKeep) return _keepObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -7848,6 +7880,9 @@ class PlanetDungeonGame extends FlameGame {
   void _checkVaultCache(DungeonCreature a) {
     final pos = currentRoom.vaultCache;
     if (pos == null) return;
+    // Crystal: the essence rides in the WAITING FACET, so the mouth cell only
+    // holds it while the facet is standing there (§5.5 vault trick).
+    if (_isKeep && !_keepVaultLive) return;
     if (discoveredClouds.contains(_vaultCacheId)) return;
     // Reach matches the bigger beacon visual.
     if ((a.position - pos).distance > 52) return;
@@ -8060,6 +8095,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft) _renderShaft(canvas, room);
     if (_isBog) _renderBog(canvas, room);
     if (_isRuins) _renderRuins(canvas, room);
+    if (_isKeep) _renderKeep(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8189,6 +8225,7 @@ class PlanetDungeonGame extends FlameGame {
   void _renderVaultCacheGlow(Canvas canvas, DungeonRoom room) {
     final pos = room.vaultCache;
     if (pos == null) return;
+    if (_isKeep && !_keepVaultLive) return;
     if (discoveredClouds.contains(_vaultCacheId)) return;
     final color = elementColor(layout.element);
     final bright = Color.lerp(color, Colors.white, 0.45)!;
@@ -8385,6 +8422,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft) return _shaftMoodTarget;
     if (_isBog) return _bogMoodTarget;
     if (_isRuins) return _ruinsMoodTarget;
+    if (_isKeep) return _keepMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||

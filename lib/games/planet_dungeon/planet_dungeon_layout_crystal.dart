@@ -253,6 +253,20 @@ int keepFacetToward(int from, int to) {
   return kFacetE;
 }
 
+/// The cell on the other side of [cell]'s [facet] wall, or −1 when that wall
+/// is the keep's outer frame and carries no arch (and so no shove-plate).
+int keepNeighbourToward(int cell, int facet) {
+  if (cell < 0 || cell > 8) return -1;
+  final r = cell ~/ 3, c = cell % 3;
+  return switch (facet) {
+    kFacetN => r > 0 ? cell - 3 : -1,
+    kFacetS => r < 2 ? cell + 3 : -1,
+    kFacetW => c > 0 ? cell - 1 : -1,
+    kFacetE => c < 2 ? cell + 1 : -1,
+    _ => -1,
+  };
+}
+
 /// The cells orthogonally adjacent to [cell], ascending.
 List<int> keepNeighbours(int cell) =>
     [for (var i = 0; i < 9; i++) if (_adjacent(cell, i)) i];
