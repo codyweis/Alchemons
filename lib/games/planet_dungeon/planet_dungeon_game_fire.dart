@@ -1103,8 +1103,11 @@ extension CinderCathedral on PlanetDungeonGame {
   BurnField? burnFieldFor(DungeonRoom room) {
     final g = room.garth;
     if (g == null) return null;
-    return burnFields[room.id] ??=
+    final built = burnFields[room.id] ??=
         BurnField.parse(g.art, coverageGoal: g.coverageGoal);
+    // Keep the drawn crosswind pointing at the wind the burn actually uses.
+    _syncCrosswindTo(built.wind);
+    return built;
   }
 
   (double, double) _garthCell(DungeonRoom room, BurnGarth g) =>
@@ -1135,6 +1138,27 @@ extension CinderCathedral on PlanetDungeonGame {
       };
 
   /// Plant / light / swing — the three verbs, element-only at full power.
+
+  /// Point the on-screen crosswind at the burn's ACTUAL wind.
+  ///
+  /// There are two winds in this file. The burn keeps its own on
+  /// [BurnField.wind]; `gardenWind` belonged to the vine-bed garden that THE
+  /// BURN replaced, and is only turned by _turnGardenWind — which sits behind
+  /// an `if (room.vineBeds.isEmpty) return false` that is now always true.
+  ///
+  /// The arrow renders gardenWindVector, so it sat on its default east
+  /// forever while the wind the puzzle actually uses swung freely underneath.
+  /// Keeping the two in step here means the existing eased swing animation
+  /// still drives the arrow, rather than snapping.
+  ///
+  /// BurnWind is index-for-index the same quarter order (0 N, 1 E, 2 S, 3 W).
+  void _syncCrosswindTo(BurnWind w) {
+    if (gardenWind == w.index) return;
+    gardenWindFrom = gardenWind;
+    gardenWind = w.index;
+    gardenWindSwing = 0;
+  }
+
   bool _tryBurn(DungeonCreature a) {
     if (!_isCathedral) return false;
     final room = currentRoom;
@@ -1146,6 +1170,7 @@ extension CinderCathedral on PlanetDungeonGame {
     // AIR swings the vane wherever it stands — the wind is the whole room's.
     if (a.member.element == 'Air') {
       field.wind = field.wind.quarterRight;
+      _syncCrosswindTo(field.wind);
       _setHint('The vane swings — the wind runs ${_burnWindName(field.wind)}');
       onChanged();
       return true;
@@ -3449,26 +3474,52 @@ extension CinderCathedral on PlanetDungeonGame {
   }
 
   void _drawDryFountain(Canvas canvas, Offset c) {
-    final stone = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = const Color(0xFF4A382C).withValues(alpha: 0.7);
-    canvas.drawCircle(c, 52, stone);
-    canvas.drawCircle(c, 30, stone);
+    // Was two thin concentric outlines plus evenly-radiating cracks. With the
+    // vane's four cardinal pins on top it read as a targeting reticle rather
+    // than masonry — reported from a playtest as "weird circles and lines".
+    //
+    // A basin is a SOLID thing: fill the bowl, sit a rim on it, let the dry
+    // well be a dark hollow, and keep one faint inner step for depth instead
+    // of a second full outline.
     canvas.drawCircle(
       c,
-      8,
-      Paint()..color = const Color(0xFF241812).withValues(alpha: 0.9),
+      52,
+      Paint()..color = const Color(0xFF3A2C22).withValues(alpha: 0.55),
     );
-    // Cracks radiating from the dry basin.
+    canvas.drawCircle(
+      c,
+      52,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4
+        ..color = const Color(0xFF54402F).withValues(alpha: 0.85),
+    );
+    canvas.drawCircle(
+      c,
+      33,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFF241812).withValues(alpha: 0.45),
+    );
+    canvas.drawCircle(
+      c,
+      11,
+      Paint()..color = const Color(0xFF1B120E).withValues(alpha: 0.95),
+    );
+
+    // Cracks break OUT of the rim into the floor. Uneven lengths at uneven
+    // angles — five spokes at a fixed angular step was the other half of the
+    // reticle.
     final crack = Paint()
       ..strokeWidth = 1.3
-      ..color = const Color(0xFF3A2A20).withValues(alpha: 0.7);
-    for (var i = 0; i < 5; i++) {
-      final a = i * 1.26 + 0.4;
-      final p1 = c + Offset(cos(a), sin(a)) * 52;
-      final p2 = c + Offset(cos(a + 0.18), sin(a + 0.18)) * 76;
-      canvas.drawLine(p1, p2, crack);
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF2A1E17).withValues(alpha: 0.6);
+    const angles = [0.35, 1.62, 2.44, 3.9, 5.31];
+    const lengths = [18.0, 26.0, 13.0, 21.0, 16.0];
+    for (var i = 0; i < angles.length; i++) {
+      final u = Offset(cos(angles[i]), sin(angles[i]));
+      canvas.drawLine(c + u * 50, c + u * (50 + lengths[i]), crack);
     }
   }
 
@@ -3566,11 +3617,15 @@ extension CinderCathedral on PlanetDungeonGame {
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round
       ..color = const Color(0xFF74613A).withValues(alpha: 0.8);
-    // The cardinal pins.
+    // The cross's arms, joined at the hub with a tip on each end. These used
+    // to float between r20 and r30 — four detached ticks at exactly N/E/S/W,
+    // which reads as a reticle rather than ironwork.
     for (var i = 0; i < 4; i++) {
       final a = i * pi / 2 - pi / 2;
       final u = Offset(cos(a), sin(a));
-      canvas.drawLine(c + u * 20, c + u * 30, iron);
+      final across = Offset(-u.dy, u.dx);
+      canvas.drawLine(c + u * 9, c + u * 27, iron);
+      canvas.drawLine(c + u * 27 - across * 4, c + u * 27 + across * 4, iron);
     }
     // The vane itself, swung to the live quarter.
     final dir = gardenWindVector;

@@ -196,6 +196,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         )..addStatusListener((s) {
           if (s == AnimationStatus.completed && mounted) {
             setState(() => _flyStar = null);
+            // The star has landed in its tracker slot — now the reward.
+            if (_rewardPending) unawaited(_offerPendingRewardIfSafe());
           }
         });
     _introTicker = createTicker((elapsed) {
@@ -351,9 +353,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     ).withStar(widget.element, index);
     await prefs.setString(_starPrefsKey, stars.serialise());
     _showToast('Star ${index + 1} secured');
-    // The payoff belongs next to the accomplishment, not at the exit door.
+    // The payoff belongs next to the accomplishment, not at the exit door —
+    // but it belongs AFTER the star lands, not on top of it. Marked pending
+    // here and offered by the fly animation's completion listener; offering
+    // it now put the popup over the animation the star had just earned.
     _rewardPending = true;
-    unawaited(_offerPendingRewardIfSafe());
     // Fly a star from where it was earned up to its tracker slot.
     if (mounted) {
       final game = _game;
@@ -610,7 +614,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       state = state.withClaimed(widget.element, s);
     }
     await prefs.setString(_starPrefsKey, state.serialise());
-    _popDungeon(_game?.starMask ?? 0);
+
+    // Close the popup and hand the dungeon back. This used to pop the route —
+    // a leftover from when rewards were only shown at the exit door. Once the
+    // payoff moved next to the accomplishment, claiming Star 1 was throwing
+    // the player out of the planet mid-run. Leaving is what END RUN is for.
+    if (!mounted) return;
+    setState(() => _rewardStars = null);
+    _game?.resumeEngine();
   }
 
   @override

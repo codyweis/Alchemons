@@ -309,31 +309,35 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     );
   }
 
+  /// Only the stars being awarded right now.
+  ///
+  /// This used to draw all three slots, filling the earned ones and outlining
+  /// the rest — so claiming a single star showed one lit star beside two empty
+  /// sockets and read as "1 of 3", a progress bar at the moment of a reward.
+  /// Progress already lives in the HUD tracker the star flies into; the popup
+  /// is here to hand something over.
   Widget _starRow() {
+    final awarded = widget.stars.toList()..sort();
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        for (var i = 0; i < 3; i++)
+        for (var n = 0; n < awarded.length; n++)
           ScaleTransition(
             scale: CurvedAnimation(
               parent: _intro,
               curve: Interval(
-                0.15 + i * 0.18,
-                (0.55 + i * 0.18).clamp(0.0, 1.0),
+                0.15 + n * 0.18,
+                (0.55 + n * 0.18).clamp(0.0, 1.0),
                 curve: Curves.easeOutBack,
               ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6),
               child: Icon(
-                widget.stars.contains(i)
-                    ? Icons.star_rounded
-                    : Icons.star_border_rounded,
-                color: widget.stars.contains(i) ? _C.amberBright : _C.border,
+                Icons.star_rounded,
+                color: _C.amberBright,
                 size: 38,
-                shadows: widget.stars.contains(i)
-                    ? const [Shadow(color: _C.amberBright, blurRadius: 14)]
-                    : null,
+                shadows: [Shadow(color: _C.amberBright, blurRadius: 14)],
               ),
             ),
           ),
