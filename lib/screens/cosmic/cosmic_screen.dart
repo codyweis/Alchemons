@@ -27,6 +27,7 @@ import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -1350,28 +1351,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     return list;
   }
 
-  CosmicPartyMember _sandboxMemberFromCreature(Creature creature) {
-    return CosmicPartyMember(
-      instanceId:
-          'sandbox_${creature.id}_${DateTime.now().microsecondsSinceEpoch}',
-      baseId: creature.id,
-      displayName: creature.name,
-      imagePath: 'assets/images/${creature.image}',
-      element: creature.types.firstOrNull ?? 'Fire',
-      family: (creature.mutationFamily ?? 'Kin').toLowerCase(),
-      level: 10,
-      statSpeed: _sandboxCompanionStatTier.toDouble(),
-      statIntelligence: _sandboxCompanionStatTier.toDouble(),
-      statStrength: _sandboxCompanionStatTier.toDouble(),
-      statBeauty: _sandboxCompanionStatTier.toDouble(),
-      slotIndex: -1,
-      staminaBars: 99,
-      staminaMax: 99,
-      spriteSheet: creature.spriteData != null
-          ? sheetFromCreature(creature)
-          : null,
-    );
-  }
+  /// Shared with the dungeon debug menu (dungeon_debug_party.dart) so the two
+  /// entry points cannot fabricate different parties for the same planet.
+  CosmicPartyMember _sandboxMemberFromCreature(Creature creature) =>
+      debugMemberFromCreature(creature, statTier: _sandboxCompanionStatTier);
 
   void _toggleSandboxPanel() {
     final game = _game;
@@ -6288,40 +6271,13 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
   }
 
-  /// Build the planet's ideal team from the creature catalog: for each entry
-  /// slot, the real species of that element AND ideal family (so sprites and
-  /// abilities are genuine), falling back to any creature of the element when
-  /// no such species exists. Stats are maxed so stat-scaled tunables show
-  /// their full behaviour.
-  List<CosmicPartyMember> _debugIdealTrio(String element) {
-    final slots = kCosmicPlanetEntry[element];
-    if (slots == null) return const [];
-    final families = kDungeonIdealFamilies[element];
-    final catalog = context.read<CreatureCatalog>();
-
-    final out = <CosmicPartyMember>[];
-    for (var i = 0; i < slots.length; i++) {
-      final slotElement = slots[i];
-      final wantFamily = (families != null && i < families.length)
-          ? families[i].toLowerCase()
-          : null;
-      // Animated species only (the dungeon renders sprite sheets), and never a
-      // Mystic — those are guardians, not party tools (§5).
-      final ofElement = catalog
-          .byType(slotElement)
-          .where((c) => c.spriteData != null)
-          .where((c) => (c.mutationFamily ?? '').toLowerCase() != 'mystic')
-          .toList();
-      if (ofElement.isEmpty) continue;
-      final match =
-          ofElement.firstWhereOrNull(
-            (c) => (c.mutationFamily ?? '').toLowerCase() == wantFamily,
-          ) ??
-          ofElement.first;
-      out.add(_sandboxMemberFromCreature(match));
-    }
-    return out;
-  }
+  /// The planet's §6 ideal team. Lives in dungeon_debug_party.dart so the
+  /// profile's dungeon menu descends with exactly the same trio.
+  List<CosmicPartyMember> _debugIdealTrio(String element) => debugIdealTrio(
+    context.read<CreatureCatalog>(),
+    element,
+    statTier: _sandboxCompanionStatTier,
+  );
 
   /// Planets that can host a raid: guardian beaten (star 3) on an unsealed
   /// gate, and a raid arena configured for the element.

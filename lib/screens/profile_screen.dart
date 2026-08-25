@@ -8,7 +8,9 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
+import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
@@ -246,6 +248,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const StoryIntroScreen()),
+    );
+  }
+
+  Future<void> _openDungeonDebug() async {
+    HapticFeedback.mediumImpact();
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const DungeonDebugScreen()),
     );
   }
 
@@ -1684,6 +1694,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       accent: t.teal,
                     ),
                   ),
+
+                  // Gated on the switch above rather than on
+                  // DebugSettingsService.toolsVisible: this row sits directly
+                  // under the control that governs it, so appearing in a debug
+                  // build with the switch OFF would read as the switch being
+                  // broken.
+                  if (_debugToolsEnabled) ...[
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('DUNGEON DEBUG', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Drop straight into any of the '
+                                  '${kPlanetDungeonLayouts.length} built '
+                                  'dungeons with its ideal trio',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'OPEN',
+                            icon: AppIcons.south_rounded,
+                            onTap: _openDungeonDebug,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             );
