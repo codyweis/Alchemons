@@ -941,11 +941,13 @@ const DungeonLayout dustLayout = DungeonLayout(
     'observatory': DungeonRoom(
       id: 'observatory',
       bounds: Rect.fromLTWH(0, 0, 880, 560),
+      // THE ROOFLESS SPAN: an instrument moat ringing the armillary's island.
+      // Nothing walks it — only a thing the ground cannot keep.
       gaps: [
-        Rect.fromLTWH(280, 140, 320, 80),
-        Rect.fromLTWH(280, 380, 320, 80),
-        Rect.fromLTWH(280, 140, 80, 320),
-        Rect.fromLTWH(520, 140, 80, 320),
+        DungeonGap(Rect.fromLTWH(280, 140, 320, 80)),
+        DungeonGap(Rect.fromLTWH(280, 380, 320, 80)),
+        DungeonGap(Rect.fromLTWH(280, 140, 80, 320)),
+        DungeonGap(Rect.fromLTWH(520, 140, 80, 320)),
       ],
       doors: [
         DungeonDoor(

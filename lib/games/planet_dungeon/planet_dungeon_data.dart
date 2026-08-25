@@ -16,6 +16,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1089,6 +1090,12 @@ class DungeonRoom {
   /// hollow's mire anchor. One field, because the fen's own crossing graph is
   /// authored whole in planet_dungeon_layout_mud.dart rather than per room.
   final BogFen? fen;
+  /// Dust (the Ruins of Time): this room's content on the buried city's two
+  /// Z-layers — its star, the drift yard, and the single objects (vane, silt,
+  /// armillary, glass, the hollow's cut). One field, because the city's mounds
+  /// are authored whole in planet_dungeon_layout_dust.dart rather than per
+  /// room, exactly as Ice's shaft is.
+  final DustRuins? ruins;
 
   const DungeonRoom({
     required this.id,
@@ -1163,6 +1170,7 @@ class DungeonRoom {
     this.priorsSeal,
     this.rime,
     this.fen,
+    this.ruins,
   });
 }
 
@@ -1345,6 +1353,9 @@ class DungeonLayout {
         seen.add(socket.sarsenStarIndex);
         seen.add(socket.moorStarIndex);
       }
+      // Dust does the same with its two Z-layers: the seal street above and
+      // the observatory below.
+      if (room.ruins?.starIndex != null) seen.add(room.ruins!.starIndex!);
     }
     return seen;
   }
@@ -3968,6 +3979,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Poison': poisonLayout,
   'Ice': iceLayout,
   'Mud': mudLayout,
+  'Dust': dustLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

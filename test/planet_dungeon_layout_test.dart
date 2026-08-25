@@ -517,6 +517,11 @@ void main() {
               nonGuardianStars.add(room.fen!.altar!.sarsenStarIndex);
               nonGuardianStars.add(room.fen!.altar!.moorStarIndex);
             }
+            // Dust does the same across its two Z-layers: the seal street
+            // above and the observatory below.
+            if (room.ruins?.starIndex != null) {
+              nonGuardianStars.add(room.ruins!.starIndex!);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));

@@ -1673,6 +1673,13 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // basins, and its Mask finds the one under black water). Plant+Water→Mud
   // is the braid that drags a ford when no Mud hand is free.
   'Mud': ['Mud', 'Plant', 'Water'],
+  // Ruins of Time (Sablis): Dust (parts the silted arch, turns the great
+  // glass, and its own spade digs the city) + Air (the tower's vanes call the
+  // levelling sirocco, gusts scour the drift yard, and its Wing crosses the
+  // observatory's roofless span) + Earth (the other spade, and its Horn puts
+  // a shoulder through the court's false wall). Air+Earth->Dust stands in as
+  // a braid when the Dust hand is down.
+  'Dust': ['Dust', 'Air', 'Earth'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1694,6 +1701,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Ice': ['Mane', 'Mask', 'Wing'], // Icemane · Lightmask · Airwing
   'Lava': ['Horn', 'Mask', 'Mane'], // Lavahorn · Earthmask · Icemane
   'Mud': ['Mane', 'Pip', 'Mask'], // Mudmane · Plantpip · Watermask
+  'Dust': ['Mask', 'Wing', 'Horn'], // Dustmask · Airwing · Earthhorn
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1703,6 +1711,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
   'Dust',
+  'Mud',
   'Crystal',
   'Plant',
   'Spirit',

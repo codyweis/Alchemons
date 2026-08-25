@@ -28,6 +28,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -49,6 +50,7 @@ part 'planet_dungeon_game_lava.dart';
 part 'planet_dungeon_game_mud.dart';
 part 'planet_dungeon_game_poison.dart';
 part 'planet_dungeon_game_ice.dart';
+part 'planet_dungeon_game_dust.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
@@ -335,6 +337,7 @@ class PlanetDungeonGame extends FlameGame {
     // The fen opens with every crossing quaking mire and the sarsen in the
     // gate's silt — seeded here for the same reason as the shaft.
     _resetBogState();
+    _resetRuinsState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1245,6 +1248,19 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isShaft => layout.element == 'Ice';
 
+  // ── Dust · the Ruins of Time (planet_dungeon_game_dust.dart) ──
+  /// The whole buried city — the conservation ledger plus the live run state.
+  /// ONE field, because [RuinsOfTime] is the only thing on this planet allowed
+  /// to write a dust load (see planet_dungeon_layout_dust.dart).
+  final RuinsOfTime ruins = RuinsOfTime();
+
+  /// Seconds Ashdjinn's freshly filled cut stays unworkable, and the beat-edge
+  /// its storm is detected on.
+  double _hollowSettle = 0;
+  bool _ashdjinnBitLastFrame = false;
+
+  bool get _isRuins => layout.element == 'Dust';
+
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
   final Map<String, double> _conduitMaxEnergy = {};
@@ -1589,6 +1605,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isSpire) return _spireProgressReadout();
     if (_isShaft) return _shaftProgressReadout();
     if (_isBog) return _bogProgressReadout();
+    if (_isRuins) return _ruinsProgressReadout();
     return null;
   }
 
@@ -1936,6 +1953,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetMonasteryState();
     _resetShaftState();
     _resetBogState();
+    _resetRuinsState();
   }
 
   void _resetRun() {
@@ -2195,6 +2213,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateMonastery(a, room, dt);
     _updateShaft(a, room, dt);
     _updateBog(a, room, dt);
+    _updateRuins(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2380,6 +2399,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isVenom) _monasteryAmbientHint(a, room);
     if (_isShaft) _shaftAmbientHint(a, room);
     if (_isBog) _bogAmbientHint(a, room);
+    if (_isRuins) _ruinsAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -6971,6 +6991,13 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // The Ruins of Time: the spade, the vanes, the yard, the armillary, the
+    // glass and Ashdjinn's cut all ride one dispatcher — and the cut, like
+    // Lightning's spike, must outrank the guardian's own catch.
+    if (_isRuins && _tryRuinsVerb(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -7155,6 +7182,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isBog) {
       _bogReveal(a, room);
+      return;
+    }
+    if (_isRuins) {
+      _ruinsReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7621,6 +7652,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isVenom && _monasteryDoorHidden(room, door)) return true;
     if (_isShaft && _iceDoorHidden(room, door)) return true;
     if (_isBog && _bogDoorHidden(room, door)) return true;
+    if (_isRuins && _ruinsDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -7646,6 +7678,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isVenom && _monasteryDoorLocked(room, door)) return true;
     if (_isShaft && _iceDoorBlocked(room, door)) return true;
     if (_isBog && _bogDoorBlocked(room, door)) return true;
+    if (_isRuins && _ruinsDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7684,6 +7717,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isBog && _bogDoorBlocked(room, door)) {
       return _bogDoorHint(room, door);
+    }
+    if (_isRuins && _ruinsDoorBlocked(room, door)) {
+      return _ruinsDoorHint(room, door);
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
@@ -7734,6 +7770,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isVenom) return _monasteryObjectiveHint(room);
     if (_isShaft) return _shaftObjectiveHint(room);
     if (_isBog) return _bogObjectiveHint(room);
+    if (_isRuins) return _ruinsObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -8014,6 +8051,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isVenom) _renderMonastery(canvas, room);
     if (_isShaft) _renderShaft(canvas, room);
     if (_isBog) _renderBog(canvas, room);
+    if (_isRuins) _renderRuins(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8338,6 +8376,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isVenom) return _monasteryMoodTarget;
     if (_isShaft) return _shaftMoodTarget;
     if (_isBog) return _bogMoodTarget;
+    if (_isRuins) return _ruinsMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||
