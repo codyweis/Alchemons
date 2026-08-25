@@ -548,6 +548,12 @@ void main() {
             if (room.eclipse?.starIndex != null) {
               nonGuardianStars.add(room.eclipse!.starIndex!);
             }
+            // Light does the same with the sector a bay of the one great hall
+            // lies in: the shadow court in the court bay, the dark stacks out
+            // past both great stacks.
+            if (room.hall?.starIndex != null) {
+              nonGuardianStars.add(room.hall!.starIndex!);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));

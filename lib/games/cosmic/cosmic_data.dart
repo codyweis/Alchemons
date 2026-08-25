@@ -1709,6 +1709,14 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // Poison+Spirit→Dark is the braid that snuffs the nave's lamps when no
   // Dark hand is free.
   'Dark': ['Dark', 'Poison', 'Spirit'],
+  // Beacon Archive (Solarin): Light (kindles, aims and pitches every beacon —
+  // the planet's whole verb — reads two of the court's effigies, and works the
+  // reading floor's shutter-ring) + Crystal (reads the scholar effigy, and its
+  // Mask splits the prism oriel's one beam into the two the rite needs) +
+  // Spirit (reads the warden effigy, and its Pip goes behind the shelves for
+  // the slips). **Crystal+Spirit→Light** is the planet's own braid and works
+  // the shutter-ring when no Light hand is free.
+  'Light': ['Light', 'Crystal', 'Spirit'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1735,6 +1743,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Plant': ['Mane', 'Mask', 'Pip'], // Plantmane · Lightmask · Mudpip
   'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Waterpip · Crystalwing
   'Dark': ['Mask', 'Pip', 'Mane'], // Darkmask · Poisonpip · Spiritmane
+  'Light': ['Mask', 'Mask', 'Pip'], // Lightmask · Crystalmask · Spiritpip
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1743,7 +1752,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
-  'Light',
   'Blood',
 };
 

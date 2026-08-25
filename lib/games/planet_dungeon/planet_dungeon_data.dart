@@ -21,6 +21,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1110,6 +1111,14 @@ class DungeonRoom {
   /// shaft and Plant's crypt are.
   final EclipseHall? eclipse;
 
+  /// Light (the Beacon Archive): which SECTOR of the one great hall this bay
+  /// lies in, its star, and the single objects (the door-shutter, the court's
+  /// balustrade, the reading floor's shutter-ring, the arena's pillars). One
+  /// field, because the hall's sills, beacons, effigies and slips are authored
+  /// whole in planet_dungeon_layout_light.dart rather than per room, exactly
+  /// as Ice's shaft and Dark's quarters are.
+  final ArchiveHall? hall;
+
   /// Dust (the Ruins of Time): this room's content on the buried city's two
   /// Z-layers — its star, the drift yard, and the single objects (vane, silt,
   /// armillary, glass, the hollow's cut). One field, because the city's mounds
@@ -1211,6 +1220,7 @@ class DungeonRoom {
     this.grave,
     this.grove,
     this.eclipse,
+    this.hall,
   });
 }
 
@@ -1420,6 +1430,9 @@ class DungeonLayout {
       // Dark carries its two non-guardian stars on the quarter a room lies
       // in: the analemma court in the pall, the ossuary ring in the bones.
       if (room.eclipse?.starIndex != null) seen.add(room.eclipse!.starIndex!);
+      // Light does the same with the sector a bay lies in: the shadow court in
+      // the court bay, the dark stacks out past both great stacks.
+      if (room.hall?.starIndex != null) seen.add(room.hall!.starIndex!);
     }
     return seen;
   }
@@ -4048,6 +4061,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Plant': plantLayout,
   'Spirit': spiritLayout,
   'Dark': darkLayout,
+  'Light': lightLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):
