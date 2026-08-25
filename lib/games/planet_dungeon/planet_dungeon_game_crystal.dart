@@ -48,11 +48,13 @@
 // nobody can be standing in the right place to finish is no better than an
 // unreachable one.
 //
-// THE ANNEAL is the one valve, and it is here for a narrow reason: a chamber
-// whose facets happen to face nothing walkable, with the hollow out of reach,
-// and Prismalith's beats moving the keep while you are downstairs in the
-// choir. A Crystal hand on any tuning boss rings the keep back to its opening
-// arrangement. A do-over, never a shortcut.
+// THE ANNEAL is the one valve, and it is here for a narrow, MEASURED reason:
+// 7,404 of the 1,592,585 reachable states are jams — a body on glass that
+// faces nothing, with the hollow out of reach. A Crystal hand on any tuning
+// boss rings the keep back to its opening arrangement AND puts the ringer out
+// on the oriel; carrying them with their own chamber instead would set them
+// back down in the same trap forever, which is what the search caught. A
+// do-over, never a shortcut.
 
 part of 'planet_dungeon_game.dart';
 
@@ -243,11 +245,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final to = layout.rooms[door.targetRoomId]?.prism?.cell?.index;
     if (from != null && to != null) return !f.passable(from, to);
     // The frame arches (the oriel's threshold and the north arch to the rite)
-    // are cut in the keep's own stone, so they ask only that something stands
-    // there to be walked onto.
-    final frameCell = from ?? to;
-    if (frameCell == null) return false;
-    return !f.frameArchOpen(frameCell);
+    // are cut in the keep's own stone, not in any chamber's glass, so they
+    // never shut — chamber or bare socket, the arch opens onto whatever is
+    // there. That is what makes it impossible for Prismalith's beats to lock
+    // the party out of the keep while they are downstairs in the choir.
+    return false;
   }
 
   /// One short clause naming exactly what is missing (§5.6 BLOCKED) — never a
@@ -257,12 +259,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final from = _cellOf(room);
     final to = layout.rooms[door.targetRoomId]?.prism?.cell?.index;
     if (from != null && to != null) {
-      if (f.chamberAt(to) == null) {
-        return 'The arch opens on the hollow — nothing to step onto';
+      if (f.chamberAt(from) == null || f.chamberAt(to) == null) {
+        return 'This wall is not cut through';
       }
       return 'The glass does not meet here';
     }
-    return 'The keep stands empty on this arch';
+    return 'The keep stands shut on this arch';
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -483,13 +485,16 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       _setBlockedHint('The keep already stands as it opened');
       return true;
     }
-    final landed = f.anneal(cell ?? -1);
-    if (cell != null) currentRoomId = kKeepCellRooms[landed];
-    prism.shear = _kKeepShearSeconds;
+    f.anneal();
+    // Out, onto the oriel. See PrismKeepField.anneal: a ring that carried you
+    // with your own chamber would set you back down in the same trap forever.
+    currentRoomId = layout.entranceRoomId;
+    _spreadCreaturesAround(layout.entranceSpawn);
+    prism.shear = 0;
     prism.shearFrom = Offset.zero;
     _clearHints();
     _setHint(
-      'The whole keep rings back to true — and every slide you made is gone',
+      'The whole keep rings back to true — and puts you out of its face',
       4.2,
     );
     _spawnAlchemyBurst(
@@ -533,12 +538,20 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   }
 
   /// THE SHUNT — the planet's only verb, and its whole grammar. A Crystal hand
-  /// on the shove-plate facing the hollow pushes THIS chamber that way and
-  /// rides it: the screen slides and your feet do not move on the floor.
+  /// on a shove-plate makes the chamber and the hollow beyond it TRADE PLACES,
+  /// and the hand trades with them: the screen slides and your feet do not
+  /// move on the floor they are standing on.
+  ///
+  /// It works from either side of the pair, and the difference is the whole
+  /// feel of the verb. From inside a chamber you RIDE it across. From inside
+  /// the bare socket you HAUL a neighbour in and stay with the hollow — which
+  /// is what makes the socket the keep's one free-moving place, and what keeps
+  /// a first descent from being locked into two arrangements.
   bool _tryShunt(DungeonCreature a) {
     final cell = _cellOf(currentRoom);
     if (cell == null) return false;
     final f = _keep;
+    final inSocket = f.chamberAt(cell) == null;
     for (final facet in const [kFacetN, kFacetE, kFacetS, kFacetW]) {
       final target = keepNeighbourToward(cell, facet);
       if (target < 0) continue; // an outer wall carries no plate
@@ -551,22 +564,25 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         _setBlockedHint('The keep is full — nothing has anywhere to go');
         return true;
       }
-      if (f.hollowCell != target) {
+      if (inSocket) {
+        if (f.chamberAt(target) == null) continue;
+      } else if (f.hollowCell != target) {
         _setBlockedHint('Glass on glass — there is nothing to give');
         return true;
       }
-      _rideShunt(cell, target, facet);
+      _rideShunt(inSocket ? target : cell, target, facet);
       return true;
     }
     return false;
   }
 
-  /// The ride itself.
-  void _rideShunt(int from, int target, int facet) {
+  /// The ride itself. [chamberCell] is the cell the moving chamber starts in;
+  /// [target] is always where the body ends up, because the pair exchanges and
+  /// the body exchanges with it.
+  void _rideShunt(int chamberCell, int target, int facet) {
     final f = _keep;
-    final landed = f.shunt(from);
-    if (landed < 0) return;
-    currentRoomId = kKeepCellRooms[landed];
+    if (f.shunt(chamberCell) < 0) return;
+    currentRoomId = kKeepCellRooms[target];
     prism.shear = _kKeepShearSeconds;
     prism.shearFrom = switch (facet) {
       kFacetN => const Offset(0, 1),
@@ -597,8 +613,15 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final cell = _cellOf(currentRoom);
     if (cell == null) return false;
     final target = keepNeighbourToward(cell, facet);
-    if (target < 0 || _keep.hollowCell != target) return false;
-    _rideShunt(cell, target, facet);
+    if (target < 0) return false;
+    final f = _keep;
+    final inSocket = f.chamberAt(cell) == null;
+    if (inSocket) {
+      if (f.chamberAt(target) == null) return false;
+    } else if (f.hollowCell != target) {
+      return false;
+    }
+    _rideShunt(inSocket ? target : cell, target, facet);
     return true;
   }
 
@@ -612,6 +635,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       _keep.facetStanding && _cellOfId(currentRoomId) == kKeepMouthCell;
 
   int? _cellOfId(String roomId) => layout.rooms[roomId]?.prism?.cell?.index;
+
+  /// Test seam for the vault gate — the cache's whole trick is that the cell
+  /// only holds it in one configuration, so the proof has to be able to ask.
+  bool get keepVaultLiveForTest => _keepVaultLive;
 
   // ── Readouts, hints, insight (§5.6) ──────────────────────
 
@@ -661,7 +688,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final cell = _cellOf(room);
     if (cell == null) return null;
     final chamber = f.chamberAt(cell);
-    if (chamber == null) return null;
+    if (chamber == null) return 'An empty socket, and the keep\'s works below';
     if (chamber.id == 'waiting') return 'Something was kept in here';
     if (chamber.id == 'hearth' && !f.hearthKindled) {
       return 'The hearth\'s shard is stone cold';
@@ -1014,7 +1041,9 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       final n = keepNeighbourToward(cell, facet);
       if (n < 0) continue;
       final at = keepPlateFor(facet);
-      final ready = !f.facetStanding && f.hollowCell == n;
+      final inSocket = f.chamberAt(cell) == null;
+      final ready = !f.facetStanding &&
+          (inSocket ? f.chamberAt(n) != null : f.hollowCell == n);
       canvas.drawRect(
         Rect.fromCenter(center: at, width: 40, height: 40),
         ready ? live : plate,

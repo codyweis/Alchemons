@@ -46,11 +46,20 @@
 //     doorway on that face. Slide one chamber and a dozen adjacencies change
 //     at once, none of them by opening or closing a door: the doors were
 //     always there, and now the glass either lines up or it does not.
-//   • THE SHUNT is the planet's only verb. A Crystal hand at a chamber's
-//     shove-plate pushes THAT chamber into the adjacent hollow — and rides
-//     it. You never move a room you are not standing in, which is the doc's
+//   • THE SHUNT is the planet's only verb, and it is one rule: A CHAMBER AND
+//     THE HOLLOW TRADE PLACES, AND SO DOES WHOEVER IS STANDING AT THE
+//     BOUNDARY. From inside a chamber you RIDE it across; from inside the
+//     bare socket you HAUL a neighbour in and stay with the hollow. Either
+//     way the body ends up in the other cell of the pair, which is the doc's
 //     "sliding moves rooms AND you", literally: the screen slides, and your
-//     feet do not move on the floor.
+//     feet do not move on the floor they are standing on.
+//   • THE HOLLOW IS NOT NOTHING. It is the keep's bare socket — the frame's
+//     own stone with the works showing through a grille — so it can be walked
+//     into (an empty socket has no glass to disagree with, so only the
+//     chamber's own facet is asked for) and shunted from. That makes the
+//     socket the keep's one free-moving place, and it is not a convenience:
+//     the reachability search measured a first draft WITHOUT it at 2 reachable
+//     arrangements out of 181,440. See the test.
 //
 // THE STRATEGIC QUESTION (§5.5): *every slide solves one adjacency and breaks
 // another.* Pinned in geometry, not in prose. The Throne Star wants the Shard
@@ -154,19 +163,26 @@
 // ─────────────────────────────────────────────────────────
 // Because every slide is reversible, this planet cannot strand you by an
 // irreversible edit the way Ice (120/122), Mud (1200/1284) and Dust (319/396)
-// can. It has one other way to wedge, and only one: a chamber whose facets
-// happen to face nothing walkable, with the hollow out of reach. THE ANNEAL
-// answers it — the keep's frame is one tuned instrument, and a Crystal hand
-// on any tuning boss (there is one in every cell, in the oriel, in the tuning
-// hall and in the choir) RINGS THE KEEP BACK to the arrangement it opened in,
-// carrying you with your chamber and pushing the waiting facet back to its
-// berth. It is a do-over, not a shortcut: it costs you every slide you made.
+// can: there is no arrangement the slides cannot undo. It has one other way to
+// WEDGE, and only one — a body standing on glass whose cut faces both happen
+// to give onto the outer frame, or onto neighbours whose glass does not agree,
+// with the hollow out of reach. The Black Cell in a corner is the clean case,
+// and it is not rare: 7,404 of the 1,592,585 reachable states are jams,
+// counted by name in the test.
 //
-// It is load-bearing for one more reason. Prismalith SHUNTS THE KEEP ABOVE on
-// every strike beat (§7 — the guardian fights WITH the planet's rule), and a
-// beat can leave the hollow in the north cell while you are in the choir,
-// with the keep's only way home standing open on nothing. The tuning boss in
-// the choir is why that is a nuisance and not a lost run.
+// THE ANNEAL answers it. The keep's frame is one tuned instrument, and a
+// Crystal hand on any tuning boss (there is one in every cell, in the oriel,
+// in the tuning hall and in the choir) RINGS THE KEEP BACK to the arrangement
+// it opened in, pushes the waiting facet back to its berth — and PUTS THE
+// RINGER OUT, on the oriel below the south face.
+//
+// Being thrown clear is the load-bearing half, and it was not the first draft.
+// A ring that carries you along with your own chamber sets you back down in
+// the very trap you rang it to escape, forever; the reachability search caught
+// exactly that, on the opening arrangement's north-west corner. Throwing the
+// ringer out makes the valve total: from ANY state whatsoever, one ring
+// returns the run to the exact state it began in. A do-over, never a shortcut
+// — it costs every slide you made.
 //
 // The fixture classes live here (rather than in planet_dungeon_data.dart with
 // the older planets') so this planet's diff against shared files stays to a
@@ -486,44 +502,61 @@ class PrismKeepField {
 
   // ── THE SHUNT ────────────────────────────────────────────
 
-  /// A chamber may be shoved into the hollow only from an orthogonally
-  /// adjacent cell. This is the whole move set, and it is why the reachable
-  /// arrangements are an orbit of the alternating group rather than all of
-  /// them (see the file header's parity note).
+  /// A chamber trades places with the hollow, and so does whoever is standing
+  /// at the boundary — from inside the chamber (you ride it across) or from
+  /// inside the socket (you stay with the hollow). One rule, stated once: THE
+  /// PAIR EXCHANGES, AND SO DO YOU. This is the whole move set, and it is why
+  /// the reachable arrangements are an orbit of the alternating group rather
+  /// than all of them (see the file header's parity note).
   bool canShunt(int fromCell) {
     final h = hollowCell;
     return h >= 0 && _adjacent(fromCell, h);
   }
 
-  /// Shove the chamber standing in [fromCell] into the hollow. Returns the
-  /// cell the shover ends up in (they ride it), or −1 if the move is illegal.
-  int shunt(int fromCell) {
+  /// Trade the chamber standing in [chamberCell] with the hollow. Returns the
+  /// cell the hollow ends up in, or −1 if the move is illegal.
+  int shunt(int chamberCell) {
     final h = hollowCell;
-    if (h < 0 || !_adjacent(fromCell, h)) return -1;
-    cells[h] = cells[fromCell];
-    cells[fromCell] = kHollow;
+    if (h < 0 || !_adjacent(chamberCell, h)) return -1;
+    cells[h] = cells[chamberCell];
+    cells[chamberCell] = kHollow;
     shunts++;
     return h;
   }
 
   // ── WALKING — the adjacency the whole planet is about ────
 
-  /// Is the arch between [a] and [b] walkable right now? Both cells must hold
-  /// a chamber, and both chambers must be cut on the face they meet at. No
-  /// door is opened or closed by a slide — only aligned or mis-aligned, which
-  /// is §5.5's "every slide solves one adjacency and breaks another".
+  /// Is the arch between [a] and [b] walkable right now?
+  ///
+  /// Between two CHAMBERS: both must be cut on the face they meet at. No door
+  /// is opened or closed by a slide — only aligned or mis-aligned, which is
+  /// §5.5's "every slide solves one adjacency and breaks another", and it is
+  /// the whole difficulty of the planet.
+  ///
+  /// Between a chamber and THE HOLLOW: only the chamber's own facet is asked
+  /// for. The hollow is not nothing — it is the keep's bare socket, the frame's
+  /// stone floor with the works showing through a grille — and an empty socket
+  /// has no glass to disagree with. That is also why the socket is the one
+  /// place in the keep a body can move freely from: standing in it, you can
+  /// haul any neighbour in and stay with the hollow as it goes. The 15-puzzle's
+  /// oldest interaction, and without it a first descent is locked into
+  /// oscillating between two arrangements (measured: 2 of 181,440 — the search
+  /// in the test caught exactly this).
   bool passable(int a, int b) {
     if (!_adjacent(a, b)) return false;
     final ca = chamberAt(a), cb = chamberAt(b);
-    if (ca == null || cb == null) return false;
+    if (ca == null && cb == null) return false; // cannot happen: one hollow
+    if (ca == null) return cb!.cut(keepFacetToward(b, a));
+    if (cb == null) return ca.cut(keepFacetToward(a, b));
     return ca.cut(keepFacetToward(a, b)) && cb.cut(keepFacetToward(b, a));
   }
 
   /// The south threshold and the north arch are cut in the keep's own FRAME,
-  /// not in any chamber's glass, so crossing them asks only that something
-  /// stands there to be walked onto. (If the hollow is parked under an arch
-  /// it opens on nothing, and the anneal is the way out — see the header.)
-  bool frameArchOpen(int cell) => cells[cell] != kHollow;
+  /// not in any chamber's glass, so they never shut: they open onto whatever
+  /// is in the cell, chamber or bare socket alike. Kept as a named rule
+  /// because it is the reason the party can never be locked out of the keep
+  /// by Prismalith's beats moving the hollow while they are downstairs.
+  bool frameArchOpen(int cell) => cell >= 0 && cell <= 8;
 
   // ── STAR 0 · THE PRISM — the lamp, the row, the rose ─────
 
@@ -622,20 +655,24 @@ class PrismKeepField {
 
   // ── THE ANNEAL — the valve ───────────────────────────────
 
-  /// Ring the keep back to the arrangement it opened in. Returns the cell
-  /// [fromCell]'s occupant is carried to (the ringer rides their own chamber
-  /// home); a ringer standing outside the lattice, or inside the waiting
-  /// facet as it withdraws, is set down at the mouth.
-  int anneal(int fromCell) {
-    final riding = (fromCell >= 0 && fromCell <= 8) ? cells[fromCell] : kHollow;
+  /// Ring the keep back to the arrangement it opened in — and put the ringer
+  /// OUT, on the oriel below the south face.
+  ///
+  /// Being set down outside is not flavour, it is the whole point of the
+  /// valve. Vitrea's one way to jam is a body standing in a chamber whose cut
+  /// faces both happen to give onto the outer frame — the Black Cell in a
+  /// corner does exactly that — with the hollow out of reach. An anneal that
+  /// carried the ringer with their own chamber would set them back down in the
+  /// same trap forever (measured: the reachability search caught precisely
+  /// this, on the opening arrangement's north-west corner). Throwing them
+  /// clear makes the valve total: from any state whatsoever, one ring returns
+  /// the run to the exact state it began in.
+  void anneal() {
     cells
       ..clear()
       ..addAll(kKeepOpeningCells);
     hollowBerthed = false;
     anneals++;
-    if (riding == kHollow || riding == kWaitingFacet) return kKeepMouthCell;
-    final home = cells.indexOf(riding);
-    return home < 0 ? kKeepMouthCell : home;
   }
 
   /// Prismalith's beat (§7): the keep above shunts itself one step. Picks the
