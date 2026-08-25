@@ -526,6 +526,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final standing = floor.cellAt(a.position);
     if (standing < 0) return false;
     if (a.member.element != 'Crystal') return false;
+    // The lull outranks the shove. Once the gap is under the mystic and its
+    // root is showing, a Crystal hand's press is a STRIKE — otherwise the one
+    // party member who can open the window is the one member who can never
+    // use it, and the fight is unwinnable with the §6.10 ideal trio.
+    if (guardianAwake && guardianVulnerable) return false;
     if (!keepNeighbours(prism.choirHollow).contains(standing)) return false;
     _slideChoirPlate(standing);
     _spawnAlchemyBurst(

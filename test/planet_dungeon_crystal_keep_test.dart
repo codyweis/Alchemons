@@ -1145,6 +1145,22 @@ void main() {
       expect(game.creatures.first.position, floor.plateCentre(4));
     });
 
+    test('the lull outranks the shove, or the fight is unwinnable', () {
+      // The Crystal hand is the only one that can open the window, so if its
+      // press were always a shove it could never take the shot it opened.
+      final game = harness(idealTrio());
+      final floor = layout.rooms['prismalith_choir']!.prism!.choir!;
+      game.guardianAwake = true;
+      game.guardianVulnerable = true;
+      game.prism.choirHollow = kKeepHeartCell;
+      act(game, crystal, 'prismalith_choir', floor.plateCentre(1));
+      expect(
+        game.prism.choirHollow,
+        kKeepHeartCell,
+        reason: 'the gap must stay open — that press was a strike',
+      );
+    });
+
     test('the guardian shunt is deterministic and never moves a full keep', () {
       final f = PrismKeepField();
       expect(f.guardianShunt(), 5, reason: 'the lowest neighbour of cell 8');
