@@ -19,6 +19,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1115,6 +1116,14 @@ class DungeonRoom {
   /// Ice's shaft and Dust's mounds are.
   final PrismHall? prism;
 
+  /// Spirit (the Echo Grave): this room's content in the field's two overlaid
+  /// worlds — the barrow it is, the gate's vigil, its lych-stone, the grave
+  /// mouth, the drowned cut's brink, its sigil half, the grave-lamp and
+  /// Wraithord's stone. One field, because the field's crossing graph is
+  /// authored whole in planet_dungeon_layout_spirit.dart rather than per room,
+  /// exactly as Plant's spans and Crystal's lattice are.
+  final EchoGrave? grave;
+
   const DungeonRoom({
     required this.id,
     required this.bounds,
@@ -1190,6 +1199,7 @@ class DungeonRoom {
     this.fen,
     this.ruins,
     this.prism,
+    this.grave,
     this.grove,
   });
 }
@@ -1388,6 +1398,15 @@ class DungeonLayout {
       // Plant does the same with its one geometry at two sizes: the lantern
       // court above and the islet across the rill.
       if (room.grove?.starIndex != null) seen.add(room.grove!.starIndex!);
+      // Spirit declares BOTH of its non-guardian stars on the lych gate:
+      // neither belongs to a room — one is a fact about the LIVING crossings
+      // of the whole grave-field, the other about two halves of a sigil that
+      // lie in different worlds.
+      final vigil = room.grave?.vigil;
+      if (vigil != null) {
+        seen.add(vigil.roadStarIndex);
+        seen.add(vigil.sigilStarIndex);
+      }
     }
     return seen;
   }
@@ -4014,6 +4033,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Dust': dustLayout,
   'Crystal': crystalLayout,
   'Plant': plantLayout,
+  'Spirit': spiritLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

@@ -1694,6 +1694,13 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // clay, and turns the mulch pits that call the withering). Mud+Light→Plant
   // is the braid that plants when no Plant hand is free.
   'Plant': ['Plant', 'Light', 'Mud'],
+  // Echo Grave (Requia): Spirit (the lych-stones that pass the party over, and
+  // the telling that finishes a death) + Water (draws the black water off the
+  // gate arch, and its Pip sets the sigil's mark) + Crystal (the grave-lamp,
+  // element-only). **Spirit+Water→Ice** settles the drowned cut into a road
+  // the living can take; **Crystal+Spirit→Light** is what makes a light in a
+  // place that has never had one.
+  'Spirit': ['Spirit', 'Water', 'Crystal'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1718,6 +1725,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Dust': ['Mask', 'Wing', 'Horn'], // Dustmask · Airwing · Earthhorn
   'Crystal': ['Mask', 'Horn', 'Pip'], // Crystalmask · Lightninghorn · Spiritpip
   'Plant': ['Mane', 'Mask', 'Pip'], // Plantmane · Lightmask · Mudpip
+  'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Waterpip · Crystalwing
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1726,7 +1734,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
-  'Spirit',
   'Dark',
   'Light',
   'Blood',

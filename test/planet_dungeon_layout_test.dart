@@ -534,6 +534,14 @@ void main() {
             if (room.grove?.starIndex != null) {
               nonGuardianStars.add(room.grove!.starIndex!);
             }
+            // Spirit declares BOTH of its non-guardian stars on the lych
+            // gate: one is a fact about the LIVING crossings of the whole
+            // grave-field, the other about two halves of a sigil that lie in
+            // different worlds.
+            if (room.grave?.vigil != null) {
+              nonGuardianStars.add(room.grave!.vigil!.roadStarIndex);
+              nonGuardianStars.add(room.grave!.vigil!.sigilStarIndex);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));
