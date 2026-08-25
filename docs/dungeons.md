@@ -297,7 +297,7 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Spirit** (built) | Two overlaid worlds: living/ghost layers, same geometry, different doors | which layer to cross each junction in — deaths in one open doors in the other | exists only in the ghost layer, marked only in the living one |
 | **Dark** (built) | Inverting maze: light/dark flips swap walls and doors | every flip you make for a door closes one elsewhere | the vault room only EXISTS in the dark state |
 | **Light** (built) | One great hall: no corridors — light beams partition the space into moving "rooms" | aiming light builds paths AND exposes you — illuminate as little as possible | stands in plain sight; reachable only through un-lit ground |
-| Blood | Systole loop: a figure-eight of veins around the heart; surges circle it on the beat | move WITH the pulse or against it — timing is the map | reachable only in the flatline window between beats |
+| **Blood** (built) | Systole loop: a figure-eight of veins around the heart; surges circle it on the beat | move WITH the pulse or against it — timing is the map | reachable only in the flatline window between beats |
 
 ### Mechanic ledger — core star mechanics, claimed
 
@@ -324,11 +324,13 @@ new. The ledger grows with every build:
 | **Spirit** (BUILT 2026-08-25) | **the living/ghost reading of two overlaid worlds** (one deck of rooms, two worlds over it; every crossing walkable in exactly one world — CLAIMED; Dust holds the Z-layer reading, Plant the observer-scale reading) · **death as an irreversible world-edit** (a revenant holds the ghost lintel up while the stone that killed them blocks the living way; hearing them out finishes the death, clears the living way and drops the ghost way — the doc's "deaths in one open doors in the other", verbatim) |
 | **Dark** (BUILT 2026-08-25) | **state-flip maze inversion** (a GLOBAL flip rewrites the whole maze at once and every flip made for one door closes another — CLAIMED; distinct from Spirit, whose layers coexist and are chosen at a junction, and from Lightning's electrical zero-sum: this one is spatial) · **safety by additivity** (the only irreversible edits are portals that open and never close; an additive edit cannot shrink reachability, so it cannot strand — a reusable argument, not a claim) |
 | **Light** (BUILT 2026-08-25) | **light-cone occlusion — the player places the SHADOW, not the beam** (nothing is aimed at anything; low pitch breaks on the great stacks and lights the rim only, and that shadow is the move — CLAIMED, and this is the line against Lightning's mirror-routing seat: the question is never "where does the beam go") · **exposure as an instantaneous, free-moving quantity** (lumens count lit cells and go up and down at will — NOT Steam's spend-budget — and the light is simultaneously the floor you walk on and the thing that reveals you) |
+| **Blood** (BUILT 2026-08-25) | **rhythm/timing windows — the last seat, and the only planet whose state the player does not author** (a four-phase pulse runs free and unstoppable; a vein is a road only while blood is pushed through it, downstream only — CLAIMED) · **hidden in TIME** (the vault leaflet is held shut by pressure from either side, so it opens only in the pause between beats; no prior vault trick hides a room in time rather than space) · **the closed cycle as the safety argument** (a periodic system returns to every phase, so one-way passages are safe PROVIDED waiting is survivable everywhere — the lesser lobe never reverses, and opening it costs 272 strandable states) |
 | **Nexus** (reserved) | RULE MANIPULATION — transmutation circles rewriting element bindings (the Baba Is You seat; no planet may touch it) |
 
-**Open archetype pool for the remaining 1** (match against the §6 matrix;
-each planet claims patterns no ledger row owns): rhythm/timing windows
-(Blood) — the last unclaimed seat in the set.
+**THE POOL IS EMPTY.** All seventeen planets are built and every archetype
+in the original pool is claimed by exactly one of them. A new planet — the
+reserved Nexus aside — would need a genuinely new core mechanic, not a
+re-dressing of a ledger row.
 
 ~~one-way-descent route planning~~ (CLAIMED by Ice) ·
 ~~irreversible sacrifice choice~~ (CLAIMED by Poison — Mud must claim
@@ -345,7 +347,8 @@ neighbours that a cold author will reach for the wrong one) ·
 ~~two-overlaid-worlds layer swap~~ (all three readings now CLAIMED — Dust
 Z-layer, Plant observer-scale, Spirit living/ghost) ·
 ~~state-flip maze inversion~~ (CLAIMED by Dark) ·
-~~light-cone occlusion + exposure management~~ (CLAIMED by Light).
+~~light-cone occlusion + exposure management~~ (CLAIMED by Light) ·
+~~rhythm/timing windows~~ (CLAIMED by Blood).
 
 **VISUAL GRAMMAR RULE:** every core mechanic gets its own rendering language,
 distinct from every prior planet that shares a surface resemblance. Light's
@@ -1140,7 +1143,7 @@ MYS04 Roc=Air (built) · MYS05 Boilrog=Steam · MYS06 Magmara=Lava (built) ·
 MYS07 Raikuma=Lightning · MYS08 Bogdrya=Mud (built) · MYS09 Frowyrm=Ice (built) ·
 MYS10 Ashdjinn=Dust (built) · MYS11 Prismalith=Crystal (built) · MYS12 Botanica=Plant (built) ·
 MYS13 Blightfang=Poison (built) · MYS14 Wraithord=Spirit (built) · MYS15 Noctryos=Dark (built) ·
-MYS16 Solarin=Light (built) · MYS17 Sanguorath=Blood.
+MYS16 Solarin=Light (built) · MYS17 Sanguorath=Blood (built).
 
 ### Vault caches (one per planet, +5 gold once — built for Air/Fire/Water/Earth)
 Every dungeon's treasure room (relic chamber / reliquary / pearl vault /
@@ -1822,16 +1825,56 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   `_isArchive` guard; both are inert map literals keyed by mysticId.
   NOTE: Light is the only planet whose ideal trio uses one family twice —
   Lightmask · Crystalmask · Spiritpip. That is §6's own team, not a slip.
+- ✅ **Blood — Hemavorn, the Sanguine Orrery (built 2026-08-25)**: THE
+  SEVENTEENTH AND LAST. A figure-eight of veins crossing at the sinus with the
+  heart inside the crossing. A four-phase pulse — SYSTOLE 7s → BACKWASH 4s →
+  DIASTOLE 9s → FLATLINE 5s — runs free, unstoppable and unbranching, and a
+  vein is a road only while blood is pushed through it, downstream only. The
+  greater lobe reverses on the backwash (the doc's "or against it"); the
+  lesser lobe never reverses, so entering the lung is a commitment. On the
+  flatline nothing carries and every valve leaflet hangs open.
+  THE FIRST PLANET WHOSE STATE THE PLAYER DOES NOT AUTHOR. Every other planet
+  changes only when acted on; this one advances on its own, which makes
+  stranding-in-time possible in a way no earlier proof had to handle.
+  Vault trick, hidden in TIME rather than space: the auricle reliquary sits
+  behind a leaflet pressure holds shut FROM EITHER SIDE, so it opens only in
+  the pause between beats.
+  **3,200 states (chamber × phase × grafts, all ten collateral rolls) · 0
+  strandable · no valve**, with the beat as an always-available edge in both
+  the forward enumeration AND the escape audit — a heart does not wait for
+  anybody. Every chamber must stay reachable, which is stronger than exit +
+  unearned stars. Counterfactuals pinned: open the lesser lobe and **272**
+  strand (the CLOSED CYCLE is what makes one-way traversal safe here); cut the
+  vault leaflet one-way inward and **320**; let the vagal node hold the
+  flatline for ever and **264**. The Bloodkin steadying is deliberately not
+  modelled — it only adds edges, so every number is a conservative bound.
+  **PLANNED, NOT REACTION-BASED** — the question I most wanted answered, since
+  a dexterity premise cannot be tuned away after the fact. `worstWaitPhases ==
+  3`: from every state a road opens within one full turn of the clock, and
+  every phase-locked object asks WHERE TO STAND, never when to press — walk
+  in, wait, act. Missing the 5s flatline costs a wait, never a run. The single
+  reaction window on the planet is the optional heart-drum egg (±0.85s), and
+  no star sits behind it. Waiting is safe everywhere: zero hazards, zero gaps,
+  and the only damage source is wisps a VERB wakes — which is what makes the
+  periodicity argument load-bearing rather than decorative.
+  DEVICE-TUNING TARGET (named by the author as the first thing to look at):
+  the longest forced wait is ~20s, sitting in the reliquary for the next
+  pause. Shrink lung chambers before lengthening phases.
+  DEVIATIONS: §6's Bloodkin gate on Star 0 moved to the rite (§4); what
+  survives is a legal-v2 family BONUS — a Blood Kin holds a vein open past the
+  turn, which no puzzle requires. §6's corruption-flagging by Lightmask made
+  element-only Light, because a family-exclusive PENALTY is never legal in v2.
 - ⬜ **§9.0 INTERACTION REFIT v2 + hint/popup cleanup** — convert all six
   built planets to the §4 element-first / hard-family-gate model, implement
   "the seal remembers" descent chips, apply the §5.6 hint standard, rewrite
   the slow-and-loud tests. NEXT UP before any new planet.
 - ⬜ Device tuning pending: Air, Fire, Lightning, Steam, **Poison, Ice,
-  Lava, Mud, Dust, Crystal, Plant, Spirit, Dark, Light** (timings/feel — user playtest; Water + Earth already device-tested
+  Lava, Mud, Dust, Crystal, Plant, Spirit, Dark, Light, Blood** (timings/feel — user playtest; Water + Earth already device-tested
   good). NONE of the 2026-08-24 three has ever been run on a device.
 - ⬜ More Mystic guardian sprites for future planets (map in
   `_guardianSheets`, enroll in `kRaidGuardianIds`; roster in §6).
-- ⬜ The last planet's signature mechanic (Blood) (+ their shaders).
+- ✅ **ALL 17 PLANETS BUILT** (2026-08-25). Every element has a dungeon, a
+  mystic guardian and a derived raid. `kComingSoonDungeons` is empty. (+ their shaders).
 
 ## 8.5 Ability parity with survival — status
 
