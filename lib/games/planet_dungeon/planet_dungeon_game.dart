@@ -30,6 +30,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -53,6 +54,7 @@ part 'planet_dungeon_game_poison.dart';
 part 'planet_dungeon_game_ice.dart';
 part 'planet_dungeon_game_dust.dart';
 part 'planet_dungeon_game_crystal.dart';
+part 'planet_dungeon_game_plant.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
@@ -341,6 +343,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetBogState();
     _resetRuinsState();
     _resetKeepState();
+    _resetCryptState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
@@ -1271,6 +1274,16 @@ class PlanetDungeonGame extends FlameGame {
   final PrismLabyrinth prism = PrismLabyrinth();
 
   bool get _isKeep => layout.element == 'Crystal';
+  // ── Plant · the Verdant Crypt (planet_dungeon_game_plant.dart) ──
+  /// The whole crypt: what size the party is walking in, and what every seed
+  /// bed holds. ONE field, because on this planet those two things are the
+  /// entire reachability question (see planet_dungeon_layout_plant.dart).
+  final VerdantCrypt crypt = VerdantCrypt();
+
+  /// The beat-edge Botanica's spore burst is detected on.
+  bool _botanicaBitLastFrame = false;
+
+  bool get _isCrypt => layout.element == 'Plant';
 
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
@@ -1626,6 +1639,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) return _bogProgressReadout();
     if (_isRuins) return _ruinsProgressReadout();
     if (_isKeep) return _keepProgressReadout();
+    if (_isCrypt) return _cryptProgressReadout();
     return null;
   }
 
@@ -1975,6 +1989,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetBogState();
     _resetRuinsState();
     _resetKeepState();
+    _resetCryptState();
   }
 
   void _resetRun() {
@@ -2236,6 +2251,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateBog(a, room, dt);
     _updateRuins(a, room, dt);
     _updateKeep(a, room, dt);
+    _updateCrypt(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -2423,6 +2439,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) _bogAmbientHint(a, room);
     if (_isRuins) _ruinsAmbientHint(a, room);
     if (_isKeep) _keepAmbientHint(a, room);
+    if (_isCrypt) _cryptAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -7029,6 +7046,14 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
+    // The Verdant Crypt: the briar, the galls, the mulch pits, the lamps, the
+    // growth altar, the sepulchre, the hidden seed and the seed beds all ride
+    // one dispatcher — and the arena's root-gall, like Ice's pillar, must
+    // outrank the guardian's own catch.
+    if (_isCrypt && _tryCryptVerb(a)) {
+      onChanged();
+      return;
+    }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
@@ -7221,6 +7246,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isKeep) {
       _keepReveal(a, room);
+      return;
+    }
+    if (_isCrypt) {
+      _cryptReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -7688,6 +7717,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft && _iceDoorHidden(room, door)) return true;
     if (_isBog && _bogDoorHidden(room, door)) return true;
     if (_isRuins && _ruinsDoorHidden(room, door)) return true;
+    if (_isCrypt && _cryptDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -7715,6 +7745,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog && _bogDoorBlocked(room, door)) return true;
     if (_isRuins && _ruinsDoorBlocked(room, door)) return true;
     if (_isKeep && _keepDoorBlocked(room, door)) return true;
+    if (_isCrypt && _cryptDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -7759,6 +7790,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isKeep && _keepDoorBlocked(room, door)) {
       return _keepDoorHint(room, door);
+    }
+    if (_isCrypt && _cryptDoorBlocked(room, door)) {
+      return _cryptDoorHint(room, door);
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
@@ -7811,6 +7845,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) return _bogObjectiveHint(room);
     if (_isRuins) return _ruinsObjectiveHint(room);
     if (_isKeep) return _keepObjectiveHint(room);
+    if (_isCrypt) return _cryptObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -8096,6 +8131,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) _renderBog(canvas, room);
     if (_isRuins) _renderRuins(canvas, room);
     if (_isKeep) _renderKeep(canvas, room);
+    if (_isCrypt) _renderCrypt(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -8423,6 +8459,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) return _bogMoodTarget;
     if (_isRuins) return _ruinsMoodTarget;
     if (_isKeep) return _keepMoodTarget;
+    if (_isCrypt) return _cryptMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||
