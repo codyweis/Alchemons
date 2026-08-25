@@ -296,7 +296,7 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Poison** (built) | Quarantine wards: sealed wards; opening one lets the contagion in | you cannot cure every ward — choose what to sacrifice | inside the ward you chose NOT to save |
 | **Spirit** (built) | Two overlaid worlds: living/ghost layers, same geometry, different doors | which layer to cross each junction in — deaths in one open doors in the other | exists only in the ghost layer, marked only in the living one |
 | **Dark** (built) | Inverting maze: light/dark flips swap walls and doors | every flip you make for a door closes one elsewhere | the vault room only EXISTS in the dark state |
-| Light | One great hall: no corridors — light beams partition the space into moving "rooms" | aiming light builds paths AND exposes you — illuminate as little as possible | stands in plain sight; reachable only through un-lit ground |
+| **Light** (built) | One great hall: no corridors — light beams partition the space into moving "rooms" | aiming light builds paths AND exposes you — illuminate as little as possible | stands in plain sight; reachable only through un-lit ground |
 | Blood | Systole loop: a figure-eight of veins around the heart; surges circle it on the beat | move WITH the pulse or against it — timing is the map | reachable only in the flatline window between beats |
 
 ### Mechanic ledger — core star mechanics, claimed
@@ -323,13 +323,12 @@ new. The ledger grows with every build:
 | **Plant** (BUILT 2026-08-25) | **scale as a property of the OBSERVER** (one geometry, seventeen passages, each cut for exactly one size of body; the ground never changes, you do — CLAIMED, and deliberately distinct from Dust's Z-layer, where the deck you are on is a consequence of a load ledger) · **scale-determined authorship** (a seed set by a huge hand comes up a creeper only a small body walks; set by a tiny hand it comes up a trunk only a giant walks — each product is a road for the size you were NOT, so the route dictates the product; distinct from Ice's treasure-or-ladder, where you choose between two uses of one edit) |
 | **Spirit** (BUILT 2026-08-25) | **the living/ghost reading of two overlaid worlds** (one deck of rooms, two worlds over it; every crossing walkable in exactly one world — CLAIMED; Dust holds the Z-layer reading, Plant the observer-scale reading) · **death as an irreversible world-edit** (a revenant holds the ghost lintel up while the stone that killed them blocks the living way; hearing them out finishes the death, clears the living way and drops the ghost way — the doc's "deaths in one open doors in the other", verbatim) |
 | **Dark** (BUILT 2026-08-25) | **state-flip maze inversion** (a GLOBAL flip rewrites the whole maze at once and every flip made for one door closes another — CLAIMED; distinct from Spirit, whose layers coexist and are chosen at a junction, and from Lightning's electrical zero-sum: this one is spatial) · **safety by additivity** (the only irreversible edits are portals that open and never close; an additive edit cannot shrink reachability, so it cannot strand — a reusable argument, not a claim) |
+| **Light** (BUILT 2026-08-25) | **light-cone occlusion — the player places the SHADOW, not the beam** (nothing is aimed at anything; low pitch breaks on the great stacks and lights the rim only, and that shadow is the move — CLAIMED, and this is the line against Lightning's mirror-routing seat: the question is never "where does the beam go") · **exposure as an instantaneous, free-moving quantity** (lumens count lit cells and go up and down at will — NOT Steam's spend-budget — and the light is simultaneously the floor you walk on and the thing that reveals you) |
 | **Nexus** (reserved) | RULE MANIPULATION — transmutation circles rewriting element bindings (the Baba Is You seat; no planet may touch it) |
 
-**Open archetype pool for the remaining 2** (match against the §6 matrix;
+**Open archetype pool for the remaining 1** (match against the §6 matrix;
 each planet claims patterns no ledger row owns): rhythm/timing windows
-(Blood) · light-cone occlusion + exposure management (Light — and NOT beam
-routing, which is Lightning's: Light's question is EXPOSURE, since the beam
-is both the floor you walk on and the thing that reveals you).
+(Blood) — the last unclaimed seat in the set.
 
 ~~one-way-descent route planning~~ (CLAIMED by Ice) ·
 ~~irreversible sacrifice choice~~ (CLAIMED by Poison — Mud must claim
@@ -345,7 +344,8 @@ neighbours that a cold author will reach for the wrong one) ·
 ~~scale shift tiny/huge~~ (CLAIMED by Plant) ·
 ~~two-overlaid-worlds layer swap~~ (all three readings now CLAIMED — Dust
 Z-layer, Plant observer-scale, Spirit living/ghost) ·
-~~state-flip maze inversion~~ (CLAIMED by Dark).
+~~state-flip maze inversion~~ (CLAIMED by Dark) ·
+~~light-cone occlusion + exposure management~~ (CLAIMED by Light).
 
 **VISUAL GRAMMAR RULE:** every core mechanic gets its own rendering language,
 distinct from every prior planet that shares a surface resemblance. Light's
@@ -1140,7 +1140,7 @@ MYS04 Roc=Air (built) · MYS05 Boilrog=Steam · MYS06 Magmara=Lava (built) ·
 MYS07 Raikuma=Lightning · MYS08 Bogdrya=Mud (built) · MYS09 Frowyrm=Ice (built) ·
 MYS10 Ashdjinn=Dust (built) · MYS11 Prismalith=Crystal (built) · MYS12 Botanica=Plant (built) ·
 MYS13 Blightfang=Poison (built) · MYS14 Wraithord=Spirit (built) · MYS15 Noctryos=Dark (built) ·
-MYS16 Solarin=Light · MYS17 Sanguorath=Blood.
+MYS16 Solarin=Light (built) · MYS17 Sanguorath=Blood.
 
 ### Vault caches (one per planet, +5 gold once — built for Air/Fire/Water/Earth)
 Every dungeon's treasure room (relic chamber / reliquary / pearl vault /
@@ -1786,16 +1786,52 @@ rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
   stair's gnomon in the deep, behind the gulf it opens, and the lower half
   becomes a one-way trip — **124 states strand**. Pull the arena's vane and
   phase-cut the rood door and **22 states strand**.
+- ✅ **Light — the Beacon Archive (Solarin) built** (2026-08-25): one great
+  round hall, nine bays over five sectors × two bands, and NO WALL between any
+  two bays. A "door" is a SILL of one of three kinds — a GLASS LEAF (floor
+  while lit, a hole while dark; every rim sill), a MIRROR SHELF (plain floor
+  in the dark, impassable glare in the light; every sill into the heart), and
+  one stone stair the light has never reached. So the rim is a road you BUILD
+  and the heart is a road you must NOT light. This is the most dynamic
+  connectivity in the set and it still honours the static layout invariant via
+  Crystal's trick: the doors never move, only what they do.
+  Three rim beacons, one press cycling DARK → four settings → DARK, each a
+  (arc, pitch) pair. Low, the beam breaks on the two great stacks and lights
+  the rim band only, at ONE lumen where an empty sector costs two — and that
+  shadow is the thing the player is actually placing. Exposure is `lumens`, an
+  instantaneous count that moves freely up and down, gating the reading and
+  waking moth-wardens above the hush of 2.
+  **0 strandable of 963 states with NO VALVE**, by construction: every move
+  has an inverse (a press is a five-cycle taken from where you stand), a step
+  can never be interrupted because EVERY beacon stands on the rim, the only
+  one-way edits are additive, and Solarin is arena-local behind a phase-free
+  stone stair. Three counterfactuals pinned: latch the beacons and **8**
+  strand; loose Solarin's glare onto the rim and **47** strand; delete the
+  great stacks and the hush loses two of its three slips outright.
+  Also pinned: no arrangement reads all four effigies (moth and sun are
+  mutually exclusive because nothing stands in the door bay to hold a shadow),
+  and 600 frames of a live Solarin fight leave the lamp map byte-identical.
+  DEVIATION: §6 gates Star 0 on Crystalmask (the beam-split); §4's
+  first-descent guarantee wins, so that gate moved to the rite's prism oriel —
+  the same move Plant, Dark and Spirit made. That is now SEVEN planets running
+  where §6 gates an early star and §4 overrides it; §6's per-planet matrix
+  should be read as advisory on gate placement.
+  NOTE: Solarin's sheet is wired in `_guardianSheets` (MYS16, verified on disk
+  at 2048×512), so it does not fall back to the procedural body as Noctryos
+  does. Two touches in `planet_dungeon_game.dart` are therefore not behind the
+  `_isArchive` guard; both are inert map literals keyed by mysticId.
+  NOTE: Light is the only planet whose ideal trio uses one family twice —
+  Lightmask · Crystalmask · Spiritpip. That is §6's own team, not a slip.
 - ⬜ **§9.0 INTERACTION REFIT v2 + hint/popup cleanup** — convert all six
   built planets to the §4 element-first / hard-family-gate model, implement
   "the seal remembers" descent chips, apply the §5.6 hint standard, rewrite
   the slow-and-loud tests. NEXT UP before any new planet.
 - ⬜ Device tuning pending: Air, Fire, Lightning, Steam, **Poison, Ice,
-  Lava, Mud, Dust, Crystal, Plant, Spirit, Dark** (timings/feel — user playtest; Water + Earth already device-tested
+  Lava, Mud, Dust, Crystal, Plant, Spirit, Dark, Light** (timings/feel — user playtest; Water + Earth already device-tested
   good). NONE of the 2026-08-24 three has ever been run on a device.
 - ⬜ More Mystic guardian sprites for future planets (map in
   `_guardianSheets`, enroll in `kRaidGuardianIds`; roster in §6).
-- ⬜ The other 2 planets' signature mechanics (+ their shaders).
+- ⬜ The last planet's signature mechanic (Blood) (+ their shaders).
 
 ## 8.5 Ability parity with survival — status
 
