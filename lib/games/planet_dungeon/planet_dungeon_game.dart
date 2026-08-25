@@ -1347,6 +1347,14 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
+    // MYS11 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Prismalith': SpriteSheetDef(
+      path: 'creatures/mystic/MYS11_crystalmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
     // MYS07 sheet verified 2048×512 — 4 frames of 512×512, one row.
     'Raikuma': SpriteSheetDef(
       path: 'creatures/mystic/MYS07_lightningmystic_spritesheet.png',

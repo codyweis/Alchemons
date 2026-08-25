@@ -16,6 +16,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
@@ -1097,6 +1098,14 @@ class DungeonRoom {
   /// room, exactly as Ice's shaft is.
   final DustRuins? ruins;
 
+  /// Crystal (the Prism Labyrinth): this room's place in the sliding keep —
+  /// the lattice CELL it is, the two stars the oriel declares, the glass face,
+  /// a tuning boss, the facet font, Prismalith's shunting floor. One field,
+  /// because the keep's chambers and its whole rule set are authored in
+  /// planet_dungeon_layout_crystal.dart rather than per room, exactly as
+  /// Ice's shaft and Dust's mounds are.
+  final PrismHall? prism;
+
   const DungeonRoom({
     required this.id,
     required this.bounds,
@@ -1171,6 +1180,7 @@ class DungeonRoom {
     this.rime,
     this.fen,
     this.ruins,
+    this.prism,
   });
 }
 
@@ -1356,6 +1366,15 @@ class DungeonLayout {
       // Dust does the same with its two Z-layers: the seal street above and
       // the observatory below.
       if (room.ruins?.starIndex != null) seen.add(room.ruins!.starIndex!);
+      // Crystal declares BOTH of its non-guardian stars on the oriel: neither
+      // belongs to a room — one is a fact about the keep's middle ROW and the
+      // other about the heart cell's four faces, and both can complete while
+      // the player stands anywhere in the lattice.
+      final keep = room.prism?.keep;
+      if (keep != null) {
+        seen.add(keep.spectrumStarIndex);
+        seen.add(keep.throneStarIndex);
+      }
     }
     return seen;
   }
@@ -3980,6 +3999,7 @@ const Map<String, DungeonLayout> kPlanetDungeonLayouts = {
   'Ice': iceLayout,
   'Mud': mudLayout,
   'Dust': dustLayout,
+  'Crystal': crystalLayout,
 };
 
 /// Save-compat migration for "the seal remembers" (§9.0 ruling, 2026-08-10):

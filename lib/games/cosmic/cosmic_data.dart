@@ -1680,6 +1680,13 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // a shoulder through the court's false wall). Air+Earth->Dust stands in as
   // a braid when the Dust hand is down.
   'Dust': ['Dust', 'Air', 'Earth'],
+  // Prism Labyrinth (Vitrea): Crystal (the shunt — the planet's only verb —
+  // the tuning bosses, and the facet font) + Lightning (a horn strikes the
+  // hearth's cold shard warm) + Spirit (a pip slips the crack behind the
+  // keep). **Crystal+Spirit→Light** is the planet's own braid and kindles the
+  // west lamp; **Lightning+Crystal→Spirit** stands in for a Spirit hand that
+  // is down.
+  'Crystal': ['Crystal', 'Lightning', 'Spirit'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1702,6 +1709,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Lava': ['Horn', 'Mask', 'Mane'], // Lavahorn · Earthmask · Icemane
   'Mud': ['Mane', 'Pip', 'Mask'], // Mudmane · Plantpip · Watermask
   'Dust': ['Mask', 'Wing', 'Horn'], // Dustmask · Airwing · Earthhorn
+  'Crystal': ['Mask', 'Horn', 'Pip'], // Crystalmask · Lightninghorn · Spiritpip
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They
@@ -1710,7 +1718,6 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
 /// soon" placard. Move an element OUT of here and into [kCosmicPlanetEntry] +
 /// [kPlanetDungeonLayouts] once its dungeon is authored.
 const Set<String> kComingSoonDungeons = {
-  'Crystal',
   'Plant',
   'Spirit',
   'Dark',

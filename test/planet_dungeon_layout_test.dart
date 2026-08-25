@@ -522,6 +522,13 @@ void main() {
             if (room.ruins?.starIndex != null) {
               nonGuardianStars.add(room.ruins!.starIndex!);
             }
+            // Crystal declares BOTH of its non-guardian stars on the oriel:
+            // neither belongs to a room — one is a fact about the sliding
+            // keep's middle ROW, the other about its heart cell's four faces.
+            if (room.prism?.keep != null) {
+              nonGuardianStars.add(room.prism!.keep!.spectrumStarIndex);
+              nonGuardianStars.add(room.prism!.keep!.throneStarIndex);
+            }
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));
