@@ -119,9 +119,10 @@
 // out of a barrow while a body is standing in it and the run is over. Ice
 // (120/122), Mud (1200/1284), Dust (319/396) and Plant (142/448) all measured
 // as stranding machines and all bought their way out with a costly full reset.
-// Requia measures **0 of 4,088** — and it is designed out rather than paid
-// for, by two geometric rules that this file's data satisfies by construction
-// and test/planet_dungeon_spirit_grave_test.dart proves exhaustively:
+// Requia measures **0 strandable of 2,276** — and it is designed out rather
+// than paid for, by two geometric rules that this file's data satisfies by
+// construction and test/planet_dungeon_spirit_grave_test.dart proves
+// exhaustively:
 //
 //   RULE 1 — THE GHOST SPINE. The crossings gate→urn (both), urn→veil (the
 //     lych road) and veil→cairn (the drowned cut) can never be told, so the
@@ -141,9 +142,9 @@
 // spine — and with it a wake — is one press away.
 //
 // Break either rule and the planet becomes what its neighbours were: moving
-// every telling to the pendant side of its own crossing measures **1,224 of
-// 4,088** strandable, which is the counterfactual the test pins so the two
-// rules cannot be quietly edited out later.
+// every telling to the pendant side of its own crossing measures **54 of the
+// 369** states such a run can still reach — the counterfactual the test pins,
+// so the two rules cannot be quietly edited out later.
 //
 // VISUAL GRAMMAR (§5.5): nothing here reads like Dust's mound heights, Water's
 // tide line or Plant's re-scaled furniture. The two worlds are one drawing in

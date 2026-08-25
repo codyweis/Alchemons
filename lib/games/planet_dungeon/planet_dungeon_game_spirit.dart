@@ -37,7 +37,7 @@
 // NO VALVE, AND WHY (the design's one real danger). Death as a puzzle verb is
 // a stranding machine, and the four mutable-world planets before this one all
 // bought their way out with a costly full reset (Ice 120/122, Mud 1200/1284,
-// Dust 319/396, Plant 142/448). Requia measures 0 of 4,088 and pays nothing,
+// Dust 319/396, Plant 142/448). Requia measures 0 of 2,276 and pays nothing,
 // because the field's data satisfies two rules by construction:
 //   RULE 1 — the lych road and the drowned cut can never be told, so the ghost
 //     world always contains a connected spine carrying three lych-stones;
@@ -46,7 +46,7 @@
 //     ghost crossing it is closing.
 // Both are proved exhaustively over (room × world × state) in
 // test/planet_dungeon_spirit_grave_test.dart, together with the counterfactual
-// (1,224 strandable) that shows the rules are load-bearing and not decoration.
+// (54 of 369 strandable) that shows the rules are load-bearing, not decoration.
 
 part of 'planet_dungeon_game.dart';
 
