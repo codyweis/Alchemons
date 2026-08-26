@@ -779,7 +779,7 @@ const DungeonLayout plantLayout = DungeonLayout(
   // (§4): the green that follows a wild thing's passing, the sight that
   // pierces the hidden, and what my smallest doors admit.
   riddle: [
-    'Send me a Plant Mane — my rood screen has been dead a long age;',
+    'Send me a Plant Mane: my rood screen has been dead a long age;',
     'a Light Mask, for I keep no sun and my seed still wants one;',
     'and Mud, because half of me was never built for you.',
   ],

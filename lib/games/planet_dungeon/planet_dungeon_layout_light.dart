@@ -1085,7 +1085,7 @@ const DungeonLayout lightLayout = DungeonLayout(
   // part (§4): a light that can be small, second sight, and what my smallest
   // doors admit.
   riddle: [
-    'Send me Light — I am read in the dark, and my wardens count every lumen you spend;',
+    'Send me Light: I am read in the dark, and my wardens count every lumen you spend;',
     'a Crystal Mask, to split my one shaft in two;',
     'and a Spirit Pip, because everything worth having lies behind my shelves.',
   ],

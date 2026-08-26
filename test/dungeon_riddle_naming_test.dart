@@ -129,7 +129,7 @@ void main() {
             reason: '$element line ${i + 1} is a bare requirement, not verse',
           );
           expect(
-            RegExp(r'[—,;]').hasMatch(line),
+            RegExp(r'[:,;]').hasMatch(line),
             isTrue,
             reason: '$element line ${i + 1} has no second clause',
           );

@@ -665,7 +665,7 @@ const DungeonLayout dustLayout = DungeonLayout(
   // (§4): the sight that reads ash, the one the ground cannot keep, and the
   // strongest grip.
   riddle: [
-    'Send me Dust — my streets keep their dead beneath them;',
+    'Send me Dust: my streets keep their dead beneath them;',
     'Air, and any Wing at all, for I will take my own bridges away;',
     'and Earth, with any Horn, to shoulder through a wall that was never there.',
   ],

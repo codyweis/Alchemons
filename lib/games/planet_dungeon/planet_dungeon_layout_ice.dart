@@ -330,7 +330,7 @@ const DungeonLayout iceLayout = DungeonLayout(
   // (§4): the cold road left behind, the sight that reads dark glass, and the
   // one the ground cannot keep.
   riddle: [
-    'Send me Ice — my only ladders are the ones you leave behind you;',
+    'Send me Ice: my only ladders are the ones you leave behind you;',
     'a Light Mask, to read what my dark glass keeps;',
     'and a Air Wing, to turn my last breath down the throat.',
   ],

@@ -899,7 +899,7 @@ const DungeonLayout darkLayout = DungeonLayout(
   // part (§4): the sight that pierces the hidden, what my smallest doors
   // admit, and the road a walker leaves behind it.
   riddle: [
-    'Send me a Dark Mask — nothing in me is where the light says it is;',
+    'Send me a Dark Mask: nothing in me is where the light says it is;',
     'Poison, and any Pip, for every ring in me is rusted shut and my ways are holes;',
     'and Spirit, because I keep no lamp to find you by.',
   ],

@@ -1575,7 +1575,7 @@ const DungeonLayout _airLayout = DungeonLayout(
   // WIND-WORK, not flight, and no longer promises the ground-shy a private
   // road.
   riddle: [
-    'Send me Air — my crown is woken, never climbed;',
+    'Send me Air: my crown is woken, never climbed;',
     'a Lightning Horn, for my storm-walls answer nothing weaker;',
     'and Fire, for my thunder must have somewhere to stay.',
   ],
@@ -2413,7 +2413,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
   // Ideal: Firemask · Plantmane · Airwing — hinted by VERB, never by body
   // part: insight, the trail-leaving passage, flight.
   riddle: [
-    'Send me Fire — my choir is ash, and ash is scripture;',
+    'Send me Fire: my choir is ash, and ash is scripture;',
     'Air, to carry my censer-flame the length of the nave;',
     'and Plant, for my garden greens only where something living has passed.',
   ],
@@ -2787,7 +2787,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
   // Ideal: Waterpip · Spiritmask · Icemane — hinted by VERB, never by body
   // part: small access, second sight, the road-paving passage.
   riddle: [
-    'Send me a Water Pip — my pipes open only to what is small enough;',
+    'Send me a Water Pip: my pipes open only to what is small enough;',
     'Spirit, to go where my drowned currents run;',
     'and Ice, for my moon waits on a cold that will hold.',
   ],
@@ -3150,7 +3150,7 @@ const DungeonLayout _earthLayout = DungeonLayout(
   // Ideal: Earthhorn · Lightningpip · Crystalmask — hinted by VERB, never by
   // body part: the mighty shove, small access, insight.
   riddle: [
-    'Send me a Earth Horn — my bones grind aside for nothing less;',
+    'Send me a Earth Horn: my bones grind aside for nothing less;',
     'Lightning, to wake the sockets buried in my veins;',
     'and Crystal, for my eye confides in nothing duller.',
   ],
@@ -3479,7 +3479,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
   // Ideal: Lightninghorn · Airwing · Firepip — hinted by VERB, never body part:
   // the mighty charge/hold, flight, small access + heat.
   riddle: [
-    'Send me Lightning — my dead iron wakes to nothing weaker;',
+    'Send me Lightning: my dead iron wakes to nothing weaker;',
     'Air, to herd my high storm-cells down to the iron;',
     'and Fire, to weld wind to flame where my iron runs thin.',
   ],
@@ -3904,7 +3904,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
   // Ideal: Steampip · Firemask · Earthhorn — hinted by VERB, never body part:
   // a cooling breath, a kindling/melting heart, the wall-raising strength.
   riddle: [
-    'Send me Steam — my cold breath sets the molten back to stone;',
+    'Send me Steam: my cold breath sets the molten back to stone;',
     'Earth, to raise the walls that dam my flood;',
     'and Fire, to open the rock and let the fire-blood run.',
   ],

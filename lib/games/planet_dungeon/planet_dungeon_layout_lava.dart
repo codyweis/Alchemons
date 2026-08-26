@@ -1012,7 +1012,7 @@ const DungeonLayout kLavaLayout = DungeonLayout(
   // (§4). Only the last of the three is a hard gate; the other two are the
   // hands the works were built for.
   riddle: [
-    'Send me Lava — my crucible\'s seal breaks for nothing lighter;',
+    'Send me Lava: my crucible\'s seal breaks for nothing lighter;',
     'Earth, to read the works\' own manifest off the rock;',
     'and a Ice Mane, for only a cold that paves a road behind it will harden my running metal.',
   ],

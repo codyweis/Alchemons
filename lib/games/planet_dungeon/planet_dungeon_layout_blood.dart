@@ -1098,7 +1098,7 @@ const DungeonLayout bloodLayout = DungeonLayout(
   // (§4): the hand that steadies old engines, the sight that pierces the
   // hidden, and the light that shows a thing for what it is.
   riddle: [
-    'Send me a Blood Kin — my engine has not kept its own time in an age;',
+    'Send me a Blood Kin: my engine has not kept its own time in an age;',
     'a Dark Mask, for the roads I have left are inside the wall and unlit;',
     'and Light, because half of what I offer you is rotten.',
   ],

@@ -892,7 +892,7 @@ const DungeonLayout crystalLayout = DungeonLayout(
   // body part (§4): the second sight that reads which glass will pass a light,
   // the strongest grip, and what the smallest doors admit.
   riddle: [
-    'Send me Crystal — my glasses must be told apart before one will pass a light;',
+    'Send me Crystal: my glasses must be told apart before one will pass a light;',
     'a Lightning Horn, to strike a cold shard warm;',
     'and Spirit, with any Pip, to slip the crack behind the keep.',
   ],
