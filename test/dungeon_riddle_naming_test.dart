@@ -43,7 +43,12 @@ void main() {
     return verbOnly ? 'any' : 'element';
   }
 
-  const families = ['WING', 'HORN', 'MANE', 'MASK', 'PIP', 'KIN'];
+  const families = ['wing', 'horn', 'mane', 'mask', 'pip', 'kin'];
+
+  /// Whole-word match, so "kin" does not fire on "kind" and "pip" does not
+  /// fire on "piping".
+  bool names(String line, String family) =>
+      RegExp('\\b$family\\b', caseSensitive: false).hasMatch(line);
 
   group('a line asks for exactly what its slot demands', () {
     test('one line per entry slot', () {
@@ -72,7 +77,7 @@ void main() {
         final fams = kDungeonIdealFamilies[element]!;
         for (var i = 0; i < layout.riddle.length; i++) {
           final line = layout.riddle[i];
-          final named = families.where(line.contains).toList();
+          final named = families.where((f) => names(line, f)).toList();
           switch (demandFor(element, i)) {
             case 'element':
               expect(named, isEmpty,
@@ -80,9 +85,9 @@ void main() {
                       '${named.join(", ")}');
             case 'strict':
             case 'any':
-              expect(named, [fams[i].toUpperCase()],
+              expect(named, [fams[i].toLowerCase()],
                   reason: '$element line ${i + 1} should name exactly '
-                      '${fams[i].toUpperCase()}');
+                      '${fams[i].toLowerCase()}');
           }
         }
       });

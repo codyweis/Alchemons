@@ -1085,9 +1085,9 @@ const DungeonLayout lightLayout = DungeonLayout(
   // part (§4): a light that can be small, second sight, and what my smallest
   // doors admit.
   riddle: [
-    'Send me a Light — I am read in the dark, and my wardens count every lumen you spend;',
-    'a Crystal MASK, to split my one shaft in two;',
-    'and a Spirit PIP, because everything worth having lies behind my shelves.',
+    'Send me Light — I am read in the dark, and my wardens count every lumen you spend;',
+    'a Crystal mask, to split my one shaft in two;',
+    'and a Spirit pip, because everything worth having lies behind my shelves.',
   ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the shadow court) is
