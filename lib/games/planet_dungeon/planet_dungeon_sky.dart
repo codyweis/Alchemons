@@ -207,6 +207,31 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
   ),
 };
 
+/// Floor tint for a planet, DERIVED from its sky palette rather than authored
+/// separately, so a stage can never drift away from the sky it stands under.
+///
+/// The generic blue-grey this replaces was fine while only six planets had a
+/// sky — every one of them painted its own floor anyway. The eleven built
+/// afterwards fell through to it, so a bog, a foundry and an eclipse all stood
+/// on the same slab of blue-grey stone.
+///
+/// Alphas are the caller's business; these are opaque colours. The FLOOR
+/// TRANSLUCENCY RULE (§8) puts the fill at 0.50–0.60 so the shader still
+/// carries the room's mood.
+({Color top, Color bottom}) dungeonFloorTint(String element) {
+  final cfg = kDungeonSkyConfigs[element];
+  if (cfg == null) {
+    // No sky either — keep the historical neutral rather than inventing one.
+    return (top: const Color(0xFF2A3646), bottom: const Color(0xFF1A222E));
+  }
+  // Toward the horizon colour so the stone reads as lit BY this planet, and
+  // down toward the base colour at the near edge so the slab still has depth.
+  return (
+    top: Color.lerp(cfg.colorA, cfg.colorB, 0.55)!,
+    bottom: Color.lerp(cfg.colorA, const Color(0xFF000000), 0.20)!,
+  );
+}
+
 class DungeonSky {
   /// When true, the shader is skipped entirely (gradient fallback). Wire this
   /// to a low-performance / accessibility setting if desired.

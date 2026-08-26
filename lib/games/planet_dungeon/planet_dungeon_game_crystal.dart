@@ -798,6 +798,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   // source) — everything is flat fills, strokes and one gradient-free glow
   // built from concentric strokes.
 
+  // Painted with alpha so the prism sky shows through the keep (FLOOR
+  // TRANSLUCENCY RULE, §8). These were laid down opaque, which flattened
+  // every cell into the same slab of purple-grey and hid the dispersion the
+  // whole planet is named for.
+  static const double _keepFloorAlpha = 0.58;
+  static const double _keepVoidAlpha = 0.46;
   static const Color _keepStone = Color(0xFF241F2B);
   static const Color _keepMortar = Color(0xFF3A3345);
   static const Color _keepVoid = Color(0xFF0B0910);
@@ -826,7 +832,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final chamber = f.chamberAt(cell);
 
     // The socket: stone the chamber sits in, and never moves.
-    canvas.drawRect(room.bounds, Paint()..color = _keepStone);
+    canvas.drawRect(
+      room.bounds,
+      Paint()..color = _keepStone.withValues(alpha: _keepFloorAlpha),
+    );
     canvas.drawRect(
       room.bounds.deflate(14),
       Paint()
@@ -1159,7 +1168,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   }
 
   void _renderOriel(Canvas canvas, DungeonRoom room) {
-    canvas.drawRect(room.bounds, Paint()..color = _keepStone);
+    canvas.drawRect(
+      room.bounds,
+      Paint()..color = _keepStone.withValues(alpha: _keepFloorAlpha),
+    );
     final face = room.prism!.glassFace!;
     final pane = Rect.fromCenter(center: face, width: 240, height: 92);
     canvas.drawRect(
@@ -1220,7 +1232,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   }
 
   void _renderTuningHall(Canvas canvas, DungeonRoom room) {
-    canvas.drawRect(room.bounds, Paint()..color = _keepStone);
+    canvas.drawRect(
+      room.bounds,
+      Paint()..color = _keepStone.withValues(alpha: _keepFloorAlpha),
+    );
     final font = room.prism!.facetFont!;
     final live = (conduitEnergy['B'] ?? 0) > 0;
     canvas.drawCircle(
@@ -1249,7 +1264,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   }
 
   void _renderChoirFloor(Canvas canvas, DungeonRoom room) {
-    canvas.drawRect(room.bounds, Paint()..color = _keepVoid);
+    canvas.drawRect(
+      room.bounds,
+      Paint()..color = _keepVoid.withValues(alpha: _keepVoidAlpha),
+    );
     final floor = room.prism!.choir!;
     for (var i = 0; i < 9; i++) {
       final r = floor.plateRect(i).deflate(6);

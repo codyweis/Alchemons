@@ -755,9 +755,20 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     // The re-ink: the incoming world comes up hard over the outgoing one.
     final t = wake.reink > 0 ? 1.0 - (wake.reink / _kGraveReinkSeconds) : 1.0;
 
+    // TRANSLUCENT, not opaque (FLOOR TRANSLUCENCY RULE, §8). This was a solid
+    // fill, which hid the sky shader completely and left the grave-field a
+    // flat brown rectangle — the doubled-world background this planet is
+    // built around was being painted over every frame.
+    //
+    // The two worlds are separated by HOW MUCH they let through, which does
+    // the storytelling for free: the living sod is the more solid of the two,
+    // and in the ghost world the ground barely exists.
     canvas.drawRect(
       room.bounds,
-      Paint()..color = ghost ? _graveVoid : _graveSod,
+      Paint()
+        ..color = ghost
+            ? _graveVoid.withValues(alpha: 0.42)
+            : _graveSod.withValues(alpha: 0.58),
     );
 
     _renderGraveCrossings(canvas, room, ghost, t);

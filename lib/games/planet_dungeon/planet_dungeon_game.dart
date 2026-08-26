@@ -11532,12 +11532,16 @@ class PlanetDungeonGame extends FlameGame {
   /// on all sides so it reads as land floating in air rather than a box.
   void _renderPlainFloor(Canvas canvas, Rect b, bool showSigil) {
     final rr = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(70));
+    // Tinted from this planet's own sky palette, so the stage belongs to the
+    // world it is in. Alphas hold the FLOOR TRANSLUCENCY RULE (§8): the
+    // shader is the room's mood and must keep showing through the stone.
+    final tint = dungeonFloorTint(layout.element);
     canvas.drawRRect(
       rr,
       Paint()
         ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, [
-          const Color(0xFF2A3646).withValues(alpha: 0.52),
-          const Color(0xFF1A222E).withValues(alpha: 0.60),
+          tint.top.withValues(alpha: 0.52),
+          tint.bottom.withValues(alpha: 0.60),
         ]),
     );
     // Cloud feathering around the whole perimeter dissolves the edges.

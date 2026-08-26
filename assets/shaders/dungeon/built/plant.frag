@@ -88,6 +88,33 @@ void main() {
   float shaft = pow(0.5 + 0.5 * sin(p.x * 4.0 - uv.y * 2.2 + t * 0.15), 8.0);
   col += uColorC * shaft * fall * 0.16 * uIntensity;
 
+  // DEPTH — the crypt is a forest, and a forest has things standing in it.
+  // Two ranks of trunk silhouettes: a far rank washed out by the haze between
+  // them and the viewer, and a near rank almost black. Without these the
+  // canopy is a ceiling with no room under it, which is what made this planet
+  // read as flat green noise.
+  for (int rank = 0; rank < 2; rank++) {
+    float fr = float(rank);
+    float freq = 2.2 + fr * 2.6;
+    // Irregular spacing: real trunks are not a picket fence.
+    float jitter = fbm(vec2(floor(p.x * freq), fr * 13.0)) * 0.45;
+    float bar = abs(fract(p.x * freq + jitter) - 0.5);
+    // Trunks taper and lean very slightly, and they only occupy the lower
+    // two thirds — above that they are canopy, not trunk.
+    float lean = (uv.y - 0.5) * 0.05 * (fr * 2.0 - 1.0);
+    float width = 0.055 - fr * 0.018 + uv.y * 0.02;
+    float trunk = smoothstep(width, width * 0.35, bar + lean)
+                * smoothstep(0.18, 0.62, uv.y);
+    // Far rank sits in the haze; near rank eats the light.
+    vec3 trunkCol = mix(uColorB * 0.35, uColorA * 0.5, fr);
+    col = mix(col, trunkCol, trunk * (0.30 + fr * 0.45));
+  }
+
+  // Undergrowth catching the light along the very bottom edge.
+  float under = fbm(vec2(p.x * 5.0 + t * 0.05, p.y * 3.0) + 77.0);
+  col = mix(col, uColorB * 0.7,
+            smoothstep(0.86, 1.0, uv.y) * smoothstep(0.35, 0.8, under) * 0.55);
+
   // Pollen: slow, warm, and it drifts UP and sideways in the light.
   for (int layer = 0; layer < 2; layer++) {
     float fl = float(layer);

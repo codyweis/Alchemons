@@ -224,8 +224,74 @@ const Map<String, List<(List<String>, Color)>> _fullMapSectionsByElement = {
   ],
 };
 
+/// Derived chart positions, cached per element.
+///
+/// The authored atlases above cover the six planets that existed when the full
+/// map was built. Every dungeon authored since had NO atlas, and the lookup
+/// fell back to Offset(0.5, 0.5) PER ROOM — so all eleven charts drew every
+/// room stacked on the exact same point in the middle. The map was not
+/// mis-scaled, it was every node on top of every other one.
+///
+/// Rather than hand-place eleven more atlases (and a twelfth the next time
+/// someone authors a planet), this lays the door graph out automatically:
+/// breadth-first from the entrance, one row per step away from it. It is not
+/// as pretty as a hand-tuned chart — it cannot know that Blood is a
+/// figure-eight or Crystal a 3×3 — but it is honest about connectivity, which
+/// is what the map is for, and it can never silently produce a single point.
+final Map<String, Map<String, Offset>> _derivedNodeCache = {};
+
+Map<String, Offset> _derivedNodePositions(String element) {
+  final cached = _derivedNodeCache[element];
+  if (cached != null) return cached;
+
+  final out = <String, Offset>{};
+  final layout = kPlanetDungeonLayouts[element];
+  if (layout == null) return _derivedNodeCache[element] = out;
+
+  // BFS from the entrance: depth becomes the row, so a chart reads top-down
+  // as "how far in am I".
+  final rows = <List<String>>[];
+  final seen = <String>{layout.entranceRoomId};
+  var frontier = <String>[layout.entranceRoomId];
+  while (frontier.isNotEmpty) {
+    rows.add(frontier);
+    final next = <String>[];
+    for (final id in frontier) {
+      for (final door in layout.rooms[id]?.doors ?? const []) {
+        if (layout.rooms.containsKey(door.targetRoomId) &&
+            seen.add(door.targetRoomId)) {
+          next.add(door.targetRoomId);
+        }
+      }
+    }
+    frontier = next;
+  }
+  // Anything the doors never reach still needs a spot — a room drawn off the
+  // chart is worse than one on an extra row.
+  final orphans = layout.rooms.keys.where((id) => !seen.contains(id)).toList();
+  if (orphans.isNotEmpty) rows.add(orphans);
+
+  for (var r = 0; r < rows.length; r++) {
+    final row = rows[r];
+    final y = (r + 0.5) / rows.length;
+    for (var i = 0; i < row.length; i++) {
+      out[row[i]] = Offset((i + 0.5) / row.length, y);
+    }
+  }
+  return _derivedNodeCache[element] = out;
+}
+
+/// Test-only view of the placement above. The invariant worth guarding is
+/// that two rooms never land on the same point — see
+/// test/dungeon_full_map_chart_test.dart, which is the check that would have
+/// caught eleven charts collapsing into a single dot.
+@visibleForTesting
+Offset debugFullMapNodePoint(String element, String roomId, Size size) =>
+    _fullMapNodePoint(element, roomId, size);
+
 Offset _fullMapNodePoint(String element, String roomId, Size size) {
-  final atlas = _fullMapNodePositionsByElement[element] ?? const {};
+  var atlas = _fullMapNodePositionsByElement[element] ?? const {};
+  if (!atlas.containsKey(roomId)) atlas = _derivedNodePositions(element);
   final normalised = atlas[roomId] ?? const Offset(0.5, 0.5);
   final chart = (Offset.zero & size).deflate(_fullMapPadding);
   return Offset(
