@@ -893,8 +893,8 @@ const DungeonLayout crystalLayout = DungeonLayout(
   // the strongest grip, and what the smallest doors admit.
   riddle: [
     'Send me Crystal — my glasses must be told apart before one will pass a light;',
-    'a Lightning horn, to strike a cold shard warm;',
-    'and Spirit, with any pip, to slip the crack behind the keep.',
+    'a Lightning Horn, to strike a cold shard warm;',
+    'and Spirit, with any Pip, to slip the crack behind the keep.',
   ],
   // §4 budget: TWO hard gates, on two different entry slots.
   //

@@ -1014,7 +1014,7 @@ const DungeonLayout kLavaLayout = DungeonLayout(
   riddle: [
     'Send me Lava — my crucible\'s seal breaks for nothing lighter;',
     'Earth, to read the works\' own manifest off the rock;',
-    'and an Ice mane, for only a cold that paves a road behind it will harden my running metal.',
+    'and a Ice Mane, for only a cold that paves a road behind it will harden my running metal.',
   ],
   // ONE hard gate (§4 budget: Air 1 · Earth 1 · Water 1 · Lava 1). Star 1 and
   // the guardian stay earnable by ANY correct-element trio; only the hidden

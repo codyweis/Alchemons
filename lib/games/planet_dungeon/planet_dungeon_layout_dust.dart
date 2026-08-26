@@ -666,8 +666,8 @@ const DungeonLayout dustLayout = DungeonLayout(
   // strongest grip.
   riddle: [
     'Send me Dust — my streets keep their dead beneath them;',
-    'Air, and any wing at all, for I will take my own bridges away;',
-    'and Earth, with any horn, to shoulder through a wall that was never there.',
+    'Air, and any Wing at all, for I will take my own bridges away;',
+    'and Earth, with any Horn, to shoulder through a wall that was never there.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. Star 0 (the three seals) is deliberately UNGATED and uses all

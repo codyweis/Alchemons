@@ -455,8 +455,8 @@ const DungeonLayout poisonLayout = DungeonLayout(
   // (§4 THE DESCENT RIDDLE): the reading, the breaking, the clean trail.
   riddle: [
     'Send me Poison — my sicknesses are told by habit, never by colour;',
-    'a Lava horn, to break in where my brick is thickest;',
-    'and a Mud mane, to leave a clean road through foul ground.',
+    'a Lava Horn, to break in where my brick is thickest;',
+    'and a Mud Mane, to leave a clean road through foul ground.',
   ],
   familyGates: [
     DungeonFamilyGate(

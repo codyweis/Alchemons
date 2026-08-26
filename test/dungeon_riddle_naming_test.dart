@@ -137,6 +137,21 @@ void main() {
       });
     });
 
+    test('the article is always "a", never "an"', () {
+      // An authored voice, not English class: "a Ice Mane" is the house style
+      // and reads consistently down the placard where "an" kept snagging.
+      // Only before a NAME — ordinary prose ("in an age") is untouched.
+      kPlanetDungeonLayouts.forEach((element, layout) {
+        for (var i = 0; i < layout.riddle.length; i++) {
+          expect(
+            RegExp(r'\ban (?=[A-Z])').hasMatch(layout.riddle[i]),
+            isFalse,
+            reason: '$element line ${i + 1} uses "an"',
+          );
+        }
+      });
+    });
+
     test('the verse reads as one sentence across its lines', () {
       // First line opens, last line closes. Anything else and the three read
       // as unrelated fragments stacked on the placard.

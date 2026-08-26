@@ -1086,8 +1086,8 @@ const DungeonLayout lightLayout = DungeonLayout(
   // doors admit.
   riddle: [
     'Send me Light — I am read in the dark, and my wardens count every lumen you spend;',
-    'a Crystal mask, to split my one shaft in two;',
-    'and a Spirit pip, because everything worth having lies behind my shelves.',
+    'a Crystal Mask, to split my one shaft in two;',
+    'and a Spirit Pip, because everything worth having lies behind my shelves.',
   ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the shadow court) is

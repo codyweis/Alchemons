@@ -331,8 +331,8 @@ const DungeonLayout iceLayout = DungeonLayout(
   // one the ground cannot keep.
   riddle: [
     'Send me Ice — my only ladders are the ones you leave behind you;',
-    'a Light mask, to read what my dark glass keeps;',
-    'and an Air wing, to turn my last breath down the throat.',
+    'a Light Mask, to read what my dark glass keeps;',
+    'and a Air Wing, to turn my last breath down the throat.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. Star 0 (the orrery) is deliberately UNGATED so any trio of

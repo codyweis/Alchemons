@@ -1576,7 +1576,7 @@ const DungeonLayout _airLayout = DungeonLayout(
   // road.
   riddle: [
     'Send me Air — my crown is woken, never climbed;',
-    'a Lightning horn, for my storm-walls answer nothing weaker;',
+    'a Lightning Horn, for my storm-walls answer nothing weaker;',
     'and Fire, for my thunder must have somewhere to stay.',
   ],
   // The one marquee lock (§4): Storm-Altar conduit A channels only for a
@@ -2787,7 +2787,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
   // Ideal: Waterpip · Spiritmask · Icemane — hinted by VERB, never by body
   // part: small access, second sight, the road-paving passage.
   riddle: [
-    'Send me a Water pip — my pipes open only to what is small enough;',
+    'Send me a Water Pip — my pipes open only to what is small enough;',
     'Spirit, to go where my drowned currents run;',
     'and Ice, for my moon waits on a cold that will hold.',
   ],
@@ -3150,7 +3150,7 @@ const DungeonLayout _earthLayout = DungeonLayout(
   // Ideal: Earthhorn · Lightningpip · Crystalmask — hinted by VERB, never by
   // body part: the mighty shove, small access, insight.
   riddle: [
-    'Send me an Earth horn — my bones grind aside for nothing less;',
+    'Send me a Earth Horn — my bones grind aside for nothing less;',
     'Lightning, to wake the sockets buried in my veins;',
     'and Crystal, for my eye confides in nothing duller.',
   ],
