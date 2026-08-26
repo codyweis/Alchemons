@@ -611,11 +611,9 @@ const DungeonLayout mudLayout = DungeonLayout(
   // part (§4 THE DESCENT RIDDLE): the hard trail left behind, the small door,
   // the sight that reads black water.
   riddle: [
-    'Send one that leaves hard ground behind it — my rot will bear nothing '
-        'else;',
-    'send one my smallest doors admit, to quicken what the peat has kept;',
-    'and send the sight that reads black water, for I keep my best beneath '
-        'it.',
+    'Send me a Mud MANE — my rot will bear nothing that leaves no road;',
+    'a Plant PIP, to quicken what the peat has kept;',
+    'and a Water MASK, for I keep my best beneath black water.',
   ],
   familyGates: [
     DungeonFamilyGate(

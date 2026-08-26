@@ -454,9 +454,9 @@ const DungeonLayout poisonLayout = DungeonLayout(
   // Ideal: Poisonmask · Lavahorn · Mudmane — hinted by VERB, never body part
   // (§4 THE DESCENT RIDDLE): the reading, the breaking, the clean trail.
   riddle: [
-    'One must read a sickness by its habit and never by its colour;',
-    'one must break in where the brick is thickest;',
-    'and one must leave a clean road through foul ground.',
+    'Send me a Poison MASK — my sicknesses are told by habit, never by colour;',
+    'a Lava HORN, to break in where my brick is thickest;',
+    'and a Mud MANE, to leave a clean road through foul ground.',
   ],
   familyGates: [
     DungeonFamilyGate(

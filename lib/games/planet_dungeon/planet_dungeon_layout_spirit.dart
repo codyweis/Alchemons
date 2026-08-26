@@ -804,12 +804,9 @@ const DungeonLayout spiritLayout = DungeonLayout(
   // part (§4): the sight that pierces the hidden, what the smallest doors
   // admit, and one the ground cannot keep.
   riddle: [
-    'Bring me a sight that pierces the hidden, to read a name off a stone '
-        'that was never given one;',
-    'bring me what my smallest doors admit, to set a mark finer than a '
-        'grave-cutter\'s hand;',
-    'and bring me one the ground cannot keep, for half of my roads are only '
-        'remembered.',
+    'Send me a Spirit MASK, to read a name off a stone that was never given one;',
+    'a Water PIP, to set a mark finer than a grave-cutter\'s hand;',
+    'and a Crystal WING, for half of my roads are only remembered.',
   ],
   // §4 budget: TWO hard gates, on two different stars and two different entry
   // slots.

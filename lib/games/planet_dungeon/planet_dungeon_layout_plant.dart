@@ -779,12 +779,9 @@ const DungeonLayout plantLayout = DungeonLayout(
   // (§4): the green that follows a wild thing's passing, the sight that
   // pierces the hidden, and what my smallest doors admit.
   riddle: [
-    'Bring me the green that follows a wild thing\'s passing — my rood screen '
-        'has been dead a long age;',
-    'bring me a sight that pierces the hidden, for I keep no sun and my seed '
-        'still wants one;',
-    'and bring me what my smallest doors admit, because half of me was never '
-        'built for you.',
+    'Send me a Plant MANE — my rood screen has been dead a long age;',
+    'a Light MASK, for I keep no sun and my seed still wants one;',
+    'and a Mud PIP, because half of me was never built for you.',
   ],
   // §4 budget: TWO hard gates, on two different stars/objects and two
   // different entry slots. Star 0 (the grave-lamps) is deliberately UNGATED

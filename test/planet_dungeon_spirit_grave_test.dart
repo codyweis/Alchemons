@@ -865,15 +865,19 @@ void main() {
       );
     });
 
-    test('the riddle names one line per entry slot, and no body part', () {
-      expect(layout.riddle.length, kCosmicPlanetEntry['Spirit']!.length);
-      final verse = layout.riddle.join(' ').toLowerCase();
-      for (final tell in ['wing', 'horn', 'mane', 'mask', 'pip']) {
-        expect(
-          verse,
-          isNot(contains(tell)),
-          reason: 'the riddle reads the answer aloud with "$tell"',
-        );
+    test('the riddle names each slot outright — element and family', () {
+      // WAS: "never its body part". Inverted deliberately. The descent panel
+      // now declares and ENFORCES every gate before you commit, so an encoded
+      // verse is a puzzle whose answer is printed underneath it — and a review
+      // of all 51 lines found five planets encoding the WRONG family. The
+      // cross-planet contract lives in dungeon_riddle_naming_test.dart; this
+      // just pins Spirit's own three.
+      final els = kCosmicPlanetEntry['Spirit']!;
+      final fams = kDungeonIdealFamilies['Spirit']!;
+      expect(layout.riddle.length, els.length);
+      for (var i = 0; i < layout.riddle.length; i++) {
+        expect(layout.riddle[i].toLowerCase(), contains(els[i].toLowerCase()));
+        expect(layout.riddle[i], contains(fams[i].toUpperCase()));
       }
     });
   });

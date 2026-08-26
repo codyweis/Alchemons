@@ -665,12 +665,9 @@ const DungeonLayout dustLayout = DungeonLayout(
   // (§4): the sight that reads ash, the one the ground cannot keep, and the
   // strongest grip.
   riddle: [
-    'Bring me the sight that reads ash as scripture — my streets keep their '
-        'dead beneath them;',
-    'bring me one the ground cannot keep, for I will take my own bridges '
-        'away;',
-    'and bring me where the grip is strongest, to put a shoulder through a '
-        'wall that was never there.',
+    'Send me a Dust MASK — my streets keep their dead beneath them;',
+    'an Air WING, for I will take my own bridges away;',
+    'and an Earth HORN, to shoulder through a wall that was never there.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. Star 0 (the three seals) is deliberately UNGATED and uses all

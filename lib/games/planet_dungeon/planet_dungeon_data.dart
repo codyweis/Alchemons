@@ -1575,9 +1575,9 @@ const DungeonLayout _airLayout = DungeonLayout(
   // WIND-WORK, not flight, and no longer promises the ground-shy a private
   // road.
   riddle: [
-    'My crown is woken, never climbed — send one who shepherds the wind;',
-    'my storm-walls confide only in sight that pierces the hidden;',
-    'and my thunder stays only where the grip is strongest.',
+    'Send me an Air WING — my crown is woken, never climbed;',
+    'a Lightning HORN, for my storm-walls answer nothing weaker;',
+    'and a Fire MASK, to read where my thunder will stay.',
   ],
   // The one marquee lock (§4): Storm-Altar conduit A channels only for a
   // Lightning Horn. First refusal stamps ⚡ HORN onto the descent panel.
@@ -2413,9 +2413,9 @@ const DungeonLayout _fireLayout = DungeonLayout(
   // Ideal: Firemask · Plantmane · Airwing — hinted by VERB, never by body
   // part: insight, the trail-leaving passage, flight.
   riddle: [
-    'My choir answers the one who reads ash as scripture;',
-    'my garden greens only along a wild thing\'s passing;',
-    'and my censer-flame follows whoever shepherds the wind.',
+    'Send me a Fire MASK — my choir is ash, and ash is scripture;',
+    'an Air WING, to carry my censer-flame the length of the nave;',
+    'and a Plant MANE, for my garden greens only along a wild thing\'s passing.',
   ],
   rooms: {
     // Room A — Narthex. The cathedral's cold porch: the great hearth has not
@@ -2787,9 +2787,9 @@ const DungeonLayout _waterLayout = DungeonLayout(
   // Ideal: Waterpip · Spiritmask · Icemane — hinted by VERB, never by body
   // part: small access, second sight, the road-paving passage.
   riddle: [
-    'My pipes open only to what my smallest doors admit;',
-    'my drowned currents bare themselves to second sight;',
-    'and my moon waits on a cold that paves a road behind it.',
+    'Send me a Water PIP — my pipes open only to what is small enough;',
+    'a Spirit MASK, to bare my drowned currents;',
+    'and an Ice MANE, for my moon waits on a cold that paves a road behind it.',
   ],
   // The one marquee lock (§4): the moon-well pipe-mouth admits only a Water
   // Pip. First refusal stamps the requirement onto the descent panel.
@@ -3150,9 +3150,9 @@ const DungeonLayout _earthLayout = DungeonLayout(
   // Ideal: Earthhorn · Lightningpip · Crystalmask — hinted by VERB, never by
   // body part: the mighty shove, small access, insight.
   riddle: [
-    'My bones grind aside for nothing less than the mightiest shove;',
-    'my buried sockets spark only for what my smallest veins admit;',
-    'and my eye confides only in sight that pierces the hidden.',
+    'Send me an Earth HORN — my bones grind aside for nothing less;',
+    'a Lightning PIP, to spark the sockets buried in my veins;',
+    'and a Crystal MASK, for my eye confides in nothing else.',
   ],
   // The one marquee lock (§4): the giant's ribs grind only for an Earth Horn
   // (one logical gate shared by all three ribs on the track).
@@ -3479,9 +3479,9 @@ const DungeonLayout _lightningLayout = DungeonLayout(
   // Ideal: Lightninghorn · Airwing · Firepip — hinted by VERB, never body part:
   // the mighty charge/hold, flight, small access + heat.
   riddle: [
-    'Where the grip is strongest, my dead iron wakes to fire;',
-    'what the ground cannot keep must herd my high storm-cells;',
-    'and a spark, coaxed through the smallest vent, weds wind to flame.',
+    'Send me a Lightning HORN — my dead iron wakes to nothing weaker;',
+    'an Air WING, to herd my high storm-cells;',
+    'and a Fire MASK, to read which iron the storm will choose.',
   ],
   rooms: {
     // Room A — Arc Gate. The way in is a dead bus; a Lightning Horn charges
@@ -3904,9 +3904,9 @@ const DungeonLayout _steamLayout = DungeonLayout(
   // Ideal: Steampip · Firemask · Earthhorn — hinted by VERB, never body part:
   // a cooling breath, a kindling/melting heart, the wall-raising strength.
   riddle: [
-    'My smallest breath cools the running molten back to standing stone;',
-    'a kindled heart melts the rock and lets the fire-blood run;',
-    'and the strongest arms raise walls to dam the flood.',
+    'Send me a Steam PIP — my smallest breath cools the molten back to stone;',
+    'an Earth HORN, to raise the walls that dam my flood;',
+    'and a Fire MASK, to read my head of pressure before it reads you.',
   ],
   rooms: {
     // Boiler Gate — the way in. A Steam creature cracks the relief vent and

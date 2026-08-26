@@ -1012,9 +1012,9 @@ const DungeonLayout kLavaLayout = DungeonLayout(
   // (§4). Only the last of the three is a hard gate; the other two are the
   // hands the works were built for.
   riddle: [
-    'A molten heart with the heaviest grip breaks the crucible\'s seal;',
-    'an earthen eye reads the works\' own manifest off the rock;',
-    'and a cold that paves a road behind it hardens the running metal.',
+    'Send me a Lava HORN — my crucible\'s seal breaks for nothing lighter;',
+    'an Earth MASK, to read the works\' own manifest off the rock;',
+    'and an Ice MANE, for a cold that paves a road behind it hardens my running metal.',
   ],
   // ONE hard gate (§4 budget: Air 1 · Earth 1 · Water 1 · Lava 1). Star 1 and
   // the guardian stay earnable by ANY correct-element trio; only the hidden

@@ -892,10 +892,9 @@ const DungeonLayout crystalLayout = DungeonLayout(
   // body part (§4): the second sight that reads which glass will pass a light,
   // the strongest grip, and what the smallest doors admit.
   riddle: [
-    'Bring me a second sight, to read which of my glasses will pass a light;',
-    'bring me the grip that is strongest, to strike a cold shard warm;',
-    'and bring me what my smallest doors admit, to slip the crack behind '
-        'the keep.',
+    'Send me a Crystal MASK, to read which of my glasses will pass a light;',
+    'a Lightning HORN, to strike a cold shard warm;',
+    'and a Spirit PIP, to slip the crack behind the keep.',
   ],
   // §4 budget: TWO hard gates, on two different entry slots.
   //

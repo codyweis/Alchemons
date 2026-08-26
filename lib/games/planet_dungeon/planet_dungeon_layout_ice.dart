@@ -330,11 +330,9 @@ const DungeonLayout iceLayout = DungeonLayout(
   // (§4): the cold road left behind, the sight that reads dark glass, and the
   // one the ground cannot keep.
   riddle: [
-    'Bring me a cold that paves a road behind it — my only ladders are the '
-        'ones you leave;',
-    'bring me the sight that reads what dark glass keeps;',
-    'and bring me one the ground cannot keep, to turn my last breath down '
-        'the throat.',
+    'Send me an Ice MANE — my only ladders are the ones you leave behind you;',
+    'a Light MASK, to read what my dark glass keeps;',
+    'and an Air WING, to turn my last breath down the throat.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. Star 0 (the orrery) is deliberately UNGATED so any trio of

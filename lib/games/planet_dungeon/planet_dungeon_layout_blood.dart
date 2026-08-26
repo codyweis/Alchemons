@@ -1098,12 +1098,9 @@ const DungeonLayout bloodLayout = DungeonLayout(
   // (§4): the hand that steadies old engines, the sight that pierces the
   // hidden, and the light that shows a thing for what it is.
   riddle: [
-    'Bring me a hand that steadies an old engine, for mine has not kept its '
-        'own time in an age;',
-    'bring me a sight that pierces the hidden, since the roads I have left '
-        'are inside the wall and unlit;',
-    'and bring me a light that shows a thing for what it is, because half of '
-        'what I will offer you is rotten.',
+    'Send me a Blood KIN — my engine has not kept its own time in an age;',
+    'a Dark MASK, for the roads I have left are inside the wall and unlit;',
+    'and a Light MASK, because half of what I offer you is rotten.',
   ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the priming) is

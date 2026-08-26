@@ -743,18 +743,16 @@ void main() {
       expect(kDungeonIdealFamilies['Plant'], ['Mane', 'Mask', 'Pip']);
       expect(kComingSoonDungeons, isNot(contains('Plant')));
       expect(layout.riddle.length, 3);
-      // §4: the riddle hints the VERB, never the body part.
-      for (final line in layout.riddle) {
-        for (final part in const [
-          'wing',
-          'horn',
-          'mane',
-          'mask',
-          'pip',
-          'small one',
-        ]) {
-          expect(line.toLowerCase(), isNot(contains(part)), reason: line);
-        }
+      // INVERTED (see dungeon_riddle_naming_test.dart): the riddle now names
+      // the element and the family outright. Encoding them made sense while
+      // the verse was the only warning of what a gate wanted; the descent
+      // panel declares and enforces them now, so an encoded line is a puzzle
+      // whose answer sits directly beneath it.
+      final els = kCosmicPlanetEntry['Plant']!;
+      final fams = kDungeonIdealFamilies['Plant']!;
+      for (var i = 0; i < layout.riddle.length; i++) {
+        expect(layout.riddle[i].toLowerCase(), contains(els[i].toLowerCase()));
+        expect(layout.riddle[i], contains(fams[i].toUpperCase()));
       }
     });
 
