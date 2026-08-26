@@ -721,10 +721,13 @@ extension FrozenObservatory on PlanetDungeonGame {
       _setBlockedHint('The lens shows only frost — nothing is charted yet');
       return true;
     }
-    final req = const DungeonInteractionRequirement(
-      element: 'Ice',
-      requiredFamily: DungeonAbility.terrainTrail,
-    );
+    // ELEMENT-ONLY. This wanted an Ice MANE, and nothing anywhere said so:
+    // the shaft declares two gates (the lodestone and the rite) and the
+    // entrance verse names neither a Mane nor a reason to bring one. A run
+    // must never need a creature the riddle did not ask for — least of all
+    // for optional treasure, where the player has no way to find out they
+    // were short until the lens refuses them.
+    final req = const DungeonInteractionRequirement(element: 'Ice');
     if (!interactionSucceeded(evaluateInteraction(a.member, req))) {
       _setBlockedHint('The mount will not hold — the sighting drifts');
       return true;
