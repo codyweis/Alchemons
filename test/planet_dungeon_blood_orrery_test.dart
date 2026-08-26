@@ -725,16 +725,12 @@ void main() {
       }
     });
 
-    test('a Blood KIN holds a vein open past the turn (a §4 family BONUS, '
-        'never a requirement)', () {
-      // The ideal trio no longer CARRIES a Kin (the rite wants a Mane now), so
-      // the bonus needs a party that brought one — which is exactly the point
-      // of it: a Kin is worth having on Hemavorn without being required.
-      final g = harness([
-        _member(0, 'Blood', 'kin'),
-        _member(1, 'Dark', 'mask'),
-        _member(2, 'Light', 'mask'),
-      ]);
+    test('any Blood hand holds a vein open past the turn (element-only)', () {
+      // ELEMENT-ONLY now. It was a Kin exclusive, which is the same trap as
+      // an undeclared gate wearing a friendlier name: a mechanic only some
+      // parties ever discover, announced nowhere. Any Blood hand steadies a
+      // vein — here, the ideal trio's Mane.
+      final g = harness(_idealTrio());
       g.entryDoorRevealed = true;
       advanceTo(g, PulsePhase.systole);
       // Walk the beat to the last second of the squeeze: a Kin steadies a vein

@@ -411,19 +411,22 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     return false;
   }
 
-  // ── The Bloodkin's steadying (a §4 family BONUS) ─────────
+  // ── Steadying a vein (element-only) ──────────────────────
 
   /// §6's S1 line, "Bloodkin stabilizes heartbeat doors (time movement)",
-  /// kept as what §4 permits without reservation: a family-exclusive BONUS
-  /// that no puzzle requires. A Blood KIN standing in a doorway holds that
-  /// vein open past the turn. Purely ADDITIVE — it can only ever leave a road
-  /// open longer — which is why the no-strand proof ignores it entirely and
-  /// is thereby strictly conservative.
+  /// now ELEMENT-ONLY: any Blood hand standing in a doorway holds that vein
+  /// open past the turn.
+  ///
+  /// It was a Kin exclusive, which §4 permits as a BONUS — but a
+  /// family-exclusive behaviour nobody announces is the same trap as an
+  /// undeclared gate, only quieter: a player who happens to own a Blood Kin
+  /// gets a mechanic that nothing told them about, and everyone else never
+  /// learns it exists. Blood is what the vein answers to.
+  ///
+  /// Still purely ADDITIVE — it can only ever leave a road open longer — so
+  /// the no-strand proof continues to ignore it and stays conservative.
   bool _trySteadyVein(DungeonCreature a) {
-    if (a.member.element != 'Blood' ||
-        a.ability != DungeonAbility.ancientStabilize) {
-      return false;
-    }
+    if (a.member.element != 'Blood') return false;
     for (final d in currentRoom.doors) {
       if ((a.position - d.rect.center).distance > _kSteadyReach) continue;
       final p = _heartPassageFor(currentRoom, d);
