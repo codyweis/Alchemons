@@ -612,7 +612,7 @@ const DungeonLayout mudLayout = DungeonLayout(
   // the sight that reads black water.
   riddle: [
     'Send me a Mud MANE — my rot will bear nothing that leaves no road;',
-    'a Plant PIP, to quicken what the peat has kept;',
+    'a Plant, to quicken what the peat has kept;',
     'and a Water MASK, for I keep my best beneath black water.',
   ],
   familyGates: [

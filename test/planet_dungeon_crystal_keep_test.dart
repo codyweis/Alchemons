@@ -1259,18 +1259,14 @@ void main() {
     });
 
     test('the riddle names each slot outright — element and family', () {
-      // WAS: "never its body part". Inverted deliberately. The descent panel
-      // now declares and ENFORCES every gate before you commit, so an encoded
-      // verse is a puzzle whose answer is printed underneath it — and a review
-      // of all 51 lines found five planets encoding the WRONG family. The
-      // cross-planet contract lives in dungeon_riddle_naming_test.dart; this
-      // just pins Crystal's own three.
+      // Family naming is now CONDITIONAL — a line names one only where a gate
+      // actually demands it, so an ungated slot names its element and nothing
+      // more. That rule spans all seventeen planets and lives in
+      // dungeon_riddle_naming_test.dart; this only pins Crystal's elements.
       final els = kCosmicPlanetEntry['Crystal']!;
-      final fams = kDungeonIdealFamilies['Crystal']!;
       expect(layout.riddle.length, els.length);
       for (var i = 0; i < layout.riddle.length; i++) {
         expect(layout.riddle[i].toLowerCase(), contains(els[i].toLowerCase()));
-        expect(layout.riddle[i], contains(fams[i].toUpperCase()));
       }
     });
   });

@@ -1100,7 +1100,7 @@ const DungeonLayout bloodLayout = DungeonLayout(
   riddle: [
     'Send me a Blood KIN — my engine has not kept its own time in an age;',
     'a Dark MASK, for the roads I have left are inside the wall and unlit;',
-    'and a Light MASK, because half of what I offer you is rotten.',
+    'and a Light, because half of what I offer you is rotten.',
   ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the priming) is

@@ -748,11 +748,12 @@ void main() {
       // the verse was the only warning of what a gate wanted; the descent
       // panel declares and enforces them now, so an encoded line is a puzzle
       // whose answer sits directly beneath it.
+      // A family is named only where a gate demands one (Plant's third slot
+      // is ungated), so this pins the elements and leaves the family rule to
+      // dungeon_riddle_naming_test.dart.
       final els = kCosmicPlanetEntry['Plant']!;
-      final fams = kDungeonIdealFamilies['Plant']!;
       for (var i = 0; i < layout.riddle.length; i++) {
         expect(layout.riddle[i].toLowerCase(), contains(els[i].toLowerCase()));
-        expect(layout.riddle[i], contains(fams[i].toUpperCase()));
       }
     });
 

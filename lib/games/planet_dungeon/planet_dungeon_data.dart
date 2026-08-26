@@ -1575,9 +1575,9 @@ const DungeonLayout _airLayout = DungeonLayout(
   // WIND-WORK, not flight, and no longer promises the ground-shy a private
   // road.
   riddle: [
-    'Send me an Air WING — my crown is woken, never climbed;',
+    'Send me an Air — my crown is woken, never climbed;',
     'a Lightning HORN, for my storm-walls answer nothing weaker;',
-    'and a Fire MASK, to read where my thunder will stay.',
+    'and a Fire, for my thunder must have somewhere to stay.',
   ],
   // The one marquee lock (§4): Storm-Altar conduit A channels only for a
   // Lightning Horn. First refusal stamps ⚡ HORN onto the descent panel.
@@ -2413,9 +2413,9 @@ const DungeonLayout _fireLayout = DungeonLayout(
   // Ideal: Firemask · Plantmane · Airwing — hinted by VERB, never by body
   // part: insight, the trail-leaving passage, flight.
   riddle: [
-    'Send me a Fire MASK — my choir is ash, and ash is scripture;',
-    'an Air WING, to carry my censer-flame the length of the nave;',
-    'and a Plant MANE, for my garden greens only along a wild thing\'s passing.',
+    'Send me a Fire — my choir is ash, and ash is scripture;',
+    'an Air, to carry my censer-flame the length of the nave;',
+    'and a Plant, for my garden greens only where something living has passed.',
   ],
   rooms: {
     // Room A — Narthex. The cathedral's cold porch: the great hearth has not
@@ -2788,8 +2788,8 @@ const DungeonLayout _waterLayout = DungeonLayout(
   // part: small access, second sight, the road-paving passage.
   riddle: [
     'Send me a Water PIP — my pipes open only to what is small enough;',
-    'a Spirit MASK, to bare my drowned currents;',
-    'and an Ice MANE, for my moon waits on a cold that paves a road behind it.',
+    'a Spirit, to go where my drowned currents run;',
+    'and an Ice, for my moon waits on a cold that will hold.',
   ],
   // The one marquee lock (§4): the moon-well pipe-mouth admits only a Water
   // Pip. First refusal stamps the requirement onto the descent panel.
@@ -3151,8 +3151,8 @@ const DungeonLayout _earthLayout = DungeonLayout(
   // body part: the mighty shove, small access, insight.
   riddle: [
     'Send me an Earth HORN — my bones grind aside for nothing less;',
-    'a Lightning PIP, to spark the sockets buried in my veins;',
-    'and a Crystal MASK, for my eye confides in nothing else.',
+    'a Lightning, to wake the sockets buried in my veins;',
+    'and a Crystal, for my eye confides in nothing duller.',
   ],
   // The one marquee lock (§4): the giant's ribs grind only for an Earth Horn
   // (one logical gate shared by all three ribs on the track).
@@ -3479,9 +3479,9 @@ const DungeonLayout _lightningLayout = DungeonLayout(
   // Ideal: Lightninghorn · Airwing · Firepip — hinted by VERB, never body part:
   // the mighty charge/hold, flight, small access + heat.
   riddle: [
-    'Send me a Lightning HORN — my dead iron wakes to nothing weaker;',
-    'an Air WING, to herd my high storm-cells;',
-    'and a Fire MASK, to read which iron the storm will choose.',
+    'Send me a Lightning — my dead iron wakes to nothing weaker;',
+    'an Air, to herd my high storm-cells down to the iron;',
+    'and a Fire, to weld wind to flame where my iron runs thin.',
   ],
   rooms: {
     // Room A — Arc Gate. The way in is a dead bus; a Lightning Horn charges
@@ -3904,9 +3904,9 @@ const DungeonLayout _steamLayout = DungeonLayout(
   // Ideal: Steampip · Firemask · Earthhorn — hinted by VERB, never body part:
   // a cooling breath, a kindling/melting heart, the wall-raising strength.
   riddle: [
-    'Send me a Steam PIP — my smallest breath cools the molten back to stone;',
-    'an Earth HORN, to raise the walls that dam my flood;',
-    'and a Fire MASK, to read my head of pressure before it reads you.',
+    'Send me a Steam — my cold breath sets the molten back to stone;',
+    'an Earth, to raise the walls that dam my flood;',
+    'and a Fire, to open the rock and let the fire-blood run.',
   ],
   rooms: {
     // Boiler Gate — the way in. A Steam creature cracks the relief vent and

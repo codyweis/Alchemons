@@ -22,63 +22,88 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('every riddle line names its own slot', () {
+  /// What slot [i] of [element] actually demands: a strict element+family
+  /// gate, a verb-only gate (any creature of that family), or nothing beyond
+  /// the element itself.
+  String demandFor(String element, int i) {
+    final layout = kPlanetDungeonLayouts[element]!;
+    final els = kCosmicPlanetEntry[element]!;
+    final fams = kDungeonIdealFamilies[element]!;
+    final strict = layout.familyGates.any(
+      (g) =>
+          g.needsElement &&
+          g.element == els[i] &&
+          g.family.toLowerCase() == fams[i].toLowerCase(),
+    );
+    if (strict) return 'strict';
+    final verbOnly = layout.familyGates.any(
+      (g) =>
+          !g.needsElement && g.family.toLowerCase() == fams[i].toLowerCase(),
+    );
+    return verbOnly ? 'any' : 'element';
+  }
+
+  const families = ['WING', 'HORN', 'MANE', 'MASK', 'PIP', 'KIN'];
+
+  group('a line asks for exactly what its slot demands', () {
     test('one line per entry slot', () {
       kPlanetDungeonLayouts.forEach((element, layout) {
-        expect(
-          layout.riddle.length,
-          kCosmicPlanetEntry[element]!.length,
-          reason: '$element: one verse line per element the descent needs',
-        );
+        expect(layout.riddle.length, kCosmicPlanetEntry[element]!.length,
+            reason: '$element: one verse line per element the descent needs');
       });
     });
 
-    test('line i names slot i\'s ELEMENT', () {
+    test('every line names its slot\'s ELEMENT', () {
+      // The three elements are always required, gate or no gate.
       kPlanetDungeonLayouts.forEach((element, layout) {
         final els = kCosmicPlanetEntry[element]!;
         for (var i = 0; i < layout.riddle.length; i++) {
-          expect(
-            layout.riddle[i].toLowerCase(),
-            contains(els[i].toLowerCase()),
-            reason: '$element line ${i + 1} should name ${els[i]}',
-          );
+          expect(layout.riddle[i].toLowerCase(), contains(els[i].toLowerCase()),
+              reason: '$element line ${i + 1} should name ${els[i]}');
         }
       });
     });
 
-    test('line i names slot i\'s FAMILY, in capitals', () {
-      // Capitals because the family is the operative word — the line is a
-      // shopping list in a planet's voice, and the eye should find it.
+    test('a family is named ONLY where one is actually demanded', () {
+      // The point of the pass. An ungated slot that names a family is asking
+      // for something the door does not check, which sends the player
+      // breeding for a key that was never needed.
       kPlanetDungeonLayouts.forEach((element, layout) {
         final fams = kDungeonIdealFamilies[element]!;
         for (var i = 0; i < layout.riddle.length; i++) {
-          expect(
-            layout.riddle[i],
-            contains(fams[i].toUpperCase()),
-            reason:
-                '$element line ${i + 1} should name ${fams[i].toUpperCase()}',
-          );
+          final line = layout.riddle[i];
+          final named = families.where(line.contains).toList();
+          switch (demandFor(element, i)) {
+            case 'element':
+              expect(named, isEmpty,
+                  reason: '$element line ${i + 1} is element-only but names '
+                      '${named.join(", ")}');
+            case 'strict':
+            case 'any':
+              expect(named, [fams[i].toUpperCase()],
+                  reason: '$element line ${i + 1} should name exactly '
+                      '${fams[i].toUpperCase()}');
+          }
         }
       });
     });
 
-    test('a line never names a family that is not its own', () {
-      // The exact failure the review turned up: Air line 2 carried the Mask
-      // cue while its slot wanted a Horn. Naming plainly does not help if a
-      // line names TWO families and only one of them is right.
-      const families = ['WING', 'HORN', 'MANE', 'MASK', 'PIP', 'KIN'];
+    test('a verb-only gate says ANY; a strict one does not', () {
+      // "an Air WING" and "an Air, and any WING at all" are different
+      // promises, and the second is the one a player can satisfy from stock.
       kPlanetDungeonLayouts.forEach((element, layout) {
-        final fams = kDungeonIdealFamilies[element]!;
         for (var i = 0; i < layout.riddle.length; i++) {
-          final mine = fams[i].toUpperCase();
-          for (final other in families) {
-            if (other == mine) continue;
-            expect(
-              layout.riddle[i],
-              isNot(contains(other)),
-              reason:
-                  '$element line ${i + 1} wants a $mine but also says $other',
-            );
+          final line = layout.riddle[i].toLowerCase();
+          switch (demandFor(element, i)) {
+            case 'any':
+              expect(line, contains('any'),
+                  reason: '$element line ${i + 1} gates on the family alone, '
+                      'so it must not read as an element+family lock');
+            case 'strict':
+              expect(line, isNot(contains('any')),
+                  reason: '$element line ${i + 1} is a strict lock');
+            case 'element':
+              break;
           }
         }
       });

@@ -900,8 +900,8 @@ const DungeonLayout darkLayout = DungeonLayout(
   // admit, and the road a walker leaves behind it.
   riddle: [
     'Send me a Dark MASK — nothing in me is where the light says it is;',
-    'a Poison PIP, for every ring in me is rusted shut and my ways are holes;',
-    'and a Spirit MANE, because I keep no lamp to find you by.',
+    'a Poison, and any PIP, for every ring in me is rusted shut and my ways are holes;',
+    'and a Spirit, because I keep no lamp to find you by.',
   ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the analemma) is

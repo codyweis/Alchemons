@@ -781,7 +781,7 @@ const DungeonLayout plantLayout = DungeonLayout(
   riddle: [
     'Send me a Plant MANE — my rood screen has been dead a long age;',
     'a Light MASK, for I keep no sun and my seed still wants one;',
-    'and a Mud PIP, because half of me was never built for you.',
+    'and a Mud, because half of me was never built for you.',
   ],
   // §4 budget: TWO hard gates, on two different stars/objects and two
   // different entry slots. Star 0 (the grave-lamps) is deliberately UNGATED
