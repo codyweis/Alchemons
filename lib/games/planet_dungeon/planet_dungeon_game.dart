@@ -721,6 +721,17 @@ class PlanetDungeonGame extends FlameGame {
   /// Knowledge, like cloud discoveries: it survives death within a session.
   int choirRevealTier = -1;
 
+  /// Which of the scriptorium's four corner torches are burning, by index into
+  /// the room's `muralTorches`. Light is a property of the ROOM, so unlike
+  /// `choirRevealTier` this does not survive a restart — walk back in and the
+  /// torches have gone out again.
+  final Set<int> litMuralTorches = {};
+
+  /// True once every corner torch in [room] is burning.
+  bool muralLit(DungeonRoom room) =>
+      room.muralTorches.isNotEmpty &&
+      litMuralTorches.length >= room.muralTorches.length;
+
   /// THE RITE, ROLLED PER RUN (§6.1 REWORK): `riteOrder[rank]` = the index into
   /// the choir's `braziers` list that was lit at that rank. Never authored, so
   /// a wiki can never spoil it — and never noise either: [riteTestimony] is

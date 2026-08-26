@@ -1002,6 +1002,10 @@ class DungeonRoom {
   final List<Conduit> conduits;
   final GuardianNode? guardian;
   // Fire (Cinder Cathedral) authored interactables:
+  /// Corner torches that must ALL be lit before the room's mural can be read
+  /// (Fire's scriptorium). Element-only: any Fire hand lights one.
+  final List<Offset> muralTorches;
+
   final List<RitualBrazier> braziers;
   final int? brazierStarIndex; // star awarded for the full lit sequence
   final List<VineBed> vineBeds;
@@ -1174,6 +1178,7 @@ class DungeonRoom {
     this.loomStarIndex,
     this.conduits = const [],
     this.guardian,
+    this.muralTorches = const [],
     this.braziers = const [],
     this.brazierStarIndex,
     this.vineBeds = const [],
@@ -2430,6 +2435,15 @@ const DungeonLayout _fireLayout = DungeonLayout(
     'scriptorium': DungeonRoom(
       id: 'scriptorium',
       bounds: Rect.fromLTWH(0, 0, 640, 520),
+      // Four corner torches. The mural is soot on a dark wall in a room with
+      // no window: unlit, there is nothing to read, and the panel says so.
+      // Lighting all four is what brings the first recorded station up.
+      muralTorches: [
+        Offset(70, 70),
+        Offset(570, 70),
+        Offset(70, 450),
+        Offset(570, 450),
+      ],
       doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(265, 496, 110, 24),

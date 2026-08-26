@@ -782,6 +782,26 @@ void main() {
 
     // ── The Lost Maxim: the Ember Epitaph — still WORDLESS ──
     expect(game.epitaphStage, 0, reason: 'the egg starts invisible');
+
+    // The scriptorium is dark until its four corners burn, and neither the
+    // mural nor the dead words in it can be read before that. Any Fire hand
+    // lights them; here it is the same Mask that will do the reading.
+    game.setActive(0);
+    for (final torch in _room(game, 'scriptorium').muralTorches) {
+      teleport('scriptorium', torch);
+      game.activateAbility();
+    }
+    expect(
+      game.muralLit(_room(game, 'scriptorium')),
+      isTrue,
+      reason: 'four corners lit',
+    );
+    expect(
+      game.choirRevealTier,
+      greaterThanOrEqualTo(0),
+      reason: 'the fourth corner brings up the first station on its own',
+    );
+
     game.setActive(0); // Fire MASK — insight writes the mural's dead words
     teleport('scriptorium', _room(game, 'scriptorium').bounds.center);
     game.activateAbility();

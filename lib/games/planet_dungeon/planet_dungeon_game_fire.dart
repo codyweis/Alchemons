@@ -544,6 +544,9 @@ const double _kWindSwingSeconds = 0.7;
 
 /// How near a creature must stand to work a bed, or the garth's wind-cross.
 const double _kBedReach = 54.0;
+
+/// How close a hand must stand to a scriptorium corner torch.
+const double _kMuralTorchReach = 54.0;
 const double _kVaneReach = 58.0;
 
 /// A live vesper flame crawling its incense chain (Star 3). Lives in
@@ -986,6 +989,9 @@ extension CinderCathedral on PlanetDungeonGame {
 
   void _resetCathedralState() {
     ritualProgress = 0;
+    // Light is not knowledge: choirRevealTier survives a death (what you read
+    // stays read), but the torches themselves burn out and must be relit.
+    litMuralTorches.clear();
     bellsRung.clear();
     _chainCheckpoints.clear();
     _vesperFlames.clear();
@@ -1449,11 +1455,56 @@ extension CinderCathedral on PlanetDungeonGame {
   bool _tryCathedral(DungeonCreature a) {
     if (!_isCathedral) return false;
     final room = currentRoom;
+    if (_tryMuralTorch(a, room)) return true;
     if (_tryHearthOrBrazier(a, room)) return true;
     if (_tryAshGarden(a, room)) return true;
     if (_tryVesper(a, room)) return true;
     if (_tryEmberEpitaph(a, room)) return true;
     if (_tryNaveCommune(a, room)) return true;
+    return false;
+  }
+
+  /// The scriptorium's four corner torches.
+  ///
+  /// Element-only (§4): any Fire hand lights one, and nothing else does. The
+  /// mural is soot on a dark wall in a windowless room — until all four are
+  /// burning there is genuinely nothing to read, and the panel says so rather
+  /// than sitting blank. The fourth torch is what brings the first recorded
+  /// station up out of the dark.
+  bool _tryMuralTorch(DungeonCreature a, DungeonRoom room) {
+    if (room.muralTorches.isEmpty) return false;
+    for (var i = 0; i < room.muralTorches.length; i++) {
+      if ((a.position - room.muralTorches[i]).distance > _kMuralTorchReach) {
+        continue;
+      }
+      if (litMuralTorches.contains(i)) {
+        // Already burning. Say nothing and let the action fall through to the
+        // creature's own verb — a lit torch is not an obstacle.
+        return false;
+      }
+      if (a.member.element != 'Fire') {
+        _setBlockedHint('The pitch is cold — only a Fire hand takes here');
+        return true;
+      }
+      litMuralTorches.add(i);
+      _spawnAlchemyBurst(
+        room.muralTorches[i],
+        producedElement: 'Fire',
+        particleCount: 10,
+      );
+      if (muralLit(room)) {
+        // The room comes up, and with it the first thing the soot kept.
+        choirRevealTier = max(choirRevealTier, 0);
+        revealFlash = 0.6;
+        _setHint('The four corners take — and the soot gives up a station');
+      } else {
+        final left = room.muralTorches.length - litMuralTorches.length;
+        _setHint(left == 1
+            ? 'It catches — one corner still dark'
+            : 'It catches — $left corners still dark');
+      }
+      return true;
+    }
     return false;
   }
 
@@ -2024,7 +2075,14 @@ extension CinderCathedral on PlanetDungeonGame {
     revealTier = revealHintTier(a.member.statIntelligence);
     switch (room.id) {
       case 'scriptorium':
-        // NO hint popups in this room — the mural answers visually: the
+        // You cannot read a soot mural in the dark, however sharp your eyes.
+        // The corner torches come first; this is the one place in the room
+        // that speaks, because a blank panel would read as a broken feature.
+        if (!muralLit(room)) {
+          _setBlockedHint('Too dark to read — the corners are unlit');
+          return;
+        }
+        // NO hint popups beyond that — the mural answers visually: the
         // brazier glyphs draw themselves into the panel per insight tier,
         // and the epitaph cipher writes itself in (and bares the garden).
         choirRevealTier = max(choirRevealTier, revealTier);
@@ -2508,6 +2566,7 @@ extension CinderCathedral on PlanetDungeonGame {
         _drawNave(canvas, room);
         break;
       case 'scriptorium':
+        _drawMuralTorches(canvas, room);
         _drawSootMural(canvas, room);
         _drawEmberEpitaph(canvas);
         break;
@@ -2771,6 +2830,77 @@ extension CinderCathedral on PlanetDungeonGame {
     }
   }
 
+  /// The four corner torches: an iron bracket always, a flame once lit.
+  ///
+  /// An unlit torch has to read as SOMETHING A HAND COULD LIGHT rather than as
+  /// scenery, or the room looks broken to a player who has not found the verb
+  /// yet — so the bracket is drawn solid and its bowl catches a little of the
+  /// room's own ember light even cold.
+  void _drawMuralTorches(Canvas canvas, DungeonRoom room) {
+    for (var i = 0; i < room.muralTorches.length; i++) {
+      final p = room.muralTorches[i];
+      final lit = litMuralTorches.contains(i);
+
+      // Bracket: a short iron stem into a shallow bowl.
+      canvas.drawRect(
+        Rect.fromCenter(center: p + const Offset(0, 12), width: 4, height: 20),
+        Paint()..color = const Color(0xFF3A2E22),
+      );
+      canvas.drawArc(
+        Rect.fromCenter(center: p, width: 26, height: 18),
+        0,
+        pi,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = lit
+              ? const Color(0xFF8A6A3C)
+              : const Color(0xFF4A3E30),
+      );
+
+      if (!lit) {
+        // Cold pitch — a dull bead, so the bowl is visibly waiting.
+        canvas.drawCircle(
+          p + const Offset(0, -2),
+          3.2,
+          Paint()..color = const Color(0xFF2A211A),
+        );
+        continue;
+      }
+
+      // Flame: three stacked ovals guttering out of phase, and a pooled glow
+      // on the wall behind. No MaskFilter — the glow is concentric fills.
+      final t = _time * 3.0 + i * 1.7;
+      for (var g = 3; g >= 1; g--) {
+        canvas.drawCircle(
+          p + const Offset(0, -6),
+          g * 13.0,
+          Paint()
+            ..color = const Color(0xFFFFB46B)
+                .withValues(alpha: 0.05 * (4 - g) * (0.85 + 0.15 * sin(t))),
+        );
+      }
+      for (var k = 0; k < 3; k++) {
+        final h = 13.0 - k * 3.5;
+        final sway = sin(t + k * 1.1) * (1.6 - k * 0.4);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: p + Offset(sway, -8.0 - k * 3.0),
+            width: 9.0 - k * 2.2,
+            height: h,
+          ),
+          Paint()
+            ..color = [
+              const Color(0xFFB4471C),
+              const Color(0xFFFF9A3C),
+              const Color(0xFFFFE2A8),
+            ][k],
+        );
+      }
+    }
+  }
+
   void _drawSootMural(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     final panel = Rect.fromCenter(
@@ -2798,6 +2928,10 @@ extension CinderCathedral on PlanetDungeonGame {
     // WORDLESSLY, as a little constellation of the choir with one bowl
     // filled. Bring a deduction here and the mural will tell you whether you
     // are right; bring nothing and it tells you nothing.
+    // KNOWLEDGE persists across a death; LIGHT does not. Come back with the
+    // corners cold and the panel is blank again — but relighting them shows
+    // everything you had already recovered, rather than making you re-read it.
+    if (!muralLit(room)) return;
     final tier = choirRevealTier;
     if (tier < 0) return;
     // Tier 0 recovers one station from the soot; tier 1+ recovers both.
