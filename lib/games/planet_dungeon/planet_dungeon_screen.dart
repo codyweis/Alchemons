@@ -23,6 +23,7 @@ import 'package:alchemons/screens/cosmic/widgets/virtual_joystick.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -777,6 +778,20 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                         _C.amber,
                         () => game.regroup(),
                         icon: Icons.workspaces_rounded,
+                      ),
+                      const SizedBox(height: 6),
+                      // The room's reading, on demand. This used to require
+                      // bringing a Mask, which meant a party without one had
+                      // no route to the knowledge at all — the one thing that
+                      // should never depend on party composition.
+                      _pillButton(
+                        'HINT',
+                        _C.cyan,
+                        () {
+                          HapticFeedback.selectionClick();
+                          game.askForRoomHint();
+                        },
+                        icon: Icons.help_outline_rounded,
                       ),
                       // Restart this molten chamber from scratch (appears only
                       // in the Steam puzzle rooms; reacts to room changes).

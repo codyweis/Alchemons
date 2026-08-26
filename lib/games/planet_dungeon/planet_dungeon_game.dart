@@ -7337,6 +7337,24 @@ class PlanetDungeonGame extends FlameGame {
     flightActive = true;
   }
 
+  /// The room's reading, ASKED FOR rather than carried in.
+  ///
+  /// This is the same per-planet reveal a Mask used to perform, reachable by
+  /// anyone from the HUD. Insight was the one family verb that dispensed
+  /// INFORMATION, and information is the worst thing to lock behind party
+  /// composition: a player without a Mask was not having a harder time, they
+  /// had no route to the knowledge at all and no way to know one existed.
+  ///
+  /// Everything else about the reading is unchanged — same content, same
+  /// priority-protected channel, same intelligence-scaled radius taken from
+  /// whoever is currently active — so a smarter creature still reads further.
+  void askForRoomHint() {
+    final a = active;
+    if (a == null) return;
+    _inHintChannel(DungeonHintChannel.insight, () => _doReveal(a));
+    onChanged();
+  }
+
   void _doReveal(DungeonCreature a) {
     final room = currentRoom;
     if (_isCathedral) {
