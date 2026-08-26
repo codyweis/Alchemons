@@ -13,6 +13,8 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart'
+    show kAnyElement;
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/utils/color_util.dart' show FamilyColors;
 import 'package:alchemons/games/cosmic/raid_state.dart';
@@ -6701,23 +6703,29 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  /// "THE SEAL REMEMBERS" chips (§4 in docs/dungeons.md): one per hard family
-  /// gate the player has struck in this planet's dungeon — a text badge in
-  /// the family's color behind the element's dot (the "⚡ HORN" contract; no
-  /// family art exists in the app). Stamped on first refusal via the
-  /// discovery channel, rendered here PERMANENTLY once known: knowledge
-  /// earned in-world, remembered by the ship forever.
+  /// The planet's hard family gates, declared UP FRONT.
+  ///
+  /// These used to appear only after the player had walked into the gate and
+  /// been refused ("the seal remembers"). That made sense while a missing key
+  /// only cost you one star of a run you could still finish — it does not now
+  /// that a missing key turns the descent away at the door. A requirement you
+  /// are held to has to be a requirement you can read before you commit, so
+  /// every gate shows from the first visit, and the ones the current party
+  /// cannot answer are marked.
   List<Widget> _familyGateChips(String element) {
     final gates =
         kPlanetDungeonLayouts[element]?.familyGates ??
         const <DungeonFamilyGate>[];
     if (gates.isEmpty) return const [];
-    final discovered = _planetStarState.discoveredCloudsFor(element);
+    // Two gates wanting the same key read as one requirement.
+    final seen = <String>{};
     final known = [
       for (final g in gates)
-        if (discovered.contains(g.discoveryId)) g,
+        if (seen.add('${g.element}/${g.family}')) g,
     ];
-    if (known.isEmpty) return const [];
+    final unmet = unmetEntryDemands(element, _partyMembers)
+        .map((d) => '${d.element ?? kAnyElement}/${d.family}')
+        .toSet();
     return [
       const SizedBox(height: 9),
       Row(
@@ -6727,7 +6735,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
-              'THE SEAL REMEMBERS',
+              'THIS DESCENT REQUIRES',
               style: TextStyle(
                 color: const Color(0xFFC4A35A).withValues(alpha: 0.75),
                 fontSize: 8,
@@ -6745,20 +6753,38 @@ class _CosmicScreenState extends State<CosmicScreen>
         spacing: 8,
         runSpacing: 6,
         alignment: WrapAlignment.center,
-        children: [for (final g in known) _familyGateChip(g)],
+        children: [
+          for (final g in known)
+            _familyGateChip(
+              g,
+              unmet: unmet.contains('${g.element}/${g.family}'),
+            ),
+        ],
       ),
     ];
   }
 
-  Widget _familyGateChip(DungeonFamilyGate gate) {
+  Widget _familyGateChip(DungeonFamilyGate gate, {required bool unmet}) {
     final famColor = FamilyColors.of(gate.family);
-    final elColor = elementColor(gate.element);
+    // A verb-only gate names no element, so it gets the family's own colour
+    // rather than a dot for an element it does not care about.
+    final elColor = gate.needsElement
+        ? elementColor(gate.element)
+        : famColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: const Color(0xFF0A0805).withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: famColor.withValues(alpha: 0.55), width: 1.1),
+        // A requirement the party already answers sits quiet; one it does not
+        // is what is standing between the player and the descent, so it is the
+        // thing on this placard that should catch the eye.
+        border: Border.all(
+          color: unmet
+              ? const Color(0xFFE25544).withValues(alpha: 0.95)
+              : famColor.withValues(alpha: 0.55),
+          width: unmet ? 1.4 : 1.1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -6767,25 +6793,42 @@ class _CosmicScreenState extends State<CosmicScreen>
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: elColor,
+              color: elColor.withValues(alpha: unmet ? 0.45 : 1.0),
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(color: elColor.withValues(alpha: 0.6), blurRadius: 6),
-              ],
+              boxShadow: unmet
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: elColor.withValues(alpha: 0.6),
+                        blurRadius: 6,
+                      ),
+                    ],
             ),
           ),
           const SizedBox(width: 6),
           Text(
-            '${gate.element.toUpperCase()} '
-            '${FamilyColors.label(gate.family).toUpperCase()}',
+            gate.needsElement
+                ? '${gate.element.toUpperCase()} '
+                      '${FamilyColors.label(gate.family).toUpperCase()}'
+                // Verb-only: say ANY out loud, because "HORN" alone reads as
+                // an element being omitted by mistake.
+                : 'ANY ${FamilyColors.label(gate.family).toUpperCase()}',
             style: TextStyle(
-              color: famColor,
+              color: unmet ? const Color(0xFFE25544) : famColor,
               fontSize: 9.5,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.4,
               shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
             ),
           ),
+          if (unmet) ...[
+            const SizedBox(width: 5),
+            const Icon(
+              Icons.block_flipped,
+              size: 10,
+              color: Color(0xFFE25544),
+            ),
+          ],
         ],
       ),
     );
@@ -6799,6 +6842,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   Widget _buildDescentPlacard(
     CosmicPlanet planet, {
     required List<String> required,
+    required List<DungeonEntryDemand> unmetDemands,
     required bool descendReady,
     required bool raidHere,
     required bool canSummonRaidHere,
@@ -7461,7 +7505,16 @@ class _CosmicScreenState extends State<CosmicScreen>
         kPlanetDungeonLayouts.containsKey(nearEl) &&
         kCosmicPlanetEntry.containsKey(nearEl) &&
         _unsealedGates.contains(nearEl) &&
-        cosmicPartySatisfiesEntry(_partyMembers, kCosmicPlanetEntry[nearEl]!);
+        cosmicPartySatisfiesEntry(_partyMembers, kCosmicPlanetEntry[nearEl]!) &&
+        // The elements get you to the door; the planet's declared family gates
+        // decide whether you can finish what is behind it. Unsealing with the
+        // alchemical recipe is no longer enough on its own — a party that
+        // cannot open a gate inside is turned away here, where it costs
+        // nothing, instead of at the locked door where it costs the run.
+        unmetEntryDemands(nearEl, _partyMembers).isEmpty;
+    final unmetDemands = nearEl == null
+        ? const <DungeonEntryDemand>[]
+        : unmetEntryDemands(nearEl, _partyMembers);
     // Raid takeover: while a raid window is open on this planet, the raid
     // IS the descent.
     final raidHere = nearEl != null && _raidLive && _raid!.element == nearEl;
@@ -8011,6 +8064,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       child: _buildDescentPlacard(
                         _nearPlanet!,
                         required: kCosmicPlanetEntry[nearEl]!,
+                        unmetDemands: unmetDemands,
                         descendReady: descendReady,
                         raidHere: raidHere,
                         canSummonRaidHere: canSummonRaidHere,

@@ -49,6 +49,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -973,7 +974,7 @@ void main() {
       final slots = kCosmicPlanetEntry['Crystal']!;
       expect(layout.familyGates.length, 2);
       for (final g in layout.familyGates) {
-        expect(slots, contains(g.element));
+        if (g.needsElement) expect(slots, contains(g.element));
         expect(g.discoveryId, isNot(contains('.')));
         expect(g.discoveryId, isNot(contains('|')));
       }
@@ -1032,14 +1033,19 @@ void main() {
       expect(game.prism.field.hearthKindled, isTrue);
     });
 
-    test('the rite\'s crack is a HARD Spirit+PIP gate', () {
+    test('the rite\'s crack is a VERB-ONLY pip gate — any element', () {
+      // Was Spirit+PIP. Re-audited: the crack admits a small body, and spirit
+      // is not what fits through it, so demanding the element as well was a
+      // second lock the fiction never asked for. Any pip answers.
       final gate = layout.familyGateFor('A')!;
-      expect(gate.element, 'Spirit');
+      expect(gate.element, kAnyElement);
+      expect(gate.needsElement, isFalse);
       expect(gate.family, 'Pip');
+      expect(gate.label, 'any PIP');
       final conduit = layout.rooms['tuning_hall']!.conduits
           .firstWhere((c) => c.id == 'A');
-      expect(conduit.requireElement, 'Spirit');
-      expect(conduit.requiredFamily, isNotNull);
+      expect(conduit.requireElement, kAnyElement);
+      expect(conduit.requiredFamily, DungeonAbility.smallAccess);
     });
 
     test('the rite\'s font answers Crystal alone, and only behind both stars',

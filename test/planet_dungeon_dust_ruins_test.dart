@@ -250,18 +250,29 @@ void main() {
       }
     });
 
-    test('§4: two hard gates, on different slots, and Star 0 is ungated', () {
+    test('§4: two hard gates, distinct keys, and Star 0 is ungated', () {
       expect(layout.familyGates.length, 2);
       final slots = kCosmicPlanetEntry['Dust']!;
-      final gated = layout.familyGates.map((g) => g.element).toSet();
-      expect(gated.length, 2, reason: 'one gate per entry slot at most');
+      // Both of Dust's gates were re-audited to VERB-ONLY: a wing asked only
+      // to fly over a bared roof, a horn asked only to shove through a false
+      // wall. Neither element was doing anything, so neither is demanded —
+      // which means the old "one gate per entry SLOT" count no longer
+      // applies. What must still hold is that they are different KEYS, so
+      // one creature cannot quietly answer both.
+      final keys = layout.familyGates
+          .map((g) => '${g.element}/${g.family}')
+          .toSet();
+      expect(keys.length, 2, reason: 'two gates must want two different keys');
       for (final g in layout.familyGates) {
-        expect(slots, contains(g.element));
+        if (g.needsElement) expect(slots, contains(g.element));
       }
       // The three seals — the star a first descent must be able to earn —
       // carry no family gate of any kind, and the yard's two verbs are the
       // planet's own element and Air, both element-only.
-      expect(gated, isNot(contains('Dust')));
+      expect(
+        layout.familyGates.map((g) => g.element),
+        isNot(contains('Dust')),
+      );
     });
 
     test('the ideal trio is index-aligned with the entry slots', () {
@@ -604,7 +615,7 @@ void main() {
       expect(game.hasStar(1), isTrue);
     });
 
-    test('the armillary is a HARD gate: no Dust hand, no other family', () {
+    test('the armillary is a VERB-ONLY wing gate: any wing, no other family', () {
       final stamped = <String>[];
       final game = harness([
         _member(0, 'Dust', 'mask'),
@@ -621,7 +632,7 @@ void main() {
       // An Air PIP is refused — and the refusal stamps the chip (§4).
       act(game, air, 'observatory', obs.ruins!.armillary!);
       expect(game.hasStar(1), isFalse);
-      expect(stamped, contains('gate:air_wing'));
+      expect(stamped, contains('gate:any_wing'));
     });
 
     test('the roofless span really has no floor under it', () {
@@ -659,7 +670,7 @@ void main() {
       expect(game.conduitEnergy['B'], double.infinity);
     });
 
-    test('conduit A is the Earth+HORN gate and stamps its own chip', () {
+    test('conduit A is a VERB-ONLY horn gate and stamps its own chip', () {
       final stamped = <String>[];
       final game = harness([
         _member(0, 'Dust', 'mask'),
@@ -676,7 +687,7 @@ void main() {
         court.conduits.firstWhere((c) => c.id == 'A').position,
       );
       expect(game.conduitEnergy['A'] ?? 0, 0);
-      expect(stamped, contains('gate:earth_horn'));
+      expect(stamped, contains('gate:any_horn'));
     });
 
     test('Ashdjinn keeps its lull shut while the cut is drifted over', () {

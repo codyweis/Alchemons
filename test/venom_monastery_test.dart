@@ -510,7 +510,7 @@ void main() {
       expect(layout.familyGates.length, 2);
       final slots = kCosmicPlanetEntry['Poison']!;
       for (final g in layout.familyGates) {
-        expect(slots, contains(g.element));
+        if (g.needsElement) expect(slots, contains(g.element));
         expect(g.discoveryId, startsWith('gate:'));
       }
       expect(

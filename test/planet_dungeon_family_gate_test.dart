@@ -137,6 +137,10 @@ void main() {
         if (layout.familyGates.isEmpty) continue;
         expect(slots, isNotNull);
         for (final gate in layout.familyGates) {
+          // A VERB-ONLY gate (kAnyElement) names no element at all — the
+          // family's act is the whole requirement — so it has no entry slot
+          // to sit on and this invariant does not apply to it.
+          if (!gate.needsElement) continue;
           expect(
             slots,
             contains(gate.element),

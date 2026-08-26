@@ -23,6 +23,8 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart'
+    show CosmicPartyMember, DungeonEntryDemand;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -1246,8 +1248,22 @@ class DungeonFamilyGate {
   final String objectId;
 
   /// The element this gate answers to (one of the planet's three
-  /// kCosmicPlanetEntry slots).
+  /// kCosmicPlanetEntry slots), or [kAnyElement] when the gate is VERB-ONLY —
+  /// the family's physical act is the whole requirement and the element is
+  /// incidental. A wing asked only to fly, a horn asked only to shove and a
+  /// pip asked only to fit answer from ANY element; demanding a particular
+  /// one as well is a second lock the fiction never asked for.
   final String element;
+
+  /// True when this gate demands an element as well as a family. Only these
+  /// can make a planet unenterable, so the descent gate counts them
+  /// separately from the verb-only kind.
+  bool get needsElement => element != kAnyElement;
+
+  /// How the requirement reads on the descent panel: 'Lightning HORN' for a
+  /// full lock, 'any HORN' when only the verb matters.
+  String get label =>
+      needsElement ? '$element ${family.toUpperCase()}' : 'any ${family.toUpperCase()}';
 
   /// The required family, matching CreatureFamily / FamilyColors keys
   /// ('Horn', 'Pip', 'Wing', 'Mane', 'Mask', 'Kin', 'Let').
@@ -1269,9 +1285,49 @@ class DungeonFamilyGate {
   /// [objectId]/[hintLine] are later re-authored, and safe under
   /// PlanetStarState's serialisation separators (`,` `=` `.` `|`), which no
   /// discovery id may contain.
+  /// A verb-only gate has no element, so it stamps 'gate:any_wing' rather
+  /// than 'gate:_wing' — a readable id, and one that cannot collide with a
+  /// future element literally named the empty string.
   String get discoveryId =>
-      'gate:${element.toLowerCase()}_${family.toLowerCase()}';
+      'gate:${needsElement ? element.toLowerCase() : 'any'}'
+      '_${family.toLowerCase()}';
 }
+
+/// Everything [element]'s dungeon will demand of a descent party beyond its
+/// three entry elements, derived from the authored family gates.
+///
+/// Derived rather than hand-listed on purpose: the descent panel and the
+/// dungeon then cannot disagree about what is required, which is the failure
+/// this whole change exists to remove. A player used to learn a requirement by
+/// walking to a locked door with no key.
+List<DungeonEntryDemand> dungeonEntryDemands(String element) {
+  final layout = kPlanetDungeonLayouts[element];
+  if (layout == null) return const [];
+  final seen = <String>{};
+  final out = <DungeonEntryDemand>[];
+  for (final g in layout.familyGates) {
+    // Two gates wanting the same key are one demand.
+    if (!seen.add('${g.element}/${g.family}')) continue;
+    out.add(
+      DungeonEntryDemand(
+        family: g.family,
+        element: g.needsElement ? g.element : null,
+        label: g.label,
+      ),
+    );
+  }
+  return out;
+}
+
+/// The demands [party] cannot currently meet. Empty means the descent can
+/// finish everything the planet locks.
+List<DungeonEntryDemand> unmetEntryDemands(
+  String element,
+  Iterable<CosmicPartyMember?> party,
+) => [
+  for (final d in dungeonEntryDemands(element))
+    if (!d.satisfiedBy(party)) d,
+];
 
 /// A whole planet dungeon: its rooms, where the run begins, and the authored
 /// identity the engine composes its copy and door gating from.

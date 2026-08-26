@@ -192,7 +192,7 @@ import 'dart:ui';
 
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart'
-    show DungeonAbility, GuardianEncounterRequirement;
+    show DungeonAbility, GuardianEncounterRequirement, kAnyElement;
 
 // ─────────────────────────────────────────────────────────
 // THE LATTICE — nine cells, fixed forever
@@ -913,7 +913,7 @@ const DungeonLayout crystalLayout = DungeonLayout(
     ),
     DungeonFamilyGate(
       objectId: 'A',
-      element: 'Spirit',
+      element: kAnyElement,
       family: 'Pip',
       hintLine: 'Only the smallest slips into this crack',
     ),
@@ -1187,7 +1187,9 @@ const DungeonLayout crystalLayout = DungeonLayout(
         Conduit(
           id: 'A',
           position: Offset(200, 250),
-          requireElement: 'Spirit',
+          // VERB-ONLY: the crack admits a small body; spirit is not
+          // what fits through it.
+          requireElement: kAnyElement,
           requiredFamily: DungeonAbility.smallAccess,
         ),
         // Conduit 'B' is NOT authored as a Conduit: it is the facet font

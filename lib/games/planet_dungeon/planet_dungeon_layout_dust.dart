@@ -678,13 +678,13 @@ const DungeonLayout dustLayout = DungeonLayout(
   familyGates: [
     DungeonFamilyGate(
       objectId: 'armillary',
-      element: 'Air',
+      element: kAnyElement,
       family: 'Wing',
       hintLine: 'Only Air borne on wings crosses a roofless span',
     ),
     DungeonFamilyGate(
       objectId: 'A',
-      element: 'Earth',
+      element: kAnyElement,
       family: 'Horn',
       hintLine: 'Only an Earth horn puts a shoulder through this wall',
     ),
@@ -842,7 +842,8 @@ const DungeonLayout dustLayout = DungeonLayout(
         Conduit(
           id: 'A',
           position: Offset(230, 280),
-          requireElement: 'Earth',
+          // VERB-ONLY: breaching the false wall is a shove, not soil.
+          requireElement: kAnyElement,
           requiredFamily: DungeonAbility.heavyForce,
         ),
       ],

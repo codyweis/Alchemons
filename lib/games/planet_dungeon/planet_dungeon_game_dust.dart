@@ -502,8 +502,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       _setBlockedHint('The rings turn on nothing — this room has no sky');
       return true;
     }
+    // VERB-ONLY: the rings turn on a bared roof, and what this asks for is
+    // somebody off the ground above them. Air the ELEMENT does nothing here
+    // that any other wing could not — so any wing answers.
     final req = const DungeonInteractionRequirement(
-      element: 'Air',
+      element: kAnyElement,
       requiredFamily: DungeonAbility.aerialTraversal,
     );
     switch (evaluateInteraction(a.member, req)) {

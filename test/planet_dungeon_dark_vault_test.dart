@@ -510,17 +510,19 @@ void main() {
       );
     });
 
-    test('the gate budget is legal: two gates, two elements, never two on one '
+    test('the gate budget is legal: two gates, two keys, never two on one '
         'star', () {
       expect(layout.familyGates.length, 2);
+      // The anchor ring was re-audited to VERB-ONLY: it is a narrow opening
+      // and a pip is what fits through it — Poison never did anything to it.
       expect(
-        layout.familyGates.map((x) => '${x.element}${x.family}').toSet(),
-        {'PoisonPip', 'DarkMask'},
+        layout.familyGates.map((x) => x.label).toSet(),
+        {'any PIP', 'Dark MASK'},
       );
       // Every gate's element is one of the planet's three entry slots (§4).
       final entry = kCosmicPlanetEntry['Dark']!.toSet();
       for (final gate in layout.familyGates) {
-        expect(entry, contains(gate.element));
+        if (gate.needsElement) expect(entry, contains(gate.element));
       }
     });
   });

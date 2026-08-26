@@ -914,7 +914,7 @@ const DungeonLayout darkLayout = DungeonLayout(
   familyGates: [
     DungeonFamilyGate(
       objectId: 'anchor_ring',
-      element: 'Poison',
+      element: kAnyElement,
       family: 'Pip',
       hintLine: 'Only a Poison small enough to work inside the ring eats this '
           'rust',

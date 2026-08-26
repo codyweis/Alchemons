@@ -158,7 +158,7 @@ void main() {
       final gated = layout.familyGates.map((g) => g.element).toSet();
       expect(gated.length, 2, reason: 'one gate per entry slot at most');
       for (final g in layout.familyGates) {
-        expect(slots, contains(g.element));
+        if (g.needsElement) expect(slots, contains(g.element));
       }
       // The orrery — the star a first descent must be able to earn — carries
       // no family gate of any kind.

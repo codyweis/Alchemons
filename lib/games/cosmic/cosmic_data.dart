@@ -1785,6 +1785,37 @@ const String kBloodPlanetElement = 'Blood';
 final int kNonBloodPlanetCount =
     kCosmicPlanetEntry.length + kComingSoonDungeons.length - 1;
 
+/// One thing a planet demands of the descent party that the raw element
+/// multiset cannot express: a specific family, sometimes pinned to a specific
+/// element as well.
+class DungeonEntryDemand {
+  const DungeonEntryDemand({
+    required this.family,
+    this.element,
+    required this.label,
+  });
+
+  /// Family name as the roster spells it ('Horn', 'Wing', ...).
+  final String family;
+
+  /// Element the family must also be, or null when any element will do.
+  final String? element;
+
+  /// Descent-panel text: 'Lightning HORN' or 'any HORN'.
+  final String label;
+
+  bool satisfiedBy(Iterable<CosmicPartyMember?> party) {
+    final want = family.toLowerCase();
+    for (final m in party) {
+      if (m == null) continue;
+      if (m.family.toLowerCase() != want) continue;
+      if (element != null && m.element != element) continue;
+      return true;
+    }
+    return false;
+  }
+}
+
 /// True if [party] (the orbiting roster) contains at least the multiset of
 /// elements in [required]. Extra creatures are fine; duplicates in [required]
 /// must each be matched by a distinct party member of that element.

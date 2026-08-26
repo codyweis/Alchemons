@@ -567,7 +567,7 @@ void main() {
       expect(cannula.family, 'Kin');
       // Both elements are entry slots, and they are different slots.
       final entry = kCosmicPlanetEntry['Blood']!;
-      expect(entry, contains(gate.element));
+      if (gate.needsElement) expect(entry, contains(gate.element));
       expect(entry, contains(cannula.element));
       expect(gate.element, isNot(cannula.element));
       // Star 0 carries no gate at all: §6 put a Bloodkin gate on this

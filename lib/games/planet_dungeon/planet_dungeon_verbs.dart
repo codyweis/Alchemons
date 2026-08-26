@@ -148,7 +148,18 @@ enum InteractionResult {
 /// The `min*` stats (1..5; 0 = none) are the one remaining hard requirement
 /// beyond element/family. Output MAGNITUDE (glide length, hint tier, channel
 /// hold…) is scaled by the pure tunables below, never gated here.
+/// Sentinel for [DungeonInteractionRequirement.element] meaning "any element".
+///
+/// Used by gates where the FAMILY VERB does the work and the element is
+/// incidental — a wing that is only being asked to fly, a horn that is only
+/// being asked to shove. Those should answer to any wing or any horn, because
+/// requiring a particular element as well is a second lock the fiction never
+/// asked for. Gates where the element is genuinely load-bearing (Ice setting a
+/// molten pour, Light striking a lodestone) keep naming it.
+const String kAnyElement = '';
+
 class DungeonInteractionRequirement {
+  /// The element that must act, or [kAnyElement] when only the family matters.
   final String element;
   final DungeonAbility? requiredFamily;
   final bool allowRecipe;
@@ -171,6 +182,14 @@ class DungeonInteractionRequirement {
 
   /// True when this object gates on a family (vs. element-only).
   bool get isHardGate => requiredFamily != null;
+
+  /// True when the element is incidental and only the family verb is required.
+  bool get isFamilyOnly => element == kAnyElement && requiredFamily != null;
+
+  /// True when BOTH an element and a family are demanded — the rare marquee
+  /// lock, and the only kind that can make a planet unenterable (§4).
+  bool get isElementAndFamily =>
+      element != kAnyElement && requiredFamily != null;
 
   /// Whether [m] clears all of this requirement's stat gates.
   bool meetsStats(CosmicPartyMember m) =>
@@ -205,7 +224,11 @@ InteractionResult evaluateInteraction(
   DungeonInteractionRequirement req, {
   bool recipeAvailable = false,
 }) {
-  final viaRecipe = m.element != req.element;
+  // kAnyElement: the verb is the whole requirement, so nothing about the
+  // creature's element can refuse it — and there is no recipe to consider,
+  // because there is no missing element to stand in for.
+  final anyElement = req.element == kAnyElement;
+  final viaRecipe = !anyElement && m.element != req.element;
   if (viaRecipe && !(req.allowRecipe && recipeAvailable)) {
     return InteractionResult.blockedElement;
   }

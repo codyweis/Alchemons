@@ -360,8 +360,10 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       if ((a.position - ring).distance > _kVaultReach) continue;
 
       if (!vault.anchorsOpen.contains(an.id)) {
+        // VERB-ONLY: the anchor is a narrow opening and the requirement is
+        // fitting through it. Poison was never doing anything to it.
         const req = DungeonInteractionRequirement(
-          element: 'Poison',
+          element: kAnyElement,
           requiredFamily: DungeonAbility.smallAccess,
         );
         switch (evaluateInteraction(a.member, req)) {
