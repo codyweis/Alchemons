@@ -798,14 +798,25 @@ void main() {
             'cell\'s own reach', () {
           for (final room in layout.rooms.values) {
             for (final c in room.conduits) {
-              if (c.requiredFamily != null) continue; // channelled by hand
-              expect(
-                c.struckByStorm,
-                isTrue,
-                reason:
-                    'conduit ${c.id} in ${room.id} answers neither a hand nor '
-                    'the storm — nothing can ever light it',
-              );
+              // Hand-channelled is `!struckByStorm`, NOT `requiredFamily !=
+              // null`: a conduit with no family is ELEMENT-ONLY and perfectly
+              // reachable by hand. Filtering on the family used to hide that
+              // distinction, and dropping a gate to make a rite element-only
+              // then read as "the storm must light it" and failed here.
+              if (!c.struckByStorm) {
+                // It must ask for SOMETHING. An element, a family, or both —
+                // a verb-only rite (Dust, Crystal) names no element on
+                // purpose, and that is fine. Naming neither is not.
+                expect(
+                  c.requireElement.isNotEmpty || c.requiredFamily != null,
+                  isTrue,
+                  reason:
+                      'conduit ${c.id} in ${room.id} is hand-channelled but '
+                      'asks for neither an element nor a family, so nothing '
+                      'can ever light it',
+                );
+                continue;
+              }
               expect(
                 room.stormRods,
                 isNotEmpty,

@@ -804,10 +804,14 @@ const DungeonLayout spiritLayout = DungeonLayout(
   // part (§4): the sight that pierces the hidden, what the smallest doors
   // admit, and one the ground cannot keep.
   riddle: [
-    'Send me a Spirit Mask, to read a name off a stone that was never given one;',
+    'Send me Spirit: nothing in me was given a name you could read;',
     'a Water Pip, to set a mark finer than a grave-cutter\'s hand;',
     'and Crystal, for half of my roads are only remembered.',
   ],
+  // §4 budget: ONE hard gate (the grave sigil's Water Pip). The rite's name
+  // stone was a Spirit MASK and is element-only now — the cold world is
+  // what answers there, and any Spirit hand stands in it.
+  // Superseded lines below describe the old pair:
   // §4 budget: TWO hard gates, on two different stars and two different entry
   // slots.
   //
@@ -829,12 +833,6 @@ const DungeonLayout spiritLayout = DungeonLayout(
       element: 'Water',
       family: 'Pip',
       hintLine: 'Only the smallest hand sets a mark this fine',
-    ),
-    DungeonFamilyGate(
-      objectId: 'A',
-      element: 'Spirit',
-      family: 'Mask',
-      hintLine: 'Only a second sight reads a stone with no name on it',
     ),
   ],
   rooms: {
@@ -1105,8 +1103,9 @@ const DungeonLayout spiritLayout = DungeonLayout(
         Conduit(
           id: 'A',
           position: Offset(190, 250),
+          // ELEMENT-ONLY. This was a Spirit MASK gate; the name stone answers
+          // the cold world itself, and any Spirit hand stands in it.
           requireElement: 'Spirit',
-          requiredFamily: DungeonAbility.insight,
         ),
         // Conduit 'B' is NOT authored as a Conduit: it is the grave-lamp
         // below, an element-only Crystal object this planet's module owns and

@@ -32,6 +32,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,9 +54,11 @@ CosmicPartyMember _member(int slot, String element, String family) =>
       staminaMax: 3,
     );
 
-/// The §6 ideal trio: Bloodkin · Darkmask · Lightmask.
+/// The §6 ideal trio: Bloodmane · Darkmask · Lightmask. (Was Bloodkin — a Kin
+/// is the rarest thing the game can ask for, and hanging the terminal
+/// planet's rite on one made Hemavorn a wall rather than a finale.)
 List<CosmicPartyMember> _idealTrio() => [
-  _member(0, 'Blood', 'kin'),
+  _member(0, 'Blood', 'mane'),
   _member(1, 'Dark', 'mask'),
   _member(2, 'Light', 'mask'),
 ];
@@ -562,23 +565,22 @@ void main() {
 
   // ─────────────────────────────────────────────────────────
   group('§4 — ELEMENT OPENS, FAMILY UNLOCKS', () {
-    test('two gates, on two objects, on two entry slots, never two on one '
-        'star', () {
-      expect(layout.familyGates.length, 2);
-      final gate = layout.familyGateFor('collateral_cock')!;
-      expect(gate.element, 'Dark');
-      expect(gate.family, 'Mask');
+    test('ONE gate, on the rite, never on a star', () {
+      // Was two: a Dark MASK on the collateral cock and a Blood KIN on the
+      // cannula. The cock is element-only Dark now (grafting is an act on the
+      // vessel), and the cannula wants a Blood MANE — a Kin is the rarest
+      // thing the game can ask for, and the terminal planet should not be a
+      // wall.
+      expect(layout.familyGates.length, 1);
+      expect(layout.familyGateFor('collateral_cock'), isNull);
       final cannula = layout.familyGateFor('A')!;
       expect(cannula.element, 'Blood');
-      expect(cannula.family, 'Kin');
-      // Both elements are entry slots, and they are different slots.
+      expect(cannula.family, 'Mane');
       final entry = kCosmicPlanetEntry['Blood']!;
-      if (gate.needsElement) expect(entry, contains(gate.element));
       expect(entry, contains(cannula.element));
-      expect(gate.element, isNot(cannula.element));
       // Star 0 carries no gate at all: §6 put a Bloodkin gate on this
       // planet's FIRST star and §4's first-descent guarantee wins, so it
-      // moved onto the rite's cannula.
+      // moved onto the rite's cannula — and then softened from Kin to Mane.
       for (final o in kHeartOstia) {
         expect(entry, contains(o.element));
       }
@@ -604,26 +606,29 @@ void main() {
       expect(stars, contains(0));
     });
 
-    test('the cock refuses everything but a Dark MASK, and the seal '
-        'remembers', () {
-      final clouds = <String>{};
-      final g = harness(_plainTrio(), onCloud: clouds.add);
+    test('the cock answers Dark, and only Dark', () {
+      // WAS a Dark MASK gate. Grafting is an act on the vessel and Dark is
+      // what the vessel answers to; the family was a second lock on a planet
+      // that already asks for a Mane.
+      final g = harness(_plainTrio());
       g.entryDoorRevealed = true;
       final cock = kHeartCocks.firstWhere((c) => c.roomId == 'aortic_arch');
-      // A Dark WING is the right element and the wrong family: a clean
-      // refusal, and the chip stamps.
+      // Any Dark hand now grafts, whatever its family.
       act(g, dark, 'aortic_arch', cock.position);
-      expect(g.heart.cocksTurned, isEmpty);
-      expect(clouds, contains('gate:dark_mask'));
-      // A Blood hand does not even get that far.
-      act(g, blood, 'aortic_arch', cock.position);
-      expect(g.heart.cocksTurned, isEmpty);
+      expect(g.heart.cocksTurned, isNotEmpty);
+      // A Blood hand still does not.
+      final g2 = harness(_plainTrio())..entryDoorRevealed = true;
+      act(g2, blood, 'aortic_arch', cock.position);
+      expect(g2.heart.cocksTurned, isEmpty);
     });
 
-    test('the cannula refuses everything but a Blood KIN', () {
+    test('the cannula refuses everything but a Blood MANE', () {
+      // WAS a Blood KIN. A Kin is the rarest thing the game can ask for, and
+      // hanging the terminal planet's rite on one made Hemavorn a wall.
       final g = harness(_plainTrio());
       g.entryDoorRevealed = true;
       final conduit = layout.rooms['myocardium']!.conduits.single;
+      expect(conduit.requiredFamily, DungeonAbility.terrainTrail);
       act(g, blood, 'myocardium', conduit.position);
       expect((g.conduitEnergy['A'] ?? 0) > 0, isFalse);
     });
@@ -722,7 +727,14 @@ void main() {
 
     test('a Blood KIN holds a vein open past the turn (a §4 family BONUS, '
         'never a requirement)', () {
-      final g = harness(_idealTrio());
+      // The ideal trio no longer CARRIES a Kin (the rite wants a Mane now), so
+      // the bonus needs a party that brought one — which is exactly the point
+      // of it: a Kin is worth having on Hemavorn without being required.
+      final g = harness([
+        _member(0, 'Blood', 'kin'),
+        _member(1, 'Dark', 'mask'),
+        _member(2, 'Light', 'mask'),
+      ]);
       g.entryDoorRevealed = true;
       advanceTo(g, PulsePhase.systole);
       // Walk the beat to the last second of the squeeze: a Kin steadies a vein
@@ -964,7 +976,7 @@ void main() {
   group('the planet is registered whole', () {
     test('entry, ideal families and the coming-soon set agree', () {
       expect(kCosmicPlanetEntry['Blood'], ['Blood', 'Dark', 'Light']);
-      expect(kDungeonIdealFamilies['Blood'], ['Kin', 'Mask', 'Mask']);
+      expect(kDungeonIdealFamilies['Blood'], ['Mane', 'Mask', 'Mask']);
       expect(kComingSoonDungeons, isNot(contains('Blood')));
       expect(kPlanetDungeonLayouts.containsKey('Blood'), isTrue);
       // Index-aligned: family[i] pairs with element[i].

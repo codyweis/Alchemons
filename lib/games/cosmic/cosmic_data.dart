@@ -1752,7 +1752,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Waterpip · Crystalwing
   'Dark': ['Mask', 'Pip', 'Mane'], // Darkmask · Poisonpip · Spiritmane
   'Light': ['Mask', 'Mask', 'Pip'], // Lightmask · Crystalmask · Spiritpip
-  'Blood': ['Kin', 'Mask', 'Mask'], // Bloodkin · Darkmask · Lightmask
+  'Blood': ['Mane', 'Mask', 'Mask'], // Bloodmane · Darkmask · Lightmask
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They

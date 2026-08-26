@@ -697,8 +697,12 @@ class Conduit {
   final Offset position;
   final String requireElement;
 
-  /// Family the conduit gates on. null = not channelled at all — those conduits
-  /// are skipped by the channel verb and answer the storm instead.
+  /// Family the conduit gates on, or null for ELEMENT-ONLY — any creature of
+  /// [requireElement] channels it.
+  ///
+  /// Null used to mean "not channelled by hand at all"; that meaning now lives
+  /// on [struckByStorm], where it belongs. The two were conflated, so dropping
+  /// a family gate to make a rite element-only made it unlightable instead.
   final DungeonAbility? requiredFamily;
 
   /// True for a conduit the storm-cell's leader may terminate on (conduit B).

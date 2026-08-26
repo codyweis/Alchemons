@@ -341,10 +341,10 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         return true;
       }
 
-      const req = DungeonInteractionRequirement(
-        element: 'Dark',
-        requiredFamily: DungeonAbility.insight,
-      );
+      // ELEMENT-ONLY. This was a Dark MASK gate; grafting a collateral is an
+      // act on the vessel, and Dark is what the vessel answers to — the
+      // family was a second lock on a planet that already asks for a Mane.
+      const req = DungeonInteractionRequirement(element: 'Dark');
       switch (evaluateInteraction(a.member, req)) {
         case InteractionResult.passed:
         case InteractionResult.passedViaRecipe:

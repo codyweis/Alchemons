@@ -2555,7 +2555,7 @@ class PlanetDungeonGame extends FlameGame {
         // Pure atmosphere — the gate itself states its keys on a refused
         // offering (see _energizeConduit), never on proximity.
         _setAmbientHint('The twin pylons sleep');
-      } else if (c.requiredFamily == null) {
+      } else if (c.struckByStorm) {
         _setAmbientHint('The air prickles around this conductor');
       } else {
         // Flavour only: under v2 a gated conduit answers one family, so any
@@ -7598,7 +7598,12 @@ class PlanetDungeonGame extends FlameGame {
   /// family exclusives" entry is superseded — see docs/dungeons.md §4.)
   bool _tryChannel(DungeonCreature a) {
     for (final c in currentRoom.conduits) {
-      if (c.requiredFamily == null) continue; // storm-struck conduits (e.g. B)
+      // Skip on struckByStorm, NOT on a null family. A conduit with no family
+      // is ELEMENT-ONLY and very much channelled by hand; only a storm-struck
+      // one is out of a hand's reach. Conflating the two silently made an
+      // element-only rite impossible to light (caught by the layout
+      // invariant "answers neither a hand nor the storm").
+      if (c.struckByStorm) continue;
       if ((a.position - c.position).distance > 34) continue;
       final r = evaluateInteraction(a.member, c.requirement);
       switch (r) {

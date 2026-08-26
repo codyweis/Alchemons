@@ -1098,10 +1098,14 @@ const DungeonLayout bloodLayout = DungeonLayout(
   // (§4): the hand that steadies old engines, the sight that pierces the
   // hidden, and the light that shows a thing for what it is.
   riddle: [
-    'Send me a Blood Kin: my engine has not kept its own time in an age;',
-    'a Dark Mask, for the roads I have left are inside the wall and unlit;',
+    'Send me a Blood Mane: my engine has not kept its own time in an age;',
+    'Dark, for the roads I have left are inside the wall and unlit;',
     'and Light, because half of what I offer you is rotten.',
   ],
+  // §4 budget: ONE hard gate (the cannula's Blood Mane). It was two — a
+  // Blood KIN on the rite and a Dark MASK on the collateral cock — until a
+  // Kin was judged too rare a thing to hang the terminal planet on.
+  // Superseded lines below describe the old pair:
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the priming) is
   // deliberately UNGATED and uses all three elements at full power, so any
@@ -1110,19 +1114,20 @@ const DungeonLayout bloodLayout = DungeonLayout(
   // guarantee wins, so that gate moved onto the rite's cannula. The pulse
   // itself has no verb at all: a clock you cannot re-shape is only safe
   // because it comes round, and it always does.
+  // ONE gate, and not a Kin. A Kin is the rarest thing a player can be asked
+  // for, and hanging the terminal planet's rite on one made Hemavorn a wall
+  // rather than a finale. The cannula answers a Blood MANE instead — a vein
+  // held open behind you is the same act the planet asks everywhere else.
+  //
+  // The collateral cock's Dark MASK gate is gone with it: grafting is an act
+  // on a vessel, and Dark alone is what the vessel answers to. The graft is
+  // element-only now (see planet_dungeon_game_blood.dart).
   familyGates: [
-    DungeonFamilyGate(
-      objectId: 'collateral_cock',
-      element: 'Dark',
-      family: 'Mask',
-      hintLine:
-          'Only a Dark that sees inside an unlit vessel can graft this cock',
-    ),
     DungeonFamilyGate(
       objectId: 'A',
       element: 'Blood',
-      family: 'Kin',
-      hintLine: 'Only a Blood the heart already knows will steady this cannula',
+      family: 'Mane',
+      hintLine: 'Only a Blood that leaves a road behind it holds this cannula',
     ),
   ],
   rooms: {
@@ -1419,7 +1424,7 @@ const DungeonLayout bloodLayout = DungeonLayout(
           id: 'A',
           position: Offset(250, 270),
           requireElement: 'Blood',
-          requiredFamily: DungeonAbility.ancientStabilize,
+          requiredFamily: DungeonAbility.terrainTrail,
         ),
       ],
       sanguine: SanguineChamber(balance: Offset(560, 270)),

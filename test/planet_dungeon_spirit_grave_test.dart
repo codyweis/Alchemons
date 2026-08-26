@@ -744,13 +744,19 @@ void main() {
   });
 
   group('the rite and the guardian', () {
-    test('the name stone is a HARD Spirit+Mask gate on the rite, not on a '
-        'star', () {
-      final gate = layout.familyGateFor('A')!;
-      expect(gate.element, 'Spirit');
-      expect(gate.family, 'Mask');
+    test('the name stone is ELEMENT-ONLY Spirit; the one gate is the sigil',
+        () {
+      // WAS a Spirit MASK gate. The cold world itself is what answers at the
+      // name stone, and any Spirit hand stands in it — the family was a
+      // second lock on the rite of a planet that already gates its sigil.
+      expect(layout.familyGateFor('A'), isNull);
+      final conduit = layout.rooms['mourners_walk']!.conduits.single;
+      expect(conduit.requireElement, 'Spirit');
+      expect(conduit.requiredFamily, isNull);
+      expect(conduit.struckByStorm, isFalse,
+          reason: 'no family does NOT mean the storm lights it');
       // §4: max one gate per star, and Star 0 carries none.
-      expect(layout.familyGates, hasLength(2));
+      expect(layout.familyGates, hasLength(1));
       expect(layout.familyGateFor('grave_sigil'), isNotNull);
     });
 
