@@ -183,6 +183,8 @@ class _DungeonRow extends StatelessWidget {
     final entry = kCosmicPlanetEntry[element] ?? const [];
     final families = kDungeonIdealFamilies[element] ?? const [];
     final guardian = kRaidGuardianIds[element];
+    final layout = kPlanetDungeonLayouts[element];
+    final gates = layout?.familyGates ?? const <DungeonFamilyGate>[];
 
     // "Icemane · Lightmask · Airwing" — the team the descent will fabricate,
     // spelled the way the riddle and the docs spell it.
@@ -284,6 +286,62 @@ class _DungeonRow extends StatelessWidget {
                                 letterSpacing: 1.1,
                               ),
                             ),
+                          // THE ACCESS TEXT — the verse the gate speaks and
+                          // the keys it will actually check. Shown here for
+                          // the same reason the descent panel shows it: this
+                          // screen skips the gate, so without it there is no
+                          // way to read what a planet asks for before being
+                          // dropped inside it.
+                          if (layout != null) ...[
+                            const SizedBox(height: 6),
+                            for (final line in layout.riddle)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 1),
+                                child: Text(
+                                  line,
+                                  style: TextStyle(
+                                    color: t.textSecondary.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                    fontSize: 10.5,
+                                    height: 1.35,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                          ],
+                          if (gates.isNotEmpty) ...[
+                            const SizedBox(height: 5),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                for (final g in gates)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(3),
+                                      border: Border.all(
+                                        color: accent.withValues(alpha: 0.55),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      g.label.toUpperCase(),
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        color: accent,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.9,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
                           // A missing family is not a missing element: the
                           // descent still happens, but a hard family gate
                           // inside will have no key. Better said here than

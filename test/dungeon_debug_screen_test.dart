@@ -96,6 +96,36 @@ void main() {
     }
   });
 
+  testWidgets('every row carries the planet\'s access text', (tester) async {
+    // This screen SKIPS the gate, so it is the only place a tester can read
+    // what a planet asks for before being dropped inside it.
+    await tester.pumpWidget(harness());
+    await settle(tester);
+    for (final entry in kPlanetDungeonLayouts.entries) {
+      for (final line in entry.value.riddle) {
+        expect(
+          find.text(line),
+          findsOneWidget,
+          reason: '${entry.key}: riddle line missing from the debug row',
+        );
+      }
+    }
+  });
+
+  testWidgets('every declared gate is shown as a key', (tester) async {
+    await tester.pumpWidget(harness());
+    await settle(tester);
+    for (final entry in kPlanetDungeonLayouts.entries) {
+      for (final gate in entry.value.familyGates) {
+        expect(
+          find.text(gate.label.toUpperCase()),
+          findsWidgets,
+          reason: '${entry.key}: gate "${gate.label}" not shown',
+        );
+      }
+    }
+  });
+
   testWidgets('the count in the header matches the rows', (tester) async {
     await tester.pumpWidget(harness());
     await settle(tester);
