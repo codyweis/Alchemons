@@ -95,8 +95,116 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
     flowSpeed: 0.6,
     seed: 58.0,
   ),
-  // Other 11 elements: add config + built/<el>.frag to enable. Until then they
-  // use the gradient fallback automatically.
+  // Lava (Molten Reliquary) — foundry dark, molten runnels, white-hot pours.
+  'Lava': DungeonSkyConfig(
+    colorA: Color(0xFF0B0705), // cold basalt
+    colorB: Color(0xFFC2400C), // molten orange
+    colorC: Color(0xFFFFE0A3), // white-hot metal
+    intensity: 1.05,
+    noiseScale: 2.1,
+    flowSpeed: 0.7,
+    seed: 33.0,
+  ),
+  // Poison (Venom Monastery) — settled miasma, spore pallor, rot beneath.
+  'Poison': DungeonSkyConfig(
+    colorA: Color(0xFF0A1207), // rot dark
+    colorB: Color(0xFF3E6B2A), // venous green
+    colorC: Color(0xFFC8E39A), // spore pallor
+    intensity: 0.95,
+    noiseScale: 2.0,
+    flowSpeed: 0.45, // gas settles; nothing here hurries
+    seed: 41.0,
+  ),
+  // Ice (Frozen Observatory) — stars through the ice, aurora, faceted frost.
+  'Ice': DungeonSkyConfig(
+    colorA: Color(0xFF060B16), // night beyond the ice
+    colorB: Color(0xFF3E7FA8), // glacier blue
+    colorC: Color(0xFFDFF2FF), // frost white
+    intensity: 1.0,
+    noiseScale: 2.4,
+    flowSpeed: 0.5,
+    seed: 52.0,
+  ),
+  // Mud (Sinking Altar) — standing water, silt, ground mist, swamp gas.
+  'Mud': DungeonSkyConfig(
+    colorA: Color(0xFF0C0A06), // peat dark
+    colorB: Color(0xFF4A3A20), // silt brown
+    colorC: Color(0xFFB9AE93), // pale mist
+    intensity: 0.9,
+    noiseScale: 2.2,
+    flowSpeed: 0.35, // the fen is the slowest sky in the set
+    seed: 64.0,
+  ),
+  // Dust (Ruins of Time) — strata, wind sheets, suspended grit, dry haze.
+  'Dust': DungeonSkyConfig(
+    colorA: Color(0xFF120D08), // buried dark
+    colorB: Color(0xFF8A6A3C), // ochre
+    colorC: Color(0xFFE4D6BA), // bleached bone
+    intensity: 0.95,
+    noiseScale: 2.3,
+    flowSpeed: 0.6,
+    seed: 75.0,
+  ),
+  // Crystal (Prism Labyrinth) — cut facets and split light.
+  'Crystal': DungeonSkyConfig(
+    colorA: Color(0xFF0A0814), // stone dark
+    colorB: Color(0xFF6B4FA8), // lattice violet
+    colorC: Color(0xFFF2ECFF), // white refraction
+    intensity: 1.0,
+    noiseScale: 2.2,
+    flowSpeed: 0.5,
+    seed: 86.0,
+  ),
+  // Plant (Verdant Crypt) — canopy dapple, green-gold shafts, pollen.
+  'Plant': DungeonSkyConfig(
+    colorA: Color(0xFF08120A), // loam dark
+    colorB: Color(0xFF2F6B34), // leaf green
+    colorC: Color(0xFFF0DC96), // sun gold
+    intensity: 1.0,
+    noiseScale: 2.3,
+    flowSpeed: 0.5,
+    seed: 97.0,
+  ),
+  // Spirit (Echo Grave) — one field doubled, ghost fringe, drifting wisps.
+  'Spirit': DungeonSkyConfig(
+    colorA: Color(0xFF080A10), // grave dark
+    colorB: Color(0xFF4E7C86), // spectral cyan
+    colorC: Color(0xFFD6EEF2), // wisp white
+    intensity: 0.95,
+    noiseScale: 2.1,
+    flowSpeed: 0.45,
+    seed: 108.0,
+  ),
+  // Dark (Eclipse Vault) — totality: black disc, corona, shadow bands.
+  'Dark': DungeonSkyConfig(
+    colorA: Color(0xFF040407), // void
+    colorB: Color(0xFF2A2450), // umbral indigo
+    colorC: Color(0xFFFFF3D0), // corona
+    intensity: 1.0,
+    noiseScale: 2.0,
+    flowSpeed: 0.4,
+    seed: 119.0,
+  ),
+  // Light (Beacon Archive) — soft volumetric god-rays and dust in the beams.
+  'Light': DungeonSkyConfig(
+    colorA: Color(0xFF14100A), // hall shadow
+    colorB: Color(0xFF8A7248), // warm stone
+    colorC: Color(0xFFFFF6DC), // beam white
+    intensity: 1.0,
+    noiseScale: 2.0,
+    flowSpeed: 0.4, // the light sweeps slowly; the player aims it
+    seed: 130.0,
+  ),
+  // Blood (Sanguine Orrery) — the sky itself beats.
+  'Blood': DungeonSkyConfig(
+    colorA: Color(0xFF12040A), // venous dark
+    colorB: Color(0xFF9E1B2F), // arterial red
+    colorC: Color(0xFFFFC9BC), // oxygenated highlight
+    intensity: 1.0,
+    noiseScale: 2.0,
+    flowSpeed: 0.8, // drives the pulse — see blood.src.frag
+    seed: 141.0,
+  ),
 };
 
 class DungeonSky {

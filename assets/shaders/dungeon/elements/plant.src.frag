@@ -1,0 +1,50 @@
+// PLANT — Verdanthos, the Verdant Crypt. Under a canopy: shafts of green-gold
+// light coming down through leaves that move, dappling everything below, with
+// pollen turning slowly in the beams. Soft and organic — the deliberate
+// opposite of Crystal's hard facets, and warmer than Poison's flat miasma.
+// uColorA loam dark, uColorB leaf green, uColorC sun gold.
+void main() {
+  vec2 uv = dungeonUV();
+  float aspect = uResolution.x / max(uResolution.y, 1.0);
+  vec2 p = vec2(uv.x * aspect, uv.y);
+  float t = uTime * uFlowSpeed;
+
+  // Light comes from ABOVE and dies before it reaches the floor.
+  vec3 col = mix(uColorB * 0.45, uColorA, smoothstep(0.0, 1.0, uv.y));
+
+  // The canopy itself: a slowly swaying mass overhead. Two warped octaves so
+  // the leaves overlap instead of tiling.
+  vec2 sway = vec2(sin(t * 0.35) * 0.05, cos(t * 0.27) * 0.03);
+  vec2 cq = p * uNoiseScale * 1.7 + sway;
+  float leaves = fbm(cq + fbm(cq * 0.6 + uSeed) * 0.9);
+  col = mix(col, uColorB, smoothstep(0.35, 0.8, leaves)
+                          * smoothstep(0.9, 0.1, uv.y) * 0.55);
+
+  // DAPPLED SHAFTS. Gaps in that same canopy field let light through, so the
+  // dapple and the leaves agree with each other rather than being two
+  // unrelated layers.
+  float gap = smoothstep(0.62, 0.9, 1.0 - leaves);
+  float fall = smoothstep(1.0, 0.15, uv.y);
+  col += uColorC * gap * fall * 0.5 * uIntensity;
+
+  // A few broad shafts sloping down, brightest near the top.
+  float shaft = pow(0.5 + 0.5 * sin(p.x * 4.0 - uv.y * 2.2 + t * 0.15), 8.0);
+  col += uColorC * shaft * fall * 0.16 * uIntensity;
+
+  // Pollen: slow, warm, and it drifts UP and sideways in the light.
+  for (int layer = 0; layer < 2; layer++) {
+    float fl = float(layer);
+    float scale = 28.0 + fl * 22.0;
+    vec2 gg = vec2(p.x + sin(t * 0.5 + fl * 2.0) * 0.06,
+                   p.y - t * (0.04 + fl * 0.03)) * scale;
+    vec2 cc = floor(gg);
+    float rr = hash(cc + uSeed + fl * 5.5);
+    float dd = length(fract(gg) - vec2(hash(cc + 3.3), hash(cc + 7.7)));
+    float glow = 0.5 + 0.5 * sin(t * 2.0 + rr * 22.0);
+    col += uColorC * step(0.980, rr) * smoothstep(0.10, 0.0, dd)
+         * glow * (0.30 - fl * 0.1);
+  }
+
+  col *= 1.0 - smoothstep(0.55, 1.05, length(uv - vec2(0.5, 0.55))) * 0.4;
+  fragColor = vec4(col, 1.0);
+}

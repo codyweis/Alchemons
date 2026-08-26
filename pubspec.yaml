@@ -82,3 +82,14 @@ flutter:
   - assets/shaders/dungeon/built/earth.frag
   - assets/shaders/dungeon/built/lightning.frag
   - assets/shaders/dungeon/built/steam.frag
+  - assets/shaders/dungeon/built/lava.frag
+  - assets/shaders/dungeon/built/poison.frag
+  - assets/shaders/dungeon/built/ice.frag
+  - assets/shaders/dungeon/built/mud.frag
+  - assets/shaders/dungeon/built/dust.frag
+  - assets/shaders/dungeon/built/crystal.frag
+  - assets/shaders/dungeon/built/plant.frag
+  - assets/shaders/dungeon/built/spirit.frag
+  - assets/shaders/dungeon/built/dark.frag
+  - assets/shaders/dungeon/built/light.frag
+  - assets/shaders/dungeon/built/blood.frag
