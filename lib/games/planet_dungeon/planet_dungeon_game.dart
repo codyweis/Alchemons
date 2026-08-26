@@ -252,8 +252,7 @@ class _RaidDeathFx {
   bool get done => t >= duration;
 
   /// 0→1 within each beat; 0 before it starts, 1 after it ends.
-  double _beat(double start, double len) =>
-      ((t - start) / len).clamp(0.0, 1.0);
+  double _beat(double start, double len) => ((t - start) / len).clamp(0.0, 1.0);
 
   double get seizeT => _beat(0, seize);
   double get implodeT => _beat(seize, implode);
@@ -477,7 +476,6 @@ class PlanetDungeonGame extends FlameGame {
       ? null
       : Duration(milliseconds: (_raidFightRemaining! * 1000).round());
 
-
   // TEMPORARY probe: how much of the frame is the dungeon itself?
   static double _probeLastUpdateMs = 0;
   static double _pu = 0;
@@ -523,6 +521,7 @@ class PlanetDungeonGame extends FlameGame {
     _setHint('The storm outlasts you — the raid is lost', 4.0);
     onRaidExpired?.call();
   }
+
   final List<Projectile> combatProjectiles = [];
   final List<_DungeonWingBeam> _activeWingBeams = [];
   final List<_KinBeamFx> _kinBeams = [];
@@ -961,8 +960,8 @@ class PlanetDungeonGame extends FlameGame {
     }
     // A discontinuity (swap / death-swap / teleport) is bigger than any single
     // frame of walking — pan to it; otherwise track tightly (no follow lag).
-    final jumped = activeIndex != _camActiveIndex ||
-        (_camFocus! - target).distance > 90;
+    final jumped =
+        activeIndex != _camActiveIndex || (_camFocus! - target).distance > 90;
     _camActiveIndex = activeIndex;
     if (jumped) _camPanning = true;
     if (_camPanning) {
@@ -1807,10 +1806,62 @@ class PlanetDungeonGame extends FlameGame {
   void _setHint(String msg, [double ttl = 2.4]) =>
       _emitHint(msg, _hintChannelOverride ?? DungeonHintChannel.objective, ttl);
 
-  /// THE RESOLVER. Priority decides, not call order: a lower channel never
-  /// evicts a higher one that is still on screen; an equal-or-higher one may.
-  /// Returns true when the line actually took the capsule.
+  /// True only while [askForRoomHint] is running — the one moment the dungeon
+  /// is allowed to speak.
+  bool _hintAsked = false;
+
+  /// The last EARNED line the world produced, kept but NOT shown.
+  ///
+  /// Two kinds of line survive being unasked-for, because both carry something
+  /// a picture cannot:
+  ///
+  ///  • a REFUSAL — a shake tells you nothing happened, not WHICH of "too far"
+  ///    / "wrong element" / "wrong family" / "not yet" it was;
+  ///  • a READING — some verbs (Water's canal reveal, a Mask's old insight)
+  ///    have information as their entire payload, and dropping the line would
+  ///    make the verb do nothing at all.
+  ///
+  /// Narration and flavour are dropped outright; these are held and handed
+  /// over the moment the player asks, which is exactly when they want them.
+  String? _pendingAnswer;
+  DungeonHintChannel _pendingChannel = DungeonHintChannel.blocked;
+
+  /// Whether something is waiting to be asked about — drives the HINT
+  /// button's pulse, so the affordance advertises itself at the moment it has
+  /// something worth saying.
+  bool get hintHasAnswer => _pendingAnswer != null;
+
+  /// Set on a refusal so the world can flash at the point of contact. The
+  /// renderer eases this to zero; nothing about it is text.
+  double refusalFlash = 0;
+
+  /// THE RESOLVER — and the whole speech policy (direction change).
+  ///
+  /// THE DUNGEON DOES NOT NARRATE. Text used to answer almost every tap: 382
+  /// untagged world-response lines, 83 ambient flavour lines, a reading on
+  /// every Mask press. Feedback that constant teaches the player to stop
+  /// reading the capsule, which costs exactly the moments that matter. The
+  /// animation and the world state are the feedback now; the capsule speaks
+  /// only when the player presses HINT.
+  ///
+  /// Priority still decides between lines within an asked-for reading, so a
+  /// refusal cannot be stomped by a lower channel mid-read.
   bool _emitHint(String msg, DungeonHintChannel channel, [double ttl = 2.4]) {
+    if (!_hintAsked) {
+      // Unasked. A refusal or a reading is REMEMBERED; narration and flavour
+      // are dropped. A refusal also flashes at the creature, because being
+      // turned away needs to be legible in the instant it happens.
+      if (channel == DungeonHintChannel.blocked ||
+          channel == DungeonHintChannel.insight) {
+        _pendingAnswer = msg;
+        _pendingChannel = channel;
+        if (channel == DungeonHintChannel.blocked) refusalFlash = 1.0;
+        // True so callers that treat "I answered them" as having consumed the
+        // action keep working — it happened, it just did not speak.
+        return true;
+      }
+      return false;
+    }
     final live = hintText != null && _hintTtl > 0;
     if (live && channel.priority < hintChannel.priority) return false;
     hintText = msg;
@@ -2215,6 +2266,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_cloudPickupCooldown > 0) _cloudPickupCooldown -= dt;
     if (_guardianStrikeCooldown > 0) _guardianStrikeCooldown -= dt;
     if (revealFlash > 0) revealFlash -= dt;
+    // The refusal pulse. Short — it is punctuation, not an animation.
+    if (refusalFlash > 0) refusalFlash = max(0, refusalFlash - dt * 2.2);
     if (guardianHitFlash > 0) guardianHitFlash -= dt;
     final relicFx = _relicFx;
     if (relicFx != null) {
@@ -2423,7 +2476,10 @@ class PlanetDungeonGame extends FlameGame {
         // ONCE per attempt (§5.6 BLOCKED), re-armed when it steps out.
         final key = '$_updraftBlockPrefix${room.id}#$i';
         refusing.add(key);
-        _setBlockedHintOnce(key, 'The thermal casts you off — needs more Speed');
+        _setBlockedHintOnce(
+          key,
+          'The thermal casts you off — needs more Speed',
+        );
         continue;
       }
       riding ??= cur;
@@ -2797,7 +2853,11 @@ class PlanetDungeonGame extends FlameGame {
           // One rejection per approach, not per frame — without this the
           // loom sprays wisps at 60/sec while you stand on a wrong anchor.
           _loomRejectCooldown = 2.2;
-          _setHint(
+          // A REFUSAL, so it belongs on the blocked channel — it was untagged,
+          // which meant it spoke as ordinary world-response and could be
+          // stomped by anything. Now that only refusals survive to be asked
+          // about, an untagged one is lost entirely, so the mis-tag matters.
+          _setBlockedHint(
             an.clue.isNotEmpty
                 ? 'Incorrect placement — this anchor calls for “${an.clue}”'
                 : 'Incorrect placement — this anchor calls for a different echo',
@@ -5835,7 +5895,6 @@ class PlanetDungeonGame extends FlameGame {
   /// numbers over trash mobs would clutter the thing the player is reading.
   bool get _showsDamageNumbers => isRaid || guardianAwake;
 
-
   // ---------------------------------------------------------------------
   // Raid death sequence
   // ---------------------------------------------------------------------
@@ -5902,10 +5961,7 @@ class PlanetDungeonGame extends FlameGame {
       final s = fx.seizeT;
       // Shudder grows as it loses the fight.
       final shake = 3.0 * s;
-      final jitter = Offset(
-        sin(fx.t * 47) * shake,
-        cos(fx.t * 39) * shake,
-      );
+      final jitter = Offset(sin(fx.t * 47) * shake, cos(fx.t * 39) * shake);
       final body = c + jitter;
       canvas.drawCircle(
         body,
@@ -5914,9 +5970,11 @@ class PlanetDungeonGame extends FlameGame {
       );
       // Cracks: fixed spokes that brighten and lengthen.
       final crack = Paint()
-        ..color = Color.lerp(fx.color, Colors.white, 0.7)!.withValues(
-          alpha: 0.25 + 0.75 * s,
-        )
+        ..color = Color.lerp(
+          fx.color,
+          Colors.white,
+          0.7,
+        )!.withValues(alpha: 0.25 + 0.75 * s)
         ..strokeWidth = 1.5 + 2.5 * s
         ..strokeCap = StrokeCap.round;
       for (var i = 0; i < 7; i++) {
@@ -7298,26 +7356,31 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
     // Otherwise fall back to the creature's family ability.
+    // Nothing here TALKS any more. A press with no object in reach used to
+    // answer with a sentence — "force ripples outward", "energy answers, but
+    // nothing nearby takes" — which is the game narrating a tap the player
+    // just watched. It shows instead: a pulse of the creature's own element,
+    // at the creature, going nowhere. That reads as "I did something and
+    // nothing here took it" without a word.
     switch (a.ability) {
       case DungeonAbility.aerialTraversal:
         _toggleGlide(a);
         break;
       case DungeonAbility.insight:
-        // Everything a Mask reading says — here and in the five per-planet
-        // delegates — speaks on the protected insight channel, so a revealed
-        // answer cannot be stomped mid-read by stray flavor.
-        _inHintChannel(DungeonHintChannel.insight, () => _doReveal(a));
-        break;
+      // A Mask no longer reads the room on its own — the HINT button does,
+      // for everybody. Insight was the one family verb that dispensed
+      // INFORMATION, and information should never depend on who you brought.
       case DungeonAbility.heavyForce:
-        _setHint('${a.member.element} force ripples outward');
-        break;
       case DungeonAbility.ancientStabilize:
       case DungeonAbility.smallAccess:
       case DungeonAbility.terrainTrail:
       case DungeonAbility.guardianRelic:
       case DungeonAbility.none:
-        _setHint(
-          '${a.member.element} energy answers, but nothing nearby takes',
+        _spawnAlchemyBurst(
+          a.position,
+          producedElement: a.member.element,
+          particleCount: 8,
+          unstable: true,
         );
         break;
     }
@@ -7362,7 +7425,22 @@ class PlanetDungeonGame extends FlameGame {
   void askForRoomHint() {
     final a = active;
     if (a == null) return;
-    _inHintChannel(DungeonHintChannel.insight, () => _doReveal(a));
+    _hintAsked = true;
+    try {
+      // Whatever the world last had to say outranks the room's general
+      // reading: they pressed this because something just refused them or
+      // just told them something, and answering with the mural instead would
+      // be a non-sequitur.
+      final pending = _pendingAnswer;
+      if (pending != null) {
+        _pendingAnswer = null;
+        _emitHint(pending, _pendingChannel, 3.4);
+      } else {
+        _inHintChannel(DungeonHintChannel.insight, () => _doReveal(a));
+      }
+    } finally {
+      _hintAsked = false;
+    }
     onChanged();
   }
 
@@ -7697,7 +7775,8 @@ class PlanetDungeonGame extends FlameGame {
     // the ground beneath it is refused — the room's own verbs (ranking rods,
     // herding the cell) stay live everywhere else while it comes down.
     if (guardianArriving) {
-      _setHint('It is still coming down — brace');
+      // Also a refusal: the ground under a falling mystic answers nothing yet.
+      _setBlockedHint('It is still coming down — brace');
       return true;
     }
     final enc = g.encounter;
@@ -7883,7 +7962,9 @@ class PlanetDungeonGame extends FlameGame {
   ///    never a way to stroll to the top of it).
   bool isDoorHidden(DungeonRoom room, DungeonDoor door) {
     final entryRef = layout.entranceRevealDoor;
-    if (entryRef != null && entryRef.matches(room, door) && !entryDoorRevealed) {
+    if (entryRef != null &&
+        entryRef.matches(room, door) &&
+        !entryDoorRevealed) {
       return true;
     }
     for (var i = 0; i < layout.stars.length; i++) {
@@ -8364,6 +8445,7 @@ class PlanetDungeonGame extends FlameGame {
     _renderKinBeams(canvas);
     _renderCombatProjectiles(canvas);
     _renderCombatEnemies(canvas);
+    _renderRefusalPulse(canvas);
     _renderCreatures(canvas);
     _renderCarriedCloud(canvas);
     _renderRelicDrop(canvas);
@@ -8582,8 +8664,7 @@ class PlanetDungeonGame extends FlameGame {
         drawGlow(
           canvas,
           _fx.mote!,
-          core +
-              Offset(sin(_time * 2 + i * 2.1) * 9, -14 - riseT * 34),
+          core + Offset(sin(_time * 2 + i * 2.1) * 9, -14 - riseT * 34),
           4.5,
           bright.withValues(alpha: (1.0 - riseT) * 0.5),
         );
@@ -8796,8 +8877,7 @@ class PlanetDungeonGame extends FlameGame {
   /// True once Air's lost maxim (First Wind) has been found — persisted with
   /// the discovery, so the hub stays alive forever after.
   bool get _firstWindWoken =>
-      layout.element == 'Air' &&
-      discoveredClouds.contains(kAirFirstWindEggId);
+      layout.element == 'Air' && discoveredClouds.contains(kAirFirstWindEggId);
 
   /// The First Wind made visible: three gust-heads endlessly circling the
   /// compass, each trailing a short arc streak — the hub's permanent proof
@@ -8839,9 +8919,7 @@ class PlanetDungeonGame extends FlameGame {
         ? 1.0
         : summitOpen
         ? 0.82
-        : (wokenGales.length / max(1, totalGales))
-              .clamp(0.0, 0.72)
-              .toDouble();
+        : (wokenGales.length / max(1, totalGales)).clamp(0.0, 0.72).toDouble();
     // Only true cloud echoes count toward loom progress (synthetic discovery
     // ids — 'rune:' reveals and 'egg:' maxims — share the persistence
     // channel).
@@ -10713,8 +10791,13 @@ class PlanetDungeonGame extends FlameGame {
 
     final from = pos - Offset(0, 460 * (1 - fall));
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, from, 46 + 22 * fall,
-          col.withValues(alpha: 0.30 + 0.35 * fall));
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        from,
+        46 + 22 * fall,
+        col.withValues(alpha: 0.30 + 0.35 * fall),
+      );
     }
     _renderGuardianBody(canvas, from, 40, col, false);
   }
@@ -11481,10 +11564,7 @@ class PlanetDungeonGame extends FlameGame {
   /// and it costs nothing per frame.
   Offset _shakeOffset() {
     if (_shake <= 0.01) return Offset.zero;
-    return Offset(
-      sin(_time * 51.0) * _shake,
-      cos(_time * 43.0) * _shake * 0.7,
-    );
+    return Offset(sin(_time * 51.0) * _shake, cos(_time * 43.0) * _shake * 0.7);
   }
 
   Offset _cameraTopLeft(DungeonRoom room, Offset focus) {
@@ -11927,11 +12007,15 @@ class PlanetDungeonGame extends FlameGame {
                 ? r.center + Offset(delta, 0)
                 : r.center + Offset(0, delta);
             final lit = hasStar(i);
-            final col =
-                lit ? const Color(0xFFE8C56A) : const Color(0xFF49391F);
+            final col = lit ? const Color(0xFFE8C56A) : const Color(0xFF49391F);
             if (_fx.ready && lit) {
-              drawGlow(canvas, _fx.glow!, gp, 12,
-                  col.withValues(alpha: 0.5 + 0.15 * sin(_time * 2.4 + i)));
+              drawGlow(
+                canvas,
+                _fx.glow!,
+                gp,
+                12,
+                col.withValues(alpha: 0.5 + 0.15 * sin(_time * 2.4 + i)),
+              );
             }
             _drawStarGlyph(
               canvas,
@@ -12783,8 +12867,6 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
-
-
   void _renderCombatEnemies(Canvas canvas) {
     for (final enemy in combatEnemies) {
       if (enemy.isDead) continue;
@@ -12881,6 +12963,31 @@ class PlanetDungeonGame extends FlameGame {
           const Radius.circular(3),
         ),
         Paint()..color = flash.withValues(alpha: 0.85),
+      );
+    }
+  }
+
+  /// A refusal, drawn instead of said.
+  ///
+  /// A cold ring collapsing INWARD on the active creature — inward because it
+  /// reads as something being turned back, where the outward bursts every
+  /// successful verb throws read as something taking effect. No blur, three
+  /// strokes, gone in under half a second.
+  void _renderRefusalPulse(Canvas canvas) {
+    if (refusalFlash <= 0) return;
+    final a = active;
+    if (a == null) return;
+    final t = refusalFlash.clamp(0.0, 1.0);
+    for (var i = 0; i < 3; i++) {
+      final phase = (t - i * 0.12).clamp(0.0, 1.0);
+      if (phase <= 0) continue;
+      canvas.drawCircle(
+        a.position,
+        14 + phase * 26,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = const Color(0xFFE25544).withValues(alpha: 0.42 * phase),
       );
     }
   }

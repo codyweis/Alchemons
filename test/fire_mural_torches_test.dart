@@ -66,8 +66,12 @@ void main() {
       for (final t in room.muralTorches)
         '${t.dx < b.center.dx ? 'L' : 'R'}${t.dy < b.center.dy ? 'T' : 'B'}',
     };
-    expect(corners, {'LT', 'RT', 'LB', 'RB'},
-        reason: 'one torch in each corner, not four along one wall');
+    expect(corners, {
+      'LT',
+      'RT',
+      'LB',
+      'RB',
+    }, reason: 'one torch in each corner, not four along one wall');
   });
 
   test('no other room has torches', () {
@@ -89,14 +93,18 @@ void main() {
     }
     act(game, 0, room.muralTorches[3]);
     expect(game.muralLit(room), isTrue);
-    expect(game.choirRevealTier, greaterThanOrEqualTo(0),
-        reason: 'the fourth corner brings up the first station');
+    expect(
+      game.choirRevealTier,
+      greaterThanOrEqualTo(0),
+      reason: 'the fourth corner brings up the first station',
+    );
   });
 
   test('a non-Fire hand is refused, and the torch stays cold', () {
     final game = _game([_m('Air', 'wing')]);
     act(game, 0, room.muralTorches[0]);
     expect(game.litMuralTorches, isEmpty);
+    game.askForRoomHint();
     expect(game.hintText, contains('Fire'));
   });
 
@@ -104,6 +112,7 @@ void main() {
     final game = _game([_m('Fire', 'mask')]);
     game.askForRoomHint();
     expect(game.choirRevealTier, -1, reason: 'a dark mural cannot be read');
+    game.askForRoomHint();
     expect(game.hintText, contains('dark'));
   });
 
@@ -114,8 +123,11 @@ void main() {
     }
     final fromLight = game.choirRevealTier;
     game.askForRoomHint();
-    expect(game.choirRevealTier, greaterThanOrEqualTo(fromLight),
-        reason: 'insight still adds to what the light gave');
+    expect(
+      game.choirRevealTier,
+      greaterThanOrEqualTo(fromLight),
+      reason: 'insight still adds to what the light gave',
+    );
   });
 
   test('light does not survive a restart, but knowledge does', () {
@@ -130,8 +142,11 @@ void main() {
     // debugResetDungeon runs the same puzzle-state reset a death does.
     game.debugResetDungeon();
     expect(game.litMuralTorches, isEmpty, reason: 'the torches burn out');
-    expect(game.choirRevealTier, known,
-        reason: 'what you already read stays read');
+    expect(
+      game.choirRevealTier,
+      known,
+      reason: 'what you already read stays read',
+    );
   });
 
   test('relighting an already-lit torch does not consume the action', () {

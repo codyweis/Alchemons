@@ -116,8 +116,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   PrismKeepField get _keep => prism.field;
 
   /// The oriel's declaration of the two non-guardian stars.
-  PrismKeep? get _keepStars =>
-      layout.rooms[layout.entranceRoomId]?.prism?.keep;
+  PrismKeep? get _keepStars => layout.rooms[layout.entranceRoomId]?.prism?.keep;
 
   /// The lattice cell [room] is, or null for the oriel/tuning hall/choir.
   int? _cellOf(DungeonRoom room) => room.prism?.cell?.index;
@@ -471,9 +470,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   /// lost run (and what makes Prismalith's beats survivable from the choir).
   bool _tryAnneal(DungeonCreature a) {
     final cell = _cellOf(currentRoom);
-    final pos = cell != null
-        ? kCellTuningBoss
-        : currentRoom.prism?.annealRing;
+    final pos = cell != null ? kCellTuningBoss : currentRoom.prism?.annealRing;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kKeepReach) return false;
     if (a.member.element != 'Crystal') {
@@ -666,10 +663,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       );
     }
     if (f.shunts > 0) {
-      return DungeonProgressReadout(
-        label: 'SHUNTS',
-        value: '${f.shunts}',
-      );
+      return DungeonProgressReadout(label: 'SHUNTS', value: '${f.shunts}');
     }
     return null;
   }
@@ -735,8 +729,9 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'It is standing on something it does not want moved',
         1 => 'Nothing reaches it through glass — only through the gap',
-        _ => 'Bring the gap under it and strike; it will ring the floor out '
-            'from under itself every time you land one',
+        _ =>
+          'Bring the gap under it and strike; it will ring the floor out '
+              'from under itself every time you land one',
       });
       return;
     }
@@ -744,8 +739,9 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'Two notes, and the hall wants both',
         1 => 'One is a crack too fine for a hand; the other is a font',
-        _ => 'The crack takes only the smallest body in your party; the font '
-            'answers any Crystal, once both stars are yours',
+        _ =>
+          'The crack takes only the smallest body in your party; the font '
+              'answers any Crystal, once both stars are yours',
       });
       return;
     }
@@ -753,11 +749,13 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (cell != null && kKeepBeamRow.contains(cell)) {
       _setInsightHint(switch (tier) {
         0 => 'The rose was cut for one colour and it is not this one',
-        1 => 'A light only crosses glass that is cut on BOTH the west and the '
-            'east — and each one it crosses bends it further round',
-        _ => 'Five of the eight let a light through, and their bends add: '
-            'the rose reads $kRoseHue, and exactly one set of three makes it. '
-            'The hearth is not in that set',
+        1 =>
+          'A light only crosses glass that is cut on BOTH the west and the '
+              'east — and each one it crosses bends it further round',
+        _ =>
+          'Five of the eight let a light through, and their bends add: '
+              'the rose reads $kRoseHue, and exactly one set of three makes it. '
+              'The hearth is not in that set',
       });
       return;
     }
@@ -765,21 +763,24 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'The thrones were cut to face a hearth',
         1 => 'All three at once, and only the middle cell has faces enough',
-        _ => 'Put the hearth in the middle and bring the crimson, the verdant '
-            'and the azure onto three open faces of it — and note what that '
-            'costs the rose',
+        _ =>
+          'Put the hearth in the middle and bring the crimson, the verdant '
+              'and the azure onto three open faces of it — and note what that '
+              'costs the rose',
       });
       return;
     }
     // Anywhere in the keep, insight reads the RULE — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'The keep is nine sockets and eight rooms. One socket is empty',
-      1 => 'A room only goes where the hollow is, and it takes you with it. '
-          'A doorway is only a doorway when the glass on both sides agrees',
-      _ => 'Every slide is undone by sliding back, so nothing here is lost — '
-          'but half of all the ways these rooms could lie, they never will. '
-          'The frame rings back to true from any boss, at the price of every '
-          'slide you made',
+      1 =>
+        'A room only goes where the hollow is, and it takes you with it. '
+            'A doorway is only a doorway when the glass on both sides agrees',
+      _ =>
+        'Every slide is undone by sliding back, so nothing here is lost — '
+            'but half of all the ways these rooms could lie, they never will. '
+            'The frame rings back to true from any boss, at the price of every '
+            'slide you made',
     });
   }
 
@@ -892,10 +893,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       canvas.drawRect(Rect.fromLTWH(r.left + 129, r.top, 110, 10), cut);
     }
     if (chamber.cut(kFacetS)) {
-      canvas.drawRect(
-        Rect.fromLTWH(r.left + 129, r.bottom - 10, 110, 10),
-        cut,
-      );
+      canvas.drawRect(Rect.fromLTWH(r.left + 129, r.bottom - 10, 110, 10), cut);
     }
     if (chamber.cut(kFacetW)) {
       canvas.drawRect(Rect.fromLTWH(r.left, r.top + 102, 10, 110), cut);
@@ -911,7 +909,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       ..color = glass.withValues(alpha: 0.5);
     for (var i = 1; i <= 3; i++) {
       final x = r.left + r.width * i / 4;
-      canvas.drawLine(Offset(x, r.top + 8), Offset(x - 26, r.bottom - 8), grain);
+      canvas.drawLine(
+        Offset(x, r.top + 8),
+        Offset(x - 26, r.bottom - 8),
+        grain,
+      );
     }
 
     if (chamber.id == 'hearth') _renderShardHearth(canvas);
@@ -1019,10 +1021,18 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
 
   static Color _wheelColour(int step) {
     const wheel = [
-      Color(0xFFE05A4A), Color(0xFFE0864A), Color(0xFFE0B84A),
-      Color(0xFFC8E04A), Color(0xFF7CE04A), Color(0xFF4AE08A),
-      Color(0xFF4AE0D6), Color(0xFF4AAEE0), Color(0xFF4A6EE0),
-      Color(0xFF804AE0), Color(0xFFC44AE0), Color(0xFFE04A96),
+      Color(0xFFE05A4A),
+      Color(0xFFE0864A),
+      Color(0xFFE0B84A),
+      Color(0xFFC8E04A),
+      Color(0xFF7CE04A),
+      Color(0xFF4AE08A),
+      Color(0xFF4AE0D6),
+      Color(0xFF4AAEE0),
+      Color(0xFF4A6EE0),
+      Color(0xFF804AE0),
+      Color(0xFFC44AE0),
+      Color(0xFFE04A96),
     ];
     return wheel[step % 12];
   }
@@ -1035,12 +1045,18 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final d = prism.shearFrom;
     if (d.dx != 0) {
       final x = d.dx > 0 ? room.bounds.left + 26 : room.bounds.right - 26;
-      canvas.drawLine(Offset(x, room.bounds.top + 26),
-          Offset(x, room.bounds.bottom - 26), p);
+      canvas.drawLine(
+        Offset(x, room.bounds.top + 26),
+        Offset(x, room.bounds.bottom - 26),
+        p,
+      );
     } else if (d.dy != 0) {
       final y = d.dy > 0 ? room.bounds.top + 26 : room.bounds.bottom - 26;
-      canvas.drawLine(Offset(room.bounds.left + 26, y),
-          Offset(room.bounds.right - 26, y), p);
+      canvas.drawLine(
+        Offset(room.bounds.left + 26, y),
+        Offset(room.bounds.right - 26, y),
+        p,
+      );
     }
   }
 
@@ -1056,7 +1072,8 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       if (n < 0) continue;
       final at = keepPlateFor(facet);
       final inSocket = f.chamberAt(cell) == null;
-      final ready = !f.facetStanding &&
+      final ready =
+          !f.facetStanding &&
           (inSocket ? f.chamberAt(n) != null : f.hollowCell == n);
       canvas.drawRect(
         Rect.fromCenter(center: at, width: 40, height: 40),
@@ -1103,7 +1120,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
     if (cell == kKeepBeamRow.last) {
       final want = _wheelColour(kRoseHue);
-      canvas.drawCircle(kEastRose, 17, Paint()..color = want.withValues(alpha: 0.35));
+      canvas.drawCircle(
+        kEastRose,
+        17,
+        Paint()..color = want.withValues(alpha: 0.35),
+      );
       canvas.drawCircle(
         kEastRose,
         17,

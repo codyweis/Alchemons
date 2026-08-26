@@ -129,8 +129,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// 0..1 through the current cycle — the render's build-up, and the fair
   /// warning before every blast.
   double get geyserCharge =>
-      ((geyserCycle % _kGeyserPeriod) / (_kGeyserPeriod - _kGeyserBlast))
-          .clamp(0.0, 1.0);
+      ((geyserCycle % _kGeyserPeriod) / (_kGeyserPeriod - _kGeyserBlast)).clamp(
+        0.0,
+        1.0,
+      );
 
   /// How many mouths are shut right now — the system's pressure.
   int get geyserPressure => cappedGeysers.length;
@@ -182,8 +184,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         !capstoneBurst &&
         cappedGeysers.length >= room.geysers.length) {
       capstoneBurst = true;
-      _setHint('Every mouth is shut — the heart takes the whole head and the '
-          'slab splits', 4.0);
+      _setHint(
+        'Every mouth is shut — the heart takes the whole head and the '
+        'slab splits',
+        4.0,
+      );
       _spawnAlchemyBurst(
         cap.position,
         producedElement: 'Steam',
@@ -205,11 +210,16 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (cap != null && room.geysers.any((g) => g.isRiser) && !capstoneBurst) {
       final far = room.platforms.isEmpty ? null : room.platforms.last;
       if (far != null &&
-          creatures.every((c) => !c.alive || far.inflate(2).contains(c.position)) &&
+          creatures.every(
+            (c) => !c.alive || far.inflate(2).contains(c.position),
+          ) &&
           creatures.any((c) => c.alive)) {
         capstoneBurst = true;
-        _setHint('The whole party stands on the far shore — the pedestal '
-            'yields', 4.0);
+        _setHint(
+          'The whole party stands on the far shore — the pedestal '
+          'yields',
+          4.0,
+        );
         if (!hasStar(cap.starIndex)) earnStar(cap.starIndex);
         onChanged();
       }
@@ -243,7 +253,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             intensity: 0.9,
           );
           _setHint(
-              'The riser throws ${cr.member.displayName} across the dark', 2.4);
+            'The riser throws ${cr.member.displayName} across the dark',
+            2.4,
+          );
           threw = true;
         }
         continue;
@@ -307,7 +319,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       _setBlockedHint('Your stone already stands — go and unmake it first');
       return true;
     }
-    final at = a.position +
+    final at =
+        a.position +
         Offset(cos(a.aimAngle), sin(a.aimAngle)) * _kRockPlaceAhead;
     final placed = _clampToBounds(at, room);
     if (!_canPlaceBody(placed, a.position, room)) {
@@ -326,7 +339,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     onChanged();
     return true;
   }
-
 
   /// Walking into the stone shoves it — the only way to move it, so the rock
   /// travels at a walking pace and every metre of it is a decision.
@@ -411,7 +423,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         ..lastSafe = spawn;
     }
     _fallRecovering = false;
-    _moltenFor(currentRoom); // rebuild immediately so render/collision are fresh
+    _moltenFor(
+      currentRoom,
+    ); // rebuild immediately so render/collision are fresh
     _setHint('The chamber resets — the molten recedes to its banks');
     onChanged();
   }
@@ -487,9 +501,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final grid = <List<int>>[];
     if (g != null) {
       for (final line in g.rows) {
-        grid.add([
-          for (final ch in line.split('')) _codeOf(ch),
-        ]);
+        grid.add([for (final ch in line.split('')) _codeOf(ch)]);
       }
     }
     moltenCells[room.id] = grid;
@@ -497,11 +509,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   }
 
   int _codeOf(String ch) => switch (ch) {
-        '#' => _mWall,
-        'X' => _mRock,
-        'L' => _mLava,
-        _ => _mOpen, // '.', 'P', 'S'
-      };
+    '#' => _mWall,
+    'X' => _mRock,
+    'L' => _mLava,
+    _ => _mOpen, // '.', 'P', 'S'
+  };
 
   (double, double) _cellSize(DungeonRoom room, MoltenGrid g) =>
       (room.bounds.width / g.cols, room.bounds.height / g.rowCount);
@@ -518,7 +530,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   Offset _cellCenter(DungeonRoom room, MoltenGrid g, int c, int r) {
     final (cw, ch) = _cellSize(room, g);
     return Offset(
-        room.bounds.left + (c + 0.5) * cw, room.bounds.top + (r + 0.5) * ch);
+      room.bounds.left + (c + 0.5) * cw,
+      room.bounds.top + (r + 0.5) * ch,
+    );
   }
 
   /// The pedestal cell ('P'), or null.
@@ -594,8 +608,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           grid[r][col] = _mOpen; // crust a foothold — never strand anyone
           cr.lastSafe = cr.position;
           if (isActive) {
-            _setHint('The molten scalds and closes in — your footing crusts '
-                'to bare stone');
+            _setHint(
+              'The molten scalds and closes in — your footing crusts '
+              'to bare stone',
+            );
           }
         } else if (isActive) {
           _beginFallRecovery(
@@ -609,8 +625,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           cr
             ..position = safe
             ..lastSafe = safe;
-          _setHint('${cr.member.displayName} scrambles from the molten, '
-              'scalded');
+          _setHint(
+            '${cr.member.displayName} scrambles from the molten, '
+            'scalded',
+          );
         }
       } else if (grid[r][col] == _mOpen) {
         cr.lastSafe = cr.position;
@@ -643,8 +661,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         } else {
           moltenRiteDone = true;
           _setHint(
-              'The crucible pedestal sinks — Boilrog heaves up from the heart',
-              4.0);
+            'The crucible pedestal sinks — Boilrog heaves up from the heart',
+            4.0,
+          );
           _maybeEarnHiddenHarmony(room);
         }
       }
@@ -686,7 +705,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// the search — the old nearest-by-distance spiral would happily pick a
   /// cell on the far side of the dam and teleport the creature through it.
   Offset _moltenSafe(
-      DungeonCreature a, DungeonRoom room, MoltenGrid g, List<List<int>> grid) {
+    DungeonCreature a,
+    DungeonRoom room,
+    MoltenGrid g,
+    List<List<int>> grid,
+  ) {
     final (lc, lr) = _cellAt(a.lastSafe, room, g);
     if (lc >= 0 && grid[lr][lc] == _mOpen) return a.lastSafe;
     final (c0, r0) = _cellAt(a.position, room, g);
@@ -711,11 +734,16 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   void _maybeWakeBoilrog(DungeonRoom room) {
     final guardian = room.guardian;
-    if (guardian == null || guardianAwake || hasStar(guardian.starIndex)) return;
+    if (guardian == null || guardianAwake || hasStar(guardian.starIndex)) {
+      return;
+    }
     if (!moltenRiteDone) return;
     guardianAwake = true;
     guardianHp = PlanetDungeonGame.maxGuardianHp;
-    _setHint('Boilrog heaves up from the furnace-heart, wreathed in steam', 4.2);
+    _setHint(
+      'Boilrog heaves up from the furnace-heart, wreathed in steam',
+      4.2,
+    );
     spawnWispWave(
       element: 'Steam',
       center: guardian.position,
@@ -732,8 +760,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (discoveredClouds.contains(kSteamHiddenHarmonyEggId)) return;
     if (moltenScalds != 0) return;
     _discoverCloud(kSteamHiddenHarmonyEggId);
-    _setHint('$kSteamHiddenHarmonyMaxim — the molten never once touched you.',
-        7.5);
+    _setHint(
+      '$kSteamHiddenHarmonyMaxim — the molten never once touched you.',
+      7.5,
+    );
     _spawnAlchemyBurst(
       room.bounds.center,
       producedElement: 'Steam',
@@ -751,7 +781,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
     // Entry rite: a Steam creature cracks the gate vent → the seal hisses open.
     final vent = room.steamVent;
-    if (vent != null && room.id == layout.entranceRoomId && !entryDoorRevealed) {
+    if (vent != null &&
+        room.id == layout.entranceRoomId &&
+        !entryDoorRevealed) {
       if ((a.position - vent).distance <= 64) {
         if (a.member.element != 'Steam') {
           _setHint('The clamped seal answers only to Steam');
@@ -778,8 +810,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       if (seal == null || !_sealBlocked(room, door)) continue;
       if ((a.position - door.rect.center).distance > _kPressureReach) continue;
       if (boilerPressure < seal.cost) {
-        _setHint('The clamp wants ${seal.cost} pressure — the main holds '
-            'only $boilerPressure');
+        _setHint(
+          'The clamp wants ${seal.cost} pressure — the main holds '
+          'only $boilerPressure',
+        );
         return true;
       }
       boilerPressure -= seal.cost;
@@ -807,8 +841,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         return true;
       }
       boilerPressure = min(kSteamPressureMax, boilerPressure + kSteamStokeGain);
-      _setHint('Fire roars in the box — the main surges, and something '
-          'stirs at the noise');
+      _setHint(
+        'Fire roars in the box — the main surges, and something '
+        'stirs at the noise',
+      );
       spawnWispWave(
         element: 'Steam',
         center: port,
@@ -816,8 +852,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         unstable: true,
         announce: false,
       );
-      _spawnAlchemyBurst(port,
-          producedElement: 'Fire', particleCount: 18, intensity: 1.0);
+      _spawnAlchemyBurst(
+        port,
+        producedElement: 'Fire',
+        particleCount: 18,
+        intensity: 1.0,
+      );
       return true;
     }
 
@@ -829,14 +869,19 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         !burstDiscBlown &&
         (a.position - disc.position).distance <= _kPressureReach) {
       if (boilerPressure < disc.threshold) {
-        _setHint('The burst-disc wants a surge of ${disc.threshold} at once — '
-            'the main holds only $boilerPressure. The valve refuses');
+        _setHint(
+          'The burst-disc wants a surge of ${disc.threshold} at once — '
+          'the main holds only $boilerPressure. The valve refuses',
+        );
         return true;
       }
       boilerPressure = 0;
       burstDiscBlown = true;
-      _setHint('You vent the whole main in one surge — the burst-disc '
-          'BLOWS, and the vault shaft stands open', 4.5);
+      _setHint(
+        'You vent the whole main in one surge — the burst-disc '
+        'BLOWS, and the vault shaft stands open',
+        4.5,
+      );
       _spawnAlchemyBurst(
         disc.position,
         producedElement: 'Steam',
@@ -871,17 +916,21 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           // loop.)
           (freshLava[room.id] ??= <int>{}).add(r * g.cols + c);
           final woke = wokeRooms.add(room.id);
-          _setHint(wet
-              ? 'The dam gives way — the reservoir pours through your breach!'
-              : woke
-                  ? 'Fire breaks the rock — and the sleeping cisterns WAKE'
-                  : 'Fire breaks the rock — the fire-blood runs free');
-          _spawnAlchemyBurst(at,
-              producedElement: 'Lava',
-              reagentElements: const ['Earth', 'Fire'],
-              unstable: true,
-              particleCount: 22,
-              intensity: 1.1);
+          _setHint(
+            wet
+                ? 'The dam gives way — the reservoir pours through your breach!'
+                : woke
+                ? 'Fire breaks the rock — and the sleeping cisterns WAKE'
+                : 'Fire breaks the rock — the fire-blood runs free',
+          );
+          _spawnAlchemyBurst(
+            at,
+            producedElement: 'Lava',
+            reagentElements: const ['Earth', 'Fire'],
+            unstable: true,
+            particleCount: 22,
+            intensity: 1.1,
+          );
         } else if (code == _mRock) {
           _setHint('This bedrock will not melt');
         } else {
@@ -892,8 +941,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         if (code == _mLava) {
           if (freshLava[room.id]?.contains(r * g.cols + c) ?? false) {
             // §5.6 BLOCKED: names what is wrong, never the method.
-            _setBlockedHint('The fire-blood is still running — your breath '
-                'flashes off it');
+            _setBlockedHint(
+              'The fire-blood is still running — your breath '
+              'flashes off it',
+            );
             return true;
           }
           if (steamBreath <= 0) {
@@ -903,15 +954,23 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           steamBreath--;
           grid[r][c] = _mOpen;
           // Condensate: cooled molten returns to the main as pressure.
-          final gained = min(kSteamCondensateGain,
-              kSteamPressureMax - boilerPressure);
+          final gained = min(
+            kSteamCondensateGain,
+            kSteamPressureMax - boilerPressure,
+          );
           boilerPressure += gained;
-          _setHint(gained > 0
-              ? 'Steam cools the molten to standing stone — condensate '
-                  'returns to the main'
-              : 'Steam cools the molten to standing stone');
-          _spawnAlchemyBurst(at,
-              producedElement: 'Steam', particleCount: 16, intensity: 0.8);
+          _setHint(
+            gained > 0
+                ? 'Steam cools the molten to standing stone — condensate '
+                      'returns to the main'
+                : 'Steam cools the molten to standing stone',
+          );
+          _spawnAlchemyBurst(
+            at,
+            producedElement: 'Steam',
+            particleCount: 16,
+            intensity: 0.8,
+          );
         } else {
           _setHint('Steam finds no molten to cool here');
         }
@@ -933,8 +992,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           grid[r][c] = _mWall;
           // ELEMENT-ONLY: any Earth drives the wall home, clean and silent.
           _setHint('The wall drives home — the flood is dammed');
-          _spawnAlchemyBurst(at,
-              producedElement: 'Earth', particleCount: 14, intensity: 0.7);
+          _spawnAlchemyBurst(
+            at,
+            producedElement: 'Earth',
+            particleCount: 14,
+            intensity: 0.7,
+          );
         } else {
           _setHint('Earth can only wall up open ground');
         }
@@ -970,26 +1033,30 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       // The manifolds: insight reads the ring's ECONOMY, not a grid.
       if (room.pressureSeals.isNotEmpty || room.burstDisc != null) {
         _setHint(
-            'The main starts with $kSteamStartPressure and each junction '
-            'drinks 15 — the whole ring cannot be bought. Cooled molten '
-            'condenses back (+$kSteamCondensateGain a cell), a stoked '
-            'firebox feeds it more; the burst-disc yields only to a '
-            'surge of 60',
-            5.5);
+          'The main starts with $kSteamStartPressure and each junction '
+          'drinks 15 — the whole ring cannot be bought. Cooled molten '
+          'condenses back (+$kSteamCondensateGain a cell), a stoked '
+          'firebox feeds it more; the burst-disc yields only to a '
+          'surge of 60',
+          5.5,
+        );
         return;
       }
       _setHint('${a.member.element} insight finds nothing hidden here');
       return;
     }
     _setHint(switch (g.starIndex) {
-      0 => 'The wall is a dam — where the rock glows, molten leans on it; '
-          'breach the dark, quiet stone and cool your doorway. Yet a bold '
-          'founder might TAP a wet face on purpose: a dammed flood, cooled '
-          'cell by cell, bleeds condensate for the main',
-      1 => 'Every cistern wakes the moment you melt the gate — raise your '
-          'walls around the gate mouth FIRST, then break through',
-      _ => 'Bunker a gate, break it, and quench the far cistern at its source '
-          'before it multiplies — then take the pedestal',
+      0 =>
+        'The wall is a dam — where the rock glows, molten leans on it; '
+            'breach the dark, quiet stone and cool your doorway. Yet a bold '
+            'founder might TAP a wet face on purpose: a dammed flood, cooled '
+            'cell by cell, bleeds condensate for the main',
+      1 =>
+        'Every cistern wakes the moment you melt the gate — raise your '
+            'walls around the gate mouth FIRST, then break through',
+      _ =>
+        'Bunker a gate, break it, and quench the far cistern at its source '
+            'before it multiplies — then take the pedestal',
     });
   }
 
@@ -1026,7 +1093,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   void _steamAmbientHint(DungeonCreature a, DungeonRoom room) {
     final vent = room.steamVent;
-    if (vent != null && !entryDoorRevealed && (a.position - vent).distance < 70) {
+    if (vent != null &&
+        !entryDoorRevealed &&
+        (a.position - vent).distance < 70) {
       _setAmbientHint('A clamped relief vent hisses at its rivets');
       return;
     }
@@ -1062,9 +1131,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       case _mWall:
         // The glow/quiet reading IS the dam-wall's authored clue layer —
         // observation only; the breach method is Mask's (_steamReveal).
-        _setAmbientHint(_wallIsWet(grid, g, target.$1, target.$2)
-            ? 'The rock glows hot — something molten presses against its far side'
-            : 'Cool, quiet rock — it sounds hollow beyond');
+        _setAmbientHint(
+          _wallIsWet(grid, g, target.$1, target.$2)
+              ? 'The rock glows hot — something molten presses against its far side'
+              : 'Cool, quiet rock — it sounds hollow beyond',
+        );
       case _mLava:
         _setAmbientHint('The molten crawls, slow and bright');
     }
@@ -1181,7 +1252,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           final strain = (0.25 + 0.55 * charge) * (0.6 + 0.1 * p);
           for (var i = 0; i < 4; i++) {
             final a0 = i * pi / 2 + _moltenPulse * 0.6;
-            final at = gy.position +
+            final at =
+                gy.position +
                 Offset(cos(a0), sin(a0)) * (r - 2) -
                 Offset(0, 4 + 7 * strain);
             drawPuff(
@@ -1208,9 +1280,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         gy.position,
         r - 8,
         Paint()
-          ..color = Color.lerp(const Color(0xFF23343C),
-                  const Color(0xFFCFF4FF), heat)!
-              .withValues(alpha: 0.95),
+          ..color = Color.lerp(
+            const Color(0xFF23343C),
+            const Color(0xFFCFF4FF),
+            heat,
+          )!.withValues(alpha: 0.95),
       );
       if (_fx.ready) {
         drawPuff(
@@ -1222,8 +1296,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         );
       }
       if (_fx.ready) {
-        drawGlow(canvas, _fx.glow!, gy.position, r * (0.9 + 0.5 * charge),
-            const Color(0xFF8FE0EC).withValues(alpha: 0.10 + 0.30 * charge));
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          gy.position,
+          r * (0.9 + 0.5 * charge),
+          const Color(0xFF8FE0EC).withValues(alpha: 0.10 + 0.30 * charge),
+        );
       }
 
       // Pressure makes the column taller and fatter, so a field nearly shut
@@ -1257,15 +1336,18 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           final ease = 1 - pow(1 - life, 2.2).toDouble();
           final rise = (blasting ? 168.0 : 34.0) * force * ease;
           // Expand as it climbs — a plume mushrooms, it does not stay a rod.
-          final w = r *
+          final w =
+              r *
               (blasting ? 1.25 : 0.85) *
               (0.55 + 1.75 * life) *
               (1.0 + 0.16 * p); // the head widens the column too
           // Drift: each parcel keeps its own wander so the column churns.
-          final sway = sin(_moltenPulse * 1.6 + i * 1.7 + gy.position.dx * 0.02) *
+          final sway =
+              sin(_moltenPulse * 1.6 + i * 1.7 + gy.position.dx * 0.02) *
               (4 + 20 * life);
           // Fade: bright at the throat, gone by the top.
-          final alpha = (blasting ? 0.42 : 0.16) *
+          final alpha =
+              (blasting ? 0.42 : 0.16) *
               pow(1 - life, 1.35).toDouble() *
               (0.55 + 0.45 * (blasting ? 1.0 : charge));
 
@@ -1295,7 +1377,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             final spread = (i - 2.5) * 0.22;
             final travel = (0.35 + 0.65 * k) * bt;
             final d = 150 * force * travel;
-            final at = gy.position +
+            final at =
+                gy.position +
                 Offset(sin(spread) * d * 0.55, -cos(spread) * d) +
                 Offset(0, d * d * 0.0016); // a little gravity on the arc
             drawGlow(
@@ -1303,8 +1386,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
               _fx.mote!,
               at,
               4.5 + 3.0 * (1 - travel),
-              const Color(0xFFF2FCFF)
-                  .withValues(alpha: 0.42 * pow(1 - travel, 1.2).toDouble()),
+              const Color(
+                0xFFF2FCFF,
+              ).withValues(alpha: 0.42 * pow(1 - travel, 1.2).toDouble()),
             );
           }
           // The skirt: a ring rushing OUTWARD from the mouth as it opens —
@@ -1315,8 +1399,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             Paint()
               ..style = PaintingStyle.stroke
               ..strokeWidth = 3.0 * pow(1 - bt, 0.8).toDouble()
-              ..color = const Color(0xFFBFF2FF)
-                  .withValues(alpha: 0.50 * pow(1 - bt, 0.9).toDouble()),
+              ..color = const Color(
+                0xFFBFF2FF,
+              ).withValues(alpha: 0.50 * pow(1 - bt, 0.9).toDouble()),
           );
         }
       }
@@ -1344,8 +1429,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           _fx.puff!,
           heart.position + Offset(sway, -rise),
           46 * (0.5 + 2.0 * t),
-          const Color(0xFFE6F7FF)
-              .withValues(alpha: 0.34 * pow(1 - t, 1.3).toDouble()),
+          const Color(
+            0xFFE6F7FF,
+          ).withValues(alpha: 0.34 * pow(1 - t, 1.3).toDouble()),
         );
       }
       drawGlow(
@@ -1383,9 +1469,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         cap.position,
         30,
         Paint()
-          ..color = burst
-              ? const Color(0xFF10181C)
-              : const Color(0xFF3A342C),
+          ..color = burst ? const Color(0xFF10181C) : const Color(0xFF3A342C),
       );
       if (burst) {
         // The broken lip: shards left standing around the open mouth.
@@ -1409,17 +1493,17 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3
-          ..color = burst
-              ? const Color(0xFFE4C16A)
-              : const Color(0xFF8A7A68),
+          ..color = burst ? const Color(0xFFE4C16A) : const Color(0xFF8A7A68),
       );
       // Cracks: they widen and brighten as the field is shut.
       final crack = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0 + 2.4 * frac
-        ..color = Color.lerp(const Color(0xFF6E6257),
-                const Color(0xFFBFF2FF), burst ? 1.0 : frac)!
-            .withValues(alpha: 0.55 + 0.45 * frac);
+        ..color = Color.lerp(
+          const Color(0xFF6E6257),
+          const Color(0xFFBFF2FF),
+          burst ? 1.0 : frac,
+        )!.withValues(alpha: 0.55 + 0.45 * frac);
       for (var i = 0; i < 5; i++) {
         final a0 = i * pi * 2 / 5 + 0.4;
         canvas.drawLine(
@@ -1431,9 +1515,15 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       if (_fx.ready) {
         // Light bleeding up through the seams, and a plume once it splits.
         if (frac > 0.25 || burst) {
-          drawGlow(canvas, _fx.glow!, cap.position, 40 + 26 * frac,
-              const Color(0xFFBFF2FF)
-                  .withValues(alpha: 0.08 + 0.34 * (burst ? 1.0 : frac)));
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            cap.position,
+            40 + 26 * frac,
+            const Color(
+              0xFFBFF2FF,
+            ).withValues(alpha: 0.08 + 0.34 * (burst ? 1.0 : frac)),
+          );
         }
         if (burst) {
           for (var i = 0; i < 5; i++) {
@@ -1473,11 +1563,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         ),
         Paint()..color = Colors.black.withValues(alpha: 0.35 * rise),
       );
-      canvas.drawCircle(
-        rock,
-        rr,
-        Paint()..color = const Color(0xFF6B5B49),
-      );
+      canvas.drawCircle(rock, rr, Paint()..color = const Color(0xFF6B5B49));
       canvas.drawCircle(
         rock,
         rr,
@@ -1507,7 +1593,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (g == null) {
       _renderPlainFloor(canvas, room.bounds, room.id == layout.entranceRoomId);
       final grid = Paint()
-        ..color = const Color(0x12C99A6A) // faint ember-warm seams
+        ..color =
+            const Color(0x12C99A6A) // faint ember-warm seams
         ..strokeWidth = 1.0;
       const step = 104.0;
       final b = room.bounds;
@@ -1526,7 +1613,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     for (var r = 0; r < g.rowCount; r++) {
       for (var c = 0; c < g.cols; c++) {
         final rect = Rect.fromLTWH(
-            room.bounds.left + c * cw, room.bounds.top + r * ch, cw + 0.6, ch + 0.6);
+          room.bounds.left + c * cw,
+          room.bounds.top + r * ch,
+          cw + 0.6,
+          ch + 0.6,
+        );
         _renderMoltenCell(canvas, rect, grid[r][c], cleared);
       }
     }
@@ -1542,9 +1633,19 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     const inset = 16.0;
     final channels = <Rect>[
       Rect.fromLTWH(b.left + inset, b.top + inset, b.width - 2 * inset, 6),
-      Rect.fromLTWH(b.left + inset, b.bottom - inset - 6, b.width - 2 * inset, 6),
+      Rect.fromLTWH(
+        b.left + inset,
+        b.bottom - inset - 6,
+        b.width - 2 * inset,
+        6,
+      ),
       Rect.fromLTWH(b.left + inset, b.top + inset, 6, b.height - 2 * inset),
-      Rect.fromLTWH(b.right - inset - 6, b.top + inset, 6, b.height - 2 * inset),
+      Rect.fromLTWH(
+        b.right - inset - 6,
+        b.top + inset,
+        6,
+        b.height - 2 * inset,
+      ),
     ];
     for (var i = 0; i < channels.length; i++) {
       final ch = channels[i];
@@ -1554,23 +1655,32 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       canvas.drawRRect(
         RRect.fromRectAndRadius(ch, const Radius.circular(3)),
         Paint()
-          ..color = Color.lerp(const Color(0xFF5A1E08),
-                  const Color(0xFFB5400F), pulse)!
-              .withValues(alpha: 0.55),
+          ..color = Color.lerp(
+            const Color(0xFF5A1E08),
+            const Color(0xFFB5400F),
+            pulse,
+          )!.withValues(alpha: 0.55),
       );
       // Grate bars over it, so it reads as lava behind a floor grate.
-      final n =
-          ((horizontal ? ch.width : ch.height) / 26).floor().clamp(1, 60);
+      final n = ((horizontal ? ch.width : ch.height) / 26).floor().clamp(1, 60);
       final bars = Paint()
         ..color = const Color(0xCC141A20)
         ..strokeWidth = 3;
       for (var k = 1; k < n; k++) {
         if (horizontal) {
           final x = ch.left + k * 26.0;
-          canvas.drawLine(Offset(x, ch.top - 1), Offset(x, ch.bottom + 1), bars);
+          canvas.drawLine(
+            Offset(x, ch.top - 1),
+            Offset(x, ch.bottom + 1),
+            bars,
+          );
         } else {
           final y = ch.top + k * 26.0;
-          canvas.drawLine(Offset(ch.left - 1, y), Offset(ch.right + 1, y), bars);
+          canvas.drawLine(
+            Offset(ch.left - 1, y),
+            Offset(ch.right + 1, y),
+            bars,
+          );
         }
       }
       if (_fx.ready) {
@@ -1579,8 +1689,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           final p = horizontal
               ? Offset(ch.left + ch.width * ((s + 0.5) / steps), ch.center.dy)
               : Offset(ch.center.dx, ch.top + ch.height * ((s + 0.5) / steps));
-          drawGlow(canvas, _fx.glow!, p, 26,
-              const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.10 * pulse));
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            p,
+            26,
+            const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.10 * pulse),
+          );
         }
       }
     }
@@ -1589,7 +1704,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       for (var i = 0; i < 4; i++) {
         final wx = b.left + b.width * ((i + 0.5) / 4) + 18 * sin(t * 0.5 + i);
         final wy = b.bottom - 30 - ((t * 26 + i * 90) % (b.height - 60));
-        drawGlow(canvas, _fx.glow!, Offset(wx, wy), 20, const Color(0x2290A4AE));
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          Offset(wx, wy),
+          20,
+          const Color(0x2290A4AE),
+        );
       }
     }
   }
@@ -1607,7 +1728,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             ..color = const Color(0x118FA6B0),
         );
       case _mWall:
-        final rr = RRect.fromRectAndRadius(rect.deflate(2), const Radius.circular(5));
+        final rr = RRect.fromRectAndRadius(
+          rect.deflate(2),
+          const Radius.circular(5),
+        );
         canvas.drawRRect(rr, Paint()..color = const Color(0xFF39434B));
         canvas.drawRRect(
           rr,
@@ -1624,7 +1748,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             ..strokeWidth = 1.4,
         );
       case _mRock:
-        final rr = RRect.fromRectAndRadius(rect.deflate(1), const Radius.circular(3));
+        final rr = RRect.fromRectAndRadius(
+          rect.deflate(1),
+          const Radius.circular(3),
+        );
         canvas.drawRRect(rr, Paint()..color = const Color(0xFF20272D));
         canvas.drawRRect(
           rr,
@@ -1644,12 +1771,20 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         canvas.drawRect(
           rect.deflate(3),
           Paint()
-            ..color = Color.lerp(const Color(0xFFFF6A2A),
-                const Color(0xFFFFC14A), pulse * 0.6)!,
+            ..color = Color.lerp(
+              const Color(0xFFFF6A2A),
+              const Color(0xFFFFC14A),
+              pulse * 0.6,
+            )!,
         );
         if (_fx.ready) {
-          drawGlow(canvas, _fx.glow!, rect.center, rect.width * 0.6,
-              Color(0x66FF7A33).withValues(alpha: 0.30 + 0.20 * pulse));
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            rect.center,
+            rect.width * 0.6,
+            Color(0x66FF7A33).withValues(alpha: 0.30 + 0.20 * pulse),
+          );
         }
     }
   }
@@ -1675,13 +1810,20 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         ..color = const Color(0xFF5A6A74)
         ..strokeWidth = 4
         ..strokeCap = StrokeCap.round;
-      canvas.drawLine(r.topLeft + const Offset(6, 6),
-          r.bottomRight - const Offset(6, 6), bars);
-      canvas.drawLine(r.topRight + const Offset(-6, 6),
-          r.bottomLeft + const Offset(6, -6), bars);
+      canvas.drawLine(
+        r.topLeft + const Offset(6, 6),
+        r.bottomRight - const Offset(6, 6),
+        bars,
+      );
+      canvas.drawLine(
+        r.topRight + const Offset(-6, 6),
+        r.bottomLeft + const Offset(6, -6),
+        bars,
+      );
       // The release wheel beside the door, pulsing while affordable.
       final seal = _sealFor(room, door);
-      final wheel = door.rect.center +
+      final wheel =
+          door.rect.center +
           (door.rect.width >= door.rect.height
               ? Offset(door.rect.width / 2 + 26, 0)
               : Offset(0, door.rect.height / 2 + 26));
@@ -1693,24 +1835,28 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3
-          ..color = afford
-              ? const Color(0xFF8FE0EC)
-              : const Color(0xFF5A6A74),
+          ..color = afford ? const Color(0xFF8FE0EC) : const Color(0xFF5A6A74),
       );
       for (var k = 0; k < 4; k++) {
         final ang = k * pi / 2 + _moltenPulse * 0.5;
         canvas.drawLine(
-            wheel,
-            wheel + Offset(cos(ang), sin(ang)) * 11,
-            Paint()
-              ..strokeWidth = 2
-              ..color = afford
-                  ? const Color(0x998FE0EC)
-                  : const Color(0x775A6A74));
+          wheel,
+          wheel + Offset(cos(ang), sin(ang)) * 11,
+          Paint()
+            ..strokeWidth = 2
+            ..color = afford
+                ? const Color(0x998FE0EC)
+                : const Color(0x775A6A74),
+        );
       }
       if (_fx.ready && afford) {
-        drawGlow(canvas, _fx.glow!, wheel, 20,
-            const Color(0xFF8FE0EC).withValues(alpha: 0.12 + 0.14 * pulse));
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          wheel,
+          20,
+          const Color(0xFF8FE0EC).withValues(alpha: 0.12 + 0.14 * pulse),
+        );
       }
       // THE LINKAGE (2026-08-14, playtest: "it should be clear that turning
       // the wheel opens the door"). A wheel sitting NEXT to a clamp is just
@@ -1719,14 +1865,16 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       final linkPaint = Paint()
         ..strokeWidth = 5
         ..strokeCap = StrokeCap.round
-        ..color = afford
-            ? const Color(0xCC8FE0EC)
-            : const Color(0x995A6A74);
+        ..color = afford ? const Color(0xCC8FE0EC) : const Color(0x995A6A74);
       final toPlate = r.center - wheel;
       final len = toPlate.distance;
       if (len > 1) {
         final dir = toPlate / len;
-        canvas.drawLine(wheel + dir * 11, wheel + dir * (len * 0.52), linkPaint);
+        canvas.drawLine(
+          wheel + dir * 11,
+          wheel + dir * (len * 0.52),
+          linkPaint,
+        );
         // A collar where the rod enters the plate — the joint reads as driven.
         canvas.drawCircle(
           wheel + dir * (len * 0.52),
@@ -1748,15 +1896,18 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (port != null) {
       final box = Rect.fromCenter(center: port, width: 64, height: 46);
       canvas.drawRRect(
-          RRect.fromRectAndRadius(box, const Radius.circular(6)),
-          Paint()..color = const Color(0xFF2B2420));
+        RRect.fromRectAndRadius(box, const Radius.circular(6)),
+        Paint()..color = const Color(0xFF2B2420),
+      );
       final pulse = 0.5 + 0.5 * sin(_moltenPulse * 1.8);
       canvas.drawRRect(
         RRect.fromRectAndRadius(box.deflate(7), const Radius.circular(4)),
         Paint()
-          ..color = Color.lerp(const Color(0xFF5A1E08),
-                  const Color(0xFFB5400F), pulse)!
-              .withValues(alpha: 0.8),
+          ..color = Color.lerp(
+            const Color(0xFF5A1E08),
+            const Color(0xFFB5400F),
+            pulse,
+          )!.withValues(alpha: 0.8),
       );
       final bars = Paint()
         ..color = const Color(0xCC141A20)
@@ -1764,11 +1915,19 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       for (var k = 1; k < 4; k++) {
         final x = box.left + box.width * k / 4;
         canvas.drawLine(
-            Offset(x, box.top + 4), Offset(x, box.bottom - 4), bars);
+          Offset(x, box.top + 4),
+          Offset(x, box.bottom - 4),
+          bars,
+        );
       }
       if (_fx.ready) {
-        drawGlow(canvas, _fx.glow!, port, 30,
-            const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.14 * pulse));
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          port,
+          30,
+          const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.14 * pulse),
+        );
       }
     }
 
@@ -1778,7 +1937,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (disc != null) {
       if (burstDiscBlown) {
         canvas.drawCircle(
-            disc.position, 26, Paint()..color = const Color(0xFF0A0D10));
+          disc.position,
+          26,
+          Paint()..color = const Color(0xFF0A0D10),
+        );
         final petals = Paint()
           ..color = const Color(0xFF5A6A74)
           ..style = PaintingStyle.stroke
@@ -1786,13 +1948,17 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         for (var k = 0; k < 6; k++) {
           final ang = k * pi / 3 + 0.3;
           canvas.drawLine(
-              disc.position + Offset(cos(ang), sin(ang)) * 14,
-              disc.position + Offset(cos(ang + 0.5), sin(ang + 0.5)) * 30,
-              petals);
+            disc.position + Offset(cos(ang), sin(ang)) * 14,
+            disc.position + Offset(cos(ang + 0.5), sin(ang + 0.5)) * 30,
+            petals,
+          );
         }
       } else {
         canvas.drawCircle(
-            disc.position, 24, Paint()..color = const Color(0xFF39434B));
+          disc.position,
+          24,
+          Paint()..color = const Color(0xFF39434B),
+        );
         canvas.drawCircle(
           disc.position,
           24,
@@ -1805,9 +1971,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         for (var k = 0; k < 8; k++) {
           final ang = k * pi / 4;
           canvas.drawCircle(
-              disc.position + Offset(cos(ang), sin(ang)) * 18,
-              2.2,
-              Paint()..color = const Color(0xFF5A6A74));
+            disc.position + Offset(cos(ang), sin(ang)) * 18,
+            2.2,
+            Paint()..color = const Color(0xFF5A6A74),
+          );
         }
         final tp = TextPainter(
           text: TextSpan(
@@ -1821,12 +1988,16 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           ),
           textDirection: TextDirection.ltr,
         )..layout();
-        tp.paint(canvas,
-            disc.position - Offset(tp.width / 2, tp.height / 2));
+        tp.paint(canvas, disc.position - Offset(tp.width / 2, tp.height / 2));
         if (_fx.ready && boilerPressure >= disc.threshold) {
           final pulse = 0.6 + 0.4 * sin(_moltenPulse * 3.0);
-          drawGlow(canvas, _fx.glow!, disc.position, 34,
-              const Color(0xFFE4C16A).withValues(alpha: 0.10 + 0.16 * pulse));
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            disc.position,
+            34,
+            const Color(0xFFE4C16A).withValues(alpha: 0.10 + 0.16 * pulse),
+          );
         }
       }
     }
@@ -1851,8 +2022,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         );
         for (var k = 0; k < 4; k++) {
           final ang = k * pi / 2 + _moltenPulse * 0.6;
-          canvas.drawLine(vent, vent + Offset(cos(ang), sin(ang)) * 15,
-              Paint()..color = const Color(0x998FE0EC)..strokeWidth = 2);
+          canvas.drawLine(
+            vent,
+            vent + Offset(cos(ang), sin(ang)) * 15,
+            Paint()
+              ..color = const Color(0x998FE0EC)
+              ..strokeWidth = 2,
+          );
         }
         if (_fx.ready && !lit) {
           drawGlow(canvas, _fx.glow!, vent, 22, const Color(0x338FE0EC));
@@ -1871,24 +2047,44 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         for (var c = 0; c < g.cols; c++) {
           if (grid[r][c] != _mWall || !_wallIsWet(grid, g, c, r)) continue;
           final rect = Rect.fromLTWH(
-              room.bounds.left + c * cw, room.bounds.top + r * ch, cw, ch);
+            room.bounds.left + c * cw,
+            room.bounds.top + r * ch,
+            cw,
+            ch,
+          );
           final pulse = 0.5 + 0.5 * sin(_moltenPulse * 2.2 + c * 1.7 + r);
           final crack = Paint()
             ..strokeWidth = 2
             ..strokeCap = StrokeCap.round
-            ..color = Color.lerp(const Color(0xFFB5400F),
-                    const Color(0xFFFFC14A), pulse * 0.7)!
-                .withValues(alpha: 0.55 + 0.35 * pulse);
+            ..color = Color.lerp(
+              const Color(0xFFB5400F),
+              const Color(0xFFFFC14A),
+              pulse * 0.7,
+            )!.withValues(alpha: 0.55 + 0.35 * pulse);
           final cx = rect.center.dx, cy = rect.center.dy;
-          canvas.drawLine(Offset(cx - cw * 0.22, rect.top + 8),
-              Offset(cx + cw * 0.08, cy), crack);
-          canvas.drawLine(Offset(cx + cw * 0.08, cy),
-              Offset(cx - cw * 0.12, rect.bottom - 8), crack);
-          canvas.drawLine(Offset(cx + cw * 0.20, cy - ch * 0.18),
-              Offset(cx + cw * 0.26, cy + ch * 0.22), crack);
+          canvas.drawLine(
+            Offset(cx - cw * 0.22, rect.top + 8),
+            Offset(cx + cw * 0.08, cy),
+            crack,
+          );
+          canvas.drawLine(
+            Offset(cx + cw * 0.08, cy),
+            Offset(cx - cw * 0.12, rect.bottom - 8),
+            crack,
+          );
+          canvas.drawLine(
+            Offset(cx + cw * 0.20, cy - ch * 0.18),
+            Offset(cx + cw * 0.26, cy + ch * 0.22),
+            crack,
+          );
           if (_fx.ready) {
-            drawGlow(canvas, _fx.glow!, rect.center, cw * 0.55,
-                const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.14 * pulse));
+            drawGlow(
+              canvas,
+              _fx.glow!,
+              rect.center,
+              cw * 0.55,
+              const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.14 * pulse),
+            );
           }
         }
       }
@@ -1899,8 +2095,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (ped != null) {
       final centre = _cellCenter(room, g, ped.$1, ped.$2);
       final won = _moltenCleared(room, g);
-      canvas.drawCircle(centre, 17,
-          Paint()..color = won ? const Color(0xFF3A4C44) : const Color(0xFF33414A));
+      canvas.drawCircle(
+        centre,
+        17,
+        Paint()
+          ..color = won ? const Color(0xFF3A4C44) : const Color(0xFF33414A),
+      );
       canvas.drawCircle(
         centre,
         17,
@@ -1911,7 +2111,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       );
       if (_fx.ready && !won) {
         final pulse = 0.7 + 0.3 * sin(_moltenPulse * 2.0);
-        drawGlow(canvas, _fx.glow!, centre, 30 * pulse, const Color(0xFFE4C16A));
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          centre,
+          30 * pulse,
+          const Color(0xFFE4C16A),
+        );
       }
     }
 
@@ -1926,7 +2132,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       final tier = revealHintTier(seer.member.statIntelligence);
       final (cw, ch) = _cellSize(room, g);
       Rect cellRect(int c, int r) => Rect.fromLTWH(
-          room.bounds.left + c * cw, room.bounds.top + r * ch, cw, ch);
+        room.bounds.left + c * cw,
+        room.bounds.top + r * ch,
+        cw,
+        ch,
+      );
       final nextBeat = <(int, int)>{};
       for (var r = 0; r < g.rowCount; r++) {
         for (var c = 0; c < g.cols; c++) {
@@ -1973,8 +2183,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       final t = _targetCell(act, room, g);
       if (t != null) {
         final (cw, ch) = _cellSize(room, g);
-        final rect = Rect.fromLTWH(room.bounds.left + t.$1 * cw,
-            room.bounds.top + t.$2 * ch, cw, ch);
+        final rect = Rect.fromLTWH(
+          room.bounds.left + t.$1 * cw,
+          room.bounds.top + t.$2 * ch,
+          cw,
+          ch,
+        );
         final col = switch (act.member.element) {
           'Fire' => const Color(0xFFFF8A50),
           'Steam' => const Color(0xFF8FE0EC),
@@ -2013,15 +2227,22 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     gaugeTp.paint(canvas, Offset(gx, gy - 14));
     final gaugeBar = Rect.fromLTWH(gx - 2, gy + 2, 100, 7);
     canvas.drawRRect(
-        RRect.fromRectAndRadius(gaugeBar, const Radius.circular(3)),
-        Paint()..color = const Color(0x6606141C));
-    final frac0 =
-        (boilerPressure / kSteamPressureMax).clamp(0.0, 1.0).toDouble();
+      RRect.fromRectAndRadius(gaugeBar, const Radius.circular(3)),
+      Paint()..color = const Color(0x6606141C),
+    );
+    final frac0 = (boilerPressure / kSteamPressureMax)
+        .clamp(0.0, 1.0)
+        .toDouble();
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-              gaugeBar.left, gaugeBar.top, gaugeBar.width * frac0, gaugeBar.height),
-          const Radius.circular(3)),
+        Rect.fromLTWH(
+          gaugeBar.left,
+          gaugeBar.top,
+          gaugeBar.width * frac0,
+          gaugeBar.height,
+        ),
+        const Radius.circular(3),
+      ),
       Paint()..color = const Color(0xFFE4C16A).withValues(alpha: 0.85),
     );
     // A tick at the burst-disc threshold, so the goal is always legible.
@@ -2076,12 +2297,15 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // Creep-beat bar — fills as the next flood approaches.
     final frac = (1.0 - (moltenBeat / _kMoltenBeat)).clamp(0.0, 1.0);
     final bar = Rect.fromLTWH(x - 2, y + 2, 100, 6);
-    canvas.drawRRect(RRect.fromRectAndRadius(bar, const Radius.circular(3)),
-        Paint()..color = const Color(0x6606141C));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bar, const Radius.circular(3)),
+      Paint()..color = const Color(0x6606141C),
+    );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-          Rect.fromLTWH(bar.left, bar.top, bar.width * frac, bar.height),
-          const Radius.circular(3)),
+        Rect.fromLTWH(bar.left, bar.top, bar.width * frac, bar.height),
+        const Radius.circular(3),
+      ),
       Paint()..color = const Color(0xFFFF7A33).withValues(alpha: 0.8),
     );
   }

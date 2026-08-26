@@ -6,7 +6,6 @@
 
 import 'dart:async';
 
-
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
@@ -118,7 +117,6 @@ class PlanetDungeonScreen extends StatefulWidget {
   /// guardian, raid loot. Stars/clouds are neither read nor written.
   final RaidConfig? raid;
 
-
   /// Persist-the-clear callback (RaidService.markCleared), awaited right
   /// after the loot is granted.
   final Future<void> Function()? onRaidCleared;
@@ -205,15 +203,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   @override
   void initState() {
     super.initState();
-    _flyCtrl =
-        AnimationController(vsync: this, duration: _kStarFlightDuration)
-          ..addStatusListener((s) {
-            if (s == AnimationStatus.completed && mounted) {
-              setState(() => _flyStar = null);
-              // The star has landed in its tracker slot — now the reward.
-              if (_rewardPending) unawaited(_offerPendingRewardIfSafe());
-            }
-          });
+    _flyCtrl = AnimationController(vsync: this, duration: _kStarFlightDuration)
+      ..addStatusListener((s) {
+        if (s == AnimationStatus.completed && mounted) {
+          setState(() => _flyStar = null);
+          // The star has landed in its tracker slot — now the reward.
+          if (_rewardPending) unawaited(_offerPendingRewardIfSafe());
+        }
+      });
     _introTicker = createTicker((elapsed) {
       if (!mounted) return;
       final secs = elapsed.inMicroseconds / 1e6;
@@ -523,7 +520,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     _popDungeon(false);
   }
 
-
   /// The raid's kill timer. Turns urgent under a minute.
   Widget _raidFightClock(PlanetDungeonGame game) {
     final left = game.raidTimeRemaining;
@@ -780,18 +776,29 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                         icon: Icons.workspaces_rounded,
                       ),
                       const SizedBox(height: 6),
-                      // The room's reading, on demand. This used to require
-                      // bringing a Mask, which meant a party without one had
-                      // no route to the knowledge at all — the one thing that
-                      // should never depend on party composition.
-                      _pillButton(
-                        'HINT',
-                        _C.cyan,
-                        () {
-                          HapticFeedback.selectionClick();
-                          game.askForRoomHint();
-                        },
-                        icon: Icons.help_outline_rounded,
+                      // The only thing in the dungeon that speaks. It reads
+                      // the room — and, when the world has just turned the
+                      // player away, it says WHY, which is the question they
+                      // actually pressed it to ask.
+                      //
+                      // It brightens while it has a refusal waiting, so the
+                      // affordance advertises itself exactly when it has
+                      // something worth saying. That pulse is also how a
+                      // player discovers the button exists at all, now that
+                      // nothing else talks.
+                      ValueListenableBuilder<int>(
+                        valueListenable: _tick,
+                        builder: (_, __, ___) => _pillButton(
+                          'HINT',
+                          game.hintHasAnswer ? _C.amber : _C.cyan,
+                          () {
+                            HapticFeedback.selectionClick();
+                            game.askForRoomHint();
+                          },
+                          icon: game.hintHasAnswer
+                              ? Icons.help_rounded
+                              : Icons.help_outline_rounded,
+                        ),
                       ),
                       // Restart this molten chamber from scratch (appears only
                       // in the Steam puzzle rooms; reacts to room changes).
@@ -966,11 +973,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               right: 0,
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.only(
-                    top: 104,
-                    left: 24,
-                    right: 24,
-                  ),
+                  padding: const EdgeInsets.only(top: 104, left: 24, right: 24),
                   child: ExcludeSemantics(
                     child: IgnorePointer(
                       child: Center(
@@ -1043,8 +1046,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 stars: _rewardStars!,
                 starNames: [
                   for (final i in _rewardStars!)
-                    kPlanetDungeonLayouts[widget.element]
-                            ?.stars
+                    kPlanetDungeonLayouts[widget.element]?.stars
                             .elementAtOrNull(i)
                             ?.name ??
                         '',
@@ -1377,8 +1379,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
         // Big while held, shrinking as it travels, one last flick on landing.
         final scale =
-            (1.9 * born - 1.15 * flyT + 0.28 * (seat * (1 - seat) * 4))
-                .clamp(0.0, 2.0);
+            (1.9 * born - 1.15 * flyT + 0.28 * (seat * (1 - seat) * 4)).clamp(
+              0.0,
+              2.0,
+            );
 
         // Only fades at the very end, and only after it has seated.
         final opacity = landT < 0.55 ? 1.0 : 1.0 - (landT - 0.55) / 0.45;

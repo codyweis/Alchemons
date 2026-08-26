@@ -163,10 +163,7 @@ void main() {
       // Nothing walks into the bowl: the lotus knoll's own hole is the only
       // way in, and the engine walks you through it (§5.5 vault trick).
       final lotus = layout.rooms[kLotusKnollId]!;
-      expect(
-        lotus.doors.any((d) => d.targetRoomId == 'sunken_lotus'),
-        isTrue,
-      );
+      expect(lotus.doors.any((d) => d.targetRoomId == 'sunken_lotus'), isTrue);
     });
 
     test('no STAR lives anywhere that terraforming can delete', () {
@@ -190,10 +187,10 @@ void main() {
       // carries no family gate of any kind: the drag is element-only Mud
       // everywhere, always. Exactly one gate touches a star (the cairn's
       // black basin, Star 1); the other sits on optional treasure.
-      expect(
-        layout.familyGates.map((g) => g.objectId).toSet(),
-        {'moor_black', 'plank_road'},
-      );
+      expect(layout.familyGates.map((g) => g.objectId).toSet(), {
+        'moor_black',
+        'plank_road',
+      });
     });
 
     test('the ideal families are index-aligned with the entry slots', () {
@@ -245,12 +242,14 @@ void main() {
       expect(game.solveFenTerraform().strandable, 0);
     });
 
-    test('a Mane-less party is not stranded either, it just loses the vault',
-        () {
-      final game = _harness(_idealTrio());
-      final r = game.solveFenTerraform(plankPassable: false);
-      expect(r.strandable, 0);
-    });
+    test(
+      'a Mane-less party is not stranded either, it just loses the vault',
+      () {
+        final game = _harness(_idealTrio());
+        final r = game.solveFenTerraform(plankPassable: false);
+        expect(r.strandable, 0);
+      },
+    );
 
     test('the wallow and the sough are load-bearing, not decoration', () {
       // Delete the valve and the planet becomes exactly the stranding machine
@@ -283,8 +282,7 @@ void main() {
   });
 
   group('the drag', () {
-    test('hardening one crossing drowns its neighbours on the same slough',
-        () {
+    test('hardening one crossing drowns its neighbours on the same slough', () {
       final f = BogField();
       expect(f.stateOf('cor_neck'), BogFordState.mire);
       final lost = f.harden('cor_neck')!;
@@ -400,8 +398,7 @@ void main() {
       expect(game.hasStar(1), isTrue);
     });
 
-    test('the black basin is a HARD gate, and refusing it stamps the chip',
-        () {
+    test('the black basin is a HARD gate, and refusing it stamps the chip', () {
       final stamped = <String>[];
       final game = _harness([
         _member(0, 'Mud', 'mane'),
@@ -518,7 +515,11 @@ void main() {
       game.currentRoomId = 'cairn_knoll';
       game.setActive(mud);
       expect(game.isDoorLocked(cairn, plank.first), isTrue, reason: 'the ford');
-      expect(game.isDoorLocked(cairn, plank.last), isFalse, reason: 'the plank');
+      expect(
+        game.isDoorLocked(cairn, plank.last),
+        isFalse,
+        reason: 'the plank',
+      );
 
       // Step onto it, and the knoll goes down under the party's weight.
       game.currentRoomId = kLotusKnollId;
@@ -571,7 +572,11 @@ void main() {
         game.setActive(0);
         expect(game.isDoorLocked(room, wallow), isFalse, reason: k);
         game.setActive(1);
-        expect(game.isDoorLocked(room, wallow), isTrue, reason: '$k off-element');
+        expect(
+          game.isDoorLocked(room, wallow),
+          isTrue,
+          reason: '$k off-element',
+        );
       }
     });
 

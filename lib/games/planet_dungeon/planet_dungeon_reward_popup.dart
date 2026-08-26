@@ -778,7 +778,6 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   }
 }
 
-
 /// Slow rays behind the reward panel.
 ///
 /// Deliberately unlike anything else in the dungeon: every other panel is

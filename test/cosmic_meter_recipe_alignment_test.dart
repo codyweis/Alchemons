@@ -17,11 +17,7 @@ void main() {
   group('recipe notches line up with meter fill', () {
     test('a meter that exactly matches the recipe puts every segment edge '
         'on its notch', () {
-      final recipe = PlanetRecipe.generate(
-        element: 'Fire',
-        seed: 11,
-        level: 3,
-      );
+      final recipe = PlanetRecipe.generate(element: 'Fire', seed: 11, level: 3);
 
       // A perfect match is the named targets PLUS the recipe's "any"
       // allowance. Carrying only the named components leaves the meter short
@@ -40,9 +36,9 @@ void main() {
       expect(meter.total, closeTo(100.0, 0.0001));
 
       final fill = _boundaries(
-        meterSegmentsInDrawOrder(meter).where(
-          (e) => recipe.components.containsKey(e.key),
-        ).toList(),
+        meterSegmentsInDrawOrder(
+          meter,
+        ).where((e) => recipe.components.containsKey(e.key)).toList(),
         meter.total,
       );
       final notches = _boundaries(recipeTargetsInDrawOrder(recipe), 100.0);
@@ -73,7 +69,8 @@ void main() {
           expect(
             meterSegmentsInDrawOrder(meter).map((e) => e.key).toList(),
             recipeTargetsInDrawOrder(recipe).map((e) => e.key).toList(),
-            reason: '$element L$level draws fill and notches in different '
+            reason:
+                '$element L$level draws fill and notches in different '
                 'orders — the notches would point at the wrong segments',
           );
         }

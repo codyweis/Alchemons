@@ -193,13 +193,15 @@ void main() {
                 expect(
                   nodeIds[ch.to]!.isSpring,
                   isFalse,
-                  reason: '${room.id}: ${ch.from}→${ch.to} runs into the '
+                  reason:
+                      '${room.id}: ${ch.from}→${ch.to} runs into the '
                       'spring — the source never takes water back',
                 );
                 expect(
                   nodeIds[ch.from]!.isSea,
                   isFalse,
-                  reason: '${room.id}: ${ch.from}→${ch.to} runs out of the '
+                  reason:
+                      '${room.id}: ${ch.from}→${ch.to} runs out of the '
                       'sea drain',
                 );
               }
@@ -208,14 +210,16 @@ void main() {
               expect(
                 nodeIds.containsKey(ch.from) && nodeIds.containsKey(ch.to),
                 isTrue,
-                reason: '${room.id}: groove ${ch.from}→${ch.to} names a node '
+                reason:
+                    '${room.id}: groove ${ch.from}→${ch.to} names a node '
                     'that does not exist',
               );
               expect(
                 (nodeIds[ch.from]!.position - nodeIds[ch.to]!.position)
                     .distance,
                 greaterThanOrEqualTo(120.0),
-                reason: '${room.id}: groove ${ch.from}→${ch.to} is too short '
+                reason:
+                    '${room.id}: groove ${ch.from}→${ch.to} is too short '
                     'to read its chevrons, its sill notches, or the lantern '
                     'crossing it',
               );
@@ -229,7 +233,8 @@ void main() {
               expect(
                 sills.toSet().length,
                 sills.length,
-                reason: '${room.id}/${node.id}: two grooves share a sill — '
+                reason:
+                    '${room.id}/${node.id}: two grooves share a sill — '
                     'the spill would be a coin toss the player cannot read',
               );
             }
@@ -256,7 +261,8 @@ void main() {
                 expect(
                   cyclic(node.id),
                   isFalse,
-                  reason: '${room.id}: the canals loop — water that can circle '
+                  reason:
+                      '${room.id}: the canals loop — water that can circle '
                       'is water the player can never finish steering',
                 );
               }
@@ -379,22 +385,24 @@ void main() {
           }
         });
 
-        test('every dungeon hides exactly one vault cache, inside its room',
-            () {
-          final cacheRooms = layout.rooms.values
-              .where((r) => r.vaultCache != null)
-              .toList();
-          expect(
-            cacheRooms.length,
-            1,
-            reason: 'each dungeon\'s treasure room holds ONE bottled essence',
-          );
-          expect(
-            cacheRooms.single.bounds.contains(cacheRooms.single.vaultCache!),
-            isTrue,
-            reason: 'the cache must sit inside its room',
-          );
-        });
+        test(
+          'every dungeon hides exactly one vault cache, inside its room',
+          () {
+            final cacheRooms = layout.rooms.values
+                .where((r) => r.vaultCache != null)
+                .toList();
+            expect(
+              cacheRooms.length,
+              1,
+              reason: 'each dungeon\'s treasure room holds ONE bottled essence',
+            );
+            expect(
+              cacheRooms.single.bounds.contains(cacheRooms.single.vaultCache!),
+              isTrue,
+              reason: 'the cache must sit inside its room',
+            );
+          },
+        );
 
         test('every dungeon carries a 3-line descent riddle', () {
           // One verse line per entry slot — party-picking must be a puzzle
@@ -668,10 +676,16 @@ void main() {
               );
             }
             for (final r in room.windRoutes) {
-              expect(ledges.containsKey(r.from), isTrue,
-                  reason: '${room.id}: route ${r.id} leaves nowhere');
-              expect(ledges.containsKey(r.to), isTrue,
-                  reason: '${room.id}: route ${r.id} arrives nowhere');
+              expect(
+                ledges.containsKey(r.from),
+                isTrue,
+                reason: '${room.id}: route ${r.id} leaves nowhere',
+              );
+              expect(
+                ledges.containsKey(r.to),
+                isTrue,
+                reason: '${room.id}: route ${r.id} arrives nowhere',
+              );
               final rides = r.ridesGale;
               if (rides == null) {
                 expect(
@@ -682,9 +696,13 @@ void main() {
                 );
               } else {
                 final rects = galeRects[rides];
-                expect(rects, isNotNull,
-                    reason: '${room.id}: route ${r.id} rides an unauthored '
-                        'gale "$rides"');
+                expect(
+                  rects,
+                  isNotNull,
+                  reason:
+                      '${room.id}: route ${r.id} rides an unauthored '
+                      'gale "$rides"',
+                );
                 expect(
                   rects!.any((g) => g.overlaps(ledges[r.from]!.rect)) &&
                       rects.any((g) => g.overlaps(ledges[r.to]!.rect)),
@@ -716,8 +734,11 @@ void main() {
               }
             }
             for (final s in room.gustShrines) {
-              expect(ledges.containsKey(s.ledgeId), isTrue,
-                  reason: '${room.id}: shrine ${s.id} stands on no ledge');
+              expect(
+                ledges.containsKey(s.ledgeId),
+                isTrue,
+                reason: '${room.id}: shrine ${s.id} stands on no ledge',
+              );
               expect(
                 ledges[s.ledgeId]!.rect.contains(s.position),
                 isTrue,
@@ -785,13 +806,18 @@ void main() {
                     'conduit ${c.id} in ${room.id} answers neither a hand nor '
                     'the storm — nothing can ever light it',
               );
-              expect(room.stormRods, isNotEmpty,
-                  reason: '${room.id}: nothing for the bolt to climb');
+              expect(
+                room.stormRods,
+                isNotEmpty,
+                reason: '${room.id}: nothing for the bolt to climb',
+              );
               final orbit = room.stormOrbit;
-              expect(orbit, isNotNull,
-                  reason: '${room.id}: a struck conduit with no storm');
-              final gap =
-                  (c.position - orbit!.center).distance - orbit.radius;
+              expect(
+                orbit,
+                isNotNull,
+                reason: '${room.id}: a struck conduit with no storm',
+              );
+              final gap = (c.position - orbit!.center).distance - orbit.radius;
               expect(
                 gap,
                 greaterThan(kStormHopReach),
@@ -884,10 +910,16 @@ void main() {
       final garth = cloister.garth;
       expect(garth, isNotNull, reason: 'the cloister is a burnable field now');
       expect(garth!.starIndex, 1);
-      expect(garth.coverageGoal, greaterThan(0),
-          reason: 'the ember pool is the win condition');
-      expect(cloister.windVane, isNotNull,
-          reason: 'the garth turns its own crosswind');
+      expect(
+        garth.coverageGoal,
+        greaterThan(0),
+        reason: 'the ember pool is the win condition',
+      );
+      expect(
+        cloister.windVane,
+        isNotNull,
+        reason: 'the garth turns its own crosswind',
+      );
       // Star 3: three bells in the gallery; Simurgh roosts in the sanctum.
       expect(fire.rooms['bell_gallery']!.incenseChains.length, 3);
       final guardian = fire.rooms['sanctum']!.guardian;
@@ -1026,8 +1058,11 @@ void main() {
       expect(pylon.beamMirrors.length, 4);
       expect(pylon.beamReceivers.length, 3); // the three terminals
       expect(pylon.beamConverters, isEmpty, reason: 'no Fire conversion in S1');
-      expect(pylon.fulminateVats.length, 2,
-          reason: 'the negative constraints that make it unique');
+      expect(
+        pylon.fulminateVats.length,
+        2,
+        reason: 'the negative constraints that make it unique',
+      );
       // Star 2: three sockets (one needs heat) fed by storm-cells.
       final works = lightning.rooms['cloud_works']!;
       expect(works.circuitStarIndex, 1);
@@ -1054,16 +1089,23 @@ void main() {
       expect(hubId, isNotNull, reason: 'the dynamo hub must be declared');
       final hub = lightning.rooms[hubId];
       expect(hub, isNotNull);
-      expect(lightning.dynamoTrunks.length, 4,
-          reason: 'pylon / cloud / vault / core');
+      expect(
+        lightning.dynamoTrunks.length,
+        4,
+        reason: 'pylon / cloud / vault / core',
+      );
       final ids = lightning.dynamoTrunks.map((t) => t.id).toSet();
       expect(ids.length, 4, reason: 'trunk ids must be unique');
-      expect(ids, contains(lightning.initialTrunkId),
-          reason: 'the initial trunk must exist');
+      expect(
+        ids,
+        contains(lightning.initialTrunkId),
+        reason: 'the initial trunk must exist',
+      );
       // The treasury hoards the storm: the run starts on the VAULT trunk so
       // every star wing begins dark and the vault begins sealed.
-      final initial = lightning.dynamoTrunks
-          .firstWhere((t) => t.id == lightning.initialTrunkId);
+      final initial = lightning.dynamoTrunks.firstWhere(
+        (t) => t.id == lightning.initialTrunkId,
+      );
       expect(
         initial.roomIds.any((r) => lightning.rooms[r]!.vaultBolt != null),
         isTrue,
@@ -1073,14 +1115,23 @@ void main() {
       for (final t in lightning.dynamoTrunks) {
         expect(t.roomIds, isNotEmpty);
         for (final rid in t.roomIds) {
-          expect(lightning.rooms.containsKey(rid), isTrue,
-              reason: 'trunk ${t.id} feeds unknown room $rid');
-          expect(claimed.add(rid), isTrue,
-              reason: '$rid must belong to exactly one trunk');
+          expect(
+            lightning.rooms.containsKey(rid),
+            isTrue,
+            reason: 'trunk ${t.id} feeds unknown room $rid',
+          );
+          expect(
+            claimed.add(rid),
+            isTrue,
+            reason: '$rid must belong to exactly one trunk',
+          );
         }
         // Breakers stand inside the hub, off its walls.
-        expect(hub!.bounds.contains(t.breakerPosition), isTrue,
-            reason: 'breaker of ${t.id} must stand inside the dynamo court');
+        expect(
+          hub!.bounds.contains(t.breakerPosition),
+          isTrue,
+          reason: 'breaker of ${t.id} must stand inside the dynamo court',
+        );
         expect(
           hub.walls.any((w) => w.inflate(16).contains(t.breakerPosition)),
           isFalse,
@@ -1097,8 +1148,11 @@ void main() {
                 lightning.rooms[rid]!.guardian!.starIndex,
             ],
           };
-          expect(wingStars, contains(freeze),
-              reason: '${t.id} freezes on a star its wing does not award');
+          expect(
+            wingStars,
+            contains(freeze),
+            reason: '${t.id} freezes on a star its wing does not award',
+          );
         }
       }
       // The hub and the entrance are the always-lit spine — on no trunk.
@@ -1109,60 +1163,70 @@ void main() {
         if (room.circuitStarIndex != null ||
             room.guardian != null ||
             room.vaultBolt != null) {
-          expect(claimed, contains(room.id),
-              reason: '${room.id} must belong to a trunk');
+          expect(
+            claimed,
+            contains(room.id),
+            reason: '${room.id} must belong to a trunk',
+          );
         }
       }
       // The vault sanctum: the bolt is the sole mouth, and the cache sits
       // inside (unreachable while the trunk burns — collision-enforced).
-      final vaultRoom =
-          lightning.rooms.values.firstWhere((r) => r.vaultBolt != null);
+      final vaultRoom = lightning.rooms.values.firstWhere(
+        (r) => r.vaultBolt != null,
+      );
       expect(vaultRoom.vaultCache, isNotNull);
-      expect(vaultRoom.walls, isNotEmpty,
-          reason: 'the sanctum needs its walls');
+      expect(
+        vaultRoom.walls,
+        isNotEmpty,
+        reason: 'the sanctum needs its walls',
+      );
       // No gate:<element>_<family> id is declared for Lightning — the planet
       // stays hard-gate free after the rework (element-only at full power).
     });
 
-    test(
-      'Lightning S1 threading is PROVABLY UNIQUE (brute-forced against the '
-      'real beam engine)',
-      () {
-        final game = _lightningProbe();
-        final result = game.solvePylonThreading();
-        expect(result.searched, 16, reason: '4 mirrors → 2^4 configurations');
-        expect(
-          result.satisfying,
-          1,
-          reason: 'exactly ONE orientation set may thread all three '
-              'terminals without crossing a fulminate vat',
-        );
-        expect(
-          result.solution,
-          {'pa': 1, 'pb': 0, 'pc': 0, 'pd': 1},
-          reason: 'the authored solution: pa=\\ pd=\\ pc=/ pb=/',
-        );
-      },
-    );
+    test('Lightning S1 threading is PROVABLY UNIQUE (brute-forced against the '
+        'real beam engine)', () {
+      final game = _lightningProbe();
+      final result = game.solvePylonThreading();
+      expect(result.searched, 16, reason: '4 mirrors → 2^4 configurations');
+      expect(
+        result.satisfying,
+        1,
+        reason:
+            'exactly ONE orientation set may thread all three '
+            'terminals without crossing a fulminate vat',
+      );
+      expect(result.solution, {
+        'pa': 1,
+        'pb': 0,
+        'pc': 0,
+        'pd': 1,
+      }, reason: 'the authored solution: pa=\\ pd=\\ pc=/ pb=/');
+    });
 
-    test(
-      'Lightning S3 decoy pair is geometrically impossible; the true pair '
-      'is not',
-      () {
-        final game = _lightningProbe();
-        // The decoy: vent VD (index 3) + converter FD (index 3) — dead-
-        // aligned, and a lie in every one of the 32 conductor configurations.
-        final decoy = game.solveStormSpire(ventIndex: 3, converterIndex: 3);
-        expect(decoy.searched, 32, reason: '5 mirrors → 2^5 configurations');
-        expect(decoy.satisfying, 0,
-            reason: 'no conductor waits beyond FD — the bolt dies in the '
-                'ceiling under every configuration');
-        // The viable chain: vent VA (0) + converter FA (0) reaches the tower.
-        final viable = game.solveStormSpire(ventIndex: 0, converterIndex: 0);
-        expect(viable.satisfying, greaterThan(0),
-            reason: 'VA + FA must remain routable');
-      },
-    );
+    test('Lightning S3 decoy pair is geometrically impossible; the true pair '
+        'is not', () {
+      final game = _lightningProbe();
+      // The decoy: vent VD (index 3) + converter FD (index 3) — dead-
+      // aligned, and a lie in every one of the 32 conductor configurations.
+      final decoy = game.solveStormSpire(ventIndex: 3, converterIndex: 3);
+      expect(decoy.searched, 32, reason: '5 mirrors → 2^5 configurations');
+      expect(
+        decoy.satisfying,
+        0,
+        reason:
+            'no conductor waits beyond FD — the bolt dies in the '
+            'ceiling under every configuration',
+      );
+      // The viable chain: vent VA (0) + converter FA (0) reaches the tower.
+      final viable = game.solveStormSpire(ventIndex: 0, converterIndex: 0);
+      expect(
+        viable.satisfying,
+        greaterThan(0),
+        reason: 'VA + FA must remain routable',
+      );
+    });
 
     test(
       'Water S2: the authored canal network is PROVED solvable, and the tide '
@@ -1190,20 +1254,23 @@ void main() {
         expect(
           proof.singleStandSolvable,
           isEmpty,
-          reason: 'a stand that solved it alone would make the temple\'s own '
+          reason:
+              'a stand that solved it alone would make the temple\'s own '
               'signature system decoration',
         );
         // THE ICE IS A VERB: the temple's natural fall never reaches the sea.
         expect(
           proof.damFree,
           isFalse,
-          reason: 'undammed, the water spills all the way into the blind '
+          reason:
+              'undammed, the water spills all the way into the blind '
               'sump — plugging a basin is required, not optional',
         );
         expect(
           proof.blindBasins,
           1,
-          reason: 'exactly one throatless basin: the fall the player must '
+          reason:
+              'exactly one throatless basin: the fall the player must '
               'learn to fight',
         );
       },
@@ -1220,7 +1287,8 @@ void main() {
         expect(
           proof.strandable,
           0,
-          reason: 'every place the lantern can come to rest must still have a '
+          reason:
+              'every place the lantern can come to rest must still have a '
               'road to the sea',
         );
         expect(proof.states, 21, reason: '7 nodes x 3 stands');
@@ -1231,57 +1299,53 @@ void main() {
         final blind = gallery.canalNodes
             .where((n) => n.isBasin && game.canalIsBlind(n.id))
             .single;
-        expect(
-          gallery.canalChannels.any((c) => c.from == blind.id),
-          isFalse,
-        );
+        expect(gallery.canalChannels.any((c) => c.from == blind.id), isFalse);
         expect(
           gallery.canalChannels.where((c) => c.to == blind.id).length,
           greaterThanOrEqualTo(2),
-          reason: 'the blind sump has to be somewhere the natural fall '
+          reason:
+              'the blind sump has to be somewhere the natural fall '
               'actually goes, or it teaches nothing',
         );
       },
     );
 
-    test(
-      'Water S2: the solver walks the REAL spill rule, leg by leg',
-      () {
-        // The proof is only worth anything if it cannot drift away from what
-        // the game plays. Replay the proved route through `canalSpillFrom` —
-        // the same function the drift calls every frame — and it must land on
-        // exactly the same grooves.
-        final game = _waterProbe();
-        final proof = game.solveLanternDrift();
-        var at = 'spring';
-        for (final leg in proof.route) {
-          expect(leg.from, at, reason: 'the route must be connected');
-          final spilled = game.canalSpillFrom(
-            leg.from,
-            water: leg.stand / 2,
-            dammed: leg.dams.toSet(),
-          );
-          expect(
-            spilled?.to,
-            leg.to,
-            reason: 'leg $leg must be what the real rule does with that '
-                'stand and those dams',
-          );
-          expect(
-            game.canalChannelLive(leg.sill, leg.stand / 2),
-            isTrue,
-            reason: 'leg $leg must ride a groove that is actually running',
-          );
-          expect(
-            game.canalChannelTorrent(leg.sill, leg.stand / 2),
-            isFalse,
-            reason: 'leg $leg must never be a drowned deep cut',
-          );
-          at = leg.to;
-        }
-        expect(at, 'sea');
-      },
-    );
+    test('Water S2: the solver walks the REAL spill rule, leg by leg', () {
+      // The proof is only worth anything if it cannot drift away from what
+      // the game plays. Replay the proved route through `canalSpillFrom` —
+      // the same function the drift calls every frame — and it must land on
+      // exactly the same grooves.
+      final game = _waterProbe();
+      final proof = game.solveLanternDrift();
+      var at = 'spring';
+      for (final leg in proof.route) {
+        expect(leg.from, at, reason: 'the route must be connected');
+        final spilled = game.canalSpillFrom(
+          leg.from,
+          water: leg.stand / 2,
+          dammed: leg.dams.toSet(),
+        );
+        expect(
+          spilled?.to,
+          leg.to,
+          reason:
+              'leg $leg must be what the real rule does with that '
+              'stand and those dams',
+        );
+        expect(
+          game.canalChannelLive(leg.sill, leg.stand / 2),
+          isTrue,
+          reason: 'leg $leg must ride a groove that is actually running',
+        );
+        expect(
+          game.canalChannelTorrent(leg.sill, leg.stand / 2),
+          isFalse,
+          reason: 'leg $leg must never be a drowned deep cut',
+        );
+        at = leg.to;
+      }
+      expect(at, 'sea');
+    });
 
     test('Steam dungeon has its three star chambers and full 3 stars', () {
       final steam = kPlanetDungeonLayouts['Steam']!;
@@ -1304,15 +1368,22 @@ void main() {
       final causeway = steam.rooms['ember_causeway']!;
       expect(causeway.geysers.length, greaterThan(0));
       expect(causeway.capstone?.starIndex, 0);
-      expect(causeway.geysers.where((g) => g.blockedAtStart).length, 1,
-          reason: 'one mouth starts choked, so three bodies and one stone '
-              'is exactly enough to shut the field');
+      expect(
+        causeway.geysers.where((g) => g.blockedAtStart).length,
+        1,
+        reason:
+            'one mouth starts choked, so three bodies and one stone '
+            'is exactly enough to shut the field',
+      );
       // Star 2 is THE LAUNCH: risers throw the party over a chasm to the
       // pedestal on the far shore (the forge's tile-lava grid is retired).
       final forge = steam.rooms['cinder_forge']!;
       expect(forge.capstone?.starIndex, 1);
-      expect(forge.geysers.where((g) => g.isRiser).length, 2,
-          reason: 'a long crossing and a short one — the ordering is the room');
+      expect(
+        forge.geysers.where((g) => g.isRiser).length,
+        2,
+        reason: 'a long crossing and a short one — the ordering is the room',
+      );
       expect(forge.platforms.length, 2, reason: 'two shores, one chasm');
       // Rite: the Crucible grid wakes the guardian (null star index).
       final crucible = steam.rooms['crucible']!.molten;
@@ -1324,58 +1395,63 @@ void main() {
       expect(sg!.encounter?.mysticId, 'Boilrog');
     });
 
-    test('Steam ring-main is a true loop with a budget that cannot buy it all',
-        () {
-      final steam = kPlanetDungeonLayouts['Steam']!;
-      // Every seal is declared on BOTH sides of its junction with one cost,
-      // and guards a real authored door.
-      final junctionCosts = <String, int>{};
-      for (final room in steam.rooms.values) {
-        for (final seal in room.pressureSeals) {
-          expect(
-            room.doors.any((d) => d.targetRoomId == seal.targetRoomId),
-            isTrue,
-            reason: '${room.id} seals a door to ${seal.targetRoomId} that '
-                'does not exist',
-          );
-          final other = steam.rooms[seal.targetRoomId]!;
-          expect(
-            other.pressureSeals.any(
-                (s) => s.targetRoomId == room.id && s.cost == seal.cost),
-            isTrue,
-            reason: 'junction ${room.id}↔${seal.targetRoomId} must be '
-                'declared on both sides with one cost',
-          );
-          final key = ([room.id, seal.targetRoomId]..sort()).join('|');
-          junctionCosts[key] = seal.cost;
+    test(
+      'Steam ring-main is a true loop with a budget that cannot buy it all',
+      () {
+        final steam = kPlanetDungeonLayouts['Steam']!;
+        // Every seal is declared on BOTH sides of its junction with one cost,
+        // and guards a real authored door.
+        final junctionCosts = <String, int>{};
+        for (final room in steam.rooms.values) {
+          for (final seal in room.pressureSeals) {
+            expect(
+              room.doors.any((d) => d.targetRoomId == seal.targetRoomId),
+              isTrue,
+              reason:
+                  '${room.id} seals a door to ${seal.targetRoomId} that '
+                  'does not exist',
+            );
+            final other = steam.rooms[seal.targetRoomId]!;
+            expect(
+              other.pressureSeals.any(
+                (s) => s.targetRoomId == room.id && s.cost == seal.cost,
+              ),
+              isTrue,
+              reason:
+                  'junction ${room.id}↔${seal.targetRoomId} must be '
+                  'declared on both sides with one cost',
+            );
+            final key = ([room.id, seal.targetRoomId]..sort()).join('|');
+            junctionCosts[key] = seal.cost;
+          }
         }
-      }
-      // The ring: four junctions, forming the closed south→west→north→east
-      // loop around the crucible.
-      expect(junctionCosts.keys.toSet(), {
-        'ember_causeway|manifold_south',
-        'ember_causeway|manifold_north',
-        'cinder_forge|manifold_north',
-        'cinder_forge|manifold_south',
-      });
-      // THE STRATEGIC INVARIANT: the starting head cannot unclamp the whole
-      // ring — the player must choose, condense, or stoke.
-      final totalCost = junctionCosts.values.fold<int>(0, (a, b) => a + b);
-      expect(totalCost, greaterThan(kSteamStartPressure));
-      // The burst-disc guards the vault-cache room, and demands more than
-      // the starting head (the dump must be EARNED).
-      final south = steam.rooms['manifold_south']!;
-      expect(south.burstDisc, isNotNull);
-      expect(south.burstDisc!.targetRoomId, 'burst_vault');
-      expect(steam.rooms['burst_vault']!.vaultCache, isNotNull);
-      expect(south.burstDisc!.threshold, greaterThan(kSteamStartPressure));
-      // Fireboxes exist so an empty main is never a softlock.
-      expect(
-        steam.rooms.values.any((r) => r.stokePort != null),
-        isTrue,
-        reason: 'at least one stoke firebox must exist',
-      );
-    });
+        // The ring: four junctions, forming the closed south→west→north→east
+        // loop around the crucible.
+        expect(junctionCosts.keys.toSet(), {
+          'ember_causeway|manifold_south',
+          'ember_causeway|manifold_north',
+          'cinder_forge|manifold_north',
+          'cinder_forge|manifold_south',
+        });
+        // THE STRATEGIC INVARIANT: the starting head cannot unclamp the whole
+        // ring — the player must choose, condense, or stoke.
+        final totalCost = junctionCosts.values.fold<int>(0, (a, b) => a + b);
+        expect(totalCost, greaterThan(kSteamStartPressure));
+        // The burst-disc guards the vault-cache room, and demands more than
+        // the starting head (the dump must be EARNED).
+        final south = steam.rooms['manifold_south']!;
+        expect(south.burstDisc, isNotNull);
+        expect(south.burstDisc!.targetRoomId, 'burst_vault');
+        expect(steam.rooms['burst_vault']!.vaultCache, isNotNull);
+        expect(south.burstDisc!.threshold, greaterThan(kSteamStartPressure));
+        // Fireboxes exist so an empty main is never a softlock.
+        expect(
+          steam.rooms.values.any((r) => r.stokePort != null),
+          isTrue,
+          reason: 'at least one stoke firebox must exist',
+        );
+      },
+    );
 
     test('Steam molten grids are well-formed and solvable in shape', () {
       final steam = kPlanetDungeonLayouts['Steam']!;
@@ -1385,18 +1461,29 @@ void main() {
         if (g == null) continue;
         // Rectangular: every row the same width.
         for (final line in g.rows) {
-          expect(line.length, g.cols,
-              reason: '${room.id} molten rows must be equal-length');
+          expect(
+            line.length,
+            g.cols,
+            reason: '${room.id} molten rows must be equal-length',
+          );
           for (final ch in line.split('')) {
-            expect(legal.contains(ch), isTrue,
-                reason: '${room.id} has illegal molten cell "$ch"');
+            expect(
+              legal.contains(ch),
+              isTrue,
+              reason: '${room.id} has illegal molten cell "$ch"',
+            );
           }
         }
         // A star grid has exactly one pedestal; so does the rite grid.
-        final pedestals =
-            g.rows.fold<int>(0, (n, line) => n + 'P'.allMatches(line).length);
-        expect(pedestals, 1,
-            reason: '${room.id} must have exactly one pedestal');
+        final pedestals = g.rows.fold<int>(
+          0,
+          (n, line) => n + 'P'.allMatches(line).length,
+        );
+        expect(
+          pedestals,
+          1,
+          reason: '${room.id} must have exactly one pedestal',
+        );
       }
     });
 
@@ -1407,30 +1494,45 @@ void main() {
         // Every wired link + mirror orientation points at a real node.
         for (final n in room.circuitNodes) {
           for (final l in n.links) {
-            expect(ids.contains(l), isTrue,
-                reason: '${room.id}/${n.id} links unknown node $l');
+            expect(
+              ids.contains(l),
+              isTrue,
+              reason: '${room.id}/${n.id} links unknown node $l',
+            );
           }
           for (final orient in n.orientationLinks) {
             for (final l in orient) {
-              expect(ids.contains(l), isTrue,
-                  reason: '${room.id}/${n.id} orientation links unknown $l');
+              expect(
+                ids.contains(l),
+                isTrue,
+                reason: '${room.id}/${n.id} orientation links unknown $l',
+              );
             }
           }
           if (n.kind == CircuitNodeKind.mirror) {
-            expect(n.orientationLinks.length, greaterThanOrEqualTo(2),
-                reason: 'a mirror needs at least two orientations to route');
+            expect(
+              n.orientationLinks.length,
+              greaterThanOrEqualTo(2),
+              reason: 'a mirror needs at least two orientations to route',
+            );
           }
         }
         // Every powered barrier + cell socket references a real node. (The
         // beam maze's gate is driven by the beam engine, not a graph node.)
         for (final bar in room.poweredBarriers) {
           if (room.beamEmitters.isNotEmpty) continue;
-          expect(ids.contains(bar.nodeId), isTrue,
-              reason: '${room.id} barrier references unknown ${bar.nodeId}');
+          expect(
+            ids.contains(bar.nodeId),
+            isTrue,
+            reason: '${room.id} barrier references unknown ${bar.nodeId}',
+          );
         }
         for (final sock in room.cellSockets) {
-          expect(ids.contains(sock.energizesNodeId), isTrue,
-              reason: '${room.id} socket energizes unknown node');
+          expect(
+            ids.contains(sock.energizesNodeId),
+            isTrue,
+            reason: '${room.id} socket energizes unknown node',
+          );
         }
       }
     });
@@ -1453,7 +1555,8 @@ void main() {
           expect(
             seen.add(name.toLowerCase()),
             isTrue,
-            reason: '$element reuses the star name "$name" — the popup would '
+            reason:
+                '$element reuses the star name "$name" — the popup would '
                 'read identically for two different accomplishments',
           );
         }
@@ -1466,19 +1569,19 @@ void main() {
 /// they exercise the REAL beam engine over the authored layout, so the
 /// uniqueness proof can never drift from what the game actually computes.
 PlanetDungeonGame _waterProbe() => PlanetDungeonGame(
-      element: 'Water',
-      party: const [],
-      initialStarMask: 0,
-      onStarEarned: (_) {},
-      onPlayerDown: () {},
-      onChanged: () {},
-    );
+  element: 'Water',
+  party: const [],
+  initialStarMask: 0,
+  onStarEarned: (_) {},
+  onPlayerDown: () {},
+  onChanged: () {},
+);
 
 PlanetDungeonGame _lightningProbe() => PlanetDungeonGame(
-      element: 'Lightning',
-      party: const [],
-      initialStarMask: 0,
-      onStarEarned: (_) {},
-      onPlayerDown: () {},
-      onChanged: () {},
-    );
+  element: 'Lightning',
+  party: const [],
+  initialStarMask: 0,
+  onStarEarned: (_) {},
+  onPlayerDown: () {},
+  onChanged: () {},
+);

@@ -262,7 +262,9 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         return true;
       }
       if (heart.phase != o.phase) {
-        _setBlockedHint('Nothing in it to drink — it takes ${phaseWord(o.phase)}');
+        _setBlockedHint(
+          'Nothing in it to drink — it takes ${phaseWord(o.phase)}',
+        );
         return true;
       }
       heart.ostiaPrimed.add(o.id);
@@ -398,8 +400,10 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       }
       final idx = _graftStarRoom?.sanguine?.starIndex;
       if (idx != null && !hasStar(idx)) {
-        _setHint('Three dead vessels carrying, and the heart is not the only '
-            'thing moving blood');
+        _setHint(
+          'Three dead vessels carrying, and the heart is not the only '
+          'thing moving blood',
+        );
         earnStar(idx);
       }
       return true;
@@ -564,7 +568,9 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     }
     // Consecutive or not, decided by the beat NUMBER rather than by anything
     // the frame loop happened to see.
-    heart.drumStreak = beat == heart.drumBeatStruck + 1 ? heart.drumStreak + 1 : 1;
+    heart.drumStreak = beat == heart.drumBeatStruck + 1
+        ? heart.drumStreak + 1
+        : 1;
     heart.drumBeatStruck = beat;
     if (heart.drumStreak < _kDrumBeats) {
       _setHint('${heart.drumStreak} of $_kDrumBeats', 1.2);
@@ -632,8 +638,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       for (final d in room.doors) {
         final p = _heartPassageFor(room, d);
         if (p == null || !heart.carriesFrom(p, room.id)) continue;
-        if (p.kind == PassageKind.collateral &&
-            !heart.grafted.contains(p.id)) {
+        if (p.kind == PassageKind.collateral && !heart.grafted.contains(p.id)) {
           continue;
         }
         _queueDoorReveal(room.id, d.targetRoomId);
@@ -778,21 +783,25 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     if (cocksIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
         0 => 'The wall is full of vessels nobody is using',
-        1 => 'A grafted vessel carries when the round beside it is at rest — '
-            'it is a road on the phases the beat will not give you',
-        _ => 'Five cocks, and only three of the vessels behind them are sound. '
-            'A light shows you which before you open it; nothing else will, '
-            'and a dead one costs you a fight and no ground',
+        1 =>
+          'A grafted vessel carries when the round beside it is at rest — '
+              'it is a road on the phases the beat will not give you',
+        _ =>
+          'Five cocks, and only three of the vessels behind them are sound. '
+              'A light shows you which before you open it; nothing else will, '
+              'and a dead one costs you a fight and no ground',
       });
       return;
     }
-    if (room.vaultCache != null || heartPassageBetween(room.id, 'auricle_reliquary') != null) {
+    if (room.vaultCache != null ||
+        heartPassageBetween(room.id, 'auricle_reliquary') != null) {
       _setInsightHint(switch (tier) {
         0 => 'That leaflet has never been open while you were looking',
         1 => 'A leaflet is held shut by pressure — from either side',
-        _ => 'It hangs open only when there is no pressure at all, which is '
-            'the pause between beats. Stand at it and wait; it is the same '
-            'leaflet coming back out, so you are not shut in',
+        _ =>
+          'It hangs open only when there is no pressure at all, which is '
+              'the pause between beats. Stand at it and wait; it is the same '
+              'leaflet coming back out, so you are not shut in',
       });
       return;
     }
@@ -800,22 +809,25 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'There is a knot in the floor that the beat runs through',
         1 => 'Press it and the heart stops — briefly',
-        _ => 'It only stops moving while the heart does, and the heart only '
-            'stops when you stop it. Take the pause; do not wait for one',
+        _ =>
+          'It only stops moving while the heart does, and the heart only '
+              'stops when you stop it. Take the pause; do not wait for one',
       });
       return;
     }
     // Anywhere in the orrery, insight reads the PULSE — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'Nothing here is a road for very long',
-      1 => 'A vein carries only while blood is being pushed through it, and '
-          'only downstream. The greater round turns back on the backwash; '
-          'the lesser round never does',
-      _ => 'Four phases, in one order, for ever, and you cannot touch them. '
-          'The greater round runs out on the squeeze and back on the '
-          'backwash; the lesser round runs one way on the fill and closes on '
-          'itself; on the pause nothing runs and every leaflet hangs open. '
-          'Work out where to stand, not how fast to move',
+      1 =>
+        'A vein carries only while blood is being pushed through it, and '
+            'only downstream. The greater round turns back on the backwash; '
+            'the lesser round never does',
+      _ =>
+        'Four phases, in one order, for ever, and you cannot touch them. '
+            'The greater round runs out on the squeeze and back on the '
+            'backwash; the lesser round runs one way on the fill and closes on '
+            'itself; on the pause nothing runs and every leaflet hangs open. '
+            'Work out where to stand, not how fast to move',
     });
   }
 
@@ -866,10 +878,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       PulsePhase.diastole => 0.45,
       PulsePhase.flatline => 0.12,
     };
-    canvas.drawRect(
-      b,
-      Paint()..color = _kHeartInk.withValues(alpha: 0.42),
-    );
+    canvas.drawRect(b, Paint()..color = _kHeartInk.withValues(alpha: 0.42));
     canvas.drawRect(
       b,
       Paint()..color = _kHeartRust.withValues(alpha: 0.10 + 0.16 * fill),
@@ -959,7 +968,10 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
           ..lineTo(tip.dx - dir * 11, tip.dy - 8)
           ..lineTo(tip.dx - dir * 11, tip.dy + 8)
           ..close();
-        canvas.drawPath(head, Paint()..color = _kHeartBone.withValues(alpha: 0.8));
+        canvas.drawPath(
+          head,
+          Paint()..color = _kHeartBone.withValues(alpha: 0.8),
+        );
       }
     }
   }

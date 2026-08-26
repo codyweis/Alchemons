@@ -124,6 +124,10 @@ String? doorHint(PlanetDungeonGame game, String room, DungeonDoor door) {
   }
   game.hintText = null;
   game.update(1 / 60);
+  // The world no longer speaks a refusal — it records one and flashes. The
+  // player learns WHY by pressing HINT, so that is what a hint assertion has
+  // to do too.
+  game.askForRoomHint();
   return game.hintText;
 }
 
@@ -173,8 +177,7 @@ void main() {
       }
     });
 
-    test('a span that needs a bed names one, and a permanent one does not',
-        () {
+    test('a span that needs a bed names one, and a permanent one does not', () {
       for (final s in kCryptSpans) {
         if (s.bedId == null) {
           expect(s.need, isNull, reason: s.id);
@@ -249,8 +252,16 @@ void main() {
       }
 
       final big = walk(PlantScale.huge);
-      expect(big, containsAll(['mosswalk', 'lantern_court', 'islet',
-          'bloom_hall', 'botanica_heart']));
+      expect(
+        big,
+        containsAll([
+          'mosswalk',
+          'lantern_court',
+          'islet',
+          'bloom_hall',
+          'botanica_heart',
+        ]),
+      );
       expect(big, isNot(contains('crypt_niche')));
       expect(big, isNot(contains('gourd_hollow')));
 
@@ -267,42 +278,47 @@ void main() {
   });
 
   group('the scale rule', () {
-    test('a gall is the only thing that changes your size, and it is two-way',
-        () {
-      final g = harness(_idealTrio());
-      expect(g.crypt.scale, PlantScale.huge);
-      // No gall in the moss walk: pressing the verb there changes nothing.
-      act(g, plant, 'mosswalk', const Offset(450, 300));
-      expect(g.crypt.scale, PlantScale.huge);
-      final gall = layout.rooms['root_porch']!.grove!.bole!;
-      act(g, plant, 'root_porch', gall);
-      expect(g.crypt.scale, PlantScale.tiny);
-      act(g, plant, 'root_porch', gall);
-      expect(g.crypt.scale, PlantScale.huge);
-    });
+    test(
+      'a gall is the only thing that changes your size, and it is two-way',
+      () {
+        final g = harness(_idealTrio());
+        expect(g.crypt.scale, PlantScale.huge);
+        // No gall in the moss walk: pressing the verb there changes nothing.
+        act(g, plant, 'mosswalk', const Offset(450, 300));
+        expect(g.crypt.scale, PlantScale.huge);
+        final gall = layout.rooms['root_porch']!.grove!.bole!;
+        act(g, plant, 'root_porch', gall);
+        expect(g.crypt.scale, PlantScale.tiny);
+        act(g, plant, 'root_porch', gall);
+        expect(g.crypt.scale, PlantScale.huge);
+      },
+    );
 
-    test('the gall is element-only, and Mud+Light braids for a downed Plant',
-        () {
-      // §4: the planet's own grammar can never be family-gated, and §6's
-      // Mud+Light→Plant recipe substitutes the ELEMENT.
-      final g = harness([
-        _member(0, 'Mud', 'pip'),
-        _member(1, 'Light', 'mask'),
-        _member(2, 'Water', 'wing'),
-      ]);
-      final gall = layout.rooms['root_porch']!.grove!.bole!;
-      act(g, 0, 'root_porch', gall); // the Mud body, with a Light beside it
-      expect(g.crypt.scale, PlantScale.tiny, reason: 'the braid must plant');
+    test(
+      'the gall is element-only, and Mud+Light braids for a downed Plant',
+      () {
+        // §4: the planet's own grammar can never be family-gated, and §6's
+        // Mud+Light→Plant recipe substitutes the ELEMENT.
+        final g = harness([
+          _member(0, 'Mud', 'pip'),
+          _member(1, 'Light', 'mask'),
+          _member(2, 'Water', 'wing'),
+        ]);
+        final gall = layout.rooms['root_porch']!.grove!.bole!;
+        act(g, 0, 'root_porch', gall); // the Mud body, with a Light beside it
+        expect(g.crypt.scale, PlantScale.tiny, reason: 'the braid must plant');
 
-      final lone = harness([
-        _member(0, 'Water', 'wing'),
-        _member(1, 'Water', 'pip'),
-        _member(2, 'Water', 'mask'),
-      ]);
-      act(lone, 0, 'root_porch', gall);
-      expect(lone.crypt.scale, PlantScale.huge);
-      expect(lone.hintText, contains('Plant'));
-    });
+        final lone = harness([
+          _member(0, 'Water', 'wing'),
+          _member(1, 'Water', 'pip'),
+          _member(2, 'Water', 'mask'),
+        ]);
+        act(lone, 0, 'root_porch', gall);
+        expect(lone.crypt.scale, PlantScale.huge);
+        lone.askForRoomHint();
+        expect(lone.hintText, contains('Plant'));
+      },
+    );
 
     test('a door refuses the wrong body, and says which way it is wrong', () {
       final g = harness(_idealTrio());
@@ -336,8 +352,7 @@ void main() {
       expect(h.crypt.stateOf('b_root'), VineState.trunk);
     });
 
-    test('a bed takes ONE seed for the run, and a trunk fills its fissure',
-        () {
+    test('a bed takes ONE seed for the run, and a trunk fills its fissure', () {
       final g = harness(_idealTrio());
       g.crypt.scale = PlantScale.tiny;
       act(g, plant, 'fern_gallery', bedOf('b_root'));
@@ -350,18 +365,14 @@ void main() {
       );
       g.entryDoorRevealed = true;
       expect(g.isDoorLocked(gallery, wormRun), isTrue);
-      expect(
-        doorHint(g, 'fern_gallery', wormRun),
-        contains('Grown shut'),
-      );
+      expect(doorHint(g, 'fern_gallery', wormRun), contains('Grown shut'));
       // And the bed will not take a second seed, at either size.
       g.crypt.scale = PlantScale.huge;
       act(g, plant, 'fern_gallery', bedOf('b_root'));
       expect(g.crypt.stateOf('b_root'), VineState.trunk);
     });
 
-    test('THE TRAP: b_root\'s trunk costs the only small road to the islet',
-        () {
+    test('THE TRAP: b_root\'s trunk costs the only small road to the islet', () {
       // The sharpest instance, authored on purpose (§5.5): b_root's creeper is
       // the ONE small way across the rill, and Star 1's seeding and the vault
       // both want it. Committing the trunk instead is legal, recoverable only
@@ -375,8 +386,7 @@ void main() {
         final r = q.removeLast();
         for (final d in layout.rooms[r]!.doors) {
           final s = cryptSpanBetween(r, d.targetRoomId)!;
-          if (!g.crypt.spanExists(s) ||
-              !g.crypt.spanFits(s, PlantScale.tiny)) {
+          if (!g.crypt.spanExists(s) || !g.crypt.spanFits(s, PlantScale.tiny)) {
             continue;
           }
           if (small.add(d.targetRoomId)) q.add(d.targetRoomId);
@@ -444,24 +454,26 @@ void main() {
       );
     });
 
-    test('the exit, every star room and the vault survive every state, by name',
-        () {
-      // Names, not counts: a renamed room must break this test rather than
-      // quietly shrink the guarantee.
-      const mustLive = [
-        'root_porch',
-        'lantern_court',
-        'islet',
-        'crypt_niche',
-        'bloom_hall',
-        'botanica_heart',
-        'gourd_hollow',
-      ];
-      for (final id in mustLive) {
-        expect(layout.rooms.containsKey(id), isTrue, reason: id);
-      }
-      expect(r.strandable, 0);
-    });
+    test(
+      'the exit, every star room and the vault survive every state, by name',
+      () {
+        // Names, not counts: a renamed room must break this test rather than
+        // quietly shrink the guarantee.
+        const mustLive = [
+          'root_porch',
+          'lantern_court',
+          'islet',
+          'crypt_niche',
+          'bloom_hall',
+          'botanica_heart',
+          'gourd_hollow',
+        ];
+        for (final id in mustLive) {
+          expect(layout.rooms.containsKey(id), isTrue, reason: id);
+        }
+        expect(r.strandable, 0);
+      },
+    );
   });
 
   group('Star 0 — THE GRAVE-LAMPS (ungated)', () {
@@ -471,6 +483,7 @@ void main() {
       g.crypt.scale = PlantScale.huge;
       act(g, light, 'crypt_niche', lampOf('lamp_niche'));
       expect(g.crypt.lampsLit, isEmpty);
+      g.askForRoomHint();
       expect(g.hintText, contains('size'));
       g.crypt.scale = PlantScale.tiny;
       act(g, light, 'crypt_niche', lampOf('lamp_niche'));
@@ -484,6 +497,7 @@ void main() {
       final g = harness(_idealTrio());
       act(g, mud, 'mosswalk', lampOf('lamp_walk'));
       expect(g.crypt.lampsLit, isEmpty);
+      g.askForRoomHint();
       expect(g.hintText, contains('Light'));
     });
 
@@ -510,8 +524,11 @@ void main() {
       expect(banked, contains(0));
       expect(g.hasStar(0), isTrue);
       for (final b in kCryptBeds) {
-        expect(g.crypt.stateOf(b.id), VineState.bare,
-            reason: 'the first-descent star must cost no ground');
+        expect(
+          g.crypt.stateOf(b.id),
+          VineState.bare,
+          reason: 'the first-descent star must cost no ground',
+        );
       }
     });
   });
@@ -528,6 +545,7 @@ void main() {
       // Now the seed, and it wants a small body.
       act(g, plant, 'islet', altar);
       expect(g.crypt.bloomStep, 1);
+      g.askForRoomHint();
       expect(g.hintText, contains('big'));
       g.crypt.scale = PlantScale.tiny;
       act(g, plant, 'islet', altar);
@@ -596,9 +614,11 @@ void main() {
       final pit = layout.rooms['mosswalk']!.grove!.mulchPit!;
       act(g, plant, 'mosswalk', pit);
       expect(g.crypt.armedPitRoom, isNull);
+      g.askForRoomHint();
       expect(g.hintText, contains('Mud'));
       act(g, mud, 'mosswalk', pit);
       expect(g.crypt.armedPitRoom, isNull, reason: 'nothing to turn');
+      g.askForRoomHint();
       expect(g.hintText, contains('fallow'));
     });
 
@@ -626,10 +646,10 @@ void main() {
       // §4's budget: two gates, on two objects, on two different entry slots,
       // and NOT on Star 0.
       expect(layout.familyGates.length, 2);
-      expect(
-        layout.familyGates.map((x) => x.element).toSet(),
-        {'Plant', 'Light'},
-      );
+      expect(layout.familyGates.map((x) => x.element).toSet(), {
+        'Plant',
+        'Light',
+      });
     });
 
     test('the sepulchre is element-only Mud, and waits on both stars', () {
@@ -637,6 +657,7 @@ void main() {
       final tomb = layout.rooms['bloom_hall']!.grove!.sepulchre!;
       act(g, mud, 'bloom_hall', tomb);
       expect(g.conduitEnergy['B'] ?? 0, 0);
+      g.askForRoomHint();
       expect(g.hintText, contains(layout.starName(0)));
       g.starMask = 0x3;
       act(g, plant, 'bloom_hall', tomb);
@@ -690,28 +711,30 @@ void main() {
   });
 
   group('the lost maxim — THE UNSEEN SHADE', () {
-    test('tend it small with all three, then look at it from your own size',
-        () {
-      var clouds = <String>[];
-      final g = harness(_idealTrio(), onCloud: clouds.add);
-      final seed = layout.rooms['fern_gallery']!.grove!.shadeSeed!;
-      // A large body cannot even see under the root.
-      act(g, mud, 'fern_gallery', seed);
-      expect(g.crypt.tendedBy, isEmpty);
-      g.crypt.scale = PlantScale.tiny;
-      act(g, mud, 'fern_gallery', seed);
-      act(g, light, 'fern_gallery', seed);
-      act(g, plant, 'fern_gallery', seed);
-      expect(g.crypt.tendedBy.length, 3);
-      expect(clouds, isNot(contains(kPlantUnseenShadeEggId)));
-      // And it only towers for someone who can stand back and look.
-      act(g, plant, 'fern_gallery', seed);
-      expect(clouds, isNot(contains(kPlantUnseenShadeEggId)));
-      g.crypt.scale = PlantScale.huge;
-      act(g, plant, 'fern_gallery', seed);
-      expect(clouds, contains(kPlantUnseenShadeEggId));
-      expect(g.crypt.shadeRisen, isTrue);
-    });
+    test(
+      'tend it small with all three, then look at it from your own size',
+      () {
+        var clouds = <String>[];
+        final g = harness(_idealTrio(), onCloud: clouds.add);
+        final seed = layout.rooms['fern_gallery']!.grove!.shadeSeed!;
+        // A large body cannot even see under the root.
+        act(g, mud, 'fern_gallery', seed);
+        expect(g.crypt.tendedBy, isEmpty);
+        g.crypt.scale = PlantScale.tiny;
+        act(g, mud, 'fern_gallery', seed);
+        act(g, light, 'fern_gallery', seed);
+        act(g, plant, 'fern_gallery', seed);
+        expect(g.crypt.tendedBy.length, 3);
+        expect(clouds, isNot(contains(kPlantUnseenShadeEggId)));
+        // And it only towers for someone who can stand back and look.
+        act(g, plant, 'fern_gallery', seed);
+        expect(clouds, isNot(contains(kPlantUnseenShadeEggId)));
+        g.crypt.scale = PlantScale.huge;
+        act(g, plant, 'fern_gallery', seed);
+        expect(clouds, contains(kPlantUnseenShadeEggId));
+        expect(g.crypt.shadeRisen, isTrue);
+      },
+    );
   });
 
   group('the descent', () {

@@ -258,8 +258,7 @@ void main() {
 
   // ─────────────────────────────────────────────────────────
   group('the orrery — one figure of eight, four phases', () {
-    test('every passage is a real door pair, and every pair is one passage',
-        () {
+    test('every passage is a real door pair, and every pair is one passage', () {
       final pairs = <String>{};
       for (final p in kHeartPassages) {
         final a = layout.rooms[p.from];
@@ -319,13 +318,17 @@ void main() {
       // an eight.
       final greater = {
         for (final p in kHeartPassages)
-          if (p.kind == PassageKind.vein && p.lobe == HeartLobe.greater)
-            ...[p.from, p.to],
+          if (p.kind == PassageKind.vein && p.lobe == HeartLobe.greater) ...[
+            p.from,
+            p.to,
+          ],
       };
       final lesser = {
         for (final p in kHeartPassages)
-          if (p.kind == PassageKind.vein && p.lobe == HeartLobe.lesser)
-            ...[p.from, p.to],
+          if (p.kind == PassageKind.vein && p.lobe == HeartLobe.lesser) ...[
+            p.from,
+            p.to,
+          ],
       };
       expect(greater.intersection(lesser), {'vena_crossing'});
     });
@@ -364,52 +367,54 @@ void main() {
       }
     });
 
-    test('the flow table: the greater round reverses, the lesser never does',
-        () {
-      // The strategic question, expressed as six numbers (§5.5).
-      expect(veinFlow(HeartLobe.greater, PulsePhase.systole), 1);
-      expect(veinFlow(HeartLobe.greater, PulsePhase.dicrotic), -1);
-      expect(veinFlow(HeartLobe.greater, PulsePhase.diastole), 0);
-      expect(veinFlow(HeartLobe.greater, PulsePhase.flatline), 0);
-      expect(veinFlow(HeartLobe.lesser, PulsePhase.diastole), 1);
-      for (final p in PulsePhase.values) {
-        if (p == PulsePhase.diastole) continue;
-        expect(
-          veinFlow(HeartLobe.lesser, p),
-          0,
-          reason: 'the lung must never run on $p',
-        );
-        expect(
-          veinFlow(HeartLobe.lesser, p),
-          isNot(-1),
-          reason: 'the lung must never reverse',
-        );
-      }
-      // On the flatline NOTHING carries and every valve hangs open. That pair
-      // of facts is the vault trick and the planet's identity in one line.
-      for (final lobe in HeartLobe.values) {
-        expect(veinFlow(lobe, PulsePhase.flatline), 0);
-      }
-      final leaflet = heartPassageById('vv_leaflet')!;
-      for (final p in PulsePhase.values) {
-        expect(
-          leaflet.carriesFrom('aortic_arch', p),
-          p == PulsePhase.flatline,
-        );
-        expect(
-          leaflet.carriesFrom('auricle_reliquary', p),
-          p == PulsePhase.flatline,
-          reason: 'the leaflet must be the same way OUT as it is in',
-        );
-      }
-      // A collateral is the complement of its lobe — the phases the eight
-      // denies you, which is why Star 1's reward is TIME.
-      for (final lobe in HeartLobe.values) {
+    test(
+      'the flow table: the greater round reverses, the lesser never does',
+      () {
+        // The strategic question, expressed as six numbers (§5.5).
+        expect(veinFlow(HeartLobe.greater, PulsePhase.systole), 1);
+        expect(veinFlow(HeartLobe.greater, PulsePhase.dicrotic), -1);
+        expect(veinFlow(HeartLobe.greater, PulsePhase.diastole), 0);
+        expect(veinFlow(HeartLobe.greater, PulsePhase.flatline), 0);
+        expect(veinFlow(HeartLobe.lesser, PulsePhase.diastole), 1);
         for (final p in PulsePhase.values) {
-          expect(collateralCarries(lobe, p), veinFlow(lobe, p) == 0);
+          if (p == PulsePhase.diastole) continue;
+          expect(
+            veinFlow(HeartLobe.lesser, p),
+            0,
+            reason: 'the lung must never run on $p',
+          );
+          expect(
+            veinFlow(HeartLobe.lesser, p),
+            isNot(-1),
+            reason: 'the lung must never reverse',
+          );
         }
-      }
-    });
+        // On the flatline NOTHING carries and every valve hangs open. That pair
+        // of facts is the vault trick and the planet's identity in one line.
+        for (final lobe in HeartLobe.values) {
+          expect(veinFlow(lobe, PulsePhase.flatline), 0);
+        }
+        final leaflet = heartPassageById('vv_leaflet')!;
+        for (final p in PulsePhase.values) {
+          expect(
+            leaflet.carriesFrom('aortic_arch', p),
+            p == PulsePhase.flatline,
+          );
+          expect(
+            leaflet.carriesFrom('auricle_reliquary', p),
+            p == PulsePhase.flatline,
+            reason: 'the leaflet must be the same way OUT as it is in',
+          );
+        }
+        // A collateral is the complement of its lobe — the phases the eight
+        // denies you, which is why Star 1's reward is TIME.
+        for (final lobe in HeartLobe.values) {
+          for (final p in PulsePhase.values) {
+            expect(collateralCarries(lobe, p), veinFlow(lobe, p) == 0);
+          }
+        }
+      },
+    );
 
     test('the murals are the only phase-free ways, and they guard the two '
         'rooms the world acts in', () {
@@ -462,13 +467,13 @@ void main() {
       expect(
         r.strandable,
         0,
-        reason: 'some (chamber × phase × graft) state cannot reach the whole '
+        reason:
+            'some (chamber × phase × graft) state cannot reach the whole '
             'orrery',
       );
     });
 
-    test('COUNTERFACTUAL — open either lobe of the eight and it is a trap',
-        () {
+    test('COUNTERFACTUAL — open either lobe of the eight and it is a trap', () {
       // Delete the sinus mouth and the lesser lobe stops being a ring. It
       // never reverses, so a party that walks into the lung could never walk
       // out. This is the counterfactual that says the CLOSED CYCLE is the
@@ -541,8 +546,9 @@ void main() {
     });
 
     test('exactly one cache, and it is behind the pause', () {
-      final withCache =
-          layout.rooms.values.where((r) => r.vaultCache != null).toList();
+      final withCache = layout.rooms.values
+          .where((r) => r.vaultCache != null)
+          .toList();
       expect(withCache.length, 1);
       expect(withCache.single.id, 'auricle_reliquary');
       // One door, and it is the leaflet. A pocket, not a corridor.
@@ -634,8 +640,13 @@ void main() {
         'pip',
         'small one',
       ]) {
-        expect(verse, isNot(contains(part)), reason: '"$part" reads the '
-            'answer aloud');
+        expect(
+          verse,
+          isNot(contains(part)),
+          reason:
+              '"$part" reads the '
+              'answer aloud',
+        );
       }
     });
   });
@@ -652,10 +663,20 @@ void main() {
       advanceTo(g, PulsePhase.systole);
       expect(g.isDoorLocked(gate, vein), isFalse);
       advanceTo(g, PulsePhase.diastole);
-      expect(g.isDoorLocked(gate, vein), isTrue, reason: 'the greater round '
-          'is slack on the diastole');
-      expect(g.isDoorHidden(gate, vein), isFalse, reason: 'a collapsed vein '
-          'is a thing you can see');
+      expect(
+        g.isDoorLocked(gate, vein),
+        isTrue,
+        reason:
+            'the greater round '
+            'is slack on the diastole',
+      );
+      expect(
+        g.isDoorHidden(gate, vein),
+        isFalse,
+        reason:
+            'a collapsed vein '
+            'is a thing you can see',
+      );
       // The ungrafted collateral, on every phase: nothing there.
       for (final p in PulsePhase.values) {
         advanceTo(g, p);
@@ -663,22 +684,34 @@ void main() {
       }
     });
 
-    test('the greater round runs OUT on the squeeze and BACK on the backwash',
-        () {
-      final g = harness(_idealTrio());
-      g.entryDoorRevealed = true;
-      final run = layout.rooms['arterial_run']!;
-      final onward = doorFrom('arterial_run', 'aortic_arch');
-      final back = doorFrom('arterial_run', 'pericard_gate');
-      advanceTo(g, PulsePhase.systole);
-      expect(g.isDoorLocked(run, onward), isFalse);
-      expect(g.isDoorLocked(run, back), isTrue, reason: 'nothing swims up a '
-          'heart');
-      advanceTo(g, PulsePhase.dicrotic);
-      expect(g.isDoorLocked(run, onward), isTrue);
-      expect(g.isDoorLocked(run, back), isFalse, reason: 'the backwash IS the '
-          '"or against it"');
-    });
+    test(
+      'the greater round runs OUT on the squeeze and BACK on the backwash',
+      () {
+        final g = harness(_idealTrio());
+        g.entryDoorRevealed = true;
+        final run = layout.rooms['arterial_run']!;
+        final onward = doorFrom('arterial_run', 'aortic_arch');
+        final back = doorFrom('arterial_run', 'pericard_gate');
+        advanceTo(g, PulsePhase.systole);
+        expect(g.isDoorLocked(run, onward), isFalse);
+        expect(
+          g.isDoorLocked(run, back),
+          isTrue,
+          reason:
+              'nothing swims up a '
+              'heart',
+        );
+        advanceTo(g, PulsePhase.dicrotic);
+        expect(g.isDoorLocked(run, onward), isTrue);
+        expect(
+          g.isDoorLocked(run, back),
+          isFalse,
+          reason:
+              'the backwash IS the '
+              '"or against it"',
+        );
+      },
+    );
 
     test('the lung is a commitment: it only ever runs one way', () {
       final g = harness(_idealTrio());
@@ -690,7 +723,8 @@ void main() {
         expect(
           g.isDoorLocked(stair, backwards),
           isTrue,
-          reason: 'the lung must never carry backwards, and least of all on '
+          reason:
+              'the lung must never carry backwards, and least of all on '
               '$p',
         );
       }
@@ -925,8 +959,13 @@ void main() {
         expect(g.isDoorHidden(room, out), isFalse);
         // (Star gating is the engine's, not the beat's — the beat never locks
         // this door, which is the property under test.)
-        expect(g.heart.carriesFrom(heartPassageById('vn_chordae')!,
-            'sanguorath_systole'), isTrue);
+        expect(
+          g.heart.carriesFrom(
+            heartPassageById('vn_chordae')!,
+            'sanguorath_systole',
+          ),
+          isTrue,
+        );
       }
     });
   });

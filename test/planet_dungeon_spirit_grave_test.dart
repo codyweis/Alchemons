@@ -471,7 +471,10 @@ void main() {
     });
 
     test('the spine carries a lych-stone, and the field carries three', () {
-      expect(lychRooms, containsAll(['lych_gate', 'barrow_urn', 'barrow_cairn']));
+      expect(
+        lychRooms,
+        containsAll(['lych_gate', 'barrow_urn', 'barrow_cairn']),
+      );
       final inField = lychRooms
           .where((r) => layout.rooms[r]!.grave?.barrow == true)
           .length;
@@ -627,29 +630,39 @@ void main() {
       }
     });
 
-    test('the mark is a HARD Water+Pip gate, and refusing it stamps the chip',
-        () {
-      final clouds = <String>[];
-      final game = harness(idealTrio(), onCloud: clouds.add);
-      final gate = layout.familyGateFor('grave_sigil')!;
-      expect(gate.element, 'Water');
-      expect(gate.family, 'Pip');
-      final pos = layout.rooms['barrow_mere']!.grave!.sigilStone!;
-      act(game, spirit, 'barrow_mere', pos); // right place, wrong hand
-      expect(game.wake.field.sigilStamped, isFalse);
-      expect(clouds, contains(gate.discoveryId));
-    });
+    test(
+      'the mark is a HARD Water+Pip gate, and refusing it stamps the chip',
+      () {
+        final clouds = <String>[];
+        final game = harness(idealTrio(), onCloud: clouds.add);
+        final gate = layout.familyGateFor('grave_sigil')!;
+        expect(gate.element, 'Water');
+        expect(gate.family, 'Pip');
+        final pos = layout.rooms['barrow_mere']!.grave!.sigilStone!;
+        act(game, spirit, 'barrow_mere', pos); // right place, wrong hand
+        expect(game.wake.field.sigilStamped, isFalse);
+        expect(clouds, contains(gate.discoveryId));
+      },
+    );
 
     test('a dead hand leaves no mark, and a wrong barrow refuses for free', () {
       final game = harness(idealTrio());
       passOver(game, 'lych_gate');
-      act(game, water, 'barrow_mere',
-          layout.rooms['barrow_mere']!.grave!.sigilStone!);
+      act(
+        game,
+        water,
+        'barrow_mere',
+        layout.rooms['barrow_mere']!.grave!.sigilStone!,
+      );
       expect(game.wake.field.sigilStamped, isFalse);
       expect(game.wake.field.stampsTried, 0, reason: 'the dead never tried');
       passOver(game, 'lych_gate');
-      act(game, water, 'barrow_bell',
-          layout.rooms['barrow_bell']!.grave!.sigilStone!);
+      act(
+        game,
+        water,
+        'barrow_bell',
+        layout.rooms['barrow_bell']!.grave!.sigilStone!,
+      );
       expect(game.wake.field.sigilStamped, isFalse);
       expect(game.wake.field.stampsTried, 1, reason: 'a free wrong answer');
     });
@@ -657,8 +670,12 @@ void main() {
     test('THE AUTHORED SOLUTION — the warm hand at the mere banks it', () {
       final stars = <int>[];
       final game = harness(idealTrio(), onStar: stars.add);
-      act(game, water, 'barrow_mere',
-          layout.rooms['barrow_mere']!.grave!.sigilStone!);
+      act(
+        game,
+        water,
+        'barrow_mere',
+        layout.rooms['barrow_mere']!.grave!.sigilStone!,
+      );
       expect(game.wake.field.sigilStamped, isTrue);
       expect(stars, contains(1));
     });
@@ -718,7 +735,11 @@ void main() {
         expect(from, contains('barrow_mere'));
         expect(from, contains('lych_gate'));
       }
-      expect(checked, 48, reason: 'the vault survives 48 of the 64 commitments');
+      expect(
+        checked,
+        48,
+        reason: 'the vault survives 48 of the 64 commitments',
+      );
     });
   });
 
@@ -865,8 +886,12 @@ void main() {
       final game = harness(idealTrio(), onStar: stars.add, onCloud: clouds.add);
 
       // The gate arch is full of black water.
-      act(game, water, 'lych_gate',
-          layout.rooms['lych_gate']!.grave!.graveMouth!);
+      act(
+        game,
+        water,
+        'lych_gate',
+        layout.rooms['lych_gate']!.grave!.graveMouth!,
+      );
       expect(game.entryDoorRevealed, isTrue);
 
       // Down into the cold world, and hear out the two the road wants.
@@ -893,14 +918,22 @@ void main() {
       // Back warm, and set the mark where the ring closes.
       passOver(game, 'barrow_cairn');
       expect(game.wake.field.isGhost, isFalse);
-      act(game, water, 'barrow_mere',
-          layout.rooms['barrow_mere']!.grave!.sigilStone!);
+      act(
+        game,
+        water,
+        'barrow_mere',
+        layout.rooms['barrow_mere']!.grave!.sigilStone!,
+      );
       expect(game.hasStar(1), isTrue);
 
       // The rite, then the mystic.
       expect(game.guardianRiteUnlocked, isTrue);
-      act(game, crystal, 'mourners_walk',
-          layout.rooms['mourners_walk']!.grave!.graveLamp!);
+      act(
+        game,
+        crystal,
+        'mourners_walk',
+        layout.rooms['mourners_walk']!.grave!.graveLamp!,
+      );
       expect(game.conduitEnergy['B']! > 0, isTrue);
       expect(stars, containsAll([0, 1]));
       expect(layout.rooms['wraithord_grave']!.guardian!.starIndex, 2);

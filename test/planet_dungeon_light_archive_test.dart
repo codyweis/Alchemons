@@ -136,6 +136,10 @@ String? doorHint(PlanetDungeonGame game, String room, DungeonDoor door) {
   }
   game.hintText = null;
   game.update(1 / 60);
+  // The world no longer speaks a refusal — it records one and flashes. The
+  // player learns WHY by pressing HINT, so that is what a hint assertion has
+  // to do too.
+  game.askForRoomHint();
   return game.hintText;
 }
 
@@ -145,7 +149,12 @@ DungeonDoor doorFrom(String room, String to) =>
     layout.rooms[room]!.doors.firstWhere((d) => d.targetRoomId == to);
 
 /// Press a beacon the way the player does: stand at its post, in its bay.
-void pressBeacon(PlanetDungeonGame g, int idx, String beaconId, {int times = 1}) {
+void pressBeacon(
+  PlanetDungeonGame g,
+  int idx,
+  String beaconId, {
+  int times = 1,
+}) {
   final b = archiveBeaconById(beaconId)!;
   for (var i = 0; i < times; i++) {
     final before = g.archive.lamp[beaconId] ?? 0;
@@ -245,8 +254,7 @@ void main() {
       }
     });
 
-    test('the two great stacks are the only shadows, and the only discount',
-        () {
+    test('the two great stacks are the only shadows, and the only discount', () {
       expect(kGreatStacks, {HallSector.court, HallSector.arcade});
       final a = BeaconArchive();
       // A stacked sector at LOW pitch costs one lumen; an empty one costs two,
@@ -260,13 +268,11 @@ void main() {
           final s = b.settings[i - 1];
           var want = 0;
           for (final sector in s.arc) {
-            want += (s.pitch == BeamPitch.low && sectorHasStack(sector)) ? 1 : 2;
+            want += (s.pitch == BeamPitch.low && sectorHasStack(sector))
+                ? 1
+                : 2;
           }
-          expect(
-            a.lumens,
-            want,
-            reason: '${b.id}#$i should cost $want lumens',
-          );
+          expect(a.lumens, want, reason: '${b.id}#$i should cost $want lumens');
         }
       }
     });
@@ -374,24 +380,26 @@ void main() {
       );
     });
 
-    test('the hush is winnable in every slip bay — and not without the stacks',
-        () {
-      // Star 1 measured rather than asserted.
-      for (final s in kArchiveSlips) {
-        expect(
-          r.hushBays,
-          contains(s.roomId),
-          reason: '${s.id} must be drawable somewhere under the hush',
-        );
-      }
-      // COUNTERFACTUAL — take the two great stacks out of the hall and
-      // occlusion goes with them: a lit bay then always costs two lumens plus
-      // whatever else the arc catches, and the court and the gallery stop
-      // being standable under the hush at all. Two of the three slips die.
-      expect(r.hushBaysWithoutStacks.length, lessThan(r.hushBays.length));
-      expect(r.hushBaysWithoutStacks, isNot(contains('shadow_court')));
-      expect(r.hushBaysWithoutStacks, isNot(contains('moth_gallery')));
-    });
+    test(
+      'the hush is winnable in every slip bay — and not without the stacks',
+      () {
+        // Star 1 measured rather than asserted.
+        for (final s in kArchiveSlips) {
+          expect(
+            r.hushBays,
+            contains(s.roomId),
+            reason: '${s.id} must be drawable somewhere under the hush',
+          );
+        }
+        // COUNTERFACTUAL — take the two great stacks out of the hall and
+        // occlusion goes with them: a lit bay then always costs two lumens plus
+        // whatever else the arc catches, and the court and the gallery stop
+        // being standable under the hush at all. Two of the three slips die.
+        expect(r.hushBaysWithoutStacks.length, lessThan(r.hushBays.length));
+        expect(r.hushBaysWithoutStacks, isNot(contains('shadow_court')));
+        expect(r.hushBaysWithoutStacks, isNot(contains('moth_gallery')));
+      },
+    );
   });
 
   group('Star 0 — the shadow court', () {
@@ -480,6 +488,7 @@ void main() {
       g.archive.lamp['bc_narthex'] = 0;
       final sun = courtEffigyById('ef_sun')!;
       act(g, light, 'shadow_court', sun.position);
+      g.askForRoomHint();
       expect(g.hintText, contains(sectorWord(sun.stand.sector)));
       expect(g.hintText!.split(RegExp(r'[.;]')).length, 1);
       // And the other half of the rule refuses differently: light on the
@@ -488,6 +497,7 @@ void main() {
       g.archive.lamp['bc_ledger'] = 1; // and the ledger bay lit as well
       act(g, light, 'shadow_court', sun.position);
       expect(g.archive.effigiesRead, isEmpty);
+      g.askForRoomHint();
       expect(g.hintText, contains('lit'));
     });
   });
@@ -511,11 +521,10 @@ void main() {
       g.entryDoorRevealed = true;
       g.archive.lamp['bc_narthex'] = 2; // 4 lumens, twice the hush
       final slip = archiveSlipById('slip_court')!;
-      final before = [
-        for (final s in kArchiveSills) g.archive.sillOpen(s),
-      ];
+      final before = [for (final s in kArchiveSills) g.archive.sillOpen(s)];
       act(g, spirit, 'shadow_court', slip.position);
       expect(g.archive.slipsDrawn, isEmpty);
+      g.askForRoomHint();
       expect(g.hintText, contains('lumens'));
       act(g, spirit, 'shadow_court', slip.position);
       expect([for (final s in kArchiveSills) g.archive.sillOpen(s)], before);
@@ -555,21 +564,25 @@ void main() {
   });
 
   group('the vault trick — in plain sight, across un-lit ground', () {
-    test('the heartway is the reliquary\'s only sill, and it is mirror-stone',
-        () {
-      final reliquary = layout.rooms['sunless_reliquary']!;
-      expect(reliquary.doors.length, 1, reason: 'the vault is a pocket');
-      final heartway = archiveSillBetween(
-        'oculus_stair',
-        'sunless_reliquary',
-      )!;
-      expect(heartway.cut, SillCut.mirrorSill);
-      expect(heartway.cell!.sector, HallSector.court);
-      expect(heartway.cell!.band, HallBand.inward);
-      final withCache = layout.rooms.values.where((r) => r.vaultCache != null);
-      expect(withCache.length, 1);
-      expect(withCache.single.id, 'sunless_reliquary');
-    });
+    test(
+      'the heartway is the reliquary\'s only sill, and it is mirror-stone',
+      () {
+        final reliquary = layout.rooms['sunless_reliquary']!;
+        expect(reliquary.doors.length, 1, reason: 'the vault is a pocket');
+        final heartway = archiveSillBetween(
+          'oculus_stair',
+          'sunless_reliquary',
+        )!;
+        expect(heartway.cut, SillCut.mirrorSill);
+        expect(heartway.cell!.sector, HallSector.court);
+        expect(heartway.cell!.band, HallBand.inward);
+        final withCache = layout.rooms.values.where(
+          (r) => r.vaultCache != null,
+        );
+        expect(withCache.length, 1);
+        expect(withCache.single.id, 'sunless_reliquary');
+      },
+    );
 
     test('a mirror shelf under light is visible and refused; a dark glass '
         'leaf is not there at all', () {
@@ -612,6 +625,7 @@ void main() {
       final ring = layout.rooms['reading_floor']!.hall!.shutterRing!;
       act(g, light, 'reading_floor', ring);
       expect(g.conduitEnergy['B'] ?? 0, 0);
+      g.askForRoomHint();
       expect(g.hintText, contains(layout.starName(0)));
       g.starMask = 0x3;
       // Crystal+Spirit→Light stands in for a Light hand (§6's recipe).

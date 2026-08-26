@@ -47,7 +47,10 @@ void main() {
     });
 
     test('silver still scales with order', () {
-      final low = LootBoxConfig.rollRaidVictoryCurrency(1, Random(7))['silver']!;
+      final low = LootBoxConfig.rollRaidVictoryCurrency(
+        1,
+        Random(7),
+      )['silver']!;
       final high = LootBoxConfig.rollRaidVictoryCurrency(
         17,
         Random(7),
@@ -83,8 +86,10 @@ void main() {
     test('the payout does not depend on the roll — it is not a chance', () {
       final a = LootBoxConfig.rollRaidPowerupDrops(Random(1));
       final b = LootBoxConfig.rollRaidPowerupDrops(Random(999));
-      expect(a.map((e) => '${e.key}:${e.value}').toSet(),
-          b.map((e) => '${e.key}:${e.value}').toSet());
+      expect(
+        a.map((e) => '${e.key}:${e.value}').toSet(),
+        b.map((e) => '${e.key}:${e.value}').toSet(),
+      );
     });
 
     test('orbs stay out of the shared boss pool, which survival farms', () {
@@ -102,7 +107,8 @@ void main() {
     var total = 0;
     for (var i = 0; i < 5000; i++) {
       total +=
-          LootBoxConfig.rollBossRematchBonusCurrency(17, Random(i))['gold'] ?? 0;
+          LootBoxConfig.rollBossRematchBonusCurrency(17, Random(i))['gold'] ??
+          0;
     }
     expect(total / 5000.0, lessThan(0.10));
   });

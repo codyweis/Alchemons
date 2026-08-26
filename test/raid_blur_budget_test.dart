@@ -74,7 +74,9 @@ void main() {
 
       // A real GameWidget so onLoad runs and the fx sprites actually bake.
       await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: GameWidget(game: g))),
+        MaterialApp(
+          home: Scaffold(body: GameWidget(game: g)),
+        ),
       );
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 16));
@@ -85,7 +87,8 @@ void main() {
       expect(
         c.blurs,
         0,
-        reason: '$el raid asked for ${c.blurs} blur passes '
+        reason:
+            '$el raid asked for ${c.blurs} blur passes '
             '(sigmas ${c.sigmas})',
       );
     }

@@ -42,10 +42,10 @@ CosmicPartyMember _member(int slot, String element, String family) =>
 
 /// The §6 ideal trio: Icemane · Lightmask · Airwing.
 List<CosmicPartyMember> _idealTrio() => [
-      _member(0, 'Ice', 'mane'),
-      _member(1, 'Light', 'mask'),
-      _member(2, 'Air', 'wing'),
-    ];
+  _member(0, 'Ice', 'mane'),
+  _member(1, 'Light', 'mask'),
+  _member(2, 'Air', 'wing'),
+];
 
 const int ice = 0, light = 1, air = 2;
 
@@ -125,17 +125,26 @@ void main() {
           // A shelf is a DEAD END that scrambles back to the head and nowhere
           // else — that is what keeps a slide from ever being a trap.
           final shelf = layout.rooms[f.shelfRoom]!;
-          expect(shelf.doors.length, 1, reason: '${f.shelfRoom} must be a pocket');
+          expect(
+            shelf.doors.length,
+            1,
+            reason: '${f.shelfRoom} must be a pocket',
+          );
           expect(shelf.doors.single.targetRoomId, f.headRoom);
         }
         // The freeze verb has to be inside its own room.
-        expect(head.bounds.contains(f.headPos), isTrue, reason: '${f.id} head pos');
+        expect(
+          head.bounds.contains(f.headPos),
+          isTrue,
+          reason: '${f.id} head pos',
+        );
       }
     });
 
     test('the vault sits on a shelf, so the cache IS the slide trick', () {
-      final cacheRoom =
-          layout.rooms.values.singleWhere((r) => r.vaultCache != null);
+      final cacheRoom = layout.rooms.values.singleWhere(
+        (r) => r.vaultCache != null,
+      );
       expect(
         rimeFlueForShelf(cacheRoom.id),
         isNotNull,
@@ -221,21 +230,32 @@ void main() {
       game.activateAbility();
       expect(game.entryDoorRevealed, isTrue);
 
-      final shelfDoor =
-          head.doors.firstWhere((d) => d.targetRoomId == 'shelf_glass');
-      final dropDoor =
-          head.doors.firstWhere((d) => d.targetRoomId == 'mirror_gallery');
-      expect(game.isDoorHidden(head, shelfDoor), isFalse,
-          reason: 'a drift brakes you onto the shelf');
-      expect(game.isDoorHidden(head, dropDoor), isTrue,
-          reason: 'and the long drop does not exist yet');
+      final shelfDoor = head.doors.firstWhere(
+        (d) => d.targetRoomId == 'shelf_glass',
+      );
+      final dropDoor = head.doors.firstWhere(
+        (d) => d.targetRoomId == 'mirror_gallery',
+      );
+      expect(
+        game.isDoorHidden(head, shelfDoor),
+        isFalse,
+        reason: 'a drift brakes you onto the shelf',
+      );
+      expect(
+        game.isDoorHidden(head, dropDoor),
+        isTrue,
+        reason: 'and the long drop does not exist yet',
+      );
 
       game.setActive(ice);
       game.creatures[ice].position = flue.headPos;
       game.activateAbility();
       expect(game.flueState['flue_a'], RimeFlueState.stair);
-      expect(game.isDoorHidden(head, shelfDoor), isTrue,
-          reason: 'a stair has no fall, so the shelf is sealed for the run');
+      expect(
+        game.isDoorHidden(head, shelfDoor),
+        isTrue,
+        reason: 'a stair has no fall, so the shelf is sealed for the run',
+      );
       expect(game.isDoorHidden(head, dropDoor), isFalse);
       // And the climb back up exists at last.
       final gallery = game.layout.rooms['mirror_gallery']!;
@@ -248,21 +268,28 @@ void main() {
       final head = game.layout.rooms['rime_head']!;
       final flue = kRimeFlues.firstWhere((f) => f.id == 'flue_a');
       game.entryDoorRevealed = true;
-      final shelfDoor =
-          head.doors.firstWhere((d) => d.targetRoomId == 'shelf_glass');
+      final shelfDoor = head.doors.firstWhere(
+        (d) => d.targetRoomId == 'shelf_glass',
+      );
       game.onShaftTransitForTest(head, shelfDoor);
       expect(game.flueState['flue_a'], RimeFlueState.scoured);
 
       game.setActive(ice);
       game.creatures[ice].position = flue.headPos;
       game.activateAbility();
-      expect(game.flueState['flue_a'], RimeFlueState.scoured,
-          reason: 'frost will not key onto polished ice');
+      expect(
+        game.flueState['flue_a'],
+        RimeFlueState.scoured,
+        reason: 'frost will not key onto polished ice',
+      );
 
       final gallery = game.layout.rooms['mirror_gallery']!;
       final up = gallery.doors.firstWhere((d) => d.targetRoomId == 'rime_head');
-      expect(game.isDoorLocked(gallery, up), isTrue,
-          reason: 'the ladder is what you paid for the shelf');
+      expect(
+        game.isDoorLocked(gallery, up),
+        isTrue,
+        reason: 'the ladder is what you paid for the shelf',
+      );
     });
 
     test('the rimefall climbs home and THAWS the whole shaft behind you', () {
@@ -272,8 +299,11 @@ void main() {
       // Build a stair, then spend it on the sump's do-over.
       game.flueState['flue_b'] = RimeFlueState.stair;
       game.flueState['flue_c'] = RimeFlueState.scoured;
-      expect(game.isDoorLocked(sump, up), isTrue,
-          reason: 'running water is not a ladder');
+      expect(
+        game.isDoorLocked(sump, up),
+        isTrue,
+        reason: 'running water is not a ladder',
+      );
 
       game.setActive(ice);
       game.creatures[ice].position = sump.rime!.rimefall!;
@@ -286,8 +316,11 @@ void main() {
       expect(game.rimefallFrozen, isFalse);
       expect(game.shaftThaws, 1);
       for (final f in kRimeFlues) {
-        expect(game.flueState[f.id], RimeFlueState.drift,
-            reason: 'the price is everything you cut');
+        expect(
+          game.flueState[f.id],
+          RimeFlueState.drift,
+          reason: 'the price is everything you cut',
+        );
       }
     });
 
@@ -423,11 +456,15 @@ void main() {
     test('the lodestone is a HARD gate: no frost, no other family', () {
       final earned = <int>[];
       final stamped = <String>[];
-      final game = _harness([
-        _member(0, 'Ice', 'mane'),
-        _member(1, 'Light', 'horn'), // wrong family on purpose
-        _member(2, 'Air', 'wing'),
-      ], onStar: earned.add, onCloud: stamped.add);
+      final game = _harness(
+        [
+          _member(0, 'Ice', 'mane'),
+          _member(1, 'Light', 'horn'), // wrong family on purpose
+          _member(2, 'Air', 'wing'),
+        ],
+        onStar: earned.add,
+        onCloud: stamped.add,
+      );
       final room = game.layout.rooms['mirror_gallery']!;
       final ring = room.rime!.mirrors!;
       game.currentRoomId = 'mirror_gallery';
@@ -478,8 +515,11 @@ void main() {
         }
         game.activateAbility();
       }
-      expect(game.mirrorsShowing, ring.count,
-          reason: 'a clean lap must fit inside the hold window');
+      expect(
+        game.mirrorsShowing,
+        ring.count,
+        reason: 'a clean lap must fit inside the hold window',
+      );
       expect(earned, contains(1));
     });
 
@@ -549,8 +589,9 @@ void main() {
       game.earnStar(0);
       game.earnStar(1);
       game.setActive(air);
-      game.creatures[air].position =
-          room.conduits.firstWhere((c) => c.id == 'A').position;
+      game.creatures[air].position = room.conduits
+          .firstWhere((c) => c.id == 'A')
+          .position;
       game.activateAbility();
       expect(game.conduitEnergy['A'] ?? 0, 0);
       expect(stamped, contains('gate:air_wing'));

@@ -135,13 +135,17 @@ String? doorHint(PlanetDungeonGame game, String room, DungeonDoor door) {
   }
   game.hintText = null;
   game.update(1 / 60);
+  // The world no longer speaks a refusal — it records one and flashes. The
+  // player learns WHY by pressing HINT, so that is what a hint assertion has
+  // to do too.
+  game.askForRoomHint();
   return game.hintText;
 }
 
 final DungeonLayout layout = kPlanetDungeonLayouts['Dark']!;
 
-DungeonDoor doorFrom(String room, String to) => layout.rooms[room]!.doors
-    .firstWhere((d) => d.targetRoomId == to);
+DungeonDoor doorFrom(String room, String to) =>
+    layout.rooms[room]!.doors.firstWhere((d) => d.targetRoomId == to);
 
 Offset gnomonShaft(String id) => vaultGnomonById(id)!.shaft;
 Offset stoneAt(String id) => shadowStoneById(id)!.position;
@@ -271,13 +275,15 @@ void main() {
       for (final room in layout.rooms.values) {
         if (room.id == pocket) continue;
         final spans = [
-          for (final d in room.doors) vaultSpanBetween(room.id, d.targetRoomId)!,
+          for (final d in room.doors)
+            vaultSpanBetween(room.id, d.targetRoomId)!,
         ];
         if (room.id == arena.id) {
           expect(
             spans.any((s) => s.cut == SpanCut.unmoved),
             isTrue,
-            reason: 'the arena must keep a phase-free door — Noctryos flips '
+            reason:
+                'the arena must keep a phase-free door — Noctryos flips '
                 'the vault from in there',
           );
           continue;
@@ -292,9 +298,7 @@ void main() {
               spans.any(
                 (s) => s.cut == SpanCut.shadowWay && s.leaf == g.upper,
               ) &&
-              spans.any(
-                (s) => s.cut == SpanCut.shadowWay && s.leaf == g.lower,
-              ),
+              spans.any((s) => s.cut == SpanCut.shadowWay && s.leaf == g.lower),
         );
         expect(
           twinned || promised,
@@ -355,7 +359,8 @@ void main() {
           expect(
             dark.contains(g.upper) || dark.contains(g.lower),
             isTrue,
-            reason: 'both of ${g.id}\'s quarters are lit in $dark — its '
+            reason:
+                'both of ${g.id}\'s quarters are lit in $dark — its '
                 'shadow has to be in one of them',
           );
         }
@@ -405,8 +410,13 @@ void main() {
             'from every one of ${r.states} states the world can reach, every '
             'room in the vault must still be reachable',
       );
-      expect(r.states, 392, reason: 'the shipped count, pinned so a quiet '
-          'change to the map shows up here');
+      expect(
+        r.states,
+        392,
+        reason:
+            'the shipped count, pinned so a quiet '
+            'change to the map shows up here',
+      );
       expect(r.arrangements, 8, reason: 'three shadows, two places each');
     });
 
@@ -417,7 +427,8 @@ void main() {
       expect(
         r.strandableWithoutVane,
         22,
-        reason: 'if this is zero the arena is over-proofed and one of the two '
+        reason:
+            'if this is zero the arena is over-proofed and one of the two '
             'belts is dead weight — say so rather than leaving it in',
       );
     });
@@ -429,7 +440,8 @@ void main() {
       expect(
         r.strandableWithGnomonBelowItsDoor,
         124,
-        reason: 'the placement is what makes the geometry work; if this is '
+        reason:
+            'the placement is what makes the geometry work; if this is '
             'zero the rule is not doing anything and the header lies',
       );
       expect(
@@ -458,8 +470,12 @@ void main() {
       var star = -1;
       final g = harness(_plainTrio(), onStar: (i) => star = i);
       // The pall: element-only Dark.
-      act(g, dark, 'pall_porch', layout.rooms['pall_porch']!.eclipse!
-          .pallCurtain!);
+      act(
+        g,
+        dark,
+        'pall_porch',
+        layout.rooms['pall_porch']!.eclipse!.pallCurtain!,
+      );
       expect(g.entryDoorRevealed, isTrue);
 
       // Three quarters lie in shadow at the mouth of the run, and the creep
@@ -473,6 +489,7 @@ void main() {
       // no shape of the vault darkens all four (the algebra above).
       act(g, dark, 'analemma_court', stoneAt('stone_deep'));
       expect(g.vault.stonesSeated.length, 3);
+      g.askForRoomHint();
       expect(g.hintText, contains('the Deep'));
       expect(g.hasStar(0), isFalse);
 
@@ -503,9 +520,7 @@ void main() {
       expect(g.vault.anchorsOpen, isEmpty);
       expect(
         clouds,
-        contains(
-          layout.familyGateFor('anchor_ring')!.discoveryId,
-        ),
+        contains(layout.familyGateFor('anchor_ring')!.discoveryId),
         reason: '§4 "the seal remembers" — first refusal stamps the chip',
       );
     });
@@ -515,10 +530,10 @@ void main() {
       expect(layout.familyGates.length, 2);
       // The anchor ring was re-audited to VERB-ONLY: it is a narrow opening
       // and a pip is what fits through it — Poison never did anything to it.
-      expect(
-        layout.familyGates.map((x) => x.label).toSet(),
-        {'any PIP', 'Dark MASK'},
-      );
+      expect(layout.familyGates.map((x) => x.label).toSet(), {
+        'any PIP',
+        'Dark MASK',
+      });
       // Every gate's element is one of the planet's three entry slots (§4).
       final entry = kCosmicPlanetEntry['Dark']!.toSet();
       for (final gate in layout.familyGates) {
@@ -538,8 +553,12 @@ void main() {
       );
 
       // ── the pall ────────────────────────────────────────
-      act(g, dark, 'pall_porch', layout.rooms['pall_porch']!.eclipse!
-          .pallCurtain!);
+      act(
+        g,
+        dark,
+        'pall_porch',
+        layout.rooms['pall_porch']!.eclipse!.pallCurtain!,
+      );
       expect(g.entryDoorRevealed, isTrue);
 
       // ── STAR 0 · the analemma ───────────────────────────
@@ -660,7 +679,8 @@ void main() {
       expect(
         g.isDoorHidden(font, slot),
         isTrue,
-        reason: 'a shadow-way in a lit quarter must be blank wall, not a '
+        reason:
+            'a shadow-way in a lit quarter must be blank wall, not a '
             'refusal — the room does not exist',
       );
       g.vault.turn('gn_stair');
@@ -707,6 +727,7 @@ void main() {
       final snuffer = layout.rooms['eclipse_nave']!.eclipse!.snuffer!;
       act(g, dark, 'eclipse_nave', snuffer);
       expect(g.conduitEnergy['B'] ?? 0, 0);
+      g.askForRoomHint();
       expect(g.hintText, contains(layout.starName(0)));
       g.starMask = 0x3;
       // Poison+Spirit→Dark stands in for a Dark hand (§6's recipe).
@@ -744,8 +765,12 @@ void main() {
         reason: 'the guardian fights WITH the planet\'s rule (§7)',
       );
       // And the arena's own vane is the answer to it.
-      act(g, dark, 'noctryos_totality',
-          layout.rooms['noctryos_totality']!.eclipse!.shadowVane!);
+      act(
+        g,
+        dark,
+        'noctryos_totality',
+        layout.rooms['noctryos_totality']!.eclipse!.shadowVane!,
+      );
       expect(g.vault.isDark(EclipseLeaf.deep), isTrue);
     });
 

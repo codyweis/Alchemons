@@ -26,7 +26,8 @@ void main() {
         expect(
           kDungeonSkyConfigs.containsKey(element),
           isTrue,
-          reason: '$element has a dungeon but no DungeonSkyConfig, so it '
+          reason:
+              '$element has a dungeon but no DungeonSkyConfig, so it '
               'falls back to the flat gradient and looks like nowhere',
         );
       }
@@ -39,7 +40,8 @@ void main() {
         expect(
           File(path).existsSync(),
           isTrue,
-          reason: '$path is missing — run '
+          reason:
+              '$path is missing — run '
               '`dart run tool/build_dungeon_shaders.dart`',
         );
       }
@@ -54,7 +56,8 @@ void main() {
         expect(
           pubspec.contains(path),
           isTrue,
-          reason: '$path is built but not listed under `shaders:` in '
+          reason:
+              '$path is built but not listed under `shaders:` in '
               'pubspec.yaml, so it will not load on device',
         );
       }
@@ -82,7 +85,8 @@ void main() {
       // exists to prevent.
       final seen = <String, String>{};
       kDungeonSkyConfigs.forEach((element, cfg) {
-        final key = '${cfg.colorA.toARGB32()}/'
+        final key =
+            '${cfg.colorA.toARGB32()}/'
             '${cfg.colorB.toARGB32()}/'
             '${cfg.colorC.toARGB32()}';
         expect(

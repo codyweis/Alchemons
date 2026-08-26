@@ -653,8 +653,10 @@ ShadowAnchor? vaultAnchorById(String id) {
   return null;
 }
 
-List<ShadowAnchor> vaultAnchorsIn(String roomId) =>
-    [for (final a in kVaultAnchors) if (a.touches(roomId)) a];
+List<ShadowAnchor> vaultAnchorsIn(String roomId) => [
+  for (final a in kVaultAnchors)
+    if (a.touches(roomId)) a,
+];
 
 // ─────────────────────────────────────────────────────────
 // THE LIVE STATE — pure rules, no Flutter, no engine
@@ -743,8 +745,10 @@ class EclipseVault {
 
   /// The quarters standing in light. Never more than two, and never two that
   /// share a gnomon (see the header's algebra).
-  List<EclipseLeaf> get litLeaves =>
-      [for (final l in EclipseLeaf.values) if (isLit(l)) l];
+  List<EclipseLeaf> get litLeaves => [
+    for (final l in EclipseLeaf.values)
+      if (isLit(l)) l,
+  ];
 
   /// Turn a gnomon: its shadow crosses to the other quarter it serves. The
   /// leaf it leaves comes up, the leaf it enters goes down. Always legal,
@@ -916,7 +920,8 @@ const DungeonLayout darkLayout = DungeonLayout(
       objectId: 'anchor_ring',
       element: kAnyElement,
       family: 'Pip',
-      hintLine: 'Only a Poison small enough to work inside the ring eats this '
+      hintLine:
+          'Only a Poison small enough to work inside the ring eats this '
           'rust',
     ),
     DungeonFamilyGate(

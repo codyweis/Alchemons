@@ -85,7 +85,9 @@ void main() {
         for (var l = 1; l < 5; l++) {
           expect(
             CosmicBalance.bossCollisionDamage(level: l + 1, type: type),
-            greaterThan(CosmicBalance.bossCollisionDamage(level: l, type: type)),
+            greaterThan(
+              CosmicBalance.bossCollisionDamage(level: l, type: type),
+            ),
           );
           if (type != BossType.charger) {
             expect(

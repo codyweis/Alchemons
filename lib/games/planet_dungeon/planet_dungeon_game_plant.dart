@@ -367,8 +367,9 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       // A GOAL, not a method (§5.6): what is wrong, in one clause.
       _setBlockedHint(switch (step) {
         BloomStep.loam => 'No hand this size carries loam enough for this bowl',
-        BloomStep.seed => 'The bowl is a walled field — no body this big gets '
-            'down into it',
+        BloomStep.seed =>
+          'The bowl is a walled field — no body this big gets '
+              'down into it',
         BloomStep.sun => 'A light held this low never reaches over the rim',
       });
       return true;
@@ -458,8 +459,10 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       return true;
     }
     conduitEnergy['B'] = double.infinity;
-    _setHint('The clay slumps off the sepulchre, and the hall lets out a '
-        'breath');
+    _setHint(
+      'The clay slumps off the sepulchre, and the hall lets out a '
+      'breath',
+    );
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Mud',
@@ -741,22 +744,27 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (room.grove?.growthAltar != null) {
       _setInsightHint(switch (tier) {
         0 => 'The bowl has been dry so long the ash in it has set',
-        1 => 'It wants three things, and it will only take them in the order '
-            'the ground puts them in',
-        _ => 'Loam first, and only a big hand carries enough; then the seed, '
-            'and only a small body gets down there to set it; then a sun, '
-            'and this crypt has none — someone must show it one',
+        1 =>
+          'It wants three things, and it will only take them in the order '
+              'the ground puts them in',
+        _ =>
+          'Loam first, and only a big hand carries enough; then the seed, '
+              'and only a small body gets down there to set it; then a sun, '
+              'and this crypt has none — someone must show it one',
       });
       return;
     }
     if (room.grove?.lampId != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Three of these are dead, and they were not all cut for the same '
-            'mourner',
-        1 => 'Two hang at a mourner\'s eye and one is a thumb\'s width deep in '
-            'a wall',
-        _ => 'You will not light all three in one body. The niche is cracks '
-            'all the way in, and the sconces are a whole world above them',
+        0 =>
+          'Three of these are dead, and they were not all cut for the same '
+              'mourner',
+        1 =>
+          'Two hang at a mourner\'s eye and one is a thumb\'s width deep in '
+              'a wall',
+        _ =>
+          'You will not light all three in one body. The niche is cracks '
+              'all the way in, and the sconces are a whole world above them',
       });
       return;
     }
@@ -767,23 +775,27 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (cryptBedsIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
         0 => 'Something could still be made to grow here',
-        1 => 'What comes up depends on how deep the seed goes, and that '
-            'depends on the hand',
-        _ => 'A big hand only presses a seed into the surface and gets a '
-            'thread; a small one climbs down and sets it at the root, and '
-            'gets wood — and the wood fills the crack it came out of',
+        1 =>
+          'What comes up depends on how deep the seed goes, and that '
+              'depends on the hand',
+        _ =>
+          'A big hand only presses a seed into the surface and gets a '
+              'thread; a small one climbs down and sets it at the root, and '
+              'gets wood — and the wood fills the crack it came out of',
       });
       return;
     }
     // Anywhere in the crypt, insight reads the SIZE — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'Half of this place was built for something else',
-      1 => 'Cracks and grates take a small body; rills and treads and boughs '
-          'want a long leg. The galls are the only place that changes',
-      _ => 'There are three galls in the whole crypt, and nothing else on this '
-          'planet will change your size. Plan the road at both sizes before '
-          'you plant anything — and the litter is the only take-back, and it '
-          'takes back all of it at once',
+      1 =>
+        'Cracks and grates take a small body; rills and treads and boughs '
+            'want a long leg. The galls are the only place that changes',
+      _ =>
+        'There are three galls in the whole crypt, and nothing else on this '
+            'planet will change your size. Plan the road at both sizes before '
+            'you plant anything — and the litter is the only take-back, and it '
+            'takes back all of it at once',
     });
   }
 
@@ -841,7 +853,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     int strandableWithoutWithering,
     int vaultLosable,
     int sizeLocked,
-  }) solveVerdantCrypt() {
+  })
+  solveVerdantCrypt() {
     final rooms = layout.rooms.keys.toList()..sort();
     final ids = [for (final b in kCryptBeds) b.id];
     final start = List.filled(ids.length, VineState.bare);
@@ -915,8 +928,9 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       for (final b in cryptBedsIn(room)) {
         if (at(v, b.id) != VineState.bare) continue;
         final next = [...v];
-        next[ids.indexOf(b.id)] =
-            size == PlantScale.huge ? VineState.creeper : VineState.trunk;
+        next[ids.indexOf(b.id)] = size == PlantScale.huge
+            ? VineState.creeper
+            : VineState.trunk;
         out.add((room, size, next));
       }
       // A gall flips the size, both ways, always.
@@ -985,13 +999,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     final queue = [first];
     while (queue.isNotEmpty) {
       final (rm, sz, st) = queue.removeLast();
-      for (final m in moves(
-        rm,
-        sz,
-        st,
-        witheringEnabled: true,
-        spores: true,
-      )) {
+      for (final m in moves(rm, sz, st, witheringEnabled: true, spores: true)) {
         final k = enc(m.$1, m.$2, m.$3);
         if (live.containsKey(k)) continue;
         live[k] = m;
@@ -1004,12 +1012,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     var vaultLosable = 0;
     var sizeLocked = 0;
     for (final st in live.values) {
-      if (reach(
-            st.$1,
-            st.$2,
-            st.$3,
-            witheringEnabled: true,
-          ).rooms.length <
+      if (reach(st.$1, st.$2, st.$3, witheringEnabled: true).rooms.length <
           rooms.length) {
         strandable++;
       }
@@ -1108,8 +1111,16 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = fits ? 3.5 : 2;
       if (span.size == SpanSize.tinyOnly) {
-        canvas.drawLine(at + const Offset(-16, 8), at + const Offset(16, 8), paint);
-        canvas.drawLine(at + const Offset(-10, 2), at + const Offset(10, 2), paint);
+        canvas.drawLine(
+          at + const Offset(-16, 8),
+          at + const Offset(16, 8),
+          paint,
+        );
+        canvas.drawLine(
+          at + const Offset(-10, 2),
+          at + const Offset(10, 2),
+          paint,
+        );
       } else {
         final r = Rect.fromCenter(center: at, width: 30, height: 40);
         canvas.drawArc(r, pi, pi, false, paint);
@@ -1239,9 +1250,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       canvas.drawOval(
         Rect.fromCenter(center: pit, width: 74, height: 34),
         Paint()
-          ..color = (armed
-              ? const Color(0xFF9A6A2E)
-              : const Color(0xFF4A3A22)),
+          ..color = (armed ? const Color(0xFF9A6A2E) : const Color(0xFF4A3A22)),
       );
       final leaf = Paint()
         ..color = const Color(0xFF7C6A3E)
@@ -1273,8 +1282,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       canvas.drawCircle(
         lamp.position - Offset(0, tall ? 16 : 6),
         tall ? 10 : 5,
-        Paint()
-          ..color = lit ? _kCryptLamp : _kCryptDeep.withValues(alpha: 0.8),
+        Paint()..color = lit ? _kCryptLamp : _kCryptDeep.withValues(alpha: 0.8),
       );
       if (lit) {
         canvas.drawCircle(
@@ -1294,7 +1302,10 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         width: crypt.isTiny ? 320 : 130,
         height: crypt.isTiny ? 190 : 78,
       );
-      canvas.drawOval(bowl, Paint()..color = _kCryptBone.withValues(alpha: 0.5));
+      canvas.drawOval(
+        bowl,
+        Paint()..color = _kCryptBone.withValues(alpha: 0.5),
+      );
       canvas.drawOval(
         bowl.deflate(crypt.isTiny ? 26 : 12),
         Paint()
@@ -1306,8 +1317,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         canvas.drawCircle(
           altar,
           crypt.bloomWoken ? 26 : 9,
-          Paint()
-            ..color = crypt.bloomWoken ? _kCryptLamp : _kCryptGreen,
+          Paint()..color = crypt.bloomWoken ? _kCryptLamp : _kCryptGreen,
         );
       }
       // The rim door.
@@ -1352,8 +1362,11 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       if (crypt.shadeRisen && !crypt.isTiny) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromCenter(center: shade + const Offset(0, -40), width: 40,
-                height: 180),
+            Rect.fromCenter(
+              center: shade + const Offset(0, -40),
+              width: 40,
+              height: 180,
+            ),
             const Radius.circular(10),
           ),
           Paint()..color = _kCryptBark,
@@ -1364,11 +1377,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
           Paint()..color = _kCryptGreen.withValues(alpha: 0.7),
         );
       } else if (crypt.isTiny && !crypt.shadeRisen) {
-        canvas.drawCircle(
-          shade,
-          10,
-          Paint()..color = const Color(0xFF9CB47A),
-        );
+        canvas.drawCircle(shade, 10, Paint()..color = const Color(0xFF9CB47A));
         canvas.drawCircle(
           shade,
           10 + 4.0 * crypt.tendedBy.length,

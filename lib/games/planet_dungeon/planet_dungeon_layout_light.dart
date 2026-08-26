@@ -820,8 +820,10 @@ HushSlip? archiveSlipById(String id) {
   return null;
 }
 
-List<HushSlip> archiveSlipsIn(String roomId) =>
-    [for (final s in kArchiveSlips) if (s.roomId == roomId) s];
+List<HushSlip> archiveSlipsIn(String roomId) => [
+  for (final s in kArchiveSlips)
+    if (s.roomId == roomId) s,
+];
 
 // ─────────────────────────────────────────────────────────
 // THE LIVE STATE — pure rules, no Flutter, no engine
@@ -1149,10 +1151,7 @@ const DungeonLayout lightLayout = DungeonLayout(
           targetSpawn: Offset(360, 120),
         ),
       ],
-      hall: ArchiveHall(
-        sector: HallSector.door,
-        doorShutter: Offset(620, 240),
-      ),
+      hall: ArchiveHall(sector: HallSector.door, doorShutter: Offset(620, 240)),
     ),
 
     // ── THE SHADOW COURT (Star 0 · sector 1) ──────────────

@@ -9,8 +9,11 @@ import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-BurnField _field(List<String> art, {BurnWind wind = BurnWind.east, int goal = 0}) =>
-    BurnField.parse(art, wind: wind, coverageGoal: goal);
+BurnField _field(
+  List<String> art, {
+  BurnWind wind = BurnWind.east,
+  int goal = 0,
+}) => BurnField.parse(art, wind: wind, coverageGoal: goal);
 
 void main() {
   group('the burn', () {
@@ -23,10 +26,7 @@ void main() {
 
     test('fire follows the WIND, and swinging the vane bends it', () {
       // A corner: vine east, then vine south of that.
-      final f = _field([
-        'vv',
-        '.v',
-      ]);
+      final f = _field(['vv', '.v']);
       expect(f.light(0), isTrue);
       expect(f.step(), BurnStep.advanced); // east onto (1,0)
       expect(f.head, 1);
@@ -48,11 +48,7 @@ void main() {
 
     test('THE SNAKE: the fire cannot cross its own trail', () {
       // A ring of vine. Going round it, the head comes back to its own ash.
-      final f = _field([
-        'vvv',
-        'v.v',
-        'vvv',
-      ]);
+      final f = _field(['vvv', 'v.v', 'vvv']);
       f.light(0); // top-left, heading east
       expect(f.step(), BurnStep.advanced);
       expect(f.step(), BurnStep.advanced); // at top-right
@@ -65,8 +61,11 @@ void main() {
       f.wind = BurnWind.north;
       expect(f.step(), BurnStep.advanced); // (0,1)
       // Due north is where it STARTED, and that is ash now.
-      expect(f.step(), BurnStep.smouldered,
-          reason: 'its own trail is the wall');
+      expect(
+        f.step(),
+        BurnStep.smouldered,
+        reason: 'its own trail is the wall',
+      );
     });
 
     test('WATER grows vine that never catches — fuel is not fire', () {
@@ -74,8 +73,11 @@ void main() {
       expect(f.plant(1), isTrue, reason: 'wet ground takes vine happily');
       expect(f.at(1), BurnCell.wetVine);
       f.light(0);
-      expect(f.step(), BurnStep.smouldered,
-          reason: 'the chain dies at the water');
+      expect(
+        f.step(),
+        BurnStep.smouldered,
+        reason: 'the chain dies at the water',
+      );
       expect(f.light(1), isFalse, reason: 'and it cannot be lit directly');
     });
 
@@ -119,10 +121,7 @@ void main() {
 
     test('a sealed-in fire is honestly declared lost, not left hoping', () {
       // Goal needs the whole board, but the flame boxes itself in a corner.
-      final f = _field([
-        'vv',
-        'vv',
-      ], goal: 4);
+      final f = _field(['vv', 'vv'], goal: 4);
       f.light(0);
       f.wind = BurnWind.south;
       f.step(); // (0,1)
@@ -135,25 +134,24 @@ void main() {
     });
 
     test('an authored field can be PROVEN to meet its goal', () {
-      final f = _field([
-        '.....',
-        '.###.',
-        '.....',
-      ]);
+      final f = _field(['.....', '.###.', '.....']);
       // Twelve cells are dry ground and the ring walks end to end.
       expect(f.canBurnAtLeast(0, 12), isTrue);
-      expect(f.canBurnAtLeast(0, 13), isFalse,
-          reason: 'a field whose goal exceeds its ground is unauthorable');
+      expect(
+        f.canBurnAtLeast(0, 13),
+        isFalse,
+        reason: 'a field whose goal exceeds its ground is unauthorable',
+      );
     });
 
     test('canStillFill turns a doomed run into an honest restart', () {
-      final f = _field([
-        'v#',
-        '##',
-      ], goal: 4);
+      final f = _field(['v#', '##'], goal: 4);
       f.light(0);
-      expect(f.canStillFill, isFalse,
-          reason: 'walled in on every side — the answer is the restart');
+      expect(
+        f.canStillFill,
+        isFalse,
+        reason: 'walled in on every side — the answer is the restart',
+      );
     });
   });
 
@@ -170,21 +168,27 @@ void main() {
         if (f.at(i) != BurnCell.soil) continue;
         reachable = f.canBurnAtLeast(i, garth.coverageGoal);
       }
-      expect(reachable, isTrue,
-          reason: 'a garth whose pool cannot be filled is unauthorable '
-              '(goal ${garth.coverageGoal})');
+      expect(
+        reachable,
+        isTrue,
+        reason:
+            'a garth whose pool cannot be filled is unauthorable '
+            '(goal ${garth.coverageGoal})',
+      );
       // And the goal must DEMAND a real route: count the burnable ground.
       var dry = 0;
       for (var i = 0; i < garth.cols * garth.rows; i++) {
         if (f.at(i) == BurnCell.soil || f.at(i) == BurnCell.vine) dry++;
       }
-      expect(garth.coverageGoal, greaterThan(dry * 0.4),
-          reason: 'a goal a lazy short chain could reach is not a puzzle');
+      expect(
+        garth.coverageGoal,
+        greaterThan(dry * 0.4),
+        reason: 'a goal a lazy short chain could reach is not a puzzle',
+      );
     });
 
     test('the garth is a maze, not a lawn', () {
-      final garth =
-          kPlanetDungeonLayouts['Fire']!.rooms['cloister']!.garth!;
+      final garth = kPlanetDungeonLayouts['Fire']!.rooms['cloister']!.garth!;
       final f = BurnField.parse(garth.art);
       var stone = 0, wet = 0;
       for (var i = 0; i < garth.cols * garth.rows; i++) {
@@ -192,8 +196,11 @@ void main() {
         if (f.at(i) == BurnCell.wet) wet++;
       }
       expect(stone, greaterThan(0), reason: 'fallen columns bend the route');
-      expect(wet, greaterThan(0),
-          reason: 'the seep is the trap that teaches fuel != fire');
+      expect(
+        wet,
+        greaterThan(0),
+        reason: 'the seep is the trap that teaches fuel != fire',
+      );
     });
   });
 }

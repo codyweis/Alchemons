@@ -149,9 +149,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final f = _fen;
     f.lotusSunk = true;
     f.founder = 0;
-    final door = room.doors.firstWhere(
-      (d) => d.targetRoomId == 'sunken_lotus',
-    );
+    final door = room.doors.firstWhere((d) => d.targetRoomId == 'sunken_lotus');
     currentRoomId = door.targetRoomId;
     _spreadCreaturesAround(door.targetSpawn);
     _clearHints();
@@ -162,8 +160,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
   }
 
   /// Test seam: drive the founder without walking a body onto a knoll.
-  void bogFounderTickForTest(double dt) =>
-      _updateFounder(currentRoom, dt);
+  void bogFounderTickForTest(double dt) => _updateFounder(currentRoom, dt);
 
   /// §7 — the guardian fights WITH the planet's rule. Bogdrya DRINKS the fen:
   /// its lull only opens while the mire anchor holds the hollow's quaking
@@ -781,42 +778,50 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (room.fen?.moor != null) {
       _setInsightHint(switch (tier) {
         0 => 'Wet ground will not keep an offering',
-        1 => 'The basin holds only where the knoll itself stands drained — '
-            'and a knoll drains when every crossing that touches it is hard',
-        _ => 'Count this knoll\'s crossings and harden every one; the black '
-            'basin on the cairn answers a reading eye rather than a pouring '
-            'hand',
+        1 =>
+          'The basin holds only where the knoll itself stands drained — '
+              'and a knoll drains when every crossing that touches it is hard',
+        _ =>
+          'Count this knoll\'s crossings and harden every one; the black '
+              'basin on the cairn answers a reading eye rather than a pouring '
+              'hand',
       });
       return;
     }
     if (room.fen?.altar != null) {
       _setInsightHint(switch (tier) {
         0 => 'The stone will not travel over anything soft',
-        1 => 'A road has to stand before the sarsen will cross it — and old '
-            'resin caps the socket at the end',
-        _ => 'Drag the road one crossing ahead of the stone; the socket\'s '
-            'resin rots only where root and mire are worked together',
+        1 =>
+          'A road has to stand before the sarsen will cross it — and old '
+              'resin caps the socket at the end',
+        _ =>
+          'Drag the road one crossing ahead of the stone; the socket\'s '
+              'resin rots only where root and mire are worked together',
       });
       return;
     }
     if (room.fen?.sough != null) {
       _setInsightHint(switch (tier) {
         0 => 'Everything the fen loses ends up here',
-        1 => 'The outfall can be opened, and the fen will answer the whole '
-            'way up',
-        _ => 'Free the plug and climb out anywhere — but the heave takes back '
-            'every road you dragged, and puts the stone back where it lay',
+        1 =>
+          'The outfall can be opened, and the fen will answer the whole '
+              'way up',
+        _ =>
+          'Free the plug and climb out anywhere — but the heave takes back '
+              'every road you dragged, and puts the stone back where it lay',
       });
       return;
     }
     // Anywhere in the bog, insight reads THE FEN — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'One water table, and it has to go somewhere',
-      1 => 'Harden a crossing and the water it held backs up into the '
-          'crossings beside it on the same watercourse',
-      _ => 'No two neighbours on one watercourse can ever both stand, in any '
-          'order; what already stands is safe, and what has drowned is gone. '
-          'A knoll with nothing left holding it will not hold you either',
+      1 =>
+        'Harden a crossing and the water it held backs up into the '
+            'crossings beside it on the same watercourse',
+      _ =>
+        'No two neighbours on one watercourse can ever both stand, in any '
+            'order; what already stands is safe, and what has drowned is gone. '
+            'A knoll with nothing left holding it will not hold you either',
     });
   }
 
@@ -875,7 +880,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
     int strandableWithoutSough,
     int disconnectedShapes,
     int shapes,
-  }) solveFenTerraform({bool plankPassable = true}) {
+  })
+  solveFenTerraform({bool plankPassable = true}) {
     final fordIds = [for (final f in kBogFords) f.id];
     final rooms = layout.rooms.keys.toList()..sort();
 
@@ -998,7 +1004,13 @@ extension SinkingAltarFen on PlanetDungeonGame {
       final back = <int, List<int>>{};
       for (final s in live.values) {
         final from = enc(roomIndex[s.$1]!, s.$2, s.$3, s.$4);
-        for (final m in moves(s.$1, s.$2, s.$3, s.$4, valveEnabled: valveEnabled)) {
+        for (final m in moves(
+          s.$1,
+          s.$2,
+          s.$3,
+          s.$4,
+          valveEnabled: valveEnabled,
+        )) {
           final to = enc(roomIndex[m.$1]!, m.$2, m.$3, m.$4);
           if (!live.containsKey(to)) continue;
           (back[to] ??= []).add(from);
@@ -1025,7 +1037,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // this run's world — that is a family gate on optional treasure, not a
     // strand — so it drops out of the audit rather than counting against it.
     final everReached = {for (final s in live.values) s.$1};
-    final required = [for (final r in rooms) if (everReached.contains(r)) r];
+    final required = [
+      for (final r in rooms)
+        if (everReached.contains(r)) r,
+    ];
 
     /// LEVEL TWO — the literal search: from ONE state, which rooms are still
     /// reachable? A fresh forward BFS over the state graph, exactly as Ice's
@@ -1148,7 +1163,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ..close();
       switch (f.stateOf(ford.id)) {
         case BogFordState.mire:
-          canvas.drawPath(path, Paint()..color = _fenSlurry.withValues(alpha: 0.62));
+          canvas.drawPath(
+            path,
+            Paint()..color = _fenSlurry.withValues(alpha: 0.62),
+          );
           // Quaking: three travelling ripples along the ribbon, no tiles.
           for (var i = 0; i < 3; i++) {
             final t = ((bog.clock * 0.35 + i / 3) % 1.0);
@@ -1162,7 +1180,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
             );
           }
         case BogFordState.sod:
-          canvas.drawPath(path, Paint()..color = _fenSod.withValues(alpha: 0.82));
+          canvas.drawPath(
+            path,
+            Paint()..color = _fenSod.withValues(alpha: 0.82),
+          );
           // The tussock fringe: short root strokes along both lips.
           for (var i = 0; i < 9; i++) {
             final x = head.dx + outward * (10 + i * 9.5);
@@ -1183,7 +1204,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
             );
           }
         case BogFordState.drowned:
-          canvas.drawPath(path, Paint()..color = _fenWater.withValues(alpha: 0.9));
+          canvas.drawPath(
+            path,
+            Paint()..color = _fenWater.withValues(alpha: 0.9),
+          );
           // Drifting weed: two slow curved strokes, nothing gridded.
           for (var i = 0; i < 2; i++) {
             final drift = sin(bog.clock * 0.5 + i * 2.1) * 14;

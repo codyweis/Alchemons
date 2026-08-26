@@ -4,7 +4,6 @@
 // so anything off to the side but vertically aligned rendered in full, and a
 // planet body is the most blur-heavy thing in the game (Ice draws eleven).
 
-
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:flutter_test/flutter_test.dart';
 

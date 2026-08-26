@@ -46,18 +46,18 @@ enum BurnWind { north, east, south, west }
 extension BurnWindStep on BurnWind {
   /// (dCol, dRow) for this quarter.
   (int, int) get delta => switch (this) {
-        BurnWind.north => (0, -1),
-        BurnWind.east => (1, 0),
-        BurnWind.south => (0, 1),
-        BurnWind.west => (-1, 0),
-      };
+    BurnWind.north => (0, -1),
+    BurnWind.east => (1, 0),
+    BurnWind.south => (0, 1),
+    BurnWind.west => (-1, 0),
+  };
 
   BurnWind get quarterRight => switch (this) {
-        BurnWind.north => BurnWind.east,
-        BurnWind.east => BurnWind.south,
-        BurnWind.south => BurnWind.west,
-        BurnWind.west => BurnWind.north,
-      };
+    BurnWind.north => BurnWind.east,
+    BurnWind.east => BurnWind.south,
+    BurnWind.south => BurnWind.west,
+    BurnWind.west => BurnWind.north,
+  };
 }
 
 /// What the flame did on a beat — the renderer and the hint channel both read
@@ -85,8 +85,8 @@ class BurnField {
     required List<BurnCell> cells,
     required this.wind,
     this.coverageGoal = 0,
-  })  : _cells = List.of(cells),
-        assert(cells.length == cols * rows);
+  }) : _cells = List.of(cells),
+       assert(cells.length == cols * rows);
 
   /// Parse an authored field. `.` soil · `#` stone · `~` wet · `v` vine.
   factory BurnField.parse(

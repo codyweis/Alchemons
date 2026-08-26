@@ -107,9 +107,7 @@ void main() {
       );
 
       expect(
-        artilleryAdds.any(
-          (add) => add.conduct == EnemyConduct.standoff,
-        ),
+        artilleryAdds.any((add) => add.conduct == EnemyConduct.standoff),
         isTrue,
       );
       expect(
@@ -117,21 +115,15 @@ void main() {
         isTrue,
       );
       expect(
-        conductorAdds.any(
-          (add) => add.trait == EnemyTrait.breaker,
-        ),
+        conductorAdds.any((add) => add.trait == EnemyTrait.breaker),
         isTrue,
       );
       expect(
-        siegebreakerAdds.any(
-          (add) => add.conduct == EnemyConduct.charge,
-        ),
+        siegebreakerAdds.any((add) => add.conduct == EnemyConduct.charge),
         isTrue,
       );
       expect(
-        riftcallerAdds.any(
-          (add) => add.conduct == EnemyConduct.standoff,
-        ),
+        riftcallerAdds.any((add) => add.conduct == EnemyConduct.standoff),
         isTrue,
       );
     });

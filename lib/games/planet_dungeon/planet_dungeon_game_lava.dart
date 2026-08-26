@@ -151,7 +151,12 @@ extension MoltenReliquary on PlanetDungeonGame {
       final dest = s.line.node(ch.to);
       final wasGas = p.form == PourForm.gassed;
       final event = s.arrive();
-      _announcePour(event, dest, ch, gassedNow: !wasGas && dest.kind == FoundryNodeKind.vent);
+      _announcePour(
+        event,
+        dest,
+        ch,
+        gassedNow: !wasGas && dest.kind == FoundryNodeKind.vent,
+      );
       if (event != PourEvent.travelling) return;
     }
   }
@@ -182,8 +187,10 @@ extension MoltenReliquary on PlanetDungeonGame {
         works
           ..flash = 1.0
           ..flashAt = dest.position;
-        _setHint('The metal sets where it stood — a road, and a plug behind '
-            'it');
+        _setHint(
+          'The metal sets where it stood — a road, and a plug behind '
+          'it',
+        );
         _spawnAlchemyBurst(
           dest.position,
           producedElement: 'Ice',
@@ -269,8 +276,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     final d = e.position - kLavaHeartCentre;
     w.ride = d.distance < 1 ? w.ride + dt * _kRideSpeed : atan2(d.dy, d.dx);
     e.position =
-        kLavaHeartCentre +
-        Offset(cos(w.ride), sin(w.ride)) * kLavaHeartRadius;
+        kLavaHeartCentre + Offset(cos(w.ride), sin(w.ride)) * kLavaHeartRadius;
   }
 
   // ── Collision: a channel is not a floor ──────────────────
@@ -469,8 +475,10 @@ extension MoltenReliquary on PlanetDungeonGame {
       if (gate != null) {
         _stampFamilyGate(gate); // "the seal remembers" (§4)
       } else {
-        _setBlockedHint('Only an Ice mane\'s cold sets the metal where it '
-            'runs');
+        _setBlockedHint(
+          'Only an Ice mane\'s cold sets the metal where it '
+          'runs',
+        );
       }
       return true;
     }
@@ -603,9 +611,11 @@ extension MoltenReliquary on PlanetDungeonGame {
       return true;
     }
     s.takeKey(mold.id);
-    _setHint(what == 'gantry'
-        ? 'The gantry key comes out of the sand, still ticking'
-        : 'The reliquary key comes out of the sand, still ticking');
+    _setHint(
+      what == 'gantry'
+          ? 'The gantry key comes out of the sand, still ticking'
+          : 'The reliquary key comes out of the sand, still ticking',
+    );
     return true;
   }
 
@@ -638,8 +648,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         ..flash = 1.0
         ..flashAt = head;
       guardianVulnerable = true;
-      _setHint('The head catches it — Magmara beaches out of the channel',
-          3.0);
+      _setHint('The head catches it — Magmara beaches out of the channel', 3.0);
       _spawnAlchemyBurst(
         beast,
         producedElement: 'Ice',
@@ -660,7 +669,9 @@ extension MoltenReliquary on PlanetDungeonGame {
     switch (room.id) {
       case 'tap_head':
         if (!s.tapWoken) return 'The crucible sits sealed and cold';
-        return hasStar(1) ? null : 'The works drain into a sump you cannot cross';
+        return hasStar(1)
+            ? null
+            : 'The works drain into a sump you cannot cross';
       case 'switch_yard':
         return 'The line forks under the foreman\'s board';
       case 'chill_house':
@@ -708,17 +719,20 @@ extension MoltenReliquary on PlanetDungeonGame {
         // where Star 2 stops being a secret and starts being a plan.
         _setInsightHint(switch (t) {
           0 => 'The manifest counts one more mold than this floor holds',
-          1 => 'The die wards whatever takes the south arm; the north arm '
-              'runs plain',
-          _ => 'The missing form is installed in the sump under the crucible, '
-              'and only the tail feeds it',
+          1 =>
+            'The die wards whatever takes the south arm; the north arm '
+                'runs plain',
+          _ =>
+            'The missing form is installed in the sump under the crucible, '
+                'and only the tail feeds it',
         });
       case 'tap_head':
         _setInsightHint(switch (t) {
           0 => 'The sump takes back everything the floor refuses',
           1 => 'There is a form at the end of it, cut for a key',
-          _ => 'Fill it before you lay any road across the sump — cold metal '
-              'stops everything behind it',
+          _ =>
+            'Fill it before you lay any road across the sump — cold metal '
+                'stops everything behind it',
         });
       case 'chill_house':
         _setInsightHint(
@@ -739,8 +753,10 @@ extension MoltenReliquary on PlanetDungeonGame {
               : 'Plain metal fills the span; only warded metal makes a key',
         );
       case 'pour_heart':
-        _setInsightHint('It cannot leave the ring — and the heads on the ring '
-            'are the works\' own hands');
+        _setInsightHint(
+          'It cannot leave the ring — and the heads on the ring '
+          'are the works\' own hands',
+        );
       default:
         _setInsightHint('Nothing here reads back');
     }
@@ -895,8 +911,7 @@ extension MoltenReliquary on PlanetDungeonGame {
               : const Color(0xFFD6EEF8).withValues(alpha: 0.55),
       );
       if (!c.spoiled && _fx.ready) {
-        drawGlow(canvas, _fx.glow!, c.rect.center, 34,
-            const Color(0x2288D8F0));
+        drawGlow(canvas, _fx.glow!, c.rect.center, 34, const Color(0x2288D8F0));
       }
     }
   }
@@ -914,13 +929,21 @@ extension MoltenReliquary on PlanetDungeonGame {
           // The crucible: a squat iron vessel over the font.
           canvas.drawRRect(
             RRect.fromRectAndRadius(
-              Rect.fromCenter(center: p - const Offset(0, 34), width: 96, height: 56),
+              Rect.fromCenter(
+                center: p - const Offset(0, 34),
+                width: 96,
+                height: 56,
+              ),
               const Radius.circular(8),
             ),
             iron,
           );
           canvas.drawRect(
-            Rect.fromCenter(center: p - const Offset(0, 4), width: 22, height: 26),
+            Rect.fromCenter(
+              center: p - const Offset(0, 4),
+              width: 22,
+              height: 26,
+            ),
             Paint()..color = s.tapWoken ? _worksCore : _worksIronLit,
           );
           if (s.tapWoken && _fx.ready) {
@@ -937,19 +960,18 @@ extension MoltenReliquary on PlanetDungeonGame {
             ),
             down ? (Paint()..color = _worksCold) : iron,
           );
-          canvas.drawRect(
-            Rect.fromLTWH(p.dx - 56, p.dy - 78, 6, 78),
-            lit,
-          );
-          canvas.drawRect(
-            Rect.fromLTWH(p.dx + 50, p.dy - 78, 6, 78),
-            lit,
-          );
+          canvas.drawRect(Rect.fromLTWH(p.dx - 56, p.dy - 78, 6, 78), lit);
+          canvas.drawRect(Rect.fromLTWH(p.dx + 50, p.dy - 78, 6, 78), lit);
         case FoundryNodeKind.stamper:
           // The die: a hammer block over the channel, live or dead.
           canvas.drawRect(
             Rect.fromCenter(
-              center: Offset(p.dx, p.dy - 44 + (s.dieWoken ? 10 * (0.5 + 0.5 * sin(works.clock * 6)) : 0)),
+              center: Offset(
+                p.dx,
+                p.dy -
+                    44 +
+                    (s.dieWoken ? 10 * (0.5 + 0.5 * sin(works.clock * 6)) : 0),
+              ),
               width: 74,
               height: 46,
             ),
@@ -962,8 +984,13 @@ extension MoltenReliquary on PlanetDungeonGame {
               iron,
             );
           } else if (_fx.ready) {
-            drawGlow(canvas, _fx.glow!, kLavaAccumulator, 26,
-                const Color(0x33BFE0EA));
+            drawGlow(
+              canvas,
+              _fx.glow!,
+              kLavaAccumulator,
+              26,
+              const Color(0x33BFE0EA),
+            );
           }
         case FoundryNodeKind.vent:
           // The purge cowl, always audibly open or shut.
@@ -996,7 +1023,11 @@ extension MoltenReliquary on PlanetDungeonGame {
       if (lever != null) {
         final set = s.settingOf(n.switchId!);
         canvas.drawRect(
-          Rect.fromCenter(center: lever + const Offset(0, 12), width: 30, height: 12),
+          Rect.fromCenter(
+            center: lever + const Offset(0, 12),
+            width: 30,
+            height: 12,
+          ),
           iron,
         );
         final ang = -pi / 2 + (set - 1) * 0.5;
@@ -1008,8 +1039,11 @@ extension MoltenReliquary on PlanetDungeonGame {
             ..strokeWidth = 5
             ..strokeCap = StrokeCap.round,
         );
-        _drawTinyLabel(canvas, lever + const Offset(0, 30),
-            n.switchLabels[set.clamp(0, n.switchLabels.length - 1)]);
+        _drawTinyLabel(
+          canvas,
+          lever + const Offset(0, 30),
+          n.switchLabels[set.clamp(0, n.switchLabels.length - 1)],
+        );
       }
     }
   }
@@ -1077,10 +1111,16 @@ extension MoltenReliquary on PlanetDungeonGame {
     final vent = works.line.line.node('vent').position;
     for (var i = 0; i < 5; i++) {
       final t = works.clock * 0.5 + i * 1.3;
-      final p = vent +
+      final p =
+          vent +
           Offset(sin(t) * (40 + i * 26), -((works.clock * 16 + i * 60) % 190));
-      drawGlow(canvas, _fx.glow!, p, 34 + i * 4.0,
-          _worksDamp.withValues(alpha: 0.10 * a));
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        p,
+        34 + i * 4.0,
+        _worksDamp.withValues(alpha: 0.10 * a),
+      );
     }
   }
 
@@ -1097,8 +1137,11 @@ extension MoltenReliquary on PlanetDungeonGame {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 22
-        ..color = Color.lerp(_worksEdge, _worksCore,
-            0.3 + 0.2 * sin(works.clock * 1.6))!,
+        ..color = Color.lerp(
+          _worksEdge,
+          _worksCore,
+          0.3 + 0.2 * sin(works.clock * 1.6),
+        )!,
     );
     // Sleepers around the ring.
     final bars = Paint()
@@ -1120,13 +1163,16 @@ extension MoltenReliquary on PlanetDungeonGame {
         Paint()..color = live ? _worksIronLit : _worksIron,
       );
       canvas.drawRect(
-        Rect.fromCenter(center: head - const Offset(0, 30), width: 22, height: 34),
+        Rect.fromCenter(
+          center: head - const Offset(0, 30),
+          width: 22,
+          height: 34,
+        ),
         Paint()..color = _worksIron,
       );
     }
     if (works.beached > 0 && _fx.ready) {
-      drawGlow(canvas, _fx.glow!, works.beachedAt, 90,
-          const Color(0x3AA8E6F5));
+      drawGlow(canvas, _fx.glow!, works.beachedAt, 90, const Color(0x3AA8E6F5));
     }
   }
 
@@ -1135,8 +1181,7 @@ extension MoltenReliquary on PlanetDungeonGame {
   void _renderWorksStar(Canvas canvas, Offset at) {
     final pulse = 0.5 + 0.5 * sin(works.clock * 2.2);
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, at, 52 + 8 * pulse,
-          const Color(0x55FFB24A));
+      drawGlow(canvas, _fx.glow!, at, 52 + 8 * pulse, const Color(0x55FFB24A));
     }
     canvas.drawPath(
       Path()

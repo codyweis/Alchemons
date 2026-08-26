@@ -106,19 +106,29 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('the geyser field', () {
-    test('the field is authored: four blow, one is choked, one is the heart',
-        () {
-      final game = _harness();
-      final room = _field(game);
-      expect(room.geysers.length, 5);
-      expect(room.geysers.where((g) => g.blockedAtStart).length, 1,
-          reason: 'one mouth starts under rubble — which is why three bodies '
-              'and one rock is exactly enough');
-      expect(room.capstone, isNotNull);
-      expect(room.capstone!.starIndex, 0);
-      _step(game);
-      expect(game.geyserPressure, 1, reason: 'the rubble counts from frame 1');
-    });
+    test(
+      'the field is authored: four blow, one is choked, one is the heart',
+      () {
+        final game = _harness();
+        final room = _field(game);
+        expect(room.geysers.length, 5);
+        expect(
+          room.geysers.where((g) => g.blockedAtStart).length,
+          1,
+          reason:
+              'one mouth starts under rubble — which is why three bodies '
+              'and one rock is exactly enough',
+        );
+        expect(room.capstone, isNotNull);
+        expect(room.capstone!.starIndex, 0);
+        _step(game);
+        expect(
+          game.geyserPressure,
+          1,
+          reason: 'the rubble counts from frame 1',
+        );
+      },
+    );
 
     test('a body on the stone caps a mouth, and stepping off releases it', () {
       final game = _harness();
@@ -129,8 +139,11 @@ void main() {
 
       _stand(game, 0, const Offset(350, 780));
       _step(game);
-      expect(game.cappedGeysers, isNot(contains('g_north')),
-          reason: 'a cap is where a body IS, never an intention it had');
+      expect(
+        game.cappedGeysers,
+        isNot(contains('g_north')),
+        reason: 'a cap is where a body IS, never an intention it had',
+      );
       expect(game.geyserPressure, 1);
     });
 
@@ -160,6 +173,7 @@ void main() {
       _stand(game, 0, const Offset(350, 560));
       game.activateAbility();
       expect(game.earthRock, isNull);
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
 
@@ -175,8 +189,11 @@ void main() {
       // Move the Earth body away so only the ROCK can be the cap.
       _stand(game, 1, const Offset(350, 780));
       _step(game);
-      expect(game.cappedGeysers, contains('g_east'),
-          reason: 'the stone holds the mouth with nobody standing there');
+      expect(
+        game.cappedGeysers,
+        contains('g_east'),
+        reason: 'the stone holds the mouth with nobody standing there',
+      );
     });
 
     test('THE SOLVE: three bodies and the stone shut the field, and the '
@@ -224,9 +241,11 @@ void main() {
       _stand(game, 2, skirt);
       game.setActive(2);
       _step(game, 6); // at least one full cycle
-      expect((game.creatures[2].position - west).distance,
-          greaterThan((skirt - west).distance),
-          reason: 'the plume throws you clear of the mouth');
+      expect(
+        (game.creatures[2].position - west).distance,
+        greaterThan((skirt - west).distance),
+        reason: 'the plume throws you clear of the mouth',
+      );
     });
   });
 
@@ -264,8 +283,11 @@ void main() {
       final r = riser(game, 'r_short');
       _stand(game, 0, r.position);
       _step(game);
-      expect(game.cappedGeysers, isNot(contains('r_short')),
-          reason: "a riser's throat is too wide for one body");
+      expect(
+        game.cappedGeysers,
+        isNot(contains('r_short')),
+        reason: "a riser's throat is too wide for one body",
+      );
     });
 
     test('the stone DOES cap a riser', () {
@@ -304,8 +326,11 @@ void main() {
       _step(game2, 6);
       final strong = game2.creatures[0].position.dy - before2;
 
-      expect(strong, greaterThan(weak),
-          reason: 'every mouth shut behind a riser is more throw in front');
+      expect(
+        strong,
+        greaterThan(weak),
+        reason: 'every mouth shut behind a riser is more throw in front',
+      );
     });
 
     test('THE SOLVE: send them in the order the decaying field allows', () {
@@ -327,8 +352,11 @@ void main() {
       _stand(game, 0, riser(game, 'r_long').position);
       game.creatures[0].aimAngle = 1.5708;
       _step(game, 6);
-      expect(far.inflate(2).contains(game.creatures[0].position), isTrue,
-          reason: 'the long throw needs the fullest field');
+      expect(
+        far.inflate(2).contains(game.creatures[0].position),
+        isTrue,
+        reason: 'the long throw needs the fullest field',
+      );
 
       // Then rider 1, with one body left behind plus the stone.
       _stand(game, 1, riser(game, 'r_short').position);
@@ -340,8 +368,11 @@ void main() {
       _stand(game, 2, riser(game, 'r_short').position);
       game.creatures[2].aimAngle = 1.5708;
       _step(game, 6);
-      expect(far.inflate(2).contains(game.creatures[2].position), isTrue,
-          reason: 'the short riser is what the last body can still afford');
+      expect(
+        far.inflate(2).contains(game.creatures[2].position),
+        isTrue,
+        reason: 'the short riser is what the last body can still afford',
+      );
 
       _step(game, 0.5);
       expect(game.hasStar(1), isTrue);

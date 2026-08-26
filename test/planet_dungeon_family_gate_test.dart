@@ -107,29 +107,26 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('layout contract', () {
-    test(
-      'every gate discovery id avoids the PlanetStarState separators',
-      () {
-        // `,` `=` `.` `|` are the serialisation format's split characters
-        // (cosmic_data.dart, PlanetStarState.serialise) — an id carrying one
-        // would corrupt every planet's persisted state on the round trip.
-        for (final layout in kPlanetDungeonLayouts.values) {
-          for (final gate in layout.familyGates) {
-            final id = gate.discoveryId;
-            expect(id, startsWith('gate:'));
-            for (final forbidden in const [',', '=', '.', '|']) {
-              expect(
-                id.contains(forbidden),
-                isFalse,
-                reason:
-                    '${layout.element} gate id "$id" must not contain '
-                    '"$forbidden"',
-              );
-            }
+    test('every gate discovery id avoids the PlanetStarState separators', () {
+      // `,` `=` `.` `|` are the serialisation format's split characters
+      // (cosmic_data.dart, PlanetStarState.serialise) — an id carrying one
+      // would corrupt every planet's persisted state on the round trip.
+      for (final layout in kPlanetDungeonLayouts.values) {
+        for (final gate in layout.familyGates) {
+          final id = gate.discoveryId;
+          expect(id, startsWith('gate:'));
+          for (final forbidden in const [',', '=', '.', '|']) {
+            expect(
+              id.contains(forbidden),
+              isFalse,
+              reason:
+                  '${layout.element} gate id "$id" must not contain '
+                  '"$forbidden"',
+            );
           }
         }
-      },
-    );
+      }
+    });
 
     test('every gate answers to one of the planet\'s three entry slots', () {
       for (final layout in kPlanetDungeonLayouts.values) {
@@ -200,7 +197,9 @@ void main() {
       final stand = rib.notches.first - const Offset(110, 0);
 
       _attemptAt(game, 'rib_hall', stand);
+      game.askForRoomHint();
       expect(game.hintText, 'Only an Earth horn\'s force shifts this bone');
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
       expect(game.discoveredClouds, contains('gate:earth_horn'));
       expect(discoveries, ['gate:earth_horn']);
@@ -218,7 +217,9 @@ void main() {
       final mouth = game.layout.rooms['moon_well']!.tideValves.single;
 
       _attemptAt(game, 'moon_well', mouth.position);
+      game.askForRoomHint();
       expect(game.hintText, 'Only a Water pip slips down this pipe-mouth');
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
       expect(discoveries, ['gate:water_pip']);
     });
@@ -233,10 +234,9 @@ void main() {
       );
 
       _attemptAt(game, 'twin_conduit', conduitA.position);
-      expect(
-        game.hintText,
-        'Only a Lightning horn\'s grip holds this current',
-      );
+      game.askForRoomHint();
+      expect(game.hintText, 'Only a Lightning horn\'s grip holds this current');
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
       expect(discoveries, ['gate:lightning_horn']);
     });
@@ -254,6 +254,7 @@ void main() {
       _attemptAt(game, 'rib_hall', rib.notches.first - const Offset(110, 0));
       // The refusal still speaks — knowledge is not silence — but nothing is
       // re-discovered, so the screen never re-toasts or re-persists.
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
       expect(discoveries, isEmpty);
     });
@@ -261,14 +262,9 @@ void main() {
 
   group('save-compat migration (§9.0 ruling)', () {
     test('a fully-cleared planet auto-stamps its gates', () {
-      final cleared = const PlanetStarState(
-        starMasks: {'Earth': 7},
-      );
+      final cleared = const PlanetStarState(starMasks: {'Earth': 7});
       final out = stampClearedPlanetFamilyGates(cleared);
-      expect(
-        out.discoveredCloudsFor('Earth'),
-        contains('gate:earth_horn'),
-      );
+      expect(out.discoveredCloudsFor('Earth'), contains('gate:earth_horn'));
       // Other planets stay untouched.
       expect(out.discoveredCloudsFor('Air'), isEmpty);
       expect(out.discoveredCloudsFor('Water'), isEmpty);
@@ -303,10 +299,7 @@ void main() {
         const PlanetStarState(starMasks: {'Water': 7}),
       );
       final revived = PlanetStarState.deserialise(stamped.serialise());
-      expect(
-        revived.discoveredCloudsFor('Water'),
-        contains('gate:water_pip'),
-      );
+      expect(revived.discoveredCloudsFor('Water'), contains('gate:water_pip'));
       expect(revived.starsEarned('Water'), 3);
     });
   });

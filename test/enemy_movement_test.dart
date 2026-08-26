@@ -94,7 +94,6 @@ void main() {
         EnemyConduct.stalk,
       );
     });
-
   });
 
   group('stats that used to hide inside the movement vector', () {

@@ -364,8 +364,7 @@ extension MirrorTide on PlanetDungeonGame {
       if (ch.from != nodeId) continue;
       if (!canalChannelLive(ch.sill, water)) continue;
       if (dammed.contains(ch.to)) continue;
-      if (best == null ||
-          canalSpillRank(ch.sill) < canalSpillRank(best.sill)) {
+      if (best == null || canalSpillRank(ch.sill) < canalSpillRank(best.sill)) {
         best = ch;
       }
     }
@@ -545,7 +544,12 @@ extension MirrorTide on PlanetDungeonGame {
       );
     }
     final route =
-        _canalRoute(springId, seaId, stands: const [0, 1, 2], allowDams: true) ??
+        _canalRoute(
+          springId,
+          seaId,
+          stands: const [0, 1, 2],
+          allowDams: true,
+        ) ??
         const <LanternLeg>[];
     final solvable = route.isNotEmpty;
     final damFree =
@@ -583,7 +587,9 @@ extension MirrorTide on PlanetDungeonGame {
       solvable: solvable,
       strandable: strandable,
       damFree: damFree,
-      blindBasins: room.canalNodes.where((n) => n.isBasin && canalIsBlind(n.id)).length,
+      blindBasins: room.canalNodes
+          .where((n) => n.isBasin && canalIsBlind(n.id))
+          .length,
       singleStandSolvable: singleStand,
       route: route,
     );
@@ -622,9 +628,8 @@ extension MirrorTide on PlanetDungeonGame {
       _damAnim[id] = min(1.0, (_damAnim[id] ?? 0) + dt / _kDamEaseSeconds);
     }
     _damAnim.updateAll(
-      (id, v) => dammedNodes.contains(id)
-          ? v
-          : max(0.0, v - dt / _kDamEaseSeconds),
+      (id, v) =>
+          dammedNodes.contains(id) ? v : max(0.0, v - dt / _kDamEaseSeconds),
     );
     _damAnim.removeWhere((id, v) => v <= 0 && !dammedNodes.contains(id));
   }
@@ -670,7 +675,8 @@ extension MirrorTide on PlanetDungeonGame {
         _loseLantern(
           _lanternPrevNodeId ?? atId,
           sumped: false,
-          message: 'The sump has no throat — the backwash gives the lantern '
+          message:
+              'The sump has no throat — the backwash gives the lantern '
               'up again, dark',
         );
         return;
@@ -679,11 +685,7 @@ extension MirrorTide on PlanetDungeonGame {
       // runs out still lands, and the departure always reads the settled
       // stand the player committed to.
       if (lanternDwell < _kLanternDwell || !tideSettled) return;
-      final next = canalSpillFrom(
-        atId,
-        water: tideAnim,
-        dammed: dammedNodes,
-      );
+      final next = canalSpillFrom(atId, water: tideAnim, dammed: dammedNodes);
       // Nothing runs: the lantern simply keeps turning and waits on the water.
       if (next == null) return;
       lanternChannel = next;
@@ -1126,17 +1128,12 @@ extension MirrorTide on PlanetDungeonGame {
         return true;
       }
       if (!(tideSettled && tideLevel == 1)) {
-        _setHint(
-          'The pools only hold the moon at the settled MIDDLE water',
-        );
+        _setHint('The pools only hold the moon at the settled MIDDLE water');
         return true;
       }
       final r = evaluateInteraction(
         a.member,
-        const DungeonInteractionRequirement(
-          element: 'Ice',
-          allowRecipe: true,
-        ),
+        const DungeonInteractionRequirement(element: 'Ice', allowRecipe: true),
         recipeAvailable: a.member.element == 'Spirit',
       );
       final viaRecipe = r == InteractionResult.passedViaRecipe;
@@ -1332,7 +1329,9 @@ extension MirrorTide on PlanetDungeonGame {
       );
     }
     final canalStar = room.canalStarIndex;
-    if (room.canalNodes.isNotEmpty && canalStar != null && !hasStar(canalStar)) {
+    if (room.canalNodes.isNotEmpty &&
+        canalStar != null &&
+        !hasStar(canalStar)) {
       return DungeonProgressReadout(
         label: 'LANTERN',
         value: lanternNodeId == null
@@ -1576,12 +1575,15 @@ extension MirrorTide on PlanetDungeonGame {
           sin(_time * (0.9 + i * 0.27) + i * 1.8) * 22;
       final fade = (travel / span).clamp(0.0, 1.0);
       final r = 2.4 + i * 0.9 + sin(_time * 3 + i) * 0.5;
-      paint.color = const Color(0xFF8FE0EC).withValues(
-        alpha: (0.22 * (1 - fade) + 0.04).clamp(0.0, 0.26),
-      );
+      paint.color = const Color(
+        0xFF8FE0EC,
+      ).withValues(alpha: (0.22 * (1 - fade) + 0.04).clamp(0.0, 0.26));
       canvas.drawCircle(Offset(x, y), r, paint);
       canvas.drawArc(
-        Rect.fromCircle(center: Offset(x - r * 0.25, y - r * 0.25), radius: r * 0.45),
+        Rect.fromCircle(
+          center: Offset(x - r * 0.25, y - r * 0.25),
+          radius: r * 0.45,
+        ),
         -2.6,
         1.2,
         false,
@@ -1614,9 +1616,9 @@ extension MirrorTide on PlanetDungeonGame {
     canvas.drawRRect(
       RRect.fromRectAndRadius(waterRect, const Radius.circular(4)),
       Paint()
-        ..color = const Color(0xFF4AB8D8).withValues(
-          alpha: settled ? 0.55 : 0.75,
-        ),
+        ..color = const Color(
+          0xFF4AB8D8,
+        ).withValues(alpha: settled ? 0.55 : 0.75),
     );
     // Stand notches.
     for (var i = 0; i < 3; i++) {
@@ -1626,9 +1628,9 @@ extension MirrorTide on PlanetDungeonGame {
         Offset(rect.left, y),
         Paint()
           ..strokeWidth = 1.4
-          ..color = const Color(0xFFE4C16A).withValues(
-            alpha: i == tideLevel ? 0.9 : 0.3,
-          ),
+          ..color = const Color(
+            0xFFE4C16A,
+          ).withValues(alpha: i == tideLevel ? 0.9 : 0.3),
       );
     }
     canvas.drawRRect(
@@ -1784,9 +1786,9 @@ extension MirrorTide on PlanetDungeonGame {
             Paint()
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.6
-              ..color = const Color(0xFF4A8AB8).withValues(
-                alpha: wallAlpha.clamp(0.0, 0.7),
-              ),
+              ..color = const Color(
+                0xFF4A8AB8,
+              ).withValues(alpha: wallAlpha.clamp(0.0, 0.7)),
           );
         }
         if (wet > 0) {
@@ -1819,7 +1821,9 @@ extension MirrorTide on PlanetDungeonGame {
       canvas.drawRRect(
         RRect.fromRectAndRadius(z.rect, const Radius.circular(10)),
         Paint()
-          ..color = const Color(0xFF1E6884).withValues(alpha: 0.20 + 0.16 * wet),
+          ..color = const Color(
+            0xFF1E6884,
+          ).withValues(alpha: 0.20 + 0.16 * wet),
       );
       // Two travelling surface highlights.
       final r = z.rect;
@@ -1895,9 +1899,9 @@ extension MirrorTide on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.4
-          ..color = const Color(0xFF8FE0EC).withValues(
-            alpha: 0.5 + 0.2 * sin(_time * 3.0),
-          ),
+          ..color = const Color(
+            0xFF8FE0EC,
+          ).withValues(alpha: 0.5 + 0.2 * sin(_time * 3.0)),
       );
       if (_fx.ready) {
         drawGlow(
@@ -1905,9 +1909,9 @@ extension MirrorTide on PlanetDungeonGame {
           _fx.glow!,
           c,
           30 * rise,
-          const Color(0xFF8FE0EC).withValues(
-            alpha: (0.18 + 0.06 * sin(_time * 2.2)) * rise,
-          ),
+          const Color(
+            0xFF8FE0EC,
+          ).withValues(alpha: (0.18 + 0.06 * sin(_time * 2.2)) * rise),
         );
       }
     }
@@ -2038,9 +2042,9 @@ extension MirrorTide on PlanetDungeonGame {
             Paint()
               ..strokeWidth = 2
               ..strokeCap = StrokeCap.round
-              ..color = const Color(0xFF8FE0EC).withValues(
-                alpha: 0.4 + 0.2 * sin(_time * 2 + i),
-              ),
+              ..color = const Color(
+                0xFF8FE0EC,
+              ).withValues(alpha: 0.4 + 0.2 * sin(_time * 2 + i)),
           );
         }
       }
@@ -2058,10 +2062,9 @@ extension MirrorTide on PlanetDungeonGame {
       final wheel = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.4
-        ..color = (isCurrent
-                ? const Color(0xFF8FE0EC)
-                : const Color(0xFF4A7080))
-            .withValues(alpha: 0.85);
+        ..color =
+            (isCurrent ? const Color(0xFF8FE0EC) : const Color(0xFF4A7080))
+                .withValues(alpha: 0.85);
       canvas.drawCircle(p, 16, wheel);
       for (var i = 0; i < 4; i++) {
         final a = i * pi / 2 + (isCurrent ? _time * 0.4 : 0.6);
@@ -2241,9 +2244,7 @@ extension MirrorTide on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = named ? 2.2 : 1.6
         ..strokeCap = StrokeCap.round
-        ..color = (named
-                ? const Color(0xFFB8D8E8)
-                : const Color(0xFF4A7080))
+        ..color = (named ? const Color(0xFFB8D8E8) : const Color(0xFF4A7080))
             .withValues(alpha: named ? 0.7 : 0.5);
       canvas.drawArc(
         Rect.fromCircle(center: at, radius: 7),
@@ -2293,9 +2294,9 @@ extension MirrorTide on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF8FE0EC).withValues(
-          alpha: 0.4 + 0.2 * sin(_time * 3.1),
-        );
+        ..color = const Color(
+          0xFF8FE0EC,
+        ).withValues(alpha: 0.4 + 0.2 * sin(_time * 3.1));
       for (var i = 0; i < 3; i++) {
         final y = p.dy + 6 + ((_time * 26 + i * 11) % 22);
         canvas.drawLine(
@@ -2386,16 +2387,16 @@ extension MirrorTide on PlanetDungeonGame {
     if (lanternNodeId == null) return;
     final p = lanternPos;
     final lit = lanternLit;
-    final warm = lit
-        ? const Color(0xFFE4C16A)
-        : const Color(0xFF6A6455);
+    final warm = lit ? const Color(0xFFE4C16A) : const Color(0xFF6A6455);
     if (lit && _fx.ready) {
       drawGlow(
         canvas,
         _fx.glow!,
         p,
         30 + lanternFlare * 26,
-        warm.withValues(alpha: 0.22 + 0.08 * sin(_time * 2.6) + lanternFlare * 0.2),
+        warm.withValues(
+          alpha: 0.22 + 0.08 * sin(_time * 2.6) + lanternFlare * 0.2,
+        ),
       );
     }
     // The float: a little ring of pale wood on the water.
@@ -2492,9 +2493,9 @@ extension MirrorTide on PlanetDungeonGame {
         _fx.glow!,
         c - const Offset(0, 4),
         30,
-        const Color(0xFFE8F0F4).withValues(
-          alpha: 0.2 + 0.08 * sin(_time * 1.8),
-        ),
+        const Color(
+          0xFFE8F0F4,
+        ).withValues(alpha: 0.2 + 0.08 * sin(_time * 1.8)),
       );
     }
     canvas.drawCircle(
@@ -2537,9 +2538,9 @@ extension MirrorTide on PlanetDungeonGame {
           _fx.glow!,
           c,
           54,
-          const Color(0xFFDCE8F0).withValues(
-            alpha: 0.22 + 0.06 * sin(_time * 1.6),
-          ),
+          const Color(
+            0xFFDCE8F0,
+          ).withValues(alpha: 0.22 + 0.06 * sin(_time * 1.6)),
         );
       }
       canvas.drawCircle(
@@ -2559,7 +2560,11 @@ extension MirrorTide on PlanetDungeonGame {
       final crack = Paint()
         ..strokeWidth = 1
         ..color = Colors.white.withValues(alpha: 0.45);
-      canvas.drawLine(c + const Offset(-14, -6), c + const Offset(8, 10), crack);
+      canvas.drawLine(
+        c + const Offset(-14, -6),
+        c + const Offset(8, 10),
+        crack,
+      );
       canvas.drawLine(c + const Offset(4, -16), c + const Offset(10, 6), crack);
       return;
     }
@@ -2572,9 +2577,9 @@ extension MirrorTide on PlanetDungeonGame {
           _fx.mote!,
           glint,
           7,
-          const Color(0xFFDCE8F0).withValues(
-            alpha: 0.30 + 0.12 * sin(_time * 2.8),
-          ),
+          const Color(
+            0xFFDCE8F0,
+          ).withValues(alpha: 0.30 + 0.12 * sin(_time * 2.8)),
         );
       }
       canvas.drawCircle(
@@ -2669,9 +2674,9 @@ extension MirrorTide on PlanetDungeonGame {
           _fx.glow!,
           c,
           66,
-          const Color(0xFF4AB8D8).withValues(
-            alpha: 0.18 + 0.08 * sin(_time * 2.0),
-          ),
+          const Color(
+            0xFF4AB8D8,
+          ).withValues(alpha: 0.18 + 0.08 * sin(_time * 2.0)),
         );
       }
     }
@@ -2684,9 +2689,7 @@ extension MirrorTide on PlanetDungeonGame {
         p,
         30,
         Paint()
-          ..color = (frozen
-                  ? const Color(0xFFCFE4EE)
-                  : const Color(0xFF0C2A38))
+          ..color = (frozen ? const Color(0xFFCFE4EE) : const Color(0xFF0C2A38))
               .withValues(alpha: frozen ? 0.6 : 0.85),
       );
       canvas.drawCircle(
@@ -2738,9 +2741,9 @@ extension MirrorTide on PlanetDungeonGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.2
-            ..color = const Color(0xFF8FE0EC).withValues(
-              alpha: 0.18 + 0.1 * shimmer,
-            ),
+            ..color = const Color(
+              0xFF8FE0EC,
+            ).withValues(alpha: 0.18 + 0.1 * shimmer),
         );
         if (truthGlow > 0 && pool.isTrue && _fx.ready) {
           drawGlow(
@@ -2748,9 +2751,9 @@ extension MirrorTide on PlanetDungeonGame {
             _fx.glow!,
             p,
             40,
-            const Color(0xFFDCE8F0).withValues(
-              alpha: (0.28 * (truthGlow / 3)).clamp(0.0, 0.3),
-            ),
+            const Color(
+              0xFFDCE8F0,
+            ).withValues(alpha: (0.28 * (truthGlow / 3)).clamp(0.0, 0.3)),
           );
         }
         if (fx > 0) {
@@ -2794,9 +2797,9 @@ extension MirrorTide on PlanetDungeonGame {
           _fx.mote!,
           p,
           4,
-          const Color(0xFF8FE0EC).withValues(
-            alpha: 0.2 + 0.14 * (0.5 + 0.5 * sin(_time * 2.4)),
-          ),
+          const Color(
+            0xFF8FE0EC,
+          ).withValues(alpha: 0.2 + 0.14 * (0.5 + 0.5 * sin(_time * 2.4))),
         );
       }
     }
@@ -2842,9 +2845,9 @@ extension MirrorTide on PlanetDungeonGame {
         _fx.glow!,
         c,
         96,
-        const Color(0xFF2A88A8).withValues(
-          alpha: 0.14 + 0.08 * sin(_time * 1.8),
-        ),
+        const Color(
+          0xFF2A88A8,
+        ).withValues(alpha: 0.14 + 0.08 * sin(_time * 1.8)),
       );
     }
   }

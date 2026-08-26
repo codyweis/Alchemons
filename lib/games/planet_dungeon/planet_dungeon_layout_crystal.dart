@@ -284,8 +284,10 @@ int keepNeighbourToward(int cell, int facet) {
 }
 
 /// The cells orthogonally adjacent to [cell], ascending.
-List<int> keepNeighbours(int cell) =>
-    [for (var i = 0; i < 9; i++) if (_adjacent(cell, i)) i];
+List<int> keepNeighbours(int cell) => [
+  for (var i = 0; i < 9; i++)
+    if (_adjacent(cell, i)) i,
+];
 
 // ─────────────────────────────────────────────────────────
 // THE CHAMBERS — what stands in the cells

@@ -366,7 +366,8 @@ extension StormCircuit on PlanetDungeonGame {
       canvas.drawCircle(
         t,
         11,
-        Paint()..color = lit ? const Color(0xFFEAF6FF) : const Color(0xFF2A3646),
+        Paint()
+          ..color = lit ? const Color(0xFFEAF6FF) : const Color(0xFF2A3646),
       );
       canvas.drawCircle(
         t,
@@ -692,7 +693,8 @@ extension StormCircuit on PlanetDungeonGame {
         mirrorOrient[mirrors[i].id] = (mask >> i) & 1;
       }
       final path = _computeBeam(room, room.beamEmitters.first);
-      final threads = room.beamReceivers.isNotEmpty &&
+      final threads =
+          room.beamReceivers.isNotEmpty &&
           room.beamReceivers.every((t) => _beamHits(path, t));
       final safe = !room.fulminateVats.any(
         (v) => _beamHits(path, v.position, _kVatRadius),
@@ -860,7 +862,9 @@ extension StormCircuit on PlanetDungeonGame {
     if (!_fallRecovering && !hasStar(2)) {
       for (final bar in room.poweredBarriers) {
         if (_poweredNodes.contains(bar.nodeId)) continue;
-        if (bar.rect.inflate(PlanetDungeonGame._radius - 2).contains(a.position)) {
+        if (bar.rect
+            .inflate(PlanetDungeonGame._radius - 2)
+            .contains(a.position)) {
           final toLeft = (a.position.dx - bar.rect.left).abs();
           final toRight = (bar.rect.right - a.position.dx).abs();
           final safeX = toLeft < toRight
@@ -886,8 +890,9 @@ extension StormCircuit on PlanetDungeonGame {
     final starIdx = room.circuitStarIndex;
     if (starIdx != null && !hasStar(starIdx)) {
       if (room.cellSockets.isNotEmpty) {
-        final staged =
-            room.cellSockets.every((s) => energizedSockets.contains(s.id));
+        final staged = room.cellSockets.every(
+          (s) => energizedSockets.contains(s.id),
+        );
         if (staged && lit) {
           _setHint('Three storm-cells sing into the grid — the works light up');
           earnStar(starIdx);
@@ -934,7 +939,11 @@ extension StormCircuit on PlanetDungeonGame {
     for (final r in layout.rooms.values) {
       if (r.vaultBolt == null) continue;
       final target = circuitRoomLit(r.id) ? 0.0 : 1.0;
-      _vaultBoltOpen = _stepToward(_vaultBoltOpen, target, dt / _kBoltEaseSeconds);
+      _vaultBoltOpen = _stepToward(
+        _vaultBoltOpen,
+        target,
+        dt / _kBoltEaseSeconds,
+      );
     }
     if (_thunderboltGlow > 0 && _thunderboltGlow < 1.0) {
       _thunderboltGlow = (_thunderboltGlow + dt * 0.6).clamp(0.0, 1.0);
@@ -1055,8 +1064,10 @@ extension StormCircuit on PlanetDungeonGame {
     activeTrunk = trunk.id;
     _raikumaFed = true;
     _dynamoSwing = 0;
-    _setHint('Raikuma uncoils from the grid — and drinks the powered trunk',
-        4.2);
+    _setHint(
+      'Raikuma uncoils from the grid — and drinks the powered trunk',
+      4.2,
+    );
   }
 
   /// Called from the shared guardian loop (one `_isCircuit`-guarded line in
@@ -1388,14 +1399,18 @@ extension StormCircuit on PlanetDungeonGame {
     }
     // The vault — the re-hide, named.
     if (room.vaultBolt != null) {
-      _setHint('The bolt holds while this trunk burns — kill the power you '
-          'stand in');
+      _setHint(
+        'The bolt holds while this trunk burns — kill the power you '
+        'stand in',
+      );
       return;
     }
     // The storm core — the feed, named.
     if (room.guardian != null && guardianAwake) {
-      _setHint('Raikuma drinks the powered trunk — ground it at the spike to '
-          'force the lull');
+      _setHint(
+        'Raikuma drinks the powered trunk — ground it at the spike to '
+        'force the lull',
+      );
       return;
     }
     _setHint('${a.member.element} insight finds nothing hidden here');
@@ -1645,7 +1660,8 @@ extension StormCircuit on PlanetDungeonGame {
     if (d <= 0.01) return;
     canvas.drawRect(
       room.bounds.inflate(60),
-      Paint()..color = const Color(0xFF04060C).withValues(alpha: _kDarkMaxAlpha * d),
+      Paint()
+        ..color = const Color(0xFF04060C).withValues(alpha: _kDarkMaxAlpha * d),
     );
   }
 
@@ -1681,9 +1697,7 @@ extension StormCircuit on PlanetDungeonGame {
             _poweredNodes.contains(n.id) &&
             _poweredNodes.contains(nb);
         wirePaint
-          ..color = live
-              ? const Color(0xFF9FD4FF)
-              : const Color(0x3354708F)
+          ..color = live ? const Color(0xFF9FD4FF) : const Color(0x3354708F)
           ..strokeWidth = live ? 3.2 : 1.6;
         canvas.drawLine(n.position, other.position, wirePaint);
         if (live && _fx.ready) {
@@ -1717,7 +1731,9 @@ extension StormCircuit on PlanetDungeonGame {
       final slots = _cellStagingSlots(room);
       for (var i = 0; i < _kCircuitCellIds.length; i++) {
         final id = _kCircuitCellIds[i];
-        if (!discoveredClouds.contains(id) || placedClouds.contains(id)) continue;
+        if (!discoveredClouds.contains(id) || placedClouds.contains(id)) {
+          continue;
+        }
         if (carriedCloudId == id) continue;
         _drawStormCell(canvas, slots[i], _cellTypeFor(id));
       }
@@ -1775,8 +1791,9 @@ extension StormCircuit on PlanetDungeonGame {
         _fx.glow!,
         c,
         70,
-        (live ? const Color(0xFF6BA8FF) : const Color(0xFFE9D27A))
-            .withValues(alpha: 0.32),
+        (live ? const Color(0xFF6BA8FF) : const Color(0xFFE9D27A)).withValues(
+          alpha: 0.32,
+        ),
       );
     }
     canvas.drawCircle(c, 56, Paint()..color = const Color(0xFF1A222E));
@@ -1810,8 +1827,7 @@ extension StormCircuit on PlanetDungeonGame {
     canvas.drawCircle(
       c,
       9,
-      Paint()
-        ..color = live ? const Color(0xFFBFE6FF) : const Color(0xFF54708F),
+      Paint()..color = live ? const Color(0xFFBFE6FF) : const Color(0xFF54708F),
     );
 
     // The breakers: squat pylons, thrown-in when their trunk is fed.
@@ -1973,7 +1989,12 @@ extension StormCircuit on PlanetDungeonGame {
 
     // All Wind Vents + Converter spots (lit when occupied).
     for (final v in room.beamEmitters) {
-      _drawStationPad(canvas, v.position, 'Air', _creatureOn('Air', v.position));
+      _drawStationPad(
+        canvas,
+        v.position,
+        'Air',
+        _creatureOn('Air', v.position),
+      );
     }
     for (final c in room.beamConverters) {
       _drawStationPad(canvas, c, 'Fire', _creatureOn('Fire', c));
@@ -2195,9 +2216,7 @@ extension StormCircuit on PlanetDungeonGame {
           n.position,
           10,
           Paint()
-            ..color = live
-                ? const Color(0xFFE9F6FF)
-                : const Color(0xFF2A3646),
+            ..color = live ? const Color(0xFFE9F6FF) : const Color(0xFF2A3646),
         );
         canvas.drawCircle(
           n.position,
@@ -2217,12 +2236,15 @@ extension StormCircuit on PlanetDungeonGame {
   void _drawBarrier(Canvas canvas, Rect rect, bool open) {
     if (open) {
       // A faint lit threshold — the door is up.
-      canvas.drawRect(
-        rect,
-        Paint()..color = const Color(0x224A7FB0),
-      );
+      canvas.drawRect(rect, Paint()..color = const Color(0x224A7FB0));
       if (_fx.ready) {
-        drawGlow(canvas, _fx.glow!, rect.center, rect.height, const Color(0xFF6BA8FF));
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          rect.center,
+          rect.height,
+          const Color(0xFF6BA8FF),
+        );
       }
       return;
     }
@@ -2257,7 +2279,9 @@ extension StormCircuit on PlanetDungeonGame {
     final waiting = _anvilCellWaiting.contains(sock.id);
     final c = energized
         ? const Color(0xFFBFE6FF)
-        : (sock.requiresHeat ? const Color(0xFFE9A86B) : const Color(0xFF8FB8E0));
+        : (sock.requiresHeat
+              ? const Color(0xFFE9A86B)
+              : const Color(0xFF8FB8E0));
     if (_fx.ready && energized) {
       drawGlow(canvas, _fx.glow!, sock.position, 34, const Color(0xFF6BA8FF));
     }
@@ -2277,7 +2301,11 @@ extension StormCircuit on PlanetDungeonGame {
     if (sock.requiresHeat && !energized) {
       // anvil mark
       canvas.drawRect(
-        Rect.fromCenter(center: sock.position + const Offset(0, 26), width: 26, height: 8),
+        Rect.fromCenter(
+          center: sock.position + const Offset(0, 26),
+          width: 26,
+          height: 8,
+        ),
         Paint()..color = const Color(0xFF6E5A48),
       );
     }

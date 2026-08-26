@@ -132,7 +132,11 @@ void main() {
       game.setActive(0); // Lightning throws the breakers
       teleport('dynamo_court', _breaker(game, trunkId));
       game.activateAbility();
-      expect(game.activeTrunk, trunkId, reason: 'the dynamo swings to $trunkId');
+      expect(
+        game.activeTrunk,
+        trunkId,
+        reason: 'the dynamo swings to $trunkId',
+      );
       step(1.5); // let darkness/bolt/breaker eases settle
       clearWisps();
     }
@@ -177,10 +181,16 @@ void main() {
     s1flip('pd', 1);
     s1flip('pa', 1);
     step();
-    expect(game.hasStar(0), isTrue,
-        reason: 'one bolt across all three terminals → Circuit Star');
-    expect(game.activeTrunk, 'trunk_pylon',
-        reason: 'a clean threading never trips the dynamo');
+    expect(
+      game.hasStar(0),
+      isTrue,
+      reason: 'one bolt across all three terminals → Circuit Star',
+    );
+    expect(
+      game.activeTrunk,
+      'trunk_pylon',
+      reason: 'a clean threading never trips the dynamo',
+    );
 
     // ── The vault: cut, then walk the dead segment ──
     // The pylon trunk is fed, so the vault trunk is DEAD and its bolt has
@@ -189,8 +199,11 @@ void main() {
     step(1.5); // the bolt finishes sliding aside
     teleport('capacitor_vault', room('capacitor_vault').vaultCache!);
     step();
-    expect(discovered, contains('cache:lightning_vault'),
-        reason: 'the vault cache pays out (screen grants the 5 gold)');
+    expect(
+      discovered,
+      contains('cache:lightning_vault'),
+      reason: 'the vault cache pays out (screen grants the 5 gold)',
+    );
     clearWisps();
 
     // ── Star 2: bare the storm-cells, herd + heat them, then feed the works ──
@@ -199,8 +212,11 @@ void main() {
     for (final cell in gallery.stormCells) {
       teleport('mirror_gallery', cell.position);
       step();
-      expect(game.discoveredClouds, contains(cell.id),
-          reason: 'close approach bares the storm-cell echo');
+      expect(
+        game.discoveredClouds,
+        contains(cell.id),
+        reason: 'close approach bares the storm-cell echo',
+      );
     }
     clearWisps();
 
@@ -225,17 +241,26 @@ void main() {
     expect(game.energizedSockets, contains('sock_b'));
     // Anvil cell: deposit cold, then a Fire creature heats it.
     herd('cell_anvil', 520, 'sock_anvil');
-    expect(game.energizedSockets.contains('sock_anvil'), isFalse,
-        reason: 'the anvil cell is cold until heated');
+    expect(
+      game.energizedSockets.contains('sock_anvil'),
+      isFalse,
+      reason: 'the anvil cell is cold until heated',
+    );
     game.setActive(2); // Fire pip
     final anvil = works.cellSockets.firstWhere((s) => s.id == 'sock_anvil');
     teleport('cloud_works', anvil.position);
     game.activateAbility();
     step();
-    expect(game.energizedSockets, contains('sock_anvil'),
-        reason: 'Air+Fire→Lightning wakes the Thundercloud');
-    expect(game.hasStar(1), isFalse,
-        reason: 'ZERO-SUM: a staged wing cannot sing while its trunk is dark');
+    expect(
+      game.energizedSockets,
+      contains('sock_anvil'),
+      reason: 'Air+Fire→Lightning wakes the Thundercloud',
+    );
+    expect(
+      game.hasStar(1),
+      isFalse,
+      reason: 'ZERO-SUM: a staged wing cannot sing while its trunk is dark',
+    );
     clearWisps();
 
     // Feed the cloud trunk → the works light and the star banks.
@@ -243,14 +268,20 @@ void main() {
     game.setActive(2);
     teleport('cloud_works', works.bounds.center);
     step(0.5);
-    expect(game.hasStar(1), isTrue,
-        reason: 'sockets staged + trunk fed → Storm Star');
+    expect(
+      game.hasStar(1),
+      isTrue,
+      reason: 'sockets staged + trunk fed → Storm Star',
+    );
     clearWisps();
 
     // Both stars banked → the breaker gate throws open.
     expect(game.guardianRiteUnlocked, isTrue);
-    expect(game.isDoorLocked(hub, breakerDoor), isFalse,
-        reason: 'Circuit and Storm open the breaker gate');
+    expect(
+      game.isDoorLocked(hub, breakerDoor),
+      isFalse,
+      reason: 'Circuit and Storm open the breaker gate',
+    );
 
     // ── Storm Spire: station Air + Fire, aim the conductors with Lightning ──
     final maze = room('overload_maze');
@@ -283,8 +314,11 @@ void main() {
     teleport('overload_maze', const Offset(420, 200));
     pinStations();
     step();
-    expect(discovered, contains(kLightningThunderboltEggId),
-        reason: 'Air+Fire born a bolt and a Horn crowned the tower = Thunderbolt');
+    expect(
+      discovered,
+      contains(kLightningThunderboltEggId),
+      reason: 'Air+Fire born a bolt and a Horn crowned the tower = Thunderbolt',
+    );
     clearWisps();
 
     // ── Star 3: Raikuma FEEDS on the powered trunk — ground it, then strike ──
@@ -297,8 +331,11 @@ void main() {
     // grid when it lands.
     expect(game.guardianAwake, isTrue, reason: 'the latched beam woke Raikuma');
     step(2.2); // kGuardianArrivalSeconds + a beat
-    expect(game.activeTrunk, 'trunk_core',
-        reason: 'Raikuma seizes the dynamo as it lands');
+    expect(
+      game.activeTrunk,
+      'trunk_core',
+      reason: 'Raikuma seizes the dynamo as it lands',
+    );
     expect(game.raikumaFed, isTrue);
 
     var safety = 0;
@@ -312,8 +349,11 @@ void main() {
         }
         teleport('storm_core', core.coreBreaker!);
         game.activateAbility();
-        expect(game.activeTrunk, isNull,
-            reason: 'the spike grounds the core trunk');
+        expect(
+          game.activeTrunk,
+          isNull,
+          reason: 'the spike grounds the core trunk',
+        );
         teleport('storm_core', const Offset(480, 350));
         step(0.15);
       } else {
@@ -324,8 +364,11 @@ void main() {
         step(0.3);
       }
     }
-    expect(game.hasStar(2), isTrue,
-        reason: 'grounded-trunk lull strikes fell Raikuma');
+    expect(
+      game.hasStar(2),
+      isTrue,
+      reason: 'grounded-trunk lull strikes fell Raikuma',
+    );
     expect(game.relicDropActive, isTrue);
 
     expect(earned, [0, 1, 2], reason: 'stars bank in play order, once each');
@@ -387,8 +430,11 @@ void main() {
         ..position = _breaker(game, 'trunk_pylon')
         ..lastSafe = _breaker(game, 'trunk_pylon');
       game.activateAbility();
-      expect(game.activeTrunk, 'trunk_pylon',
-          reason: 'a Lightning $family must throw the breaker');
+      expect(
+        game.activeTrunk,
+        'trunk_pylon',
+        reason: 'a Lightning $family must throw the breaker',
+      );
       expect(
         game.combatEnemies.where((e) => !e.isDead),
         isEmpty,
@@ -402,8 +448,11 @@ void main() {
       ..position = _breaker(wrong, 'trunk_pylon')
       ..lastSafe = _breaker(wrong, 'trunk_pylon');
     wrong.activateAbility();
-    expect(wrong.activeTrunk, 'trunk_vault',
-        reason: 'the breaker answers only Lightning — the dynamo never moves');
+    expect(
+      wrong.activeTrunk,
+      'trunk_vault',
+      reason: 'the breaker answers only Lightning — the dynamo never moves',
+    );
   });
 
   test('dark dead segments stay walkable, with a capped spark-wisp prowl', () {
@@ -421,8 +470,11 @@ void main() {
       game.update(1 / 60);
       c.hp = c.maxHp;
     }
-    expect(c.position.dx, greaterThan(360),
-        reason: 'a dead segment is dark, not a wall');
+    expect(
+      c.position.dx,
+      greaterThan(360),
+      reason: 'a dead segment is dark, not a wall',
+    );
     game.joystickDirection = Offset.zero;
 
     // The prowl: wisps appear on a slow clock, capped at a modest number.
@@ -438,8 +490,11 @@ void main() {
       c.hp = c.maxHp;
     }
     live = game.combatEnemies.where((e) => !e.isDead).length;
-    expect(live, lessThanOrEqualTo(2),
-        reason: 'the prowl tops up to the cap and no further');
+    expect(
+      live,
+      lessThanOrEqualTo(2),
+      reason: 'the prowl tops up to the cap and no further',
+    );
 
     // Relight the wing → the prowl stops (the survivors remain, no top-ups).
     game.activeTrunk = 'trunk_pylon';
@@ -450,15 +505,19 @@ void main() {
       game.update(1 / 60);
       c.hp = c.maxHp;
     }
-    expect(game.combatEnemies.where((e) => !e.isDead), isEmpty,
-        reason: 'a lit wing spawns no prowl');
+    expect(
+      game.combatEnemies.where((e) => !e.isDead),
+      isEmpty,
+      reason: 'a lit wing spawns no prowl',
+    );
   });
 
   test('the vault only opens UNPOWERED: the bolt bars a fed trunk and falls '
       'open in the dark', () {
     final discovered = <String>[];
-    final game =
-        _harness([_member(0, 'Lightning', 'horn')], onCloud: discovered.add);
+    final game = _harness([
+      _member(0, 'Lightning', 'horn'),
+    ], onCloud: discovered.add);
     final vault = game.layout.rooms['capacitor_vault']!;
     final bolt = vault.vaultBolt!;
 
@@ -480,10 +539,16 @@ void main() {
 
     // The vault trunk is fed at run start: the bolt is DOWN.
     expect(game.activeTrunk, 'trunk_vault');
-    expect(driveUp(), 'blocked',
-        reason: 'a powered trunk keeps the treasury sealed');
-    expect(game.creatures.single.position.dy, greaterThan(bolt.bottom),
-        reason: 'the bolt is solid — the sanctum mouth cannot be crossed');
+    expect(
+      driveUp(),
+      'blocked',
+      reason: 'a powered trunk keeps the treasury sealed',
+    );
+    expect(
+      game.creatures.single.position.dy,
+      greaterThan(bolt.bottom),
+      reason: 'the bolt is solid — the sanctum mouth cannot be crossed',
+    );
 
     // Cut the very trunk you stand in (route the dynamo elsewhere)…
     game.currentRoomId = 'dynamo_court';
@@ -497,12 +562,18 @@ void main() {
       game.update(1 / 60);
       game.creatures.single.hp = game.creatures.single.maxHp;
     }
-    expect(game.vaultBoltOpenness, greaterThan(0.9),
-        reason: 'the bolt slides aside (eased, never a snap)');
+    expect(
+      game.vaultBoltOpenness,
+      greaterThan(0.9),
+      reason: 'the bolt slides aside (eased, never a snap)',
+    );
     // …and walk the dead segment in the dark to the cache.
     expect(game.circuitRoomLit('capacitor_vault'), isFalse);
-    expect(driveUp(), 'claimed',
-        reason: 'the dark trunk is the only way into the treasury');
+    expect(
+      driveUp(),
+      'claimed',
+      reason: 'the dark trunk is the only way into the treasury',
+    );
   });
 
   test('S1: a bolt lying on a fulminate vat trips the dynamo dark — even '
@@ -524,22 +595,32 @@ void main() {
       game.update(1 / 60);
       game.creatures.single.hp = game.creatures.single.maxHp;
     }
-    expect(game.hasStar(0), isFalse,
-        reason: 'a vat-crossing bolt can NEVER bank the star');
-    expect(game.activeTrunk, isNull,
-        reason: 'the cooked vat detonates and the dynamo trips dark');
-    expect(game.combatEnemies.where((e) => !e.isDead), isNotEmpty,
-        reason: 'the detonation spits spark wisps');
-    expect(game.circuitRoomLit('pylon_hall'), isFalse,
-        reason: 'the hall goes dark with the trip');
+    expect(
+      game.hasStar(0),
+      isFalse,
+      reason: 'a vat-crossing bolt can NEVER bank the star',
+    );
+    expect(
+      game.activeTrunk,
+      isNull,
+      reason: 'the cooked vat detonates and the dynamo trips dark',
+    );
+    expect(
+      game.combatEnemies.where((e) => !e.isDead),
+      isNotEmpty,
+      reason: 'the detonation spits spark wisps',
+    );
+    expect(
+      game.circuitRoomLit('pylon_hall'),
+      isFalse,
+      reason: 'the hall goes dark with the trip',
+    );
   });
 
   test('the ring circuit is element-only: every Lightning family charges a '
       'node to the same window', () {
     final windows = <String, double>{};
-    for (final family in const [
-      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
-    ]) {
+    for (final family in const ['pip', 'mane', 'horn', 'mask', 'wing', 'kin']) {
       final game = _harness([_member(0, 'Lightning', family)]);
       final room = game.layout.rooms.values.firstWhere(
         (r) => r.circuitNodes.any(
@@ -582,8 +663,11 @@ void main() {
       ..position = mirror.position
       ..lastSafe = mirror.position;
     game.activateAbility();
-    expect(game.mirrorOrient[mirror.id] ?? 0, 0,
-        reason: 'the conductor is dead iron to everything but Lightning');
+    expect(
+      game.mirrorOrient[mirror.id] ?? 0,
+      0,
+      reason: 'the conductor is dead iron to everything but Lightning',
+    );
   });
 
   test('Raikuma FEEDS on the powered trunk: no lull while it drinks; '
@@ -613,8 +697,11 @@ void main() {
       ..lastSafe = core.guardian!.position + const Offset(0, 80);
     step();
     expect(game.guardianAwake, isTrue);
-    expect(game.activeTrunk, 'trunk_core',
-        reason: 'the guardian seizes the dynamo as it wakes');
+    expect(
+      game.activeTrunk,
+      'trunk_core',
+      reason: 'the guardian seizes the dynamo as it wakes',
+    );
     expect(game.raikumaFed, isTrue);
 
     // While it feeds there is NO lull — ever.
@@ -626,8 +713,11 @@ void main() {
         c.hp = c.maxHp;
       }
     }
-    expect(sawLull, isFalse,
-        reason: 'a fed Raikuma never offers the vulnerability window');
+    expect(
+      sawLull,
+      isFalse,
+      reason: 'a fed Raikuma never offers the vulnerability window',
+    );
 
     // Ground the trunk at the spike (Lightning only) → the window opens.
     final raikuma = game.combatEnemies.where((e) => e.isElite).firstOrNull;
@@ -639,13 +729,19 @@ void main() {
     expect(game.activeTrunk, isNull, reason: 'the spike grounds the trunk');
     step(0.2);
     expect(game.raikumaFed, isFalse);
-    expect(game.guardianVulnerable, isTrue,
-        reason: 'cutting its power forces the lull');
+    expect(
+      game.guardianVulnerable,
+      isTrue,
+      reason: 'cutting its power forces the lull',
+    );
 
     // The window closes → Raikuma seizes the trunk back and feeds again.
     step(4.0);
-    expect(game.raikumaFed, isTrue,
-        reason: 'the guardian re-seizes the dynamo when the window shuts');
+    expect(
+      game.raikumaFed,
+      isTrue,
+      reason: 'the guardian re-seizes the dynamo when the window shuts',
+    );
     expect(game.activeTrunk, 'trunk_core');
     expect(game.guardianVulnerable, isFalse);
 
@@ -656,8 +752,11 @@ void main() {
       ..position = core.coreBreaker!
       ..lastSafe = core.coreBreaker!;
     game.activateAbility();
-    expect(game.activeTrunk, 'trunk_core',
-        reason: 'the grounding spike answers only Lightning');
+    expect(
+      game.activeTrunk,
+      'trunk_core',
+      reason: 'the grounding spike answers only Lightning',
+    );
   });
 
   test('the storm-core gate opens with the star and never re-locks', () {
@@ -666,7 +765,8 @@ void main() {
     String crawl(PlanetDungeonGame game) {
       game.currentRoomId = 'overload_maze';
       game.creatures.single
-        ..position = const Offset(230, 545) // above the gate, below the tower
+        ..position =
+            const Offset(230, 545) // above the gate, below the tower
         ..lastSafe = const Offset(230, 545);
       game.joystickDirection = const Offset(0, 1);
       for (var i = 0; i < 300; i++) {
@@ -679,14 +779,16 @@ void main() {
 
     // Fresh, unlit tower: the gate is a wall — you stay in the arena.
     final blocked = _harness([_member(0, 'Lightning', 'horn')]);
-    expect(crawl(blocked), 'overload_maze',
-        reason: 'the unlit gate is shut');
+    expect(crawl(blocked), 'overload_maze', reason: 'the unlit gate is shut');
 
     // Overload Star banked: the gate stays open, so you pass to the core.
     final solved = _harness([_member(0, 'Lightning', 'horn')]);
     solved.starMask = 1 << 2;
-    expect(crawl(solved), 'storm_core',
-        reason: 'a banked Overload Star keeps the gate open');
+    expect(
+      crawl(solved),
+      'storm_core',
+      reason: 'a banked Overload Star keeps the gate open',
+    );
   });
 
   test('the Storm Spire arena connects to the storm core', () {
@@ -708,66 +810,78 @@ void main() {
       final target = route[wp];
       final to = target - c.position;
       if (to.distance < 14 && wp < route.length - 1) wp++;
-      game.joystickDirection =
-          to.distance < 1 ? Offset.zero : Offset(to.dx, to.dy) / to.distance;
+      game.joystickDirection = to.distance < 1
+          ? Offset.zero
+          : Offset(to.dx, to.dy) / to.distance;
       game.update(1 / 60);
       c.hp = c.maxHp;
     }
-    expect(game.currentRoomId, 'storm_core',
-        reason: 'the arena must reach the core door');
+    expect(
+      game.currentRoomId,
+      'storm_core',
+      reason: 'the arena must reach the core door',
+    );
   });
 
-  test('the Storm Tower needs BOTH Air on the vent and Fire on the converter',
-      () {
-    // Aim the mirrors correctly, then test the stationing requirement: only
-    // when Air AND Fire are both placed does the tower light (the gate opens).
-    String passGate(PlanetDungeonGame game) {
-      game.currentRoomId = 'overload_maze';
-      game.creatures[0]
-        ..position = const Offset(230, 545)
-        ..lastSafe = const Offset(230, 545);
-      game.joystickDirection = const Offset(0, 1);
-      for (var i = 0; i < 240; i++) {
-        game.update(1 / 60);
-        if (game.currentRoomId != 'overload_maze') break;
-        for (final cr in game.creatures) {
-          if (cr.alive) cr.hp = cr.maxHp;
+  test(
+    'the Storm Tower needs BOTH Air on the vent and Fire on the converter',
+    () {
+      // Aim the mirrors correctly, then test the stationing requirement: only
+      // when Air AND Fire are both placed does the tower light (the gate opens).
+      String passGate(PlanetDungeonGame game) {
+        game.currentRoomId = 'overload_maze';
+        game.creatures[0]
+          ..position = const Offset(230, 545)
+          ..lastSafe = const Offset(230, 545);
+        game.joystickDirection = const Offset(0, 1);
+        for (var i = 0; i < 240; i++) {
+          game.update(1 / 60);
+          if (game.currentRoomId != 'overload_maze') break;
+          for (final cr in game.creatures) {
+            if (cr.alive) cr.hp = cr.maxHp;
+          }
         }
+        return game.currentRoomId;
       }
-      return game.currentRoomId;
-    }
 
-    final game = _harness([
-      _member(0, 'Lightning', 'horn'),
-      _member(1, 'Air', 'wing'),
-      _member(2, 'Fire', 'pip'),
-    ]);
-    final maze = game.layout.rooms['overload_maze']!;
-    game.currentRoomId = 'overload_maze';
-    game.mirrorOrient['A'] = 1;
-    game.mirrorOrient['C'] = 1;
-    game.mirrorOrient['D'] = 1;
+      final game = _harness([
+        _member(0, 'Lightning', 'horn'),
+        _member(1, 'Air', 'wing'),
+        _member(2, 'Fire', 'pip'),
+      ]);
+      final maze = game.layout.rooms['overload_maze']!;
+      game.currentRoomId = 'overload_maze';
+      game.mirrorOrient['A'] = 1;
+      game.mirrorOrient['C'] = 1;
+      game.mirrorOrient['D'] = 1;
 
-    // Air stationed, but NOT Fire → the beam stays "air", tower dark.
-    game.creatures[1].position = maze.beamEmitters[0].position;
-    game.creatures[2].position = const Offset(900, 300); // Fire parked away
-    for (var i = 0; i < 30; i++) {
-      game.update(1 / 60);
-    }
-    expect(passGate(game), 'overload_maze',
-        reason: 'no Fire on the converter → no lightning → tower stays dark');
+      // Air stationed, but NOT Fire → the beam stays "air", tower dark.
+      game.creatures[1].position = maze.beamEmitters[0].position;
+      game.creatures[2].position = const Offset(900, 300); // Fire parked away
+      for (var i = 0; i < 30; i++) {
+        game.update(1 / 60);
+      }
+      expect(
+        passGate(game),
+        'overload_maze',
+        reason: 'no Fire on the converter → no lightning → tower stays dark',
+      );
 
-    // Now station Fire too → conversion → tower lights → gate opens.
-    game.creatures[1].position = maze.beamEmitters[0].position;
-    game.creatures[2].position = maze.beamConverters[0];
-    for (var i = 0; i < 30; i++) {
-      game.update(1 / 60);
+      // Now station Fire too → conversion → tower lights → gate opens.
       game.creatures[1].position = maze.beamEmitters[0].position;
       game.creatures[2].position = maze.beamConverters[0];
-    }
-    expect(passGate(game), 'storm_core',
-        reason: 'Air+Fire both stationed → the bolt crowns the tower');
-  });
+      for (var i = 0; i < 30; i++) {
+        game.update(1 / 60);
+        game.creatures[1].position = maze.beamEmitters[0].position;
+        game.creatures[2].position = maze.beamConverters[0];
+      }
+      expect(
+        passGate(game),
+        'storm_core',
+        reason: 'Air+Fire both stationed → the bolt crowns the tower',
+      );
+    },
+  );
 
   test('only the right vent + converter combination lights the Storm Tower', () {
     // The solution uses vent 0 (VA) + converter 0 (FA). A decoy vent or a decoy
@@ -807,10 +921,18 @@ void main() {
     expect(litWith(1, 0), isFalse, reason: 'decoy vent VB cannot be routed');
     expect(litWith(2, 0), isFalse, reason: 'decoy vent VC escapes the arena');
     expect(litWith(0, 1), isFalse, reason: 'converter FB is off the beam path');
-    expect(litWith(0, 2), isFalse, reason: 'converter FC is past the last mirror');
-    expect(litWith(3, 3), isFalse,
-        reason: 'the dead-aligned decoy pair VD+FD is a geometric lie — '
-            'no conductor waits beyond FD');
+    expect(
+      litWith(0, 2),
+      isFalse,
+      reason: 'converter FC is past the last mirror',
+    );
+    expect(
+      litWith(3, 3),
+      isFalse,
+      reason:
+          'the dead-aligned decoy pair VD+FD is a geometric lie — '
+          'no conductor waits beyond FD',
+    );
   });
 
   test('the entry-rite bus stays lit after the charge would have decayed', () {
@@ -827,7 +949,10 @@ void main() {
       game.update(1 / 60);
     }
     expect(game.entryDoorRevealed, isTrue);
-    expect(game.poweredNodes, contains('g_sink'),
-        reason: 'the entry bus must stay lit, not bleed back to dark');
+    expect(
+      game.poweredNodes,
+      contains('g_sink'),
+      reason: 'the entry bus must stay lit, not bleed back to dark',
+    );
   });
 }

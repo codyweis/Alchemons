@@ -630,36 +630,42 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     if (room.hall?.balustrade != null) {
       _setInsightHint(switch (tier) {
         0 => 'Four of them, and the stone on each one is a lie',
-        1 => 'A shadow is the true shape. Put a light on the stone and leave '
-            'the place it falls into dark',
-        _ => 'You will not read all four in one light. The moth wants the '
-            'doorway\'s inner shelf dark and the sun wants the doorway lit, '
-            'and nothing stands in the doorway to keep a shadow — so come '
-            'back with the hall thrown differently',
+        1 =>
+          'A shadow is the true shape. Put a light on the stone and leave '
+              'the place it falls into dark',
+        _ =>
+          'You will not read all four in one light. The moth wants the '
+              'doorway\'s inner shelf dark and the sun wants the doorway lit, '
+              'and nothing stands in the doorway to keep a shadow — so come '
+              'back with the hall thrown differently',
       });
       return;
     }
     if (archiveSlipsIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
         0 => 'There is something filed back there, and it is not on any shelf',
-        1 => 'The reading cannot be done while the wardens can count you. '
-            'Two lumens on the whole hall, no more',
-        _ => 'A beam breaking on a great stack costs one; an empty bay costs '
-            'two. Out here past the stacks there is nothing to break on — so '
-            'set the far beacon first and come at these shelves from behind, '
-            'through the dark',
+        1 =>
+          'The reading cannot be done while the wardens can count you. '
+              'Two lumens on the whole hall, no more',
+        _ =>
+          'A beam breaking on a great stack costs one; an empty bay costs '
+              'two. Out here past the stacks there is nothing to break on — so '
+              'set the far beacon first and come at these shelves from behind, '
+              'through the dark',
       });
       return;
     }
     if (archiveBeaconIn(room.id) != null) {
       _setInsightHint(switch (tier) {
         0 => 'It throws a fan, and it can be thrown flatter',
-        1 => 'Low, it breaks on the stacks and leaves the inner shelves dark. '
-            'High, it goes over them and fills them in',
-        _ => 'Everything you light on the glass you take away on the mirror, '
-            'and the reverse. The stacks are the only shadows in this hall, '
-            'so a low beam is the only way to have a road and a shadow at '
-            'once — and it is half the lumens besides',
+        1 =>
+          'Low, it breaks on the stacks and leaves the inner shelves dark. '
+              'High, it goes over them and fills them in',
+        _ =>
+          'Everything you light on the glass you take away on the mirror, '
+              'and the reverse. The stacks are the only shadows in this hall, '
+              'so a low beam is the only way to have a road and a shadow at '
+              'once — and it is half the lumens besides',
       });
       return;
     }
@@ -667,20 +673,23 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'You have been able to see that shrine since the door',
         1 => 'The shelf onto it is mirror-stone, and glare is not a floor',
-        _ => 'It lies in the court bay, which is the one bay the rim cannot '
-            'be opened without. There is no arrangement that gives you both. '
-            'Put the archive out and walk here in the dark',
+        _ =>
+          'It lies in the court bay, which is the one bay the rim cannot '
+              'be opened without. There is no arrangement that gives you both. '
+              'Put the archive out and walk here in the dark',
       });
       return;
     }
     // Anywhere in the hall, insight reads the LIGHT — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'There are no walls in here. There is only how far you can see',
-      1 => 'Glass is a floor with light in it and a hole without. Mirror-stone '
-          'is a floor without light and glare with. Nothing else is a door',
-      _ => 'Five bays, two bands, two great stacks. A low beam lights the '
-          'outer walk of a bay and stops; a high one goes all the way in. '
-          'Plan the smallest light that is still a road',
+      1 =>
+        'Glass is a floor with light in it and a hole without. Mirror-stone '
+            'is a floor without light and glare with. Nothing else is a door',
+      _ =>
+        'Five bays, two bands, two great stacks. A low beam lights the '
+            'outer walk of a bay and stops; a high one goes all the way in. '
+            'Plan the smallest light that is still a road',
     });
   }
 
@@ -870,8 +879,9 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       required bool latched,
       required bool solarinLoose,
     }) {
-      final startCfg = [for (final b in kArchiveBeacons) archive.lamp[b.id] ?? 0]
-        ..length = kArchiveBeacons.length;
+      final startCfg = [
+        for (final b in kArchiveBeacons) archive.lamp[b.id] ?? 0,
+      ]..length = kArchiveBeacons.length;
       final first = (layout.entranceRoomId, startCfg);
       final live = <String, (String, List<int>)>{};
       live[enc(first.$1, first.$2)] = first;
@@ -1168,8 +1178,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         canvas.drawCircle(
           e.position,
           10,
-          Paint()
-            ..color = _kArchiveStone.withValues(alpha: read ? 0.45 : 0.85),
+          Paint()..color = _kArchiveStone.withValues(alpha: read ? 0.45 : 0.85),
         );
         if (!archive.isLit(e.stand)) continue;
         final shadow = Path()
@@ -1231,8 +1240,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     const reach = 720.0;
     final fan = Path()..moveTo(eye.dx, eye.dy);
     for (var i = 0; i <= 6; i++) {
-      final t = archive.glare - _kGlareHalfAngle +
-          2 * _kGlareHalfAngle * (i / 6);
+      final t =
+          archive.glare - _kGlareHalfAngle + 2 * _kGlareHalfAngle * (i / 6);
       fan.lineTo(eye.dx + cos(t) * reach, eye.dy + sin(t) * reach);
     }
     fan.close();
@@ -1245,8 +1254,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       final bearing = atan2(d.dy, d.dx);
       final wedge = Path()..moveTo(p.dx, p.dy);
       for (var i = 0; i <= 4; i++) {
-        final t = bearing - _kPillarShadowHalf +
-            2 * _kPillarShadowHalf * (i / 4);
+        final t =
+            bearing - _kPillarShadowHalf + 2 * _kPillarShadowHalf * (i / 4);
         wedge.lineTo(eye.dx + cos(t) * reach, eye.dy + sin(t) * reach);
       }
       wedge.close();

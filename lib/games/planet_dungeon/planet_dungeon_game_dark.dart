@@ -304,8 +304,10 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         return true;
       }
       if (!vault.isDark(s.leaf)) {
-        _setBlockedHint('${leafWord(s.leaf)} stands in the light — the stone '
-            'has nothing to read');
+        _setBlockedHint(
+          '${leafWord(s.leaf)} stands in the light — the stone '
+          'has nothing to read',
+        );
         return true;
       }
       vault.stonesSeated.add(s.id);
@@ -331,8 +333,10 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       }
       final idx = _analemmaStarRoom?.eclipse?.starIndex;
       if (idx != null && !hasStar(idx)) {
-        _setHint('Four stones seated, and never two of them in the same '
-            'vault');
+        _setHint(
+          'Four stones seated, and never two of them in the same '
+          'vault',
+        );
         earnStar(idx);
       }
       return true;
@@ -402,10 +406,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       if (a.member.element == 'Spirit' && !vault.anchorsRead.contains(an.id)) {
         vault.anchorsRead.add(an.id);
         final far = an.other(currentRoomId)!;
-        _setInsightHint(
-          'The far end comes out in ${_roomWord(far)}',
-          4.0,
-        );
+        _setInsightHint('The far end comes out in ${_roomWord(far)}', 4.0);
         return true;
       }
 
@@ -731,22 +732,26 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     if (room.eclipse?.analemma != null) {
       _setInsightHint(switch (tier) {
         0 => 'Four stones, and the dial under them is a figure of eight',
-        1 => 'Each stone reads one quarter of the vault, and it will only '
-            'read a quarter that is dark',
-        _ => 'You will not seat all four in one shape of this place. There '
-            'are three shadows for four quarters, and every one of them is '
-            'always somewhere — so come back with the vault turned',
+        1 =>
+          'Each stone reads one quarter of the vault, and it will only '
+              'read a quarter that is dark',
+        _ =>
+          'You will not seat all four in one shape of this place. There '
+              'are three shadows for four quarters, and every one of them is '
+              'always somewhere — so come back with the vault turned',
       });
       return;
     }
     if (vaultAnchorsIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
         0 => 'The rings go somewhere, and the rust says nobody has',
-        1 => 'A hole wants dark at both ends — it is a hole in the dark, and '
-            'nowhere else',
-        _ => 'Rust first, and only something small enough to work inside the '
-            'ring gets it off. Then both ends in shadow at once, and no two '
-            'of these three rings want the same shape of the vault',
+        1 =>
+          'A hole wants dark at both ends — it is a hole in the dark, and '
+              'nowhere else',
+        _ =>
+          'Rust first, and only something small enough to work inside the '
+              'ring gets it off. Then both ends in shadow at once, and no two '
+              'of these three rings want the same shape of the vault',
       });
       return;
     }
@@ -754,33 +759,39 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       final g = vaultGnomonIn(room.id)!;
       _setInsightHint(switch (tier) {
         0 => 'The finger holds a shadow, and it is only holding the one',
-        1 => 'It stands between ${leafWord(g.upper)} and ${leafWord(g.lower)}. '
-            'Turn it and the shadow crosses over',
-        _ => 'Whatever you open with it, you shut something else. The shadow '
-            'is in ${leafWord(vault.shadowOf(g.id))} now, and the moment it '
-            'is not, everything cut through there is stone',
+        1 =>
+          'It stands between ${leafWord(g.upper)} and ${leafWord(g.lower)}. '
+              'Turn it and the shadow crosses over',
+        _ =>
+          'Whatever you open with it, you shut something else. The shadow '
+              'is in ${leafWord(vault.shadowOf(g.id))} now, and the moment it '
+              'is not, everything cut through there is stone',
       });
       return;
     }
     if (room.vaultCache != null || room.eclipse?.abyss != null) {
       _setInsightHint(switch (tier) {
         0 => 'The wall on that side is not the same wall twice',
-        1 => 'There is a room through there, and only while the Deep lies in '
-            'shadow',
-        _ => 'The way down here wants the Ossuary dark and the slot wants the '
-            'Deep dark, and one finger cannot hold both — bring the '
-            'Ossuary\'s shadow off the other one before you come down',
+        1 =>
+          'There is a room through there, and only while the Deep lies in '
+              'shadow',
+        _ =>
+          'The way down here wants the Ossuary dark and the slot wants the '
+              'Deep dark, and one finger cannot hold both — bring the '
+              'Ossuary\'s shadow off the other one before you come down',
       });
       return;
     }
     // Anywhere in the vault, insight reads the ECLIPSE — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'Nothing here is where the light says it is',
-      1 => 'Every way between two quarters is a hole in the dark; every way '
-          'inside one is a walk in the light. Nothing else is a door',
-      _ => 'Three gnomons, four quarters, one shadow each. Two quarters are '
-          'always dark and never more than two are lit — and never two that '
-          'share a finger. Plan the shape before you walk it',
+      1 =>
+        'Every way between two quarters is a hole in the dark; every way '
+            'inside one is a walk in the light. Nothing else is a door',
+      _ =>
+        'Three gnomons, four quarters, one shadow each. Two quarters are '
+            'always dark and never more than two are lit — and never two that '
+            'share a finger. Plan the shape before you walk it',
     });
   }
 
@@ -1113,7 +1124,10 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       }
     } else {
       // Solid: a pewter floor with hard joints, the colour of a coin.
-      canvas.drawRect(b, Paint()..color = _kVaultPewter.withValues(alpha: 0.13));
+      canvas.drawRect(
+        b,
+        Paint()..color = _kVaultPewter.withValues(alpha: 0.13),
+      );
       final joint = Paint()
         ..color = _kVaultBone.withValues(alpha: 0.16)
         ..style = PaintingStyle.stroke
@@ -1282,7 +1296,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         at,
         14,
         Paint()
-          ..color = unlocked ? _kVaultViolet : _kVaultBone.withValues(alpha: 0.5)
+          ..color = unlocked
+              ? _kVaultViolet
+              : _kVaultBone.withValues(alpha: 0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3,
       );
@@ -1300,9 +1316,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
           at,
           9,
           Paint()
-            ..color = lit
-                ? _kVaultEmber
-                : _kVaultBone.withValues(alpha: 0.22),
+            ..color = lit ? _kVaultEmber : _kVaultBone.withValues(alpha: 0.22),
         );
       }
     }

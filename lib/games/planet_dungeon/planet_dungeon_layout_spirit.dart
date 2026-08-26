@@ -453,7 +453,8 @@ const List<Revenant> kGraveRevenants = [
     crossingId: 'x_mere',
     toldAt: 'barrow_veil',
     seat: Offset(410, 290),
-    restlessLook: 'a mourner keening for a funeral that never reached the '
+    restlessLook:
+        'a mourner keening for a funeral that never reached the '
         'water',
     restedLook: 'a wet mark on the flags, drying',
   ),
@@ -463,7 +464,8 @@ const List<Revenant> kGraveRevenants = [
     crossingId: 'x_sill',
     toldAt: 'barrow_cairn',
     seat: Offset(130, 320),
-    restlessLook: 'a grave-digger leaning on a spade in a hole he never '
+    restlessLook:
+        'a grave-digger leaning on a spade in a hole he never '
         'finished',
     restedLook: 'a spade stood upright in filled ground',
   ),
@@ -485,8 +487,10 @@ Revenant? graveRevenantById(String id) {
   return null;
 }
 
-List<Revenant> graveRevenantsIn(String roomId) =>
-    [for (final r in kGraveRevenants) if (r.toldAt == roomId) r];
+List<Revenant> graveRevenantsIn(String roomId) => [
+  for (final r in kGraveRevenants)
+    if (r.toldAt == roomId) r,
+];
 
 // ─────────────────────────────────────────────────────────
 // THE PHANTOM HOURGLASS (Star 1)
@@ -646,8 +650,7 @@ class EchoGraveField {
   /// the frame stone (both) and a frozen cut (both). THE POINT: nothing is
   /// ever LOST from this map. A telling moves a crossing from one world to the
   /// other; it never deletes it. Asserted in the test.
-  bool crossableSomewhere(GraveCrossing x) =>
-      openToLiving(x) || openToGhost(x);
+  bool crossableSomewhere(GraveCrossing x) => openToLiving(x) || openToGhost(x);
 
   // ── Star 0 · THE COLD ROAD ────────────────────────────
 
@@ -699,10 +702,7 @@ class GraveVigil {
   final int roadStarIndex;
   final int sigilStarIndex;
 
-  const GraveVigil({
-    required this.roadStarIndex,
-    required this.sigilStarIndex,
-  });
+  const GraveVigil({required this.roadStarIndex, required this.sigilStarIndex});
 }
 
 /// Everything the Echo Grave puts in one room. ONE field on the shared room

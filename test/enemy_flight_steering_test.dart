@@ -65,9 +65,7 @@ void main() {
         );
         // The enemy must NOT grind on the target: most of its time is spent
         // off-contact (hovering / retreating / approaching).
-        final touching = run.trace
-            .where((d) => d.distance < 30)
-            .length;
+        final touching = run.trace.where((d) => d.distance < 30).length;
         expect(
           touching / run.trace.length,
           lessThan(0.4),
@@ -75,8 +73,11 @@ void main() {
         );
         // And it engages: it must spend real time near the hover ring.
         final nearRing = run.trace
-            .where((d) => (d.distance - profile.hoverRadius).abs() <
-                profile.hoverRadius)
+            .where(
+              (d) =>
+                  (d.distance - profile.hoverRadius).abs() <
+                  profile.hoverRadius,
+            )
             .length;
         expect(nearRing / run.trace.length, greaterThan(0.4));
       });

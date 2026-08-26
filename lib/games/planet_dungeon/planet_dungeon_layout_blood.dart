@@ -223,8 +223,7 @@ enum HeartLobe {
 const List<double> kPulsePhaseSeconds = [7.0, 4.0, 9.0, 5.0];
 
 /// One full beat, in seconds. Derived so it can never drift from the phases.
-double get kPulseCycleSeconds =>
-    kPulsePhaseSeconds.fold(0.0, (a, b) => a + b);
+double get kPulseCycleSeconds => kPulsePhaseSeconds.fold(0.0, (a, b) => a + b);
 
 /// Where in the cycle [phase] begins.
 double pulsePhaseStart(PulsePhase phase) {
@@ -675,8 +674,10 @@ Ostium? ostiumById(String id) {
   return null;
 }
 
-List<Ostium> ostiaIn(String roomId) =>
-    [for (final o in kHeartOstia) if (o.roomId == roomId) o];
+List<Ostium> ostiaIn(String roomId) => [
+  for (final o in kHeartOstia)
+    if (o.roomId == roomId) o,
+];
 
 // ─────────────────────────────────────────────────────────
 // STAR 1 — THE GRAFTS (the collateral cocks)
@@ -772,8 +773,10 @@ CollateralCock? cockFor(String passageId) {
   return null;
 }
 
-List<CollateralCock> cocksIn(String roomId) =>
-    [for (final c in kHeartCocks) if (c.roomId == roomId) c];
+List<CollateralCock> cocksIn(String roomId) => [
+  for (final c in kHeartCocks)
+    if (c.roomId == roomId) c,
+];
 
 /// Every roll the corruption can come up as, as sorted sets of sound passage
 /// ids. Ten of them. Authored as a derivation rather than a table so it
@@ -1000,8 +1003,7 @@ class SanguineHeart {
   bool get everyOstiumPrimed => ostiaPrimed.length >= kHeartOstia.length;
 
   /// Whether [o] can be primed at this instant.
-  bool canPrime(Ostium o) =>
-      !ostiaPrimed.contains(o.id) && phase == o.phase;
+  bool canPrime(Ostium o) => !ostiaPrimed.contains(o.id) && phase == o.phase;
 
   // ── Star 1 ────────────────────────────────────────────
 

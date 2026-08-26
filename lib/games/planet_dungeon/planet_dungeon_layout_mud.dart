@@ -292,7 +292,11 @@ const List<String> kBogKnollIds = [
 ];
 
 /// The three knolls that carry a moor-altar (§6.8's "three altars").
-const List<String> kMoorKnollIds = ['sedge_knoll', 'cairn_knoll', 'lotus_knoll'];
+const List<String> kMoorKnollIds = [
+  'sedge_knoll',
+  'cairn_knoll',
+  'lotus_knoll',
+];
 
 /// The vault knoll — the one moored thinly enough to be cut adrift.
 const String kLotusKnollId = 'lotus_knoll';
@@ -361,8 +365,10 @@ class BogField {
   }
 
   /// The crossings that touch [knollId].
-  List<BogFord> fordsOf(String knollId) =>
-      [for (final f in kBogFords) if (f.touches(knollId)) f];
+  List<BogFord> fordsOf(String knollId) => [
+    for (final f in kBogFords)
+      if (f.touches(knollId)) f,
+  ];
 
   /// The crossings immediately up- and downstream of [f] on its own slough.
   List<BogFord> neighbours(BogFord f) => [
@@ -594,8 +600,7 @@ const DungeonLayout mudLayout = DungeonLayout(
   // crossings show themselves (the eased entry reveal, §5.5).
   entranceRevealDoor: DungeonDoorRef('mire_gate', 'hag_knoll'),
   finaleDoor: DungeonDoorRef('drowned_fane', 'bogdrya_hollow'),
-  riteAnnouncement:
-      'Stone and choir agree — the peat parts under the fane',
+  riteAnnouncement: 'Stone and choir agree — the peat parts under the fane',
   finaleSealedHint:
       'The peat will not part — it answers only the Sarsen and Moor stars',
   guardianSealedHint:
@@ -972,10 +977,7 @@ const DungeonLayout mudLayout = DungeonLayout(
           targetSpawn: Offset(450, 150),
         ),
       ],
-      fen: BogFen(
-        sough: Offset(680, 180),
-        sinkPit: Offset(170, 640),
-      ),
+      fen: BogFen(sough: Offset(680, 180), sinkPit: Offset(170, 640)),
     ),
 
     // ── BOGDRYA'S HOLLOW — Star 2. §7: the mystic fights WITH the planet's

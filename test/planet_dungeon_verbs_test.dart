@@ -4,11 +4,20 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CosmicPartyMember _member(String element, String family) => CosmicPartyMember(
-      instanceId: 'i', baseId: 'b', displayName: 'd',
-      element: element, family: family, level: 5,
-      statSpeed: 3, statIntelligence: 3, statStrength: 3, statBeauty: 3,
-      slotIndex: 0, staminaBars: 5, staminaMax: 5,
-    );
+  instanceId: 'i',
+  baseId: 'b',
+  displayName: 'd',
+  element: element,
+  family: family,
+  level: 5,
+  statSpeed: 3,
+  statIntelligence: 3,
+  statStrength: 3,
+  statBeauty: 3,
+  slotIndex: 0,
+  staminaBars: 5,
+  staminaMax: 5,
+);
 
 void main() {
   group('abilityForFamily', () {
@@ -26,14 +35,22 @@ void main() {
 
   group('statForAbility', () {
     test('keys each ability off the intended stat', () {
-      expect(statForAbility(DungeonAbility.aerialTraversal),
-          CosmicContestTrait.speed);
-      expect(statForAbility(DungeonAbility.insight),
-          CosmicContestTrait.intelligence);
-      expect(statForAbility(DungeonAbility.heavyForce),
-          CosmicContestTrait.strength);
-      expect(statForAbility(DungeonAbility.ancientStabilize),
-          CosmicContestTrait.beauty);
+      expect(
+        statForAbility(DungeonAbility.aerialTraversal),
+        CosmicContestTrait.speed,
+      );
+      expect(
+        statForAbility(DungeonAbility.insight),
+        CosmicContestTrait.intelligence,
+      );
+      expect(
+        statForAbility(DungeonAbility.heavyForce),
+        CosmicContestTrait.strength,
+      );
+      expect(
+        statForAbility(DungeonAbility.ancientStabilize),
+        CosmicContestTrait.beauty,
+      );
       expect(statForAbility(DungeonAbility.guardianRelic), isNull);
     });
   });
@@ -49,8 +66,10 @@ void main() {
     );
 
     test('the named family of the named element passes', () {
-      expect(evaluateInteraction(_member('Lightning', 'Horn'), gate),
-          InteractionResult.passed);
+      expect(
+        evaluateInteraction(_member('Lightning', 'Horn'), gate),
+        InteractionResult.passed,
+      );
     });
 
     test('right element, wrong family is blockedFamily — no middle tier', () {
@@ -66,8 +85,10 @@ void main() {
     });
 
     test('wrong element is blockedElement, not blockedFamily', () {
-      expect(evaluateInteraction(_member('Water', 'Horn'), gate),
-          InteractionResult.blockedElement);
+      expect(
+        evaluateInteraction(_member('Water', 'Horn'), gate),
+        InteractionResult.blockedElement,
+      );
     });
 
     test('a recipe supplies the ELEMENT but never opens the family gate', () {
@@ -78,13 +99,19 @@ void main() {
       );
       // The braid stands in for Lightning — the Horn requirement still holds.
       expect(
-        evaluateInteraction(_member('Water', 'Pip'), recipeGate,
-            recipeAvailable: true),
+        evaluateInteraction(
+          _member('Water', 'Pip'),
+          recipeGate,
+          recipeAvailable: true,
+        ),
         InteractionResult.blockedFamily,
       );
       expect(
-        evaluateInteraction(_member('Water', 'Horn'), recipeGate,
-            recipeAvailable: true),
+        evaluateInteraction(
+          _member('Water', 'Horn'),
+          recipeGate,
+          recipeAvailable: true,
+        ),
         InteractionResult.passedViaRecipe,
       );
     });
@@ -95,7 +122,13 @@ void main() {
 
     test('every family of the element passes at full power', () {
       for (final family in const [
-        'Pip', 'Mane', 'Horn', 'Mask', 'Wing', 'Kin', '???',
+        'Pip',
+        'Mane',
+        'Horn',
+        'Mask',
+        'Wing',
+        'Kin',
+        '???',
       ]) {
         expect(
           evaluateInteraction(_member('Air', family), anyFam),
@@ -110,11 +143,16 @@ void main() {
         element: 'Ice',
         allowRecipe: true,
       );
-      expect(evaluateInteraction(_member('Fire', 'Pip'), withRecipe),
-          InteractionResult.blockedElement);
       expect(
-        evaluateInteraction(_member('Spirit', 'Pip'), withRecipe,
-            recipeAvailable: true),
+        evaluateInteraction(_member('Fire', 'Pip'), withRecipe),
+        InteractionResult.blockedElement,
+      );
+      expect(
+        evaluateInteraction(
+          _member('Spirit', 'Pip'),
+          withRecipe,
+          recipeAvailable: true,
+        ),
         InteractionResult.passedViaRecipe,
       );
     });
@@ -128,10 +166,19 @@ void main() {
         minSpeed: 4,
       );
       final fast = CosmicPartyMember(
-        instanceId: 'i', baseId: 'b', displayName: 'd',
-        element: 'Air', family: 'Wing', level: 5,
-        statSpeed: 5, statIntelligence: 3, statStrength: 3, statBeauty: 3,
-        slotIndex: 0, staminaBars: 5, staminaMax: 5,
+        instanceId: 'i',
+        baseId: 'b',
+        displayName: 'd',
+        element: 'Air',
+        family: 'Wing',
+        level: 5,
+        statSpeed: 5,
+        statIntelligence: 3,
+        statStrength: 3,
+        statBeauty: 3,
+        slotIndex: 0,
+        staminaBars: 5,
+        staminaMax: 5,
       );
       final slow = _member('Air', 'Wing'); // statSpeed 3
       expect(evaluateInteraction(fast, needsSpeed), InteractionResult.passed);
@@ -148,8 +195,10 @@ void main() {
     test('stats never gate an object that sets no min*', () {
       const free = DungeonInteractionRequirement(element: 'Air');
       expect(free.isHardGate, isFalse);
-      expect(evaluateInteraction(_member('Air', 'Kin'), free),
-          InteractionResult.passed);
+      expect(
+        evaluateInteraction(_member('Air', 'Kin'), free),
+        InteractionResult.passed,
+      );
     });
   });
 

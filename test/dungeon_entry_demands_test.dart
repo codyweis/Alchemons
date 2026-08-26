@@ -61,8 +61,11 @@ void main() {
           final gate = layout.familyGates.firstWhere(
             (g) => g.family == d.family,
           );
-          expect(d.element, gate.needsElement ? gate.element : isNull,
-              reason: '$element/${d.family}');
+          expect(
+            d.element,
+            gate.needsElement ? gate.element : isNull,
+            reason: '$element/${d.family}',
+          );
         }
       });
     });
@@ -119,8 +122,11 @@ void main() {
       // right families on entirely the wrong elements still clears them.
       final demands = dungeonEntryDemands('Dust');
       expect(demands, isNotEmpty);
-      expect(demands.every((d) => d.element == null), isTrue,
-          reason: 'both Dust gates were re-audited to verb-only');
+      expect(
+        demands.every((d) => d.element == null),
+        isTrue,
+        reason: 'both Dust gates were re-audited to verb-only',
+      );
       final oddballs = [_m('Blood', 'wing'), _m('Plant', 'horn')];
       expect(unmetEntryDemands('Dust', oddballs), isEmpty);
     });
@@ -143,7 +149,8 @@ void main() {
           expect(
             d.label.startsWith('any ') || d.label.contains(' '),
             isTrue,
-            reason: '$element: "${d.label}" should read as element + FAMILY '
+            reason:
+                '$element: "${d.label}" should read as element + FAMILY '
                 'or "any FAMILY"',
           );
         }

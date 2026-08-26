@@ -243,9 +243,8 @@ class FoundryLine {
   Iterable<FoundryNode> nodesIn(String roomId) =>
       nodes.where((n) => n.roomId == roomId);
 
-  Iterable<FoundryChannel> channelsIn(String roomId) => channels.where(
-    (c) => c.segments.any((s) => s.roomId == roomId),
-  );
+  Iterable<FoundryChannel> channelsIn(String roomId) =>
+      channels.where((c) => c.segments.any((s) => s.roomId == roomId));
 
   /// Every lever on the line, in flow order.
   Iterable<FoundryNode> get levers =>
@@ -372,7 +371,11 @@ class FoundryState {
   /// runs, and nothing that cannot (switch settings are free to change before
   /// any pour, so they are not part of the state).
   String get signature {
-    final cast = castings.entries.map((e) => '${e.key}${e.value.spoiled ? '!' : ''}').toList()..sort();
+    final cast =
+        castings.entries
+            .map((e) => '${e.key}${e.value.spoiled ? '!' : ''}')
+            .toList()
+          ..sort();
     final m = molds.entries.map((e) => '${e.key}=${e.value}').toList()..sort();
     final w = wardsTurned.toList()..sort();
     return '$poursLeft|$dieWoken|${cast.join(',')}|${m.join(',')}|$carried|${w.join(',')}';
@@ -493,7 +496,9 @@ class FoundryState {
         castings['cast:$what'] = FoundryCasting(
           id: 'cast:$what',
           roomId: at.roomId,
-          rect: kLavaCastRects[what] ?? Rect.fromCircle(center: at.position, radius: 1),
+          rect:
+              kLavaCastRects[what] ??
+              Rect.fromCircle(center: at.position, radius: 1),
           channelId: '',
           spoiled: !ok,
         );
@@ -743,8 +748,11 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'y_yard',
       to: 'chiller',
       segments: [
-        FoundrySegment('switch_yard', Rect.fromLTWH(586, 0, 28, 44),
-            reverse: true),
+        FoundrySegment(
+          'switch_yard',
+          Rect.fromLTWH(586, 0, 28, 44),
+          reverse: true,
+        ),
         FoundrySegment('chill_house', Rect.fromLTWH(0, 330, 430, 34)),
       ],
     ),
@@ -788,8 +796,11 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'damper',
       to: 'vent',
       segments: [
-        FoundrySegment('stamp_mill', Rect.fromLTWH(606, 340, 28, 106),
-            reverse: true),
+        FoundrySegment(
+          'stamp_mill',
+          Rect.fromLTWH(606, 340, 28, 106),
+          reverse: true,
+        ),
       ],
     ),
     FoundryChannel(
@@ -806,8 +817,11 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'floor_in',
       to: 'y_sluice',
       segments: [
-        FoundrySegment('mold_floor', Rect.fromLTWH(520, 714, 60, 147),
-            reverse: true),
+        FoundrySegment(
+          'mold_floor',
+          Rect.fromLTWH(520, 714, 60, 147),
+          reverse: true,
+        ),
       ],
     ),
     FoundryChannel(
@@ -823,8 +837,11 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'y_sluice',
       to: 'mold_key',
       segments: [
-        FoundrySegment('mold_floor', Rect.fromLTWH(450, 626, 100, 28),
-            reverse: true),
+        FoundrySegment(
+          'mold_floor',
+          Rect.fromLTWH(450, 626, 100, 28),
+          reverse: true,
+        ),
       ],
     ),
     FoundryChannel(
@@ -832,10 +849,16 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'y_sluice',
       to: 'y_return',
       segments: [
-        FoundrySegment('mold_floor', Rect.fromLTWH(520, 0, 60, 686),
-            reverse: true),
-        FoundrySegment('chill_house', Rect.fromLTWH(300, 136, 560, 28),
-            reverse: true),
+        FoundrySegment(
+          'mold_floor',
+          Rect.fromLTWH(520, 0, 60, 686),
+          reverse: true,
+        ),
+        FoundrySegment(
+          'chill_house',
+          Rect.fromLTWH(300, 136, 560, 28),
+          reverse: true,
+        ),
       ],
     ),
     FoundryChannel(
@@ -843,8 +866,11 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'y_return',
       to: 'slag_pit',
       segments: [
-        FoundrySegment('chill_house', Rect.fromLTWH(286, 60, 28, 90),
-            reverse: true),
+        FoundrySegment(
+          'chill_house',
+          Rect.fromLTWH(286, 60, 28, 90),
+          reverse: true,
+        ),
       ],
     ),
     FoundryChannel(
@@ -852,8 +878,11 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'y_return',
       to: 'sump_mouth',
       segments: [
-        FoundrySegment('chill_house', Rect.fromLTWH(0, 136, 300, 28),
-            reverse: true),
+        FoundrySegment(
+          'chill_house',
+          Rect.fromLTWH(0, 136, 300, 28),
+          reverse: true,
+        ),
       ],
     ),
     FoundryChannel(
@@ -861,8 +890,11 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'sump_mouth',
       to: 'mold_reliquary',
       segments: [
-        FoundrySegment('tap_head', Rect.fromLTWH(0, 430, 900, 28),
-            reverse: true),
+        FoundrySegment(
+          'tap_head',
+          Rect.fromLTWH(0, 430, 900, 28),
+          reverse: true,
+        ),
         FoundrySegment('tap_head', Rect.fromLTWH(102, 458, 56, 34)),
       ],
     ),
@@ -926,7 +958,8 @@ PourEvent runFoundryPlan(FoundryState s, FoundryPlan plan) {
 ///  · a way to stand beside it (the sump crossing).
 bool foundryWorksDone(FoundryState s) =>
     s.cast('span_a') &&
-    (s.cast('reliquary') || s.carried == 'reliquary' ||
+    (s.cast('reliquary') ||
+        s.carried == 'reliquary' ||
         s.wardsTurned.contains('reliquary')) &&
     s.access.contains('sump');
 

@@ -32,7 +32,9 @@ Future<ConstellationGame> _boot(
     secondaryColor: const Color(0xFFE8DCC8),
   );
   await tester.pumpWidget(
-    MaterialApp(home: Scaffold(body: GameWidget(game: game))),
+    MaterialApp(
+      home: Scaffold(body: GameWidget(game: game)),
+    ),
   );
   for (var i = 0; i < 12; i++) {
     await tester.pump(const Duration(milliseconds: 33));

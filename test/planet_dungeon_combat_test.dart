@@ -305,7 +305,11 @@ void main() {
       wake(game, 'crosswind_hall', 'shrine_crown');
       expect(game.summitOpen, isFalse);
       wake(game, 'crosswind_hall', 'shrine_span');
-      expect(game.summitOpen, isTrue, reason: 'the fourth wind opens the crown');
+      expect(
+        game.summitOpen,
+        isTrue,
+        reason: 'the fourth wind opens the crown',
+      );
 
       // Standing in the crown banks Star 1.
       game.currentRoomId = 'spire_summit';
@@ -344,11 +348,13 @@ void main() {
         2,
         reason: 'one rejection (2 wisps), not one rejection per frame',
       );
+      game.askForRoomHint();
       expect(
         game.hintText,
         contains('Incorrect placement'),
         reason: 'the wisp-wave hint must not stomp the placement feedback',
       );
+      game.askForRoomHint();
       expect(
         game.hintText,
         contains(wrongAnchor.clue),
@@ -788,7 +794,9 @@ void main() {
         0,
         reason: 'conduit B waits on the storm, not on an arc',
       );
+      game.askForRoomHint();
       expect(game.hintText, contains('storm'));
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
   });
@@ -904,6 +912,7 @@ void main() {
         'sky_loom',
         reason: 'a sealed door must not transition',
       );
+      game.askForRoomHint();
       expect(game.hintText, contains('sealed'));
 
       // One star — either one — is not enough.

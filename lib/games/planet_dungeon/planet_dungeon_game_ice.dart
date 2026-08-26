@@ -177,7 +177,9 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// method. How a flue is frozen is the shaft's earned reading (Mask).
   String _iceDoorHint(DungeonRoom room, DungeonDoor door) {
     final (flue, _) = _flueLeg(room, door)!;
-    if (flue.isThroat) return 'The melt-fall runs — nothing climbs running water';
+    if (flue.isThroat) {
+      return 'The melt-fall runs — nothing climbs running water';
+    }
     return switch (_flue(flue.id)) {
       RimeFlueState.scoured => 'Bare glass, and no snow left to take frost',
       _ => 'Loose snow — it will not hold a step',
@@ -373,8 +375,7 @@ extension FrozenObservatory on PlanetDungeonGame {
   MirrorRing? get _mirrorRing => currentRoom.rime?.mirrors;
 
   /// Frames that are showing the chart right now.
-  int get mirrorsShowing =>
-      silveredMirrors.length + (lodestoneLit ? 1 : 0);
+  int get mirrorsShowing => silveredMirrors.length + (lodestoneLit ? 1 : 0);
 
   bool _tryMirrorFrame(DungeonCreature a) {
     final ring = _mirrorRing;
@@ -682,10 +683,7 @@ extension FrozenObservatory on PlanetDungeonGame {
         unstable: true,
         announce: false,
       );
-      _setHint(
-        'It runs out of road \u2014 and the road cracks behind it',
-        2.8,
-      );
+      _setHint('It runs out of road \u2014 and the road cracks behind it', 2.8);
     }
     return true;
   }
@@ -841,7 +839,9 @@ extension FrozenObservatory on PlanetDungeonGame {
           ? null
           : 'A niche off the throat — an old lens, pointed at nothing';
     }
-    if (room.vaultCache != null) return 'A glass ledge — something is bottled here';
+    if (room.vaultCache != null) {
+      return 'A glass ledge — something is bottled here';
+    }
     final ring = room.rime?.mirrors;
     if (ring != null) {
       if (hasStar(room.rime!.starIndex!)) return null;
@@ -866,16 +866,19 @@ extension FrozenObservatory on PlanetDungeonGame {
       if ((a.position - f.headPos).distance > _kShaftReach) continue;
       _setAmbientHint(switch (_flue(f.id)) {
         RimeFlueState.drift => 'Soft snow, heaped over a long dark',
-        RimeFlueState.scoured => 'Polished to a shine, and going nowhere but down',
+        RimeFlueState.scoured =>
+          'Polished to a shine, and going nowhere but down',
         RimeFlueState.stair => 'Cut steps, holding',
       });
       return;
     }
     final fall = room.rime?.rimefall;
     if (fall != null && (a.position - fall).distance < 90) {
-      _setAmbientHint(rimefallFrozen
-          ? 'The fall stands, white and silent'
-          : 'Water comes down here without ever stopping');
+      _setAmbientHint(
+        rimefallFrozen
+            ? 'The fall stands, white and silent'
+            : 'Water comes down here without ever stopping',
+      );
     }
   }
 
@@ -886,51 +889,59 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (room.rime?.orrery != null) {
       _setInsightHint(switch (tier) {
         0 => 'The blocks are frozen sky — stone will not carry them',
-        1 => 'Glaze a road and a block runs it to the end; a kerbed socket '
-            'catches whatever slides in',
-        _ => 'Lay the run one cell short of the turn: the block stops where '
-            'the glass does, and a socket takes it whether it is glazed or '
-            'not. Mind your own footing — glass carries you too',
+        1 =>
+          'Glaze a road and a block runs it to the end; a kerbed socket '
+              'catches whatever slides in',
+        _ =>
+          'Lay the run one cell short of the turn: the block stops where '
+              'the glass does, and a socket takes it whether it is glazed or '
+              'not. Mind your own footing — glass carries you too',
       });
       return;
     }
     if (room.rime?.mirrors != null) {
       _setInsightHint(switch (tier) {
         0 => 'Frost holds a picture in the glass, but not for long',
-        1 => 'The ring wants every frame showing at once — and one frame '
-            'will never take frost at all',
-        _ => 'Silver the ring in one lap; the black frame answers a reading '
-            'eye, not a cold hand, and once lit it never clouds. A cold '
-            'sweep off the vent renews the whole ring',
+        1 =>
+          'The ring wants every frame showing at once — and one frame '
+              'will never take frost at all',
+        _ =>
+          'Silver the ring in one lap; the black frame answers a reading '
+              'eye, not a cold hand, and once lit it never clouds. A cold '
+              'sweep off the vent renews the whole ring',
       });
       return;
     }
     if (room.rime?.telescope != null) {
-      _setInsightHint('The lens wants the chart read first — and a steady, '
-          'cold-laying hand on the mount');
+      _setInsightHint(
+        'The lens wants the chart read first — and a steady, '
+        'cold-laying hand on the mount',
+      );
       return;
     }
     // Anywhere in the shaft, insight reads the SHAFT — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'What goes down here does not come back the same way',
-      1 => 'Fresh snow brakes a fall onto a ledge and is gone; frost turns '
-          'the same fall into steps you can climb — one or the other',
-      _ => 'A ridden flue is bare for good and takes no frost. The fall at '
-          'the very bottom is the exception: it freezes from below, climbs '
-          'to the mouth, and the whole shaft lets go behind you',
+      1 =>
+        'Fresh snow brakes a fall onto a ledge and is gone; frost turns '
+            'the same fall into steps you can climb — one or the other',
+      _ =>
+        'A ridden flue is bare for good and takes no frost. The fall at '
+            'the very bottom is the exception: it freezes from below, climbs '
+            'to the mouth, and the whole shaft lets go behind you',
     });
   }
 
   /// Per-room sky mood — the shaft gets darker the deeper you are.
   double get _shaftMoodTarget => switch (currentRoomId) {
-        'rime_head' => 0.72,
-        'mirror_gallery' => 0.5,
-        'shelf_glass' || 'shelf_lens' => 0.4,
-        'orrery_floor' => 0.36,
-        'cold_sump' => 0.24,
-        'star_font' => 0.2,
-        _ => guardianAwake ? 0.12 : 0.18,
-      };
+    'rime_head' => 0.72,
+    'mirror_gallery' => 0.5,
+    'shelf_glass' || 'shelf_lens' => 0.4,
+    'orrery_floor' => 0.36,
+    'cold_sump' => 0.24,
+    'star_font' => 0.2,
+    _ => guardianAwake ? 0.12 : 0.18,
+  };
 
   // ── THE NO-STRAND PROOF ──────────────────────────────────
 
@@ -961,7 +972,8 @@ extension FrozenObservatory on PlanetDungeonGame {
     int strandable,
     int strandableWithoutRimefall,
     int shelfLosable,
-  }) solveShaftDescent() {
+  })
+  solveShaftDescent() {
     final flues = kRimeFlues;
     final rooms = layout.rooms.keys.toList()..sort();
     final head = layout.entranceRoomId;
@@ -1155,7 +1167,10 @@ extension FrozenObservatory on PlanetDungeonGame {
               r.width - 16 - i * 12.0,
               13,
             );
-            canvas.drawRect(t, Paint()..color = _kIceWhite.withValues(alpha: 0.72));
+            canvas.drawRect(
+              t,
+              Paint()..color = _kIceWhite.withValues(alpha: 0.72),
+            );
             canvas.drawLine(
               t.topLeft,
               t.topRight,
@@ -1266,20 +1281,25 @@ extension FrozenObservatory on PlanetDungeonGame {
       if (!showing) {
         canvas.drawRect(
           frame.deflate(4),
-          Paint()..color = (lode ? Colors.black : _kIceDeep).withValues(alpha: 0.8),
+          Paint()
+            ..color = (lode ? Colors.black : _kIceDeep).withValues(alpha: 0.8),
         );
         continue;
       }
       canvas.drawRect(
         frame.deflate(4),
         Paint()
-          ..color = (lode ? const Color(0xFFFFF0C4) : _kIceWhite)
-              .withValues(alpha: 0.8),
+          ..color = (lode ? const Color(0xFFFFF0C4) : _kIceWhite).withValues(
+            alpha: 0.8,
+          ),
       );
       // The thaw is READ off the frame, not off a line of prose: the silver
       // drains from the bottom as the hold runs out.
       if (!lode) {
-        final left = ((mirrorThaw[i] ?? 0) / _kMirrorHoldSeconds).clamp(0.0, 1.0);
+        final left = ((mirrorThaw[i] ?? 0) / _kMirrorHoldSeconds).clamp(
+          0.0,
+          1.0,
+        );
         final inner = frame.deflate(4);
         canvas.drawRect(
           Rect.fromLTWH(
@@ -1320,8 +1340,9 @@ extension FrozenObservatory on PlanetDungeonGame {
       canvas.drawRRect(
         RRect.fromRectAndRadius(r, const Radius.circular(12)),
         Paint()
-          ..color = (rimefallFrozen ? _kIceWhite : _kIcePale)
-              .withValues(alpha: rimefallFrozen ? 0.78 : 0.4),
+          ..color = (rimefallFrozen ? _kIceWhite : _kIcePale).withValues(
+            alpha: rimefallFrozen ? 0.78 : 0.4,
+          ),
       );
       if (!rimefallFrozen) {
         // Running water: three streaks that scroll, cheap and blur-free.

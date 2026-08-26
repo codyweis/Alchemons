@@ -136,7 +136,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.crossRot = 0;
     m.oublietteOpen = false;
     m.wisp = const Offset(560, 260);
-    m.wispStrain = WardStrain.values[Random().nextInt(WardStrain.values.length)];
+    m.wispStrain =
+        WardStrain.values[Random().nextInt(WardStrain.values.length)];
     m.wispDrift = 0;
     m.blightStrain = null;
     m.blightLull = 0;
@@ -628,7 +629,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
     if (!t.canCommit) {
       final left = kMonasteryCures - t.cured.length;
-      _setBlockedHint('The cross waits on $left more cure${left == 1 ? '' : 's'}');
+      _setBlockedHint(
+        'The cross waits on $left more cure${left == 1 ? '' : 's'}',
+      );
       return true;
     }
     final given = t.commit();
@@ -793,7 +796,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
     }
     if (monastery.crossRot > 0 &&
-        (door.targetRoomId == t.surrendered || room.ward?.id == t.surrendered)) {
+        (door.targetRoomId == t.surrendered ||
+            room.ward?.id == t.surrendered)) {
       return 'The plague-cross bars this ward';
     }
     final target = layout.rooms[door.targetRoomId]?.ward;
@@ -834,7 +838,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (ward == null) return null;
     if (t.cured.contains(ward.id)) return null;
     if (ward.id == t.surrendered) {
-      return monastery.oublietteOpen ? null : 'A stone in the floor is leaded shut';
+      return monastery.oublietteOpen
+          ? null
+          : 'A stone in the floor is leaded shut';
     }
     return 'Something lives in ${ward.name}';
   }
@@ -873,7 +879,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       _setInsightHint(switch (revealTier) {
         0 => 'The sickness has a habit — watch it before you pour',
         1 => 'Read it: ${strainHabit(s)}',
-        _ => 'Read it: ${strainHabit(s)} — ${draughtFixtureName(antidoteFor(s))} answers it',
+        _ =>
+          'Read it: ${strainHabit(s)} — ${draughtFixtureName(antidoteFor(s))} answers it',
       });
       return;
     }
@@ -972,7 +979,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             final paint = Paint()
               ..color = col.withValues(alpha: 0.55 - 0.13 * ring);
             for (var i = 0; i < motes; i++) {
-              final ang = (i / motes) * 2 * pi + monastery.clock * 0.4 * (ring.isEven ? 1 : -1);
+              final ang =
+                  (i / motes) * 2 * pi +
+                  monastery.clock * 0.4 * (ring.isEven ? 1 : -1);
               canvas.drawCircle(
                 heart + Offset(cos(ang), sin(ang)) * rr,
                 2.4 + 0.6 * ring,
@@ -1013,7 +1022,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
               ..color = col.withValues(alpha: 0.22)
               ..strokeWidth = 1.2,
           );
-          canvas.drawCircle(mote, 12, Paint()..color = col.withValues(alpha: 0.35));
+          canvas.drawCircle(
+            mote,
+            12,
+            Paint()..color = col.withValues(alpha: 0.35),
+          );
           canvas.drawCircle(mote, 5.5, Paint()..color = col);
 
         case WardStrain.feign:
@@ -1133,10 +1146,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         ..color = (ready ? _venomBone : _venomDeep).withValues(alpha: 0.95)
         ..strokeWidth = 7
         ..strokeCap = StrokeCap.round;
-      canvas.drawLine(seal.position + const Offset(0, -26),
-          seal.position + const Offset(0, 26), p);
-      canvas.drawLine(seal.position + const Offset(-18, -6),
-          seal.position + const Offset(18, -6), p);
+      canvas.drawLine(
+        seal.position + const Offset(0, -26),
+        seal.position + const Offset(0, 26),
+        p,
+      );
+      canvas.drawLine(
+        seal.position + const Offset(-18, -6),
+        seal.position + const Offset(18, -6),
+        p,
+      );
     }
 
     final wisp = monastery.wisp;
@@ -1165,8 +1184,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           true,
           body,
         );
-        canvas.drawLine(p + const Offset(-24, 0), p + const Offset(24, 0),
-            ink..strokeWidth = 3);
+        canvas.drawLine(
+          p + const Offset(-24, 0),
+          p + const Offset(24, 0),
+          ink..strokeWidth = 3,
+        );
       case WardDraught.quicklime:
         // A kiln mouth: a squat arch with a bright throat.
         canvas.drawRRect(
@@ -1176,12 +1198,19 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           ),
           body,
         );
-        canvas.drawCircle(p + const Offset(0, 4), 9,
-            Paint()..color = const Color(0xFFE8E2CE));
+        canvas.drawCircle(
+          p + const Offset(0, 4),
+          9,
+          Paint()..color = const Color(0xFFE8E2CE),
+        );
       case WardDraught.binding:
         // A smoke pot: a squat pot with a lattice over its mouth.
         canvas.drawOval(
-          Rect.fromCenter(center: p + const Offset(0, 6), width: 44, height: 30),
+          Rect.fromCenter(
+            center: p + const Offset(0, 6),
+            width: 44,
+            height: 30,
+          ),
           body,
         );
         for (var i = -1; i <= 1; i++) {

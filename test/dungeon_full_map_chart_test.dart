@@ -30,7 +30,8 @@ void main() {
           expect(
             clash,
             isNull,
-            reason: '$element: rooms "$id" and "$clash" are both drawn at $p '
+            reason:
+                '$element: rooms "$id" and "$clash" are both drawn at $p '
                 '— the chart has collapsed and the map is unreadable',
           );
           placed[p] = id;
@@ -49,15 +50,18 @@ void main() {
         ];
         final xs = pts.map((p) => p.dx);
         final ys = pts.map((p) => p.dy);
-        final spanX = xs.reduce((a, b) => a > b ? a : b) -
+        final spanX =
+            xs.reduce((a, b) => a > b ? a : b) -
             xs.reduce((a, b) => a < b ? a : b);
-        final spanY = ys.reduce((a, b) => a > b ? a : b) -
+        final spanY =
+            ys.reduce((a, b) => a > b ? a : b) -
             ys.reduce((a, b) => a < b ? a : b);
         // Any sane chart of 3+ rooms uses a decent fraction of both axes.
         expect(
           spanX + spanY,
           greaterThan(canvas.width * 0.35),
-          reason: '$element: chart spans only ${spanX.toInt()}x'
+          reason:
+              '$element: chart spans only ${spanX.toInt()}x'
               '${spanY.toInt()} on an ${canvas.width.toInt()}x'
               '${canvas.height.toInt()} canvas',
         );
@@ -68,8 +72,16 @@ void main() {
       kPlanetDungeonLayouts.forEach((element, layout) {
         for (final id in layout.rooms.keys) {
           final p = debugFullMapNodePoint(element, id, canvas);
-          expect(p.dx, inInclusiveRange(0, canvas.width), reason: '$element/$id');
-          expect(p.dy, inInclusiveRange(0, canvas.height), reason: '$element/$id');
+          expect(
+            p.dx,
+            inInclusiveRange(0, canvas.width),
+            reason: '$element/$id',
+          );
+          expect(
+            p.dy,
+            inInclusiveRange(0, canvas.height),
+            reason: '$element/$id',
+          );
         }
       });
     });

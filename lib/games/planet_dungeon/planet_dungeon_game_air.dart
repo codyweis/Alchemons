@@ -152,7 +152,8 @@ extension WindCrownSpire on PlanetDungeonGame {
         _rodRaise[rod.id] = rod.initialHeight.toDouble();
       }
     }
-    stormCellAngle = layout.rooms.values
+    stormCellAngle =
+        layout.rooms.values
             .firstWhere(
               (r) => r.stormOrbit != null && r.conduits.isNotEmpty,
               orElse: () => layout.rooms.values.first,
@@ -339,7 +340,8 @@ extension WindCrownSpire on PlanetDungeonGame {
     int counterTears,
     int coldVents,
     List<String>? solution,
-  }) solveSpiralVents() {
+  })
+  solveSpiralVents() {
     final room = _spiralChamber;
     if (room == null || spiralVentFlow.length != room.galeVents.length) {
       return (
@@ -533,9 +535,7 @@ extension WindCrownSpire on PlanetDungeonGame {
   ];
 
   /// Gales the spire can be taught to blow.
-  Set<String> get allGaleIds => {
-    for (final s in allGustShrines) s.wakesGale,
-  };
+  Set<String> get allGaleIds => {for (final s in allGustShrines) s.wakesGale};
 
   /// How far a woken gale has swelled (0 = still, 1 = full). Eased.
   double _galeFactor(WindCurrent c) {
@@ -612,10 +612,10 @@ extension WindCrownSpire on PlanetDungeonGame {
       }
     }
     return layout.rooms.values
-            .firstWhere((r) => r.windLedges.isNotEmpty)
-            .windLedges
-            .first
-            .id;
+        .firstWhere((r) => r.windLedges.isNotEmpty)
+        .windLedges
+        .first
+        .id;
   }
 
   /// Every ledge reachable with [woken] gales blowing, and whether reaching it
@@ -675,7 +675,8 @@ extension WindCrownSpire on PlanetDungeonGame {
     int fallFree,
     int strandable,
     List<List<String>> fallFreeOrders,
-  }) solveWindWaking() {
+  })
+  solveWindWaking() {
     final shrines = allGustShrines;
     final ids = [for (final s in shrines) s.id]..sort();
     final byId = {for (final s in shrines) s.id: s};
@@ -849,8 +850,7 @@ extension WindCrownSpire on PlanetDungeonGame {
       // Rising columns are the thermal's business (`_updraftAt`).
       if (cur.dir.dy / len <= -0.5) continue;
       if (!cur.rect.contains(a.position)) continue;
-      final push =
-          (cur.dir / len) * cur.strength * f * _kGaleWalkerScale * dt;
+      final push = (cur.dir / len) * cur.strength * f * _kGaleWalkerScale * dt;
       a.position = _moveDashing(a.position, push, room);
       carried = true;
     }
@@ -889,8 +889,10 @@ extension WindCrownSpire on PlanetDungeonGame {
         ? _rocLeash
         : orbit.center;
     return centre +
-        Offset(cos(stormCellAngle) * orbit.radius,
-            sin(stormCellAngle) * orbit.radius);
+        Offset(
+          cos(stormCellAngle) * orbit.radius,
+          sin(stormCellAngle) * orbit.radius,
+        );
   }
 
   /// Every conductor the leader may climb in [room], as (id, position, rank).
@@ -955,8 +957,9 @@ extension WindCrownSpire on PlanetDungeonGame {
         if (h != want) continue;
         if (path.contains(id)) continue;
         final d = (pos - at).distance;
-        final reach =
-            id == _kGuardianConductorId ? _kRocStrikeReach : kStormHopReach;
+        final reach = id == _kGuardianConductorId
+            ? _kRocStrikeReach
+            : kStormHopReach;
         if (d > reach) continue;
         if (d < bestDist) {
           bestId = id;
@@ -991,7 +994,8 @@ extension WindCrownSpire on PlanetDungeonGame {
     int plateauRouting,
     Map<String, int>? example,
     int exampleCranks,
-  }) solveRodRanking({int angleSteps = 72}) {
+  })
+  solveRodRanking({int angleSteps = 72}) {
     final room = layout.rooms.values.firstWhere(
       (r) => r.stormRods.isNotEmpty && r.conduits.any((c) => c.struckByStorm),
     );
@@ -1103,7 +1107,9 @@ extension WindCrownSpire on PlanetDungeonGame {
     // Shove it the way it is already leaning away from the gust.
     final toCell = cell - a.position;
     final tangent = Offset(-(cell - centre).dy, (cell - centre).dx);
-    final sign = (toCell.dx * tangent.dx + toCell.dy * tangent.dy) >= 0 ? 1 : -1;
+    final sign = (toCell.dx * tangent.dx + toCell.dy * tangent.dy) >= 0
+        ? 1
+        : -1;
     stormCellAngle += _kCellGustShove * sign;
     _spawnAlchemyBurst(
       cell,
@@ -1183,8 +1189,10 @@ extension WindCrownSpire on PlanetDungeonGame {
         ..clear()
         ..addAll(path);
       _latchedLeaderOrigin = from;
-      _setHint('The storm finds the ladder — conduit ${conduit.id} takes the '
-          'bolt');
+      _setHint(
+        'The storm finds the ladder — conduit ${conduit.id} takes the '
+        'bolt',
+      );
       _spawnAlchemyBurst(
         conduit.position,
         producedElement: 'Lightning',
@@ -1241,14 +1249,15 @@ extension WindCrownSpire on PlanetDungeonGame {
     if (hasStar(g.starIndex)) return;
     final bird = _guardianPosition(g);
     // The cell trails the bird on a leash: it can never reach the Roc unaided.
-    final want = bird +
+    final want =
+        bird +
         (_rocLeash == Offset.zero
             ? const Offset(-_kRocLeash, 0)
             : ((_rocLeash - bird).distance < 1
-                ? const Offset(-_kRocLeash, 0)
-                : (_rocLeash - bird) /
-                    (_rocLeash - bird).distance *
-                    _kRocLeash));
+                  ? const Offset(-_kRocLeash, 0)
+                  : (_rocLeash - bird) /
+                        (_rocLeash - bird).distance *
+                        _kRocLeash));
     if (_rocLeash == Offset.zero) {
       _rocLeash = want;
     } else {
@@ -1314,8 +1323,10 @@ extension WindCrownSpire on PlanetDungeonGame {
               .where((s) => s.wakesGale == g)
               .firstOrNull;
           if (shrine == null) continue;
-          threats.add('${_capitalise(shrine.name)} will scour a walk you '
-              'still need');
+          threats.add(
+            '${_capitalise(shrine.name)} will scour a walk you '
+            'still need',
+          );
         }
       }
       return threats.isEmpty
@@ -1340,7 +1351,8 @@ extension WindCrownSpire on PlanetDungeonGame {
     // The winds: the RINGS counter's replacement (the ring sequence retired).
     final total = totalGales;
     if (total > 0 && !hasStar(0)) {
-      final onSpire = room.gustShrines.isNotEmpty ||
+      final onSpire =
+          room.gustShrines.isNotEmpty ||
           room.summit != null ||
           room.windLedges.isNotEmpty;
       if (onSpire) {
@@ -1422,11 +1434,7 @@ extension WindCrownSpire on PlanetDungeonGame {
       final woken = wokenGales.contains(s.wakesGale);
       final swell = woken ? (galeRamp[s.wakesGale] ?? 0.0) : 0.0;
       final col = woken
-          ? Color.lerp(
-              const Color(0xFF74613A),
-              const Color(0xFF8FE6FF),
-              swell,
-            )!
+          ? Color.lerp(const Color(0xFF74613A), const Color(0xFF8FE6FF), swell)!
           : const Color(0xFFE4C16A);
       final pulse = woken ? 1.0 : 0.72 + 0.28 * sin(_time * 2.4);
       if (_fx.ready) {
@@ -1555,8 +1563,10 @@ extension WindCrownSpire on PlanetDungeonGame {
         ..strokeWidth = 1
         ..color = const Color(0xFF8FE6FF).withValues(alpha: 0.16),
     );
-    final charge =
-        (stormStrikeTimer / max(0.2, orbit.strikeInterval)).clamp(0.0, 1.0);
+    final charge = (stormStrikeTimer / max(0.2, orbit.strikeInterval)).clamp(
+      0.0,
+      1.0,
+    );
     final col = Color.lerp(
       const Color(0xFF6E7C8C),
       const Color(0xFFB9E6FF),
@@ -1609,13 +1619,7 @@ extension WindCrownSpire on PlanetDungeonGame {
         : _conductorPosition(room, latchedLeaderPath.first);
     if (from == null) return;
     // A slow breath, not a strobe: the circuit is holding, not striking.
-    _drawLeaderChain(
-      canvas,
-      room,
-      path,
-      from,
-      0.60 + 0.14 * sin(_time * 2.1),
-    );
+    _drawLeaderChain(canvas, room, path, from, 0.60 + 0.14 * sin(_time * 2.1));
   }
 
   void _drawLeaderChain(
@@ -1689,9 +1693,7 @@ extension WindCrownSpire on PlanetDungeonGame {
     if (jets == 0 && tear <= 0) return;
     final coil = spiralCoil;
     final spin = coil == GaleVentFlow.widdershins ? -1.0 : 1.0;
-    final grip = spiralTorn
-        ? tear
-        : (jets / kSpiralJetsNeeded).clamp(0.0, 1.0);
+    final grip = spiralTorn ? tear : (jets / kSpiralJetsNeeded).clamp(0.0, 1.0);
     if (grip <= 0.01) return;
     // Torn: the coil flies apart outward as it fades. Whole: it draws tighter.
     final burst = spiralTorn ? (1.0 - tear) * 70.0 : 0.0;
@@ -1716,7 +1718,9 @@ extension WindCrownSpire on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.2
         ..strokeCap = StrokeCap.round
-        ..color = col.withValues(alpha: (0.30 + 0.5 * grip) * (spiralTorn ? tear : 1.0)),
+        ..color = col.withValues(
+          alpha: (0.30 + 0.5 * grip) * (spiralTorn ? tear : 1.0),
+        ),
     );
     if (_fx.ready) {
       drawGlow(

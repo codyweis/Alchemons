@@ -51,8 +51,9 @@ void main() {
         '12m',
       );
       expect(
-        _rift(age: const Duration(hours: 7, minutes: 59, seconds: 30))
-            .remainingLabel(_now),
+        _rift(
+          age: const Duration(hours: 7, minutes: 59, seconds: 30),
+        ).remainingLabel(_now),
         '<1m',
       );
     });

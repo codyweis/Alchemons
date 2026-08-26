@@ -439,7 +439,11 @@ void main() {
     game.setActive(2); // Ice mane — the clean freeze
     teleport('moon_well', poolAt('pool_nw'));
     game.activateAbility();
-    expect(game.poolStates['pool_nw'], 1, reason: 'the true pool takes the ice');
+    expect(
+      game.poolStates['pool_nw'],
+      1,
+      reason: 'the true pool takes the ice',
+    );
 
     // A false pool shatters and rouses the brine.
     teleport('moon_well', poolAt('pool_ne'));
@@ -481,9 +485,7 @@ void main() {
     teleport('leviathan_depths', guardianNode.position + const Offset(0, 80));
     var safety = 0;
     while (!game.hasStar(2) && safety++ < 900) {
-      final leviathan = game.combatEnemies
-          .where((e) => e.isElite)
-          .firstOrNull;
+      final leviathan = game.combatEnemies.where((e) => e.isElite).firstOrNull;
       if (leviathan != null && !leviathan.isDead) {
         leviathan.position = game.creatures[game.activeIndex].position;
       }
@@ -559,7 +561,8 @@ void main() {
     expect(
       spill('north_lock', 2),
       'blind_sump',
-      reason: 'at high water the deep cut is gone and the MID groove is the '
+      reason:
+          'at high water the deep cut is gone and the MID groove is the '
           'lowest live one — straight into the blind sump',
     );
     // …and the ice is what buys the crest.
@@ -577,7 +580,8 @@ void main() {
     expect(
       spill('south_race', 2, {'blind_sump'}),
       'sea',
-      reason: 'the sea groove is a crest, and it is never the lowest thing '
+      reason:
+          'the sea groove is a crest, and it is never the lowest thing '
           'on offer — the ice has to take the alternative away',
     );
     expect(
@@ -607,13 +611,15 @@ void main() {
     expect(
       game.lanternLosses,
       1,
-      reason: 'spring → north lock → the blind sump, exactly as the stone '
+      reason:
+          'spring → north lock → the blind sump, exactly as the stone '
           'says it would',
     );
     expect(
       game.lanternNodeId,
       'north_lock',
-      reason: 'the backwash hands it back to the last mouth it passed — the '
+      reason:
+          'the backwash hands it back to the last mouth it passed — the '
           'sump is a cost, never a trap',
     );
     expect(
@@ -688,7 +694,8 @@ void main() {
         expect(
           game.lanternChannel,
           isNull,
-          reason: 'it turns in the basin until the water settles — which is '
+          reason:
+              'it turns in the basin until the water settles — which is '
               'what makes a change begun in time still land',
         );
       }
@@ -710,9 +717,12 @@ void main() {
     expect(game.lanternNodeId, isNot('spring'));
 
     // Any hand, any element: wade to the spring mouth and set it again.
-    _act(game, game.layout.rooms['ghost_gallery']!.canalNodes
-        .firstWhere((n) => n.isSpring)
-        .position);
+    _act(
+      game,
+      game.layout.rooms['ghost_gallery']!.canalNodes
+          .firstWhere((n) => n.isSpring)
+          .position,
+    );
     expect(game.lanternLit, isTrue);
     expect(game.lanternNodeId, 'spring');
   });
@@ -735,27 +745,34 @@ void main() {
 
   // ── Star 2: the ice ──────────────────────────────────────
 
-  test('the dam is element-only: every Ice family plugs a basin identically',
-      () {
-    for (final family in const ['pip', 'mane', 'horn', 'mask', 'wing', 'kin']) {
-      final game = _gallery([_member(0, 'Ice', family)]);
-      _act(game, _nodeAt(game, 'blind_sump'));
-      expect(
-        game.dammedNodes,
-        {'blind_sump'},
-        reason: 'an Ice $family must plug the basin',
-      );
-      expect(
-        game.combatEnemies.where((e) => !e.isDead),
-        isEmpty,
-        reason: 'and do it silently ($family)',
-      );
-      // Toggled: a second hand takes the plug back out, so no arrangement of
-      // ice can ever be a dead end.
-      _act(game, _nodeAt(game, 'blind_sump'));
-      expect(game.dammedNodes, isEmpty);
-    }
-  });
+  test(
+    'the dam is element-only: every Ice family plugs a basin identically',
+    () {
+      for (final family in const [
+        'pip',
+        'mane',
+        'horn',
+        'mask',
+        'wing',
+        'kin',
+      ]) {
+        final game = _gallery([_member(0, 'Ice', family)]);
+        _act(game, _nodeAt(game, 'blind_sump'));
+        expect(game.dammedNodes, {
+          'blind_sump',
+        }, reason: 'an Ice $family must plug the basin');
+        expect(
+          game.combatEnemies.where((e) => !e.isDead),
+          isEmpty,
+          reason: 'and do it silently ($family)',
+        );
+        // Toggled: a second hand takes the plug back out, so no arrangement of
+        // ice can ever be a dead end.
+        _act(game, _nodeAt(game, 'blind_sump'));
+        expect(game.dammedNodes, isEmpty);
+      }
+    },
+  );
 
   test('only Ice plugs a basin — one clause, and nothing moves', () {
     // (Spirit is deliberately absent: a Spirit hand at a basin READS the
@@ -765,7 +782,9 @@ void main() {
       final game = _gallery([_member(0, element, 'mane')]);
       _act(game, _nodeAt(game, 'blind_sump'));
       expect(game.dammedNodes, isEmpty, reason: '$element must be refused');
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
+      game.askForRoomHint();
       expect(game.hintText, 'Only Ice plugs a basin');
       expect(
         game.combatEnemies.where((e) => !e.isDead),
@@ -782,6 +801,7 @@ void main() {
     _act(game, _nodeAt(game, 'blind_sump'));
     expect(game.dammedNodes, isEmpty);
     expect(game.sumpsRead, isTrue);
+    game.askForRoomHint();
     expect(game.hintChannel, DungeonHintChannel.insight);
   });
 
@@ -790,7 +810,9 @@ void main() {
     _setLanternAt(game, 'heart_basin');
     _act(game, _nodeAt(game, 'heart_basin'));
     expect(game.dammedNodes, isEmpty);
+    game.askForRoomHint();
     expect(game.hintChannel, DungeonHintChannel.blocked);
+    game.askForRoomHint();
     expect(game.hintText, contains('will not take'));
   });
 
@@ -800,9 +822,14 @@ void main() {
     // t0 — the deep cuts are named. That is the whole of the low-Int reading,
     // and it is a thing the high water would have told you for free.
     final t0 = _gallery([_member(0, 'Spirit', 'mask', intelligence: 1)]);
+    // The canal reveal is an ELEMENT verb (any Spirit), so the press still
+    // does the work — it is only its TEXT that now waits to be asked for.
     t0.activateAbility();
     expect(t0.sumpsRead, isTrue);
     expect(t0.canalRevealTier, 0);
+    // ONE press delivers the reading the verb earned. Pressing again would
+    // move on to the room's own reveal, so the assertions share a press.
+    t0.askForRoomHint();
     expect(t0.hintChannel, DungeonHintChannel.insight);
     expect(t0.hintText, contains('deep cuts'));
     expect(t0.hintText, contains('torrent'));
@@ -811,6 +838,7 @@ void main() {
     final t1 = _gallery([_member(0, 'Spirit', 'mask', intelligence: 3)]);
     t1.activateAbility();
     expect(t1.canalRevealTier, 1);
+    t1.askForRoomHint();
     expect(t1.hintText, contains('next'));
 
     // t2 — …and the whole fall, at the water as it stands. Still not the
@@ -818,6 +846,7 @@ void main() {
     final t2 = _gallery([_member(0, 'Spirit', 'mask', intelligence: 5)]);
     t2.activateAbility();
     expect(t2.canalRevealTier, 2);
+    t2.askForRoomHint();
     expect(t2.hintText, contains('whole fall'));
 
     // The forecast rides a timer Intelligence buys; the NAMING does not.
@@ -839,7 +868,9 @@ void main() {
     final game = _gallery([_member(0, 'Ice', 'mask', intelligence: 5)]);
     game.activateAbility();
     expect(game.sumpsRead, isFalse, reason: 'the foresight stays Spirit\'s');
+    game.askForRoomHint();
     expect(game.hintText, contains('LOWEST'));
+    game.askForRoomHint();
     expect(
       game.hintText,
       contains('sill'),
@@ -860,10 +891,9 @@ void main() {
     game.tideAnim = 1.0;
     _driftUntil(game, () => !game.lanternLit, seconds: 90);
     expect(game.progressReadout?.value, 'AGROUND');
-
   });
 
-  test('the doorway states the GOAL and never the method (§5.6)', () {
+  test('walking through a doorway says nothing at all', () {
     final game = _harness([_member(0, 'Water', 'pip')]);
     game.currentRoomId = 'drowned_court';
     final door = game.currentRoom.doors.firstWhere(
@@ -874,16 +904,20 @@ void main() {
       game.update(1 / 60);
     }
     expect(game.currentRoomId, 'ghost_gallery');
-    expect(game.hintChannel, DungeonHintChannel.objective);
-    final objective = game.hintText;
-    expect(objective, contains('sea drain'));
-    for (final leak in const ['sill', 'lowest', 'Ice', 'dam', 'deep']) {
-      expect(
-        objective,
-        isNot(contains(leak)),
-        reason: 'the doorway must not hand over the method ("$leak")',
-      );
-    }
+    // WAS: the doorway announced the room's goal. It no longer announces
+    // anything — arriving somewhere is not a reason to speak, and the old
+    // no-method rule it enforced is moot once the line does not exist.
+    expect(
+      game.hintText,
+      isNull,
+      reason: 'crossing a threshold is not an event worth narrating',
+    );
+    // What the room holds is still available — the player asks for it. Note
+    // the reading IS allowed to teach method (§5.6 always let insight do
+    // that); the no-leak rule belonged to the objective line, which is gone.
+    game.askForRoomHint();
+    expect(game.hintText, isNotNull);
+    expect(game.hintChannel, DungeonHintChannel.insight);
   });
 
   // ── The Leviathan turns the tide (§7 retrofit) ───────────
@@ -917,7 +951,8 @@ void main() {
     expect(
       stands,
       {0, 1, 2},
-      reason: 'the fight is played across ALL THREE stands — the tide rolls, '
+      reason:
+          'the fight is played across ALL THREE stands — the tide rolls, '
           'it does not park',
     );
   });
@@ -1010,12 +1045,11 @@ void main() {
   // at once, silently.
   test('the master valve is element-only: every Water family sets the stand '
       'identically', () {
-    for (final family in const [
-      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
-    ]) {
+    for (final family in const ['pip', 'mane', 'horn', 'mask', 'wing', 'kin']) {
       final game = _harness([_member(0, 'Water', family)]);
-      final valve = game.layout.rooms['tide_works']!.tideValves
-          .firstWhere((v) => v.level == 1);
+      final valve = game.layout.rooms['tide_works']!.tideValves.firstWhere(
+        (v) => v.level == 1,
+      );
       game.currentRoomId = 'tide_works';
       game.creatures.single
         ..position = valve.position
@@ -1082,12 +1116,11 @@ void main() {
 
   test('the moon-pool is element-only, but the recipe keeps its downside', () {
     // Every ICE family freezes a true pool clean and SILENT…
-    for (final family in const [
-      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
-    ]) {
+    for (final family in const ['pip', 'mane', 'horn', 'mask', 'wing', 'kin']) {
       final game = _moonWellAtMidTide(_member(1, 'Ice', family));
-      final pool = game.layout.rooms['moon_well']!.moonPools
-          .firstWhere((p) => p.isTrue);
+      final pool = game.layout.rooms['moon_well']!.moonPools.firstWhere(
+        (p) => p.isTrue,
+      );
       game.creatures[1]
         ..position = pool.position
         ..lastSafe = pool.position;
@@ -1107,8 +1140,9 @@ void main() {
     // …while the Spirit+Water→Ice RECIPE still rouses the brine. That is the
     // braid's cost, not a family penalty.
     final spirit = _moonWellAtMidTide(_member(1, 'Spirit', 'mane'));
-    final pool = spirit.layout.rooms['moon_well']!.moonPools
-        .firstWhere((p) => p.isTrue);
+    final pool = spirit.layout.rooms['moon_well']!.moonPools.firstWhere(
+      (p) => p.isTrue,
+    );
     spirit.creatures[1]
       ..position = pool.position
       ..lastSafe = pool.position;

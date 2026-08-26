@@ -83,7 +83,11 @@ class BrazierTestimony {
 
   /// The wax's drawn height fraction. A pure function of [waxTier] — two
   /// braziers in one tier must be visually IDENTICAL, or the tier leaks rank.
-  double get waxFill => switch (waxTier) { 0 => 0.16, 1 => 0.54, _ => 1.0 };
+  double get waxFill => switch (waxTier) {
+    0 => 0.16,
+    1 => 0.54,
+    _ => 1.0,
+  };
 }
 
 /// The rite's evidence is read to about this precision (radians ≈ 23°) — a
@@ -137,9 +141,8 @@ class AshGardenMove {
   final int bed;
 
   @override
-  String toString() => verb == AshGardenVerb.turnWind
-      ? 'turnWind'
-      : '${verb.name}($bed)';
+  String toString() =>
+      verb == AshGardenVerb.turnWind ? 'turnWind' : '${verb.name}($bed)';
 }
 
 /// The garth's rules, as pure functions over a packed base-5 board (one digit
@@ -408,7 +411,10 @@ class AshGardenRules {
       }
 
       if (allowTurns) {
-        push(b * 4 + ((w + 1) & 3), const AshGardenMove(AshGardenVerb.turnWind, -1));
+        push(
+          b * 4 + ((w + 1) & 3),
+          const AshGardenMove(AshGardenVerb.turnWind, -1),
+        );
       }
       for (var i = 0; i < bedCount; i++) {
         final g = grow(b, i);
@@ -649,9 +655,7 @@ extension CinderCathedral on PlanetDungeonGame {
     // seed sweep). Fall back to the authored order so the rite is never
     // unplayable, evidence and all.
     final authored = [...room.braziers]..sort((a, b) => a.order - b.order);
-    _plantTestimony(room, [
-      for (final b in authored) room.braziers.indexOf(b),
-    ]);
+    _plantTestimony(room, [for (final b in authored) room.braziers.indexOf(b)]);
   }
 
   /// Generate the testimony an [order] would have LEFT BEHIND, and install it.
@@ -676,7 +680,11 @@ extension CinderCathedral on PlanetDungeonGame {
       ..clear()
       ..addAll([
         for (var i = 0; i < order.length; i++)
-          BrazierTestimony(brazierIndex: i, waxTier: tiers[i], sootLean: leans[i]),
+          BrazierTestimony(
+            brazierIndex: i,
+            waxTier: tiers[i],
+            sootLean: leans[i],
+          ),
       ]);
     // ASH: the whole sequence's downwind, quantised to a compass point.
     riteAshDrift = _quantiseDrift(
@@ -699,8 +707,8 @@ extension CinderCathedral on PlanetDungeonGame {
     var best = pool.first;
     var bestD = double.infinity;
     for (final j in pool) {
-      final d = (room.braziers[idx].position - room.braziers[j].position)
-          .distance;
+      final d =
+          (room.braziers[idx].position - room.braziers[j].position).distance;
       if (d < bestD) {
         bestD = d;
         best = j;
@@ -803,7 +811,9 @@ extension CinderCathedral on PlanetDungeonGame {
 
   /// The testimony brazier [index] wears, or null before the roll lands.
   BrazierTestimony? testimonyFor(int index) =>
-      (index >= 0 && index < riteTestimony.length) ? riteTestimony[index] : null;
+      (index >= 0 && index < riteTestimony.length)
+      ? riteTestimony[index]
+      : null;
 
   /// The ONE link a tier-2 reading has drawn out (null = none yet). Read-only,
   /// for tests/diagnostics.
@@ -959,18 +969,12 @@ extension CinderCathedral on PlanetDungeonGame {
       ashGardenRules?.plume(index, gardenWind) ?? const [];
 
   /// The compass letter the crosswind runs toward (readout + prose).
-  String get gardenWindLabel =>
-      const ['N', 'E', 'S', 'W'][gardenWind & 3];
+  String get gardenWindLabel => const ['N', 'E', 'S', 'W'][gardenWind & 3];
 
   /// The unit vector the crosswind runs along, EASED across a quarter turn so
   /// the streaks swing round instead of snapping.
   Offset get gardenWindVector {
-    const dirs = [
-      Offset(0, -1),
-      Offset(1, 0),
-      Offset(0, 1),
-      Offset(-1, 0),
-    ];
+    const dirs = [Offset(0, -1), Offset(1, 0), Offset(0, 1), Offset(-1, 0)];
     final k = Curves.easeInOutCubic.transform(gardenWindSwing.clamp(0.0, 1.0));
     final from = (gardenWindFrom & 3) * pi / 2;
     var delta = (gardenWind & 3) * pi / 2 - from;
@@ -1101,16 +1105,16 @@ extension CinderCathedral on PlanetDungeonGame {
 
   /// Seconds between the flame taking one cell and the next.
 
-
   /// How close a creature must stand to a cell to work it.
-
 
   /// The live field for [room], built from its authored garth on first entry.
   BurnField? burnFieldFor(DungeonRoom room) {
     final g = room.garth;
     if (g == null) return null;
-    final built = burnFields[room.id] ??=
-        BurnField.parse(g.art, coverageGoal: g.coverageGoal);
+    final built = burnFields[room.id] ??= BurnField.parse(
+      g.art,
+      coverageGoal: g.coverageGoal,
+    );
     // Keep the drawn crosswind pointing at the wind the burn actually uses.
     _syncCrosswindTo(built.wind);
     return built;
@@ -1137,11 +1141,11 @@ extension CinderCathedral on PlanetDungeonGame {
   }
 
   String _burnWindName(BurnWind w) => switch (w) {
-        BurnWind.north => 'north',
-        BurnWind.east => 'east',
-        BurnWind.south => 'south',
-        BurnWind.west => 'west',
-      };
+    BurnWind.north => 'north',
+    BurnWind.east => 'east',
+    BurnWind.south => 'south',
+    BurnWind.west => 'west',
+  };
 
   /// Plant / light / swing — the three verbs, element-only at full power.
 
@@ -1190,11 +1194,17 @@ extension CinderCathedral on PlanetDungeonGame {
     switch (a.member.element) {
       case 'Plant':
         if (field.plant(i)) {
-          _setHint(field.at(i) == BurnCell.wetVine
-              ? 'Vine takes in the wet ground — green, and it will never catch'
-              : 'Vine takes in the soil');
-          _spawnAlchemyBurst(at,
-              producedElement: 'Plant', particleCount: 10, intensity: 0.5);
+          _setHint(
+            field.at(i) == BurnCell.wetVine
+                ? 'Vine takes in the wet ground — green, and it will never catch'
+                : 'Vine takes in the soil',
+          );
+          _spawnAlchemyBurst(
+            at,
+            producedElement: 'Plant',
+            particleCount: 10,
+            intensity: 0.5,
+          );
           onChanged();
           return true;
         }
@@ -1213,11 +1223,13 @@ extension CinderCathedral on PlanetDungeonGame {
           burnBeat = _kBurnBeat;
           burnFlash = 0.35;
           _setHint('The vine catches — it runs with the wind', 3.0);
-          _spawnAlchemyBurst(at,
-              producedElement: 'Fire',
-              reagentElements: const ['Plant'],
-              particleCount: 20,
-              intensity: 1.0);
+          _spawnAlchemyBurst(
+            at,
+            producedElement: 'Fire',
+            reagentElements: const ['Plant'],
+            particleCount: 20,
+            intensity: 1.0,
+          );
           onChanged();
           return true;
         }
@@ -1267,7 +1279,7 @@ extension CinderCathedral on PlanetDungeonGame {
           field.canStillFill
               ? 'The fire is out. Plant again and light a fresh run.'
               : 'The fire is out and the garth is too spent to fill the pool '
-                  '— begin the chamber again.',
+                    '— begin the chamber again.',
           3.4,
         );
       case BurnStep.idle:
@@ -1275,7 +1287,6 @@ extension CinderCathedral on PlanetDungeonGame {
     }
     onChanged();
   }
-
 
   void _updateCathedral(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isCathedral) return;
@@ -1289,8 +1300,10 @@ extension CinderCathedral on PlanetDungeonGame {
     // eaten by its own fire, and a re-declared censer run swings over. Three
     // scalar eases — no allocation, no per-frame geometry.
     if (_testimonyMarked && _testimonyMark < 1.0) {
-      _testimonyMark = (_testimonyMark + dt / _kTestimonyMarkSeconds)
-          .clamp(0.0, 1.0);
+      _testimonyMark = (_testimonyMark + dt / _kTestimonyMarkSeconds).clamp(
+        0.0,
+        1.0,
+      );
     }
     if (_testimonyFade.isNotEmpty) {
       for (final k in _testimonyFade.keys.toList()) {
@@ -1499,9 +1512,11 @@ extension CinderCathedral on PlanetDungeonGame {
         _setHint('The four corners take — and the soot gives up a station');
       } else {
         final left = room.muralTorches.length - litMuralTorches.length;
-        _setHint(left == 1
-            ? 'It catches — one corner still dark'
-            : 'It catches — $left corners still dark');
+        _setHint(
+          left == 1
+              ? 'It catches — one corner still dark'
+              : 'It catches — $left corners still dark',
+        );
       }
       return true;
     }
@@ -1860,8 +1875,10 @@ extension CinderCathedral on PlanetDungeonGame {
         particleCount: 18,
         intensity: 0.9,
       );
-      _setHint('The censers swing round — the vesper will go by the '
-          '${route.name.toLowerCase()}');
+      _setHint(
+        'The censers swing round — the vesper will go by the '
+        '${route.name.toLowerCase()}',
+      );
       onChanged();
       return true;
     }
@@ -2016,11 +2033,7 @@ extension CinderCathedral on PlanetDungeonGame {
   /// a pillar of flame where it stood. The lull silences the whole ring and
   /// rewinds the rite to its first fire, so the pattern always reads from the
   /// top. Raids are exempt — the generated arena has no choir to remember.
-  void _applySimurghTelegraph(
-    DungeonCreature a,
-    DungeonRoom room,
-    double dt,
-  ) {
+  void _applySimurghTelegraph(DungeonCreature a, DungeonRoom room, double dt) {
     final g = room.guardian;
     // Raids used to be excluded here. The spots lookup already returns empty
     // when there are no braziers, so that guard was redundant once the arena
@@ -2236,7 +2249,8 @@ extension CinderCathedral on PlanetDungeonGame {
     if (held != null) return held;
     final n = riteOrder.length;
     if (n < 2) return 0;
-    final pick = 1 + (riteOrder.first * 7 + riteOrder.last) % (n - 2).clamp(1, n);
+    final pick =
+        1 + (riteOrder.first * 7 + riteOrder.last) % (n - 2).clamp(1, n);
     return pick.clamp(1, n - 2);
   }
 
@@ -2510,9 +2524,9 @@ extension CinderCathedral on PlanetDungeonGame {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFFF8A50).withValues(
-        alpha: 0.10 + 0.05 * sin(_time * 1.7),
-      );
+      ..color = const Color(
+        0xFFFF8A50,
+      ).withValues(alpha: 0.10 + 0.05 * sin(_time * 1.7));
     final v1 = Path()
       ..moveTo(b.left + 30, b.bottom - 60)
       ..quadraticBezierTo(
@@ -2682,7 +2696,8 @@ extension CinderCathedral on PlanetDungeonGame {
     if (k < 1.0) {
       canvas.drawOval(
         Rect.fromCenter(center: c + const Offset(0, 34), width: 64, height: 18),
-        Paint()..color = const Color(0xFF3A332C).withValues(alpha: 0.7 * (1 - k)),
+        Paint()
+          ..color = const Color(0xFF3A332C).withValues(alpha: 0.7 * (1 - k)),
       );
     }
     if (k <= 0.0) {
@@ -2693,9 +2708,9 @@ extension CinderCathedral on PlanetDungeonGame {
           _fx.mote!,
           c + const Offset(8, 30),
           5,
-          const Color(0xFFFF8A50).withValues(
-            alpha: 0.25 + 0.18 * (0.5 + 0.5 * sin(_time * 2.3)),
-          ),
+          const Color(
+            0xFFFF8A50,
+          ).withValues(alpha: 0.25 + 0.18 * (0.5 + 0.5 * sin(_time * 2.3))),
         );
       }
     } else {
@@ -2714,8 +2729,12 @@ extension CinderCathedral on PlanetDungeonGame {
       _drawFlame(canvas, c + const Offset(0, 30), 52 * kindle, phase: 0.4);
       final k2 = ((k - 0.25) / 0.75).clamp(0.0, 1.0);
       final k3 = ((k - 0.5) / 0.5).clamp(0.0, 1.0);
-      if (k2 > 0) _drawFlame(canvas, c + const Offset(-20, 34), 30 * k2, phase: 2.1);
-      if (k3 > 0) _drawFlame(canvas, c + const Offset(18, 34), 26 * k3, phase: 3.6);
+      if (k2 > 0) {
+        _drawFlame(canvas, c + const Offset(-20, 34), 30 * k2, phase: 2.1);
+      }
+      if (k3 > 0) {
+        _drawFlame(canvas, c + const Offset(18, 34), 26 * k3, phase: 3.6);
+      }
     }
     // Flanking columns by the inner doors.
     final col = Paint()
@@ -2782,7 +2801,12 @@ extension CinderCathedral on PlanetDungeonGame {
       if (_fx.ready && earnedStar) {
         drawGlow(canvas, _fx.glow!, p, 16, col2.withValues(alpha: 0.35));
       }
-      _drawStarGlyph(canvas, p, 7, col2.withValues(alpha: earnedStar ? 0.95 : 0.5));
+      _drawStarGlyph(
+        canvas,
+        p,
+        7,
+        col2.withValues(alpha: earnedStar ? 0.95 : 0.5),
+      );
     }
   }
 
@@ -2854,9 +2878,7 @@ extension CinderCathedral on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3
-          ..color = lit
-              ? const Color(0xFF8A6A3C)
-              : const Color(0xFF4A3E30),
+          ..color = lit ? const Color(0xFF8A6A3C) : const Color(0xFF4A3E30),
       );
 
       if (!lit) {
@@ -2877,8 +2899,9 @@ extension CinderCathedral on PlanetDungeonGame {
           p + const Offset(0, -6),
           g * 13.0,
           Paint()
-            ..color = const Color(0xFFFFB46B)
-                .withValues(alpha: 0.05 * (4 - g) * (0.85 + 0.15 * sin(t))),
+            ..color = const Color(
+              0xFFFFB46B,
+            ).withValues(alpha: 0.05 * (4 - g) * (0.85 + 0.15 * sin(t))),
         );
       }
       for (var k = 0; k < 3; k++) {
@@ -2966,7 +2989,8 @@ extension CinderCathedral on PlanetDungeonGame {
       // filled and burning. No words, no arrows, no order.
       final named = riteBrazierAt(rank);
       for (var i = 0; i < choir.braziers.length; i++) {
-        final q = p + (choir.braziers[i].position - choir.bounds.center) * 0.055;
+        final q =
+            p + (choir.braziers[i].position - choir.bounds.center) * 0.055;
         final isNamed = i == named;
         canvas.drawCircle(
           q,
@@ -2974,9 +2998,9 @@ extension CinderCathedral on PlanetDungeonGame {
           Paint()
             ..style = isNamed ? PaintingStyle.fill : PaintingStyle.stroke
             ..strokeWidth = 1.2
-            ..color = const Color(0xFFE4C16A).withValues(
-              alpha: isNamed ? 0.95 : 0.34,
-            ),
+            ..color = const Color(
+              0xFFE4C16A,
+            ).withValues(alpha: isNamed ? 0.95 : 0.34),
         );
         if (isNamed) {
           _drawFlame(
@@ -3100,9 +3124,9 @@ extension CinderCathedral on PlanetDungeonGame {
           _fx.mote!,
           Offset(pos.dx + tp.width * reveal, pos.dy + tp.height * 0.55),
           5,
-          const Color(0xFFFFB46B).withValues(
-            alpha: 0.55 + 0.25 * sin(_time * 9),
-          ),
+          const Color(
+            0xFFFFB46B,
+          ).withValues(alpha: 0.55 + 0.25 * sin(_time * 9)),
         );
       }
     }
@@ -3153,9 +3177,9 @@ extension CinderCathedral on PlanetDungeonGame {
             _fx.glow!,
             _kEpitaphTextAnchor + const Offset(0, _kEpitaphLineHeight),
             120,
-            const Color(0xFFFF8A50).withValues(
-              alpha: 0.10 + 0.05 * sin(_time * 2.4),
-            ),
+            const Color(
+              0xFFFF8A50,
+            ).withValues(alpha: 0.10 + 0.05 * sin(_time * 2.4)),
           );
         }
         _drawFlame(
@@ -3228,9 +3252,9 @@ extension CinderCathedral on PlanetDungeonGame {
           _fx.glow!,
           p - const Offset(0, 18),
           52,
-          const Color(0xFFFF8A50).withValues(
-            alpha: 0.16 + 0.06 * sin(_time * 3.1),
-          ),
+          const Color(
+            0xFFFF8A50,
+          ).withValues(alpha: 0.16 + 0.06 * sin(_time * 3.1)),
         );
       }
     }
@@ -3380,7 +3404,9 @@ extension CinderCathedral on PlanetDungeonGame {
     final p = room.braziers[i].position + const Offset(0, 20);
     final mark = _testimonyMark;
     final soot = Paint()
-      ..color = const Color(0xFF15100C).withValues(alpha: (0.62 + 0.16 * mark) * alive);
+      ..color = const Color(
+        0xFF15100C,
+      ).withValues(alpha: (0.62 + 0.16 * mark) * alive);
     final lean = t.sootLean;
 
     if (lean == null) {
@@ -3390,18 +3416,18 @@ extension CinderCathedral on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 7
-          ..color = const Color(0xFF15100C).withValues(
-            alpha: (0.52 + 0.18 * mark) * alive,
-          ),
+          ..color = const Color(
+            0xFF15100C,
+          ).withValues(alpha: (0.52 + 0.18 * mark) * alive),
       );
       canvas.drawOval(
         Rect.fromCenter(center: p, width: 40, height: 19),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3
-          ..color = const Color(0xFF2A2018).withValues(
-            alpha: (0.40 + 0.16 * mark) * alive,
-          ),
+          ..color = const Color(
+            0xFF2A2018,
+          ).withValues(alpha: (0.40 + 0.16 * mark) * alive),
       );
     } else {
       // A LEANING SHADOW — shoved out along the lean, fanning as it goes.
@@ -3416,9 +3442,9 @@ extension CinderCathedral on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.2
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF241A13).withValues(
-          alpha: (0.50 + 0.20 * mark) * alive,
-        );
+        ..color = const Color(
+          0xFF241A13,
+        ).withValues(alpha: (0.50 + 0.20 * mark) * alive);
       for (final fan in const [-0.30, 0.0, 0.30]) {
         canvas.drawLine(
           Offset(cos(fan), sin(fan)) * 24,
@@ -3441,9 +3467,9 @@ extension CinderCathedral on PlanetDungeonGame {
           ..lineTo(base.dx + d.dx * 15, base.dy + d.dy * 15)
           ..close(),
         Paint()
-          ..color = const Color(0xFF8A7358).withValues(
-            alpha: (0.30 + 0.18 * mark) * alive,
-          ),
+          ..color = const Color(
+            0xFF8A7358,
+          ).withValues(alpha: (0.30 + 0.18 * mark) * alive),
       );
     }
 
@@ -3453,7 +3479,9 @@ extension CinderCathedral on PlanetDungeonGame {
       final nib = Paint()
         ..strokeWidth = 1.6
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFE4C16A).withValues(alpha: 0.42 * mark * alive);
+        ..color = const Color(
+          0xFFE4C16A,
+        ).withValues(alpha: 0.42 * mark * alive);
       canvas.drawLine(caret + const Offset(-5, 5), caret, nib);
       canvas.drawLine(caret, caret + const Offset(5, 5), nib);
     }
@@ -3473,9 +3501,9 @@ extension CinderCathedral on PlanetDungeonGame {
     final h = 6.0 + 26.0 * t.waxFill; // 10 · 20 · 32 px of set tallow
     final mark = _testimonyMark;
     final tallow = Paint()
-      ..color = const Color(0xFFD9C7A2).withValues(
-        alpha: (0.62 + 0.16 * mark) * alive,
-      );
+      ..color = const Color(
+        0xFFD9C7A2,
+      ).withValues(alpha: (0.62 + 0.16 * mark) * alive);
     // The collar of wax banked round the bowl's foot…
     final body = Path()
       ..moveTo(p.dx - 15, p.dy + 22)
@@ -3490,9 +3518,9 @@ extension CinderCathedral on PlanetDungeonGame {
       Offset(p.dx + 12, p.dy + 21 - h),
       Paint()
         ..strokeWidth = 1.6
-        ..color = const Color(0xFFF2E6C8).withValues(
-          alpha: (0.55 + 0.25 * mark) * alive,
-        ),
+        ..color = const Color(
+          0xFFF2E6C8,
+        ).withValues(alpha: (0.55 + 0.25 * mark) * alive),
     );
     // …and the drips that got that far down before they set.
     final drip = Paint()
@@ -3689,8 +3717,9 @@ extension CinderCathedral on PlanetDungeonGame {
           Paint()
             ..strokeCap = StrokeCap.round
             ..strokeWidth = 2.6 - k * 0.5
-            ..color = const Color(0xFFBFAE97)
-                .withValues(alpha: (0.20 - k * 0.045) * breathe),
+            ..color = const Color(
+              0xFFBFAE97,
+            ).withValues(alpha: (0.20 - k * 0.045) * breathe),
         );
       }
     }
@@ -3703,9 +3732,8 @@ extension CinderCathedral on PlanetDungeonGame {
       final seen = <double>{};
       for (final bed in room.vineBeds) {
         // One arrow per lane: key by the across-axis coordinate.
-        final key =
-            (bed.position.dx * across.dx + bed.position.dy * across.dy)
-                .roundToDouble();
+        final key = (bed.position.dx * across.dx + bed.position.dy * across.dy)
+            .roundToDouble();
         if (!seen.add(key)) continue;
         final from = bed.position - dir * 150;
         final to = bed.position + dir * 190;
@@ -3724,18 +3752,22 @@ extension CinderCathedral on PlanetDungeonGame {
           final wing = 7.0;
           canvas.drawPath(
             Path()
-              ..moveTo((at - dir * 7 + across * wing).dx,
-                  (at - dir * 7 + across * wing).dy)
+              ..moveTo(
+                (at - dir * 7 + across * wing).dx,
+                (at - dir * 7 + across * wing).dy,
+              )
               ..lineTo(at.dx, at.dy)
-              ..lineTo((at - dir * 7 - across * wing).dx,
-                  (at - dir * 7 - across * wing).dy),
+              ..lineTo(
+                (at - dir * 7 - across * wing).dx,
+                (at - dir * 7 - across * wing).dy,
+              ),
             Paint()
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.6
               ..strokeCap = StrokeCap.round
-              ..color = const Color(0xFFC4A35A).withValues(
-                alpha: 0.30 * sin(march * pi).clamp(0.0, 1.0),
-              ),
+              ..color = const Color(
+                0xFFC4A35A,
+              ).withValues(alpha: 0.30 * sin(march * pi).clamp(0.0, 1.0)),
           );
         }
       }
@@ -3778,17 +3810,19 @@ extension CinderCathedral on PlanetDungeonGame {
     canvas.drawPath(
       Path()
         ..moveTo(head.dx, head.dy)
-        ..lineTo((head - dir * 14 + across * 8).dx, (head - dir * 14 + across * 8).dy)
-        ..lineTo((head - dir * 14 - across * 8).dx, (head - dir * 14 - across * 8).dy)
+        ..lineTo(
+          (head - dir * 14 + across * 8).dx,
+          (head - dir * 14 + across * 8).dy,
+        )
+        ..lineTo(
+          (head - dir * 14 - across * 8).dx,
+          (head - dir * 14 - across * 8).dy,
+        )
         ..close(),
       arrow,
     );
     // The tail feather, so the quarter reads at a glance.
-    canvas.drawLine(
-      c - dir * 26 + across * 9,
-      c - dir * 26 - across * 9,
-      iron,
-    );
+    canvas.drawLine(c - dir * 26 + across * 9, c - dir * 26 - across * 9, iron);
     if (_fx.ready && gardenWindSwing < 1.0) {
       drawGlow(
         canvas,
@@ -3816,10 +3850,18 @@ extension CinderCathedral on PlanetDungeonGame {
       final base = Offset(x, p.dy + 9);
       Path tongue(double w, double hh) => Path()
         ..moveTo(base.dx - w, base.dy)
-        ..quadraticBezierTo(base.dx - w * 0.7, base.dy - hh * 0.62, base.dx,
-            base.dy - hh)
         ..quadraticBezierTo(
-            base.dx + w * 0.7, base.dy - hh * 0.62, base.dx + w, base.dy)
+          base.dx - w * 0.7,
+          base.dy - hh * 0.62,
+          base.dx,
+          base.dy - hh,
+        )
+        ..quadraticBezierTo(
+          base.dx + w * 0.7,
+          base.dy - hh * 0.62,
+          base.dx + w,
+          base.dy,
+        )
         ..close();
       // Outer body, then a brighter heart inside it.
       canvas.drawPath(
@@ -3831,8 +3873,13 @@ extension CinderCathedral on PlanetDungeonGame {
         Paint()..color = const Color(0xFFFFDDA0).withValues(alpha: 0.85),
       );
       if (_fx.ready) {
-        drawGlow(canvas, _fx.glow!, base - Offset(0, h * 0.45), 13,
-            const Color(0xFFFFB25A).withValues(alpha: 0.26));
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          base - Offset(0, h * 0.45),
+          13,
+          const Color(0xFFFFB25A).withValues(alpha: 0.26),
+        );
       }
     }
   }
@@ -3840,7 +3887,9 @@ extension CinderCathedral on PlanetDungeonGame {
   void _drawPlumeForecast(Canvas canvas, DungeonRoom room) {
     final rules = ashGardenRules;
     if (rules == null) return;
-    final active = creatures.isNotEmpty ? creatures[activeIndex].position : null;
+    final active = creatures.isNotEmpty
+        ? creatures[activeIndex].position
+        : null;
     for (var i = 0; i < room.vineBeds.length; i++) {
       if (bedStateAt(i) != AshBedState.green) continue;
       final from = room.vineBeds[i].position;
@@ -3913,7 +3962,12 @@ extension CinderCathedral on PlanetDungeonGame {
   ///   · wants the drift → pale ash banked, lying with the live wind
   ///   · wants the brand → the bed shown burnt, with cold char veins
   ///   · must stay swept → rake lines combed across bare soil
-  void _drawGroove(Canvas canvas, Offset p, GrooveDemand demand, bool sitsTrue) {
+  void _drawGroove(
+    Canvas canvas,
+    Offset p,
+    GrooveDemand demand,
+    bool sitsTrue,
+  ) {
     // An answered groove has stopped asking: the flame and the real material
     // in the bed say everything, and a ghost under them only muddies it.
     if (sitsTrue) return;
@@ -3930,8 +3984,9 @@ extension CinderCathedral on PlanetDungeonGame {
               _fx.puff!,
               p + off,
               54 - k.abs() * 10,
-              const Color(0xFFCFC3B0)
-                  .withValues(alpha: (0.15 - k.abs() * 0.04) * ghost * 2.2),
+              const Color(
+                0xFFCFC3B0,
+              ).withValues(alpha: (0.15 - k.abs() * 0.04) * ghost * 2.2),
             );
           }
         }
@@ -3949,9 +4004,15 @@ extension CinderCathedral on PlanetDungeonGame {
           ..strokeCap = StrokeCap.round
           ..color = const Color(0xFF7A6656).withValues(alpha: ghost * 1.5);
         canvas.drawLine(
-            p + const Offset(-26, 5), p + const Offset(-4, -10), vein);
+          p + const Offset(-26, 5),
+          p + const Offset(-4, -10),
+          vein,
+        );
         canvas.drawLine(
-            p + const Offset(-4, -10), p + const Offset(20, 7), vein);
+          p + const Offset(-4, -10),
+          p + const Offset(20, 7),
+          vein,
+        );
         canvas.drawLine(p + const Offset(2, -6), p + const Offset(6, 12), vein);
       case GrooveDemand.clean:
         final rake = Paint()
@@ -3982,14 +4043,12 @@ extension CinderCathedral on PlanetDungeonGame {
 
     for (var i = 0; i < g.cols * g.rows; i++) {
       final c = garthCentre(room, g, i);
-      final plot = Rect.fromCenter(
-          center: c, width: cw - 8, height: ch - 8);
+      final plot = Rect.fromCenter(center: c, width: cw - 8, height: ch - 8);
       final rr = RRect.fromRectAndRadius(plot, const Radius.circular(7));
       switch (field.at(i)) {
         case BurnCell.stone:
           // Fallen column: a pale block, obviously not soil.
-          canvas.drawRRect(
-              rr, Paint()..color = const Color(0xFF4A4238));
+          canvas.drawRRect(rr, Paint()..color = const Color(0xFF4A4238));
           canvas.drawRRect(
             rr,
             Paint()
@@ -4009,8 +4068,7 @@ extension CinderCathedral on PlanetDungeonGame {
         case BurnCell.wet:
         case BurnCell.wetVine:
           // The seep: dark, wet, with a sheen. Vine here reads green and sodden.
-          canvas.drawRRect(
-              rr, Paint()..color = const Color(0xFF16232A));
+          canvas.drawRRect(rr, Paint()..color = const Color(0xFF16232A));
           canvas.drawRRect(
             rr,
             Paint()
@@ -4019,27 +4077,34 @@ extension CinderCathedral on PlanetDungeonGame {
               ..color = const Color(0xFF3E6B7A).withValues(alpha: 0.8),
           );
           if (_fx.ready) {
-            drawGlow(canvas, _fx.glow!, c, cw * 0.42,
-                const Color(0xFF5FA8C0).withValues(alpha: 0.10));
+            drawGlow(
+              canvas,
+              _fx.glow!,
+              c,
+              cw * 0.42,
+              const Color(0xFF5FA8C0).withValues(alpha: 0.10),
+            );
           }
           if (field.at(i) == BurnCell.wetVine) {
             _drawVineTuft(canvas, c, cw, const Color(0xFF4E7F5E));
           }
         case BurnCell.ash:
           // Spent: pale ash over black, and nothing will take here again.
-          canvas.drawRRect(
-              rr, Paint()..color = const Color(0xFF14100D));
+          canvas.drawRRect(rr, Paint()..color = const Color(0xFF14100D));
           if (_fx.ready) {
-            drawPuff(canvas, _fx.puff!, c, cw * 0.8,
-                const Color(0xFF8A8078).withValues(alpha: 0.16));
+            drawPuff(
+              canvas,
+              _fx.puff!,
+              c,
+              cw * 0.8,
+              const Color(0xFF8A8078).withValues(alpha: 0.16),
+            );
           }
         case BurnCell.vine:
-          canvas.drawRRect(
-              rr, Paint()..color = const Color(0xFF1A1710));
+          canvas.drawRRect(rr, Paint()..color = const Color(0xFF1A1710));
           _drawVineTuft(canvas, c, cw, const Color(0xFF7FC169));
         case BurnCell.soil:
-          canvas.drawRRect(
-              rr, Paint()..color = const Color(0xFF191309));
+          canvas.drawRRect(rr, Paint()..color = const Color(0xFF191309));
           // Tilled rows, so bare ground reads as PLANTABLE.
           for (var k = -1; k <= 1; k++) {
             canvas.drawLine(
@@ -4067,7 +4132,8 @@ extension CinderCathedral on PlanetDungeonGame {
       final head = dir.dx < 0 || dir.dy < 0
           ? Offset(
               dir.dx == 0 ? at.dx : lane.right - (at.dx - lane.left),
-              dir.dy == 0 ? at.dy : lane.bottom - (at.dy - lane.top))
+              dir.dy == 0 ? at.dy : lane.bottom - (at.dy - lane.top),
+            )
           : at;
       canvas.drawLine(
         head - dir * 16,
@@ -4075,8 +4141,9 @@ extension CinderCathedral on PlanetDungeonGame {
         Paint()
           ..strokeCap = StrokeCap.round
           ..strokeWidth = 2.0
-          ..color = const Color(0xFFC4A35A)
-              .withValues(alpha: 0.22 * sin(t * pi).clamp(0.0, 1.0)),
+          ..color = const Color(
+            0xFFC4A35A,
+          ).withValues(alpha: 0.22 * sin(t * pi).clamp(0.0, 1.0)),
       );
     }
 
@@ -4092,33 +4159,40 @@ extension CinderCathedral on PlanetDungeonGame {
           _fx.glow!,
           at,
           (smouldering ? 34.0 : 46.0) + 10 * burnFlash,
-          (smouldering
-                  ? const Color(0xFFB4542A)
-                  : const Color(0xFFFF9A3C))
+          (smouldering ? const Color(0xFFB4542A) : const Color(0xFFFF9A3C))
               .withValues(alpha: smouldering ? 0.26 : 0.38),
         );
       }
       // Tongues, taller and brighter the closer the next beat is.
       for (var i = 0; i < 3; i++) {
         final ph = _time * 4.0 + i * 2.1;
-        final hgt = (smouldering ? 10.0 : 20.0) * (0.7 + 0.5 * beat) +
-            5.0 * sin(ph);
+        final hgt =
+            (smouldering ? 10.0 : 20.0) * (0.7 + 0.5 * beat) + 5.0 * sin(ph);
         final x = at.dx + (i - 1) * 9.0 + sin(ph * 0.8) * 2.0;
         final base = Offset(x, at.dy + 10);
         Path tongue(double w, double hh) => Path()
           ..moveTo(base.dx - w, base.dy)
           ..quadraticBezierTo(
-              base.dx - w * 0.7, base.dy - hh * 0.6, base.dx, base.dy - hh)
+            base.dx - w * 0.7,
+            base.dy - hh * 0.6,
+            base.dx,
+            base.dy - hh,
+          )
           ..quadraticBezierTo(
-              base.dx + w * 0.7, base.dy - hh * 0.6, base.dx + w, base.dy)
+            base.dx + w * 0.7,
+            base.dy - hh * 0.6,
+            base.dx + w,
+            base.dy,
+          )
           ..close();
         canvas.drawPath(
           tongue(5.0, hgt),
           Paint()
-            ..color = (smouldering
-                    ? const Color(0xFF8A4520)
-                    : const Color(0xFFE2701F))
-                .withValues(alpha: 0.75),
+            ..color =
+                (smouldering
+                        ? const Color(0xFF8A4520)
+                        : const Color(0xFFE2701F))
+                    .withValues(alpha: 0.75),
         );
         canvas.drawPath(
           tongue(2.6, hgt * 0.6),
@@ -4138,10 +4212,9 @@ extension CinderCathedral on PlanetDungeonGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2.2
-            ..color = (takes
-                    ? const Color(0xFFFFB25A)
-                    : const Color(0xFF7A6656))
-                .withValues(alpha: 0.30 + 0.35 * beat),
+            ..color =
+                (takes ? const Color(0xFFFFB25A) : const Color(0xFF7A6656))
+                    .withValues(alpha: 0.30 + 0.35 * beat),
         );
       }
     }
@@ -4162,7 +4235,11 @@ extension CinderCathedral on PlanetDungeonGame {
         Path()
           ..moveTo(base.dx, base.dy)
           ..quadraticBezierTo(
-              base.dx + sway, base.dy - 12, base.dx + sway * 1.6, base.dy - 22),
+            base.dx + sway,
+            base.dy - 12,
+            base.dx + sway * 1.6,
+            base.dy - 22,
+          ),
         stem,
       );
     }
@@ -4186,15 +4263,19 @@ extension CinderCathedral on PlanetDungeonGame {
       canvas.drawRRect(
         RRect.fromRectAndRadius(lit, const Radius.circular(9)),
         Paint()
-          ..shader = ui.Gradient.linear(
-            lit.topCenter,
-            lit.bottomCenter,
-            [const Color(0xFFFFC46A), const Color(0xFFB4401A)],
-          ),
+          ..shader = ui.Gradient.linear(lit.topCenter, lit.bottomCenter, [
+            const Color(0xFFFFC46A),
+            const Color(0xFFB4401A),
+          ]),
       );
       if (_fx.ready) {
-        drawGlow(canvas, _fx.glow!, lit.topCenter, 40,
-            const Color(0xFFFF9A3C).withValues(alpha: 0.24 + 0.20 * fill));
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          lit.topCenter,
+          40,
+          const Color(0xFFFF9A3C).withValues(alpha: 0.24 + 0.20 * fill),
+        );
       }
     }
     canvas.drawRRect(
@@ -4210,10 +4291,11 @@ extension CinderCathedral on PlanetDungeonGame {
       Offset(basin.right + 6, basin.top + 6),
       Paint()
         ..strokeWidth = 2
-        ..color = const Color(0xFFE4C16A).withValues(alpha: fill >= 1 ? 1 : 0.5),
+        ..color = const Color(
+          0xFFE4C16A,
+        ).withValues(alpha: fill >= 1 ? 1 : 0.5),
     );
   }
-
 
   void _drawVineBeds(Canvas canvas, DungeonRoom room) {
     final rules = ashGardenRules;
@@ -4315,9 +4397,10 @@ extension CinderCathedral on PlanetDungeonGame {
             canvas.drawCircle(
               Offset(p.dx + ox + 6 + sway, p.dy - h),
               3 * (0.4 + 0.6 * grown),
-              Paint()..color = const Color(
-                0xFF8FCF6A,
-              ).withValues(alpha: 0.5 + 0.45 * grown),
+              Paint()
+                ..color = const Color(
+                  0xFF8FCF6A,
+                ).withValues(alpha: 0.5 + 0.45 * grown),
             );
           }
         case AshBedState.ash:
@@ -4336,8 +4419,9 @@ extension CinderCathedral on PlanetDungeonGame {
                 _fx.puff!,
                 p + off + dir * (s.abs() * 4.0),
                 62 - s.abs() * 12,
-                const Color(0xFFCFC3B0)
-                    .withValues(alpha: (0.26 - s.abs() * 0.06) * land),
+                const Color(
+                  0xFFCFC3B0,
+                ).withValues(alpha: (0.26 - s.abs() * 0.06) * land),
               );
             }
           }
@@ -4349,9 +4433,9 @@ extension CinderCathedral on PlanetDungeonGame {
           final crack = Paint()
             ..strokeWidth = 1.6
             ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFF6B5A4E).withValues(
-              alpha: 0.42 + 0.08 * sin(_time * 0.7 + p.dx),
-            );
+            ..color = const Color(
+              0xFF6B5A4E,
+            ).withValues(alpha: 0.42 + 0.08 * sin(_time * 0.7 + p.dx));
           canvas.drawLine(
             p + const Offset(-34, 6),
             p + const Offset(-6, -14),
@@ -4489,7 +4573,12 @@ extension CinderCathedral on PlanetDungeonGame {
     final bell = Path()
       ..moveTo(c.dx - r * 0.9, c.dy + r * 0.7)
       ..quadraticBezierTo(c.dx - r * 0.85, c.dy - r * 0.7, c.dx, c.dy - r)
-      ..quadraticBezierTo(c.dx + r * 0.85, c.dy - r * 0.7, c.dx + r * 0.9, c.dy + r * 0.7)
+      ..quadraticBezierTo(
+        c.dx + r * 0.85,
+        c.dy - r * 0.7,
+        c.dx + r * 0.9,
+        c.dy + r * 0.7,
+      )
       ..close();
     canvas.drawPath(
       bell,
@@ -4517,9 +4606,9 @@ extension CinderCathedral on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFC4A35A).withValues(
-          alpha: chosen ? 0.0 : 0.13,
-        );
+        ..color = const Color(
+          0xFFC4A35A,
+        ).withValues(alpha: chosen ? 0.0 : 0.13);
       if (!chosen) {
         for (final chain in room.incenseChains) {
           final nodes = route.chainNodes[chain.id] ?? chain.nodes;
@@ -4540,7 +4629,11 @@ extension CinderCathedral on PlanetDungeonGame {
         ..color = (chosen ? const Color(0xFFC4A35A) : const Color(0xFF4A382C))
             .withValues(alpha: 0.85);
       canvas.drawLine(p + const Offset(0, 26), p + const Offset(0, -18), iron);
-      canvas.drawLine(p + const Offset(-16, -14), p + const Offset(16, -14), iron);
+      canvas.drawLine(
+        p + const Offset(-16, -14),
+        p + const Offset(16, -14),
+        iron,
+      );
       for (final dx in const [-14.0, 0.0, 14.0]) {
         canvas.drawArc(
           Rect.fromCircle(center: p + Offset(dx, -2), radius: 7),
@@ -4552,7 +4645,9 @@ extension CinderCathedral on PlanetDungeonGame {
       }
       if (chosen) {
         // The declared run keeps a live coal, and the swing settles in eased.
-        final swing = Curves.easeOutCubic.transform(_routeSwapT.clamp(0.0, 1.0));
+        final swing = Curves.easeOutCubic.transform(
+          _routeSwapT.clamp(0.0, 1.0),
+        );
         _drawFlame(canvas, p + const Offset(0, 4), 8 + 10 * swing, phase: 2.4);
         if (_fx.ready) {
           drawGlow(
@@ -4660,9 +4755,9 @@ extension CinderCathedral on PlanetDungeonGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.6
-            ..color = const Color(0xFFFFD27A).withValues(
-              alpha: (0.5 * (1 - t)).clamp(0.0, 0.5),
-            ),
+            ..color = const Color(
+              0xFFFFD27A,
+            ).withValues(alpha: (0.5 * (1 - t)).clamp(0.0, 0.5)),
         );
       }
       // The live flame, crawling.
@@ -4689,7 +4784,11 @@ extension CinderCathedral on PlanetDungeonGame {
       ..color = const Color(0xFF74613A).withValues(alpha: 0.7);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: c + const Offset(0, 16), width: 190, height: 96),
+        Rect.fromCenter(
+          center: c + const Offset(0, 16),
+          width: 190,
+          height: 96,
+        ),
         const Radius.circular(14),
       ),
       stone,
@@ -4808,7 +4907,9 @@ extension CinderCathedral on PlanetDungeonGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.6 + 1.6 * u
-            ..color = const Color(0xFFFF8A50).withValues(alpha: 0.16 + 0.30 * u),
+            ..color = const Color(
+              0xFFFF8A50,
+            ).withValues(alpha: 0.16 + 0.30 * u),
         );
         if (_fx.ready) {
           drawGlow(
@@ -4821,8 +4922,10 @@ extension CinderCathedral on PlanetDungeonGame {
         }
       } else {
         // THE PILLAR — black-flame fire standing where the warning stood.
-        final u = ((t - _kTelegraphWindup) / (1 - _kTelegraphWindup))
-            .clamp(0.0, 1.0);
+        final u = ((t - _kTelegraphWindup) / (1 - _kTelegraphWindup)).clamp(
+          0.0,
+          1.0,
+        );
         final fade = 1.0 - u * u;
         canvas.drawCircle(
           p,
@@ -4913,9 +5016,9 @@ extension CinderCathedral on PlanetDungeonGame {
           _fx.mote!,
           p,
           4.5,
-          const Color(0xFFFFB46B).withValues(
-            alpha: 0.18 + 0.12 * (0.5 + 0.5 * sin(_time * 3 + i)),
-          ),
+          const Color(
+            0xFFFFB46B,
+          ).withValues(alpha: 0.18 + 0.12 * (0.5 + 0.5 * sin(_time * 3 + i))),
         );
       }
     }

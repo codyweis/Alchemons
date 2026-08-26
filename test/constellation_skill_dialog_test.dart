@@ -165,8 +165,9 @@ void main() {
     testWidgets('are a checklist showing which ones you are missing', (
       tester,
     ) async {
-      final real = ConstellationCatalog.allSkills
-          .firstWhere((s) => s.prerequisites.isNotEmpty);
+      final real = ConstellationCatalog.allSkills.firstWhere(
+        (s) => s.prerequisites.isNotEmpty,
+      );
       final first = real.prerequisites.first;
       await _pump(
         tester,
@@ -181,8 +182,9 @@ void main() {
     });
 
     testWidgets('a met prerequisite is struck through', (tester) async {
-      final real = ConstellationCatalog.allSkills
-          .firstWhere((s) => s.prerequisites.isNotEmpty);
+      final real = ConstellationCatalog.allSkills.firstWhere(
+        (s) => s.prerequisites.isNotEmpty,
+      );
       final first = real.prerequisites.first;
       await _pump(
         tester,

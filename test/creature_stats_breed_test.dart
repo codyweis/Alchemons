@@ -135,33 +135,39 @@ void main() {
       beautyPotential: 2.0,
     );
 
-    test('matching nature keeps the protected stat out of wildcard crashes', () {
-      for (var seed = 0; seed < 250; seed++) {
-        final child = CreatureStats.breed(
-          swiftParentA,
-          swiftParentB,
-          Random(seed),
-          mutationChance: 0,
-          parent1NatureId: 'Swift',
-        );
+    test(
+      'matching nature keeps the protected stat out of wildcard crashes',
+      () {
+        for (var seed = 0; seed < 250; seed++) {
+          final child = CreatureStats.breed(
+            swiftParentA,
+            swiftParentB,
+            Random(seed),
+            mutationChance: 0,
+            parent1NatureId: 'Swift',
+          );
 
-        expect(child.speedPotential, greaterThanOrEqualTo(1.9));
-      }
-    });
+          expect(child.speedPotential, greaterThanOrEqualTo(1.9));
+        }
+      },
+    );
 
-    test('shared matching nature floors the protected stat at weaker parent', () {
-      for (var seed = 0; seed < 250; seed++) {
-        final child = CreatureStats.breed(
-          doubleSwiftA,
-          doubleSwiftB,
-          Random(seed),
-          mutationChance: 0,
-          parent1NatureId: 'Swift',
-          parent2NatureId: 'Swift',
-        );
+    test(
+      'shared matching nature floors the protected stat at weaker parent',
+      () {
+        for (var seed = 0; seed < 250; seed++) {
+          final child = CreatureStats.breed(
+            doubleSwiftA,
+            doubleSwiftB,
+            Random(seed),
+            mutationChance: 0,
+            parent1NatureId: 'Swift',
+            parent2NatureId: 'Swift',
+          );
 
-        expect(child.speedPotential, greaterThanOrEqualTo(4.2));
-      }
-    });
+          expect(child.speedPotential, greaterThanOrEqualTo(4.2));
+        }
+      },
+    );
   });
 }

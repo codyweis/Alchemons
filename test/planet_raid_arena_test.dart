@@ -249,7 +249,7 @@ void main() {
       guardian.isDead = true;
       _step(raid, 0.3);
       expect(
-        raid.combatEnemies.where((e) => !e.isDead), 
+        raid.combatEnemies.where((e) => !e.isDead),
         isEmpty,
         reason: 'surviving adds are consumed by the collapse',
       );
@@ -298,7 +298,9 @@ void main() {
     });
 
     test('a five-strong squad all reaches the arena', () {
-      final party = [for (var i = 0; i < RaidConfig.squadSize; i++) _member(slot: i)];
+      final party = [
+        for (var i = 0; i < RaidConfig.squadSize; i++) _member(slot: i),
+      ];
       final game = PlanetDungeonGame(
         element: 'Air',
         party: party,

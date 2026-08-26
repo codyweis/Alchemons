@@ -45,7 +45,8 @@ void main() {
       expect(
         g.guardianStrikesNeeded,
         PlanetDungeonGame.kGuardianBaseStrikes,
-        reason: 'six lull windows for a first mystic (raised from four '
+        reason:
+            'six lull windows for a first mystic (raised from four '
             '2026-08-14: the early guardians died before their cycle read)',
       );
     });

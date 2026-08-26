@@ -71,7 +71,9 @@ void main() {
     });
 
     test('a tall screen keeps its generous spacing', () {
-      final gap = 900 - topBlock(homeScaleForTest(900)) -
+      final gap =
+          900 -
+          topBlock(homeScaleForTest(900)) -
           bottomBlock(homeScaleForTest(900));
       expect(gap, greaterThan(200));
     });

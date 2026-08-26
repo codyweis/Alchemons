@@ -244,8 +244,10 @@ DustMound? dustMoundById(String id) {
 }
 
 /// Every mound whose crown stands in [roomId].
-List<DustMound> dustMoundsIn(String roomId) =>
-    [for (final m in kDustMounds) if (m.roomId == roomId) m];
+List<DustMound> dustMoundsIn(String roomId) => [
+  for (final m in kDustMounds)
+    if (m.roomId == roomId) m,
+];
 
 /// Loads in the city at the opening of a run: one per mound.
 const int kDustCityLoads = 5;
@@ -493,7 +495,8 @@ class RuinsOfTime {
 
   // ── The drift yard ────────────────────────────────────
 
-  int driftAt(int index) => index < 0 || index >= drift.length ? -1 : drift[index];
+  int driftAt(int index) =>
+      index < 0 || index >= drift.length ? -1 : drift[index];
 
   /// A spade bites [from] (a plain burial) and throws over the shoulder onto
   /// [to] (which must have room). Caller supplies the geometry.
@@ -721,10 +724,7 @@ const DungeonLayout dustLayout = DungeonLayout(
           targetSpawn: Offset(230, 90),
         ),
       ],
-      ruins: DustRuins(
-        gateSilt: Offset(640, 245),
-        windVane: Offset(120, 90),
-      ),
+      ruins: DustRuins(gateSilt: Offset(640, 245), windVane: Offset(120, 90)),
     ),
 
     // ── STREET · THE SEAL STREET (Star 0) ─────────────────

@@ -109,7 +109,9 @@ PlanetDungeonGame _harness(
 Offset _center(DungeonRoom room, MoltenGrid g, int c, int r) {
   final (cw, ch) = _cs(room, g);
   return Offset(
-      room.bounds.left + (c + 0.5) * cw, room.bounds.top + (r + 0.5) * ch);
+    room.bounds.left + (c + 0.5) * cw,
+    room.bounds.top + (r + 0.5) * ch,
+  );
 }
 
 String _sealKeyOf(String a, String b) => ([a, b]..sort()).join('|');
@@ -209,26 +211,34 @@ void main() {
 
     // ── The crucible gate is rite-sealed until both stars bank ──
     final north = room('manifold_north');
-    final crucibleGate =
-        north.doors.firstWhere((d) => d.targetRoomId == 'crucible');
+    final crucibleGate = north.doors.firstWhere(
+      (d) => d.targetRoomId == 'crucible',
+    );
     expect(game.isDoorLocked(north, crucibleGate), isTrue);
 
     // ── The ring is clamped and the head starts at 40 ──
     expect(game.boilerPressure, kSteamStartPressure);
     final south = room('manifold_south');
-    final westJunction =
-        south.doors.firstWhere((d) => d.targetRoomId == 'ember_causeway');
-    final eastJunction =
-        south.doors.firstWhere((d) => d.targetRoomId == 'cinder_forge');
+    final westJunction = south.doors.firstWhere(
+      (d) => d.targetRoomId == 'ember_causeway',
+    );
+    final eastJunction = south.doors.firstWhere(
+      (d) => d.targetRoomId == 'cinder_forge',
+    );
     expect(game.isDoorLocked(south, westJunction), isTrue);
     expect(game.isDoorLocked(south, eastJunction), isTrue);
     // The vault shaft is invisible until the burst-disc blows.
-    final vaultShaft =
-        south.doors.firstWhere((d) => d.targetRoomId == 'burst_vault');
+    final vaultShaft = south.doors.firstWhere(
+      (d) => d.targetRoomId == 'burst_vault',
+    );
     expect(game.isDoorHidden(south, vaultShaft), isTrue);
 
     // ── Pay the west junction: any hands, the MAIN pays ──
-    actAt('manifold_south', steam, westJunction.rect.center + const Offset(0, 40));
+    actAt(
+      'manifold_south',
+      steam,
+      westJunction.rect.center + const Offset(0, 40),
+    );
     expect(game.isDoorLocked(south, westJunction), isFalse);
     expect(game.boilerPressure, kSteamStartPressure - 15);
     // Paying one side opens the causeway's side of the same junction too.
@@ -269,7 +279,11 @@ void main() {
     clearWisps();
 
     // ── Pay the east junction and bunker the Cinder Forge ──
-    actAt('manifold_south', steam, eastJunction.rect.center + const Offset(0, 40));
+    actAt(
+      'manifold_south',
+      steam,
+      eastJunction.rect.center + const Offset(0, 40),
+    );
     expect(game.isDoorLocked(south, eastJunction), isFalse);
     final afterEast = kSteamStartPressure - 30 + 2 * kSteamCondensateGain;
     expect(game.boilerPressure, afterEast);
@@ -295,8 +309,11 @@ void main() {
     act('cinder_forge', steam, 4, 5, 4, 4);
     standAt('cinder_forge', 5, 3, 5, 3); // the pedestal, inside the vault
     step();
-    expect(game.hasStar(1), isTrue,
-        reason: 'reaching the vault pedestal banks star 1');
+    expect(
+      game.hasStar(1),
+      isTrue,
+      reason: 'reaching the vault pedestal banks star 1',
+    );
     clearWisps();
 
     // Both stars banked → the crucible gate grinds open.
@@ -305,21 +322,36 @@ void main() {
 
     // ── Pay the forge↔north junction; the LAST junction is unaffordable ──
     final forgeRoom = room('cinder_forge');
-    final forgeNorthDoor = forgeRoom.doors
-        .firstWhere((d) => d.targetRoomId == 'manifold_north');
-    actAt('cinder_forge', steam, forgeNorthDoor.rect.center + const Offset(0, 40));
+    final forgeNorthDoor = forgeRoom.doors.firstWhere(
+      (d) => d.targetRoomId == 'manifold_north',
+    );
+    actAt(
+      'cinder_forge',
+      steam,
+      forgeNorthDoor.rect.center + const Offset(0, 40),
+    );
     expect(game.isDoorLocked(forgeRoom, forgeNorthDoor), isFalse);
     // +2 forge cools: the reworked vault plug is two walls thick.
     final afterNorth = afterEast - 15 + 2 * kSteamCondensateGain;
     expect(game.boilerPressure, afterNorth);
-    expect(afterNorth, lessThan(15),
-        reason: 'the strategic pinch: the fourth junction cannot be bought');
-    final northWestDoor = north.doors
-        .firstWhere((d) => d.targetRoomId == 'ember_causeway');
-    actAt('manifold_north', steam,
-        northWestDoor.rect.center + const Offset(0, -40));
-    expect(game.isDoorLocked(north, northWestDoor), isTrue,
-        reason: 'an unaffordable clamp refuses — and takes nothing');
+    expect(
+      afterNorth,
+      lessThan(15),
+      reason: 'the strategic pinch: the fourth junction cannot be bought',
+    );
+    final northWestDoor = north.doors.firstWhere(
+      (d) => d.targetRoomId == 'ember_causeway',
+    );
+    actAt(
+      'manifold_north',
+      steam,
+      northWestDoor.rect.center + const Offset(0, -40),
+    );
+    expect(
+      game.isDoorLocked(north, northWestDoor),
+      isTrue,
+      reason: 'an unaffordable clamp refuses — and takes nothing',
+    );
     expect(game.boilerPressure, afterNorth);
 
     // ── Rite: the Crucible — THE SOURCE, QUENCHED (reworked) ──
@@ -335,8 +367,11 @@ void main() {
       act('crucible', steam, c, 4, c, 3); // quench the reservoir, asleep
       expect(crucible[3][c], 0);
     }
-    expect(game.wokeRooms.contains('crucible'), isFalse,
-        reason: 'quenching never wakes anything — only breaking rock does');
+    expect(
+      game.wokeRooms.contains('crucible'),
+      isFalse,
+      reason: 'quenching never wakes anything — only breaking rock does',
+    );
 
     // Now break in. The breach itself runs molten and counts as a live vein.
     waitForBreath(2);
@@ -346,8 +381,11 @@ void main() {
 
     standAt('crucible', 6, 7, 6, 7);
     step();
-    expect(game.moltenRiteDone, isTrue,
-        reason: 'a stilled chamber performs the guardian rite');
+    expect(
+      game.moltenRiteDone,
+      isTrue,
+      reason: 'a stilled chamber performs the guardian rite',
+    );
 
     // ── Hidden Harmony: the whole labyrinth without one scald ──
     expect(game.moltenScalds, 0);
@@ -366,8 +404,11 @@ void main() {
     final beforeStokes = game.boilerPressure;
     actAt('manifold_north', fire, port + const Offset(30, 0));
     expect(game.boilerPressure, beforeStokes + kSteamStokeGain);
-    expect(game.combatEnemies.where((e) => !e.isDead), isNotEmpty,
-        reason: 'the stoke roar draws wisps');
+    expect(
+      game.combatEnemies.where((e) => !e.isDead),
+      isNotEmpty,
+      reason: 'the stoke roar draws wisps',
+    );
     clearWisps();
     while (game.boilerPressure < disc.threshold) {
       actAt('manifold_north', fire, port + const Offset(30, 0));
@@ -377,10 +418,16 @@ void main() {
     expect(dumped, greaterThanOrEqualTo(disc.threshold));
     actAt('manifold_south', steam, disc.position + const Offset(30, 0));
     expect(game.burstDiscBlown, isTrue);
-    expect(game.boilerPressure, 0,
-        reason: 'venting the main dumps EVERYTHING — the sacrifice is whole');
-    expect(game.isDoorHidden(south, vaultShaft), isFalse,
-        reason: 'the blown disc opens the vault shaft');
+    expect(
+      game.boilerPressure,
+      0,
+      reason: 'venting the main dumps EVERYTHING — the sacrifice is whole',
+    );
+    expect(
+      game.isDoorHidden(south, vaultShaft),
+      isFalse,
+      reason: 'the blown disc opens the vault shaft',
+    );
 
     // The vault essence fizzles, once ever.
     game.setActive(steam);
@@ -446,8 +493,11 @@ void main() {
     // expects ember_causeway to wake, but the crucible wakes instead. Whether
     // the propagation rule changed or the test always meant its own room is a
     // design question, not a lookup — see the note at the top of this file.
-    expect(game.wokeRooms, contains('ember_causeway'),
-        reason: 'the first melt wakes the room');
+    expect(
+      game.wokeRooms,
+      contains('ember_causeway'),
+      reason: 'the first melt wakes the room',
+    );
 
     // Earth cannot wall a lava cell (only open ground).
     faceWallAs(1); // Earth
@@ -461,60 +511,73 @@ void main() {
     faceWallAs(0); // Steam
     game.activateAbility();
     expect(cells[wr][wc], 0, reason: 'Steam cools the lava to standing stone');
-    expect(game.steamBreath, breathBefore - 1,
-        reason: 'cooling spends a breath');
-    expect(game.boilerPressure, pressureBefore + kSteamCondensateGain,
-        reason: 'cooling condenses pressure back to the main');
+    expect(
+      game.steamBreath,
+      breathBefore - 1,
+      reason: 'cooling spends a breath',
+    );
+    expect(
+      game.boilerPressure,
+      pressureBefore + kSteamCondensateGain,
+      reason: 'cooling condenses pressure back to the main',
+    );
   });
 
   // v2: damming is ELEMENT-ONLY. Any Earth drives the wall home clean — the
   // old "a Horn sets it clean, everyone else raises a racket that draws wisps"
   // split is gone.
-  test('the molten dam is element-only: every Earth family walls identically',
-      () {
-    for (final family in const [
-      'pip', 'mane', 'horn', 'mask', 'wing', 'kin',
-    ]) {
-      final game = _harness([_member(0, 'Earth', family)]);
-      final room = game.layout.rooms['crucible']!;
-      final g = room.molten!;
-      game.currentRoomId = 'crucible';
-      game.update(1 / 60);
-      final cells = game.moltenCells['crucible']!;
+  test(
+    'the molten dam is element-only: every Earth family walls identically',
+    () {
+      for (final family in const [
+        'pip',
+        'mane',
+        'horn',
+        'mask',
+        'wing',
+        'kin',
+      ]) {
+        final game = _harness([_member(0, 'Earth', family)]);
+        final room = game.layout.rooms['crucible']!;
+        final g = room.molten!;
+        game.currentRoomId = 'crucible';
+        game.update(1 / 60);
+        final cells = game.moltenCells['crucible']!;
 
-      // Find open ground with open ground to its left to stand on.
-      int? tc, tr;
-      for (var r = 0; r < cells.length && tc == null; r++) {
-        for (var c = 1; c < cells[r].length; c++) {
-          if (cells[r][c] == 0 && cells[r][c - 1] == 0) {
-            tc = c;
-            tr = r;
-            break;
+        // Find open ground with open ground to its left to stand on.
+        int? tc, tr;
+        for (var r = 0; r < cells.length && tc == null; r++) {
+          for (var c = 1; c < cells[r].length; c++) {
+            if (cells[r][c] == 0 && cells[r][c - 1] == 0) {
+              tc = c;
+              tr = r;
+              break;
+            }
           }
         }
+        expect(tc, isNotNull, reason: 'the causeway must have open ground');
+
+        game.setActive(0);
+        game.creatures.single
+          ..position = _center(room, g, tc! - 1, tr!)
+          ..lastSafe = _center(room, g, tc - 1, tr)
+          ..angle = 0
+          ..aimAngle = 0; // facing right at the open cell
+        game.activateAbility();
+
+        expect(
+          cells[tr][tc],
+          1,
+          reason: 'an Earth $family must raise the dam wall',
+        );
+        expect(
+          game.combatEnemies.where((e) => !e.isDead),
+          isEmpty,
+          reason: 'an Earth $family raises it CLEAN — no racket, no wisps',
+        );
       }
-      expect(tc, isNotNull, reason: 'the causeway must have open ground');
-
-      game.setActive(0);
-      game.creatures.single
-        ..position = _center(room, g, tc! - 1, tr!)
-        ..lastSafe = _center(room, g, tc - 1, tr)
-        ..angle = 0
-        ..aimAngle = 0; // facing right at the open cell
-      game.activateAbility();
-
-      expect(
-        cells[tr][tc],
-        1,
-        reason: 'an Earth $family must raise the dam wall',
-      );
-      expect(
-        game.combatEnemies.where((e) => !e.isDead),
-        isEmpty,
-        reason: 'an Earth $family raises it CLEAN — no racket, no wisps',
-      );
-    }
-  });
+    },
+  );
 
   test('every molten-room door is passable on foot (not just by teleport)', () {
     final game = _harness([_member(0, 'Steam', 'pip')]);
@@ -547,8 +610,11 @@ void main() {
           game.update(1 / 60);
         }
         game.joystickDirection = Offset.zero;
-        expect(game.currentRoomId, door.targetRoomId,
-            reason: '${room.id} → ${door.targetRoomId} must be walkable');
+        expect(
+          game.currentRoomId,
+          door.targetRoomId,
+          reason: '${room.id} → ${door.targetRoomId} must be walkable',
+        );
       }
     }
   });
@@ -556,8 +622,9 @@ void main() {
   test('a clamped junction blocks travel until its cost is paid', () {
     final game = _harness([_member(0, 'Steam', 'pip')]);
     final south = game.layout.rooms['manifold_south']!;
-    final west =
-        south.doors.firstWhere((d) => d.targetRoomId == 'ember_causeway');
+    final west = south.doors.firstWhere(
+      (d) => d.targetRoomId == 'ember_causeway',
+    );
     // Walk at the clamped junction: the door refuses.
     game.currentRoomId = 'manifold_south';
     final start = west.rect.center + const Offset(0, 60);
@@ -655,9 +722,14 @@ void main() {
     expect(game.wokeRooms, contains('crucible'));
     park(6, 7, 6, 7);
     game.update(1 / 60);
-    expect(game.moltenRiteDone, isFalse,
-        reason: 'the pedestal will not sink while the source still runs');
+    expect(
+      game.moltenRiteDone,
+      isFalse,
+      reason: 'the pedestal will not sink while the source still runs',
+    );
+    game.askForRoomHint();
     expect(game.hintChannel, DungeonHintChannel.blocked);
+    game.askForRoomHint();
     expect(game.hintText, contains('run'));
 
     // Still the reservoir — the three veins that hang above the band — and
@@ -675,8 +747,11 @@ void main() {
     }
     park(6, 7, 6, 7);
     game.update(1 / 60);
-    expect(game.moltenRiteDone, isTrue,
-        reason: 'a stilled source performs the rite');
+    expect(
+      game.moltenRiteDone,
+      isTrue,
+      reason: 'a stilled source performs the rite',
+    );
   });
 
   test('a breach RUNS: fresh fire-blood will not take the breath', () {
@@ -718,6 +793,7 @@ void main() {
     game.activateAbility();
     expect(cells[5][4], 3, reason: 'you cannot cork your own breach');
     expect(game.steamBreath, breath, reason: 'a refusal costs nothing');
+    game.askForRoomHint();
     expect(game.hintChannel, DungeonHintChannel.blocked);
 
     // Let it have its beat — now the breath takes.
@@ -736,11 +812,13 @@ void main() {
     // the two pours sit under the only cell it can be worked from.
     final game = _harness([_member(0, 'Steam', 'pip')]);
     final room = game.layout.rooms['cinder_forge']!;
-    final cells = game.moltenCells[room.id] ?? () {
-      game.currentRoomId = 'cinder_forge';
-      game.update(1 / 60);
-      return game.moltenCells['cinder_forge']!;
-    }();
+    final cells =
+        game.moltenCells[room.id] ??
+        () {
+          game.currentRoomId = 'cinder_forge';
+          game.update(1 / 60);
+          return game.moltenCells['cinder_forge']!;
+        }();
 
     // Two walls between the gallery and the vault, stacked.
     expect(cells[5][4], 1);
@@ -750,8 +828,11 @@ void main() {
     expect(cells[7][3], 3);
     expect(cells[7][5], 3);
     for (final (c, r) in const [(2, 7), (4, 7), (6, 7), (3, 8), (5, 8)]) {
-      expect(cells[r][c], 2,
-          reason: 'a pour is boxed in bedrock except upward');
+      expect(
+        cells[r][c],
+        2,
+        reason: 'a pour is boxed in bedrock except upward',
+      );
     }
     // And the vault itself is sealed on every other face.
     for (final c in [3, 4, 5, 6]) {
@@ -795,9 +876,13 @@ void main() {
       }
       game.update(1 / 60);
     }
-    expect(cells[7][2], 3,
-        reason: 'the flood crosses into the player\'s chamber — the wrong '
-            'breach has a consequence');
+    expect(
+      cells[7][2],
+      3,
+      reason:
+          'the flood crosses into the player\'s chamber — the wrong '
+          'breach has a consequence',
+    );
     // And the pocket stays sealed on the pedestal side: the north field
     // never floods through the bedrock.
     expect(cells[3][2], 0);
@@ -825,8 +910,11 @@ void main() {
       game.activateAbility();
     }
     expect(game.steamBreath, 0);
-    expect(cells[9][4 + kSteamBreathMax], 3,
-        reason: 'the breath ran out before the last cell');
+    expect(
+      cells[9][4 + kSteamBreathMax],
+      3,
+      reason: 'the breath ran out before the last cell',
+    );
     // A beat returns one breath, and the cooling works again.
     for (var i = 0; i < 60 * 3; i++) {
       game.update(1 / 60);
@@ -862,18 +950,23 @@ void main() {
     // The flood claims the idle companion's cell.
     cells[8][2] = 3;
     game.update(1 / 60);
-    expect(idle.hp, lessThan(idle.maxHp),
-        reason: 'an idle companion standing in molten scalds');
-    expect(game.moltenScalds, greaterThan(0),
-        reason: 'a companion scald spoils the Hidden Harmony too');
+    expect(
+      idle.hp,
+      lessThan(idle.maxHp),
+      reason: 'an idle companion standing in molten scalds',
+    );
+    expect(
+      game.moltenScalds,
+      greaterThan(0),
+      reason: 'a companion scald spoils the Hidden Harmony too',
+    );
     final (ic, ir) = (
       ((idle.position.dx - room.bounds.left) / (room.bounds.width / g.cols))
           .floor(),
       ((idle.position.dy - room.bounds.top) / (room.bounds.height / g.rowCount))
-          .floor()
+          .floor(),
     );
-    expect(cells[ir][ic], 0,
-        reason: 'the companion scrambled to open ground');
+    expect(cells[ir][ic], 0, reason: 'the companion scrambled to open ground');
   });
 
   test('a molten rescue never crosses the dam (no teleport through walls)', () {
@@ -897,11 +990,18 @@ void main() {
       ..lastSafe = pos; // last safe ground is drowned too
     game.update(1 / 60);
     final me = game.creatures.single.position;
-    expect(me.dy, greaterThan(room.bounds.top + room.bounds.height * 7 / 12),
-        reason: 'the creature stays on ITS side of the dam — the old spiral '
-            'search teleported it through the wall into the hollow');
-    expect(cells[7][5], 0,
-        reason: 'with no reachable ground, the footing crusts underfoot');
+    expect(
+      me.dy,
+      greaterThan(room.bounds.top + room.bounds.height * 7 / 12),
+      reason:
+          'the creature stays on ITS side of the dam — the old spiral '
+          'search teleported it through the wall into the hollow',
+    );
+    expect(
+      cells[7][5],
+      0,
+      reason: 'with no reachable ground, the footing crusts underfoot',
+    );
   });
 
   test('Earth cannot entomb a companion by walling their cell', () {
@@ -929,51 +1029,64 @@ void main() {
       ..angle = 0
       ..aimAngle = 0; // facing the occupied cell
     game.activateAbility();
-    expect(cells[8][3], 0,
-        reason: 'the wall must refuse to rise on an occupied cell');
+    expect(
+      cells[8][3],
+      0,
+      reason: 'the wall must refuse to rise on an occupied cell',
+    );
   });
 
-  test('a fully flooded room never strands you, and restart wipes it clean', () {
-    final game = _harness([_member(0, 'Steam', 'pip')]);
-    final room = game.layout.rooms['crucible']!;
-    final g = room.molten!;
-    game.currentRoomId = 'ember_causeway';
-    game.update(1 / 60); // build the grid
-    final cells = game.moltenCells['ember_causeway']!;
+  test(
+    'a fully flooded room never strands you, and restart wipes it clean',
+    () {
+      final game = _harness([_member(0, 'Steam', 'pip')]);
+      final room = game.layout.rooms['crucible']!;
+      final g = room.molten!;
+      game.currentRoomId = 'ember_causeway';
+      game.update(1 / 60); // build the grid
+      final cells = game.moltenCells['ember_causeway']!;
 
-    // Flood every non-bedrock cell with lava — the worst case.
-    for (var r = 0; r < g.rowCount; r++) {
-      for (var c = 0; c < g.cols; c++) {
-        if (cells[r][c] != 2) cells[r][c] = 3;
+      // Flood every non-bedrock cell with lava — the worst case.
+      for (var r = 0; r < g.rowCount; r++) {
+        for (var c = 0; c < g.cols; c++) {
+          if (cells[r][c] != 2) cells[r][c] = 3;
+        }
       }
-    }
-    // Stand the creature in the middle of the flood.
-    final pos = _center(room, g, 3, 8);
-    game.creatures.single
-      ..position = pos
-      ..lastSafe = pos;
-    game.update(1 / 60);
-    // It must end on crusted-open ground (scalded, but never frozen).
-    expect(cells[8][3], 0, reason: 'the engulfed cell crusts to a foothold');
-    expect(game.moltenScalds, greaterThan(0),
-        reason: 'being engulfed counts as a scald');
+      // Stand the creature in the middle of the flood.
+      final pos = _center(room, g, 3, 8);
+      game.creatures.single
+        ..position = pos
+        ..lastSafe = pos;
+      game.update(1 / 60);
+      // It must end on crusted-open ground (scalded, but never frozen).
+      expect(cells[8][3], 0, reason: 'the engulfed cell crusts to a foothold');
+      expect(
+        game.moltenScalds,
+        greaterThan(0),
+        reason: 'being engulfed counts as a scald',
+      );
 
-    // Restart wipes the chamber back to its authored layout, asleep again.
-    game.wokeRooms.add('ember_causeway');
-    game.restartRoom();
-    expect(game.wokeRooms, isNot(contains('ember_causeway')));
-    expect(game.steamBreath, kSteamBreathMax);
-    final fresh = game.moltenCells['ember_causeway']!;
-    var lava = 0, wall = 0;
-    for (final rowCells in fresh) {
-      lava += rowCells.where((c) => c == 3).length;
-      wall += rowCells.where((c) => c == 1).length;
-    }
-    final authoredLava =
-        g.rows.fold<int>(0, (n, line) => n + 'L'.allMatches(line).length);
-    final authoredWall =
-        g.rows.fold<int>(0, (n, line) => n + '#'.allMatches(line).length);
-    expect(lava, authoredLava, reason: 'restart restores the authored lava');
-    expect(wall, authoredWall, reason: 'restart restores the authored walls');
-  });
+      // Restart wipes the chamber back to its authored layout, asleep again.
+      game.wokeRooms.add('ember_causeway');
+      game.restartRoom();
+      expect(game.wokeRooms, isNot(contains('ember_causeway')));
+      expect(game.steamBreath, kSteamBreathMax);
+      final fresh = game.moltenCells['ember_causeway']!;
+      var lava = 0, wall = 0;
+      for (final rowCells in fresh) {
+        lava += rowCells.where((c) => c == 3).length;
+        wall += rowCells.where((c) => c == 1).length;
+      }
+      final authoredLava = g.rows.fold<int>(
+        0,
+        (n, line) => n + 'L'.allMatches(line).length,
+      );
+      final authoredWall = g.rows.fold<int>(
+        0,
+        (n, line) => n + '#'.allMatches(line).length,
+      );
+      expect(lava, authoredLava, reason: 'restart restores the authored lava');
+      expect(wall, authoredWall, reason: 'restart restores the authored walls');
+    },
+  );
 }

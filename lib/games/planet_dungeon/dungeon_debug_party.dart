@@ -48,7 +48,9 @@ CosmicPartyMember debugMemberFromCreature(
     slotIndex: -1,
     staminaBars: 99,
     staminaMax: 99,
-    spriteSheet: creature.spriteData != null ? sheetFromCreature(creature) : null,
+    spriteSheet: creature.spriteData != null
+        ? sheetFromCreature(creature)
+        : null,
   );
 }
 

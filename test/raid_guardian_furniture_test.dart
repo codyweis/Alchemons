@@ -132,7 +132,11 @@ void main() {
         expect(b.contains(r.position), isTrue, reason: '$el rod ${r.id}');
       }
       for (final z in room.braziers) {
-        expect(b.contains(z.position), isTrue, reason: '$el brazier ${z.order}');
+        expect(
+          b.contains(z.position),
+          isTrue,
+          reason: '$el brazier ${z.order}',
+        );
       }
     }
   });

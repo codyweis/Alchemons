@@ -65,8 +65,9 @@ const int _hollowItem = 8;
 const List<int> _fact = [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880];
 
 /// The opening arrangement, with the hollow written as item 8.
-List<int> openingPerm() =>
-    [for (final c in kKeepOpeningCells) c == kHollow ? _hollowItem : c];
+List<int> openingPerm() => [
+  for (final c in kKeepOpeningCells) c == kHollow ? _hollowItem : c,
+];
 
 int encode(List<int> p) {
   var code = 0;
@@ -370,32 +371,32 @@ void main() {
   });
 
   group('THE PARITY PROOF', () {
-    test('every legal shunt conserves sgn(π) XOR the hollow\'s cell colour',
-        () {
-      final f = PrismKeepField();
-      final want = parityClass(start);
-      // Walk a long deterministic tour of the keep and re-assert after every
-      // single move — the invariant is not a claim about the start, it is a
-      // claim about the move.
-      var moves = 0;
-      for (var step = 0; step < 4000; step++) {
-        final h = f.hollowCell;
-        final options = keepNeighbours(h);
-        final from = options[step % options.length];
-        if (!f.canShunt(from)) continue;
-        f.shunt(from);
-        moves++;
-        final p = [
-          for (final c in f.cells) c == kHollow ? _hollowItem : c,
-        ];
-        expect(
-          parityClass(p),
-          want,
-          reason: 'the invariant broke after $moves shunts',
-        );
-      }
-      expect(moves, greaterThan(3000));
-    });
+    test(
+      'every legal shunt conserves sgn(π) XOR the hollow\'s cell colour',
+      () {
+        final f = PrismKeepField();
+        final want = parityClass(start);
+        // Walk a long deterministic tour of the keep and re-assert after every
+        // single move — the invariant is not a claim about the start, it is a
+        // claim about the move.
+        var moves = 0;
+        for (var step = 0; step < 4000; step++) {
+          final h = f.hollowCell;
+          final options = keepNeighbours(h);
+          final from = options[step % options.length];
+          if (!f.canShunt(from)) continue;
+          f.shunt(from);
+          moves++;
+          final p = [for (final c in f.cells) c == kHollow ? _hollowItem : c];
+          expect(
+            parityClass(p),
+            want,
+            reason: 'the invariant broke after $moves shunts',
+          );
+        }
+        expect(moves, greaterThan(3000));
+      },
+    );
 
     test('the reachable orbit is EXACTLY half the space — 9!/2 = 181,440', () {
       expect(reachableArrangements.length, 181440);
@@ -445,9 +446,7 @@ void main() {
         for (var i = 0; i < 9; i++)
           if (i != home) start[i],
       ];
-      final rank = <int, int>{
-        for (var i = 0; i < 8; i++) startChambers[i]: i,
-      };
+      final rank = <int, int>{for (var i = 0; i < 8; i++) startChambers[i]: i};
       final buf = List<int>.filled(9, 0);
       var homeCount = 0;
       for (final code in reachableArrangements) {
@@ -467,7 +466,8 @@ void main() {
         expect(
           inv.isEven,
           isTrue,
-          reason: 'arrangement $code is an ODD rearrangement of the opening — '
+          reason:
+              'arrangement $code is an ODD rearrangement of the opening — '
               'no sequence of slides can reach it with the hollow home',
         );
       }
@@ -565,7 +565,8 @@ void main() {
       expect(
         wedged,
         7404,
-        reason: 'if nothing can wedge, the anneal is decoration — say so. '
+        reason:
+            'if nothing can wedge, the anneal is decoration — say so. '
             '7,404 of the 1,592,585 reachable states are jams (0.46%), and '
             'every one of them is a body on glass that faces nothing, with '
             'the hollow out of reach',
@@ -590,7 +591,8 @@ void main() {
       for (var a = 0; a < clear.length; a++) {
         for (var b = a + 1; b < clear.length; b++) {
           for (var c = b + 1; c < clear.length; c++) {
-            final sum = (kPrismChambers[clear[a]].bend +
+            final sum =
+                (kPrismChambers[clear[a]].bend +
                     kPrismChambers[clear[b]].bend +
                     kPrismChambers[clear[c]].bend) %
                 12;
@@ -599,10 +601,11 @@ void main() {
         }
       }
       expect(hits.length, 1, reason: 'the rose must have ONE answer');
-      expect(
-        hits.single.map((i) => kPrismChambers[i].id).toSet(),
-        {'beryl', 'lazuli', 'citrine'},
-      );
+      expect(hits.single.map((i) => kPrismChambers[i].id).toSet(), {
+        'beryl',
+        'lazuli',
+        'citrine',
+      });
       // And the hearth is NOT in it — which is what makes the two stars pull
       // against each other (§5.5's strategic question, in geometry).
       expect(hits.single.contains(0), isFalse);
@@ -634,24 +637,26 @@ void main() {
       expect(solvable, 2160);
     });
 
-    test('the field agrees: the authored row banks the star and no other does',
-        () {
-      final f = PrismKeepField()..lampLit = true;
-      f.restore([2, 3, 4, 5, 6, 7, kHollow, 0, 1]);
-      // cells 3,4,5 = lazuli(5=idx3? no) — set it explicitly instead:
-      f.restore([0, 5, 6, 2, 3, 4, 7, 1, kHollow]);
-      expect(f.beamLive, isTrue);
-      expect(f.beamHue, kRoseHue);
-      expect(f.spectrumSolved, isTrue);
-      // Swap the hearth into the row and the rose goes quiet.
-      f.restore([2, 5, 6, 0, 3, 4, 7, 1, kHollow]);
-      expect(f.beamLive, isTrue);
-      expect(f.spectrumSolved, isFalse);
-      // An opaque chamber in the row stops the light dead.
-      f.restore([2, 5, 6, 1, 3, 4, 7, 0, kHollow]);
-      expect(f.beamLive, isFalse);
-      expect(f.spectrumSolved, isFalse);
-    });
+    test(
+      'the field agrees: the authored row banks the star and no other does',
+      () {
+        final f = PrismKeepField()..lampLit = true;
+        f.restore([2, 3, 4, 5, 6, 7, kHollow, 0, 1]);
+        // cells 3,4,5 = lazuli(5=idx3? no) — set it explicitly instead:
+        f.restore([0, 5, 6, 2, 3, 4, 7, 1, kHollow]);
+        expect(f.beamLive, isTrue);
+        expect(f.beamHue, kRoseHue);
+        expect(f.spectrumSolved, isTrue);
+        // Swap the hearth into the row and the rose goes quiet.
+        f.restore([2, 5, 6, 0, 3, 4, 7, 1, kHollow]);
+        expect(f.beamLive, isTrue);
+        expect(f.spectrumSolved, isFalse);
+        // An opaque chamber in the row stops the light dead.
+        f.restore([2, 5, 6, 1, 3, 4, 7, 0, kHollow]);
+        expect(f.beamLive, isFalse);
+        expect(f.spectrumSolved, isFalse);
+      },
+    );
 
     test('no lamp, no star — and the lamp is the planet\'s own braid', () {
       final f = PrismKeepField();
@@ -698,10 +703,12 @@ void main() {
             p[c] = thrones[2];
             var ok = true;
             for (final cell in [a, b, c]) {
-              if (!kPrismChambers[p[cell]]
-                      .cut(keepFacetToward(cell, kKeepHeartCell)) ||
-                  !kPrismChambers[hearth]
-                      .cut(keepFacetToward(kKeepHeartCell, cell))) {
+              if (!kPrismChambers[p[cell]].cut(
+                    keepFacetToward(cell, kKeepHeartCell),
+                  ) ||
+                  !kPrismChambers[hearth].cut(
+                    keepFacetToward(kKeepHeartCell, cell),
+                  )) {
                 ok = false;
               }
             }
@@ -744,8 +751,7 @@ void main() {
       expect(f.thronesStanding, greaterThanOrEqualTo(0));
     });
 
-    test('the two stars CANNOT be held at once — that is the whole planet',
-        () {
+    test('the two stars CANNOT be held at once — that is the whole planet', () {
       final f = PrismKeepField()
         ..lampLit = true
         ..hearthKindled = true;
@@ -759,123 +765,135 @@ void main() {
       expect(
         both,
         0,
-        reason: 'Star 1 wants the hearth in the middle row; Star 0 forbids it. '
+        reason:
+            'Star 1 wants the hearth in the middle row; Star 0 forbids it. '
             'Every slide solves one adjacency and breaks another (§5.5)',
       );
     });
   });
 
-  group('THE VAULT — a room that only enters the grid in one configuration',
-      () {
-    test('the waiting facet is cut on ONE face, and it is the west one', () {
-      final w = kPrismChambers[kWaitingFacet];
-      expect(w.cut(kFacetW), isTrue);
-      expect(w.cut(kFacetE) || w.cut(kFacetN) || w.cut(kFacetS), isFalse);
-      expect(w.clear, isFalse, reason: 'the facet stops the beam dead');
-    });
+  group(
+    'THE VAULT — a room that only enters the grid in one configuration',
+    () {
+      test('the waiting facet is cut on ONE face, and it is the west one', () {
+        final w = kPrismChambers[kWaitingFacet];
+        expect(w.cut(kFacetW), isTrue);
+        expect(w.cut(kFacetE) || w.cut(kFacetN) || w.cut(kFacetS), isFalse);
+        expect(w.clear, isFalse, reason: 'the facet stops the beam dead');
+      });
 
-    test('the chain only bites with the hollow at rest in the mouth', () {
-      final f = PrismKeepField();
-      expect(f.hollowCell, 8);
-      expect(f.canCallFacet(4), isFalse);
-      expect(f.canCallFacet(kKeepMouthCell), isFalse);
-      // Bring the hollow to the mouth by riding out of it westward.
-      f.restore([7, 4, 5, 1, 0, kHollow, 3, 2, 6]);
-      expect(f.canCallFacet(4), isTrue);
-      expect(f.canCallFacet(0), isFalse, reason: 'must be beside the mouth');
-      expect(f.callFacet(4), isTrue);
-      expect(f.facetStanding, isTrue);
-      expect(f.cells[kKeepMouthCell], kWaitingFacet);
-      expect(f.hollowCell, -1, reason: 'the hollow has gone out to the berth');
-    });
+      test('the chain only bites with the hollow at rest in the mouth', () {
+        final f = PrismKeepField();
+        expect(f.hollowCell, 8);
+        expect(f.canCallFacet(4), isFalse);
+        expect(f.canCallFacet(kKeepMouthCell), isFalse);
+        // Bring the hollow to the mouth by riding out of it westward.
+        f.restore([7, 4, 5, 1, 0, kHollow, 3, 2, 6]);
+        expect(f.canCallFacet(4), isTrue);
+        expect(f.canCallFacet(0), isFalse, reason: 'must be beside the mouth');
+        expect(f.callFacet(4), isTrue);
+        expect(f.facetStanding, isTrue);
+        expect(f.cells[kKeepMouthCell], kWaitingFacet);
+        expect(
+          f.hollowCell,
+          -1,
+          reason: 'the hollow has gone out to the berth',
+        );
+      });
 
-    test('while the facet stands, the whole keep is set solid', () {
-      final f = PrismKeepField();
-      f.restore([7, 4, 5, 1, 0, kHollow, 3, 2, 6]);
-      f.callFacet(4);
-      for (var c = 0; c < 9; c++) {
-        expect(f.canShunt(c), isFalse, reason: 'cell $c still moves');
-      }
-      // And it is always reversible from where the chain was pulled or from
-      // inside the facet, so the vault can never wedge a run.
-      expect(f.canWithdrawFacet(4), isTrue);
-      expect(f.canWithdrawFacet(kKeepMouthCell), isTrue);
-      expect(f.withdrawFacet(4), isTrue);
-      expect(f.hollowCell, kKeepMouthCell);
-      expect(f.canShunt(4), isTrue);
-    });
-
-    test('the vault\'s configuration is REACHABLE — hollow at the mouth, the '
-        'body west of it, and glass cut east', () {
-      final buf = List<int>.filled(9, 0);
-      var usable = 0, calledButUnenterable = 0;
-      for (final code in reachableArrangements) {
-        decode(code, buf);
-        if (buf[kKeepMouthCell] != _hollowItem) continue;
-        // The player must be beside the mouth to pull the chain, and the last
-        // move that leaves the hollow there is a ride OUT of the mouth, so
-        // they are. Of the three cells that can pull it, only the middle one
-        // can then walk in — the facet is cut on its west face alone.
-        if (!search.has(code, kKeepHeartCell)) continue;
-        if (kPrismChambers[buf[kKeepHeartCell]].cut(kFacetE)) {
-          usable++;
-        } else {
-          calledButUnenterable++;
+      test('while the facet stands, the whole keep is set solid', () {
+        final f = PrismKeepField();
+        f.restore([7, 4, 5, 1, 0, kHollow, 3, 2, 6]);
+        f.callFacet(4);
+        for (var c = 0; c < 9; c++) {
+          expect(f.canShunt(c), isFalse, reason: 'cell $c still moves');
         }
-      }
-      expect(
-        usable,
-        15120,
-        reason: 'THE HAZARD: an unreachable vault would be unfindable in play',
-      );
-      expect(
-        calledButUnenterable,
-        5040,
-        reason: 'the trick has to be possible to get WRONG, or it is not one: '
-            'one time in four the chamber you rode west out of the mouth is '
-            'not cut on its east face, and the facet comes in behind a wall',
-      );
-    });
+        // And it is always reversible from where the chain was pulled or from
+        // inside the facet, so the vault can never wedge a run.
+        expect(f.canWithdrawFacet(4), isTrue);
+        expect(f.canWithdrawFacet(kKeepMouthCell), isTrue);
+        expect(f.withdrawFacet(4), isTrue);
+        expect(f.hollowCell, kKeepMouthCell);
+        expect(f.canShunt(4), isTrue);
+      });
 
-    test('the essence only exists while the facet is standing', () {
-      final game = harness(idealTrio());
-      final mouthRoom = kKeepCellRooms[kKeepMouthCell];
-      expect(
-        layout.rooms[mouthRoom]!.vaultCache,
-        isNotNull,
-        reason: 'the cache is authored in the one cell the facet can stand in',
-      );
-      game.currentRoomId = mouthRoom;
-      expect(game.keepVaultLiveForTest, isFalse);
-      game.prism.field.restore([7, 4, 5, 1, 0, kHollow, 3, 2, 6]);
-      game.prism.field.callFacet(kKeepHeartCell);
-      expect(game.keepVaultLiveForTest, isTrue);
-    });
-  });
+      test('the vault\'s configuration is REACHABLE — hollow at the mouth, the '
+          'body west of it, and glass cut east', () {
+        final buf = List<int>.filled(9, 0);
+        var usable = 0, calledButUnenterable = 0;
+        for (final code in reachableArrangements) {
+          decode(code, buf);
+          if (buf[kKeepMouthCell] != _hollowItem) continue;
+          // The player must be beside the mouth to pull the chain, and the last
+          // move that leaves the hollow there is a ride OUT of the mouth, so
+          // they are. Of the three cells that can pull it, only the middle one
+          // can then walk in — the facet is cut on its west face alone.
+          if (!search.has(code, kKeepHeartCell)) continue;
+          if (kPrismChambers[buf[kKeepHeartCell]].cut(kFacetE)) {
+            usable++;
+          } else {
+            calledButUnenterable++;
+          }
+        }
+        expect(
+          usable,
+          15120,
+          reason:
+              'THE HAZARD: an unreachable vault would be unfindable in play',
+        );
+        expect(
+          calledButUnenterable,
+          5040,
+          reason:
+              'the trick has to be possible to get WRONG, or it is not one: '
+              'one time in four the chamber you rode west out of the mouth is '
+              'not cut on its east face, and the facet comes in behind a wall',
+        );
+      });
+
+      test('the essence only exists while the facet is standing', () {
+        final game = harness(idealTrio());
+        final mouthRoom = kKeepCellRooms[kKeepMouthCell];
+        expect(
+          layout.rooms[mouthRoom]!.vaultCache,
+          isNotNull,
+          reason:
+              'the cache is authored in the one cell the facet can stand in',
+        );
+        game.currentRoomId = mouthRoom;
+        expect(game.keepVaultLiveForTest, isFalse);
+        game.prism.field.restore([7, 4, 5, 1, 0, kHollow, 3, 2, 6]);
+        game.prism.field.callFacet(kKeepHeartCell);
+        expect(game.keepVaultLiveForTest, isTrue);
+      });
+    },
+  );
 
   group('the exit, the rite and the frame arches', () {
-    test('the threshold and the north arch are cut in the FRAME, not in glass',
-        () {
-      final f = PrismKeepField();
-      // Whatever chamber stands there, the arch takes you through it.
-      for (var i = 0; i < 8; i++) {
-        final cells = List<int>.filled(9, 0);
-        for (var c = 0; c < 9; c++) {
-          cells[c] = (c + i) % 8;
+    test(
+      'the threshold and the north arch are cut in the FRAME, not in glass',
+      () {
+        final f = PrismKeepField();
+        // Whatever chamber stands there, the arch takes you through it.
+        for (var i = 0; i < 8; i++) {
+          final cells = List<int>.filled(9, 0);
+          for (var c = 0; c < 9; c++) {
+            cells[c] = (c + i) % 8;
+          }
+          cells[0] = kHollow;
+          f.restore(cells);
+          expect(f.frameArchOpen(kKeepThresholdCell), isTrue);
+          expect(f.frameArchOpen(kKeepNorthCell), isTrue);
         }
-        cells[0] = kHollow;
-        f.restore(cells);
-        expect(f.frameArchOpen(kKeepThresholdCell), isTrue);
+        // And they do not even shut on the bare socket: the hollow is the keep's
+        // own stone floor, not a hole, so an arch over it is still an arch. That
+        // is what makes it impossible for Prismalith's beats to lock the party
+        // out of the keep while they are downstairs in the choir.
+        f.restore([0, kHollow, 1, 2, 3, 4, 5, 6, 7]);
         expect(f.frameArchOpen(kKeepNorthCell), isTrue);
-      }
-      // And they do not even shut on the bare socket: the hollow is the keep's
-      // own stone floor, not a hole, so an arch over it is still an arch. That
-      // is what makes it impossible for Prismalith's beats to lock the party
-      // out of the keep while they are downstairs in the choir.
-      f.restore([0, kHollow, 1, 2, 3, 4, 5, 6, 7]);
-      expect(f.frameArchOpen(kKeepNorthCell), isTrue);
-      expect(f.frameArchOpen(kKeepThresholdCell), isTrue);
-    });
+        expect(f.frameArchOpen(kKeepThresholdCell), isTrue);
+      },
+    );
 
     test('the exit is reachable from everywhere — with the hollow under the '
         'north arch too', () {
@@ -922,35 +940,43 @@ void main() {
       expect(f.shunts, 1);
     });
 
-    test('every slide is undone by sliding back — nothing here is permanent',
-        () {
-      final f = PrismKeepField();
-      final before = f.snapshot();
-      f.shunt(7);
-      f.shunt(8);
-      expect(f.cells, before, reason: 'the move set is a group, not a ratchet');
-    });
+    test(
+      'every slide is undone by sliding back — nothing here is permanent',
+      () {
+        final f = PrismKeepField();
+        final before = f.snapshot();
+        f.shunt(7);
+        f.shunt(8);
+        expect(
+          f.cells,
+          before,
+          reason: 'the move set is a group, not a ratchet',
+        );
+      },
+    );
 
-    test('the engine rides the shunt: the room changes and the body does not',
-        () {
-      final game = harness(idealTrio());
-      game.currentRoomId = kKeepCellRooms[7];
-      game.setActive(crystal);
-      final where = const Offset(210, 300);
-      for (final c in game.creatures) {
-        c
-          ..position = where
-          ..lastSafe = where;
-      }
-      expect(game.keepShuntForTest(kFacetE), isTrue);
-      expect(game.currentRoomId, kKeepCellRooms[8]);
-      expect(
-        game.creatures.first.position,
-        where,
-        reason: 'you ride the chamber — your feet do not move on its floor',
-      );
-      expect(game.prism.field.cells[7], kHollow);
-    });
+    test(
+      'the engine rides the shunt: the room changes and the body does not',
+      () {
+        final game = harness(idealTrio());
+        game.currentRoomId = kKeepCellRooms[7];
+        game.setActive(crystal);
+        final where = const Offset(210, 300);
+        for (final c in game.creatures) {
+          c
+            ..position = where
+            ..lastSafe = where;
+        }
+        expect(game.keepShuntForTest(kFacetE), isTrue);
+        expect(game.currentRoomId, kKeepCellRooms[8]);
+        expect(
+          game.creatures.first.position,
+          where,
+          reason: 'you ride the chamber — your feet do not move on its floor',
+        );
+        expect(game.prism.field.cells[7], kHollow);
+      },
+    );
 
     test('the shove-plate refuses anything but Crystal, and refuses glass on '
         'glass', () {
@@ -958,10 +984,12 @@ void main() {
       // Lightning at the plate facing the hollow: one clean refusal.
       act(game, lightning, kKeepCellRooms[7], kPlateE);
       expect(game.prism.field.shunts, 0);
+      game.askForRoomHint();
       expect(game.hintText, contains('Crystal'));
       // Crystal at a plate facing a chamber: also refused, differently.
       act(game, crystal, kKeepCellRooms[7], kPlateW);
       expect(game.prism.field.shunts, 0);
+      game.askForRoomHint();
       expect(game.hintText, contains('nothing to give'));
       // Crystal at the plate facing the hollow: it goes.
       act(game, crystal, kKeepCellRooms[7], kPlateE);
@@ -1027,6 +1055,7 @@ void main() {
       act(game, crystal, heart, kChamberHeart);
       expect(game.prism.field.hearthKindled, isFalse);
       expect(clouds, contains(gate.discoveryId));
+      game.askForRoomHint();
       expect(game.hintText, gate.hintLine);
       // The horn does it.
       act(game, lightning, heart, kChamberHeart);
@@ -1042,27 +1071,31 @@ void main() {
       expect(gate.needsElement, isFalse);
       expect(gate.family, 'Pip');
       expect(gate.label, 'any PIP');
-      final conduit = layout.rooms['tuning_hall']!.conduits
-          .firstWhere((c) => c.id == 'A');
+      final conduit = layout.rooms['tuning_hall']!.conduits.firstWhere(
+        (c) => c.id == 'A',
+      );
       expect(conduit.requireElement, kAnyElement);
       expect(conduit.requiredFamily, DungeonAbility.smallAccess);
     });
 
-    test('the rite\'s font answers Crystal alone, and only behind both stars',
-        () {
-      final game = harness(idealTrio());
-      final font = layout.rooms['tuning_hall']!.prism!.facetFont!;
-      act(game, lightning, 'tuning_hall', font);
-      expect(game.conduitEnergy['B'] ?? 0, 0);
-      expect(game.hintText, contains('Crystal'));
-      act(game, crystal, 'tuning_hall', font);
-      expect(game.conduitEnergy['B'] ?? 0, 0, reason: 'no stars, no font');
-      game.earnStar(0);
-      game.earnStar(1);
-      act(game, crystal, 'tuning_hall', font);
-      expect(game.conduitEnergy['B'], isNotNull);
-      expect(game.conduitEnergy['B']! > 0, isTrue);
-    });
+    test(
+      'the rite\'s font answers Crystal alone, and only behind both stars',
+      () {
+        final game = harness(idealTrio());
+        final font = layout.rooms['tuning_hall']!.prism!.facetFont!;
+        act(game, lightning, 'tuning_hall', font);
+        expect(game.conduitEnergy['B'] ?? 0, 0);
+        game.askForRoomHint();
+        expect(game.hintText, contains('Crystal'));
+        act(game, crystal, 'tuning_hall', font);
+        expect(game.conduitEnergy['B'] ?? 0, 0, reason: 'no stars, no font');
+        game.earnStar(0);
+        game.earnStar(1);
+        act(game, crystal, 'tuning_hall', font);
+        expect(game.conduitEnergy['B'], isNotNull);
+        expect(game.conduitEnergy['B']! > 0, isTrue);
+      },
+    );
   });
 
   group('the entry rite and the anneal', () {
@@ -1085,7 +1118,8 @@ void main() {
       expect(
         game.currentRoomId,
         game.layout.entranceRoomId,
-        reason: 'the ring throws you clear — otherwise it can set you back '
+        reason:
+            'the ring throws you clear — otherwise it can set you back '
             'down in the very trap you rang it to escape',
       );
       expect(f.anneals, 1);
@@ -1228,8 +1262,13 @@ void main() {
       expect(layout.riddle.length, kCosmicPlanetEntry['Crystal']!.length);
       final verse = layout.riddle.join(' ').toLowerCase();
       for (final tell in ['wing', 'horn', 'mane', 'mask', 'pip']) {
-        expect(verse, isNot(contains(tell)), reason: 'the riddle reads the '
-            'answer aloud with "$tell"');
+        expect(
+          verse,
+          isNot(contains(tell)),
+          reason:
+              'the riddle reads the '
+              'answer aloud with "$tell"',
+        );
       }
     });
   });

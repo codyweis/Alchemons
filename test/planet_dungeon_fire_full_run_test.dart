@@ -124,42 +124,42 @@ void main() {
 
   // ── S1: the forensic rite ────────────────────────────────
 
-  test(
-    'the rolled rite is PROVABLY deducible: over many seeds, the planted '
-    'evidence admits exactly ONE order — and it is the rolled one',
-    () {
-      // Each fresh game rolls its own rite. Sweep many of them: the solver
-      // reads only the testimony the braziers actually wear, so this is the
-      // §6.1 "consistent and sufficient" promise checked against gameplay.
-      final seen = <String>{};
-      for (var seed = 0; seed < 200; seed++) {
-        final game = _harness([_member(0, 'Fire', 'mask')]);
-        final result = game.solveRiteOrder();
-        expect(
-          result.satisfying,
-          1,
-          reason: 'roll #$seed left ambiguous evidence: '
-              '${result.satisfying} orders fit ${game.riteOrder}',
-        );
-        expect(
-          result.solution,
-          game.riteOrder,
-          reason: 'roll #$seed: the deduction must land on the rite that '
-              'actually happened, not merely on something self-consistent',
-        );
-        expect(result.searched, greaterThan(0));
-        seen.add(game.riteOrder.join(','));
-      }
-      // A per-run roll that always lands on the same order would be an
-      // authored answer wearing a disguise.
+  test('the rolled rite is PROVABLY deducible: over many seeds, the planted '
+      'evidence admits exactly ONE order — and it is the rolled one', () {
+    // Each fresh game rolls its own rite. Sweep many of them: the solver
+    // reads only the testimony the braziers actually wear, so this is the
+    // §6.1 "consistent and sufficient" promise checked against gameplay.
+    final seen = <String>{};
+    for (var seed = 0; seed < 200; seed++) {
+      final game = _harness([_member(0, 'Fire', 'mask')]);
+      final result = game.solveRiteOrder();
       expect(
-        seen.length,
-        greaterThan(20),
-        reason: 'the rite must genuinely vary run to run (a wiki can never '
-            'spoil it); saw only ${seen.length} distinct orders',
+        result.satisfying,
+        1,
+        reason:
+            'roll #$seed left ambiguous evidence: '
+            '${result.satisfying} orders fit ${game.riteOrder}',
       );
-    },
-  );
+      expect(
+        result.solution,
+        game.riteOrder,
+        reason:
+            'roll #$seed: the deduction must land on the rite that '
+            'actually happened, not merely on something self-consistent',
+      );
+      expect(result.searched, greaterThan(0));
+      seen.add(game.riteOrder.join(','));
+    }
+    // A per-run roll that always lands on the same order would be an
+    // authored answer wearing a disguise.
+    expect(
+      seen.length,
+      greaterThan(20),
+      reason:
+          'the rite must genuinely vary run to run (a wiki can never '
+          'spoil it); saw only ${seen.length} distinct orders',
+    );
+  });
 
   test('the rite is deducible with NO Mask in the party — the evidence is on '
       'the iron, not behind an ability', () {
@@ -204,8 +204,9 @@ void main() {
       byTier[t.waxTier] = (byTier[t.waxTier] ?? 0) + 1;
     }
     expect(byTier.keys.toList()..sort(), [0, 1, 2]);
-    expect(byTier.values.toSet(), {2},
-        reason: 'two braziers must share every wax tier');
+    expect(byTier.values.toSet(), {
+      2,
+    }, reason: 'two braziers must share every wax tier');
     // …and two braziers of one tier must be drawn IDENTICALLY, or the wax
     // height would leak the exact rank.
     for (var i = 0; i < n; i++) {
@@ -213,14 +214,20 @@ void main() {
         final a = game.testimonyFor(i)!;
         final b = game.testimonyFor(j)!;
         if (a.waxTier != b.waxTier) continue;
-        expect(a.waxFill, b.waxFill,
-            reason: 'braziers $i and $j share a tier and must look the same');
+        expect(
+          a.waxFill,
+          b.waxFill,
+          reason: 'braziers $i and $j share a tier and must look the same',
+        );
       }
     }
     // The tier ordering is the rite's own: earlier ranks stand in lower tiers.
     for (var rank = 0; rank < n; rank++) {
-      expect(game.testimonyFor(game.riteBrazierAt(rank))!.waxTier, rank ~/ 2,
-          reason: 'lowest wax burned longest');
+      expect(
+        game.testimonyFor(game.riteBrazierAt(rank))!.waxTier,
+        rank ~/ 2,
+        reason: 'lowest wax burned longest',
+      );
     }
 
     // SOOT: exactly one even collar, and it is the fire lit FIRST.
@@ -228,15 +235,19 @@ void main() {
       for (var i = 0; i < n; i++)
         if (game.testimonyFor(i)!.sootLean == null) i,
     ];
-    expect(collars, [game.riteBrazierAt(0)],
-        reason: 'only the first fire had no burning neighbour to lean from');
+    expect(collars, [
+      game.riteBrazierAt(0),
+    ], reason: 'only the first fire had no burning neighbour to lean from');
 
     // ASH: one quantised compass direction, shared by the whole choir, and
     // genuinely constraining — dropping it must make the rite ambiguous far
     // more often than keeping it.
     expect(game.riteAshDrift, isNot(Offset.zero));
-    expect(game.riteAshDrift.distance, closeTo(1.0, 1e-6),
-        reason: 'the drift is a direction, not a bearing with magnitude');
+    expect(
+      game.riteAshDrift.distance,
+      closeTo(1.0, 1e-6),
+      reason: 'the drift is a direction, not a bearing with magnitude',
+    );
     var ambiguousWithoutAsh = 0;
     for (var seed = 0; seed < 60; seed++) {
       final g = _harness([_member(0, 'Fire', 'mask')]);
@@ -245,7 +256,8 @@ void main() {
     expect(
       ambiguousWithoutAsh,
       greaterThan(20),
-      reason: 'if the ash drift were decorative, removing it would barely '
+      reason:
+          'if the ash drift were decorative, removing it would barely '
           'change the count — it is a real third channel',
     );
   });
@@ -268,12 +280,16 @@ void main() {
     expect(n - game.riteMuralRanks.length, 4);
   });
 
-  test('Mask insight ASSISTS, it never answers: tier gating and one link', () {
+  test('the reading ASSISTS, it never answers: tier gating and one link', () {
+    // The reading is the HINT button now, not a Mask's press — but it is
+    // still scaled by the reader's Intelligence, which is the part that
+    // mattered. These creatures stay Masks only so the tiers are comparable
+    // with what this test pinned before.
     // Tier 0 (Intelligence 1) marks nothing beyond the evidence itself.
     final dim = _harness([_member(0, 'Fire', 'mask', intelligence: 1)]);
     dim.currentRoomId = 'choir';
     dim.creatures.single.position = _room(dim, 'choir').bounds.center;
-    dim.activateAbility();
+    dim.askForRoomHint();
     expect(dim.revealTier, 0);
     expect(
       (dim.hintText ?? '').toLowerCase(),
@@ -287,12 +303,12 @@ void main() {
     final bright = _harness([_member(0, 'Fire', 'mask', intelligence: 5)]);
     bright.currentRoomId = 'choir';
     bright.creatures.single.position = _room(bright, 'choir').bounds.center;
-    bright.activateAbility();
+    bright.askForRoomHint();
     expect(bright.revealTier, 2);
     final firstLink = bright.testimonyLinkRank;
     expect(firstLink, isNotNull, reason: 'tier 2 draws one deduced link');
     for (var i = 0; i < 6; i++) {
-      bright.activateAbility();
+      bright.askForRoomHint();
       expect(
         bright.testimonyLinkRank,
         firstLink,
@@ -307,8 +323,11 @@ void main() {
       g.activateAbility();
       final line = (g.hintText ?? '').toLowerCase();
       for (final word in const ['first', 'then', 'last', 'begins at']) {
-        expect(line.contains('$word the '), isFalse,
-            reason: 'insight must not recite the sequence: "${g.hintText}"');
+        expect(
+          line.contains('$word the '),
+          isFalse,
+          reason: 'insight must not recite the sequence: "${g.hintText}"',
+        );
       }
     }
   });
@@ -384,15 +403,24 @@ void main() {
       game.update(1 / 60);
     }
     expect(wiped, isTrue, reason: 'the party must actually go down');
-    expect(game.riteOrder, before,
-        reason: 'death re-lays the fires, never the history');
+    expect(
+      game.riteOrder,
+      before,
+      reason: 'death re-lays the fires, never the history',
+    );
     expect(game.riteAshDrift, drift);
     expect(game.riteMuralRanks, mural);
-    expect(game.solveRiteOrder().satisfying, 1,
-        reason: 'the evidence is intact, so the deduction still stands');
+    expect(
+      game.solveRiteOrder().satisfying,
+      1,
+      reason: 'the evidence is intact, so the deduction still stands',
+    );
     expect(game.ritualProgress, 0, reason: 'the rite itself starts over');
-    expect(game.vesperRouteId, isNull,
-        reason: 'and Star 3\'s decision re-opens with it');
+    expect(
+      game.vesperRouteId,
+      isNull,
+      reason: 'and Star 3\'s decision re-opens with it',
+    );
   });
 
   test('the braziers are element-only, and refuse anything but Fire', () {
@@ -405,8 +433,11 @@ void main() {
         ..position = first.position
         ..lastSafe = first.position;
       game.activateAbility();
-      expect(game.ritualProgress, 1,
-          reason: 'a Fire $family must light the rite just the same');
+      expect(
+        game.ritualProgress,
+        1,
+        reason: 'a Fire $family must light the rite just the same',
+      );
     }
     final cold = _harness([_member(0, 'Plant', 'mane')]);
     final choir = _room(cold, 'choir');
@@ -427,8 +458,9 @@ void main() {
     final gallery = _room(game, 'bell_gallery');
     expect(gallery.vesperRoutes.length, 2, reason: 'one decision, two answers');
     final nave = gallery.vesperRoutes.firstWhere((r) => r.id == 'route_nave');
-    final cloister =
-        gallery.vesperRoutes.firstWhere((r) => r.id == 'route_cloister');
+    final cloister = gallery.vesperRoutes.firstWhere(
+      (r) => r.id == 'route_cloister',
+    );
 
     game.currentRoomId = 'bell_gallery';
     game.creatures.single.position = nave.standPosition;
@@ -438,8 +470,11 @@ void main() {
 
     game.creatures.single.position = cloister.standPosition;
     game.activateAbility();
-    expect(game.vesperRouteId, 'route_cloister',
-        reason: 'the choice is free until the vesper begins');
+    expect(
+      game.vesperRouteId,
+      'route_cloister',
+      reason: 'the choice is free until the vesper begins',
+    );
     final cloisterChain = game.chainNodes(gallery.incenseChains.first);
 
     // The long run really is two extra censers per chain, and the short run
@@ -447,8 +482,11 @@ void main() {
     for (final chain in gallery.incenseChains) {
       final short = nave.chainNodes[chain.id] ?? chain.nodes;
       final long = cloister.chainNodes[chain.id] ?? chain.nodes;
-      expect(long.length, short.length + 2,
-          reason: '${chain.id}: the cloister is two censers longer');
+      expect(
+        long.length,
+        short.length + 2,
+        reason: '${chain.id}: the cloister is two censers longer',
+      );
     }
     expect(nave.flameLifeScale, lessThan(cloister.flameLifeScale));
     expect(nave.igniteWisps, greaterThan(cloister.igniteWisps));
@@ -458,8 +496,11 @@ void main() {
     // The bells never move — only the way to them does.
     for (final chain in gallery.incenseChains) {
       final long = cloister.chainNodes[chain.id]!;
-      expect(long.first, chain.nodes.first,
-          reason: 'both runs start at the same censer');
+      expect(
+        long.first,
+        chain.nodes.first,
+        reason: 'both runs start at the same censer',
+      );
     }
   });
 
@@ -470,8 +511,11 @@ void main() {
       // ~0.4s between acts (unhurried) and ~1.0s (fighting through the ash).
       for (final frames in const [24, 60]) {
         final run = _runVesper(routeId, tendFrames: frames);
-        expect(run.tolls, 3,
-            reason: '$routeId must reach three tolls at ${frames}f');
+        expect(
+          run.tolls,
+          3,
+          reason: '$routeId must reach three tolls at ${frames}f',
+        );
         expect(run.awake, isTrue);
         if (frames == 24) gusts[routeId] = run.gusts;
       }
@@ -481,8 +525,11 @@ void main() {
     for (final id in gusts.keys) {
       expect(gusts[id], greaterThan(3), reason: '$id must be tended, not won');
     }
-    expect(gusts['route_cloister'], greaterThanOrEqualTo(gusts['route_nave']!),
-        reason: 'the cloister is the longer walk: $gusts');
+    expect(
+      gusts['route_cloister'],
+      greaterThanOrEqualTo(gusts['route_nave']!),
+      reason: 'the cloister is the longer walk: $gusts',
+    );
   });
 
   test('the trade is structural: one gust clears any cloister gap, no gust '
@@ -495,12 +542,16 @@ void main() {
     probe.starMask = (1 << 0) | (1 << 1);
     final gallery = _room(probe, 'bell_gallery');
     final nave = gallery.vesperRoutes.firstWhere((r) => r.id == 'route_nave');
-    final cloister =
-        gallery.vesperRoutes.firstWhere((r) => r.id == 'route_cloister');
+    final cloister = gallery.vesperRoutes.firstWhere(
+      (r) => r.id == 'route_cloister',
+    );
 
     // Fuse length: the nave gives roughly half the seconds per feeding.
-    expect(nave.flameLifeScale, lessThan(cloister.flameLifeScale * 0.7),
-        reason: 'the ash-storm run must genuinely starve the flame faster');
+    expect(
+      nave.flameLifeScale,
+      lessThan(cloister.flameLifeScale * 0.7),
+      reason: 'the ash-storm run must genuinely starve the flame faster',
+    );
 
     // Gap length: a single gust (Speed 3 → 155px) carries the flame clean onto
     // the next cloister censer, but strands it mid-air over the nave.
@@ -527,12 +578,19 @@ void main() {
       // when the flame actually crosses one.)
       final reached = game.chainIgnitionPoint(chain) != nodes.first;
       if (routeId == 'route_cloister') {
-        expect(reached, isTrue,
-            reason: 'a cloister gap is one comfortable gust');
+        expect(
+          reached,
+          isTrue,
+          reason: 'a cloister gap is one comfortable gust',
+        );
       } else {
-        expect(reached, isFalse,
-            reason: 'a nave gap strands the flame — it must survive the walk '
-                'to a second gust, on a fuse half as long');
+        expect(
+          reached,
+          isFalse,
+          reason:
+              'a nave gap strands the flame — it must survive the walk '
+              'to a second gust, on a fuse half as long',
+        );
       }
     }
   });
@@ -542,8 +600,9 @@ void main() {
     game.starMask = (1 << 0) | (1 << 1);
     final gallery = _room(game, 'bell_gallery');
     final nave = gallery.vesperRoutes.firstWhere((r) => r.id == 'route_nave');
-    final cloister =
-        gallery.vesperRoutes.firstWhere((r) => r.id == 'route_cloister');
+    final cloister = gallery.vesperRoutes.firstWhere(
+      (r) => r.id == 'route_cloister',
+    );
     game.currentRoomId = 'bell_gallery';
 
     _place(game, nave.standPosition);
@@ -556,8 +615,11 @@ void main() {
     expect(game.vesperCommitted, isTrue);
     _place(game, cloister.standPosition);
     game.activateAbility();
-    expect(game.vesperRouteId, 'route_nave',
-        reason: 'the vesper has begun — this run is committed');
+    expect(
+      game.vesperRouteId,
+      'route_nave',
+      reason: 'the vesper has begun — this run is committed',
+    );
   });
 
   test('the vesper refuses flame before Ember and Ash are banked, and before '
@@ -568,16 +630,22 @@ void main() {
     locked.currentRoomId = 'bell_gallery';
     _place(locked, locked.chainIgnitionPoint(chain));
     locked.activateAbility();
-    expect(locked.vesperFlamePosition(chain.id), isNull,
-        reason: 'the vesper waits on the Ember and Ash stars');
+    expect(
+      locked.vesperFlamePosition(chain.id),
+      isNull,
+      reason: 'the vesper waits on the Ember and Ash stars',
+    );
 
     final undeclared = _harness([_member(0, 'Fire', 'mask')]);
     undeclared.starMask = (1 << 0) | (1 << 1);
     undeclared.currentRoomId = 'bell_gallery';
     _place(undeclared, undeclared.chainIgnitionPoint(chain));
     undeclared.activateAbility();
-    expect(undeclared.vesperFlamePosition(chain.id), isNull,
-        reason: 'no run declared — the censers hang idle');
+    expect(
+      undeclared.vesperFlamePosition(chain.id),
+      isNull,
+      reason: 'no run declared — the censers hang idle',
+    );
   });
 
   test('the vesper gust stays element-only: every Air family carries the '
@@ -606,11 +674,18 @@ void main() {
       game.activateAbility();
       final after = game.vesperFlamePosition(chain.id);
       expect(after, isNotNull);
-      expect(after, isNot(before), reason: 'an Air $family must move the flame');
+      expect(
+        after,
+        isNot(before),
+        reason: 'an Air $family must move the flame',
+      );
       landings[family] = after!;
     }
-    expect(landings.values.toSet().length, 1,
-        reason: 'no Air family gusts further than another: $landings');
+    expect(
+      landings.values.toSet().length,
+      1,
+      reason: 'no Air family gusts further than another: $landings',
+    );
   });
 
   test('an ungusted flame starves and its ash rises in fury', () {
@@ -624,8 +699,11 @@ void main() {
     _place(game, game.chainIgnitionPoint(chain));
     game.activateAbility();
     expect(game.vesperFlamePosition(chain.id), isNotNull);
-    expect(game.combatEnemies.where((e) => !e.isDead), isNotEmpty,
-        reason: 'lighting a censer rouses ash wisps at once');
+    expect(
+      game.combatEnemies.where((e) => !e.isDead),
+      isNotEmpty,
+      reason: 'lighting a censer rouses ash wisps at once',
+    );
     for (final e in game.combatEnemies) {
       e.isDead = true;
     }
@@ -636,10 +714,16 @@ void main() {
         c.hp = c.maxHp;
       }
     }
-    expect(game.vesperFlamePosition(chain.id), isNull,
-        reason: 'an ungusted flame starves between censers');
-    expect(game.combatEnemies.where((e) => !e.isDead), isNotEmpty,
-        reason: 'a dead flame spawns a fury wave');
+    expect(
+      game.vesperFlamePosition(chain.id),
+      isNull,
+      reason: 'an ungusted flame starves between censers',
+    );
+    expect(
+      game.combatEnemies.where((e) => !e.isDead),
+      isNotEmpty,
+      reason: 'a dead flame spawns a fury wave',
+    );
   });
 
   // ── S2: the ash garden — THE WIND CARRIES THE REACTION ───
@@ -664,15 +748,25 @@ void main() {
     final sanctum = _room(game, 'sanctum');
     final choir = _room(game, 'choir');
     final spots = game.simurghTelegraphSpots(sanctum);
-    expect(spots.length, choir.braziers.length,
-        reason: 'the arena wears the choir\'s own arrangement');
+    expect(
+      spots.length,
+      choir.braziers.length,
+      reason: 'the arena wears the choir\'s own arrangement',
+    );
     for (final p in spots) {
-      expect(sanctum.bounds.contains(p), isTrue,
-          reason: 'a phantom brazier must stand inside the roost');
+      expect(
+        sanctum.bounds.contains(p),
+        isTrue,
+        reason: 'a phantom brazier must stand inside the roost',
+      );
     }
     // The pattern is the RITE, not the layout order: the ring is walked by
     // rank, so the spots light in riteOrder.
-    expect(game.simurghPillars, isEmpty, reason: 'nothing burns before it wakes');
+    expect(
+      game.simurghPillars,
+      isEmpty,
+      reason: 'nothing burns before it wakes',
+    );
 
     game.guardianAwake = true;
     game.currentRoomId = 'sanctum';
@@ -690,15 +784,20 @@ void main() {
         if (!ranksSeen.contains(rank)) ranksSeen.add(rank);
       }
     }
-    expect(ranksSeen.length, greaterThanOrEqualTo(3),
-        reason: 'the guardian must actually walk the rite');
+    expect(
+      ranksSeen.length,
+      greaterThanOrEqualTo(3),
+      reason: 'the guardian must actually walk the rite',
+    );
     // Ranks arrive in sequence, from the top of the rite.
-    expect(ranksSeen.take(3).toList(), [0, 1, 2],
-        reason: 'the ORDER is the bullet pattern: $ranksSeen');
+    expect(
+      ranksSeen.take(3).toList(),
+      [0, 1, 2],
+      reason: 'the ORDER is the bullet pattern: $ranksSeen',
+    );
   });
 
-  test('the telegraph runs in a raid — the arena carries its own braziers',
-      () {
+  test('the telegraph runs in a raid — the arena carries its own braziers', () {
     final game = PlanetDungeonGame(
       element: 'Fire',
       party: [_member(0, 'Fire', 'mask')],
@@ -802,17 +901,23 @@ void main() {
       reason: 'the fourth corner brings up the first station on its own',
     );
 
-    game.setActive(0); // Fire MASK — insight writes the mural's dead words
+    game.setActive(0); // reading the lit mural writes its dead words
     teleport('scriptorium', _room(game, 'scriptorium').bounds.center);
-    game.activateAbility();
-    expect(game.epitaphStage, 1, reason: 'insight starts the floor-script');
-    expect(game.choirRevealTier, greaterThanOrEqualTo(0),
-        reason: 'and the mural\'s two confirmations come with it');
+    game.askForRoomHint();
+    expect(game.epitaphStage, 1, reason: 'the reading starts the floor-script');
+    expect(
+      game.choirRevealTier,
+      greaterThanOrEqualTo(0),
+      reason: 'and the mural\'s two confirmations come with it',
+    );
     game.setActive(2); // Plant
     teleport('scriptorium', kEmberEpitaphPlanter);
     game.activateAbility();
-    expect(game.epitaphStage, 1,
-        reason: 'the garden only settles once the writing completes');
+    expect(
+      game.epitaphStage,
+      1,
+      reason: 'the garden only settles once the writing completes',
+    );
     step(4.6); // let the ember-quill finish the three lines
     teleport('scriptorium', kEmberEpitaphPlanter);
     game.activateAbility();
@@ -826,8 +931,11 @@ void main() {
       teleport('scriptorium', kEmberEpitaphPlanter);
       game.activateAbility();
     }
-    expect(discovered, contains(kFireEpitaphEggId),
-        reason: 'three gusts blaze the maxim (the screen pays the 20 gold)');
+    expect(
+      discovered,
+      contains(kFireEpitaphEggId),
+      reason: 'three gusts blaze the maxim (the screen pays the 20 gold)',
+    );
 
     // ── The chancel gate is sealed until both stars bank ──
     final nave = _room(game, 'nave');
@@ -852,13 +960,19 @@ void main() {
     // matches the design.
     expect(game.hasStar(1), isFalse, reason: 'not banked yet');
     expect(game.guardianRiteUnlocked, isFalse);
-    expect(game.isDoorLocked(nave, chancel), isTrue,
-        reason: 'the gate holds until Ember and Ash are both banked');
+    expect(
+      game.isDoorLocked(nave, chancel),
+      isTrue,
+      reason: 'the gate holds until Ember and Ash are both banked',
+    );
     game.earnStar(1);
     expect(game.hasStar(1), isTrue);
     expect(game.guardianRiteUnlocked, isTrue);
-    expect(game.isDoorLocked(nave, chancel), isFalse,
-        reason: 'Ember and Ash part the chancel gate');
+    expect(
+      game.isDoorLocked(nave, chancel),
+      isFalse,
+      reason: 'Ember and Ash part the chancel gate',
+    );
     clearWisps();
 
     // ── The reliquary cache ──
@@ -866,8 +980,11 @@ void main() {
     game.setActive(0);
     teleport('reliquary', reliquary.vaultCache!);
     step();
-    expect(discovered.any((d) => d.startsWith('cache:')), isTrue,
-        reason: 'the reliquary keeps the planet\'s one vault cache');
+    expect(
+      discovered.any((d) => d.startsWith('cache:')),
+      isTrue,
+      reason: 'the reliquary keeps the planet\'s one vault cache',
+    );
 
     // ── Star 3: declare a run, then ring all three bells ──
     final gallery = _room(game, 'bell_gallery');
@@ -894,8 +1011,11 @@ void main() {
           c.hp = c.maxHp;
         }
       }
-      expect(game.bellsRung, contains(chain.id),
-          reason: 'ignite + gusts ring ${chain.id}');
+      expect(
+        game.bellsRung,
+        contains(chain.id),
+        reason: 'ignite + gusts ring ${chain.id}',
+      );
     }
     expect(game.guardianAwake, isTrue, reason: 'three tolls wake the Simurgh');
     clearWisps();
@@ -914,8 +1034,11 @@ void main() {
       step(0.3);
     }
     expect(game.hasStar(2), isTrue, reason: 'lull strikes fell the guardian');
-    expect(game.relicDropActive, isTrue,
-        reason: 'the guardian relic drops where the Simurgh fell');
+    expect(
+      game.relicDropActive,
+      isTrue,
+      reason: 'the guardian relic drops where the Simurgh fell',
+    );
 
     expect(earned, [0, 1, 2], reason: 'stars bank in play order, once each');
     expect(game.starsEarnedCount, 3);
@@ -969,8 +1092,11 @@ _VesperRun _runVesper(
         }
       }
     }
-    expect(game.bellsRung, contains(chain.id),
-        reason: '$routeId must be able to ring ${chain.id}');
+    expect(
+      game.bellsRung,
+      contains(chain.id),
+      reason: '$routeId must be able to ring ${chain.id}',
+    );
   }
   return (
     gusts: gusts,
@@ -995,15 +1121,15 @@ void _place(PlanetDungeonGame game, Offset pos) {
 // screen sends — so nothing here can pass on a mechanic the game does not
 // actually implement.
 
-
 /// Grow bed [index] with a Plant creature, and let the shoots take.
 
 /// Re-run the rite deduction with the ASH DRIFT channel switched off, to show
 /// the drift is a real constraint rather than decoration. Mirrors the game's
 /// own solver (wax tiers + soot leans) and simply skips the drift check.
 int _solveIgnoringAsh(PlanetDungeonGame game) {
-  final room = game.layout.rooms.values
-      .firstWhere((r) => r.brazierStarIndex != null && r.braziers.length >= 2);
+  final room = game.layout.rooms.values.firstWhere(
+    (r) => r.brazierStarIndex != null && r.braziers.length >= 2,
+  );
   final n = room.braziers.length;
   var satisfying = 0;
   final current = <int>[];
@@ -1026,8 +1152,8 @@ int _solveIgnoringAsh(PlanetDungeonGame game) {
         var pred = current.first;
         var bestD = double.infinity;
         for (final j in current) {
-          final d =
-              (room.braziers[idx].position - room.braziers[j].position).distance;
+          final d = (room.braziers[idx].position - room.braziers[j].position)
+              .distance;
           if (d < bestD) {
             bestD = d;
             pred = j;

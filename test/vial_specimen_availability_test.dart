@@ -99,11 +99,18 @@ void main() {
       expect(rarities, isNot(contains(VialRarity.mythic)));
     });
 
-    test('every group can deliver something, so none is wholly unstockable', () {
-      for (final g in ElementalGroup.values) {
-        expect(raritiesWithSpecimensFor(catalog, g), isNotEmpty, reason: '$g');
-      }
-    });
+    test(
+      'every group can deliver something, so none is wholly unstockable',
+      () {
+        for (final g in ElementalGroup.values) {
+          expect(
+            raritiesWithSpecimensFor(catalog, g),
+            isNotEmpty,
+            reason: '$g',
+          );
+        }
+      },
+    );
   });
 
   test('the vial rarity to creature rarity mapping is total', () {

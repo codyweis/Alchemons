@@ -40,9 +40,9 @@ void main() {
       final file = File(path);
       if (!file.existsSync()) continue;
       final bytes = file.readAsBytesSync();
-      await (FontLoader('SheetLabel')
-            ..addFont(Future.value(ByteData.view(bytes.buffer))))
-          .load();
+      await (FontLoader(
+        'SheetLabel',
+      )..addFont(Future.value(ByteData.view(bytes.buffer)))).load();
       labelFont = 'SheetLabel';
       return;
     }

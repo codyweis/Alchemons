@@ -213,8 +213,11 @@ void main() {
       clearWisps(); // the defend-wave came at charge start
     }
 
-    chargePillar(2, crypt.fossilPillars.first.id,
-        crypt.fossilPillars.first.position); // Crystal parity
+    chargePillar(
+      2,
+      crypt.fossilPillars.first.id,
+      crypt.fossilPillars.first.position,
+    ); // Crystal parity
     for (final pillar in crypt.fossilPillars.skip(1)) {
       chargePillar(1, pillar.id, pillar.position); // Lightning pip
     }
@@ -267,7 +270,11 @@ void main() {
       game.activateAbility();
       step();
     }
-    expect(game.guardianAwake, isTrue, reason: 'the true scale wakes the heart');
+    expect(
+      game.guardianAwake,
+      isTrue,
+      reason: 'the true scale wakes the heart',
+    );
     clearWisps();
 
     // ── The Lost Maxim: a crystal takes root in the open palm ──
@@ -375,7 +382,8 @@ void main() {
     expect(
       results.values.toSet().length,
       1,
-      reason: 'no family charges faster, slower, or louder than another: '
+      reason:
+          'no family charges faster, slower, or louder than another: '
           '$results',
     );
   });
@@ -426,7 +434,8 @@ void main() {
     expect(
       signatures.length,
       greaterThan(1),
-      reason: 'ten runs must not all share one answer — the eye remembers '
+      reason:
+          'ten runs must not all share one answer — the eye remembers '
           'differently each burial',
     );
   });

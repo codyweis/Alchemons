@@ -351,7 +351,8 @@ class DescentPainter extends CustomPainter {
               sin(elapsed * 2 + i) * 6 * _hash(i * 7 + 5);
           final travel = phase * (size.height + 120) - 60;
           final y = down ? travel : size.height - travel;
-          final alpha = (0.20 + 0.35 * _hash(i * 7 + 6)) *
+          final alpha =
+              (0.20 + 0.35 * _hash(i * 7 + 6)) *
               (phase < 0.1 ? phase * 10 : (phase > 0.9 ? (1 - phase) * 10 : 1));
           if (style.look == DescentLook.streak) {
             final len = 18 + speed * 46;

@@ -52,7 +52,9 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
   for (final orb in orbs) {
     await db.inventoryDao.addItemQty(orb.key, orb.value);
     final name = registry[orb.key]?.name ?? orb.key;
-    entries.add(RaidRewardEntry(itemKey: orb.key, label: '+${orb.value} $name'));
+    entries.add(
+      RaidRewardEntry(itemKey: orb.key, label: '+${orb.value} $name'),
+    );
   }
 
   // Currency scaled by the element's altar order (harder elements pay more).

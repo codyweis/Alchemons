@@ -207,8 +207,10 @@ SeedBed? cryptBedById(String id) {
   return null;
 }
 
-List<SeedBed> cryptBedsIn(String roomId) =>
-    [for (final b in kCryptBeds) if (b.roomId == roomId) b];
+List<SeedBed> cryptBedsIn(String roomId) => [
+  for (final b in kCryptBeds)
+    if (b.roomId == roomId) b,
+];
 
 // ─────────────────────────────────────────────────────────
 // SPANS — the map, at both sizes at once
@@ -802,7 +804,8 @@ const DungeonLayout plantLayout = DungeonLayout(
       objectId: 'A',
       element: 'Plant',
       family: 'Mane',
-      hintLine: 'Only green that follows a wild thing\'s passing wakes this '
+      hintLine:
+          'Only green that follows a wild thing\'s passing wakes this '
           'screen',
     ),
   ],

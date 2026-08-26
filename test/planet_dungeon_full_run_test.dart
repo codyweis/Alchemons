@@ -508,7 +508,11 @@ void main() {
       final eye = room.clouds.single.position;
       final radii = [for (final v in vents) (v.position - eye).distance];
       for (final r in radii) {
-        expect((r - radii.first).abs(), lessThan(6), reason: 'a RING, not a heap');
+        expect(
+          (r - radii.first).abs(),
+          lessThan(6),
+          reason: 'a RING, not a heap',
+        );
       }
       for (final v in vents) {
         expect(
@@ -544,7 +548,8 @@ void main() {
         expect(
           p.solutions,
           1,
-          reason: 'roll #$i must have exactly one answering set, not '
+          reason:
+              'roll #$i must have exactly one answering set, not '
               '${p.solutions}',
         );
         expect(
@@ -572,39 +577,44 @@ void main() {
           reason: 'roll #$i: exactly the radial mouth tears a coil from cold',
         );
         // The answer the solver names must BE the coil.
-        final coil = rolls[i].entries
-            .where((e) => e.value == game.spiralComposableCoil)
-            .map((e) => e.key)
-            .toList()
-          ..sort();
+        final coil =
+            rolls[i].entries
+                .where((e) => e.value == game.spiralComposableCoil)
+                .map((e) => e.key)
+                .toList()
+              ..sort();
         expect(p.solution, coil);
       }
     });
 
-    test('the roll is per RUN and genuinely varies — a wiki cannot spoil it', () {
-      final seen = <String>{};
-      for (var run = 0; run < 120; run++) {
-        final game = _harness(_trio());
-        final proof = game.solveSpiralVents();
+    test(
+      'the roll is per RUN and genuinely varies — a wiki cannot spoil it',
+      () {
+        final seen = <String>{};
+        for (var run = 0; run < 120; run++) {
+          final game = _harness(_trio());
+          final proof = game.solveSpiralVents();
+          expect(
+            proof.solutions,
+            1,
+            reason: 'run #$run rolled a ring with ${proof.solutions} answers',
+          );
+          expect(proof.coldVents, greaterThan(0));
+          expect(proof.counterTears, greaterThan(0));
+          seen.add(
+            (proof.solution!..sort()).join(',') +
+                (game.spiralComposableCoil == GaleVentFlow.sunwise ? '+' : '-'),
+          );
+        }
         expect(
-          proof.solutions,
-          1,
-          reason: 'run #$run rolled a ring with ${proof.solutions} answers',
+          seen.length,
+          greaterThan(20),
+          reason:
+              'a roll that always lands the same way is an authored answer '
+              'in a disguise; saw only ${seen.length}',
         );
-        expect(proof.coldVents, greaterThan(0));
-        expect(proof.counterTears, greaterThan(0));
-        seen.add(
-          (proof.solution!..sort()).join(',') +
-              (game.spiralComposableCoil == GaleVentFlow.sunwise ? '+' : '-'),
-        );
-      }
-      expect(
-        seen.length,
-        greaterThan(20),
-        reason: 'a roll that always lands the same way is an authored answer '
-            'in a disguise; saw only ${seen.length}',
-      );
-    });
+      },
+    );
 
     test('four composing jets close the eye — and the trial is a COMMITMENT, '
         'not a walk', () {
@@ -626,17 +636,20 @@ void main() {
       expect(discovered, contains('c_spiral'));
     });
 
-    test('the ORDER of the four does not matter — it is a set, not a sequence', () {
-      // (§5.5: sequence-execution belongs to Fire. Composing is a different
-      // question, and this is the test that keeps it one.)
-      final game = _harness(_trio());
-      _walkIntoGaleEye(game);
-      final answer = [...game.solveSpiralVents().solution!].reversed.toList();
-      for (final id in answer) {
-        _commune(game, id);
-      }
-      expect(game.discoveredClouds, contains('c_spiral'));
-    });
+    test(
+      'the ORDER of the four does not matter — it is a set, not a sequence',
+      () {
+        // (§5.5: sequence-execution belongs to Fire. Composing is a different
+        // question, and this is the test that keeps it one.)
+        final game = _harness(_trio());
+        _walkIntoGaleEye(game);
+        final answer = [...game.solveSpiralVents().solution!].reversed.toList();
+        for (final id in answer) {
+          _commune(game, id);
+        }
+        expect(game.discoveredClouds, contains('c_spiral'));
+      },
+    );
 
     test('a radial mouth shears the eye the instant it opens', () {
       final game = _harness(_trio());
@@ -648,6 +661,7 @@ void main() {
       );
       _commune(game, radial.id);
       expect(game.spiralTorn, isTrue, reason: 'in or out, it stabs the coil');
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
       expect(game.discoveredClouds, isNot(contains('c_spiral')));
       expect(game.progressReadout!.value, 'TORN');
@@ -694,6 +708,7 @@ void main() {
         isFalse,
         reason: 'a torn chamber takes no more jets',
       );
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
 
@@ -752,36 +767,32 @@ void main() {
       expect(game.progressReadout!.value, '0/4');
       _commune(game, game.solveSpiralVents().solution!.first);
       expect(game.progressReadout!.value, '1/4');
+      game.askForRoomHint();
       expect(game.hintText, isNot(contains('1/4')));
     });
 
-    test('the objective states the GOAL; the method is earned through Mask '
-        'insight, tiered', () {
+    test('walking in says nothing; the reading is asked for, and tiered', () {
+      // WAS: "the objective states the GOAL". Entering a room no longer
+      // announces anything at all — the dungeon does not narrate, and the
+      // capsule speaks only when the player presses HINT. What survives from
+      // the old contract is the part that matters: the reading narrows the
+      // method by Intelligence without ever naming the answer.
       final game = _harness(_trio());
       _walkIntoGaleEye(game);
-      expect(game.hintChannel, DungeonHintChannel.objective);
-      expect(game.hintText, contains('Gale Eye'));
-      for (final leak in const [
-        'sunwise',
-        'widdershins',
-        'same way',
-        'four',
-        'tangent',
-      ]) {
-        expect(
-          game.hintText!.toLowerCase(),
-          isNot(contains(leak)),
-          reason: 'the entry line must not hand over the method',
-        );
-      }
-      // A Mask reading (Int 3 → tier 1) narrows the method without naming the
-      // coil; a sharper Mask marks the answer.
-      game.setActive(1);
-      _teleport(game, 'spiral_cloud', _eyeRoom(game).bounds.center);
-      game.activateAbility();
+      expect(
+        game.hintText,
+        isNull,
+        reason: 'arriving in a room is not a reason to speak',
+      );
+
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.insight);
       expect(game.hintText, contains('same way'));
-      expect(game.hintText!.toLowerCase(), isNot(contains('sunwise')));
+      expect(
+        game.hintText!.toLowerCase(),
+        isNot(contains('sunwise')),
+        reason: 'tier 1 narrows the method; it never names the coil',
+      );
 
       final sharp = _harness([
         CosmicPartyMember(
@@ -803,7 +814,9 @@ void main() {
       _walkIntoGaleEye(sharp);
       _teleport(sharp, 'spiral_cloud', _eyeRoom(sharp).bounds.center);
       sharp.activateAbility();
+      sharp.askForRoomHint();
       expect(sharp.hintChannel, DungeonHintChannel.insight);
+      sharp.askForRoomHint();
       expect(
         sharp.hintText,
         contains(
@@ -898,10 +911,12 @@ void main() {
         expect(
           game.conduitEnergy['B'] ?? 0,
           0,
-          reason: '${game.creatures[i].member.element} must not light B by '
+          reason:
+              '${game.creatures[i].member.element} must not light B by '
               'hand — the arc/recipe path retired with the timers',
         );
       }
+      game.askForRoomHint();
       expect(game.hintText, contains('storm'));
     });
 
@@ -952,7 +967,11 @@ void main() {
 
       // Now let the storm circle. Somewhere on its ring the leader climbs.
       game.setActive(0);
-      _teleport(game, 'twin_conduit', room.bounds.bottomLeft + const Offset(60, -60));
+      _teleport(
+        game,
+        'twin_conduit',
+        room.bounds.bottomLeft + const Offset(60, -60),
+      );
       var guard = 0;
       while ((game.conduitEnergy['B'] ?? 0) <= 0 && guard++ < 400) {
         _step(game, 0.25);
@@ -991,7 +1010,8 @@ void main() {
         expect(
           rod.position.dy,
           greaterThan(b.position.dy),
-          reason: '${rod.id} stands above conduit B — the climb reads backwards',
+          reason:
+              '${rod.id} stands above conduit B — the climb reads backwards',
         );
         expect(rod.position.dx, lessThan(b.position.dx));
       }
@@ -999,11 +1019,9 @@ void main() {
           .where((r) => (r.position - b.position).distance <= kStormHopReach)
           .map((r) => r.id)
           .toList();
-      expect(
-        reachers,
-        ['rod_north'],
-        reason: 'the corner is fed by the top of the staircase alone',
-      );
+      expect(reachers, [
+        'rod_north',
+      ], reason: 'the corner is fed by the top of the staircase alone');
     });
 
     test('a mis-ranked field strikes wild instead — the consequence layer', () {
@@ -1043,6 +1061,7 @@ void main() {
       game.setActive(1);
       _teleport(game, 'twin_conduit', cell + const Offset(40, 0));
       game.activateAbility();
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
       final before = game.stormCellAngle;
 
@@ -1099,7 +1118,9 @@ void main() {
       _teleport(game, 'storm_altar', door.rect.center);
       _step(game);
       expect(game.currentRoomId, 'storm_altar', reason: 'the door held');
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
+      game.askForRoomHint();
       expect(game.hintText, contains('conduits'));
 
       // The rite lands → the stair opens.
@@ -1140,6 +1161,7 @@ void main() {
       game.stormCellAngle = 0;
       _teleport(game, 'guardian_summit', const Offset(330, 300));
       game.activateAbility();
+      game.askForRoomHint();
       expect(game.hintText, contains('coming down'));
 
       // IMPACT: the body exists, and the lull clock starts here.
@@ -1202,7 +1224,8 @@ void main() {
       expect(
         boss!.hp / boss.maxHp,
         greaterThan(0.5),
-        reason: 'a three-Alchemon opening burst must not halve a guardian — '
+        reason:
+            'a three-Alchemon opening burst must not halve a guardian — '
             'the pool is sized against measured party damage, not a wisp',
       );
       expect(game.hasStar(2), isFalse);
@@ -1316,9 +1339,8 @@ void main() {
 
       // Rank the ring by how far round it each rod sits from the foot rod.
       final foot = room.stormRods.reduce(
-        (a, b) => (a.position - cell).distance < (b.position - cell).distance
-            ? a
-            : b,
+        (a, b) =>
+            (a.position - cell).distance < (b.position - cell).distance ? a : b,
       );
       final ring = [...room.stormRods];
       final footIndex = ring.indexOf(foot);
@@ -1429,7 +1451,11 @@ void main() {
     expect(game.discoveredClouds, contains('c_ring'));
 
     game.setActive(1); // Fire braided through the wind cracks the shell
-    _teleport(game, 'anvil_cloud', room('anvil_cloud').currents.first.rect.center);
+    _teleport(
+      game,
+      'anvil_cloud',
+      room('anvil_cloud').currents.first.rect.center,
+    );
     game.activateAbility();
     expect(game.combatEnemies.length, 3);
     for (final e in game.combatEnemies) {
@@ -1439,7 +1465,11 @@ void main() {
     expect(game.discoveredClouds, contains('c_anvil'));
 
     game.setActive(0);
-    _teleport(game, 'feather_cloud', room('feather_cloud').platforms.first.center);
+    _teleport(
+      game,
+      'feather_cloud',
+      room('feather_cloud').platforms.first.center,
+    );
     guard = 0;
     while (!game.discoveredClouds.contains('c_feather') && guard++ < 4000) {
       final feathers = game.fallingFeatherPositions;
@@ -1459,8 +1489,9 @@ void main() {
     while (!game.discoveredClouds.contains('c_veil') && guard++ < 4000) {
       final vis = game.veilVisibleSpotIndex;
       if (vis != null) {
-        game.creatures[game.activeIndex].position =
-            game.veilSpots(room('veil_cloud'))[vis];
+        game.creatures[game.activeIndex].position = game.veilSpots(
+          room('veil_cloud'),
+        )[vis];
         game.activateAbility();
       }
       game.update(1 / 60);
@@ -1551,7 +1582,11 @@ void main() {
 
     // ── The Roc: paced lull strikes until it falls ──
     final guardianNode = room('guardian_summit').guardian!;
-    _teleport(game, 'guardian_summit', guardianNode.position + const Offset(0, 80));
+    _teleport(
+      game,
+      'guardian_summit',
+      guardianNode.position + const Offset(0, 80),
+    );
     var safety = 0;
     while (!game.hasStar(2) && safety++ < 600) {
       final roc = game.combatEnemies.where((e) => e.isElite).firstOrNull;

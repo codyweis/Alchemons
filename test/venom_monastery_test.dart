@@ -49,10 +49,10 @@ CosmicPartyMember _member(int slot, String element, String family) =>
 
 /// The §6 ideal trio: Poisonmask · Lavahorn · Mudmane.
 List<CosmicPartyMember> _idealTrio() => [
-      _member(0, 'Poison', 'mask'),
-      _member(1, 'Lava', 'horn'),
-      _member(2, 'Mud', 'mane'),
-    ];
+  _member(0, 'Poison', 'mask'),
+  _member(1, 'Lava', 'horn'),
+  _member(2, 'Mud', 'mane'),
+];
 
 PlanetDungeonGame _harness(
   List<CosmicPartyMember> party, {
@@ -200,8 +200,11 @@ Set<String> _explore(
 }
 
 /// Is a full triage (three cures + the cross) still reachable from [t]?
-bool _canStillFinishFor(WardTriage t, Map<String, WardStrain> strains,
-    Set<String> openable) {
+bool _canStillFinishFor(
+  WardTriage t,
+  Map<String, WardStrain> strains,
+  Set<String> openable,
+) {
   var found = false;
   final seen = <String>{_key(t)};
   final queue = <WardTriage>[_clone(t, strains)];
@@ -271,8 +274,11 @@ void main() {
       expect(t.dose('ward_bell'), DoseOutcome.fed);
       t.draw(WardDraught.rousing);
       expect(t.dose('ward_bell'), DoseOutcome.cured);
-      expect(t.virulent, contains('ward_bell'),
-          reason: 'the feeding is remembered even after the cure');
+      expect(
+        t.virulent,
+        contains('ward_bell'),
+        reason: 'the feeding is remembered even after the cure',
+      );
     });
 
     test('you cannot dose a ward you never opened', () {
@@ -295,35 +301,45 @@ void main() {
       expect(t.cistern, kMonasteryCistern - 1);
     });
 
-    test('THE DREGS: the cistern refills only while wards can still be saved',
-        () {
-      final t = WardTriage(
-        wardIds: kMonasteryWardIds,
-        strains: {for (final w in kMonasteryWardIds) w: WardStrain.pulse},
-      );
-      t.cistern = 0;
-      expect(t.dregsAvailable, isTrue, reason: 'nothing cured yet');
-      expect(t.draw(WardDraught.stilling), isTrue);
-      t.cured.addAll(kMonasteryWardIds.take(kMonasteryCures));
-      t.carried = null;
-      t.cistern = 0;
-      expect(t.dregsAvailable, isFalse,
-          reason: 'three is all this house has, ever');
-      expect(t.draw(WardDraught.stilling), isFalse);
-    });
+    test(
+      'THE DREGS: the cistern refills only while wards can still be saved',
+      () {
+        final t = WardTriage(
+          wardIds: kMonasteryWardIds,
+          strains: {for (final w in kMonasteryWardIds) w: WardStrain.pulse},
+        );
+        t.cistern = 0;
+        expect(t.dregsAvailable, isTrue, reason: 'nothing cured yet');
+        expect(t.draw(WardDraught.stilling), isTrue);
+        t.cured.addAll(kMonasteryWardIds.take(kMonasteryCures));
+        t.carried = null;
+        t.cistern = 0;
+        expect(
+          t.dregsAvailable,
+          isFalse,
+          reason: 'three is all this house has, ever',
+        );
+        expect(t.draw(WardDraught.stilling), isFalse);
+      },
+    );
 
-    test('the crypt font is separate — the finale is never a supply problem',
-        () {
-      final t = WardTriage(
-        wardIds: kMonasteryWardIds,
-        strains: {for (final w in kMonasteryWardIds) w: WardStrain.pulse},
-      );
-      t.cured.addAll(kMonasteryWardIds.take(kMonasteryCures));
-      t.cistern = 0;
-      expect(t.draw(WardDraught.stilling), isFalse);
-      expect(t.drawCarrion(WardDraught.stilling), isTrue,
-          reason: 'patient zero brews its own venom');
-    });
+    test(
+      'the crypt font is separate — the finale is never a supply problem',
+      () {
+        final t = WardTriage(
+          wardIds: kMonasteryWardIds,
+          strains: {for (final w in kMonasteryWardIds) w: WardStrain.pulse},
+        );
+        t.cured.addAll(kMonasteryWardIds.take(kMonasteryCures));
+        t.cistern = 0;
+        expect(t.draw(WardDraught.stilling), isFalse);
+        expect(
+          t.drawCarrion(WardDraught.stilling),
+          isTrue,
+          reason: 'patient zero brews its own venom',
+        );
+      },
+    );
   });
 
   group('THE EXHAUSTIVE SWEEP — every arrangement, every play', () {
@@ -333,8 +349,11 @@ void main() {
           strains,
           openable: kMonasteryWardIds.toSet(),
           inspect: (t) {
-            expect(t.cured.length, lessThanOrEqualTo(kMonasteryCures),
-                reason: 'the house saved more than it had physic for');
+            expect(
+              t.cured.length,
+              lessThanOrEqualTo(kMonasteryCures),
+              reason: 'the house saved more than it had physic for',
+            );
             // And the cross can only ever fall on a ward that is not cured.
             final s = t.surrendered;
             if (s != null) {
@@ -355,8 +374,11 @@ void main() {
           strains,
           openable: all,
           inspect: (t) {
-            expect(t.canStillFinish, isTrue,
-                reason: 'the module thinks this run is lost: ${_key(t)}');
+            expect(
+              t.canStillFinish,
+              isTrue,
+              reason: 'the module thinks this run is lost: ${_key(t)}',
+            );
           },
         );
         // And spot-prove the module's own optimism against a real search from
@@ -366,8 +388,11 @@ void main() {
           ..cistern = 0;
         worst.opened.addAll(all);
         worst.virulent.addAll(all);
-        expect(_canStillFinishFor(worst, strains, all), isTrue,
-            reason: 'four fed strains and a dry cistern must still finish');
+        expect(
+          _canStillFinishFor(worst, strains, all),
+          isTrue,
+          reason: 'four fed strains and a dry cistern must still finish',
+        );
       }
     });
 
@@ -383,8 +408,11 @@ void main() {
             if (s != null) surrendered.add(s);
           },
         );
-        expect(surrendered, kMonasteryWardIds.toSet(),
-            reason: 'a sacrifice you cannot choose is not a decision');
+        expect(
+          surrendered,
+          kMonasteryWardIds.toSet(),
+          reason: 'a sacrifice you cannot choose is not a decision',
+        );
       }
     });
 
@@ -407,10 +435,16 @@ void main() {
             }
           },
         );
-        expect(everCommitted, isTrue,
-            reason: 'a hornless party must still be able to close the triage');
-        expect(surrendered, {'ward_charnel'},
-            reason: 'without the horn the charnel is the only ward left over');
+        expect(
+          everCommitted,
+          isTrue,
+          reason: 'a hornless party must still be able to close the triage',
+        );
+        expect(
+          surrendered,
+          {'ward_charnel'},
+          reason: 'without the horn the charnel is the only ward left over',
+        );
       }
     });
   });
@@ -428,16 +462,19 @@ void main() {
     test('four wards, one still, one crypt font, one prior\'s seal', () {
       final wards = layout.rooms.values.where((r) => r.ward != null).toList();
       expect(wards.length, 4);
-      expect(
-        wards.map((r) => r.ward!.id).toSet(),
-        kMonasteryWardIds.toSet(),
-      );
-      expect(wards.where((r) => r.ward!.bricked).map((r) => r.ward!.id),
-          ['ward_charnel']);
+      expect(wards.map((r) => r.ward!.id).toSet(), kMonasteryWardIds.toSet());
+      expect(wards.where((r) => r.ward!.bricked).map((r) => r.ward!.id), [
+        'ward_charnel',
+      ]);
 
-      final stills =
-          layout.rooms.values.where((r) => r.apothecary != null).toList();
-      expect(stills.length, 2, reason: 'the infirmary still and the carrion font');
+      final stills = layout.rooms.values
+          .where((r) => r.apothecary != null)
+          .toList();
+      expect(
+        stills.length,
+        2,
+        reason: 'the infirmary still and the carrion font',
+      );
       for (final s in stills) {
         expect(
           s.apothecary!.spouts.map((p) => p.draught).toSet(),
@@ -446,8 +483,9 @@ void main() {
         );
       }
 
-      final seals =
-          layout.rooms.values.where((r) => r.priorsSeal != null).toList();
+      final seals = layout.rooms.values
+          .where((r) => r.priorsSeal != null)
+          .toList();
       expect(seals.length, 1);
       expect(seals.single.priorsSeal!.diagnosisStarIndex, 0);
       expect(seals.single.priorsSeal!.triageStarIndex, 1);
@@ -499,14 +537,17 @@ void main() {
             if (seen.add(d.targetRoomId)) queue.add(d.targetRoomId);
           }
         }
-        expect(seen, layout.rooms.keys.toSet(),
-            reason: 'surrendering $given left rooms unreachable: '
-                '${layout.rooms.keys.toSet().difference(seen)}');
+        expect(
+          seen,
+          layout.rooms.keys.toSet(),
+          reason:
+              'surrendering $given left rooms unreachable: '
+              '${layout.rooms.keys.toSet().difference(seen)}',
+        );
       }
     });
 
-    test('both family gates answer an entry slot, and neither owns a star',
-        () {
+    test('both family gates answer an entry slot, and neither owns a star', () {
       expect(layout.familyGates.length, 2);
       final slots = kCosmicPlanetEntry['Poison']!;
       for (final g in layout.familyGates) {
@@ -569,8 +610,11 @@ void main() {
     test('the ideal trio earns all three Poison stars end-to-end', () {
       final earned = <int>[];
       final found = <String>[];
-      final game =
-          _harness(_idealTrio(), onStar: earned.add, onCloud: found.add);
+      final game = _harness(
+        _idealTrio(),
+        onStar: earned.add,
+        onCloud: found.add,
+      );
       final t = game.monastery.triage;
 
       // ── Entry rite: the quarantine wax answers Poison.
@@ -582,8 +626,9 @@ void main() {
 
       // ── A ward is not a room until you break its seal (§5.5 topology).
       final amb = game.layout.rooms['ambulatory']!;
-      final bellDoor =
-          amb.doors.firstWhere((d) => d.targetRoomId == 'ward_bell');
+      final bellDoor = amb.doors.firstWhere(
+        (d) => d.targetRoomId == 'ward_bell',
+      );
       expect(game.isDoorLocked(amb, bellDoor), isTrue);
 
       // ── Cure three wards, each by its own diagnosis.
@@ -601,22 +646,38 @@ void main() {
         actAt(game, ward, poison, censer);
         expect(t.cured, contains(ward), reason: '$ward was not cured');
         if (first) {
-          expect(game.hasStar(0), isTrue,
-              reason: 'the first cure banks the Physician\'s Star');
+          expect(
+            game.hasStar(0),
+            isTrue,
+            reason: 'the first cure banks the Physician\'s Star',
+          );
           first = false;
         }
       });
-      expect(game.isDoorLocked(amb, bellDoor), isFalse,
-          reason: 'an opened ward is walkable');
+      expect(
+        game.isDoorLocked(amb, bellDoor),
+        isFalse,
+        reason: 'an opened ward is walkable',
+      );
 
       // ── The house has no physic for a fourth (the whole planet).
       actAt(game, 'ambulatory', lava, wardDoors['ward_charnel']!);
-      expect(t.opened, contains('ward_charnel'),
-          reason: 'the Lava HORN breaches the brick');
-      actAt(game, 'apothecary', poison,
-          spoutOf(game, 'apothecary', WardDraught.rousing));
-      expect(t.carried, isNull,
-          reason: 'three cured — the cistern refuses a fourth draught');
+      expect(
+        t.opened,
+        contains('ward_charnel'),
+        reason: 'the Lava HORN breaches the brick',
+      );
+      actAt(
+        game,
+        'apothecary',
+        poison,
+        spoutOf(game, 'apothecary', WardDraught.rousing),
+      );
+      expect(
+        t.carried,
+        isNull,
+        reason: 'three cured — the cistern refuses a fourth draught',
+      );
 
       // ── The cross goes up. Star 1, and the sacrifice is irreversible.
       expect(game.hasStar(1), isFalse);
@@ -626,19 +687,27 @@ void main() {
       expect(earned, containsAllInOrder([0, 1]));
 
       // ── The plague-cross bars the ward, then rots off it.
-      final charnelDoor =
-          amb.doors.firstWhere((d) => d.targetRoomId == 'ward_charnel');
-      expect(game.isDoorLocked(amb, charnelDoor), isTrue,
-          reason: 'the cross bars what it crossed off');
+      final charnelDoor = amb.doors.firstWhere(
+        (d) => d.targetRoomId == 'ward_charnel',
+      );
+      expect(
+        game.isDoorLocked(amb, charnelDoor),
+        isTrue,
+        reason: 'the cross bars what it crossed off',
+      );
       step(game, 4.4);
-      expect(game.isDoorLocked(amb, charnelDoor), isFalse,
-          reason: 'the strain you left alive eats its own door open');
+      expect(
+        game.isDoorLocked(amb, charnelDoor),
+        isFalse,
+        reason: 'the strain you left alive eats its own door open',
+      );
 
       // ── The oubliette: only in the ward you gave up, and only after the
       // rite. The vault is reachable BECAUSE of the sacrifice.
       final charnel = game.layout.rooms['ward_charnel']!;
-      final hatch =
-          charnel.doors.firstWhere((d) => d.targetRoomId == 'lazar_crypt');
+      final hatch = charnel.doors.firstWhere(
+        (d) => d.targetRoomId == 'lazar_crypt',
+      );
       expect(game.isDoorHidden(charnel, hatch), isTrue);
       for (final saved in ['ward_bell', 'ward_scriptorium', 'ward_refectory']) {
         final r = game.layout.rooms[saved]!;
@@ -670,20 +739,37 @@ void main() {
       // ── Blightfang: the lull answers physic, never a clock (§7).
       game.monastery.blightStrain = WardStrain.creep;
       final g = game.layout.rooms['lazar_crypt']!.guardian!;
-      actAt(game, 'lazar_crypt', poison,
-          spoutOf(game, 'lazar_crypt', WardDraught.binding));
-      expect(game.monastery.triage.carried, WardDraught.binding,
-          reason: 'the carrion font never runs dry');
+      actAt(
+        game,
+        'lazar_crypt',
+        poison,
+        spoutOf(game, 'lazar_crypt', WardDraught.binding),
+      );
+      expect(
+        game.monastery.triage.carried,
+        WardDraught.binding,
+        reason: 'the carrion font never runs dry',
+      );
       game.guardianVulnerable = false;
       actAt(game, 'lazar_crypt', poison, g.position);
-      expect(game.guardianVulnerable, isFalse,
-          reason: 'the wrong physic only feeds it');
+      expect(
+        game.guardianVulnerable,
+        isFalse,
+        reason: 'the wrong physic only feeds it',
+      );
 
-      actAt(game, 'lazar_crypt', poison,
-          spoutOf(game, 'lazar_crypt', WardDraught.quicklime));
+      actAt(
+        game,
+        'lazar_crypt',
+        poison,
+        spoutOf(game, 'lazar_crypt', WardDraught.quicklime),
+      );
       actAt(game, 'lazar_crypt', poison, g.position);
-      expect(game.guardianVulnerable, isTrue,
-          reason: 'the answering draught forces the window');
+      expect(
+        game.guardianVulnerable,
+        isTrue,
+        reason: 'the answering draught forces the window',
+      );
       expect(game.monastery.blightLull, greaterThan(0));
     });
 
@@ -692,20 +778,31 @@ void main() {
       final t = game.monastery.triage;
       actAt(game, 'ambulatory', poison, wardDoors['ward_bell']!);
       // ward_bell keeps a beat; quicklime is for what clings to stone.
-      actAt(game, 'apothecary', poison,
-          spoutOf(game, 'apothecary', WardDraught.quicklime));
+      actAt(
+        game,
+        'apothecary',
+        poison,
+        spoutOf(game, 'apothecary', WardDraught.quicklime),
+      );
       actAt(game, 'ward_bell', poison, censer);
       expect(t.virulent, contains('ward_bell'));
       expect(t.cured, isEmpty);
       expect(game.hasStar(0), isFalse);
       // The dregs put a draught back, because wards can still be saved.
       expect(t.canStillFinish, isTrue);
-      actAt(game, 'apothecary', poison,
-          spoutOf(game, 'apothecary', WardDraught.stilling));
+      actAt(
+        game,
+        'apothecary',
+        poison,
+        spoutOf(game, 'apothecary', WardDraught.stilling),
+      );
       actAt(game, 'ward_bell', poison, censer);
       expect(t.cured, contains('ward_bell'));
-      expect(game.hasStar(0), isTrue,
-          reason: 'a misdiagnosis costs danger, never a star');
+      expect(
+        game.hasStar(0),
+        isTrue,
+        reason: 'a misdiagnosis costs danger, never a star',
+      );
     });
 
     test('THE SEAL REMEMBERS: the brick and the squint stamp their chips', () {
@@ -719,8 +816,11 @@ void main() {
       final t = game.monastery.triage;
 
       actAt(game, 'ambulatory', 1, wardDoors['ward_charnel']!);
-      expect(t.opened.contains('ward_charnel'), isFalse,
-          reason: 'a Lava PIP is not a Lava HORN');
+      expect(
+        t.opened.contains('ward_charnel'),
+        isFalse,
+        reason: 'a Lava PIP is not a Lava HORN',
+      );
       expect(found, contains('gate:lava_horn'));
 
       // The squint: shut for everyone but a Mud mane — and the ambulatory
@@ -728,8 +828,9 @@ void main() {
       actAt(game, 'ambulatory', 0, wardDoors['ward_bell']!);
       actAt(game, 'ambulatory', 0, wardDoors['ward_scriptorium']!);
       final bell = game.layout.rooms['ward_bell']!;
-      final squint =
-          bell.doors.firstWhere((d) => d.targetRoomId == 'ward_scriptorium');
+      final squint = bell.doors.firstWhere(
+        (d) => d.targetRoomId == 'ward_scriptorium',
+      );
       game.currentRoomId = 'ward_bell';
       game.setActive(0);
       expect(game.isDoorLocked(bell, squint), isTrue);
@@ -749,8 +850,12 @@ void main() {
       final game = _harness(_idealTrio(), onCloud: found.add);
       final m = game.monastery;
       m.wispStrain = WardStrain.feign; // it lies still until touched
-      actAt(game, 'apothecary', poison,
-          spoutOf(game, 'apothecary', WardDraught.rousing));
+      actAt(
+        game,
+        'apothecary',
+        poison,
+        spoutOf(game, 'apothecary', WardDraught.rousing),
+      );
       final wisp = m.wisp!;
       actAt(game, 'ambulatory', poison, wisp);
       expect(found, contains(kPoisonDoseEggId));

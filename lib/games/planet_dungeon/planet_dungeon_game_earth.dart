@@ -105,12 +105,14 @@ extension BuriedGiant on PlanetDungeonGame {
         slide.progress,
       )!;
     } else {
-      center = rib.notches[(ribNotches[rib.id] ?? 0).clamp(
-        0,
-        rib.notches.length - 1,
-      )];
+      center = rib
+          .notches[(ribNotches[rib.id] ?? 0).clamp(0, rib.notches.length - 1)];
     }
-    return Rect.fromCenter(center: center, width: rib.width, height: rib.height);
+    return Rect.fromCenter(
+      center: center,
+      width: rib.width,
+      height: rib.height,
+    );
   }
 
   /// Settled in the chasm groove (last notch, not mid-grind)?
@@ -529,7 +531,9 @@ extension BuriedGiant on PlanetDungeonGame {
         return true;
       }
       if (_pillarCharge.containsKey(pillar.id)) {
-        _setHint('The socket is charging — hold the marrow off until it lights');
+        _setHint(
+          'The socket is charging — hold the marrow off until it lights',
+        );
         return true;
       }
       final element = a.member.element;
@@ -550,8 +554,10 @@ extension BuriedGiant on PlanetDungeonGame {
         unstable = false;
         hint = 'The spark slips clean into the socket — defend its charge';
       } else {
-        _setHint('A buried socket — storm-spark would wake it, or crystal '
-            'seal it outright');
+        _setHint(
+          'A buried socket — storm-spark would wake it, or crystal '
+          'seal it outright',
+        );
         return true;
       }
       _pillarCharge[pillar.id] = 0.0;
@@ -665,8 +671,11 @@ extension BuriedGiant on PlanetDungeonGame {
       particleCount: 26,
       intensity: 1.1,
     );
-    _setHint('$kEarthGiantsPalmMaxim — a crystal takes root in the open '
-        'palm', 9.0);
+    _setHint(
+      '$kEarthGiantsPalmMaxim — a crystal takes root in the open '
+      'palm',
+      9.0,
+    );
     return true;
   }
 
@@ -809,8 +818,10 @@ extension BuriedGiant on PlanetDungeonGame {
           .firstOrNull;
       if (stoneId != null && scaleSolution.containsKey(stoneId)) {
         final clueC = switch (room.id) {
-          'skull_antechamber' =>
-            Offset(room.bounds.left + 90, room.bounds.top + 120),
+          'skull_antechamber' => Offset(
+            room.bounds.left + 90,
+            room.bounds.top + 120,
+          ),
           'palm_hollow' => kGiantsPalm + const Offset(0, 64),
           'marrow_vault' => room.bounds.center + const Offset(0, 70),
           'pillar_crypt' => room.bounds.center,
@@ -1084,7 +1095,13 @@ extension BuriedGiant on PlanetDungeonGame {
   /// The SAME glyph is engraved on the stone's scale-marker and beside its
   /// leaning clue-arrow, so a player matches mark→stone by symbol (skull /
   /// root / geode / seed) rather than guessing.
-  void _drawStoneSigil(Canvas canvas, Offset c, String id, Color color, double r) {
+  void _drawStoneSigil(
+    Canvas canvas,
+    Offset c,
+    String id,
+    Color color,
+    double r,
+  ) {
     final p = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.3
@@ -1101,9 +1118,21 @@ extension BuriedGiant on PlanetDungeonGame {
           false,
           p,
         );
-        canvas.drawLine(c + Offset(-r * 0.55, r * 0.05), c + Offset(-r * 0.38, r * 0.55), p);
-        canvas.drawLine(c + Offset(r * 0.55, r * 0.05), c + Offset(r * 0.38, r * 0.55), p);
-        canvas.drawLine(c + Offset(-r * 0.38, r * 0.55), c + Offset(r * 0.38, r * 0.55), p);
+        canvas.drawLine(
+          c + Offset(-r * 0.55, r * 0.05),
+          c + Offset(-r * 0.38, r * 0.55),
+          p,
+        );
+        canvas.drawLine(
+          c + Offset(r * 0.55, r * 0.05),
+          c + Offset(r * 0.38, r * 0.55),
+          p,
+        );
+        canvas.drawLine(
+          c + Offset(-r * 0.38, r * 0.55),
+          c + Offset(r * 0.38, r * 0.55),
+          p,
+        );
         final eye = Paint()..color = color;
         canvas.drawCircle(c + Offset(-r * 0.3, -r * 0.02), r * 0.15, eye);
         canvas.drawCircle(c + Offset(r * 0.3, -r * 0.02), r * 0.15, eye);
@@ -1111,8 +1140,16 @@ extension BuriedGiant on PlanetDungeonGame {
       case 'w_root':
         // A forking taproot.
         canvas.drawLine(c + Offset(0, -r * 0.85), c + Offset(0, r * 0.2), p);
-        canvas.drawLine(c + Offset(0, r * 0.2), c + Offset(-r * 0.6, r * 0.85), p);
-        canvas.drawLine(c + Offset(0, r * 0.2), c + Offset(r * 0.55, r * 0.8), p);
+        canvas.drawLine(
+          c + Offset(0, r * 0.2),
+          c + Offset(-r * 0.6, r * 0.85),
+          p,
+        );
+        canvas.drawLine(
+          c + Offset(0, r * 0.2),
+          c + Offset(r * 0.55, r * 0.8),
+          p,
+        );
         canvas.drawLine(c + Offset(0, r * 0.2), c + Offset(0, r * 0.85), p);
         break;
       case 'w_geode':
@@ -1126,7 +1163,11 @@ extension BuriedGiant on PlanetDungeonGame {
             ..close(),
           p,
         );
-        canvas.drawLine(c + Offset(-r * 0.7, -r * 0.05), c + Offset(r * 0.7, -r * 0.05), p);
+        canvas.drawLine(
+          c + Offset(-r * 0.7, -r * 0.05),
+          c + Offset(r * 0.7, -r * 0.05),
+          p,
+        );
         canvas.drawLine(c + Offset(0, -r * 0.85), c + Offset(0, r * 0.85), p);
         break;
       case 'w_seed':
@@ -1134,8 +1175,18 @@ extension BuriedGiant on PlanetDungeonGame {
         canvas.drawPath(
           Path()
             ..moveTo(c.dx, c.dy - r * 0.9)
-            ..quadraticBezierTo(c.dx + r * 0.7, c.dy - r * 0.05, c.dx, c.dy + r * 0.85)
-            ..quadraticBezierTo(c.dx - r * 0.7, c.dy - r * 0.05, c.dx, c.dy - r * 0.9)
+            ..quadraticBezierTo(
+              c.dx + r * 0.7,
+              c.dy - r * 0.05,
+              c.dx,
+              c.dy + r * 0.85,
+            )
+            ..quadraticBezierTo(
+              c.dx - r * 0.7,
+              c.dy - r * 0.05,
+              c.dx,
+              c.dy - r * 0.9,
+            )
             ..close(),
           p,
         );
@@ -1160,7 +1211,10 @@ extension BuriedGiant on PlanetDungeonGame {
     final dir = right ? 1.0 : -1.0;
     // Anchor the mark to each room's signature feature.
     final c = switch (room.id) {
-      'skull_antechamber' => Offset(room.bounds.left + 90, room.bounds.top + 120),
+      'skull_antechamber' => Offset(
+        room.bounds.left + 90,
+        room.bounds.top + 120,
+      ),
       'palm_hollow' => kGiantsPalm + const Offset(0, 64),
       'marrow_vault' => room.bounds.center + const Offset(0, 70),
       'pillar_crypt' => room.bounds.center,
@@ -1195,9 +1249,9 @@ extension BuriedGiant on PlanetDungeonGame {
         _fx.mote!,
         tip,
         5,
-        const Color(0xFFB8E0D8).withValues(
-          alpha: 0.28 + 0.16 * sin(_time * 2.4 + c.dx),
-        ),
+        const Color(
+          0xFFB8E0D8,
+        ).withValues(alpha: 0.28 + 0.16 * sin(_time * 2.4 + c.dx)),
       );
     }
   }
@@ -1292,7 +1346,9 @@ extension BuriedGiant on PlanetDungeonGame {
 
     // The uprights heave up first; the capstone only settles once they stand.
     final postT = Curves.easeOutCubic.transform(r);
-    final capT = Curves.easeOutBack.transform(((r - 0.4) / 0.6).clamp(0.0, 1.0));
+    final capT = Curves.easeOutBack.transform(
+      ((r - 0.4) / 0.6).clamp(0.0, 1.0),
+    );
 
     // Left upright: from tumbled-aslant on the ground → vertical post.
     final leftCenter = Offset.lerp(
@@ -1300,13 +1356,7 @@ extension BuriedGiant on PlanetDungeonGame {
       c + const Offset(-44, 4),
       postT,
     )!;
-    _drawDolmenStone(
-      canvas,
-      leftCenter,
-      20,
-      70,
-      -0.62 * (1 - postT),
-    );
+    _drawDolmenStone(canvas, leftCenter, 20, 70, -0.62 * (1 - postT));
 
     // Right upright: tumbled the other way → vertical post.
     final rightCenter = Offset.lerp(
@@ -1314,13 +1364,7 @@ extension BuriedGiant on PlanetDungeonGame {
       c + const Offset(44, 4),
       postT,
     )!;
-    _drawDolmenStone(
-      canvas,
-      rightCenter,
-      20,
-      70,
-      0.5 * (1 - postT),
-    );
+    _drawDolmenStone(canvas, rightCenter, 20, 70, 0.5 * (1 - postT));
 
     // Capstone: fallen aslant across the rubble → settles level on the posts.
     final capCenter = Offset.lerp(
@@ -1328,13 +1372,7 @@ extension BuriedGiant on PlanetDungeonGame {
       c + const Offset(0, -42),
       capT,
     )!;
-    _drawDolmenStone(
-      canvas,
-      capCenter,
-      124,
-      22,
-      0.4 * (1 - capT),
-    );
+    _drawDolmenStone(canvas, capCenter, 124, 22, 0.4 * (1 - capT));
 
     // Warm light breathes through the standing arch once it's home.
     if (_fx.ready && r > 0.85) {
@@ -1344,7 +1382,8 @@ extension BuriedGiant on PlanetDungeonGame {
         c + const Offset(0, -6),
         38,
         const Color(0xFFD8B878).withValues(
-          alpha: ((r - 0.85) / 0.15).clamp(0.0, 1.0) *
+          alpha:
+              ((r - 0.85) / 0.15).clamp(0.0, 1.0) *
               (0.14 + 0.05 * sin(_time * 1.8)),
         ),
       );
@@ -1452,9 +1491,9 @@ extension BuriedGiant on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.3
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFE4A86A).withValues(
-          alpha: 0.12 + 0.05 * sin(_time * 1.5),
-        );
+        ..color = const Color(
+          0xFFE4A86A,
+        ).withValues(alpha: 0.12 + 0.05 * sin(_time * 1.5));
       for (var i = 0; i < 3; i++) {
         final y = chasm.top + 90.0 + i * 180;
         canvas.drawPath(
@@ -1502,10 +1541,10 @@ extension BuriedGiant on PlanetDungeonGame {
         canvas.drawCircle(
           end,
           knobR,
-          Paint()..color = (bridging
-                  ? const Color(0xFF8E7A50)
-                  : const Color(0xFFBCA478))
-              .withValues(alpha: bridging ? 0.8 : 0.95),
+          Paint()
+            ..color =
+                (bridging ? const Color(0xFF8E7A50) : const Color(0xFFBCA478))
+                    .withValues(alpha: bridging ? 0.8 : 0.95),
         );
         canvas.drawCircle(
           end,
@@ -1524,18 +1563,25 @@ extension BuriedGiant on PlanetDungeonGame {
       canvas.drawRRect(
         rr,
         Paint()
-          ..color = (bridging
-                  ? const Color(0xFF9A8458)
-                  : const Color(0xFFC8B488))
-              .withValues(alpha: bridging ? 0.78 : 0.92),
+          ..color =
+              (bridging ? const Color(0xFF9A8458) : const Color(0xFFC8B488))
+                  .withValues(alpha: bridging ? 0.78 : 0.92),
       );
       // Lit bevel along the top of the shaft.
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(rect.left + 4, rect.top + 3, rect.width - 8, rect.height * 0.34),
+          Rect.fromLTWH(
+            rect.left + 4,
+            rect.top + 3,
+            rect.width - 8,
+            rect.height * 0.34,
+          ),
           const Radius.circular(8),
         ),
-        Paint()..color = const Color(0xFFE0CC9A).withValues(alpha: bridging ? 0.4 : 0.6),
+        Paint()
+          ..color = const Color(
+            0xFFE0CC9A,
+          ).withValues(alpha: bridging ? 0.4 : 0.6),
       );
       canvas.drawRRect(
         rr,
@@ -1549,7 +1595,9 @@ extension BuriedGiant on PlanetDungeonGame {
       if (slide != null && _fx.ready) {
         // Direction of travel, so dust spills behind the grind.
         final dir = (rib.notches[slide.to] - rib.notches[slide.from]);
-        final back = dir.distance > 0 ? -dir / dir.distance : const Offset(0, 1);
+        final back = dir.distance > 0
+            ? -dir / dir.distance
+            : const Offset(0, 1);
         final edge = back * (min(rect.width, rect.height) * 0.5 + 6);
         for (var k = 0; k < 4; k++) {
           final phase = _time * 3.0 + k * 1.7 + rect.center.dx;
@@ -1559,16 +1607,17 @@ extension BuriedGiant on PlanetDungeonGame {
             _fx.mote!,
             rect.center + edge + perp,
             5 + 2.5 * (0.5 + 0.5 * sin(phase * 1.3)),
-            const Color(0xFFD8B878).withValues(
-              alpha: 0.18 + 0.16 * (0.5 + 0.5 * sin(phase)),
-            ),
+            const Color(
+              0xFFD8B878,
+            ).withValues(alpha: 0.18 + 0.16 * (0.5 + 0.5 * sin(phase))),
           );
         }
       }
     }
     // The sternum plate: dim until the bridge is whole.
     final plate = room.sternumPlate;
-    if (plate != null && room.ribStarIndex != null &&
+    if (plate != null &&
+        room.ribStarIndex != null &&
         !hasStar(room.ribStarIndex!)) {
       final ready = _bridgeComplete(room);
       final col = ready ? const Color(0xFFD8B878) : const Color(0xFF4A3A28);
@@ -1596,9 +1645,9 @@ extension BuriedGiant on PlanetDungeonGame {
         _fx.glow!,
         c - const Offset(0, 4),
         30,
-        const Color(0xFFE4A86A).withValues(
-          alpha: 0.2 + 0.08 * sin(_time * 1.8),
-        ),
+        const Color(
+          0xFFE4A86A,
+        ).withValues(alpha: 0.2 + 0.08 * sin(_time * 1.8)),
       );
     }
     // A marrow geode cracked open on the pedestal.
@@ -1676,9 +1725,8 @@ extension BuriedGiant on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.8
-          ..color =
-              (locked ? const Color(0xFFB8E0D8) : const Color(0xFF6E5A3A))
-                  .withValues(alpha: 0.85),
+          ..color = (locked ? const Color(0xFFB8E0D8) : const Color(0xFF6E5A3A))
+              .withValues(alpha: 0.85),
       );
       if (locked) {
         // The grown crystal lock: a shard cluster that GROWS from the socket.
@@ -1690,9 +1738,9 @@ extension BuriedGiant on PlanetDungeonGame {
             _fx.glow!,
             p + const Offset(0, 28),
             26 * (0.4 + 0.6 * grow),
-            const Color(0xFFB8E0D8).withValues(
-              alpha: (0.2 + 0.06 * sin(_time * 2.2 + p.dx)) * grow,
-            ),
+            const Color(
+              0xFFB8E0D8,
+            ).withValues(alpha: (0.2 + 0.06 * sin(_time * 2.2 + p.dx)) * grow),
           );
         }
         final shard = Paint()
@@ -1724,9 +1772,9 @@ extension BuriedGiant on PlanetDungeonGame {
       } else if (_pillarCharge.containsKey(pillar.id)) {
         // CHARGING: the socket draws the storm — a ring fills, sparks gather,
         // and crackle intensifies until it lights. The player defends it.
-        final prog = (_pillarCharge[pillar.id]! /
-                (_pillarChargeDur[pillar.id] ?? 2.0))
-            .clamp(0.0, 1.0);
+        final prog =
+            (_pillarCharge[pillar.id]! / (_pillarChargeDur[pillar.id] ?? 2.0))
+                .clamp(0.0, 1.0);
         final socketC = p + const Offset(0, 34);
         const ringR = 16.0;
         if (_fx.ready) {
@@ -1735,8 +1783,11 @@ extension BuriedGiant on PlanetDungeonGame {
             _fx.glow!,
             socketC,
             18 + 16 * prog,
-            Color.lerp(const Color(0xFFFFE9A0), const Color(0xFFB8E0D8), prog)!
-                .withValues(alpha: 0.12 + 0.30 * prog),
+            Color.lerp(
+              const Color(0xFFFFE9A0),
+              const Color(0xFFB8E0D8),
+              prog,
+            )!.withValues(alpha: 0.12 + 0.30 * prog),
           );
         }
         // Faint full track, then the filling charge arc over it.
@@ -1757,9 +1808,11 @@ extension BuriedGiant on PlanetDungeonGame {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2.6
             ..strokeCap = StrokeCap.round
-            ..color =
-                Color.lerp(const Color(0xFFFFE9A0), const Color(0xFFD8F0EA), prog)!
-                    .withValues(alpha: 0.9),
+            ..color = Color.lerp(
+              const Color(0xFFFFE9A0),
+              const Color(0xFFD8F0EA),
+              prog,
+            )!.withValues(alpha: 0.9),
         );
         // Crackling storm-sparks gathering inward, fiercer as it fills.
         final bolt = Paint()
@@ -1770,7 +1823,8 @@ extension BuriedGiant on PlanetDungeonGame {
         for (var k = 0; k < 3; k++) {
           final ang = _time * 4.0 + k * (pi * 2 / 3);
           final outer = socketC + Offset(cos(ang), sin(ang)) * (ringR + 14);
-          final mid = socketC +
+          final mid =
+              socketC +
               Offset(cos(ang + 0.35), sin(ang + 0.35)) *
                   (ringR + 3 + 4 * sin(_time * 9 + k));
           final inner = socketC + Offset(cos(ang), sin(ang)) * (ringR * 0.4);
@@ -1784,8 +1838,9 @@ extension BuriedGiant on PlanetDungeonGame {
             _fx.mote!,
             socketC,
             8,
-            const Color(0xFFEFFFFB)
-                .withValues(alpha: ((prog - 0.8) / 0.2) * 0.7),
+            const Color(
+              0xFFEFFFFB,
+            ).withValues(alpha: ((prog - 0.8) / 0.2) * 0.7),
           );
         }
       } else if (_fx.ready) {
@@ -1822,7 +1877,10 @@ extension BuriedGiant on PlanetDungeonGame {
     for (var i = 0; i < 5; i++) {
       final a = pi * 1.12 + i * pi * 0.19;
       final base = c + const Offset(0, 26) + Offset(cos(a), sin(a)) * 52;
-      final tip = c + const Offset(0, 26) + Offset(cos(a), sin(a)) * (86 + (i == 2 ? 12 : 0));
+      final tip =
+          c +
+          const Offset(0, 26) +
+          Offset(cos(a), sin(a)) * (86 + (i == 2 ? 12 : 0));
       canvas.drawLine(base, tip, bone);
     }
     if (won) {
@@ -1833,9 +1891,9 @@ extension BuriedGiant on PlanetDungeonGame {
           _fx.glow!,
           c,
           44,
-          const Color(0xFFB8E0D8).withValues(
-            alpha: 0.22 + 0.07 * sin(_time * 1.7),
-          ),
+          const Color(
+            0xFFB8E0D8,
+          ).withValues(alpha: 0.22 + 0.07 * sin(_time * 1.7)),
         );
       }
       final shard = Paint()
@@ -1880,14 +1938,15 @@ extension BuriedGiant on PlanetDungeonGame {
       ..color = const Color(0xFFD8B878).withValues(alpha: 0.55);
     // The eye glyph…
     final eyeP = Offset(panel.left + 90, panel.center.dy);
-    canvas.drawOval(
-      Rect.fromCenter(center: eyeP, width: 56, height: 30),
-      ink,
-    );
+    canvas.drawOval(Rect.fromCenter(center: eyeP, width: 56, height: 30), ink);
     canvas.drawCircle(eyeP, 8, ink);
     // …watching a scale: beam, pivot, two pans with stones.
     final pivot = Offset(panel.center.dx + 60, panel.center.dy - 14);
-    canvas.drawLine(pivot + const Offset(-80, 8), pivot + const Offset(80, -8), ink);
+    canvas.drawLine(
+      pivot + const Offset(-80, 8),
+      pivot + const Offset(80, -8),
+      ink,
+    );
     canvas.drawLine(pivot, pivot + const Offset(0, 30), ink);
     for (final side in const [-1.0, 1.0]) {
       final panC = pivot + Offset(side * 80, side * -8 + 22);
@@ -1909,13 +1968,25 @@ extension BuriedGiant on PlanetDungeonGame {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFB8E0D8).withValues(
-        alpha: 0.30 + 0.12 * sin(_time * 2.4),
-      );
-    canvas.drawLine(eyeP + const Offset(26, 2), lensP - const Offset(0, 4), beam);
-    canvas.drawLine(lensP - const Offset(0, 4), pivot + const Offset(0, 2), beam);
+      ..color = const Color(
+        0xFFB8E0D8,
+      ).withValues(alpha: 0.30 + 0.12 * sin(_time * 2.4));
+    canvas.drawLine(
+      eyeP + const Offset(26, 2),
+      lensP - const Offset(0, 4),
+      beam,
+    );
+    canvas.drawLine(
+      lensP - const Offset(0, 4),
+      pivot + const Offset(0, 2),
+      beam,
+    );
     // A little plinth under the lens.
-    canvas.drawLine(lensP + const Offset(-12, 12), lensP + const Offset(12, 12), ink);
+    canvas.drawLine(
+      lensP + const Offset(-12, 12),
+      lensP + const Offset(12, 12),
+      ink,
+    );
     // The crystal lens itself: a faceted gem.
     final gem = Paint()
       ..style = PaintingStyle.stroke
@@ -1933,14 +2004,20 @@ extension BuriedGiant on PlanetDungeonGame {
       Paint()..color = const Color(0xFFB8E0D8).withValues(alpha: 0.16),
     );
     canvas.drawPath(gemPath, gem);
-    canvas.drawLine(lensP + const Offset(-9, 2), lensP + const Offset(9, 2), gem);
+    canvas.drawLine(
+      lensP + const Offset(-9, 2),
+      lensP + const Offset(9, 2),
+      gem,
+    );
     if (_fx.ready) {
       drawGlow(
         canvas,
         _fx.mote!,
         lensP - const Offset(0, 2),
         6,
-        const Color(0xFFD8F0EA).withValues(alpha: 0.30 + 0.12 * sin(_time * 3.0)),
+        const Color(
+          0xFFD8F0EA,
+        ).withValues(alpha: 0.30 + 0.12 * sin(_time * 3.0)),
       );
     }
   }
@@ -1981,9 +2058,9 @@ extension BuriedGiant on PlanetDungeonGame {
       pupil,
       9,
       Paint()
-        ..color = const Color(0xFFD8F0EA).withValues(
-          alpha: 0.25 + 0.5 * eyeGlow + 0.08 * sin(_time * 2.6),
-        ),
+        ..color = const Color(
+          0xFFD8F0EA,
+        ).withValues(alpha: 0.25 + 0.5 * eyeGlow + 0.08 * sin(_time * 2.6)),
     );
 
     // The gaze prism on its plinth (and the beam, once it stands).
@@ -2010,8 +2087,16 @@ extension BuriedGiant on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4
         ..color = const Color(0xFF8A6E48).withValues(alpha: 0.6);
-      canvas.drawLine(pivot + beamHalf * side, panC + const Offset(-14, -8), hang);
-      canvas.drawLine(pivot + beamHalf * side, panC + const Offset(14, -8), hang);
+      canvas.drawLine(
+        pivot + beamHalf * side,
+        panC + const Offset(-14, -8),
+        hang,
+      );
+      canvas.drawLine(
+        pivot + beamHalf * side,
+        panC + const Offset(14, -8),
+        hang,
+      );
       canvas.drawArc(
         Rect.fromCircle(center: panC, radius: 20),
         0,
@@ -2081,9 +2166,9 @@ extension BuriedGiant on PlanetDungeonGame {
           _fx.mote!,
           p + Offset(trueRight ? 19 : -19, 0),
           8,
-          const Color(0xFFB8E0D8).withValues(
-            alpha: (0.5 * (_scaleTruthFlash / 6)).clamp(0.0, 0.5),
-          ),
+          const Color(
+            0xFFB8E0D8,
+          ).withValues(alpha: (0.5 * (_scaleTruthFlash / 6)).clamp(0.0, 0.5)),
         );
       }
     }
@@ -2108,14 +2193,16 @@ extension BuriedGiant on PlanetDungeonGame {
     // overtakes it in stage 2.
     if (prismStage >= 1) {
       final rise = Curves.easeOutBack.transform(_prismCoreRise);
-      final coreAlpha = (crystalUp ? (1 - grow) : 1.0) * _prismCoreRise.clamp(0.0, 1.0);
+      final coreAlpha =
+          (crystalUp ? (1 - grow) : 1.0) * _prismCoreRise.clamp(0.0, 1.0);
       final coreY = p.dy + 14 - 12 * rise; // from plinth-top up to its perch
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(center: Offset(p.dx, coreY), width: 26, height: 26),
           const Radius.circular(6),
         ),
-        Paint()..color = const Color(0xFF6E5A3A).withValues(alpha: 0.85 * coreAlpha),
+        Paint()
+          ..color = const Color(0xFF6E5A3A).withValues(alpha: 0.85 * coreAlpha),
       );
     }
 
@@ -2128,9 +2215,9 @@ extension BuriedGiant on PlanetDungeonGame {
           _fx.glow!,
           p - const Offset(0, 4),
           36 * (0.4 + 0.6 * grow),
-          const Color(0xFFB8E0D8).withValues(
-            alpha: (0.20 + 0.07 * sin(_time * 2.0)) * grow,
-          ),
+          const Color(
+            0xFFB8E0D8,
+          ).withValues(alpha: (0.20 + 0.07 * sin(_time * 2.0)) * grow),
         );
       }
       final shard = Paint()
@@ -2147,7 +2234,11 @@ extension BuriedGiant on PlanetDungeonGame {
         ..close();
       canvas.drawPath(prismPath, shardFill);
       canvas.drawPath(prismPath, shard);
-      canvas.drawLine(p + const Offset(-4, -4), Offset(p.dx + 4, apexY + 16), shard);
+      canvas.drawLine(
+        p + const Offset(-4, -4),
+        Offset(p.dx + 4, apexY + 16),
+        shard,
+      );
       // A growth-spark riding the apex while it crystallises.
       if (grow < 1.0 && _fx.ready) {
         drawGlow(
@@ -2164,10 +2255,14 @@ extension BuriedGiant on PlanetDungeonGame {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6
           ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFFB8E0D8).withValues(
-            alpha: 0.18 + 0.07 * sin(_time * 3.1),
-          );
-        canvas.drawLine(eyeC + const Offset(0, 26), p - const Offset(0, 22), beam);
+          ..color = const Color(
+            0xFFB8E0D8,
+          ).withValues(alpha: 0.18 + 0.07 * sin(_time * 3.1));
+        canvas.drawLine(
+          eyeC + const Offset(0, 26),
+          p - const Offset(0, 22),
+          beam,
+        );
         for (var i = 0; i < 3; i++) {
           final t2 = (i - 1) * 0.35;
           canvas.drawLine(
@@ -2187,9 +2282,9 @@ extension BuriedGiant on PlanetDungeonGame {
             _fx.mote!,
             p - const Offset(0, 6),
             5,
-            const Color(0xFFD8F0EA).withValues(
-              alpha: 0.4 + 0.2 * sin(_time * 4.2),
-            ),
+            const Color(
+              0xFFD8F0EA,
+            ).withValues(alpha: 0.4 + 0.2 * sin(_time * 4.2)),
           );
         }
       }
@@ -2219,8 +2314,24 @@ extension BuriedGiant on PlanetDungeonGame {
       mk(width),
     );
     if (depth <= 0) return;
-    _drawHeartVein(canvas, to, angle - 0.55, len * 0.66, width * 0.6, depth - 1, mk);
-    _drawHeartVein(canvas, to, angle + 0.45, len * 0.70, width * 0.6, depth - 1, mk);
+    _drawHeartVein(
+      canvas,
+      to,
+      angle - 0.55,
+      len * 0.66,
+      width * 0.6,
+      depth - 1,
+      mk,
+    );
+    _drawHeartVein(
+      canvas,
+      to,
+      angle + 0.45,
+      len * 0.70,
+      width * 0.6,
+      depth - 1,
+      mk,
+    );
   }
 
   /// A symmetric anatomical-heart silhouette centred on [c], [w]×[h].
@@ -2228,19 +2339,28 @@ extension BuriedGiant on PlanetDungeonGame {
     return Path()
       ..moveTo(c.dx, c.dy + 0.42 * h)
       ..cubicTo(
-        c.dx - 0.62 * w, c.dy - 0.02 * h,
-        c.dx - 0.48 * w, c.dy - 0.52 * h,
-        c.dx - 0.16 * w, c.dy - 0.34 * h,
+        c.dx - 0.62 * w,
+        c.dy - 0.02 * h,
+        c.dx - 0.48 * w,
+        c.dy - 0.52 * h,
+        c.dx - 0.16 * w,
+        c.dy - 0.34 * h,
       )
       ..cubicTo(
-        c.dx - 0.05 * w, c.dy - 0.46 * h,
-        c.dx + 0.05 * w, c.dy - 0.46 * h,
-        c.dx + 0.16 * w, c.dy - 0.34 * h,
+        c.dx - 0.05 * w,
+        c.dy - 0.46 * h,
+        c.dx + 0.05 * w,
+        c.dy - 0.46 * h,
+        c.dx + 0.16 * w,
+        c.dy - 0.34 * h,
       )
       ..cubicTo(
-        c.dx + 0.48 * w, c.dy - 0.52 * h,
-        c.dx + 0.62 * w, c.dy - 0.02 * h,
-        c.dx, c.dy + 0.42 * h,
+        c.dx + 0.48 * w,
+        c.dy - 0.52 * h,
+        c.dx + 0.62 * w,
+        c.dy - 0.02 * h,
+        c.dx,
+        c.dy + 0.42 * h,
       )
       ..close();
   }
@@ -2255,6 +2375,7 @@ extension BuriedGiant on PlanetDungeonGame {
       final x = (cyclePos - centre) / width;
       return exp(-x * x);
     }
+
     final beat = guardianAwake
         ? (thump(0.10, 0.045) + 0.55 * thump(0.27, 0.055)).clamp(0.0, 1.0)
         : 0.0;
@@ -2341,9 +2462,9 @@ extension BuriedGiant on PlanetDungeonGame {
         _fx.glow!,
         base,
         14 + 10 * beat,
-        const Color(0xFFE8B074).withValues(
-          alpha: guardianAwake ? 0.12 + 0.22 * beat : 0.04,
-        ),
+        const Color(
+          0xFFE8B074,
+        ).withValues(alpha: guardianAwake ? 0.12 + 0.22 * beat : 0.04),
       );
     }
 

@@ -10,8 +10,7 @@
 import 'dart:math' show cos, pi, sin;
 import 'dart:ui';
 
-import 'package:alchemons/games/cosmic/cosmic_data.dart'
-    show PlanetStarState;
+import 'package:alchemons/games/cosmic/cosmic_data.dart' show PlanetStarState;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_ice.dart';
@@ -522,7 +521,11 @@ class TideSeal {
   final String id;
   final Offset position;
   final Set<int> tides;
-  const TideSeal({required this.id, required this.position, required this.tides});
+  const TideSeal({
+    required this.id,
+    required this.position,
+    required this.tides,
+  });
 }
 
 /// How high the temple's water must stand before a canal channel RUNS
@@ -1014,6 +1017,7 @@ class DungeonRoom {
   /// cloister's crosswind one quarter (element-only, like the vesper gust).
   final Offset? windVane;
   final List<IncenseChain> incenseChains;
+
   /// The two censer runs the vesper flame may take to those same bells (§6.1
   /// REWORK). Empty = the chains' authored nodes are the only path.
   final List<VesperRoute> vesperRoutes;
@@ -1027,6 +1031,7 @@ class DungeonRoom {
   final List<MoonPool> moonPools;
   final List<TideZone> tideZones;
   final List<TideDoorRule> tideDoorRules;
+
   /// The vault cache: every dungeon's treasure room holds one — walking to
   /// it makes the planet's essence FIZZLE into the air and grants 5 gold,
   /// once ever (persisted via the `cache:` discovery channel).
@@ -1046,16 +1051,20 @@ class DungeonRoom {
   final List<StormCell> stormCells;
   final List<CellSocket> cellSockets;
   // Storm-Spire beam puzzle:
-  final List<BeamEmitter> beamEmitters; // Wind Vents (one emits per stationed Air)
+  final List<BeamEmitter>
+  beamEmitters; // Wind Vents (one emits per stationed Air)
   final List<BeamMirror> beamMirrors;
-  final List<Offset> beamConverters; // Fire-converter spots (only some on a path)
-  final Offset? beamReceiver; // the Storm Tower (lit only by the lightning beam)
+  final List<Offset>
+  beamConverters; // Fire-converter spots (only some on a path)
+  final Offset?
+  beamReceiver; // the Storm Tower (lit only by the lightning beam)
   final List<Offset> beamReceivers; // S1 terminals: ALL must lie on the beam
   final List<FulminateVat> fulminateVats; // S1 negative constraints
   /// The vault bolt (zero-sum rework): a barrier that stands while this
   /// room's trunk is POWERED and falls open in the dark — the treasury
   /// answers only to a dead trunk, walked in the dark.
   final Rect? vaultBolt;
+
   /// The grounding spike (storm core): a Lightning creature grounds the
   /// core trunk here mid-fight — Raikuma FEEDS on its powered trunk and
   /// only offers the lull while the trunk is dead.
@@ -1091,6 +1100,7 @@ class DungeonRoom {
   /// The prior's seal — where the triage is committed, and where Poison
   /// declares its two non-guardian star indices.
   final PriorsSeal? priorsSeal;
+
   /// Ice (the Frozen Observatory): this level's shaft content — its star, the
   /// orrery/mirror puzzle, and the single objects (cap, rimefall, font,
   /// hoarfrost, telescope). One field, because the shaft's own graph is
@@ -1102,6 +1112,7 @@ class DungeonRoom {
   /// hollow's mire anchor. One field, because the fen's own crossing graph is
   /// authored whole in planet_dungeon_layout_mud.dart rather than per room.
   final BogFen? fen;
+
   /// Plant (the Verdant Crypt): this room's content in the crypt that is one
   /// geometry at two sizes — its star, the boles and mulch pits, and the
   /// single objects (briar, lamp, growth altar, sepulchre, shade seed, the
@@ -1125,6 +1136,7 @@ class DungeonRoom {
   /// whole in planet_dungeon_layout_light.dart rather than per room, exactly
   /// as Ice's shaft and Dark's quarters are.
   final ArchiveHall? hall;
+
   /// Blood (the Sanguine Orrery): this chamber's content on the figure-eight
   /// of veins — its star, and the single objects (the pericardium, the rite's
   /// balance, the heart-drum, the arena's vagal node). One field, because the
@@ -1267,8 +1279,9 @@ class DungeonFamilyGate {
 
   /// How the requirement reads on the descent panel: 'Lightning HORN' for a
   /// full lock, 'any HORN' when only the verb matters.
-  String get label =>
-      needsElement ? '$element ${family.toUpperCase()}' : 'any ${family.toUpperCase()}';
+  String get label => needsElement
+      ? '$element ${family.toUpperCase()}'
+      : 'any ${family.toUpperCase()}';
 
   /// The required family, matching CreatureFamily / FamilyColors keys
   /// ('Horn', 'Pip', 'Wing', 'Mane', 'Mask', 'Kin', 'Let').
@@ -1966,13 +1979,41 @@ const DungeonLayout _airLayout = DungeonLayout(
         ),
       ],
       galeVents: [
-        GaleVent(id: 'v_north', name: 'the north mouth', position: Offset(350, 75)),
-        GaleVent(id: 'v_dawn', name: 'the dawn mouth', position: Offset(514, 154)),
-        GaleVent(id: 'v_east', name: 'the east mouth', position: Offset(555, 332)),
-        GaleVent(id: 'v_low', name: 'the low mouth', position: Offset(441, 474)),
-        GaleVent(id: 'v_deep', name: 'the deep mouth', position: Offset(259, 474)),
-        GaleVent(id: 'v_west', name: 'the west mouth', position: Offset(145, 332)),
-        GaleVent(id: 'v_dusk', name: 'the dusk mouth', position: Offset(186, 154)),
+        GaleVent(
+          id: 'v_north',
+          name: 'the north mouth',
+          position: Offset(350, 75),
+        ),
+        GaleVent(
+          id: 'v_dawn',
+          name: 'the dawn mouth',
+          position: Offset(514, 154),
+        ),
+        GaleVent(
+          id: 'v_east',
+          name: 'the east mouth',
+          position: Offset(555, 332),
+        ),
+        GaleVent(
+          id: 'v_low',
+          name: 'the low mouth',
+          position: Offset(441, 474),
+        ),
+        GaleVent(
+          id: 'v_deep',
+          name: 'the deep mouth',
+          position: Offset(259, 474),
+        ),
+        GaleVent(
+          id: 'v_west',
+          name: 'the west mouth',
+          position: Offset(145, 332),
+        ),
+        GaleVent(
+          id: 'v_dusk',
+          name: 'the dusk mouth',
+          position: Offset(186, 154),
+        ),
       ],
     ),
 
@@ -2724,8 +2765,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
   stars: [
     DungeonStarSpec(
       name: 'Tide Star',
-      earnAnnouncement:
-          'The Tide Star is yours — the sluices remember the sea',
+      earnAnnouncement: 'The Tide Star is yours — the sluices remember the sea',
     ),
     DungeonStarSpec(
       name: 'Current Star',
@@ -2736,8 +2776,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
   ],
   entranceRevealDoor: DungeonDoorRef('tide_gate', 'drowned_court'),
   finaleDoor: DungeonDoorRef('drowned_court', 'moon_hall'),
-  riteAnnouncement:
-      'Tide and Current flow in accord — the mirror gate parts',
+  riteAnnouncement: 'Tide and Current flow in accord — the mirror gate parts',
   finaleSealedHint:
       'The mirror gate is sealed — it parts only for both the Tide and '
       'Current stars',
@@ -3017,9 +3056,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
       ],
       // A pipe-mouth so a Pip can retune the tide without the long walk
       // back to the tide-works (cycles one step per slip).
-      tideValves: [
-        TideValve(position: Offset(450, 640), pipOnly: true),
-      ],
+      tideValves: [TideValve(position: Offset(450, 640), pipOnly: true)],
       tideZones: [
         TideZone(rect: Rect.fromLTWH(330, 270, 240, 200), floodedAt: 1),
       ],
@@ -3305,10 +3342,26 @@ const DungeonLayout _earthLayout = DungeonLayout(
         position: Offset(450, 400),
         plinth: Offset(450, 282),
         weights: [
-          ScaleWeight(id: 'w_skull', position: Offset(250, 580), truePanRight: true),
-          ScaleWeight(id: 'w_root', position: Offset(383, 612), truePanRight: false),
-          ScaleWeight(id: 'w_geode', position: Offset(517, 612), truePanRight: true),
-          ScaleWeight(id: 'w_seed', position: Offset(650, 580), truePanRight: false),
+          ScaleWeight(
+            id: 'w_skull',
+            position: Offset(250, 580),
+            truePanRight: true,
+          ),
+          ScaleWeight(
+            id: 'w_root',
+            position: Offset(383, 612),
+            truePanRight: false,
+          ),
+          ScaleWeight(
+            id: 'w_geode',
+            position: Offset(517, 612),
+            truePanRight: true,
+          ),
+          ScaleWeight(
+            id: 'w_seed',
+            position: Offset(650, 580),
+            truePanRight: false,
+          ),
         ],
       ),
     ),
@@ -3668,9 +3721,21 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         ),
       ],
       stormCells: [
-        StormCell(id: 'cell_spark', cellType: 'Spark', position: Offset(170, 200)),
-        StormCell(id: 'cell_veil', cellType: 'Veil', position: Offset(590, 200)),
-        StormCell(id: 'cell_anvil', cellType: 'Anvil', position: Offset(380, 430)),
+        StormCell(
+          id: 'cell_spark',
+          cellType: 'Spark',
+          position: Offset(170, 200),
+        ),
+        StormCell(
+          id: 'cell_veil',
+          cellType: 'Veil',
+          position: Offset(590, 200),
+        ),
+        StormCell(
+          id: 'cell_anvil',
+          cellType: 'Anvil',
+          position: Offset(380, 430),
+        ),
       ],
     ),
 
@@ -3722,9 +3787,18 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         Rect.fromLTWH(700, 380, 90, 130), // obstacle pillar 2
       ],
       beamEmitters: [
-        BeamEmitter(position: Offset(160, 160), dir: Offset(1, 0)), // VA: viable
-        BeamEmitter(position: Offset(160, 460), dir: Offset(1, 0)), // VB: → pillar
-        BeamEmitter(position: Offset(560, 640), dir: Offset(0, -1)), // VC: → ceiling
+        BeamEmitter(
+          position: Offset(160, 160),
+          dir: Offset(1, 0),
+        ), // VA: viable
+        BeamEmitter(
+          position: Offset(160, 460),
+          dir: Offset(1, 0),
+        ), // VB: → pillar
+        BeamEmitter(
+          position: Offset(560, 640),
+          dir: Offset(0, -1),
+        ), // VC: → ceiling
         // VD: the DECOY — dead-aligned with FD, but no conductor beyond it.
         BeamEmitter(position: Offset(1000, 640), dir: Offset(0, -1)),
       ],
@@ -3745,7 +3819,10 @@ const DungeonLayout _lightningLayout = DungeonLayout(
       poweredBarriers: [
         // The gate to the storm core — thrown when the tower is lit
         // (nodeId 'beam_core', held live by the engine).
-        PoweredBarrier(rect: Rect.fromLTWH(200, 600, 120, 22), nodeId: 'beam_core'),
+        PoweredBarrier(
+          rect: Rect.fromLTWH(200, 600, 120, 22),
+          nodeId: 'beam_core',
+        ),
       ],
     ),
 
@@ -4204,7 +4281,6 @@ String? _guardianMysticId(DungeonLayout layout) {
   return null;
 }
 
-
 /// Roc drags its storm-cell across a rod field; without rods the drag is a
 /// no-op. A ring gives the bird somewhere to be led from any approach, which
 /// the authored spire's staircase does not need to do.
@@ -4244,7 +4320,6 @@ List<RitualBrazier> _raidBraziers(String element) {
       ),
   ];
 }
-
 
 /// Leviathan hauls the tide a stand on every roar, and its lull only opens on
 /// SETTLED water — so without tide zones the mechanic is inert and the fight

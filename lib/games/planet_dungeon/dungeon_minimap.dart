@@ -179,10 +179,7 @@ const Map<String, List<(List<String>, Color)>> _fullMapSectionsByElement = {
     // The ash garden (Ash Star).
     (['cloister', 'reliquary'], Color(0xFF9CCC65)),
     // The vesper wing beyond the chancel gate (Pyre Star).
-    (
-      ['vestry', 'bell_gallery', 'high_altar', 'sanctum'],
-      Color(0xFFFFD27A),
-    ),
+    (['vestry', 'bell_gallery', 'high_altar', 'sanctum'], Color(0xFFFFD27A)),
   ],
   'Water': [
     // The tide-works (Tide Star).
@@ -190,10 +187,7 @@ const Map<String, List<(List<String>, Color)>> _fullMapSectionsByElement = {
     // The ghost wing (Current Star).
     (['ghost_gallery', 'pearl_vault'], Color(0xFFB8D8E8)),
     // Beyond the mirror gate (Deep Star).
-    (
-      ['moon_hall', 'moon_well', 'leviathan_depths'],
-      Color(0xFFDCE8F0),
-    ),
+    (['moon_hall', 'moon_well', 'leviathan_depths'], Color(0xFFDCE8F0)),
   ],
   'Earth': [
     // The rib hall + its vault (Marrow Star).
@@ -201,10 +195,7 @@ const Map<String, List<(List<String>, Color)>> _fullMapSectionsByElement = {
     // The pillar crypt (Crystal Star).
     (['pillar_crypt'], Color(0xFFB8E0D8)),
     // Beyond the skull's jaw (Heart Star).
-    (
-      ['skull_antechamber', 'eye_chamber', 'heart_chamber'],
-      Color(0xFFE4A86A),
-    ),
+    (['skull_antechamber', 'eye_chamber', 'heart_chamber'], Color(0xFFE4A86A)),
   ],
   'Lightning': [
     // The pylon hall + capacitor vault (Circuit Star).
@@ -502,8 +493,7 @@ class _DungeonMiniMapPainter extends CustomPainter {
           break;
         }
       }
-    } else if (room.ribStarIndex != null &&
-        !game.hasStar(room.ribStarIndex!)) {
+    } else if (room.ribStarIndex != null && !game.hasStar(room.ribStarIndex!)) {
       for (final rib in room.fossilRibs) {
         if ((game.ribNotches[rib.id] ?? 0) < rib.notches.length - 1) {
           objective = rib.notches[(game.ribNotches[rib.id] ?? 0)];
@@ -571,8 +561,10 @@ class _DungeonMiniMapPainter extends CustomPainter {
           if (i < 0) continue;
           final cw = room.bounds.width / g.cols;
           final ch = room.bounds.height / g.rowCount;
-          objective = Offset(room.bounds.left + (i + 0.5) * cw,
-              room.bounds.top + (r + 0.5) * ch);
+          objective = Offset(
+            room.bounds.left + (i + 0.5) * cw,
+            room.bounds.top + (r + 0.5) * ch,
+          );
           break;
         }
       }

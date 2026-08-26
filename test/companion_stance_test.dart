@@ -73,13 +73,20 @@ void main() {
       }
     });
 
-    test('at the horn\'s comfortable distance the kin is already retreating', () {
-      // 102px is exactly where a horn wants to be, and far too close for a
-      // kin, whose ring is nearly the full 300.
-      final d = range * stanceForFamily('horn').engageFraction;
-      expect(_move('horn', d).dx, closeTo(0, 1e-9), reason: 'horn is settled');
-      expect(_move('kin', d).dx, lessThan(0), reason: 'kin backs off');
-    });
+    test(
+      'at the horn\'s comfortable distance the kin is already retreating',
+      () {
+        // 102px is exactly where a horn wants to be, and far too close for a
+        // kin, whose ring is nearly the full 300.
+        final d = range * stanceForFamily('horn').engageFraction;
+        expect(
+          _move('horn', d).dx,
+          closeTo(0, 1e-9),
+          reason: 'horn is settled',
+        );
+        expect(_move('kin', d).dx, lessThan(0), reason: 'kin backs off');
+      },
+    );
 
     test('a ranged family shoved into melee backs out', () {
       final kin = _move('kin', 20);
@@ -94,15 +101,21 @@ void main() {
     test('the move never exceeds full speed', () {
       for (final f in kCompanionStances.keys) {
         for (final d in [20.0, 150.0, 300.0, 900.0]) {
-          expect(_move(f, d).distance, lessThanOrEqualTo(1.0 + 1e-9),
-              reason: '$f at $d');
+          expect(
+            _move(f, d).distance,
+            lessThanOrEqualTo(1.0 + 1e-9),
+            reason: '$f at $d',
+          );
         }
       }
     });
 
     test('magnitude carries intent — a settled horn barely moves', () {
       // Normalising here would send it sliding sideways at full speed.
-      final settled = _move('horn', range * stanceForFamily('horn').engageFraction);
+      final settled = _move(
+        'horn',
+        range * stanceForFamily('horn').engageFraction,
+      );
       expect(settled.distance, lessThan(0.2));
       final far = _move('horn', range * 2);
       expect(far.distance, greaterThan(0.8));
@@ -113,7 +126,11 @@ void main() {
     test('a settled wing moves sideways, not just in and out', () {
       final m = _move('wing', range * stanceForFamily('wing').engageFraction);
       expect(m.dy.abs(), greaterThan(0.5), reason: 'it should be circling');
-      expect(m.dx.abs(), lessThan(0.1), reason: 'and not closing while it does');
+      expect(
+        m.dx.abs(),
+        lessThan(0.1),
+        reason: 'and not closing while it does',
+      );
     });
 
     test('orbit direction follows the sign, so two wings do not collide', () {

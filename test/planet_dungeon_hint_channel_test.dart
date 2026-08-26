@@ -112,7 +112,9 @@ void main() {
       walker.position = sealedDoor.rect.center;
       _step(game, 0.2);
 
+      game.askForRoomHint();
       expect(game.hintText, contains('sealed'));
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
 
       // Keep leaning on it well past the line's lifetime: the refusal must
@@ -129,7 +131,9 @@ void main() {
       _step(game, 0.2);
       walker.position = sealedDoor.rect.center;
       _step(game, 0.2);
+      game.askForRoomHint();
       expect(game.hintText, contains('sealed'));
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
 
@@ -138,7 +142,9 @@ void main() {
       game.creatures[1].hp = 0;
       game.setActive(1);
       expect(game.activeIndex, 0, reason: 'a downed creature cannot take over');
+      game.askForRoomHint();
       expect(game.hintText, contains('down'));
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
   });
@@ -151,13 +157,16 @@ void main() {
       game.creatures[1].position = game.currentRoom.bounds.center;
       game.activateAbility();
 
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.insight);
       final reading = game.hintText;
       expect(reading, isNotNull);
 
       // Run the world for a beat: proximity ambience must not stomp it.
       _step(game, 0.4);
+      game.askForRoomHint();
       expect(game.hintText, reading);
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.insight);
     });
 
@@ -167,10 +176,12 @@ void main() {
       game.setActive(1);
       game.creatures[1].position = game.currentRoom.bounds.center;
       game.activateAbility();
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.insight);
 
       game.creatures[0].hp = 0;
       game.setActive(0);
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
   });
@@ -246,27 +257,31 @@ void main() {
       _step(game, 0.1);
 
       expect(game.progressReadout!.value, startsWith('1/'));
+      game.askForRoomHint();
       expect(game.hintText, isNot(contains('1/')));
     });
   });
 
   group('objectives state WHAT, never HOW (the solution-leak rule)', () {
-    test('entering twin_conduit no longer hands over the method', () {
-      final game = _buildGame();
-      game.currentRoomId = 'storm_rune_hall';
-      final door = game.currentRoom.doors.firstWhere(
-        (d) => d.targetRoomId == 'twin_conduit',
-      );
-      game.creatures[game.activeIndex].position = door.rect.center;
-      _step(game, 0.2);
+    test(
+      'entering twin_conduit hands over nothing, because it says nothing',
+      () {
+        // WAS: the objective line named the goal without leaking the method.
+        // Objectives no longer speak at all, which settles the solution-leak
+        // question by removing the sentence it was about. What is pinned now is
+        // the stronger property: arriving is silent.
+        final game = _buildGame();
+        game.currentRoomId = 'storm_rune_hall';
+        final door = game.currentRoom.doors.firstWhere(
+          (d) => d.targetRoomId == 'twin_conduit',
+        );
+        game.creatures[game.activeIndex].position = door.rect.center;
+        _step(game, 0.2);
 
-      expect(game.currentRoomId, 'twin_conduit');
-      expect(game.hintChannel, DungeonHintChannel.objective);
-      expect(game.hintText, contains('sleep'));
-      expect(game.hintText, isNot(contains('Lightning')));
-      expect(game.hintText, isNot(contains('Fire')));
-      expect(game.hintText, isNot(contains('arc B')));
-    });
+        expect(game.currentRoomId, 'twin_conduit');
+        expect(game.hintText, isNull);
+      },
+    );
 
     test('the conduit method is earned through Mask insight, tiered', () {
       final game = _buildGame();
@@ -277,9 +292,12 @@ void main() {
       game.creatures[1].position = game.currentRoom.bounds.center;
       game.activateAbility();
 
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.insight);
       // Tier 1 narrows the method without spelling out the leader's rule…
+      game.askForRoomHint();
       expect(game.hintText, contains('ladder'));
+      game.askForRoomHint();
       expect(game.hintText, isNot(contains('tallest')));
 
       // …tier 2 (a sharper mask) names element and order.
@@ -307,7 +325,9 @@ void main() {
       game2.setActive(1);
       game2.creatures[1].position = game2.currentRoom.bounds.center;
       game2.activateAbility();
+      game2.askForRoomHint();
       expect(game2.hintChannel, DungeonHintChannel.insight);
+      game2.askForRoomHint();
       expect(game2.hintText, contains('tallest'));
     });
   });
@@ -322,11 +342,14 @@ void main() {
       walker.lastSafe = walker.position;
       _step(game, 0.2);
 
+      game.askForRoomHint();
       expect(game.hintText, contains('Speed'));
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
 
       // Keep standing in it: the refusal fades and must NOT re-latch.
       _step(game, 5.0);
+      game.askForRoomHint();
       expect(game.hintText, isNot(contains('Speed')));
 
       // Step out and back in: a new attempt, so it speaks again.
@@ -336,7 +359,9 @@ void main() {
       walker.position = const Offset(690, 500);
       walker.lastSafe = walker.position;
       _step(game, 0.2);
+      game.askForRoomHint();
       expect(game.hintText, contains('Speed'));
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
 
@@ -356,7 +381,9 @@ void main() {
         flier.position = inColumn;
         game.update(1 / 60);
       }
+      game.askForRoomHint();
       expect(game.hintText, contains('Speed'));
+      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
 
       // Keep fighting it well past the line's lifetime: spoken once.
@@ -364,6 +391,7 @@ void main() {
         flier.position = inColumn;
         game.update(1 / 60);
       }
+      game.askForRoomHint();
       expect(game.hintText, isNot(contains('Speed')));
     });
   });

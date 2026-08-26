@@ -666,9 +666,10 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'It is never quite in the room with you',
         1 => 'It is solid in one world at a time, and it changes on a count',
-        _ => 'Nothing lands out of phase, either way — match the world it is '
-            'standing in, and strike in that one. The stone behind you is '
-            'the only weapon in here',
+        _ =>
+          'Nothing lands out of phase, either way — match the world it is '
+              'standing in, and strike in that one. The stone behind you is '
+              'the only weapon in here',
       });
       return;
     }
@@ -676,56 +677,65 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'Two things, and the walk wants both',
         1 => 'One is a stone with no name on it; the other is an unlit lamp',
-        _ => 'Only a second sight reads a nameless stone; the lamp answers any '
-            'Crystal, once both stars are yours',
+        _ =>
+          'Only a second sight reads a nameless stone; the lamp answers any '
+              'Crystal, once both stars are yours',
       });
       return;
     }
     if (room.vaultCache != null) {
       _setInsightHint(switch (tier) {
         0 => 'Nobody was ever put in here',
-        1 => 'Every other grave in the field carries a name-slot. This one '
-            'does not',
-        _ => 'An empty slot takes whatever mark is set in it, and there are '
-            'three of you standing in it',
+        1 =>
+          'Every other grave in the field carries a name-slot. This one '
+              'does not',
+        _ =>
+          'An empty slot takes whatever mark is set in it, and there are '
+              'three of you standing in it',
       });
       return;
     }
-    final restless = graveRevenantsIn(room.id)
-        .where((r) => !f.isRested(r.id))
-        .toList();
+    final restless = graveRevenantsIn(
+      room.id,
+    ).where((r) => !f.isRested(r.id)).toList();
     if (restless.isNotEmpty) {
       final r = restless.first;
       _setInsightHint(switch (tier) {
         0 => r.restlessLook,
-        1 => '${r.name} is holding up the arch that fell on it — and the '
-            'stone that did it is still lying across the warm road',
-        _ => 'Hear ${r.name} out and it lets go: ${graveCrossingById(r.crossingId)!.look} '
-            'opens to the living for good, and shuts to the dead for good. '
-            'It does not come back',
+        1 =>
+          '${r.name} is holding up the arch that fell on it — and the '
+              'stone that did it is still lying across the warm road',
+        _ =>
+          'Hear ${r.name} out and it lets go: ${graveCrossingById(r.crossingId)!.look} '
+              'opens to the living for good, and shuts to the dead for good. '
+              'It does not come back',
       });
       return;
     }
     if (room.grave?.sigilStone != null && !f.sigilStamped) {
       _setInsightHint(switch (tier) {
         0 => 'Half a ring, and half a ring is nothing',
-        1 => 'The dead carry the other half — one great arc over the whole '
-            'field, on a bearing of its own. The two must close the circle',
-        _ => 'The arc runs on $kGraveFieldBearing; this floor runs on '
-            '${kBarrowSigilHalf[room.id] ?? 0}, and only a barrow whose floor '
-            'makes twelve of it will take the mark — and only from a warm hand',
+        1 =>
+          'The dead carry the other half — one great arc over the whole '
+              'field, on a bearing of its own. The two must close the circle',
+        _ =>
+          'The arc runs on $kGraveFieldBearing; this floor runs on '
+              '${kBarrowSigilHalf[room.id] ?? 0}, and only a barrow whose floor '
+              'makes twelve of it will take the mark — and only from a warm hand',
       });
       return;
     }
     // Anywhere in the field, insight reads the RULE — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'There are two of this field, and you are only ever in one',
-      1 => 'Every road here belongs to the living or to the dead, and never '
-          'to both. The stones pass you between them',
-      _ => 'Six of the roads have not decided yet, and the dead standing on '
-          'them are the decision: finish one and it becomes the living\'s '
-          'forever. Nothing here is ever lost — but the mere is worth having '
-          'in both worlds, and it only has two dead',
+      1 =>
+        'Every road here belongs to the living or to the dead, and never '
+            'to both. The stones pass you between them',
+      _ =>
+        'Six of the roads have not decided yet, and the dead standing on '
+            'them are the decision: finish one and it becomes the living\'s '
+            'forever. Nothing here is ever lost — but the mere is worth having '
+            'in both worlds, and it only has two dead',
     });
   }
 
@@ -794,9 +804,10 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       if (open) {
         canvas.drawRect(
           r,
-          Paint()..color = (ghost ? _graveCold : _graveEmber).withValues(
-            alpha: 0.30 * t,
-          ),
+          Paint()
+            ..color = (ghost ? _graveCold : _graveEmber).withValues(
+              alpha: 0.30 * t,
+            ),
         );
         continue;
       }
@@ -865,9 +876,9 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         c + tick * radius,
         Paint()
           ..strokeWidth = 1
-          ..color = _graveCold.withValues(alpha: i == kGraveFieldBearing
-              ? 0.9
-              : 0.28),
+          ..color = _graveCold.withValues(
+            alpha: i == kGraveFieldBearing ? 0.9 : 0.28,
+          ),
       );
     }
   }
@@ -884,9 +895,8 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       canvas.drawRect(r, Paint()..color = ink.withValues(alpha: 0.8));
       canvas.drawRect(
         r.deflate(5),
-        Paint()..color = (ghost ? _graveVoid : _graveSod).withValues(
-          alpha: 0.6,
-        ),
+        Paint()
+          ..color = (ghost ? _graveVoid : _graveSod).withValues(alpha: 0.6),
       );
     }
 
@@ -899,13 +909,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0
         ..color = _graveEmber.withValues(alpha: 0.75);
-      canvas.drawArc(
-        Rect.fromCircle(center: sig, radius: 26),
-        a,
-        pi,
-        false,
-        p,
-      );
+      canvas.drawArc(Rect.fromCircle(center: sig, radius: 26), a, pi, false, p);
     }
 
     // THE DEAD, where they are still dying.
@@ -928,9 +932,11 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         ..strokeWidth = 1.6
         ..color = _graveCold.withValues(alpha: alpha);
       canvas.drawCircle(at, 16, p);
-      canvas.drawCircle(at, 22, p..color = _graveCold.withValues(
-        alpha: alpha * 0.45,
-      ));
+      canvas.drawCircle(
+        at,
+        22,
+        p..color = _graveCold.withValues(alpha: alpha * 0.45),
+      );
     }
 
     // THE DROWNED BRINK, and the grave mouth, and the lamp.
@@ -939,9 +945,10 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       final r = Rect.fromCenter(center: brink, width: 130, height: 26);
       canvas.drawRect(
         r,
-        Paint()..color = _field.cutFrozen
-            ? _graveCold.withValues(alpha: 0.55)
-            : _graveVoid.withValues(alpha: 0.85),
+        Paint()
+          ..color = _field.cutFrozen
+              ? _graveCold.withValues(alpha: 0.55)
+              : _graveVoid.withValues(alpha: 0.85),
       );
     }
     final mouth = g.graveMouth;
@@ -957,9 +964,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       canvas.drawCircle(
         lamp,
         13,
-        Paint()..color = lit
-            ? _graveEmber
-            : ink.withValues(alpha: 0.55),
+        Paint()..color = lit ? _graveEmber : ink.withValues(alpha: 0.55),
       );
     }
   }

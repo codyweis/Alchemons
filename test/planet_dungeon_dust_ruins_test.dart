@@ -214,7 +214,8 @@ void main() {
       expect(
         bump.cellarRoomId,
         isNull,
-        reason: 'baring the bump must show tiles and nothing else: the vault '
+        reason:
+            'baring the bump must show tiles and nothing else: the vault '
             'is the one thing you get by burying HARDER',
       );
     });
@@ -269,10 +270,7 @@ void main() {
       // The three seals — the star a first descent must be able to earn —
       // carry no family gate of any kind, and the yard's two verbs are the
       // planet's own element and Air, both element-only.
-      expect(
-        layout.familyGates.map((g) => g.element),
-        isNot(contains('Dust')),
-      );
+      expect(layout.familyGates.map((g) => g.element), isNot(contains('Dust')));
     });
 
     test('the ideal trio is index-aligned with the entry slots', () {
@@ -391,7 +389,8 @@ void main() {
       expect(
         r.conserved,
         isTrue,
-        reason: 'every arrangement the world can reach still holds '
+        reason:
+            'every arrangement the world can reach still holds '
             '$kDustCityLoads loads',
       );
     });
@@ -401,7 +400,8 @@ void main() {
       expect(
         r.strandable,
         0,
-        reason: 'from EVERY reachable state, every room — the exit, both star '
+        reason:
+            'from EVERY reachable state, every room — the exit, both star '
             'rooms, the rite, the vault and both optional cellars — must '
             'still be reachable',
       );
@@ -428,7 +428,8 @@ void main() {
       expect(
         r.vaultLosable,
         209,
-        reason: 'the sunken house only opens under a heaped bump: from most '
+        reason:
+            'the sunken house only opens under a heaped bump: from most '
             'arrangements it costs a sirocco to get back to one',
       );
     });
@@ -605,8 +606,13 @@ void main() {
       expect(game.isDoorHidden(walk, down), isTrue);
 
       actFacing(game, earth, 'roof_walk', crownOf('m_roof'), east);
-      expect(game.isDoorLocked(walk, bridge), isTrue, reason: 'the bridge WAS '
-          'the roof');
+      expect(
+        game.isDoorLocked(walk, bridge),
+        isTrue,
+        reason:
+            'the bridge WAS '
+            'the roof',
+      );
       expect(game.isDoorHidden(walk, down), isFalse);
 
       final obs = game.layout.rooms['observatory']!;
@@ -615,25 +621,28 @@ void main() {
       expect(game.hasStar(1), isTrue);
     });
 
-    test('the armillary is a VERB-ONLY wing gate: any wing, no other family', () {
-      final stamped = <String>[];
-      final game = harness([
-        _member(0, 'Dust', 'mask'),
-        _member(1, 'Air', 'pip'), // wrong family on purpose
-        _member(2, 'Earth', 'horn'),
-      ], onCloud: stamped.add)..entryDoorRevealed = true;
-      actFacing(game, earth, 'roof_walk', crownOf('m_roof'), east);
-      final obs = game.layout.rooms['observatory']!;
+    test(
+      'the armillary is a VERB-ONLY wing gate: any wing, no other family',
+      () {
+        final stamped = <String>[];
+        final game = harness([
+          _member(0, 'Dust', 'mask'),
+          _member(1, 'Air', 'pip'), // wrong family on purpose
+          _member(2, 'Earth', 'horn'),
+        ], onCloud: stamped.add)..entryDoorRevealed = true;
+        actFacing(game, earth, 'roof_walk', crownOf('m_roof'), east);
+        final obs = game.layout.rooms['observatory']!;
 
-      // Dust cannot turn it at all.
-      act(game, dust, 'observatory', obs.ruins!.armillary!);
-      expect(game.hasStar(1), isFalse);
+        // Dust cannot turn it at all.
+        act(game, dust, 'observatory', obs.ruins!.armillary!);
+        expect(game.hasStar(1), isFalse);
 
-      // An Air PIP is refused — and the refusal stamps the chip (§4).
-      act(game, air, 'observatory', obs.ruins!.armillary!);
-      expect(game.hasStar(1), isFalse);
-      expect(stamped, contains('gate:any_wing'));
-    });
+        // An Air PIP is refused — and the refusal stamps the chip (§4).
+        act(game, air, 'observatory', obs.ruins!.armillary!);
+        expect(game.hasStar(1), isFalse);
+        expect(stamped, contains('gate:any_wing'));
+      },
+    );
 
     test('the roofless span really has no floor under it', () {
       final obs = layout.rooms['observatory']!;

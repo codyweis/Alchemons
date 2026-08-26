@@ -77,16 +77,19 @@ void main() {
     }
   });
 
-  test('the passed text theme still supplies typography, only colours change', () {
-    final ambient = ThemeData.light().textTheme.copyWith(
-      bodyMedium: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900),
-    );
-    final data = factionThemeFor(
-      FactionId.oceanic,
-      brightness: Brightness.dark,
-    ).toMaterialTheme(ambient);
+  test(
+    'the passed text theme still supplies typography, only colours change',
+    () {
+      final ambient = ThemeData.light().textTheme.copyWith(
+        bodyMedium: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900),
+      );
+      final data = factionThemeFor(
+        FactionId.oceanic,
+        brightness: Brightness.dark,
+      ).toMaterialTheme(ambient);
 
-    expect(data.textTheme.bodyMedium!.fontSize, 42);
-    expect(data.textTheme.bodyMedium!.fontWeight, FontWeight.w900);
-  });
+      expect(data.textTheme.bodyMedium!.fontSize, 42);
+      expect(data.textTheme.bodyMedium!.fontWeight, FontWeight.w900);
+    },
+  );
 }

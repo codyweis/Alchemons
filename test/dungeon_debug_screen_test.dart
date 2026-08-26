@@ -70,7 +70,8 @@ void main() {
       expect(
         find.text(name),
         findsOneWidget,
-        reason: '$element is built but has no row — a dungeon you cannot '
+        reason:
+            '$element is built but has no row — a dungeon you cannot '
             'reach from here reads as a broken build',
       );
     }

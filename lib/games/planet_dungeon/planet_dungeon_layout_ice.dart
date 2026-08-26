@@ -198,11 +198,7 @@ class OrreryGrid {
   /// Cell size in px (square).
   final double cell;
 
-  const OrreryGrid({
-    required this.art,
-    required this.origin,
-    this.cell = 92,
-  });
+  const OrreryGrid({required this.art, required this.origin, this.cell = 92});
 
   int get rows => art.length;
   int get cols => art.first.length;
@@ -487,13 +483,7 @@ const DungeonLayout iceLayout = DungeonLayout(
         starIndex: 0,
         orrery: OrreryGrid(
           origin: Offset(60, 150),
-          art: [
-            '..S..S..',
-            '.#....#.',
-            '.B....B.',
-            '.#....#.',
-            '...BS...',
-          ],
+          art: ['..S..S..', '.#....#.', '.B....B.', '.#....#.', '...BS...'],
         ),
       ),
     ),

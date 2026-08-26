@@ -88,7 +88,10 @@ class _Step {
 
 /// Breadth-first over the whole line. [maneAllowed] false models a party with
 /// no Ice mane (nothing may be set by hand).
-List<_Step> _explore({bool maneAllowed = true, int maxPours = kLavaPourBudget}) {
+List<_Step> _explore({
+  bool maneAllowed = true,
+  int maxPours = kLavaPourBudget,
+}) {
   final start = _fresh();
   final seen = <String>{start.signature};
   final out = <_Step>[_Step(start, const [])];
@@ -131,7 +134,10 @@ List<_Step> _explore({bool maneAllowed = true, int maxPours = kLavaPourBudget}) 
         if (freeze != null && !maneAllowed) continue;
         final c = s.clone();
         final ev = runFoundryPlan(c, FoundryPlan(cfg, freezeOn: freeze));
-        push(c, [...step.trail, 'pour:${cfg.values.join()}:${freeze ?? '-'}:${ev.name}']);
+        push(c, [
+          ...step.trail,
+          'pour:${cfg.values.join()}:${freeze ?? '-'}:${ev.name}',
+        ]);
       }
     }
   }
@@ -148,16 +154,22 @@ void main() {
         north,
         const FoundryPlan({'y_yard': 0, 'chiller': 0, 'y_sluice': 0}),
       );
-      expect(north.cast('span_a'), isTrue,
-          reason: 'a plain pour fills the span form');
+      expect(
+        north.cast('span_a'),
+        isTrue,
+        reason: 'a plain pour fills the span form',
+      );
 
       final south = _fresh()..dieWoken = true;
       runFoundryPlan(
         south,
         const FoundryPlan({'y_yard': 1, 'damper': 0, 'y_sluice': 1}),
       );
-      expect(south.cast('gantry'), isTrue,
-          reason: 'the die wards it, and only warded metal makes a key');
+      expect(
+        south.cast('gantry'),
+        isTrue,
+        reason: 'the die wards it, and only warded metal makes a key',
+      );
     });
 
     test('the die is dead until it is driven, and then never sleeps', () {
@@ -166,10 +178,16 @@ void main() {
         s,
         const FoundryPlan({'y_yard': 1, 'damper': 0, 'y_sluice': 1}),
       );
-      expect(s.cast('gantry'), isFalse,
-          reason: 'plain metal cannot take a ward');
-      expect(s.molds['mold_key'], isNotNull,
-          reason: 'and the ruined casting is sitting in the form');
+      expect(
+        s.cast('gantry'),
+        isFalse,
+        reason: 'plain metal cannot take a ward',
+      );
+      expect(
+        s.molds['mold_key'],
+        isNotNull,
+        reason: 'and the ruined casting is sitting in the form',
+      );
     });
 
     test('the purge gasses whatever takes it, and gas fills nothing', () {
@@ -202,7 +220,11 @@ void main() {
         const FoundryPlan({'y_yard': 0, 'chiller': 0, 'y_sluice': 0}),
       );
       expect(s.cast('span_a'), isTrue);
-      expect(_poursUsed(s), 3, reason: 'the world came back; the charges did not');
+      expect(
+        _poursUsed(s),
+        3,
+        reason: 'the world came back; the charges did not',
+      );
     });
 
     test('COLD METAL IS A PLUG: the chiller kills its own arm', () {
@@ -215,8 +237,11 @@ void main() {
         s,
         const FoundryPlan({'y_yard': 0, 'chiller': 0, 'y_sluice': 0}),
       );
-      expect(s.cast('span_a'), isFalse,
-          reason: 'the plain arm is shut for the rest of the run');
+      expect(
+        s.cast('span_a'),
+        isFalse,
+        reason: 'the plain arm is shut for the rest of the run',
+      );
       // ...until a Lava heart takes it back out.
       s.remelt('plug:ch_north');
       expect(s.access, isNot(contains('catwalk')));
@@ -234,20 +259,28 @@ void main() {
       // Lay the road first — the mistake the planet is about.
       runFoundryPlan(
         s,
-        const FoundryPlan(
-          {'y_yard': 1, 'damper': 0, 'y_sluice': 2, 'y_return': 1},
-          freezeOn: 'ch_sump',
-        ),
+        const FoundryPlan({
+          'y_yard': 1,
+          'damper': 0,
+          'y_sluice': 2,
+          'y_return': 1,
+        }, freezeOn: 'ch_sump'),
       );
       expect(s.access, contains('sump'));
       runFoundryPlan(
         s,
-        const FoundryPlan(
-          {'y_yard': 1, 'damper': 0, 'y_sluice': 2, 'y_return': 1},
-        ),
+        const FoundryPlan({
+          'y_yard': 1,
+          'damper': 0,
+          'y_sluice': 2,
+          'y_return': 1,
+        }),
       );
-      expect(s.cast('reliquary'), isFalse,
-          reason: 'the key pour congeals against your own road');
+      expect(
+        s.cast('reliquary'),
+        isFalse,
+        reason: 'the key pour congeals against your own road',
+      );
     });
 
     test('the tail switch cannot be thrown from the floor', () {
@@ -273,39 +306,59 @@ void main() {
     final reachable = _explore();
     final solved = reachable.where((s) => foundryWorksDone(s.state)).toList();
 
-    test('the works CAN be finished, and the cheapest way costs four pours',
-        () {
-      expect(solved, isNotEmpty, reason: 'an unsolvable dungeon is unshippable');
-      final min = solved.map((s) => _poursUsed(s.state)).reduce(
-            (a, b) => a < b ? a : b,
-          );
-      expect(min, 4, reason: 'the tightest full plan is four pours');
-      expect(min, lessThan(kLavaPourBudget),
-          reason: 'the crucible must fund the works');
-      expect(kLavaPourBudget - min, 1,
-          reason: 'exactly one spare: a blunder is survivable, two are not');
-    });
+    test(
+      'the works CAN be finished, and the cheapest way costs four pours',
+      () {
+        expect(
+          solved,
+          isNotEmpty,
+          reason: 'an unsolvable dungeon is unshippable',
+        );
+        final min = solved
+            .map((s) => _poursUsed(s.state))
+            .reduce((a, b) => a < b ? a : b);
+        expect(min, 4, reason: 'the tightest full plan is four pours');
+        expect(
+          min,
+          lessThan(kLavaPourBudget),
+          reason: 'the crucible must fund the works',
+        );
+        expect(
+          kLavaPourBudget - min,
+          1,
+          reason: 'exactly one spare: a blunder is survivable, two are not',
+        );
+      },
+    );
 
     test('and it CANNOT be done in three — the budget really is scarce', () {
-      final cheap = _explore(maxPours: 3)
-          .where((s) => foundryWorksDone(s.state))
-          .toList();
-      expect(cheap, isEmpty,
-          reason: 'four separate castings, and no pour can do two jobs');
+      final cheap = _explore(
+        maxPours: 3,
+      ).where((s) => foundryWorksDone(s.state)).toList();
+      expect(
+        cheap,
+        isEmpty,
+        reason: 'four separate castings, and no pour can do two jobs',
+      );
     });
 
-    test('more than one ORDER works — the player authors it, is not handed it',
-        () {
-      // §5.5 ledger: Fire owns sequence-execution. Lava may not hand out an
-      // order, so the same four pours must land in more than one arrangement.
-      final orders = <String>{};
-      for (final s in solved) {
-        if (_poursUsed(s.state) != 4) continue;
-        orders.add(s.trail.where((m) => m.startsWith('pour:')).join('>'));
-      }
-      expect(orders.length, greaterThan(1),
-          reason: 'a single legal sequence would be an order-memory puzzle');
-    });
+    test(
+      'more than one ORDER works — the player authors it, is not handed it',
+      () {
+        // §5.5 ledger: Fire owns sequence-execution. Lava may not hand out an
+        // order, so the same four pours must land in more than one arrangement.
+        final orders = <String>{};
+        for (final s in solved) {
+          if (_poursUsed(s.state) != 4) continue;
+          orders.add(s.trail.where((m) => m.startsWith('pour:')).join('>'));
+        }
+        expect(
+          orders.length,
+          greaterThan(1),
+          reason: 'a single legal sequence would be an order-memory puzzle',
+        );
+      },
+    );
 
     test('both ways onto the catwalk are real (bridge OR key)', () {
       var viaChill = false, viaGantry = false;
@@ -369,7 +422,10 @@ void main() {
       final cols = (b.width / step).floor();
       int key(int c, int r) => r * cols + c;
       bool open(int c, int r) {
-        final p = Offset(b.left + c * step + step / 2, b.top + r * step + step / 2);
+        final p = Offset(
+          b.left + c * step + step / 2,
+          b.top + r * step + step / 2,
+        );
         if (!b.deflate(14).contains(p)) return false;
         for (final w in room.walls) {
           if (w.contains(p)) return false;
@@ -421,15 +477,21 @@ void main() {
           .targetSpawn;
       final star = kLavaLayout.rooms['mold_floor']!.foundryStar!.position;
       final s = _fresh();
-      expect(canWalk(s, 'mold_floor', entry, star), isFalse,
-          reason: 'without the span there is no way over the runner');
+      expect(
+        canWalk(s, 'mold_floor', entry, star),
+        isFalse,
+        reason: 'without the span there is no way over the runner',
+      );
       runFoundryPlan(
         s,
         const FoundryPlan({'y_yard': 0, 'chiller': 0, 'y_sluice': 0}),
       );
       expect(s.cast('span_a'), isTrue);
-      expect(canWalk(s, 'mold_floor', entry, star), isTrue,
-          reason: 'and with it, one crossing, right at the sluice');
+      expect(
+        canWalk(s, 'mold_floor', entry, star),
+        isTrue,
+        reason: 'and with it, one crossing, right at the sluice',
+      );
     });
 
     test('the tail lever hangs beyond the north channel', () {
@@ -440,16 +502,22 @@ void main() {
       final s = _fresh();
       expect(canWalk(s, 'chill_house', entry, lever), isFalse);
       runFoundryPlan(s, const FoundryPlan({'y_yard': 0, 'chiller': 1}));
-      expect(canWalk(s, 'chill_house', entry, lever), isTrue,
-          reason: 'the frozen pour IS the catwalk stair');
+      expect(
+        canWalk(s, 'chill_house', entry, lever),
+        isTrue,
+        reason: 'the frozen pour IS the catwalk stair',
+      );
     });
 
     test('the hidden mold sits across the sump, unreachable on arrival', () {
       final spawn = kLavaLayout.entranceSpawn;
       final mold = kLavaLine.node('mold_reliquary').position;
       final s = _fresh();
-      expect(canWalk(s, 'tap_head', spawn, mold), isFalse,
-          reason: 'you can see it from the first room and never touch it');
+      expect(
+        canWalk(s, 'tap_head', spawn, mold),
+        isFalse,
+        reason: 'you can see it from the first room and never touch it',
+      );
       // A pour set by hand in the sump channel is the only way over.
       s.pour = LivePour(channelId: 'ch_sump', form: PourForm.plain)..t = 0.5;
       s.freezeHere();
@@ -461,8 +529,11 @@ void main() {
       for (final n in kLavaLine.nodes) {
         final lever = n.leverAt;
         if (lever == null) continue;
-        expect(foundryBlocks(s, n.roomId, lever), isFalse,
-            reason: '${n.id}\'s lever stands in the channel');
+        expect(
+          foundryBlocks(s, n.roomId, lever),
+          isFalse,
+          reason: '${n.id}\'s lever stands in the channel',
+        );
       }
       for (final room in kLavaLayout.rooms.values) {
         final star = room.foundryStar;
@@ -473,11 +544,7 @@ void main() {
         if (cache != null) expect(foundryBlocks(s, room.id, cache), isFalse);
         for (final d in room.doors) {
           expect(
-            foundryBlocks(
-              s,
-              d.targetRoomId,
-              d.targetSpawn,
-            ),
+            foundryBlocks(s, d.targetRoomId, d.targetSpawn),
             isFalse,
             reason: '${room.id} → ${d.targetRoomId} spawns in running metal',
           );
@@ -512,10 +579,10 @@ CosmicPartyMember _member(int slot, String element, String family) =>
 
 /// The §6.2 ideal trio: Lavahorn · Earthmask · Icemane.
 List<CosmicPartyMember> _idealTrio() => [
-      _member(0, 'Lava', 'horn'),
-      _member(1, 'Earth', 'mask'),
-      _member(2, 'Ice', 'mane'),
-    ];
+  _member(0, 'Lava', 'horn'),
+  _member(1, 'Earth', 'mask'),
+  _member(2, 'Ice', 'mane'),
+];
 
 PlanetDungeonGame _harness(
   List<CosmicPartyMember> party, {
@@ -616,8 +683,11 @@ void _engineRun() {
       for (var i = 0; i < 4 && g.works.line.settingOf(nodeId) != want; i++) {
         actAt(g, n.roomId, earth, n.leverAt!);
       }
-      expect(g.works.line.settingOf(nodeId), want,
-          reason: '$nodeId would not sit at $want');
+      expect(
+        g.works.line.settingOf(nodeId),
+        want,
+        reason: '$nodeId would not sit at $want',
+      );
     }
 
     final tapAt = kLavaLine.node('tap').position + const Offset(0, 60);
@@ -635,8 +705,11 @@ void _engineRun() {
       actAt(g, 'tap_head', lava, tapAt);
       expect(s.tapWoken, isTrue);
       expect(g.entryDoorRevealed, isTrue);
-      expect(s.poursLeft, kLavaPourBudget,
-          reason: 'waking the line is not a charge');
+      expect(
+        s.poursLeft,
+        kLavaPourBudget,
+        reason: 'waking the line is not a charge',
+      );
 
       // ── The tail switch hangs over the north channel: not from here.
       expect(s.canSet('y_return'), isFalse);
@@ -651,8 +724,11 @@ void _engineRun() {
       expect(s.poursLeft, kLavaPourBudget - 1);
 
       // ── STAR 1: the road is the only way across the runner.
-      standIn(g, 'mold_floor',
-          g.layout.rooms['mold_floor']!.foundryStar!.position);
+      standIn(
+        g,
+        'mold_floor',
+        g.layout.rooms['mold_floor']!.foundryStar!.position,
+      );
       g.update(1 / 60);
       expect(g.hasStar(0), isTrue);
 
@@ -691,8 +767,11 @@ void _engineRun() {
       actAt(g, 'tap_head', lava, tapAt);
       standIn(g, 'tap_head', const Offset(400, 300));
       runOut(g);
-      expect(s.cast('reliquary'), isTrue,
-          reason: 'the key stands cast at the far end of the works');
+      expect(
+        s.cast('reliquary'),
+        isTrue,
+        reason: 'the key stands cast at the far end of the works',
+      );
 
       // ── POUR 4 — and now the crossing. THE ONE HARD GATE: an Ice mane
       //    sets the running metal where it stands.
@@ -718,21 +797,28 @@ void _engineRun() {
       expect(s.carried, 'reliquary');
 
       final floor = g.layout.rooms['mold_floor']!;
-      final ward =
-          floor.doors.firstWhere((d) => d.targetRoomId == 'slag_reliquary');
+      final ward = floor.doors.firstWhere(
+        (d) => d.targetRoomId == 'slag_reliquary',
+      );
       expect(g.isDoorLocked(floor, ward), isTrue);
       actAt(g, 'mold_floor', lava, ward.rect.center + const Offset(-40, 0));
       expect(s.wardsTurned, contains('reliquary'));
       expect(g.isDoorLocked(floor, ward), isFalse);
 
       // ── STAR 2, and the vault behind the same door.
-      standIn(g, 'slag_reliquary',
-          g.layout.rooms['slag_reliquary']!.foundryStar!.position);
+      standIn(
+        g,
+        'slag_reliquary',
+        g.layout.rooms['slag_reliquary']!.foundryStar!.position,
+      );
       g.update(1 / 60);
       expect(g.hasStar(1), isTrue);
       expect(earned, containsAllInOrder([0, 1]));
       standIn(
-          g, 'slag_reliquary', g.layout.rooms['slag_reliquary']!.vaultCache!);
+        g,
+        'slag_reliquary',
+        g.layout.rooms['slag_reliquary']!.vaultCache!,
+      );
       g.update(1 / 60);
       expect(found, contains('cache:lava_vault'));
 
@@ -752,14 +838,20 @@ void _engineRun() {
       standIn(g, 'pour_heart', kLavaHeartHeads[1]);
       g.setActive(lava);
       g.activateAbility();
-      expect(g.guardianVulnerable, isFalse,
-          reason: 'the far head falls on empty channel');
+      expect(
+        g.guardianVulnerable,
+        isFalse,
+        reason: 'the far head falls on empty channel',
+      );
       g.works.headCool = 0;
       standIn(g, 'pour_heart', kLavaHeartHeads[0]);
       g.setActive(lava);
       g.activateAbility();
-      expect(g.guardianVulnerable, isTrue,
-          reason: 'the near head catches it — the cast IS the lull');
+      expect(
+        g.guardianVulnerable,
+        isTrue,
+        reason: 'the near head catches it — the cast IS the lull',
+      );
       expect(g.works.beached, greaterThan(0));
       expect((g.works.beachedAt - beast).distance, lessThan(1));
     });
@@ -806,8 +898,11 @@ void _engineRun() {
       expect(g.works.line.quenches, kLavaBlackGlassQuenches);
       expect(found, contains(kLavaBlackGlassEggId));
       expect(g.works.line.poursLeft, kLavaPourBudget - kLavaBlackGlassQuenches);
-      expect(g.works.line.poursLeft, lessThan(4),
-          reason: 'and the works cannot be finished on what is left');
+      expect(
+        g.works.line.poursLeft,
+        lessThan(4),
+        reason: 'and the works cannot be finished on what is left',
+      );
     });
   });
 }

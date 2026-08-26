@@ -172,7 +172,8 @@ void main() {
       expect(
         fire.isPresent,
         isTrue,
-        reason: 'nothing decrements the old countdown any more, so a legacy '
+        reason:
+            'nothing decrements the old countdown any more, so a legacy '
             'cache must not be stranded',
       );
     });

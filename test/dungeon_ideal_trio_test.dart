@@ -85,7 +85,8 @@ void main() {
         expect(
           party.length,
           kCosmicPlanetEntry[element]!.length,
-          reason: '$element: one companion per entry slot, or the front door '
+          reason:
+              '$element: one companion per entry slot, or the front door '
               'cannot be opened',
         );
       }
@@ -118,8 +119,11 @@ void main() {
         final families = kDungeonIdealFamilies[element]!;
         final party = debugIdealTrio(catalog, element);
         for (var i = 0; i < families.length; i++) {
-          expect(party[i].family, families[i].toLowerCase(),
-              reason: '$element slot $i');
+          expect(
+            party[i].family,
+            families[i].toLowerCase(),
+            reason: '$element slot $i',
+          );
         }
       }
     });
