@@ -996,6 +996,10 @@ extension CinderCathedral on PlanetDungeonGame {
     // Light is not knowledge: choirRevealTier survives a death (what you read
     // stays read), but the torches themselves burn out and must be relit.
     litMuralTorches.clear();
+    // The rite's testimony is physical — wax, soot and ash on the iron. It is
+    // there whether or not anybody has asked about it, so it is marked from
+    // the start rather than switched on by a reading.
+    _testimonyLinkRank = null;
     bellsRung.clear();
     _chainCheckpoints.clear();
     _vesperFlames.clear();
@@ -1014,7 +1018,7 @@ extension CinderCathedral on PlanetDungeonGame {
     // memory of a rite long finished, not this run's progress. Death re-lays
     // the fires, never the history — so a deduction already made still holds.
     _testimonyFade.clear();
-    _testimonyMark = _testimonyMarked ? 1.0 : 0.0;
+    _testimonyMark = PlanetDungeonGame.testimonyMarked ? 1.0 : 0.0;
     // Star 3's decision re-opens with the rite (the bells are cold again).
     vesperRouteId = null;
     vesperCommitted = false;
@@ -1299,7 +1303,7 @@ extension CinderCathedral on PlanetDungeonGame {
     // ANIMATED STATE: insight's marking blooms, a lit brazier's testimony is
     // eaten by its own fire, and a re-declared censer run swings over. Three
     // scalar eases — no allocation, no per-frame geometry.
-    if (_testimonyMarked && _testimonyMark < 1.0) {
+    if (PlanetDungeonGame.testimonyMarked && _testimonyMark < 1.0) {
       _testimonyMark = (_testimonyMark + dt / _kTestimonyMarkSeconds).clamp(
         0.0,
         1.0,
@@ -1506,10 +1510,23 @@ extension CinderCathedral on PlanetDungeonGame {
         particleCount: 10,
       );
       if (muralLit(room)) {
-        // The room comes up, and with it the first thing the soot kept.
-        choirRevealTier = max(choirRevealTier, 0);
+        // THE TORCHES DO THE WORK, not the HINT button. Asking for a hint must
+        // never change the world — it is a question, and a question that
+        // quietly advances a puzzle is a trap for anyone who presses it out of
+        // curiosity. So lighting the fourth corner performs the whole
+        // scriptorium reading: the soot comes up at the reader's own tier and
+        // the epitaph starts writing, exactly as pressing HINT used to.
+        choirRevealTier = max(
+          choirRevealTier,
+          revealHintTier(a.member.statIntelligence),
+        );
         revealFlash = 0.6;
-        _setHint('The four corners take — and the soot gives up a station');
+        if (epitaphStage == 0 &&
+            !discoveredClouds.contains(kFireEpitaphEggId)) {
+          epitaphStage = 1;
+          epitaphWriteT = 0;
+        }
+        _setHint('The four corners take — and the soot gives up its stations');
       } else {
         final left = room.muralTorches.length - litMuralTorches.length;
         _setHint(
@@ -2088,41 +2105,32 @@ extension CinderCathedral on PlanetDungeonGame {
     revealTier = revealHintTier(a.member.statIntelligence);
     switch (room.id) {
       case 'scriptorium':
-        // You cannot read a soot mural in the dark, however sharp your eyes.
-        // The corner torches come first; this is the one place in the room
-        // that speaks, because a blank panel would read as a broken feature.
+        // READ-ONLY. Everything this used to DO now happens when the fourth
+        // torch takes; all that is left here is describing what is on the wall.
         if (!muralLit(room)) {
           _setBlockedHint('Too dark to read — the corners are unlit');
           return;
         }
-        // NO hint popups beyond that — the mural answers visually: the
-        // brazier glyphs draw themselves into the panel per insight tier,
-        // and the epitaph cipher writes itself in (and bares the garden).
-        choirRevealTier = max(choirRevealTier, revealTier);
-        if (epitaphStage == 0 &&
-            !discoveredClouds.contains(kFireEpitaphEggId)) {
-          epitaphStage = 1;
-          epitaphWriteT = 0;
-        }
+        _setInsightHint(
+          'Six stations, and the soot kept only two of them — no two in a row',
+        );
         return;
       case 'choir':
         if (hasStar(room.brazierStarIndex ?? 0)) {
           _setHint('The braziers keep their vigil — the rite is done');
           return;
         }
-        // THE FORENSIC RITE (§6.1): insight ASSISTS, it never answers. t0
-        // names the shape; t1 MARKS the readable evidence (and says what the
-        // three marks mean); t2 additionally annotates ONE deduced link on the
-        // floor. The order itself is never spoken, at any tier.
-        _testimonyMarked = true;
-        if (revealTier >= 2) {
-          _testimonyLinkRank = _pickTestimonyLink();
-        }
+        // THE FORENSIC RITE (§6.1): the reading ASSISTS, it never answers,
+        // and it no longer MARKS anything either — a question must not edit
+        // the floor. The wax, soot and drift are physical evidence lying on
+        // the iron, so they are marked from the moment you walk in (see
+        // _resetCathedralState); this only says what they mean.
+        // The deduced link is likewise gone: annotating a step of the rite is
+        // the strongest thing insight ever did, and it did it invisibly on a
+        // button press. If it comes back it should be a world verb.
+
         _setHint(
-          revealTier >= 2
-              ? 'Wax, soot and drift all read now — and one step of the rite '
-                    'draws itself on the floor'
-              : revealTier >= 1
+          revealTier >= 1
               ? 'The evidence stands out: lowest wax burned longest, soot '
                     'leans off whatever was already alight, ash piles downwind'
               : 'The iron still wears the last rite — wax, soot and ash '
@@ -2240,19 +2248,6 @@ extension CinderCathedral on PlanetDungeonGame {
     return null;
   }
 
-  /// The ONE link a tier-2 reading draws out (rank k → k+1). Deterministic per
-  /// run and STICKY: re-reading must never walk the player through link after
-  /// link until the whole rite is spent. Deliberately a middle step — a check
-  /// on a deduction in progress, not the thread-end that unravels it.
-  int _pickTestimonyLink() {
-    final held = _testimonyLinkRank;
-    if (held != null) return held;
-    final n = riteOrder.length;
-    if (n < 2) return 0;
-    final pick =
-        1 + (riteOrder.first * 7 + riteOrder.last) % (n - 2).clamp(1, n);
-    return pick.clamp(1, n - 2);
-  }
 
   // ── Ambient hints / objectives / mood ───────────────────
 

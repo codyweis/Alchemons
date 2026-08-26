@@ -101,6 +101,13 @@ const double _kStarBirth = 0.30;
 /// Start of BEAT 3 (seating) as a fraction of the flight.
 const double _kStarLand = 0.82;
 
+/// How long the landed star is left alone before the reward popup opens.
+///
+/// The flight finishing and the popup appearing used to be the same instant,
+/// so the payoff buried the thing that earned it. This is the pause where the
+/// player sees the tracker actually holding the star.
+const Duration _kRewardHoldAfterStar = Duration(milliseconds: 620);
+
 class PlanetDungeonScreen extends StatefulWidget {
   const PlanetDungeonScreen({
     super.key,
@@ -164,6 +171,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// something is shooting at you is worse than a short wait.
   bool _rewardPending = false;
 
+  /// The post-landing pause before the reward popup (see
+  /// [_kRewardHoldAfterStar]). Non-null while it is running.
+  Timer? _rewardHold;
+
   bool get _isRaid => widget.raid != null;
   bool _showRaidReward = false;
 
@@ -207,8 +218,18 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       ..addStatusListener((s) {
         if (s == AnimationStatus.completed && mounted) {
           setState(() => _flyStar = null);
-          // The star has landed in its tracker slot — now the reward.
-          if (_rewardPending) unawaited(_offerPendingRewardIfSafe());
+          // The star has landed. Let it SIT there for a beat before the popup
+          // covers the screen — arriving and being buried in the same frame is
+          // what made the animation feel skipped.
+          if (_rewardPending) {
+            _rewardHold?.cancel();
+            _rewardHold = Timer(_kRewardHoldAfterStar, () {
+              _rewardHold = null;
+              if (mounted && _rewardPending) {
+                unawaited(_offerPendingRewardIfSafe());
+              }
+            });
+          }
         }
       });
     _introTicker = createTicker((elapsed) {
@@ -342,6 +363,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   Future<void> _offerPendingRewardIfSafe() async {
     if (!_rewardPending || _rewardStars != null || _isRaid) return;
     if (_game?.hasCombatTargets ?? false) return;
+    // THE FLIGHT OWNS THIS MOMENT. The star is banked and _rewardPending set
+    // the instant it is earned, and the HUD timer polls this every 100ms — so
+    // the popup was RACING the animation and usually winning. That, not the
+    // duration, is why the reward kept landing on top of the star. Only the
+    // flight's completion (and the pause after it) may open the popup.
+    if (_flyStar != null || _rewardHold != null) return;
     final prefs = await SharedPreferences.getInstance();
     final state = PlanetStarState.deserialise(
       prefs.getString(_starPrefsKey) ?? '',
@@ -363,7 +390,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       prefs.getString(_starPrefsKey) ?? '',
     ).withStar(widget.element, index);
     await prefs.setString(_starPrefsKey, stars.serialise());
-    _showToast('Star ${index + 1} secured');
+    // No toast. The star flying to its slot IS the announcement, and the
+    // popup that follows names it — a line of text between them was the game
+    // saying in words what the player is already watching happen.
     // The payoff belongs next to the accomplishment, not at the exit door —
     // but it belongs AFTER the star lands, not on top of it. Marked pending
     // here and offered by the fly animation's completion listener; offering
@@ -645,6 +674,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     _deathTimer?.cancel();
     _toastTimer?.cancel();
     _guardianIntroTimer?.cancel();
+    _rewardHold?.cancel();
     _flyCtrl.dispose();
     _tick.dispose();
     super.dispose();

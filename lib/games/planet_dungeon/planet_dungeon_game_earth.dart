@@ -743,10 +743,14 @@ extension BuriedGiant on PlanetDungeonGame {
           return;
         }
         if (revealTier >= 2) {
-          _scaleTruthFlash = 6.0;
+          // The glow that used to fire here lit every stone's TRUE pan for six
+          // seconds — the answer, handed over by a button press. A question
+          // must not edit the world, and this was the largest thing any
+          // reading did. Gone; the line describes the evidence instead, which
+          // is what the rest of the tiers already do.
           _setHint(
-            'The eye opens to you through the prism — each stone\'s true '
-            'pan glows',
+            'The prism sharpens every grain — each stone wears which pan it '
+            'was cut to ride',
             4.2,
           );
         } else {

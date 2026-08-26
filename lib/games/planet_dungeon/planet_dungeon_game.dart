@@ -752,7 +752,13 @@ class PlanetDungeonGame extends FlameGame {
   /// t2 annotates (the rank whose step to rank+1 is drawn out). Knowledge:
   /// both survive death, like the mural reading.
   double _testimonyMark = 0;
-  bool _testimonyMarked = false;
+  /// Whether the choir's physical testimony (wax, soot, ash) is drawn.
+  ///
+  /// Always. It was a flag a Mask reading switched on; wax, soot and ash are
+  /// physical evidence lying on the iron, and they do not wait to be asked
+  /// about. Kept as a named constant rather than inlined so the render and the
+  /// ease still read as being about the testimony.
+  static const bool testimonyMarked = true;
   int? _testimonyLinkRank;
 
   /// Per-brazier testimony fade (index → 1 fresh … 0 consumed): the rite's own

@@ -1145,9 +1145,38 @@ extension StormCircuit on PlanetDungeonGame {
 
   // ── Action button ────────────────────────────────────────
 
+  /// Bare the gallery's hidden storm-cell echoes.
+  ///
+  /// Element-only (§4): any Lightning hand feels the air refusing to sit
+  /// still. This was part of the Mask reading, which made a QUESTION into
+  /// permanent progress — pressing HINT out of curiosity would discover the
+  /// cells for you. Asking now only says how many are still hiding; finding
+  /// them is something you do.
+  bool _tryBareStormCells(DungeonCreature a, DungeonRoom room) {
+    if (room.stormCells.isEmpty) return false;
+    if (a.member.element != 'Lightning') return false;
+    var found = 0;
+    for (final cell in room.stormCells) {
+      if (discoveredClouds.contains(cell.id)) continue;
+      if ((a.position - cell.position).distance >= 220) continue;
+      _discoverCloud(cell.id);
+      found++;
+      _spawnAlchemyBurst(
+        cell.position,
+        producedElement: 'Lightning',
+        reagentElements: const ['Air'],
+        particleCount: 12,
+        intensity: 0.6,
+      );
+    }
+    return found > 0;
+  }
+
   bool _tryCircuit(DungeonCreature a) {
     if (!_isCircuit) return false;
     final room = currentRoom;
+
+    if (_tryBareStormCells(a, room)) return true;
 
     // 0) The dynamo breakers — the zero-sum trunk selector.
     if (room.id == layout.dynamoRoomId && _trySelectTrunk(a, room)) {
@@ -1321,24 +1350,17 @@ extension StormCircuit on PlanetDungeonGame {
 
   void _circuitReveal(DungeonCreature a, DungeonRoom room) {
     final tier = revealHintTier(a.member.statIntelligence);
-    // In the gallery, insight bares the hidden storm-cells from range.
-    var found = 0;
-    for (final cell in room.stormCells) {
-      if (discoveredClouds.contains(cell.id)) continue;
-      if ((a.position - cell.position).distance < 220) {
-        _discoverCloud(cell.id);
-        found++;
-        _spawnAlchemyBurst(
-          cell.position,
-          producedElement: 'Lightning',
-          reagentElements: const ['Air'],
-          particleCount: 12,
-          intensity: 0.6,
-        );
-      }
-    }
-    if (found > 0) {
-      _setHint('Insight bares $found storm-cell echo${found == 1 ? '' : 'es'}');
+    // The BARING used to happen here — a question that permanently discovered
+    // hidden storm-cells, which is progress, not information. It is a verb now
+    // (_tryBareStormCells). All this does is say whether anything is hiding.
+    final hidden = room.stormCells
+        .where((c) => !discoveredClouds.contains(c.id))
+        .length;
+    if (hidden > 0) {
+      _setInsightHint(
+        'The air will not sit still — $hidden echo${hidden == 1 ? '' : 'es'} '
+        'somewhere in this gallery',
+      );
       return;
     }
     // Star 1 — the threading, tiered: t0 names the shape, t1 the constraint,

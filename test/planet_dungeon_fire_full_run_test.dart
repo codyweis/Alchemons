@@ -294,27 +294,33 @@ void main() {
     expect(
       (dim.hintText ?? '').toLowerCase(),
       isNot(contains('draws itself')),
-      reason: 'tier 0 gets no annotated link',
+      reason: 'no tier annotates a link any more',
     );
     expect(dim.testimonyLinkRank, isNull);
 
-    // Tier 2 (Intelligence 5) annotates exactly ONE link — and STICKS to it,
-    // so re-reading can never walk the player through the whole rite.
+    // The tier-2 "deduced link" is GONE. It annotated a step of the rite onto
+    // the floor from a button press — the largest thing any reading ever did,
+    // and now the clearest violation of "asking changes nothing". No tier
+    // draws it, and no amount of re-reading conjures it back.
     final bright = _harness([_member(0, 'Fire', 'mask', intelligence: 5)]);
     bright.currentRoomId = 'choir';
     bright.creatures.single.position = _room(bright, 'choir').bounds.center;
     bright.askForRoomHint();
     expect(bright.revealTier, 2);
-    final firstLink = bright.testimonyLinkRank;
-    expect(firstLink, isNotNull, reason: 'tier 2 draws one deduced link');
     for (var i = 0; i < 6; i++) {
       bright.askForRoomHint();
       expect(
         bright.testimonyLinkRank,
-        firstLink,
-        reason: 're-reading must not hand over link after link',
+        isNull,
+        reason: 'no reading may write a deduction onto the floor',
       );
     }
+    // The evidence itself is PHYSICAL and needs no permission to be seen.
+    expect(
+      PlanetDungeonGame.testimonyMarked,
+      isTrue,
+      reason: 'wax, soot and ash are on the iron from the moment you walk in',
+    );
     // No tier ever speaks the order aloud.
     for (final tier in const [1.0, 3.0, 5.0]) {
       final g = _harness([_member(0, 'Fire', 'mask', intelligence: tier)]);
