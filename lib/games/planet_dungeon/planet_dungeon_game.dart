@@ -11530,8 +11530,18 @@ class PlanetDungeonGame extends FlameGame {
   /// A whole-room sky-island for plain rooms (hub/loom/altar): heavily rounded,
   /// translucent so the elemental sky shows through, with cloud-feathered edges
   /// on all sides so it reads as land floating in air rather than a box.
+  /// Corner radius of a plain stage.
+  ///
+  /// Was 70, which with the cloud feathering that used to surround it made
+  /// every room read as a soft blue lozenge floating in fog. A dungeon is
+  /// architecture; the stage should have a built edge.
+  static const double _kStageRadius = 34;
+
   void _renderPlainFloor(Canvas canvas, Rect b, bool showSigil) {
-    final rr = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(70));
+    final rr = RRect.fromRectAndRadius(
+      b.deflate(8),
+      const Radius.circular(_kStageRadius),
+    );
     // Tinted from this planet's own sky palette, so the stage belongs to the
     // world it is in. Alphas hold the FLOOR TRANSLUCENCY RULE (§8): the
     // shader is the room's mood and must keep showing through the stone.
@@ -11544,52 +11554,25 @@ class PlanetDungeonGame extends FlameGame {
           tint.bottom.withValues(alpha: 0.60),
         ]),
     );
-    // Cloud feathering around the whole perimeter dissolves the edges.
-    if (_fx.ready) {
-      final cols = (b.width / 110).clamp(4, 12).toInt();
-      for (var i = 0; i < cols; i++) {
-        final x = b.left + (i + 0.5) / cols * b.width;
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(x, b.top + 8),
-          130,
-          const Color(0xFF3E4E66).withValues(alpha: 0.55),
-        );
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(x, b.bottom - 8),
-          130,
-          const Color(0xFF2A3850).withValues(alpha: 0.6),
-        );
-      }
-      final rows = (b.height / 110).clamp(3, 10).toInt();
-      for (var i = 0; i < rows; i++) {
-        final y = b.top + (i + 0.5) / rows * b.height;
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(b.left + 8, y),
-          120,
-          const Color(0xFF34465E).withValues(alpha: 0.5),
-        );
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(b.right - 8, y),
-          120,
-          const Color(0xFF34465E).withValues(alpha: 0.5),
-        );
-      }
-    }
-    // Faint top rim + sigil (no hard rectangular border).
+    // The perimeter used to be feathered with sprite puffs on all four sides —
+    // up to 44 blits a frame, in a fixed blue-grey that belonged to no planet,
+    // and it read as cheesy fog around every room. Gone. What replaces it is
+    // an EDGE: a darker lip inset from the rim, so the stage looks like a
+    // raised platform someone built rather than a cloud someone drew.
+    canvas.drawRRect(
+      rr.deflate(3),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..color = tint.bottom.withValues(alpha: 0.55),
+    );
+    // Bright top rim catching the light from the sky above.
     canvas.drawRRect(
       rr,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFFAFC4DC).withValues(alpha: 0.16),
+        ..strokeWidth = 1.4
+        ..color = tint.top.withValues(alpha: 0.55),
     );
     if (showSigil) _drawSigil(canvas, b); // hub only — declutter trial rooms
   }
