@@ -23,7 +23,11 @@ void main() {
     await db.close();
   });
 
-  Future<void> pumpPopup(WidgetTester tester, List<int> stars) async {
+  Future<void> pumpPopup(
+    WidgetTester tester,
+    List<int> stars, {
+    List<String> starNames = const [],
+  }) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
@@ -35,6 +39,7 @@ void main() {
               DungeonRewardPopup(
                 element: 'Fire',
                 stars: stars,
+                starNames: starNames,
                 db: db,
                 onContinue: () {},
               ),
@@ -72,5 +77,46 @@ void main() {
 
   testWidgets('full 3-star popup lays out cleanly', (tester) async {
     await pumpPopup(tester, const [0, 1, 2]);
+  });
+
+  // The popup is offered the moment a star banks, mid-run — not at the end of
+  // the expedition. It used to say 'EXPEDITION COMPLETE' over '1 star secured
+  // this run', which claimed the run was over while the player was still
+  // standing in the dungeon, and named nothing they had actually done.
+  group('the heading answers "what did I just get?"', () {
+    testWidgets('one star names itself and claims nothing about the run', (
+      tester,
+    ) async {
+      await pumpPopup(tester, const [0], starNames: const ['Ember Star']);
+      expect(find.text('EMBER STAR'), findsOneWidget);
+      expect(find.text('EXPEDITION COMPLETE'), findsNothing);
+      expect(find.textContaining('secured this run'), findsNothing);
+    });
+
+    testWidgets('several stars fall back to a count', (tester) async {
+      // Only reachable when a run ends holding more than one unbanked star,
+      // and the count is the useful thing there.
+      await pumpPopup(
+        tester,
+        const [0, 1],
+        starNames: const ['Ember Star', 'Ash Star'],
+      );
+      expect(find.text('STARS SECURED'), findsOneWidget);
+      expect(find.text('2 stars secured this run'), findsOneWidget);
+    });
+
+    testWidgets('an unnamed star still reads', (tester) async {
+      // starNames is optional; a caller that omits it must not render a blank
+      // heading where the title should be.
+      await pumpPopup(tester, const [0]);
+      expect(find.text('STAR SECURED'), findsOneWidget);
+    });
+
+    testWidgets('a blank name is treated as no name, not an empty title', (
+      tester,
+    ) async {
+      await pumpPopup(tester, const [0], starNames: const ['   ']);
+      expect(find.text('STAR SECURED'), findsOneWidget);
+    });
   });
 }

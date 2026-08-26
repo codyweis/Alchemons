@@ -1,6 +1,6 @@
 // lib/games/planet_dungeon/planet_dungeon_reward_popup.dart
 //
-// End-of-run reward popup. Reveals the stars secured this expedition and
+// Reward popup. Reveals the star (or stars) just secured and
 // grants each star's reward (Star 3 is the player's choice of three —
 // highlight a card first, then confirm). Styled to match the dungeon HUD:
 // dark alchemical panel, bracket corners, monospace headings, amber glow.
@@ -36,6 +36,7 @@ class DungeonRewardPopup extends StatefulWidget {
     required this.stars,
     required this.db,
     required this.onContinue,
+    this.starNames = const [],
     this.onStarClaimed,
   });
 
@@ -44,6 +45,10 @@ class DungeonRewardPopup extends StatefulWidget {
 
   /// Pending star indices (subset of [0,1,2], ascending).
   final List<int> stars;
+
+  /// Display names for [stars], index-aligned — 'Wind Star', 'Hush Star'.
+  /// Empty falls back to a generic heading, so an unnamed star still reads.
+  final List<String> starNames;
   final AlchemonsDatabase db;
   final VoidCallback onContinue;
 
@@ -63,6 +68,27 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   Star3Choice? _highlighted;
   bool _busy = false;
   bool _relicIncoming = false;
+
+  /// The heading. One star names itself; several mean the run ended holding
+  /// more than one, which is the only case where a count is the useful thing.
+  String get _title {
+    if (widget.stars.length == 1) {
+      final name = widget.starNames.length == 1
+          ? widget.starNames.first.trim()
+          : '';
+      return name.isEmpty ? 'STAR SECURED' : name.toUpperCase();
+    }
+    return 'STARS SECURED';
+  }
+
+  String? get _subtitle {
+    if (widget.stars.length == 1) {
+      // A named star already says what it is, so a second line would only
+      // repeat it. Unnamed, there is nothing to add either.
+      return null;
+    }
+    return '${widget.stars.length} stars secured this run';
+  }
 
   bool get _needStar3 => widget.stars.contains(2);
   bool get _star3Resolved => !_needStar3 || _choice != null;
@@ -271,9 +297,16 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
           ],
         ),
         const SizedBox(height: 8),
-        const Text(
-          'EXPEDITION COMPLETE',
-          style: TextStyle(
+        // This popup is offered AT THE ACCOMPLISHMENT — the moment a star
+        // banks, mid-run — not when the expedition ends. It used to announce
+        // 'EXPEDITION COMPLETE' over a count of one, which told the player
+        // both that they were finished (they are not; they are still in the
+        // dungeon) and nothing whatsoever about what they had just done.
+        // Naming the star answers the only live question: what did I get?
+        Text(
+          _title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
             color: _C.amberBright,
             fontFamily: 'monospace',
             fontSize: 15,
@@ -281,15 +314,18 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
             letterSpacing: 2.4,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          '${widget.stars.length} star${widget.stars.length == 1 ? '' : 's'} secured this run',
-          style: const TextStyle(
-            color: _C.muted,
-            fontSize: 11,
-            letterSpacing: 0.4,
+        if (_subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            _subtitle!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: _C.muted,
+              fontSize: 11,
+              letterSpacing: 0.4,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

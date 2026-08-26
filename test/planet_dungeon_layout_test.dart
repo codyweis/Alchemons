@@ -1435,6 +1435,31 @@ void main() {
       }
     });
   });
+
+  // The reward popup names the star it is handing over, at the moment the
+  // player is asking "what did I just get?". A blank name falls back to a
+  // generic heading — not broken, but it wastes the one line they read.
+  group('every star can name itself for the reward popup', () {
+    test('no built dungeon has a blank or duplicated star name', () {
+      kPlanetDungeonLayouts.forEach((element, layout) {
+        final seen = <String>{};
+        for (var i = 0; i < layout.stars.length; i++) {
+          final name = layout.stars[i].name.trim();
+          expect(
+            name,
+            isNotEmpty,
+            reason: '$element star $i has no name for the reward popup',
+          );
+          expect(
+            seen.add(name.toLowerCase()),
+            isTrue,
+            reason: '$element reuses the star name "$name" — the popup would '
+                'read identically for two different accomplishments',
+          );
+        }
+      });
+    });
+  });
 }
 
 /// A bare Lightning game used only to drive the public brute-force solvers —

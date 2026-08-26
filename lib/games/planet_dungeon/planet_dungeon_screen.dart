@@ -86,6 +86,21 @@ class _HudBracketPainter extends CustomPainter {
 
 const _starPrefsKey = 'cosmic_planet_stars';
 
+/// How long a newly earned star takes to reach its tracker slot.
+///
+/// Deliberately unhurried. This animation is the ONLY thing that tells the
+/// player a star was banked before the reward dialog covers the screen, and at
+/// the old 950ms — most of it spent travelling — a star earned during a fight
+/// was routinely missed entirely. Split into three beats by the fractions
+/// below: born where it was earned, flown to the tracker, seated there.
+const Duration _kStarFlightDuration = Duration(milliseconds: 2150);
+
+/// End of BEAT 1 (birth-and-hold) as a fraction of the flight.
+const double _kStarBirth = 0.30;
+
+/// Start of BEAT 3 (seating) as a fraction of the flight.
+const double _kStarLand = 0.82;
+
 class PlanetDungeonScreen extends StatefulWidget {
   const PlanetDungeonScreen({
     super.key,
@@ -190,16 +205,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   void initState() {
     super.initState();
     _flyCtrl =
-        AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 950),
-        )..addStatusListener((s) {
-          if (s == AnimationStatus.completed && mounted) {
-            setState(() => _flyStar = null);
-            // The star has landed in its tracker slot — now the reward.
-            if (_rewardPending) unawaited(_offerPendingRewardIfSafe());
-          }
-        });
+        AnimationController(vsync: this, duration: _kStarFlightDuration)
+          ..addStatusListener((s) {
+            if (s == AnimationStatus.completed && mounted) {
+              setState(() => _flyStar = null);
+              // The star has landed in its tracker slot — now the reward.
+              if (_rewardPending) unawaited(_offerPendingRewardIfSafe());
+            }
+          });
     _introTicker = createTicker((elapsed) {
       if (!mounted) return;
       final secs = elapsed.inMicroseconds / 1e6;
@@ -1013,6 +1026,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               DungeonRewardPopup(
                 element: widget.element,
                 stars: _rewardStars!,
+                starNames: [
+                  for (final i in _rewardStars!)
+                    kPlanetDungeonLayouts[widget.element]
+                            ?.stars
+                            .elementAtOrNull(i)
+                            ?.name ??
+                        '',
+                ],
                 db: context.read<AlchemonsDatabase>(),
                 onStarClaimed: _onStarClaimed,
                 onContinue: _finishRewards,
@@ -1316,13 +1337,36 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     return AnimatedBuilder(
       animation: _flyCtrl,
       builder: (context, _) {
-        final t = Curves.easeInOut.transform(_flyCtrl.value);
-        final pos = Offset.lerp(start, target, t)!;
-        // Pop big at the start, shrink as it flies up.
-        final scale = (1.6 - 1.0 * t).clamp(0.6, 1.6);
-        final opacity = _flyCtrl.value < 0.85
-            ? 1.0
-            : (1.0 - (_flyCtrl.value - 0.85) / 0.15);
+        final v = _flyCtrl.value;
+
+        // BEAT 1 — BIRTH. The star swells where it was earned and STAYS there.
+        // The old flight left immediately, so a star earned mid-fight was a
+        // streak in the corner of the eye and then a dialog: players reported
+        // not knowing they had earned one. The hold is the whole fix; the
+        // flight is just how it gets to the tracker afterwards.
+        final born = Curves.easeOutBack.transform(
+          (v / _kStarBirth).clamp(0.0, 1.0),
+        );
+
+        // BEAT 2 — FLIGHT.
+        final flyT = Curves.easeInOut.transform(
+          ((v - _kStarBirth) / (_kStarLand - _kStarBirth)).clamp(0.0, 1.0),
+        );
+        final pos = Offset.lerp(start, target, flyT)!;
+
+        // BEAT 3 — SEATING. A short pulse as it lands, so the tracker slot
+        // reads as having RECEIVED something rather than the star just
+        // evaporating next to it.
+        final landT = ((v - _kStarLand) / (1.0 - _kStarLand)).clamp(0.0, 1.0);
+        final seat = landT == 0 ? 0.0 : Curves.easeOutCubic.transform(landT);
+
+        // Big while held, shrinking as it travels, one last flick on landing.
+        final scale =
+            (1.9 * born - 1.15 * flyT + 0.28 * (seat * (1 - seat) * 4))
+                .clamp(0.0, 2.0);
+
+        // Only fades at the very end, and only after it has seated.
+        final opacity = landT < 0.55 ? 1.0 : 1.0 - (landT - 0.55) / 0.45;
         return Positioned(
           left: pos.dx - 22,
           top: pos.dy - 22,
