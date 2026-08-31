@@ -1770,6 +1770,16 @@ class PlanetDungeonGame extends FlameGame {
   /// does is context-driven (element-based interactions don't need a family).
   bool get canAct => active != null && _raidDeath == null;
 
+  /// Whether the action cluster is worth showing at all.
+  ///
+  /// A room with no furniture and no live enemy gives the button nothing to
+  /// do, and a dead control that answers every press with a shrug is worse
+  /// than no control — it teaches the player that pressing does nothing,
+  /// which is exactly the wrong lesson in a game built on verbs. Corridors
+  /// and landings are simply for walking through.
+  bool get roomOffersAction =>
+      hasCombatTargets || currentRoom.hasVerbs || relicDropActive;
+
   /// The utility button is intentionally non-spoilery: the world response, not
   /// the label, teaches which specimen qualities and elements matter.
   String actionLabel() => 'UTILITY';
@@ -2325,6 +2335,10 @@ class PlanetDungeonGame extends FlameGame {
         (flightActive ? _speed * _flightSpeedMul : _speed) *
         (_isTemple ? _templeSpeedMul(a) : 1.0);
     if (dir.distanceSquared > 0.0001 && !castLocked) {
+      // Moving ends the survey. Deliberately on INTENT (the stick pushed)
+      // rather than on the position changing, so a shove, a gale or a riser
+      // carrying you does not yank the camera back while you are reading.
+      endSurvey();
       final airborneWalker =
           !flightActive &&
           (updraftRiding ||
@@ -8262,7 +8276,7 @@ class PlanetDungeonGame extends FlameGame {
   /// so screen space == viewport space).
   Offset worldToScreen(Offset world) {
     final cam = _cameraTopLeft(currentRoom, _cameraFocus);
-    return world - cam;
+    return (world - cam) * surveyZoom;
   }
 
   /// Debug helper: wipe ALL banked progress for this dungeon — stars, cloud
@@ -8415,6 +8429,10 @@ class PlanetDungeonGame extends FlameGame {
     }
 
     canvas.save();
+    // Scale FIRST, then translate: the camera top-left is already in world
+    // units, so scaling after the translate would move the room as well as
+    // shrink it. The sky above is screen-space and deliberately outside this.
+    if (surveying) canvas.scale(surveyZoom);
     canvas.translate(-cam.dx, -cam.dy);
 
     _renderIslandAndVoid(canvas, room);
@@ -11578,8 +11596,39 @@ class PlanetDungeonGame extends FlameGame {
     return Offset(sin(_time * 51.0) * _shake, cos(_time * 43.0) * _shake * 0.7);
   }
 
+  /// SURVEY ZOOM. 1.0 is the normal view; below that the camera pulls back so
+  /// a whole room can be read at once.
+  ///
+  /// It is a LOOK, not a mode: any movement snaps it straight back, because a
+  /// puzzle read at arm's length and then played at arm's length is a
+  /// different (and worse) game than one you step back from to think.
+  double surveyZoom = 1.0;
+
+  /// How far back the survey pulls. Chosen so the largest authored room fits
+  /// a phone viewport without the creatures becoming unreadable dots.
+  static const double kSurveyZoom = 0.62;
+
+  bool get surveying => surveyZoom < 0.999;
+
+  /// Toggle the survey. Called by the HUD button.
+  void toggleSurvey() {
+    surveyZoom = surveying ? 1.0 : kSurveyZoom;
+    onChanged();
+  }
+
+  /// Snap back to the normal view. Called the moment the party moves — the
+  /// survey is for standing still and looking.
+  void endSurvey() {
+    if (!surveying) return;
+    surveyZoom = 1.0;
+    onChanged();
+  }
+
   Offset _cameraTopLeft(DungeonRoom room, Offset focus) {
-    final vw = size.x, vh = size.y;
+    // The viewport is EFFECTIVELY larger while zoomed out, and every clamp
+    // below is in world units, so the zoom has to be divided in here or the
+    // camera keeps framing for a viewport it no longer has.
+    final vw = size.x / surveyZoom, vh = size.y / surveyZoom;
     final b = room.bounds;
     double camX, camY;
     if (b.width <= vw) {

@@ -369,6 +369,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // duration, is why the reward kept landing on top of the star. Only the
     // flight's completion (and the pause after it) may open the popup.
     if (_flyStar != null || _rewardHold != null) return;
+    // THE RELIC COMES FIRST. Star 3 drops the guardian's relic on the spot and
+    // it hovers, then expands away into your keeping over 3.6s. The popup was
+    // opening on top of it, so the one animation the whole planet builds
+    // toward played behind a dialog. The HUD timer polls this every 100ms, so
+    // the reward simply arrives once the relic has finished being taken.
+    if (_game?.relicDropActive ?? false) return;
     final prefs = await SharedPreferences.getInstance();
     final state = PlanetStarState.deserialise(
       prefs.getString(_starPrefsKey) ?? '',
@@ -806,6 +812,23 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                         icon: Icons.workspaces_rounded,
                       ),
                       const SizedBox(height: 6),
+                      const SizedBox(height: 6),
+                      // Pull back and read the whole room. Any movement snaps
+                      // it home again, so it is a look rather than a mode.
+                      ValueListenableBuilder<int>(
+                        valueListenable: _tick,
+                        builder: (_, __, ___) => _pillButton(
+                          game.surveying ? 'CLOSE IN' : 'SURVEY',
+                          game.surveying ? _C.amber : _C.cyan,
+                          () {
+                            HapticFeedback.selectionClick();
+                            game.toggleSurvey();
+                          },
+                          icon: game.surveying
+                              ? Icons.zoom_in_map_rounded
+                              : Icons.zoom_out_map_rounded,
+                        ),
+                      ),
                       // The only thing in the dungeon that speaks. It reads
                       // the room — and, when the world has just turned the
                       // player away, it says WHY, which is the question they
@@ -891,8 +914,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _actionCluster(game),
-                      const SizedBox(height: 12),
+                      // Nothing to act on in this room and nothing alive in
+                      // it: the cluster would be a control that answers every
+                      // press with a shrug. Corridors are for walking.
+                      if (game.roomOffersAction) ...[
+                        _actionCluster(game),
+                        const SizedBox(height: 12),
+                      ],
                       _swapRail(game),
                     ],
                   ),

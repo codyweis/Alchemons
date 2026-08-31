@@ -1315,6 +1315,78 @@ class DungeonFamilyGate {
       '_${family.toLowerCase()}';
 }
 
+extension DungeonRoomAffordances on DungeonRoom {
+  /// Does this room hold anything the party can ACT on?
+  ///
+  /// Deliberately about the room's authored contents, not about what is
+  /// currently in reach — the HUD uses it to decide whether to show an action
+  /// button at all, and a button that blinks in and out as you walk past
+  /// objects would be worse than one that is always there.
+  ///
+  /// Pure geometry is excluded on purpose: walls, doors, hazards, gaps,
+  /// platforms and tide zones are things you move through, not things you use.
+  bool get hasVerbs =>
+      // Shared furniture
+      clouds.isNotEmpty ||
+      anchors.isNotEmpty ||
+      conduits.isNotEmpty ||
+      stars.isNotEmpty ||
+      vaultCache != null ||
+      guardian != null ||
+      // Air
+      gustShrines.isNotEmpty ||
+      galeVents.isNotEmpty ||
+      stormRods.isNotEmpty ||
+      summit != null ||
+      // Fire
+      braziers.isNotEmpty ||
+      muralTorches.isNotEmpty ||
+      vineBeds.isNotEmpty ||
+      incenseChains.isNotEmpty ||
+      vesperRoutes.isNotEmpty ||
+      windVane != null ||
+      garth != null ||
+      // Water
+      tideValves.isNotEmpty ||
+      tideSeals.isNotEmpty ||
+      canalNodes.isNotEmpty ||
+      moonPools.isNotEmpty ||
+      // Earth
+      fossilRibs.isNotEmpty ||
+      fossilPillars.isNotEmpty ||
+      sternumPlate != null ||
+      stoneScale != null ||
+      // Lightning
+      circuitNodes.isNotEmpty ||
+      stormCells.isNotEmpty ||
+      cellSockets.isNotEmpty ||
+      beamMirrors.isNotEmpty ||
+      fulminateVats.isNotEmpty ||
+      vaultBolt != null ||
+      coreBreaker != null ||
+      // Steam
+      geysers.isNotEmpty ||
+      capstone != null ||
+      molten != null ||
+      steamVent != null ||
+      stokePort != null ||
+      burstDisc != null ||
+      // The eleven authored since — each carries one payload object.
+      foundryStar != null ||
+      ward != null ||
+      apothecary != null ||
+      priorsSeal != null ||
+      rime != null ||
+      fen != null ||
+      grove != null ||
+      eclipse != null ||
+      hall != null ||
+      sanguine != null ||
+      ruins != null ||
+      prism != null ||
+      grave != null;
+}
+
 /// Everything [element]'s dungeon will demand of a descent party beyond its
 /// three entry elements, derived from the authored family gates.
 ///
