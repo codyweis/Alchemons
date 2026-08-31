@@ -2635,7 +2635,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
     // lost, only paid for.
     'cloister': DungeonRoom(
       id: 'cloister',
-      teach: 'Lay vine, strike ONCE, and the flame walks itself downwind — burnt ground never takes vine again.',
+      teach: 'Lay vine, strike ONCE, and turn the wind to walk the flame — every square must burn from that single fire, and burnt ground never takes vine again.',
       bounds: Rect.fromLTWH(0, 0, 820, 740),
       doors: [
         DungeonDoor(
@@ -2658,18 +2658,32 @@ const DungeonLayout _fireLayout = DungeonLayout(
       // The cloister's fallen columns are the maze; the seep around the dry
       // fountain grows vine that will never catch. The doors sit on the top
       // and bottom edges at cols 3-5, so those lanes are left open.
+      // THE GARTH — 6x5, and every square of it must burn from ONE strike.
+      //
+      // Was 9x7 with a goal of 26 of 56: too many cells to read at a glance,
+      // and a target you could nibble at. Smaller is not just tidier here, it
+      // is what makes the real goal PROVABLE — "burn the whole garden in one
+      // chain" is a Hamiltonian path over the soil, and that is only decidable
+      // on a field this size.
+      //
+      // The four rocks are placed to balance the checkerboard (two on each
+      // colour), which is what keeps a full-cover path possible at all: a
+      // path over 26 cells alternates colours, so an unbalanced field is
+      // impossible no matter how it is played. An earlier staggered layout
+      // looked fine and had NO Hamiltonian path from any square.
+      //
+      // Only 6 of the 26 squares can start a complete burn, so where you
+      // strike is as much of the puzzle as which way you turn the wind.
       garth: BurnGarth(
         starIndex: 1,
-        coverageGoal: 26,
+        coverageGoal: 26, // every dry square — see burn_field_test.dart
         poolPosition: Offset(756, 660),
         art: [
-          '.........',
-          '..#...#..',
-          '.........',
-          '...~~~...',
-          '.........',
-          '..#...#..',
-          '.........',
+          '......',
+          '.#..#.',
+          '......',
+          '.#..#.',
+          '......',
         ],
       ),
       windVane: Offset(410, 385),

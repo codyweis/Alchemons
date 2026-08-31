@@ -119,7 +119,7 @@ void main() {
       g.currentRoomId = 'cloister';
 
       g.beginRun();
-      expect(g.hintText, contains('walks itself'));
+      expect(g.hintText, contains('every square must burn'));
       expect(g.discoveredClouds, contains('teach:cloister'));
 
       // Walking back in later says nothing.

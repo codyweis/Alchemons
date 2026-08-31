@@ -156,34 +156,68 @@ void main() {
   });
 
   group('the authored garth', () {
-    test('the cloister field can actually meet its coverage goal', () {
+    test('the goal IS the whole garden, and one chain can take it', () {
       final room = kPlanetDungeonLayouts['Fire']!.rooms['cloister']!;
       final garth = room.garth;
       expect(garth, isNotNull, reason: 'Fire Star 2 is THE BURN now');
 
       final f = BurnField.parse(garth!.art, coverageGoal: garth.coverageGoal);
-      // SOME start must be able to reach the goal, walking the real rules.
-      var reachable = false;
-      for (var i = 0; i < garth.cols * garth.rows && !reachable; i++) {
-        if (f.at(i) != BurnCell.soil) continue;
-        reachable = f.canBurnAtLeast(i, garth.coverageGoal);
-      }
-      expect(
-        reachable,
-        isTrue,
-        reason:
-            'a garth whose pool cannot be filled is unauthorable '
-            '(goal ${garth.coverageGoal})',
-      );
-      // And the goal must DEMAND a real route: count the burnable ground.
+      final cells = garth.cols * garth.rows;
       var dry = 0;
-      for (var i = 0; i < garth.cols * garth.rows; i++) {
+      for (var i = 0; i < cells; i++) {
         if (f.at(i) == BurnCell.soil || f.at(i) == BurnCell.vine) dry++;
       }
       expect(
         garth.coverageGoal,
-        greaterThan(dry * 0.4),
-        reason: 'a goal a lazy short chain could reach is not a puzzle',
+        dry,
+        reason: 'the star asks for the WHOLE garden, not a share of it',
+      );
+
+      // A full cover is a Hamiltonian path over the soil, so it is only
+      // decidable on a small field — which is why the garth is 6x5. These are
+      // the squares a complete burn can start from; if the art is ever
+      // re-cut, this list is what will tell you.
+      final starts = <int>[];
+      for (var i = 0; i < cells; i++) {
+        if (f.at(i) != BurnCell.soil) continue;
+        if (BurnField.parse(garth.art).canBurnAtLeast(i, dry)) starts.add(i);
+      }
+      expect(
+        starts,
+        isNotEmpty,
+        reason: 'a garden that cannot be burnt whole is unauthorable',
+      );
+      expect(
+        starts.length,
+        lessThan(dry),
+        reason: 'if every square could start it, the strike would be no choice',
+      );
+    });
+
+    test('the rocks keep the checkerboard balanced', () {
+      // The load-bearing constraint, and the one that is invisible by eye. A
+      // path over N cells alternates colours, so a field whose two colours
+      // differ by more than one has NO full cover from any square, however it
+      // is played. An earlier staggered layout looked perfectly reasonable
+      // and was impossible for exactly this reason.
+      final garth = kPlanetDungeonLayouts['Fire']!.rooms['cloister']!.garth!;
+      final f = BurnField.parse(garth.art);
+      var black = 0, white = 0;
+      for (var r = 0; r < garth.rows; r++) {
+        for (var c = 0; c < garth.cols; c++) {
+          final cell = f.at(r * garth.cols + c);
+          if (cell != BurnCell.soil && cell != BurnCell.vine) continue;
+          if ((c + r) % 2 == 0) {
+            black++;
+          } else {
+            white++;
+          }
+        }
+      }
+      expect(
+        (black - white).abs(),
+        lessThanOrEqualTo(1),
+        reason: 'the soil is $black/$white — no chain can cover it all',
       );
     });
 
@@ -231,7 +265,7 @@ void main() {
       expect(f.plant(0), isFalse, reason: 'burnt ground is spent');
     });
 
-    test('the garth is a maze, not a lawn', () {
+    test('the garth is a maze, not a lawn — and carries no seep', () {
       final garth = kPlanetDungeonLayouts['Fire']!.rooms['cloister']!.garth!;
       final f = BurnField.parse(garth.art);
       var stone = 0, wet = 0;
@@ -240,10 +274,18 @@ void main() {
         if (f.at(i) == BurnCell.wet) wet++;
       }
       expect(stone, greaterThan(0), reason: 'fallen columns bend the route');
+      // THE SEEP IS GONE FROM THIS GARTH, deliberately. Wet ground grows vine
+      // and never catches, which was a fine trap while the goal was a share
+      // of the field — but the star now asks for the WHOLE garden, and a
+      // square that can hold vine and can never burn makes that a lie. A
+      // player would read it as having failed.
+      //
+      // The rule itself is untouched and still covered above, on a field
+      // built for it ("WATER grows vine that never catches").
       expect(
         wet,
-        greaterThan(0),
-        reason: 'the seep is the trap that teaches fuel != fire',
+        0,
+        reason: 'a full-cover goal cannot contain ground that never burns',
       );
     });
   });

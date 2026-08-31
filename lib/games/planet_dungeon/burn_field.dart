@@ -269,24 +269,58 @@ class BurnField {
     var found = false;
     var visits = 0;
 
+    bool open(int j) =>
+        walls[j] == BurnCell.soil || walls[j] == BurnCell.vine;
+
+    List<int> nbrs(int i) {
+      final c0 = colOf(i), r0 = rowOf(i);
+      final out = <int>[];
+      for (final w in BurnWind.values) {
+        final (dc, dr) = w.delta;
+        final c = c0 + dc, r = r0 + dr;
+        if (!inBounds(c, r)) continue;
+        final j = index(c, r);
+        if (open(j)) out.add(j);
+      }
+      return out;
+    }
+
+    /// How much ground is still reachable from [i]. A chain can never take
+    /// more than this, so a branch that strands part of the field is dead the
+    /// moment it is made — which is the prune that turns an intractable walk
+    /// into an instant answer on a field this size.
+    int reachable(int i) {
+      final seen = <int>{i};
+      final stack = <int>[i];
+      var n = 0;
+      while (stack.isNotEmpty) {
+        final u = stack.removeLast();
+        n++;
+        for (final v in nbrs(u)) {
+          if (seen.add(v)) stack.add(v);
+        }
+      }
+      return n;
+    }
+
     void walk(int i, int len) {
-      if (found || visits > 400000) return;
+      if (found || visits > 2000000) return;
       visits++;
       if (len >= target) {
         found = true;
         return;
       }
-      final c0 = colOf(i), r0 = rowOf(i);
-      // Try the straight-on continuations first: a chain that keeps going
-      // finds length sooner than one that keeps turning.
-      for (final w in BurnWind.values) {
+      // Dead end: what is left in front cannot make up the shortfall.
+      if (len + reachable(i) < target) return;
+      // WARNSDORFF: step into the most constrained square first. Squares with
+      // one way out have to be taken when they are still takeable, and trying
+      // them last is what makes the naive walk explode.
+      final options = nbrs(i)
+        ..sort((a, b) => nbrs(a).length.compareTo(nbrs(b).length));
+      for (final j in options) {
         if (found) return;
-        final (dc, dr) = w.delta;
-        final c = c0 + dc, r = r0 + dr;
-        if (!inBounds(c, r)) continue;
-        final j = index(c, r);
+        if (!open(j)) continue;
         final k = walls[j];
-        if (k != BurnCell.soil && k != BurnCell.vine) continue;
         walls[j] = BurnCell.ash; // the trail is the wall
         walk(j, len + 1);
         walls[j] = k;
