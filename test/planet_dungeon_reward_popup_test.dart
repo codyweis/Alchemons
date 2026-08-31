@@ -27,8 +27,9 @@ void main() {
     WidgetTester tester,
     List<int> stars, {
     List<String> starNames = const [],
+    Size logical = const Size(390, 844),
   }) async {
-    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.physicalSize = Size(logical.width * 3, logical.height * 3);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -117,6 +118,61 @@ void main() {
     ) async {
       await pumpPopup(tester, const [0], starNames: const ['   ']);
       expect(find.text('STAR SECURED'), findsOneWidget);
+    });
+  });
+
+  group('the design of the choice row', () {
+    testWidgets('it fits a small phone without overflowing', (tester) async {
+      // The panel was pinned at 400 logical points wide. A 412pt phone left
+      // six points of air each side; a 375pt one ran off the screen.
+      await pumpPopup(tester, const [2], logical: const Size(320, 640));
+      expect(tester.takeException(), isNull);
+      final panel = tester.getSize(
+        find.byType(DungeonRewardPopup),
+      );
+      expect(panel.width, lessThanOrEqualTo(320));
+    });
+
+    testWidgets('the heading asks for a choice instead of repeating the star',
+        (tester) async {
+      // "STAR 3" sat directly under a title that already named the star in
+      // inch-high letters, beside a cyan "CONFIRM BELOW" pointing at a button
+      // that says the same thing in its own words.
+      await pumpPopup(tester, const [2], starNames: const ['Pyre Star']);
+      expect(find.text('CHOOSE YOUR REWARD'), findsOneWidget);
+      expect(find.text('STAR 3'), findsNothing);
+      expect(find.text('CONFIRM BELOW'), findsNothing);
+      expect(find.text('PICK ONE'), findsNothing);
+    });
+
+    testWidgets('a granted star still says which star it was', (tester) async {
+      // The heading only changes for the block that needs a decision; a
+      // multi-star claim still has to label its lists.
+      await pumpPopup(tester, const [0, 1]);
+      expect(find.text('STAR 1'), findsOneWidget);
+      expect(find.text('STAR 2'), findsOneWidget);
+      expect(find.text('CHOOSE YOUR REWARD'), findsNothing);
+    });
+
+    testWidgets('the three cards are one row, at one height', (tester) async {
+      // "10 Fusion Extractors" wraps and the other two titles do not, so the
+      // card contents used to sit at three different heights.
+      await pumpPopup(tester, const [2]);
+      final cards = tester
+          .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
+          .length;
+      expect(cards, greaterThanOrEqualTo(3));
+      final boxes = [
+        for (final t in ['25 Gold', '10 Powerups', '10 Fusion Extractors'])
+          tester.getRect(find.text(t)),
+      ];
+      for (final b in boxes.skip(1)) {
+        expect(
+          (b.top - boxes.first.top).abs(),
+          lessThan(1.0),
+          reason: 'card titles must start on the same line: $boxes',
+        );
+      }
     });
   });
 }

@@ -17,14 +17,12 @@ import 'package:flutter/material.dart';
 
 class _C {
   static const bg = Color(0xFF080808);
-  static const bg2 = Color(0xFF111722);
   static const panel = Color(0xFF14120E);
   static const amber = Color(0xFFC4A35A);
   static const amberBright = Color(0xFFE4C16A);
   static const border = Color(0xFF74613A);
   static const text = Color(0xFFE8DFC8);
   static const muted = Color(0xFF9C9078);
-  static const cyan = Color(0xFF5BC8E8);
 }
 
 /// HUD-style corner brackets (mirrors the in-dungeon button chrome).
@@ -214,6 +212,10 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   }
 
   Widget _panel() {
+    // The panel was a fixed 400 wide. A 412pt phone left six points of air on
+    // each side and anything narrower — a 375pt iPhone SE — overflowed the
+    // screen outright.
+    final maxWidth = MediaQuery.sizeOf(context).width - 36;
     return CustomPaint(
       painter: const DungeonBracketPainter(
         color: _C.amberBright,
@@ -221,7 +223,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
         strokeWidth: 2.4,
       ),
       child: Container(
-        width: 400,
+        width: maxWidth < 400 ? maxWidth : 400,
         constraints: const BoxConstraints(maxHeight: 600),
         padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
         decoration: BoxDecoration(
@@ -517,32 +519,33 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                 color: _C.amber.withValues(alpha: 0.9),
               ),
               const SizedBox(width: 6),
-              Text(
-                'STAR ${star + 1}',
-                style: const TextStyle(
-                  color: _C.amber,
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.6,
-                ),
-              ),
-              if (needChoice) ...[
-                const Spacer(),
-                Text(
-                  _highlighted == null ? 'PICK ONE' : 'CONFIRM BELOW',
-                  style: TextStyle(
-                    color: _C.cyan.withValues(alpha: 0.85),
+              // Flexible, because a heading in a fixed-width face is one font
+              // substitution away from being wider than the panel — which is
+              // exactly how it overflowed on a 320pt screen.
+              Flexible(
+                child: Text(
+                  // The choice block is the only one that needs a heading, and
+                  // "STAR 3" is not it: the popup's title already names the
+                  // star in inch-high letters directly above. Say the thing the
+                  // player has to DO.
+                  needChoice ? 'CHOOSE YOUR REWARD' : 'STAR ${star + 1}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _C.amber,
                     fontFamily: 'monospace',
-                    fontSize: 9,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
+                    letterSpacing: 1.6,
                   ),
                 ),
-              ],
+              ),
             ],
           ),
-          const SizedBox(height: 8),
+          // "CONFIRM BELOW" in cyan used to live on this row — an instruction
+          // in another screen's accent colour, telling the player to read the
+          // button that is already telling them the same thing.
+          const SizedBox(height: 10),
           if (needChoice) ...[
             if (_relicIncoming) _relicBanner(),
             _choiceCards(),
@@ -618,16 +621,34 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
         ),
       ),
     };
-    if (!selected) return art;
+    // THE MEDALLION. The three arts are a metallic coin sprite, two glowing
+    // orbs and a UI png that carries its own pale halo — side by side they
+    // read as three things borrowed from three places. A common dark disc
+    // with a thin rim makes them one set of choices, and it gives the png's
+    // halo something to sit on instead of floating.
     return Container(
+      width: size * 1.62,
+      height: size * 1.62,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: _C.amberBright.withValues(alpha: 0.45),
-            blurRadius: 16,
-          ),
-        ],
+        color: selected
+            ? const Color(0xFF241C10)
+            : Colors.black.withValues(alpha: 0.32),
+        border: Border.all(
+          color: selected
+              ? _C.amberBright.withValues(alpha: 0.85)
+              : _C.border.withValues(alpha: 0.45),
+          width: selected ? 1.4 : 1.0,
+        ),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: _C.amberBright.withValues(alpha: 0.32),
+                  blurRadius: 14,
+                ),
+              ]
+            : null,
       ),
       child: art,
     );
@@ -671,9 +692,11 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        padding: const EdgeInsets.fromLTRB(6, 12, 6, 10),
         decoration: BoxDecoration(
-          color: selected ? _C.bg2 : _C.panel,
+          // Warm, not the HUD's blue-black: a gold reward highlighted in navy
+          // looked like a different screen's component had wandered in.
+          color: selected ? const Color(0xFF1E1810) : _C.panel,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: selected ? _C.amberBright : _C.border.withValues(alpha: 0.7),
@@ -692,26 +715,38 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            _choiceArt(c, 28, selected: selected),
+            const SizedBox(height: 9),
+            // FIXED height, two lines' worth. "10 Fusion Extractors" wraps and
+            // the other two do not, so without this its subtitle sat a line
+            // lower than its neighbours' and the row lost its baseline.
             SizedBox(
-              height: 34,
-              child: Center(child: _choiceArt(c, 30, selected: selected)),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              star3ChoiceTitle(c),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: selected ? _C.amberBright : _C.text,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
+              height: 30,
+              child: Text(
+                star3ChoiceTitle(c),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: TextStyle(
+                  color: selected ? _C.amberBright : _C.text,
+                  fontSize: 11.5,
+                  height: 1.24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                ),
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
             Text(
               star3ChoiceSubtitle(c),
               textAlign: TextAlign.center,
-              style: const TextStyle(color: _C.muted, fontSize: 9),
+              maxLines: 2,
+              style: TextStyle(
+                color: selected
+                    ? _C.text.withValues(alpha: 0.8)
+                    : _C.muted,
+                fontSize: 9,
+                height: 1.3,
+              ),
             ),
           ],
         ),
