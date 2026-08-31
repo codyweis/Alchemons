@@ -1148,22 +1148,33 @@ extension CinderCathedral on PlanetDungeonGame {
   }
 
   (double, double) _garthCell(DungeonRoom room, BurnGarth g) =>
-      (room.bounds.width / g.cols, room.bounds.height / g.rows);
+      (g.cell, g.cell);
+
+  /// The garth's own patch of the cloister.
+  ///
+  /// The field used to BE the room, which is why a square came out 137x148
+  /// and a phone could hold three columns of six. Now it is a garden with
+  /// paths around it, and the whole board reads at once.
+  Rect garthField(DungeonRoom room, BurnGarth g) => Rect.fromCenter(
+    center: g.centre ?? room.bounds.center,
+    width: g.fieldWidth,
+    height: g.fieldHeight,
+  );
 
   /// The cell index under [p], or -1 outside the field.
   int _garthAt(Offset p, DungeonRoom room, BurnGarth g) {
-    final (cw, ch) = _garthCell(room, g);
-    final c = ((p.dx - room.bounds.left) / cw).floor();
-    final r = ((p.dy - room.bounds.top) / ch).floor();
+    final f = garthField(room, g);
+    final c = ((p.dx - f.left) / g.cell).floor();
+    final r = ((p.dy - f.top) / g.cell).floor();
     if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) return -1;
     return r * g.cols + c;
   }
 
   Offset garthCentre(DungeonRoom room, BurnGarth g, int i) {
-    final (cw, ch) = _garthCell(room, g);
+    final f = garthField(room, g);
     return Offset(
-      room.bounds.left + (i % g.cols + 0.5) * cw,
-      room.bounds.top + (i ~/ g.cols + 0.5) * ch,
+      f.left + (i % g.cols + 0.5) * g.cell,
+      f.top + (i ~/ g.cols + 0.5) * g.cell,
     );
   }
 
@@ -1315,6 +1326,34 @@ extension CinderCathedral on PlanetDungeonGame {
     onChanged();
   }
 
+  /// How near you must pass for a candle to catch.
+  static const double _kCandleReach = 104.0;
+
+  /// The candle stands at the feet of the nave's piers: one per pier, in
+  /// pier order (top row and bottom row interleaved).
+  List<Offset> naveCandleStands(DungeonRoom room) {
+    final b = room.bounds;
+    return [
+      for (var i = 0; i < 4; i++) ...[
+        Offset(b.left + 150 + i * 200.0, b.top + 188),
+        Offset(b.left + 150 + i * 200.0, b.bottom - 114),
+      ],
+    ];
+  }
+
+  void _updateNaveCandles(DungeonCreature a, DungeonRoom room, double dt) {
+    final stands = naveCandleStands(room);
+    for (var i = 0; i < stands.length; i++) {
+      final lit = naveCandles[i] ?? 0;
+      if (lit >= 1) continue;
+      if ((a.position - stands[i]).distance > _kCandleReach) continue;
+      // Half a second to take, so a candle catches visibly rather than
+      // snapping on as you cross an invisible line.
+      naveCandles[i] = (lit + dt / 0.5).clamp(0.0, 1.0);
+      onChanged();
+    }
+  }
+
   void _updateCathedral(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isCathedral) return;
     if (_bellTollFx > 0) _bellTollFx -= dt;
@@ -1322,6 +1361,7 @@ extension CinderCathedral on PlanetDungeonGame {
       _bedFx.updateAll((k, v) => v - dt);
       _bedFx.removeWhere((k, v) => v <= 0);
     }
+    if (room.id == 'nave') _updateNaveCandles(a, room, dt);
     _updateAshGarden(dt);
     // ANIMATED STATE: insight's marking blooms, a lit brazier's testimony is
     // eaten by its own fire, and a re-declared censer run swings over. Three
@@ -2612,10 +2652,15 @@ extension CinderCathedral on PlanetDungeonGame {
         // The wind lies under everything; the vane stands on the dry fountain
         // at the heart of the garth.
         if (room.garth != null) {
-          _drawBurnGarth(canvas, room);
+          // The fountain goes UNDER the beds: it is the plinth the garden is
+          // laid around, and drawn over the top it swallowed the four squares
+          // that meet at the middle — the ones a chain most often turns on.
           final vane = room.windVane ?? room.bounds.center;
           _drawDryFountain(canvas, vane);
+          _drawBurnGarth(canvas, room);
           _drawWindVane(canvas, vane);
+          final field = burnFieldFor(room);
+          if (field != null) _drawBurnRing(canvas, vane, room.garth!, field);
         } else {
           _drawCrosswind(canvas, room);
           final vane = room.windVane ?? room.bounds.center;
@@ -2765,48 +2810,76 @@ extension CinderCathedral on PlanetDungeonGame {
 
   void _drawNave(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
-    // Column rows down both sides.
-    final col = Paint()
+
+    // THE AISLE. The nave is the hub — it gets crossed a dozen times a run —
+    // and it was an unlit floor with eight lollipops on it. A runner from the
+    // porch to the chancel gate gives the room a direction, which is most of
+    // what it was missing.
+    final runner = Rect.fromLTRB(
+      b.left + 24,
+      b.top + 312,
+      b.right - 24,
+      b.top + 364,
+    );
+    canvas.drawRect(
+      runner,
+      Paint()..color = const Color(0xFF2A140E).withValues(alpha: 0.5),
+    );
+    final hem = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..color = const Color(0xFF3E2E22).withValues(alpha: 0.62);
+      ..strokeWidth = 1.6
+      ..color = const Color(0xFF8A6A3C).withValues(alpha: 0.40);
+    canvas.drawLine(runner.topLeft, runner.topRight, hem);
+    canvas.drawLine(runner.bottomLeft, runner.bottomRight, hem);
+    // A chain of lozenges woven down it, so the aisle has a length rather
+    // than just an outline.
+    final weave = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = const Color(0xFF8A6A3C).withValues(alpha: 0.26);
+    for (var x = runner.left + 26; x < runner.right - 10; x += 52) {
+      final cy = runner.center.dy;
+      canvas.drawPath(
+        Path()
+          ..moveTo(x - 18, cy)
+          ..lineTo(x, cy - 14)
+          ..lineTo(x + 18, cy)
+          ..lineTo(x, cy + 14)
+          ..close(),
+        weave,
+      );
+    }
+    // Paving joints, kept off the runner so they read as flagstones beside it.
+    final joint = Paint()
+      ..strokeWidth = 1
+      ..color = const Color(0xFF2C2219).withValues(alpha: 0.55);
+    for (var x = b.left + 90; x < b.right - 40; x += 96) {
+      canvas.drawLine(Offset(x, b.top + 210), Offset(x, runner.top - 12), joint);
+      canvas.drawLine(
+        Offset(x, runner.bottom + 12),
+        Offset(x, b.bottom - 210),
+        joint,
+      );
+    }
+
+    _drawBlindArcade(canvas, room);
+
     for (var i = 0; i < 4; i++) {
       final x = b.left + 150 + i * 200.0;
-      canvas.drawLine(Offset(x, b.top + 120), Offset(x, b.top + 175), col);
-      canvas.drawLine(
-        Offset(x, b.bottom - 175),
-        Offset(x, b.bottom - 120),
-        col,
+      // Both rows stand the same way up — capital over base. The camera is
+      // overhead but everything else in the dungeon is drawn upright, and a
+      // mirrored row read as furniture that had fallen over.
+      _drawPier(canvas, Offset(x, b.top + 112), 66);
+      _drawPier(canvas, Offset(x, b.bottom - 190), 66);
+      _drawCandleStand(canvas, Offset(x, b.top + 188), naveCandles[i * 2] ?? 0, i);
+      _drawCandleStand(
+        canvas,
+        Offset(x, b.bottom - 114),
+        naveCandles[i * 2 + 1] ?? 0,
+        i + 4,
       );
-      canvas.drawCircle(
-        Offset(x, b.top + 112),
-        9,
-        Paint()..color = const Color(0xFF4A382C).withValues(alpha: 0.6),
-      );
-      canvas.drawCircle(
-        Offset(x, b.bottom - 112),
-        9,
-        Paint()..color = const Color(0xFF4A382C).withValues(alpha: 0.6),
-      );
-      // Candle clusters at the column feet.
-      if (_fx.ready) {
-        final flick = 0.5 + 0.5 * sin(_time * 5.5 + i * 1.9);
-        drawGlow(
-          canvas,
-          _fx.mote!,
-          Offset(x, b.top + 184),
-          7,
-          const Color(0xFFE4C16A).withValues(alpha: 0.22 + 0.12 * flick),
-        );
-        drawGlow(
-          canvas,
-          _fx.mote!,
-          Offset(x, b.bottom - 184),
-          7,
-          const Color(0xFFE4C16A).withValues(alpha: 0.22 + 0.12 * flick),
-        );
-      }
     }
+
     // The rose window above the chancel gate.
     _drawRoseWindow(canvas, Offset(b.center.dx + 185, b.top + 88), 56);
     // Star vigil lights over the gate: ember, ash, pyre.
@@ -2825,6 +2898,147 @@ extension CinderCathedral on PlanetDungeonGame {
         7,
         col2.withValues(alpha: earnedStar ? 0.95 : 0.5),
       );
+    }
+  }
+
+  /// Blind arcading along the two long walls: a row of shallow arches, drawn
+  /// flat against the stone. Pure surface — nothing here blocks a step — but
+  /// it is what stops the nave reading as an empty box with columns in it.
+  void _drawBlindArcade(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = const Color(0xFF3A2E22).withValues(alpha: 0.85);
+    for (final top in [true, false]) {
+      // The spring line of the arch — both walls arch the same way up, like
+      // every other upright thing in the dungeon.
+      final y = top ? b.top + 40 : b.bottom - 56;
+      for (var x = b.left + 60; x < b.right - 60; x += 74) {
+        // A door punched through this stretch of wall: leave the gap.
+        if (room.doors.any(
+          (d) => d.rect.inflate(26).contains(Offset(x, top ? b.top : b.bottom)),
+        )) {
+          continue;
+        }
+        canvas.drawArc(
+          Rect.fromCenter(center: Offset(x, y), width: 54, height: 44),
+          pi,
+          pi,
+          false,
+          line,
+        );
+        canvas.drawLine(Offset(x - 27, y), Offset(x - 27, y + 22), line);
+        canvas.drawLine(Offset(x + 27, y), Offset(x + 27, y + 22), line);
+      }
+    }
+  }
+
+  /// One of the nave's piers: capital, tapered shaft, base. [head] is the
+  /// capital; the shaft runs [height] down from it.
+  void _drawPier(Canvas canvas, Offset head, double height) {
+    final foot = head + Offset(0, height);
+    final stone = Paint()..color = const Color(0xFF3E2E22);
+    // Shaft — wider at the foot, so it reads as masonry rather than a stick.
+    canvas.drawPath(
+      Path()
+        ..moveTo(head.dx - 7, head.dy)
+        ..lineTo(head.dx + 7, head.dy)
+        ..lineTo(foot.dx + 10, foot.dy)
+        ..lineTo(foot.dx - 10, foot.dy)
+        ..close(),
+      stone,
+    );
+    // A warm edge down the side the candles stand on.
+    canvas.drawLine(
+      Offset(head.dx + 6, head.dy),
+      Offset(foot.dx + 9, foot.dy),
+      Paint()
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFF6E5A3E).withValues(alpha: 0.55),
+    );
+    // Capital and base blocks.
+    canvas.drawRect(
+      Rect.fromCenter(center: head, width: 26, height: 12),
+      Paint()..color = const Color(0xFF4A382C),
+    );
+    canvas.drawRect(
+      Rect.fromCenter(center: foot, width: 30, height: 10),
+      Paint()..color = const Color(0xFF4A382C),
+    );
+  }
+
+  /// A three-taper candle stand. [lit] is 0..1 — how far it has caught.
+  ///
+  /// An unlit stand is drawn solid and pale-wicked so it reads as something
+  /// that COULD burn; it catches on its own as the party passes, which is the
+  /// one thing in this room that answers to being walked through.
+  void _drawCandleStand(Canvas canvas, Offset p, double lit, int seed) {
+    // The iron tray.
+    canvas.drawLine(
+      p + const Offset(-16, 2),
+      p + const Offset(16, 2),
+      Paint()
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF4A3E30),
+    );
+    if (lit > 0.01 && _fx.ready) {
+      // The pool of light the stand throws on the floor.
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        p + const Offset(0, 4),
+        30 + 8 * lit,
+        const Color(0xFFFF9A3C).withValues(alpha: 0.16 * lit),
+      );
+    }
+    for (var k = -1; k <= 1; k++) {
+      // The middle taper stands tallest, and the outer two are stubs.
+      final h = k == 0 ? 18.0 : 13.0;
+      final base = p + Offset(k * 10.0, 1);
+      final tip = base + Offset(0, -h);
+      canvas.drawLine(
+        base,
+        tip,
+        Paint()
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round
+          ..color = Color.lerp(
+            const Color(0xFF6B5C46),
+            const Color(0xFFD8C7A2),
+            lit,
+          )!,
+      );
+      if (lit <= 0.01) {
+        // A cold wick — small, but it is the difference between "unlit" and
+        // "scenery".
+        canvas.drawCircle(
+          tip,
+          1.4,
+          Paint()..color = const Color(0xFF2A2118),
+        );
+        continue;
+      }
+      final ph = _time * 4.6 + k * 2.3 + seed * 0.9;
+      final fh = (5.0 + 3.0 * sin(ph)) * lit;
+      canvas.drawPath(
+        Path()
+          ..moveTo(tip.dx - 2.2, tip.dy)
+          ..quadraticBezierTo(tip.dx - 1.6, tip.dy - fh * 0.6, tip.dx, tip.dy - fh)
+          ..quadraticBezierTo(tip.dx + 1.6, tip.dy - fh * 0.6, tip.dx + 2.2, tip.dy)
+          ..close(),
+        Paint()..color = const Color(0xFFFFC46A).withValues(alpha: 0.9 * lit),
+      );
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          tip + Offset(0, -fh * 0.5),
+          9,
+          const Color(0xFFFFB46B).withValues(alpha: 0.30 * lit),
+        );
+      }
     }
   }
 
@@ -4059,9 +4273,24 @@ extension CinderCathedral on PlanetDungeonGame {
     final (cw, ch) = _garthCell(room, g);
     final done = hasStar(g.starIndex);
 
+    // The kerb. The field no longer fills the room, so it needs an edge or
+    // the beds read as tiles floating on the cloister floor.
+    final kerb = RRect.fromRectAndRadius(
+      garthField(room, g).inflate(9),
+      const Radius.circular(10),
+    );
+    canvas.drawRRect(kerb, Paint()..color = const Color(0xFF0D0A07));
+    canvas.drawRRect(
+      kerb,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..color = const Color(0xFF4A3E30).withValues(alpha: 0.85),
+    );
+
     for (var i = 0; i < g.cols * g.rows; i++) {
       final c = garthCentre(room, g, i);
-      final plot = Rect.fromCenter(center: c, width: cw - 8, height: ch - 8);
+      final plot = Rect.fromCenter(center: c, width: cw - 6, height: ch - 6);
       final rr = RRect.fromRectAndRadius(plot, const Radius.circular(7));
       switch (field.at(i)) {
         case BurnCell.stone:
@@ -4107,8 +4336,35 @@ extension CinderCathedral on PlanetDungeonGame {
             _drawVineTuft(canvas, c, cw, const Color(0xFF4E7F5E));
           }
         case BurnCell.ash:
-          // Spent: pale ash over black, and nothing will take here again.
-          canvas.drawRRect(rr, Paint()..color = const Color(0xFF14100D));
+          // Spent, and NOTHING will take here again — which is the one rule
+          // the board has to say out loud. It used to be a near-black fill
+          // plus an ash puff, and the puff is a sprite: with it the square
+          // reads burnt, without it (or against the soil beside it, which is
+          // also near-black) it reads untouched. So the crust is drawn.
+          canvas.drawRRect(rr, Paint()..color = const Color(0xFF0A0807));
+          canvas.drawRRect(
+            rr,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4
+              ..color = const Color(0xFF7A7168).withValues(alpha: 0.42),
+          );
+          final flake = Paint()
+            ..color = const Color(0xFF9A9088).withValues(alpha: 0.34);
+          for (var k = 0; k < 6; k++) {
+            // Fixed per square, so ash does not crawl between frames.
+            final a = (i * 7 + k * 11) % 17 / 17.0;
+            final r2 = (i * 5 + k * 13) % 19 / 19.0;
+            canvas.drawCircle(
+              c +
+                  Offset(
+                    (a - 0.5) * plot.width * 0.74,
+                    (r2 - 0.5) * plot.height * 0.74,
+                  ),
+              1.5,
+              flake,
+            );
+          }
           if (_fx.ready) {
             drawPuff(
               canvas,
@@ -4236,8 +4492,6 @@ extension CinderCathedral on PlanetDungeonGame {
         );
       }
     }
-
-    _drawEmberPool(canvas, g);
   }
 
   void _drawVineTuft(Canvas canvas, Offset c, double cw, Color col) {
@@ -4263,56 +4517,80 @@ extension CinderCathedral on PlanetDungeonGame {
     }
   }
 
-  /// THE EMBER POOL: the progress display, diegetic and analogue. It fills
-  /// with coverage, and the star comes when it stands full.
-  void _drawEmberPool(Canvas canvas, BurnGarth g) {
-    final p = g.poolPosition;
-    final basin = Rect.fromCenter(center: p, width: 54, height: 150);
-    final rr = RRect.fromRectAndRadius(basin, const Radius.circular(12));
-    canvas.drawRRect(rr, Paint()..color = const Color(0xFF120D09));
+  /// THE BURN RING: the progress display, wrapped around the vane.
+  ///
+  /// It used to be an ember pool standing in the far corner of the garth — a
+  /// tall basin filling with light, which is a fine object and the wrong
+  /// place for it: the thing you watch while you burn is the vane (it is what
+  /// you steer with), and the basin was off the edge of a phone screen for
+  /// most of the puzzle.
+  ///
+  /// One tick per square the garden owes, because "burn the WHOLE garden" is
+  /// a count, and a bare arc turns a count into a guess.
+  void _drawBurnRing(Canvas canvas, Offset c, BurnGarth g, BurnField field) {
+    const r = 54.0;
     final fill = poolShown.clamp(0.0, 1.0);
-    if (fill > 0.001) {
-      final lit = Rect.fromLTRB(
-        basin.left + 4,
-        basin.bottom - 4 - (basin.height - 8) * fill,
-        basin.right - 4,
-        basin.bottom - 4,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(lit, const Radius.circular(9)),
+    final goal = g.coverageGoal;
+
+    // The track: iron, and unmistakably a gauge rather than more ironwork.
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = const Color(0xFF3A3026).withValues(alpha: 0.9),
+    );
+    if (fill > 0.003) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        -pi / 2,
+        2 * pi * fill,
+        false,
         Paint()
-          ..shader = ui.Gradient.linear(lit.topCenter, lit.bottomCenter, [
-            const Color(0xFFFFC46A),
-            const Color(0xFFB4401A),
-          ]),
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..shader = ui.Gradient.linear(
+            c - const Offset(0, r),
+            c + const Offset(0, r),
+            [const Color(0xFFFFC46A), const Color(0xFFB4401A)],
+          ),
       );
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          lit.topCenter,
-          40,
-          const Color(0xFFFF9A3C).withValues(alpha: 0.24 + 0.20 * fill),
+    }
+
+    // One tooth per square owed. Lit teeth count what has actually burnt in
+    // THIS fire, not the eased arc, so the ring never claims a square the
+    // chain has not taken.
+    if (goal > 0 && goal <= 64) {
+      final burnt = field.burntThisFire.clamp(0, goal);
+      for (var i = 0; i < goal; i++) {
+        final a = -pi / 2 + i * 2 * pi / goal;
+        final u = Offset(cos(a), sin(a));
+        final on = i < burnt;
+        canvas.drawLine(
+          c + u * (r + 4),
+          c + u * (r + (on ? 11 : 8)),
+          Paint()
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = on ? 2.6 : 1.6
+            ..color = on
+                ? const Color(0xFFFFC46A).withValues(alpha: 0.95)
+                : const Color(0xFF5A4A38).withValues(alpha: 0.75),
         );
       }
     }
-    canvas.drawRRect(
-      rr,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = const Color(0xFF74613A),
-    );
-    // The brim: a line the fill has to reach.
-    canvas.drawLine(
-      Offset(basin.left - 6, basin.top + 6),
-      Offset(basin.right + 6, basin.top + 6),
-      Paint()
-        ..strokeWidth = 2
-        ..color = const Color(
-          0xFFE4C16A,
-        ).withValues(alpha: fill >= 1 ? 1 : 0.5),
-    );
+
+    // Full: the ring itself catches, which is the moment the star releases.
+    if (_fx.ready && fill > 0.02) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        r * (1.15 + 0.25 * fill),
+        const Color(0xFFFF9A3C).withValues(alpha: 0.10 + 0.22 * fill),
+      );
+    }
   }
 
   void _drawVineBeds(Canvas canvas, DungeonRoom room) {

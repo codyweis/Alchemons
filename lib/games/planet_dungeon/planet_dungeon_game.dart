@@ -1202,6 +1202,15 @@ class PlanetDungeonGame extends FlameGame {
   /// Flash when the flame just ate a cell (render only).
   double burnFlash = 0;
 
+  // ── Fire: the nave's candles ──
+  /// How far each nave candle has caught, 0..1, keyed by stand index.
+  ///
+  /// A candle lights when the party walks past it and STAYS lit, so crossing
+  /// the nave leaves a lit avenue behind you. The room is the cathedral's hub
+  /// and gets walked a dozen times a run; something has to change as you move
+  /// through it or it reads as a corridor with furniture.
+  final Map<int, double> naveCandles = {};
+
   // ── Steam Star 1: the geyser field ──
   /// Ids of mouths the party is holding shut with a body or the rock, plus the
   /// authored rubble. Recomputed every frame from the world, never stored as

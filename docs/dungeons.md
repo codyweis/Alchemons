@@ -503,11 +503,39 @@ it or swing the vane. So a mistake is a scramble, not an instant loss, and
 the tense expert play (laying track in front of a running flame) is the same
 verb as the calm planning, just later.
 
-**THE POOL.** Coverage is the win: an ember pool at the garth's edge fills as
-cells burn, and the star releases when it reaches the top. A short greedy
-chain does not fill it — only a route that covers the room does. This is the
-progress display, diegetic and analogue (§5.6 STATE, and the playtest
-verdict on badges: "the beds should really glow… not number counter badges").
+**THE RING** (was the pool, 2026-08-31). Coverage is the win, and it is read
+off a gauge wrapped around the wind vane: a filling arc with ONE TOOTH PER
+SQUARE the garden owes, lit as the chain takes them. A short greedy chain
+does not close it — only a route that covers the board does. Diegetic and
+analogue (§5.6 STATE, and the playtest verdict on badges: "the beds should
+really glow… not number counter badges"); the teeth are there because "burn
+the WHOLE garden" is a count, and a bare arc turns a count into a guess.
+
+It was an ember pool standing at the garth's edge — a fine object in the
+wrong place. The thing you watch while you burn is the vane, because it is
+what you steer with, and a basin in the corner was off the edge of a phone
+for most of the puzzle.
+
+**THE BOARD, AT A SIZE YOU CAN SEE** (2026-08-31 playtest). The field used to
+be stretched across the WHOLE cloister, which made one square 137x148: a
+portrait phone held about three columns of six, so the chain reaction — the
+entire puzzle — happened mostly off-screen. It is a fixed 60px grid now
+(6x5 = 360x300, inside a 390pt portrait viewport with its kerb on), laid in
+the upper half of the room with cloister paths around it. The vane and its
+fountain moved OUT of the field and stand below it: the ring is 108 across
+and a square is 60, so parked at the middle it covered the four squares a
+chain most often turns on. Burnt ground also grew a visible ash crust —
+before, ash was a near-black fill plus a sprite puff, indistinguishable from
+the near-black soil beside it, which hid the one rule the board must state
+out loud ("nothing will take here again").
+
+**THE NAVE** (2026-08-31 playtest). The hub is crossed a dozen times a run
+and was an unlit floor with eight lollipops on it. It now has an aisle runner
+from the porch to the chancel gate, blind arcading down both long walls,
+piers with capitals and bases (both rows standing the same way up), and —
+the part that answers to being walked through — a candle stand at every pier
+foot that CATCHES as the party passes within 104 and stays lit, so crossing
+the nave leaves a lit avenue behind you.
 
 **THE BARRIERS.** The garth is not an open board — two kinds of obstacle give
 it its shape, and both say what they do by looking like what they are:

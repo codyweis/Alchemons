@@ -397,15 +397,34 @@ class BurnGarth {
   /// The star this garth frees.
   final int starIndex;
 
-  /// Where the ember pool stands (the fill is the progress display).
-  final Offset poolPosition;
+  /// The side of one square, in world units.
+  ///
+  /// The field used to be stretched across the WHOLE room, which made a
+  /// square 137x148 — so a phone showed about three columns of a six-column
+  /// garden and the chain reaction, the entire point of the puzzle, happened
+  /// mostly off-screen. Authored small enough that the board fits a portrait
+  /// viewport with the garth's margins showing: 6x5 at 60 is 360x300, which
+  /// clears a 390pt portrait screen with the kerb still on it.
+  final double cell;
+
+  /// Where the field's middle sits. Defaults to the room's middle.
+  ///
+  /// The garth is deliberately NOT centred on the wind vane any more: the
+  /// vane's progress ring is 108 across, which is very nearly the four
+  /// central squares — the ones a chain most often turns on — and it sat on
+  /// top of them.
+  final Offset? centre;
 
   const BurnGarth({
     required this.art,
     required this.coverageGoal,
     required this.starIndex,
-    required this.poolPosition,
+    this.centre,
+    this.cell = 60,
   });
+
+  double get fieldWidth => cols * cell;
+  double get fieldHeight => rows * cell;
 
   int get cols => art.isEmpty ? 0 : art.first.length;
   int get rows => art.length;
@@ -2677,7 +2696,9 @@ const DungeonLayout _fireLayout = DungeonLayout(
       garth: BurnGarth(
         starIndex: 1,
         coverageGoal: 26, // every dry square — see burn_field_test.dart
-        poolPosition: Offset(756, 660),
+        // Up in the room, with the fountain and its vane standing below the
+        // garden rather than in the middle of it.
+        centre: Offset(410, 310),
         art: [
           '......',
           '.#..#.',
@@ -2686,7 +2707,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
           '......',
         ],
       ),
-      windVane: Offset(410, 385),
+      windVane: Offset(410, 596),
     ),
 
     // Room F — Reliquary. The cathedral's quiet treasury (reward space).
