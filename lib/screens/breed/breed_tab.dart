@@ -1318,7 +1318,10 @@ class _BreedingTabState extends State<BreedingTab>
         rightSlotRect: _globalRectOf(_slot2AvatarKey),
         coreRect: _globalRectOf(_orbKey),
         outcome: outcomeNotifier,
-        minDuration: const Duration(milliseconds: 4350),
+        // Shorter than the old 4350: the intake, the charge and the haul
+        // together now happen for real in the chamber before this opens, so
+        // the route only has the eruption and the reveal left to play.
+        minDuration: const Duration(milliseconds: 2800),
         task: () async {
           // Service now handles breeding + analysis in one go.
           final result = await breedingService.breedInstances(

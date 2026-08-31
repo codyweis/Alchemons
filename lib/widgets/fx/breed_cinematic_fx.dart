@@ -171,9 +171,28 @@ class _AlchemyFusionCinematicPageState<T>
   void initState() {
     super.initState();
 
-    _ctrl = AnimationController(vsync: this, duration: widget.minDuration)
+    // [minDuration] is how long the route should VISIBLY last, so when it
+    // joins the timeline part-way the controller has to be stretched to make
+    // the remaining span take that long.
+    final span = widget.drawSpecimens ? 1.0 : (1.0 - _Phase.coreStart);
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(
+        microseconds: (widget.minDuration.inMicroseconds / span).round(),
+      ),
+    )
       ..addStatusListener(_maybeClose)
       ..addListener(_pulseHaptics);
+
+    // PICK UP WHERE THE MERGE LEFT OFF.
+    //
+    // When the caller has already hauled the real specimens together, the
+    // intake, the charge and the streams have all just happened for real —
+    // replaying them here gave you two lit chambers with nothing in them,
+    // essence pouring out of empty glass, and then a blob over the pair you
+    // had just watched meet. The route joins the timeline at the core and
+    // plays only what is left: the eruption and the reveal.
+    _ctrl.value = widget.drawSpecimens ? 0.0 : _Phase.coreStart;
 
     _flashCtrl = AnimationController(
       vsync: this,
@@ -181,7 +200,7 @@ class _AlchemyFusionCinematicPageState<T>
     );
 
     HapticFeedback.mediumImpact();
-    _ctrl.forward();
+    _ctrl.forward(from: _ctrl.value);
 
     // Run the task in parallel.
     () async {
@@ -334,6 +353,7 @@ class _AlchemyFusionCinematicPageState<T>
                               b: widget.rightColor,
                               layout: layout,
                               outcome: outcome,
+                              drawChambers: widget.drawSpecimens,
                             ),
                           ),
                         ),
@@ -549,12 +569,18 @@ class _ChamberPainter extends CustomPainter {
     required this.b,
     required this.layout,
     required this.outcome,
+    required this.drawChambers,
   });
 
   final double t;
   final Color a, b;
   final _FusionLayout layout;
   final FusionRevealData? outcome;
+
+  /// False once the caller has already merged the real specimens where they
+  /// stood. Drawing the apparatus then leaves two lit chambers with nothing
+  /// in them and two conduits carrying essence out of nowhere.
+  final bool drawChambers;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -573,18 +599,20 @@ class _ChamberPainter extends CustomPainter {
     final burst = _interval(t, _Phase.burstStart, _Phase.burstEnd);
     final reveal = _interval(t, _Phase.revealStart, _Phase.revealEnd);
 
-    _drawConduit(canvas, leftCh, core, a, charge, stream);
-    _drawConduit(canvas, rightCh, core, b, charge, stream);
+    if (drawChambers) {
+      _drawConduit(canvas, leftCh, core, a, charge, stream);
+      _drawConduit(canvas, rightCh, core, b, charge, stream);
 
-    _drawChamber(canvas, leftCh, chR, a, charge, stream);
-    _drawChamber(canvas, rightCh, chR, b, charge, stream);
+      _drawChamber(canvas, leftCh, chR, a, charge, stream);
+      _drawChamber(canvas, rightCh, chR, b, charge, stream);
 
-    _drawEssence(canvas, leftCh, core, a, stream);
-    _drawEssence(canvas, rightCh, core, b, stream);
+      _drawEssence(canvas, leftCh, core, a, stream);
+      _drawEssence(canvas, rightCh, core, b, stream);
 
-    if (charge > 0 && reveal < 0.6) {
-      _drawArcs(canvas, leftCh, core, a, charge * (1 - reveal));
-      _drawArcs(canvas, rightCh, core, b, charge * (1 - reveal));
+      if (charge > 0 && reveal < 0.6) {
+        _drawArcs(canvas, leftCh, core, a, charge * (1 - reveal));
+        _drawArcs(canvas, rightCh, core, b, charge * (1 - reveal));
+      }
     }
 
     // Core fades out as the cultivation blooms over it.
