@@ -58,6 +58,13 @@ class EncounterOverlay extends StatefulWidget {
   final ValueChanged<bool>? onClosedWithResult;
   final ValueChanged<Creature>? onPartyCreatureSelected;
   final VoidCallback? onPreRollShake;
+
+  /// Plays the harvest on the creature standing in the scene and answers with
+  /// the roll's result. Null hosts (the rift portal, the prologue) fall back
+  /// to the old full-screen cinematic, which is still correct for a screen
+  /// that has no scene to play in.
+  final Future<bool> Function(Color accent, Future<bool> Function() task)?
+  onHarvestInScene;
   final Creature hydratedWildCreature;
   final bool highlightPartyHUD; // 🆕 Tutorial highlighting
   final bool isTutorial; // 🆕 Tutorial mode flag
@@ -80,6 +87,7 @@ class EncounterOverlay extends StatefulWidget {
     this.onClosedWithResult,
     this.onPartyCreatureSelected,
     this.onPreRollShake,
+    this.onHarvestInScene,
     required this.hydratedWildCreature,
     this.highlightPartyHUD = false, // 🆕 Default to false
     this.isTutorial = false, // 🆕 Default to false
@@ -700,11 +708,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         return;
       }
 
-      // 🎬 Show harvest cinematic with sprite
-      Widget wildSprite() {
-        return _buildWildSprite(wildCreature);
-      }
-
       Color colorOf(Creature? c, Color fallback) =>
           c != null && c.types.isNotEmpty
           ? BreedConstants.getTypeColor(c.types.first)
@@ -712,25 +715,45 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       final targetColor = colorOf(wildCreature, Colors.green);
 
-      // Trigger screen shake before cinematic
+      // Trigger screen shake before the field engages
       widget.onPreRollShake?.call();
 
       if (!ctx.mounted) return;
-      final success = await showHarvestCinematic(
-        context: ctx,
-        targetSprite: wildSprite(),
-        targetColor: targetColor,
-        deviceLabel: selectedDevice.label,
-        minDuration: const Duration(milliseconds: 1600),
-        task: () async {
-          final catchService = ctx.read<CatchService>();
-          return await catchService.attemptCatch(
-            device: selectedDevice,
-            target: wildCreature,
-            forceSuccess: widget.isCaptureTutorial,
-          );
-        },
+      setState(
+        () => _status = '${selectedDevice.label} engaged — the field holds.',
       );
+
+      Future<bool> roll() async {
+        final catchService = ctx.read<CatchService>();
+        return catchService.attemptCatch(
+          device: selectedDevice,
+          target: wildCreature,
+          forceSuccess: widget.isCaptureTutorial,
+        );
+      }
+
+      // THE HARVEST PLAYS IN THE SCENE, on the creature standing in it.
+      //
+      // This used to push a full-screen route holding a freshly built copy of
+      // the sprite: the animal you had been looking at blinked out and a
+      // duplicate appeared on a black card. The scene owns the animation now —
+      // the field closes on the live component and drives its transform — so
+      // there is one creature, and the world keeps running behind it.
+      final playInScene = widget.onHarvestInScene;
+      final bool success;
+      if (playInScene != null) {
+        success = await playInScene(targetColor, roll);
+      } else {
+        if (!ctx.mounted) return;
+        success = await showHarvestCinematic(
+          context: ctx,
+          targetSprite: _buildWildSprite(wildCreature),
+          targetColor: targetColor,
+          deviceLabel: selectedDevice.label,
+          minDuration: const Duration(milliseconds: 1600),
+          task: roll,
+        );
+      }
 
       if (!mounted) return;
 

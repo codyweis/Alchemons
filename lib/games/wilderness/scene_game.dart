@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:alchemons/games/wilderness/harvest_field.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/creature.dart';
@@ -81,6 +82,8 @@ class SceneGame extends FlameGame with ScaleDetector {
   double _shakeDuration = 0.0; // total duration (seconds)
   double _shakeAmplitude = 0.0; // max pixels of jitter at start
   final Vector2 _shakeOffset = Vector2.zero();
+
+  World? _world;
 
   final Map<SceneLayer, _FiniteLayer> _layers = {};
   final PositionComponent layersRoot = PositionComponent()..priority = -200;
@@ -240,6 +243,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
 
     final world = World()..priority = 0;
+    _world = world;
     add(world);
     world.add(layersRoot);
 
@@ -404,6 +408,46 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     anchor.add(comp);
     _wildBySpawnId[spawnId] = comp;
+  }
+
+  /// Play the harvest ON the creature that is standing in the scene.
+  ///
+  /// Nothing is pushed and nothing is duplicated: the field closes around the
+  /// live [WildMonComponent] and drives its own transform, so the scene, the
+  /// camera and the parallax keep running underneath. Completes with the
+  /// task's result, and on a success the creature has already left the world.
+  ///
+  /// Falls back to running [task] alone if there is no creature to play on —
+  /// a harvest must never be lost to a missing animation.
+  Future<bool> playHarvestOnEncounter({
+    required Color accent,
+    required Future<bool> Function() task,
+  }) async {
+    final id = _currentEncounterSpawnId;
+    final target = id == null ? null : _wildBySpawnId[id];
+    final world = _world;
+    if (target == null || !target.isMounted || world == null) {
+      return task();
+    }
+
+    final dim = HarvestDim(fadeIn: 0.45);
+    world.add(dim);
+    final field = HarvestFieldEffect(
+      target: target,
+      accent: accent,
+      task: task,
+    );
+    // Parented to the creature's own anchor, so it tracks the spawn point.
+    (target.parent ?? world).add(field);
+
+    final ok = await field.result;
+    dim.release();
+    if (ok && id != null) {
+      _wildRenderVersionBySpawnId[id] =
+          (_wildRenderVersionBySpawnId[id] ?? 0) + 1;
+      _wildBySpawnId.remove(id);
+    }
+    return ok;
   }
 
   void clearWildAt(String spawnId) {

@@ -1374,6 +1374,13 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                         amplitude: 14,
                       );
                     },
+                    // The harvest belongs to the scene: it plays on the wild
+                    // component that is already standing there.
+                    onHarvestInScene: (accent, task) =>
+                        _game.playHarvestOnEncounter(
+                          accent: accent,
+                          task: task,
+                        ),
                     onPartyCreatureSelected: _onPartyCreatureSelected,
                     onClosedWithResult: (success) async {
                       final id = _usedSpawnPointId;
