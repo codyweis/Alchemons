@@ -19,26 +19,31 @@
 // (the cinematic, the result) sit above it and it can stay as the black floor
 // under the whole ceremony instead of flashing the nursery between them.
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 /// Live handle on a veil. Call [dismiss] when the ceremony is over.
 class ExtractionVeil {
-  ExtractionVeil._(this._entry, this._controller);
+  ExtractionVeil._(this._route, this._navigator);
 
-  final OverlayEntry _entry;
-  final AnimationController _controller;
+  final Route<void> _route;
+  final NavigatorState _navigator;
   bool _gone = false;
 
   Future<void> dismiss() async {
     if (_gone) return;
     _gone = true;
-    try {
-      await _controller.reverse();
-    } finally {
-      _entry.remove();
-      _controller.dispose();
+    if (!_navigator.mounted) return;
+    // Normally the veil is the top route by now (the cinematic and the result
+    // have both popped) and can leave with its own reverse transition. If
+    // anything is still stacked on it, take it out from underneath instead of
+    // popping whatever happens to be on top.
+    if (_route.isCurrent) {
+      _navigator.pop();
+    } else if (_route.isActive) {
+      _navigator.removeRoute(_route);
     }
   }
 }
@@ -47,39 +52,61 @@ class ExtractionVeil {
 ///
 /// Returns once the screen is dark, so the caller can start work that must
 /// not be seen.
+///
+/// This is a ROUTE, not an overlay entry. An entry inserted into the overlay
+/// stays above every route pushed afterwards — which meant the cinematic
+/// played underneath an opaque black rectangle and the screen just went dark
+/// and stayed there. As a route it is simply the thing the cinematic is
+/// pushed on top of.
 Future<ExtractionVeil> showExtractionVeil(
   BuildContext context, {
   Rect? from,
   required Color accent,
   TickerProvider? vsync,
 }) async {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  final controller = AnimationController(
-    vsync: vsync ?? Navigator.of(context),
-    duration: const Duration(milliseconds: 520),
-    reverseDuration: const Duration(milliseconds: 260),
-  );
-
-  final entry = OverlayEntry(
-    builder: (ctx) => IgnorePointer(
-      child: AnimatedBuilder(
-        animation: controller,
-        builder: (ctx, _) => CustomPaint(
-          size: Size.infinite,
-          painter: _VeilPainter(
-            t: controller.value,
-            origin: from?.center,
-            radius: from == null ? 60 : from.longestSide * 0.5,
-            accent: accent,
-          ),
+  final navigator = Navigator.of(context);
+  final route = PageRouteBuilder<void>(
+    // Opaque once it has closed: nothing below it needs painting, and the
+    // cinematic that lands on top of it has a solid floor.
+    opaque: true,
+    barrierDismissible: false,
+    transitionDuration: const Duration(milliseconds: 520),
+    reverseTransitionDuration: const Duration(milliseconds: 260),
+    pageBuilder: (_, __, ___) => const SizedBox.expand(
+      child: ColoredBox(color: Colors.black),
+    ),
+    transitionsBuilder: (_, animation, __, child) => AnimatedBuilder(
+      animation: animation,
+      builder: (_, ___) => CustomPaint(
+        size: Size.infinite,
+        painter: _VeilPainter(
+          t: animation.value,
+          origin: from?.center,
+          radius: from == null ? 60 : from.longestSide * 0.5,
+          accent: accent,
         ),
       ),
     ),
   );
 
-  overlay.insert(entry);
-  await controller.forward();
-  return ExtractionVeil._(entry, controller);
+  unawaited(navigator.push(route));
+
+  // Wait for the iris itself, not a guessed duration: the caller's work must
+  // start behind a screen that is actually dark.
+  final animation = route.animation;
+  if (animation != null && animation.status != AnimationStatus.completed) {
+    final closed = Completer<void>();
+    void listener(AnimationStatus s) {
+      if (s == AnimationStatus.completed && !closed.isCompleted) {
+        closed.complete();
+      }
+    }
+
+    animation.addStatusListener(listener);
+    await closed.future;
+    animation.removeStatusListener(listener);
+  }
+  return ExtractionVeil._(route, navigator);
 }
 
 class _VeilPainter extends CustomPainter {
