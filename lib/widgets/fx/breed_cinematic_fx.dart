@@ -52,6 +52,7 @@ class FusionRevealData {
 Future<T?> showAlchemyFusionCinematic<T>({
   required BuildContext context,
   required Widget leftSprite,
+  bool drawSpecimens = true,
   required Widget rightSprite,
   required Color leftColor,
   required Color rightColor,
@@ -69,6 +70,7 @@ Future<T?> showAlchemyFusionCinematic<T>({
       barrierDismissible: false,
       pageBuilder: (_, __, ___) => _AlchemyFusionCinematicPage<T>(
         leftSprite: leftSprite,
+        drawSpecimens: drawSpecimens,
         rightSprite: rightSprite,
         leftColor: leftColor,
         rightColor: rightColor,
@@ -121,6 +123,7 @@ class _Phase {
 class _AlchemyFusionCinematicPage<T> extends StatefulWidget {
   const _AlchemyFusionCinematicPage({
     required this.leftSprite,
+    required this.drawSpecimens,
     required this.rightSprite,
     required this.leftColor,
     required this.rightColor,
@@ -134,6 +137,9 @@ class _AlchemyFusionCinematicPage<T> extends StatefulWidget {
   });
 
   final Widget leftSprite;
+
+  /// False when the caller has already merged the real specimens itself.
+  final bool drawSpecimens;
   final Widget rightSprite;
   final Color leftColor;
   final Color rightColor;
@@ -332,21 +338,32 @@ class _AlchemyFusionCinematicPageState<T>
                           ),
                         ),
 
-                        // The two specimens at their chamber positions.
-                        _SpecimenAt(
-                          t: t,
-                          sprite: widget.leftSprite,
-                          color: widget.leftColor,
-                          from: leftC,
-                          core: coreC,
-                        ),
-                        _SpecimenAt(
-                          t: t,
-                          sprite: widget.rightSprite,
-                          color: widget.rightColor,
-                          from: rightC,
-                          core: coreC,
-                        ),
+                        // THE SPECIMENS ARE ONLY DRAWN HERE IF NOBODY ELSE
+                        // HAS THEM.
+                        //
+                        // The breed chamber now performs the merge on its own
+                        // live slot widgets and hands over once the pair have
+                        // gone into the core — so drawing them again here
+                        // would be the duplicate this whole change exists to
+                        // remove. Hosts with no chamber to animate (and the
+                        // wilderness encounter, which has no slots at all)
+                        // still pass them and still get them drawn.
+                        if (widget.drawSpecimens) ...[
+                          _SpecimenAt(
+                            t: t,
+                            sprite: widget.leftSprite,
+                            color: widget.leftColor,
+                            from: leftC,
+                            core: coreC,
+                          ),
+                          _SpecimenAt(
+                            t: t,
+                            sprite: widget.rightSprite,
+                            color: widget.rightColor,
+                            from: rightC,
+                            core: coreC,
+                          ),
+                        ],
                       ],
                     ),
                   ),

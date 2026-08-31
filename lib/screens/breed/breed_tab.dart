@@ -56,6 +56,14 @@ class _BreedingTabState extends State<BreedingTab>
   late AnimationController _preCinematicFadeController;
   late Animation<double> _spriteFadeAnim;
 
+  /// 0..1 as the specimens are hauled from their chambers into the orb.
+  late Animation<double> _mergeTravelAnim;
+
+  /// How far each chamber has to travel to meet at the core, measured from
+  /// the live slot and orb rects the moment the fusion starts.
+  Offset _slot1Merge = Offset.zero;
+  Offset _slot2Merge = Offset.zero;
+
   late Animation<double> _orbScaleAnim;
   late Animation<double> _orbSpinSpeedAnim;
 
@@ -165,14 +173,26 @@ class _BreedingTabState extends State<BreedingTab>
       duration: const Duration(milliseconds: 2000),
     );
 
-    // fade-out before cinematic
+    // THE MERGE, performed on the REAL chamber sprites.
+    //
+    // This used to be a 500ms fade-to-nothing whose only job was to get the
+    // live sprites off the screen before a full-screen route opened holding
+    // freshly built COPIES of them. The specimens now do the fusing
+    // themselves: they are hauled out of their chambers into the orb, they
+    // overlap, and only then do they go — so the route never has to draw a
+    // duplicate of anything.
     _preCinematicFadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 1300),
     );
+    // Late, and fast: they hold their shape all the way into each other.
     _spriteFadeAnim = CurvedAnimation(
       parent: _preCinematicFadeController,
-      curve: Curves.easeOut,
+      curve: const Interval(0.78, 1.0, curve: Curves.easeIn),
+    );
+    _mergeTravelAnim = CurvedAnimation(
+      parent: _preCinematicFadeController,
+      curve: const Interval(0.12, 0.88, curve: Curves.easeInCubic),
     );
 
     _orbScaleAnim = Tween<double>(begin: 1.0, end: 2.0).animate(
@@ -476,12 +496,23 @@ class _BreedingTabState extends State<BreedingTab>
     return AnimatedBuilder(
       animation: Listenable.merge([controller, _preCinematicFadeController]),
       builder: (context, child) {
-        final scale = isEmpty ? 1.0 : 1.0 + (controller.value * 0.03);
+        // THE MERGE happens to this widget — the one with the live sprite in
+        // it — not to a copy of it on a route laid over the top.
+        final travel = _mergeTravelAnim.value;
+        final merge = slotIndex == 1 ? _slot1Merge : _slot2Merge;
+        final shudder = travel * (1 - _spriteFadeAnim.value);
+        final jitter = math.sin(travel * math.pi * 22) * 3.0 * shudder;
 
-        // fade to 0 opacity during pre-cinematic dissolve
+        final scale =
+            (isEmpty ? 1.0 : 1.0 + (controller.value * 0.03)) +
+            0.18 * travel;
+
+        // Fades only at the very end, once the two are inside each other.
         final spriteOpacity = 1.0 - _spriteFadeAnim.value;
 
-        return Transform.scale(
+        return Transform.translate(
+          offset: Offset(merge.dx * travel + jitter, merge.dy * travel),
+          child: Transform.scale(
           scale: scale,
           child: GestureDetector(
             onTap: () => _showBreedingPicker(targetSlot: slotIndex),
@@ -599,6 +630,7 @@ class _BreedingTabState extends State<BreedingTab>
                 ],
               ),
             ),
+          ),
           ),
         );
       },
@@ -1105,11 +1137,27 @@ class _BreedingTabState extends State<BreedingTab>
       }
       // -------------------------------------------------------------
 
-      // play fade from 1 -> 0, orb ramps up
+      // Measure what each chamber has to cross to meet at the core, from the
+      // rects as they actually are right now — the layout is responsive, so
+      // this cannot be a constant.
+      final l = _globalRectOf(_slot1AvatarKey);
+      final r = _globalRectOf(_slot2AvatarKey);
+      final core = _globalRectOf(_orbKey);
+      if (l != null && r != null && core != null) {
+        _slot1Merge = core.center - l.center;
+        _slot2Merge = core.center - r.center;
+      } else {
+        // No keys laid out yet (an unusual first frame): meet in the middle
+        // of the pair rather than not moving at all.
+        _slot1Merge = const Offset(70, 0);
+        _slot2Merge = const Offset(-70, 0);
+      }
+
+      // The specimens are hauled together and merge — on the real widgets.
       await _preCinematicFadeController.forward();
 
       // let that max-charged orb hang briefly
-      await Future.delayed(const Duration(milliseconds: 400));
+      await Future.delayed(const Duration(milliseconds: 240));
 
       // now jump to cinematic + actual breeding
       if (!mounted) return;
@@ -1243,6 +1291,9 @@ class _BreedingTabState extends State<BreedingTab>
         context: context,
         leftSprite: leftSprite,
         rightSprite: rightSprite,
+        // The chamber already merged the live ones; a second pair drawn here
+        // would be the duplicate.
+        drawSpecimens: false,
         leftColor: colorA,
         rightColor: colorB,
         leftSlotRect: _globalRectOf(_slot1AvatarKey),
