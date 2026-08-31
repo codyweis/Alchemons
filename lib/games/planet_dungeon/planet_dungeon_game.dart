@@ -4683,7 +4683,11 @@ class PlanetDungeonGame extends FlameGame {
   /// only once it has landed. Safe to call every frame; guarded throughout.
   void _maybeSpawnGuardianCombat(DungeonRoom room) {
     final g = room.guardian;
-    if (g == null || !guardianAwake || hasStar(g.starIndex)) return;
+    if (g == null || !guardianAwake) return;
+    // A banked star normally retires the guardian for good. The debug
+    // rematch is the one thing that overrides that, so a fight can be
+    // measured more than once without spending a run to reach it.
+    if (hasStar(g.starIndex) && !debugGuardianRematch) return;
     if (_guardianEnemy != null) return; // live, or downed and awaiting its bank
     if (_guardianArrival >= 0) return; // already falling
     _guardianArrival = 0;
@@ -4716,7 +4720,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_shake > 0) _shake = max(0, _shake - dt * 26);
     if (_guardianArrival < 0) return;
     final g = room.guardian;
-    if (g == null || hasStar(g.starIndex)) {
+    if (g == null || (hasStar(g.starIndex) && !debugGuardianRematch)) {
       // Walked out mid-fall (or it died to something else): forget the beat,
       // so re-entering the chamber plays a whole arrival again.
       if (_guardianEnemy == null) _guardianArrival = -1;
@@ -8395,6 +8399,67 @@ class PlanetDungeonGame extends FlameGame {
     return (world - cam) * surveyZoom;
   }
 
+  /// DEBUG: keep the guardian spawnable after its star is banked.
+  ///
+  /// Set by [debugSpawnGuardian] and never cleared — once you are re-fighting
+  /// a boss you are in a measuring session, not a run.
+  bool debugGuardianRematch = false;
+
+  /// Does this dungeon have a guardian to fight at all?
+  bool get hasGuardianRoom =>
+      layout.rooms.values.any((r) => r.guardian != null);
+
+  /// DEBUG: put the party in the guardian's room and call it down again,
+  /// beaten or not.
+  ///
+  /// Re-killing it is harmless: [earnStar] is idempotent, so a rematch cannot
+  /// double-pay, and the relic ceremony simply plays again.
+  void debugSpawnGuardian() {
+    DungeonRoom? lair;
+    for (final r in layout.rooms.values) {
+      if (r.guardian != null) {
+        lair = r;
+        break;
+      }
+    }
+    if (lair == null) {
+      _setHint('Debug: this dungeon has no guardian');
+      return;
+    }
+    debugGuardianRematch = true;
+
+    if (currentRoomId != lair.id) {
+      currentRoomId = lair.id;
+      var spawn = layout.entranceSpawn;
+      for (final r in layout.rooms.values) {
+        for (final d in r.doors) {
+          if (d.targetRoomId == lair.id) spawn = d.targetSpawn;
+        }
+      }
+      for (final c in creatures) {
+        c
+          ..position = spawn
+          ..lastSafe = spawn;
+      }
+    }
+
+    // The dead body is still referenced, which is what blocks a re-spawn.
+    final old = _guardianEnemy;
+    if (old != null) {
+      combatEnemies.remove(old);
+      _guardianEnemy = null;
+    }
+    _guardianArrival = -1;
+    altarOpen = true;
+    guardianAwake = true;
+    // Stage the arrival HERE rather than waiting for the room's own update to
+    // do it: a lair whose star is banked counts as cleared, and the altar tick
+    // that would normally call the guardian down returns before it gets there.
+    _maybeSpawnGuardianCombat(lair);
+    _setHint('Debug: the guardian is called back down');
+    onChanged();
+  }
+
   /// Debug helper: wipe ALL banked progress for this dungeon — stars, cloud
   /// discoveries, the entry reveal — and restart the run from the entrance,
   /// as if entering the planet for the first time. (The screen clears the
@@ -8467,6 +8532,43 @@ class PlanetDungeonGame extends FlameGame {
     onChanged();
   }
 
+  // ── TEMPORARY: raster bisect (delete with the frame probe) ──
+  //
+  // GAMEPROBE says recording a frame is 1.3ms and the device says rasterising
+  // one costs 20-140ms during the Simurgh fight, and no Dart-side measurement
+  // can see that split. Neither can an offline rasteriser: the software one
+  // in a widget test rates every sanctum state at a flat 4ms, because the
+  // things it cannot run are exactly the suspects — the sky's runtime shader
+  // never compiles headlessly, and the guardian's sprite never loads.
+  //
+  // So: skip one group of draws at a time on the real device, and read the
+  // answer off FRAMESUMMARY. Each step logs what it turned off.
+  static int perfSkip = 0;
+  static const int kSkipSky = 1 << 0;
+  static const int kSkipGuardian = 1 << 1;
+  static const int kSkipCombat = 1 << 2;
+  static const int kSkipBeams = 1 << 3;
+  static const int kSkipVignette = 1 << 4;
+
+  static const List<String> perfSkipNames = [
+    'ALL ON',
+    'no SKY (the full-screen runtime shader)',
+    'no GUARDIAN (the 512px Simurgh sprite + its glow)',
+    'no COMBAT (enemies, projectiles, damage numbers)',
+    'no BEAMS (wing/kin beams, glide trail, door fx)',
+    'no VIGNETTE (the full-screen gradient)',
+  ];
+
+  /// Step to the next single-group skip. One group at a time, so the delta is
+  /// attributable to it and nothing else.
+  static void perfBisectStep() {
+    final i = perfSkip == 0 ? 1 : (perfSkip.bitLength + 1);
+    perfSkip = i > 5 ? 0 : (1 << (i - 1));
+    debugPrint('PERFMASK ${perfSkipNames[perfSkip == 0 ? 0 : perfSkip.bitLength]}');
+  }
+
+  static bool _skips(int bit) => (perfSkip & bit) != 0;
+
   // ── Render ──────────────────────────────────────────────
 
   @override
@@ -8480,7 +8582,9 @@ class PlanetDungeonGame extends FlameGame {
     final cam = _cameraTopLeft(room, _cameraFocus) + _shakeOffset();
 
     // Screen-space atmosphere. Background = elemental shader, else gradient.
-    if (_sky.ready) {
+    if (_skips(kSkipSky)) {
+      canvas.drawRect(Offset.zero & vp, Paint()..color = const Color(0xFF0A0705));
+    } else if (_sky.ready) {
       _sky.paint(canvas, vp, _time, mood: _skyMood);
     } else if (_isCathedral) {
       _drawCathedralFallbackSky(canvas, vp); // warm gradient fallback
@@ -8585,11 +8689,15 @@ class PlanetDungeonGame extends FlameGame {
     _renderAnchors(canvas, room);
     _renderConduitsAndGuardian(canvas, room);
     _renderStars(canvas, room);
-    _renderGlideTrail(canvas);
-    _renderWingBeams(canvas);
-    _renderKinBeams(canvas);
-    _renderCombatProjectiles(canvas);
-    _renderCombatEnemies(canvas);
+    if (!_skips(kSkipBeams)) {
+      _renderGlideTrail(canvas);
+      _renderWingBeams(canvas);
+      _renderKinBeams(canvas);
+    }
+    if (!_skips(kSkipCombat)) {
+      _renderCombatProjectiles(canvas);
+      _renderCombatEnemies(canvas);
+    }
     _renderRefusalPulse(canvas);
     _renderCreatures(canvas);
     _renderCarriedCloud(canvas);
@@ -8597,14 +8705,14 @@ class PlanetDungeonGame extends FlameGame {
     _renderVaultCacheGlow(canvas, room);
     _renderRaidDeath(canvas);
     // Numbers sit above everything they annotate.
-    damageNumbers.render(canvas);
+    if (!_skips(kSkipCombat)) damageNumbers.render(canvas);
 
     canvas.restore();
 
     // Screen-space framing.
     if (_isTemple) _drawTideGauge(canvas, vp);
     if (_isVapor) _drawSteamPhaseHud(canvas, vp);
-    drawVignette(canvas, vp);
+    if (!_skips(kSkipVignette)) drawVignette(canvas, vp);
     _probeAccum(_probeLastUpdateMs, swR.elapsedMicroseconds / 1000.0);
   }
 
@@ -10846,7 +10954,7 @@ class PlanetDungeonGame extends FlameGame {
       _drawGuardianArrival(canvas, g);
       return;
     }
-    if (g != null && (altarOpen || guardianAwake)) {
+    if (g != null && (altarOpen || guardianAwake) && !_skips(kSkipGuardian)) {
       final pos = _guardianPosition(g);
       final col = guardianVulnerable
           ? const Color(0xFFE4C16A)

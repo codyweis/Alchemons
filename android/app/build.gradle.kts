@@ -73,6 +73,15 @@ android {
             }
         }
 
+        // Profile builds are the only honest place to measure frame cost, and
+        // they have to sign like the installed app or `adb install -r` is
+        // refused (and uninstalling wipes the device's save).
+        getByName("profile") {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+
         release {
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
