@@ -520,9 +520,26 @@ class PlanetDungeonGame extends FlameGame {
     );
   }
 
+  /// Window MAXIMA, not the instantaneous counts.
+  ///
+  /// The summary used to print whatever happened to be alive on the frame it
+  /// fired, once a second — which is how a trap chain that peaked at
+  /// thousands of projectiles kept reporting proj=1, and why four hypotheses
+  /// died before the reproduction found it. A peak that lasted two frames is
+  /// exactly the peak worth seeing.
+  static int _pmProj = 0, _pmEnemies = 0, _pmNums = 0;
+  static int _pmVfx = 0, _pmParts = 0;
+
   void _probeAccum(double u, double r) {
     if (u >= _kHitchMs) _probeHitch('update', u);
     if (r >= _kHitchMs) _probeHitch('render', r);
+    if (combatProjectiles.length > _pmProj) _pmProj = combatProjectiles.length;
+    if (combatEnemies.length > _pmEnemies) _pmEnemies = combatEnemies.length;
+    if (damageNumbers.length > _pmNums) _pmNums = damageNumbers.length;
+    if (_abilityVfx.length > _pmVfx) _pmVfx = _abilityVfx.length;
+    if (_alchemyParticles.length > _pmParts) {
+      _pmParts = _alchemyParticles.length;
+    }
     _pu += u;
     _pr += r;
     if (u > _puWorst) _puWorst = u;
@@ -534,17 +551,17 @@ class PlanetDungeonGame extends FlameGame {
         'avgRender=${(_pr / _pn).toStringAsFixed(2)}ms '
         'worstUpdate=${_puWorst.toStringAsFixed(2)} '
         'worstRender=${_prWorst.toStringAsFixed(2)} '
-        'enemies=${combatEnemies.length} proj=${combatProjectiles.length} '
-        'nums=${damageNumbers.length} '
-        // Both particle pools are UNBOUNDED — add() appends and update()
-        // only reaps the dead — so a fight that spawns faster than they die
-        // grows a draw call per particle per frame, for ever. If either of
-        // these is in the thousands, that is the answer.
-        'vfx=${_abilityVfx.length} parts=${_alchemyParticles.length} '
-        'wisp=${_activeWingBeams.length}',
+        'peakEnemies=$_pmEnemies peakProj=$_pmProj peakNums=$_pmNums '
+        'peakVfx=$_pmVfx peakParts=$_pmParts '
+        'beams=${_activeWingBeams.length}',
       );
       _puWorst = 0;
       _prWorst = 0;
+      _pmProj = 0;
+      _pmEnemies = 0;
+      _pmNums = 0;
+      _pmVfx = 0;
+      _pmParts = 0;
     }
   }
 
