@@ -13,6 +13,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/util_frame_probe.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
@@ -529,6 +530,15 @@ class PlanetDungeonGame extends FlameGame {
   /// exactly the peak worth seeing.
   static int _pmProj = 0, _pmEnemies = 0, _pmNums = 0;
   static int _pmVfx = 0, _pmParts = 0;
+
+  /// Registered with the frame probe so a RASTER-only spike gets a dump too.
+  /// One frame late, which is close enough to name what was on screen.
+  void _installHitchTap() {
+    frameProbeOnSlowFrame = (build, raster) {
+      if (raster < _kHitchMs) return;
+      _probeHitch('raster', raster);
+    };
+  }
 
   void _probeAccum(double u, double r) {
     if (u >= _kHitchMs) _probeHitch('update', u);
@@ -2076,6 +2086,7 @@ class PlanetDungeonGame extends FlameGame {
     for (var i = 0; i < 3; i++) {
       if ((starMask & (1 << i)) != 0) _earnedStars.add(i);
     }
+    _installHitchTap();
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;

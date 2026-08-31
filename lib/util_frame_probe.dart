@@ -8,6 +8,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
+/// Called for every slow frame, with (buildMs, rasterMs).
+///
+/// The hitch dump lives in the game, which knows what was on screen; the
+/// frame timings live here, and only here — the raster cost of a frame is
+/// invisible to Dart. A frame that is cheap to RECORD and expensive to
+/// rasterise (20-40ms on every auto-attack) shows up nowhere else.
+void Function(double buildMs, double rasterMs)? frameProbeOnSlowFrame;
+
 bool _installed = false;
 int _slow = 0;
 int _total = 0;
@@ -32,6 +40,7 @@ void installFrameProbe() {
       if (raster > _worstRaster) _worstRaster = raster;
       if (total >= 14) {
         _slow++;
+        frameProbeOnSlowFrame?.call(build, raster);
         debugPrint(
           'FRAMEPROBE slow build=${build.toStringAsFixed(1)} '
           'raster=${raster.toStringAsFixed(1)} '

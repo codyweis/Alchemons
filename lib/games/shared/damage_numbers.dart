@@ -108,11 +108,24 @@ class DamageNumberField {
             fontSize: big ? 20 : 14,
             fontWeight: big ? FontWeight.w900 : FontWeight.w700,
             letterSpacing: 0.4,
+            // CRISP offsets, never a blur. A blurRadius on a text shadow is a
+            // gaussian pass over the glyph mask on the raster thread, once
+            // per shadow per number per frame — and these were two. It never
+            // showed up in any Dart timing (recording a paragraph is cheap)
+            // and it is why the cost tracked the HIT RATE rather than the
+            // number count: a number in its 0.15s pop-in is drawn at a scale
+            // that changes every frame, so the blur could not be cached
+            // either. Four hard offsets read as an outline and cost four
+            // glyph blits.
             shadows: [
-              Shadow(color: Color(0xE6000000).withValues(alpha: 0.90 * a),
-                  blurRadius: 4),
-              Shadow(color: Color(0x99000000).withValues(alpha: 0.60 * a),
-                  blurRadius: 8),
+              Shadow(color: Color(0xE6000000).withValues(alpha: 0.92 * a),
+                  offset: Offset(1, 1)),
+              Shadow(color: Color(0xE6000000).withValues(alpha: 0.92 * a),
+                  offset: Offset(-1, 1)),
+              Shadow(color: Color(0xE6000000).withValues(alpha: 0.92 * a),
+                  offset: Offset(1, -1)),
+              Shadow(color: Color(0x99000000).withValues(alpha: 0.70 * a),
+                  offset: Offset(-1, -1)),
             ],
           ),
         ),
@@ -131,7 +144,15 @@ class DamageNumberField {
       // unreadable for most of its life.
       final alpha = t < 0.15 ? t / 0.15 : (1.0 - (t - 0.15) / 0.85);
       if (alpha <= 0.01) continue;
-      final scale = t < 0.15 ? (0.7 + 0.4 * (t / 0.15)) : 1.0;
+      // QUANTISED, for the same reason the fade is: a transform that changes
+      // every frame is a transform nothing can cache, so a popping-in number
+      // re-rasterises its glyphs from scratch on each of its first nine
+      // frames. Eight steps is imperceptible in a 0.15s pop.
+      final rawScale = t < 0.15 ? (0.7 + 0.4 * (t / 0.15)) : 1.0;
+      final scale = t < 0.15
+          ? (0.7 + 0.4 * ((rawScale - 0.7) / 0.4 * _fadeSteps).round() /
+                _fadeSteps)
+          : 1.0;
       var step = (alpha * _fadeSteps).ceil() - 1;
       if (step < 0) step = 0;
       if (step >= _fadeSteps) step = _fadeSteps - 1;
