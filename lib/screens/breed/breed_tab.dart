@@ -539,22 +539,14 @@ class _BreedingTabState extends State<BreedingTab>
                         key: avatarKey,
                         child: isEmpty
                             ? _buildEmptyAvatar(theme)
-                            : Transform.translate(
-                                offset: Offset(
-                                  merge.dx * travel + jitter,
-                                  merge.dy * travel,
-                                ),
-                                child: Transform.scale(
-                                  scale: 1.0 + 0.20 * travel,
-                                  child: Opacity(
-                                    opacity: spriteOpacity.clamp(0, 1),
-                                    child: _buildCreatureAvatar(
-                                      base,
-                                      inst!,
-                                      genetics,
-                                    ),
-                                  ),
-                                ),
+                            : _buildCreatureAvatar(
+                                base,
+                                inst!,
+                                genetics,
+                                travel: travel,
+                                merge: merge,
+                                jitter: jitter,
+                                spriteOpacity: spriteOpacity.clamp(0, 1),
                               ),
                       ),
 
@@ -687,43 +679,67 @@ class _BreedingTabState extends State<BreedingTab>
   }
 
   // live animated sprite inside summoning circle frame
+  /// The specimen and the circle it stands in.
+  ///
+  /// They come apart during a merge: the SUMMONING CIRCLE belongs to the
+  /// chamber and stays where it is, dimming as the chamber empties, while the
+  /// sprite is the only thing hauled to the core. Drawn as one widget they
+  /// travelled together, and a star-ring sliding across the card behind the
+  /// creature is the sort of thing that reads as a bug.
   Widget _buildCreatureAvatar(
     Creature base,
     CreatureInstance inst,
-    Genetics? genetics,
-  ) {
+    Genetics? genetics, {
+    double travel = 0,
+    Offset merge = Offset.zero,
+    double jitter = 0,
+    double spriteOpacity = 1,
+  }) {
     final typeColor = BreedConstants.getTypeColor(base.types.first);
+    final sprite = base.spriteData != null
+        ? Transform.scale(
+            scale: 1.4,
+            child: InstanceSprite(creature: base, instance: inst, size: 64),
+          )
+        : Icon(
+            AppIcons.image_not_supported_rounded,
+            color: Colors.white.withValues(alpha: .4),
+            size: 32,
+          );
+
     return SizedBox(
       width: 104,
       height: 104,
-      child: CustomPaint(
-        painter: _SummoningCirclePainter(
-          color: typeColor.withValues(alpha: .5),
-          accentColor: typeColor,
-          glowColor: typeColor.withValues(alpha: .08),
-          progress: 0,
-          showOrbit: false,
-        ),
-        child: Center(
-          child: SizedBox(
-            width: 68,
-            height: 68,
-            child: base.spriteData != null
-                ? Transform.scale(
-                    scale: 1.4,
-                    child: InstanceSprite(
-                      creature: base,
-                      instance: inst,
-                      size: 64,
-                    ),
-                  )
-                : Icon(
-                    AppIcons.image_not_supported_rounded,
-                    color: Colors.white.withValues(alpha: .4),
-                    size: 32,
-                  ),
+      child: Stack(
+        // The sprite leaves this box on its way to the core.
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Opacity(
+            opacity: (1.0 - travel).clamp(0.0, 1.0),
+            child: SizedBox.expand(
+              child: CustomPaint(
+                painter: _SummoningCirclePainter(
+                  color: typeColor.withValues(alpha: .5),
+                  accentColor: typeColor,
+                  glowColor: typeColor.withValues(alpha: .08),
+                  progress: 0,
+                  showOrbit: false,
+                ),
+              ),
+            ),
           ),
-        ),
+          Transform.translate(
+            offset: Offset(merge.dx * travel + jitter, merge.dy * travel),
+            child: Transform.scale(
+              scale: 1.0 + 0.20 * travel,
+              child: Opacity(
+                opacity: spriteOpacity.clamp(0.0, 1.0),
+                child: SizedBox(width: 68, height: 68, child: sprite),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
