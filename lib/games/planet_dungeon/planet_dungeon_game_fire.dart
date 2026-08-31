@@ -568,13 +568,30 @@ class _VesperFlame {
 
   /// Seconds before the flame starves (censers and gusts refresh it).
   double life;
+
+  /// Gust distance still to be paid out, in px. See [_kGustGlideSpeed].
+  double gust = 0;
 }
 
 // Tunables for the vesper rite. Self-speed alone can't cross a censer gap
 // before the flame starves — the wind has to matter.
-const double _kFlameSelfSpeed = 24.0; // px/s unaided
-const double _kFlameLife = 2.6; // seconds per feeding
+//
+// PLAYTEST 2026-08-31: the crawl was hurried and the fuse short, so the room
+// played as a scramble rather than as a rite. The flame creeps now and holds
+// its breath for longer; the relay's shape is unchanged, because what makes
+// the two routes different is the RATIO of gap to gust, and both sides of
+// that moved together.
+const double _kFlameSelfSpeed = 15.0; // px/s unaided
+const double _kFlameLife = 4.0; // seconds per feeding
 const double _kGustRadius = 85.0;
+
+/// How fast a gust's push is paid out, in px/s.
+///
+/// The gust used to TELEPORT the flame its whole distance on the frame you
+/// pressed it — which is what made a shove read as "too far": you never saw
+/// the travel, only the arrival, two censers away. It glides now, and the
+/// same distance reads as a nudge.
+const double _kGustGlideSpeed = 260.0;
 
 // ── The Lost Maxims (easter eggs — one per dungeon, 20 gold once) ──
 // Discovery ids ride the persisted cloud-discovery channel ('egg:' prefix);
@@ -1416,7 +1433,14 @@ extension CinderCathedral on PlanetDungeonGame {
     for (final chain in room.incenseChains) {
       final flame = _vesperFlames[chain.id];
       if (flame == null) continue;
-      _advanceFlame(room, chain, flame, _kFlameSelfSpeed * dt);
+      // Its own crawl, plus whatever a gust still owes it.
+      var step = _kFlameSelfSpeed * dt;
+      if (flame.gust > 0) {
+        final paid = min(flame.gust, _kGustGlideSpeed * dt);
+        flame.gust -= paid;
+        step += paid;
+      }
+      _advanceFlame(room, chain, flame, step);
       if (!_vesperFlames.containsKey(chain.id)) continue; // rang the bell
       flame.life -= dt;
       if (flame.life <= 0) {
@@ -2056,7 +2080,11 @@ extension CinderCathedral on PlanetDungeonGame {
         final pos = _chainPoint(chain, flame.segment, flame.t);
         if ((a.position - pos).distance > _kGustRadius) continue;
         final speedT = normStat(a.member.statSpeed);
-        final push = 120.0 + 70.0 * speedT;
+        // Enough to carry the flame onto the next cloister censer and no
+        // further; a nave gap still needs the flame to survive the walk to a
+        // second gust. That relationship is the whole route trade, and it is
+        // measured in the Fire full-run test rather than asserted here.
+        final push = 110.0 + 60.0 * speedT;
         flame.life = max(flame.life, _flameLife);
         _spawnAlchemyBurst(
           pos,
@@ -2066,7 +2094,7 @@ extension CinderCathedral on PlanetDungeonGame {
           intensity: 0.7,
         );
         _setHint('The gust bears the flame down the chain');
-        _advanceFlame(room, chain, flame, push);
+        flame.gust += push;
         return true;
       }
     }
@@ -2699,6 +2727,8 @@ extension CinderCathedral on PlanetDungeonGame {
         _drawVesperFresco(canvas, room);
         break;
       case 'bell_gallery':
+        _drawBlindArcade(canvas, room);
+        _drawGalleryBeams(canvas, room);
         _drawVesperStands(canvas, room);
         _drawIncenseChains(canvas, room);
         break;
@@ -5067,24 +5097,67 @@ extension CinderCathedral on PlanetDungeonGame {
           0xFFC4A35A,
         ).withValues(alpha: chosen ? 0.0 : 0.13);
       if (!chosen) {
+        // DOTTED, not drawn. A solid hairline beside the live chain reads as
+        // more ironwork; a dotted one reads as a way you could go.
         for (final chain in room.incenseChains) {
           final nodes = route.chainNodes[chain.id] ?? chain.nodes;
+          // Before anything is declared the live chain falls back to the
+          // short run's nodes, so THAT route would be drawn twice — solid and
+          // dotted on the same line, which reads as already chosen.
+          final live = chainNodes(chain);
+          if (nodes.length == live.length) {
+            var same = true;
+            for (var k = 0; k < nodes.length; k++) {
+              if (nodes[k] != live[k]) {
+                same = false;
+                break;
+              }
+            }
+            if (same) continue;
+          }
           final pts = [...nodes, chain.bellPosition];
           for (var i = 0; i < pts.length - 1; i++) {
-            canvas.drawLine(pts[i], pts[i + 1], ghost);
+            final a = pts[i];
+            final bp = pts[i + 1];
+            final len = (bp - a).distance;
+            final steps = (len / 11).round().clamp(2, 40);
+            for (var k = 0; k < steps; k++) {
+              final t0 = k / steps, t1 = (k + 0.45) / steps;
+              canvas.drawLine(
+                Offset.lerp(a, bp, t0)!,
+                Offset.lerp(a, bp, t1)!,
+                ghost,
+              );
+            }
           }
           for (final n in nodes) {
             canvas.drawCircle(n, 5, ghost);
           }
         }
       }
-      // The stand itself: a tripod of hanging censers.
+      // The stand itself: a tripod of hanging censers on a stone foot.
       final iron = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.6
         ..strokeCap = StrokeCap.round
         ..color = (chosen ? const Color(0xFFC4A35A) : const Color(0xFF4A382C))
             .withValues(alpha: 0.85);
+      // The floor ring is the affordance: this is a SPOT, and a run is
+      // declared by standing on it. Without it the stand read as scenery.
+      canvas.drawOval(
+        Rect.fromCenter(center: p + const Offset(0, 30), width: 64, height: 22),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = (chosen
+                  ? const Color(0xFFE4C16A)
+                  : const Color(0xFF74613A))
+              .withValues(alpha: chosen ? 0.7 : 0.4),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: p + const Offset(0, 30), width: 34, height: 12),
+        Paint()..color = const Color(0xFF2E2219),
+      );
       canvas.drawLine(p + const Offset(0, 26), p + const Offset(0, -18), iron);
       canvas.drawLine(
         p + const Offset(-16, -14),
@@ -5129,6 +5202,55 @@ extension CinderCathedral on PlanetDungeonGame {
     }
   }
 
+  /// The gallery's roof beams — one over each chain, with a hanger down to
+  /// every censer and to the bell.
+  ///
+  /// Without them the room is three hairline polylines floating in the dark,
+  /// which reads as cobweb rather than as ironwork: nothing says what the
+  /// chains are attached to, or why a line of cups runs across a hall. A beam
+  /// answers both, and it gives each run a shelf of its own to sit under.
+  void _drawGalleryBeams(Canvas canvas, DungeonRoom room) {
+    for (final chain in room.incenseChains) {
+      final nodes = chainNodes(chain);
+      final pts = [...nodes, chain.bellPosition];
+      var top = pts.first.dy, lo = pts.first.dx, hi = pts.first.dx;
+      for (final p in pts) {
+        if (p.dy < top) top = p.dy;
+        if (p.dx < lo) lo = p.dx;
+        if (p.dx > hi) hi = p.dx;
+      }
+      final beamY = top - 58;
+      final beam = Rect.fromLTRB(lo - 34, beamY - 7, hi + 34, beamY + 7);
+
+      // Hangers first, so the beam sits over their heads.
+      final hanger = Paint()
+        ..strokeWidth = 1.3
+        ..color = const Color(0xFF5A463A).withValues(alpha: 0.55);
+      for (final p in pts) {
+        canvas.drawLine(Offset(p.dx, beamY), Offset(p.dx, p.dy - 8), hanger);
+      }
+      canvas.drawRect(beam, Paint()..color = const Color(0xFF221A13));
+      canvas.drawLine(
+        Offset(beam.left, beam.top + 1.5),
+        Offset(beam.right, beam.top + 1.5),
+        Paint()
+          ..strokeWidth = 2
+          ..color = const Color(0xFF4A382C).withValues(alpha: 0.9),
+      );
+      // Corbels at each end, so the beam is carried by something.
+      for (final x in [beam.left + 6, beam.right - 6]) {
+        canvas.drawPath(
+          Path()
+            ..moveTo(x - 7, beam.bottom)
+            ..lineTo(x + 7, beam.bottom)
+            ..lineTo(x, beam.bottom + 11)
+            ..close(),
+          Paint()..color = const Color(0xFF31251B),
+        );
+      }
+    }
+  }
+
   void _drawIncenseChains(Canvas canvas, DungeonRoom room) {
     for (final chain in room.incenseChains) {
       final rung = bellsRung.contains(chain.id) || hasStar(2);
@@ -5143,6 +5265,10 @@ extension CinderCathedral on PlanetDungeonGame {
         ..strokeWidth = 1.8
         ..color = (rung ? const Color(0xFFC4A35A) : const Color(0xFF5A463A))
             .withValues(alpha: rung ? 0.55 : 0.45);
+      final link = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = linkPaint.color.withValues(alpha: rung ? 0.4 : 0.3);
       for (var i = 0; i < pts.length - 1; i++) {
         final a = pts[i];
         final bp = pts[i + 1];
@@ -5153,29 +5279,69 @@ extension CinderCathedral on PlanetDungeonGame {
             ..quadraticBezierTo(mid.dx, mid.dy, bp.dx, bp.dy),
           linkPaint,
         );
+        // Ticks across the sag: at a hairline a curve is a thread, and a
+        // thread between two cups is cobweb. Links make it iron.
+        const steps = 9;
+        for (var k = 1; k < steps; k++) {
+          final t = k / steps;
+          // Point on the same quadratic, and its tangent.
+          final u = 1 - t;
+          final pt =
+              a * (u * u) + mid * (2 * u * t) + bp * (t * t);
+          final tan = (mid - a) * (2 * u) + (bp - mid) * (2 * t);
+          final len = tan.distance;
+          if (len < 0.01) continue;
+          final n = Offset(-tan.dy, tan.dx) / len;
+          canvas.drawLine(pt - n * 2.6, pt + n * 2.6, link);
+        }
       }
       // Censers: small swinging cups; reached ones keep a coal alive.
       for (var i = 0; i < nodes.length; i++) {
         final p = nodes[i];
         final reached = rung || i <= checkpoint;
+        final iron = (reached
+            ? const Color(0xFFC4A35A)
+            : const Color(0xFF4A382C)).withValues(alpha: 0.9);
+        // A censer is a lidded cup on a swivel, not a 9px half-disc: the
+        // canopy over it is what makes a row of them read as hanging iron.
+        canvas.drawLine(
+          p + const Offset(0, -14),
+          p + const Offset(0, -8),
+          Paint()
+            ..strokeWidth = 1.4
+            ..color = iron.withValues(alpha: 0.7),
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(p.dx - 8, p.dy - 5)
+            ..lineTo(p.dx, p.dy - 12)
+            ..lineTo(p.dx + 8, p.dy - 5)
+            ..close(),
+          Paint()..color = const Color(0xFF2E2219),
+        );
         canvas.drawArc(
-          Rect.fromCircle(center: p, radius: 9),
+          Rect.fromCircle(center: p, radius: 10),
           0,
           pi,
           false,
           Paint()..color = const Color(0xFF241812),
         );
         canvas.drawArc(
-          Rect.fromCircle(center: p, radius: 9),
+          Rect.fromCircle(center: p, radius: 10),
           0,
           pi,
           false,
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.8
-            ..color =
-                (reached ? const Color(0xFFC4A35A) : const Color(0xFF4A382C))
-                    .withValues(alpha: 0.85),
+            ..color = iron,
+        );
+        canvas.drawLine(
+          p + const Offset(-10, 0),
+          p + const Offset(10, 0),
+          Paint()
+            ..strokeWidth = 1.6
+            ..color = iron.withValues(alpha: 0.75),
         );
         if (reached && _fx.ready && !rung) {
           drawGlow(
@@ -5202,7 +5368,27 @@ extension CinderCathedral on PlanetDungeonGame {
           const Color(0xFFFFB46B).withValues(alpha: 0.22),
         );
       }
-      _drawBellShape(canvas, chain.bellPosition, 16, bellColor);
+      // The headstock it swings in — a bell with nothing over it floats.
+      final bp = chain.bellPosition;
+      canvas.drawRect(
+        Rect.fromCenter(center: bp + const Offset(0, -20), width: 30, height: 7),
+        Paint()..color = const Color(0xFF31251B),
+      );
+      canvas.drawLine(
+        bp + const Offset(-9, -17),
+        bp + const Offset(-4, -13),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = bellColor.withValues(alpha: 0.7),
+      );
+      canvas.drawLine(
+        bp + const Offset(9, -17),
+        bp + const Offset(4, -13),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = bellColor.withValues(alpha: 0.7),
+      );
+      _drawBellShape(canvas, bp, 16, bellColor);
       // Toll ripples while the last ring still hums.
       if (rung && _bellTollFx > 0) {
         final t = 1 - (_bellTollFx / 2.2);

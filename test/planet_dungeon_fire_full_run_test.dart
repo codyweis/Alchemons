@@ -580,6 +580,12 @@ void main() {
       game.setActive(1);
       _place(game, game.vesperFlamePosition(chain.id)!);
       game.activateAbility();
+      // One gust, then the second and a half it takes to be paid out — the
+      // push glides now, and a flame that crosses a censer half a second
+      // late has still been carried there by that gust.
+      for (var i = 0; i < 90; i++) {
+        game.update(1 / 60);
+      }
       // Did one gust reach the next censer? (The checkpoint only advances
       // when the flame actually crosses one.)
       final reached = game.chainIgnitionPoint(chain) != nodes.first;
@@ -678,6 +684,12 @@ void main() {
         ..position = before!
         ..lastSafe = before;
       game.activateAbility();
+      // The gust GLIDES the flame rather than teleporting it (a shove you
+      // never see the travel of reads as far too strong), so the landing is
+      // read once the push has been paid out.
+      for (var i = 0; i < 90; i++) {
+        game.update(1 / 60);
+      }
       final after = game.vesperFlamePosition(chain.id);
       expect(after, isNotNull);
       expect(

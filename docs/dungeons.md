@@ -126,7 +126,7 @@ catch both kinds.
 | 5 | **Water** S3 moon-pool freeze — `_water.dart:454` | ⚠ off-family Ice AND the Spirit+Water recipe share ONE `q != perfect` wisp branch | **SPLIT the branch**: recipe keeps its wisps (v2-legal), off-family Ice loses them |
 | 6 | **Earth** S2 socket charge — `_earth.dart:525` | Pip 2.0s/2 wisps; other Lightning 4.5s/3 unstable | element-only, one 2.0s charge; defend-wave stays for everyone |
 | 7 | **Fire** S2 vine bed | off-family Plant spawns 2 wisps | element-only; the Fire-burn wisp ramp stays (unconditional). Survives the 2026-08-14 garden rework unchanged: growing is the anti-softlock verb, so it is never punished |
-| 8 | **Fire** S3 vesper gust — `_fire.dart:621` | Wing push 120–190; other Air 70–110 | element-only, use the Wing formula |
+| 8 | **Fire** S3 vesper gust — `_fire.dart:621` | Wing push 120–190; other Air 70–110 | element-only, use the Wing formula (now 110–170, glided) |
 | 9 | **Lightning** S1 pylon wake — `_lightning.dart:137` | Horn clean; other Lightning fewer particles + 2 unstable wisps | element-only |
 | 10 | **Lightning** entry rite charge — `_lightning.dart:788` | Horn 8s window; other Lightning 4s + wisps | element-only, one 8s window |
 | 11 | **Lightning** S2 cell deposit — `_lightning.dart:833` | non-Wing deposit spawns 2 unstable wisps | element-only |
@@ -668,13 +668,28 @@ or it drifts into Water's seat.
    S3 gained its DECISION: two censer runs to the same three bells, declared
    at two stands in the gallery and committed the moment the first censer
    takes flame (death re-opens it). SHORT — the ash-storm nave: 2 censers,
-   wide gaps no single gust can clear, a fuse at 0.55× (~1.4s per feeding),
+   wide gaps no single gust can clear, a fuse at 0.55× (~2.2s per feeding),
    3 unstable wisps per ignition. LONG — the calm cloister: 4 censers (two
    extra to keep alight), every gap crossed by ONE comfortable gust so the
-   flame never has to survive a wait, full 2.6s fuse, 2 stable wisps. Both
+   flame never has to survive a wait, full 4.0s fuse, 2 stable wisps. Both
    ring all three bells at brisk AND harried tending (test-proven both ways);
-   the unlit run is sketched on the floor so the choice can be weighed before
-   it is made. Simurgh §7 retrofit: it RE-LIGHTS the rite braziers as its
+   the unlit run is sketched on the floor (DOTTED, so it reads as a way you
+   could go rather than as more ironwork) so the choice can be weighed before
+   it is made.
+   PACE (2026-08-31 playtest): the flame crawls at 15px/s (was 24) and holds
+   4.0s per feeding (was 2.6) — the room played as a scramble, not a rite. The
+   gust is 110-170px (was 120-190) and, more to the point, it GLIDES at
+   260px/s instead of teleporting the flame its whole distance on the frame
+   you press it: a shove whose travel you never see reads as far too strong.
+   The route trade is untouched, because it turns on the RATIO of gap to
+   gust — a cloister gap is still one gust, a nave gap still strands.
+   THE GALLERY (same pass): roof beams over each chain with a hanger down to
+   every censer and to the bell, so the chains are attached to something and
+   each run has a shelf of its own; censers are lidded cups on swivels rather
+   than 9px half-discs; the chains carry links (a hairline curve between two
+   cups is cobweb, not iron); the bells hang in headstocks; blind arcading on
+   the long walls; and each vesper stand has a floor ring, because the stand
+   is a SPOT you declare from and read as scenery without one. Simurgh §7 retrofit: it RE-LIGHTS the rite braziers as its
    telegraph — phantom iron rings the roost in the choir's own arrangement
    and walks THIS RUN'S rolled order, one readable flare then a pillar of
    black flame per beat, silenced and rewound by every lull. The order is the
