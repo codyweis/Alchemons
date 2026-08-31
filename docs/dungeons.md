@@ -503,6 +503,15 @@ it or swing the vane. So a mistake is a scramble, not an instant loss, and
 the tense expert play (laying track in front of a running flame) is the same
 verb as the calm planning, just later.
 
+**AND THEN THE BOARD TURNS OVER** (2026-08-31 playtest). A fire that dies
+short has already failed — the goal is ONE chain — so the garth wipes itself
+back to bare soil a beat and a bit later (1.3s, long enough to watch the
+flame go out; wiping on the same frame reads as a glitch). The manual re-lay
+stays for abandoning a half-planted board, and a hand on it cancels the
+pending wipe. This retired `BurnField.canStillFill` / `reachableCoverage`:
+"is this run doomed" was a question worth asking only while a doomed board
+could be left standing.
+
 **THE RING** (was the pool, 2026-08-31). Coverage is the win, and it is read
 off a gauge wrapped around the wind vane: a filling arc with ONE TOOTH PER
 SQUARE the garden owes, lit as the chain takes them. A short greedy chain
@@ -534,8 +543,10 @@ and was an unlit floor with eight lollipops on it. It now has an aisle runner
 from the porch to the chancel gate, blind arcading down both long walls,
 piers with capitals and bases (both rows standing the same way up), and —
 the part that answers to being walked through — a candle stand at every pier
-foot that CATCHES as the party passes within 104 and stays lit, so crossing
-the nave leaves a lit avenue behind you.
+foot that CATCHES as the party passes and stays lit, so crossing the nave
+leaves a lit avenue behind you. Reach (130) is measured ACROSS the nave only
+and lights both stands of a bay at once: a radius around each stand meant
+detouring to the wall and back twice per bay, which is not walking a nave.
 
 **THE BARRIERS.** The garth is not an open board — two kinds of obstacle give
 it its shape, and both say what they do by looking like what they are:

@@ -1137,6 +1137,7 @@ extension CinderCathedral on PlanetDungeonGame {
   void _restartGarth() {
     if (!_canRestartGarth) return;
     burnFields.remove(currentRoomId);
+    garthWipeIn = 0; // a hand on the board beats a pending auto-wipe
     final spawn = _roomEntrySpawn(currentRoomId);
     for (final c in creatures) {
       c
@@ -1282,6 +1283,9 @@ extension CinderCathedral on PlanetDungeonGame {
     return false;
   }
 
+  /// How long a dead fire is left on the board before it is turned over.
+  static const double _kGarthWipeDelay = 1.3;
+
   /// THE BEAT: the flame takes its next cell, or smoulders, or goes out.
   void _updateBurn(DungeonRoom room, double dt) {
     if (!_isCathedral) return;
@@ -1290,6 +1294,19 @@ extension CinderCathedral on PlanetDungeonGame {
     if (g == null || field == null) return;
     if (burnFlash > 0) burnFlash -= dt;
     poolShown += (field.poolFraction - poolShown) * min(1.0, dt * 2.6);
+
+    // A fire that died short turns the board over on its own, a beat later.
+    if (garthWipeIn > 0) {
+      garthWipeIn -= dt;
+      if (garthWipeIn <= 0) {
+        garthWipeIn = 0;
+        burnFields.remove(room.id);
+        burnBeat = 0;
+        _setHint('Bare soil again — plant your run, then strike once', 3.0);
+        onChanged();
+      }
+      return;
+    }
     if (hasStar(g.starIndex) || !field.alight) return;
 
     burnBeat -= dt;
@@ -1313,21 +1330,26 @@ extension CinderCathedral on PlanetDungeonGame {
       case BurnStep.smouldered:
         _setHint('The flame gutters — nothing downwind to take', 1.6);
       case BurnStep.died:
-        _setHint(
-          field.canStillFill
-              ? 'The fire is out. Plant again and light a fresh run.'
-              : 'The fire is out and the garth is too spent to fill the pool '
-                    '— begin the chamber again.',
-          3.4,
-        );
+        // The goal is ONE chain, so a chain that stops short has already
+        // failed — there is nothing to salvage from the ash it left, and
+        // leaving the player to notice that themselves and press the re-lay
+        // button is a chore, not a decision. The garth turns itself over.
+        _setHint('The fire is out — the garth turns itself over', 3.4);
+        garthWipeIn = _kGarthWipeDelay;
       case BurnStep.idle:
         break;
     }
     onChanged();
   }
 
-  /// How near you must pass for a candle to catch.
-  static const double _kCandleReach = 104.0;
+  /// How near the aisle you must pass for a pier's candles to catch.
+  ///
+  /// Measured ACROSS the nave only, and applied to both stands at once: the
+  /// pair of piers is one bay of the church, and walking the runner between
+  /// them should light the bay. A radius around each stand meant you had to
+  /// detour up to the wall and back for every candle, twice per bay, which is
+  /// not walking down a nave — it is mowing it.
+  static const double _kCandleReach = 130.0;
 
   /// The candle stands at the feet of the nave's piers: one per pier, in
   /// pier order (top row and bottom row interleaved).
@@ -1346,7 +1368,7 @@ extension CinderCathedral on PlanetDungeonGame {
     for (var i = 0; i < stands.length; i++) {
       final lit = naveCandles[i] ?? 0;
       if (lit >= 1) continue;
-      if ((a.position - stands[i]).distance > _kCandleReach) continue;
+      if ((a.position.dx - stands[i].dx).abs() > _kCandleReach) continue;
       // Half a second to take, so a candle catches visibly rather than
       // snapping on as you cross an invisible line.
       naveCandles[i] = (lit + dt / 0.5).clamp(0.0, 1.0);

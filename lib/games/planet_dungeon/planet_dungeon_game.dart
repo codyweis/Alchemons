@@ -1202,6 +1202,14 @@ class PlanetDungeonGame extends FlameGame {
   /// Flash when the flame just ate a cell (render only).
   double burnFlash = 0;
 
+  /// Seconds until a dead fire turns the garth over by itself.
+  ///
+  /// A chain that goes out short is a failed attempt, and the spent ground it
+  /// leaves is not a position worth playing on — the honest answer is a fresh
+  /// board. It waits a beat first so the player SEES the flame die; wiping on
+  /// the same frame reads as a glitch rather than a consequence.
+  double garthWipeIn = 0;
+
   // ── Fire: the nave's candles ──
   /// How far each nave candle has caught, 0..1, keyed by stand index.
   ///

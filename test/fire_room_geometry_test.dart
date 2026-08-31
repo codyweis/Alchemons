@@ -160,36 +160,51 @@ void main() {
   group('the nave lights as you walk it', () {
     final nave = kPlanetDungeonLayouts['Fire']!.rooms['nave']!;
 
-    test('a candle catches when you pass, and stays lit', () {
+    test('walking the aisle lights the whole bay, both sides', () {
+      // The pair of piers is one bay of the church. Reach is measured ACROSS
+      // the nave only, so walking the runner between them lights both — a
+      // radius around each stand meant detouring to the wall and back twice
+      // per bay, which is not walking a nave, it is mowing it.
       final g = _fire('nave');
       final stands = g.naveCandleStands(nave);
       expect(stands, hasLength(8));
       expect(g.naveCandles, isEmpty, reason: 'a cold nave to begin with');
 
-      g.creatures[g.activeIndex].position = stands[3];
+      // Dead centre of the runner, level with the second bay.
+      g.creatures[g.activeIndex].position = Offset(
+        stands[2].dx,
+        nave.bounds.top + 338,
+      );
       for (var i = 0; i < 60; i++) {
         g.update(1 / 60);
       }
-      expect(g.naveCandles[3], 1.0, reason: 'half a second to take');
+      expect(g.naveCandles[2], 1.0, reason: 'the pier above the aisle');
+      expect(g.naveCandles[3], 1.0, reason: 'and the one below it');
 
-      // Walk away: it does not go out. The point is the avenue behind you.
+      // Walk away: they do not go out. The point is the avenue behind you.
       g.creatures[g.activeIndex].position = nave.bounds.topLeft;
       for (var i = 0; i < 60; i++) {
         g.update(1 / 60);
       }
+      expect(g.naveCandles[2], 1.0);
       expect(g.naveCandles[3], 1.0);
     });
 
-    test('it catches the one you passed, not the whole row', () {
+    test('the far end of the nave stays dark until you get there', () {
       final g = _fire('nave');
       final stands = g.naveCandleStands(nave);
-      g.creatures[g.activeIndex].position = stands[0];
+      g.creatures[g.activeIndex].position = Offset(
+        stands[0].dx,
+        nave.bounds.top + 338,
+      );
       for (var i = 0; i < 60; i++) {
         g.update(1 / 60);
       }
       expect(g.naveCandles[0], 1.0);
-      // Its neighbour along the row is 200 apart — well outside the reach.
-      expect(g.naveCandles[2] ?? 0, 0.0);
+      expect(g.naveCandles[1], 1.0);
+      // The last bay is 600 down the nave — nothing there has been walked.
+      expect(g.naveCandles[6] ?? 0, 0.0);
+      expect(g.naveCandles[7] ?? 0, 0.0);
     });
 
     test('every stand is somewhere a walker can actually reach', () {
@@ -199,6 +214,89 @@ void main() {
       for (final p in g.naveCandleStands(nave)) {
         expect(nave.bounds.inflate(-20).contains(p), isTrue, reason: '$p');
       }
+    });
+  });
+
+  group('a fire that dies takes the board with it', () {
+    /// Six squares planted along the top row, and the first one lit. With an
+    /// east wind that chain eats the row and then has nowhere to go.
+    PlanetDungeonGame lit() {
+      final g = _fire('cloister');
+      final f = g.burnFieldFor(cloister)!;
+      for (var i = 0; i < 6; i++) {
+        f.plant(i);
+      }
+      expect(f.light(0), isTrue);
+      return g;
+    }
+
+    test('a chain that stops short wipes itself back to bare soil', () {
+      // The goal is ONE chain, so a chain that stops short has already
+      // failed. Leaving its ash on the board only makes the player work that
+      // out themselves and press re-lay, which is a chore, not a decision.
+      final g = lit();
+      final before = g.burnFieldFor(cloister)!;
+      var guard = 0;
+      while (before.alight && guard++ < 4000) {
+        g.update(1 / 60);
+      }
+      expect(before.alight, isFalse, reason: 'the row runs out and it dies');
+      expect(g.garthWipeIn, greaterThan(0), reason: 'a beat to see it die');
+      expect(
+        g.burnFieldFor(cloister),
+        same(before),
+        reason: 'and the ash is still there while that beat runs',
+      );
+
+      for (var i = 0; i < 200; i++) {
+        g.update(1 / 60);
+      }
+      final after = g.burnFieldFor(cloister)!;
+      expect(after, isNot(same(before)), reason: 'a fresh field');
+      for (var i = 0; i < garth.cols * garth.rows; i++) {
+        expect(
+          after.at(i),
+          isNot(BurnCell.ash),
+          reason: 'square $i is still burnt after the turn-over',
+        );
+      }
+      expect(after.burntThisFire, 0);
+      expect(g.garthWipeIn, 0);
+    });
+
+    test('a hand on the board beats the pending wipe', () {
+      final g = lit();
+      final before = g.burnFieldFor(cloister)!;
+      var guard = 0;
+      while (before.alight && guard++ < 4000) {
+        g.update(1 / 60);
+      }
+      expect(g.garthWipeIn, greaterThan(0));
+      g.restartRoom();
+      expect(g.garthWipeIn, 0, reason: 'the re-lay already did the work');
+    });
+
+    test('a chain that covers the garden banks the star instead', () {
+      // The wipe must never eat a win: coverage is checked on the beat that
+      // takes the last square, before the fire has anywhere left to go.
+      final g = _fire('cloister');
+      final f = g.burnFieldFor(cloister)!;
+      expect(g.hasStar(garth.starIndex), isFalse);
+      for (var i = 0; i < garth.cols * garth.rows; i++) {
+        f.plant(i);
+      }
+      f.light(0);
+      f.burntThisFire = garth.coverageGoal - 1;
+      var guard = 0;
+      while (!g.hasStar(garth.starIndex) && guard++ < 4000) {
+        g.update(1 / 60);
+      }
+      expect(
+        g.hasStar(garth.starIndex),
+        isTrue,
+        reason: 'the beat that completes the cover releases the star',
+      );
+      expect(g.garthWipeIn, 0, reason: 'and nothing is turned over');
     });
   });
 }

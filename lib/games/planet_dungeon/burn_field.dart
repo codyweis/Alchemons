@@ -219,41 +219,6 @@ class BurnField {
     return BurnStep.died;
   }
 
-  /// Every cell a flame at [from] could still reach, under ANY sequence of
-  /// wind turns and any planting the player could still do. Used to prove a
-  /// field is not already lost, and to answer "can this run still fill the
-  /// pool" honestly rather than by hope.
-  int reachableCoverage(int from) {
-    final seen = <int>{from};
-    final queue = <int>[from];
-    var count = 0;
-    while (queue.isNotEmpty) {
-      final i = queue.removeLast();
-      count++;
-      for (final w in BurnWind.values) {
-        final (dc, dr) = w.delta;
-        final c = colOf(i) + dc, r = rowOf(i) + dr;
-        if (!inBounds(c, r)) continue;
-        final j = index(c, r);
-        if (!seen.add(j)) continue;
-        // A flame can pass through anything that can still hold dry vine.
-        final k = _cells[j];
-        if (k == BurnCell.soil || k == BurnCell.vine) queue.add(j);
-      }
-    }
-    return count;
-  }
-
-  /// Can this run still fill the pool from where the flame stands? False means
-  /// the fire has sealed itself in (or the field is spent) and the honest
-  /// answer is the restart, not another beat of hope.
-  bool get canStillFill {
-    if (coverageGoal <= 0) return true;
-    final h = head;
-    if (h == null) return false;
-    return burntThisFire + reachableCoverage(h) - 1 >= coverageGoal;
-  }
-
   /// Can a perfect player still burn a chain of [target] cells starting at
   /// [from]? Walks the REAL rules — dry ground only, never re-entering its own
   /// trail — and STOPS THE MOMENT it finds one.

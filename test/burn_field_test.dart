@@ -144,15 +144,6 @@ void main() {
       );
     });
 
-    test('canStillFill turns a doomed run into an honest restart', () {
-      final f = _field(['v#', '##'], goal: 4);
-      f.light(0);
-      expect(
-        f.canStillFill,
-        isFalse,
-        reason: 'walled in on every side — the answer is the restart',
-      );
-    });
   });
 
   group('the authored garth', () {
