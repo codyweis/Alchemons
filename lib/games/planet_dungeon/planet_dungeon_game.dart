@@ -484,7 +484,45 @@ class PlanetDungeonGame extends FlameGame {
   static double _puWorst = 0;
   static double _prWorst = 0;
 
+  /// A frame that cost more than this gets its own line, with the world's
+  /// state AT THAT MOMENT.
+  ///
+  /// The 120-frame summary was too coarse to catch the thing that matters: a
+  /// single frame in the Simurgh fight took 720ms of update and 155ms of
+  /// RECORDING, and 2.2 seconds to rasterise — and by the time the summary
+  /// printed, a second later, everything it could report was back to zero.
+  static const double _kHitchMs = 18.0;
+
+  void _probeHitch(String what, double ms) {
+    var maxScale = 0.0, maxEffect = 0.0, maxSnare = 0.0;
+    var bad = 0; // NaN or infinite geometry — a single such draw is seconds
+    for (final p in combatProjectiles) {
+      if (p.visualScale > maxScale) maxScale = p.visualScale;
+      if (p.effectRadius > maxEffect) maxEffect = p.effectRadius;
+      if (p.snareRadius > maxSnare) maxSnare = p.snareRadius;
+      if (!p.position.dx.isFinite ||
+          !p.position.dy.isFinite ||
+          !p.visualScale.isFinite ||
+          !p.effectRadius.isFinite ||
+          !p.snareRadius.isFinite) {
+        bad++;
+      }
+    }
+    debugPrint(
+      'HITCH $what=${ms.toStringAsFixed(1)}ms room=$currentRoomId '
+      'enemies=${combatEnemies.length} proj=${combatProjectiles.length} '
+      'nums=${damageNumbers.length} vfx=${_abilityVfx.length} '
+      'parts=${_alchemyParticles.length} beams=${_activeWingBeams.length} '
+      'kin=${_kinBeams.length} '
+      'maxScale=${maxScale.toStringAsFixed(1)} '
+      'maxEffectR=${maxEffect.toStringAsFixed(1)} '
+      'maxSnareR=${maxSnare.toStringAsFixed(1)} nonFinite=$bad',
+    );
+  }
+
   void _probeAccum(double u, double r) {
+    if (u >= _kHitchMs) _probeHitch('update', u);
+    if (r >= _kHitchMs) _probeHitch('render', r);
     _pu += u;
     _pr += r;
     if (u > _puWorst) _puWorst = u;
@@ -529,6 +567,10 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   final List<Projectile> combatProjectiles = [];
+
+  /// Hard ceiling on live projectiles — survival's number (220), for the same
+  /// reason. See [_trimProjectilePool].
+  static const int kMaxCombatProjectiles = 220;
   final List<_DungeonWingBeam> _activeWingBeams = [];
   final List<_KinBeamFx> _kinBeams = [];
   final List<_AlchemyParticle> _alchemyParticles = [];
@@ -3571,6 +3613,20 @@ class PlanetDungeonGame extends FlameGame {
     }
     combatEnemies.removeWhere((e) => e.isDead || e.hp <= 0);
     _activeWingBeams.removeWhere((b) => b.dead);
+    _trimProjectilePool();
+  }
+
+  /// The ceiling survival has and the port did not.
+  ///
+  /// Survival appends companion projectiles through a capped helper and trims
+  /// the pool every tick; the dungeon calls `combatProjectiles.add` raw in
+  /// twenty-odd places, so nothing stood between a spawn bug and a frame that
+  /// cost 2.2 seconds to rasterise. The mask-trap chain that found this is
+  /// fixed at source, but the net belongs here whatever comes next: oldest
+  /// out first, so what the player is looking at now survives.
+  void _trimProjectilePool() {
+    final over = combatProjectiles.length - kMaxCombatProjectiles;
+    if (over > 0) combatProjectiles.removeRange(0, over);
   }
 
   int? _nearestLivingCreatureIndex(Offset from) {
@@ -6636,6 +6692,12 @@ class PlanetDungeonGame extends FlameGame {
   /// Mask-family on-contact dispatcher (survival's `_resolveMaskTrapHit`).
   /// Returns true when the element fully handles the hit.
   bool _resolveMaskTrapHit(Projectile projectile, CosmicSurvivalEnemy enemy) {
+    // Spent traps and the placements they laid do not lay more. Contact is
+    // re-tested every frame and nothing records who has already been hit, so
+    // without this a fire pool lays a fire pool lays a fire pool: 8192 of
+    // them after one second of an enemy standing still (measured), for a
+    // frame that cost 720ms of update and 2.2 seconds of raster.
+    if (projectile.trapSpent) return false;
     switch (projectile.element ?? '') {
       case 'Air':
         projectile.abilityGrowthTimer = 1.0; // activation flash
@@ -6672,6 +6734,7 @@ class PlanetDungeonGame extends FlameGame {
           sourceSlot: projectile.sourceSlotIndex,
         );
         _spawnMaskCrystalShards(projectile, enemy.position);
+        projectile.trapSpent = true; // it shatters once, not once a frame
         projectile.abilityGrowthTimer = 1.0;
         projectile.life = min(projectile.life, 0.3);
         return true;
@@ -6682,6 +6745,7 @@ class PlanetDungeonGame extends FlameGame {
           sourceSlot: projectile.sourceSlotIndex,
         );
         _spawnMaskFirePool(projectile, projectile.position);
+        projectile.trapSpent = true; // it pools once, not once a frame
         projectile.abilityGrowthTimer = 1.0;
         projectile.life = min(projectile.life, 0.35);
         return true;
@@ -6720,6 +6784,7 @@ class PlanetDungeonGame extends FlameGame {
           visualStyle: ProjectileVisualStyle.sigil,
           sourceSlotIndex: parent.sourceSlotIndex,
           abilityFamily: 'mask',
+          trapSpent: true,
           hitEffect: AbilityEffectKind.splash,
           effectPower: parent.effectPower * 0.55,
           effectRadius: max(60.0, parent.effectRadius * 0.65),
@@ -6745,6 +6810,7 @@ class PlanetDungeonGame extends FlameGame {
         visualStyle: ProjectileVisualStyle.sigil,
         sourceSlotIndex: parent.sourceSlotIndex,
         abilityFamily: 'mask',
+        trapSpent: true,
         tickEffect: AbilityEffectKind.burn,
         effectPower: parent.effectPower,
         effectRadius: max(80.0, parent.effectRadius),

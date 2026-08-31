@@ -4103,6 +4103,16 @@ class Projectile {
   static const double maxLife = 2.0;
   static const double radius = 3.0;
 
+  /// This projectile will not lay a trap placement: either it IS one (a mask
+  /// fire pool, a crystal shard) or it is a trap that has already gone off.
+  ///
+  /// Contact is re-tested every frame and nothing records who has already
+  /// been hit, so without this a trap detonates on every frame an enemy
+  /// stands in it, and each pool it lays is itself a trap that does the same:
+  /// 8192 placements after one second of contact, in a frame that cost 720ms
+  /// of update and 2.2 seconds of raster.
+  bool trapSpent;
+
   /// Speed multiplier (1.0 = normal). Lava/Mud are slower, Lightning is faster.
   /// Non-final so per-frame updaters can decelerate (e.g. Pip ricochet
   /// speed bleed per bounce).
@@ -4386,6 +4396,7 @@ class Projectile {
     this.letCasterIntelligence = 4.0,
     this.chainLightningCharges = 0,
     this.abilityFamily = '',
+    this.trapSpent = false,
     this.hitEffect = AbilityEffectKind.none,
     this.killEffect = AbilityEffectKind.none,
     this.pierceEffect = AbilityEffectKind.none,
