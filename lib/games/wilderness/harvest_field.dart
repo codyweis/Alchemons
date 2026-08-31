@@ -54,16 +54,34 @@ class HarvestFieldEffect extends PositionComponent {
   bool _resolving = false;
   bool _finished = false;
 
+  /// Where the FIELD stands: the creature's absolute centre, mapped into
+  /// whatever space this component was parented into.
+  ///
+  /// Taking the target's `position` instead put the rings off the animal
+  /// whenever its anchor was not dead centre of its box — which is most
+  /// creatures, since a sprite stands with its feet near the bottom.
+  Vector2 _fieldCentre() {
+    final centre = target.absoluteCenter;
+    final p = parent;
+    if (p is PositionComponent) return p.absoluteToLocal(centre);
+    return centre;
+  }
+
   late final Vector2 _home = target.position.clone();
   late final Vector2 _homeScale = target.scale.clone();
   late final int _homePriority = target.priority;
 
   /// The cage radius, from whichever of the creature's dimensions is larger.
-  double get _cage => math.max(target.size.x, target.size.y) * 0.62;
+  double get _cage {
+    final s = target.absoluteScale;
+    final w = target.size.x * s.x.abs();
+    final h = target.size.y * s.y.abs();
+    return math.max(w, h) * 0.62;
+  }
 
   @override
   Future<void> onLoad() async {
-    position = _home.clone();
+    position = _fieldCentre();
     size = Vector2.all(_cage * 4);
     // Lift the specimen over the dim so the field spotlights the real thing.
     target.priority = 910;
@@ -184,12 +202,17 @@ class HarvestFieldEffect extends PositionComponent {
     final push = _push;
 
     // The pool of light it stands the specimen in — layered discs, no blur.
-    final lit = (_closing * 0.5 + push * 0.5) * (1 - collapse);
-    for (var i = 3; i >= 1; i--) {
+    // A real pool, warm and under the creature — at 0.05 it may as well not
+    // have been there, which is half of why the shot read as unlit.
+    final lit = (0.35 + 0.65 * _closing) * (1 - collapse);
+    for (var i = 4; i >= 1; i--) {
       canvas.drawCircle(
         c,
-        cage * (0.6 + i * 0.3),
-        Paint()..color = accent.withValues(alpha: 0.05 * lit / i),
+        cage * (0.5 + i * 0.32),
+        Paint()
+          ..color = Color.lerp(accent, _amber, 0.5)!.withValues(
+            alpha: (0.14 * lit) / i,
+          ),
       );
     }
 
@@ -332,7 +355,9 @@ class HarvestDim extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    final a = (_t / fadeIn).clamp(0.0, 1.0) * 0.62;
+    // 0.38, not 0.62. This lies over a scene that is already dark, and the
+    // point of it is to light the specimen, not to switch the lights off.
+    final a = (_t / fadeIn).clamp(0.0, 1.0) * 0.38;
     if (a <= 0.005) return;
     // Big enough to cover any camera position in a scene this size.
     canvas.drawRect(
