@@ -107,7 +107,15 @@ class _Phase {
   // Reveal starts with the burst so the cultivation grows continuously out of
   // the eruption — the specimens are never gone with nothing on screen.
   static const revealStart = 0.75, revealEnd = 1.00;
-  static const dissolveStart = 0.44, dissolveEnd = 0.75;
+
+  // THE MERGE. The two creatures used to fade out at 0.44 — a third of the way
+  // in — and everything after that was apparatus: streams, a core, a burst.
+  // You watched a machine work while the animals stood off to one side and
+  // vanished. They now hold their ground through the charge, are hauled into
+  // each other while the streams run, and only give up their shape at the very
+  // last moment, INSIDE the core, where the burst takes them.
+  static const hauledStart = 0.30, hauledEnd = 0.70;
+  static const dissolveStart = 0.66, dissolveEnd = 0.79;
 }
 
 class _AlchemyFusionCinematicPage<T> extends StatefulWidget {
@@ -293,9 +301,12 @@ class _AlchemyFusionCinematicPageState<T>
                             ),
                             radius: 1.2,
                             colors: [
-                              Colors.black.withValues(alpha: .45 * bg),
-                              Colors.black.withValues(alpha: .72 * bg),
-                              Colors.black.withValues(alpha: .9 * bg),
+                              // Lighter than it was (.45/.72/.90): the scrim
+                              // is here to isolate the pair, and it was
+                              // hiding them.
+                              Colors.black.withValues(alpha: .30 * bg),
+                              Colors.black.withValues(alpha: .58 * bg),
+                              Colors.black.withValues(alpha: .82 * bg),
                             ],
                             stops: const [0.25, 0.65, 1.0],
                           ),
@@ -426,23 +437,32 @@ class _SpecimenAt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final intake = _interval(t, _Phase.intakeStart, _Phase.intakeEnd);
+    final hauled = _interval(t, _Phase.hauledStart, _Phase.hauledEnd);
     final dissolve = _interval(t, _Phase.dissolveStart, _Phase.dissolveEnd);
 
-    // Drift a little toward the core as the specimen is drawn in.
-    final pos = Offset.lerp(from, core, 0.28 * Curves.easeIn.transform(dissolve))!;
+    // HAULED IN. All the way to the core, not a 28% drift toward it: the two
+    // creatures have to actually meet, and overlap, for the fusion to be
+    // something they do rather than something done off-screen.
+    final travel = Curves.easeInCubic.transform(hauled);
+    final pos = Offset.lerp(from, core, travel)!;
 
-    // The specimens are already in their chambers (the live sprites just
-    // faded out here), so they stay visible immediately, give a small settle
-    // pop, then shrink & fade as they dissolve into essence.
+    // They pop into their chambers, swell as they resist the pull, and only
+    // collapse once they are inside each other.
     final pop = Curves.easeOutBack.transform(intake);
-    final scale = (0.88 + 0.12 * pop) - 0.45 * Curves.easeIn.transform(dissolve);
+    final scale =
+        (0.90 + 0.14 * pop) + 0.16 * hauled -
+        0.86 * Curves.easeInCubic.transform(dissolve);
     final opacity = (1.0 - dissolve).clamp(0.0, 1.0);
 
-    // Agitation while charging.
+    // Agitation: a buzz while the charge builds, rising to a hard shudder as
+    // they are dragged together.
     final buzz = _interval(t, _Phase.chargeStart, _Phase.streamStart);
-    final jitter = math.sin(t * math.pi * 40) * buzz * 2.2;
+    final jitter =
+        math.sin(t * math.pi * 40) * (buzz * 2.2 + hauled * 3.6);
 
-    const box = 120.0;
+    // Bigger, because they are the subject. 120 in a full-screen stage is a
+    // thumbnail.
+    const box = 172.0;
     return Positioned(
       left: pos.dx - box / 2 + jitter,
       top: pos.dy - box / 2,
@@ -471,22 +491,33 @@ class _Glow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: (.45 * intensity).clamp(0.0, 1.0)),
-            blurRadius: 22,
-            spreadRadius: 2,
+    // A DISC behind the specimen, not a box shadow. A creature sprite is a
+    // transparent png, so a boxShadow glows its bounding RECTANGLE — which is
+    // most of why the pair read as flat panels rather than as animals. This
+    // also drops two gaussian passes per specimen per frame.
+    final a = intensity.clamp(0.0, 1.0);
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    color.withValues(alpha: .34 * a),
+                    color.withValues(alpha: .16 * a),
+                    color.withValues(alpha: 0),
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
+                ),
+              ),
+            ),
           ),
-          BoxShadow(
-            color: color.withValues(alpha: (.22 * intensity).clamp(0.0, 1.0)),
-            blurRadius: 64,
-            spreadRadius: 18,
-          ),
-        ],
-      ),
-      child: child,
+        ),
+        child,
+      ],
     );
   }
 }
