@@ -711,15 +711,15 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         }
         if (!mounted || !ctx.mounted) return;
 
-        // Capture the messenger + message, close the encounter (which
-        // clears the scene actors), then surface a lightweight
-        // notification — no blocking modal.
+        // Show it BEFORE closing. Closing the encounter tears down the
+        // scene page under this sheet, and a snackbar posted into a
+        // messenger that is on its way out never reaches the screen.
         final messenger = ScaffoldMessenger.maybeOf(ctx);
         final resultMessage = _status;
-        _hide(true);
         if (messenger != null) {
-          _showFusionResultNotification(messenger, resultMessage);
+          _showResultNotification(messenger, resultMessage);
         }
+        _hide(true);
       } else {
         setState(() => _status = 'Fusion destabilized. Try again.');
       }
@@ -818,11 +818,16 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       if (success) {
         HapticFeedback.heavyImpact();
-        setState(
-          () => _status = 'Extraction complete. Specimen sent to Cultivations.',
-        );
+        const done = 'Extraction complete. Specimen sent to Cultivations.';
+        setState(() => _status = done);
 
         if (!ctx.mounted) return;
+        // The panel is retracted on a success and the encounter closes right
+        // after, so the status line above is written onto something nobody
+        // can see. Say it where it will actually be read.
+        final messenger = ScaffoldMessenger.maybeOf(ctx);
+        if (messenger != null) _showResultNotification(messenger, done);
+
         await _placeWildEgg(ctx, wildCreature);
 
         await Future.delayed(const Duration(milliseconds: 800));
@@ -831,6 +836,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       } else {
         HapticFeedback.lightImpact();
         setState(() => _status = 'Harvester failed to secure the specimen.');
+        // The panel slides back for a failure, so the status line is visible
+        // again — but only after the slide, which is exactly when the player
+        // is still looking at the creature that got away.
       }
     } catch (e) {
       if (mounted) {
@@ -881,7 +889,12 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
   /// Lightweight, non-blocking result notification shown after a
   /// successful fusion (the encounter has already closed).
-  void _showFusionResultNotification(
+  /// The one piece of feedback that survives the panel getting out of the
+  /// way. Both the harvest and the fusion retract the sheet to clear the
+  /// stage, so a result written into [_status] is written onto something the
+  /// player cannot see — which is exactly what happened to "Extraction
+  /// complete" until this was wired to it too.
+  void _showResultNotification(
     ScaffoldMessengerState messenger,
     String message,
   ) {

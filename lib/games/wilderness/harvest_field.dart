@@ -414,8 +414,23 @@ class FusionFieldEffect extends PositionComponent {
   late final int _prioA = a.priority;
   late final int _prioB = b.priority;
 
-  /// Where they meet: halfway between them, in their shared parent's space.
-  late final Vector2 _core = (_homeA + _homeB) / 2;
+  /// THE MEETING POINT, IN ABSOLUTE SPACE.
+  ///
+  /// The two creatures do NOT share a parent — the wild one hangs off its
+  /// spawn point and the party one off an anchor of its own, on a layer with
+  /// its own parallax and scale. Averaging their local `position`s treated
+  /// two different coordinate systems as one, so they lurched somewhere near
+  /// their own origins instead of towards each other.
+  late final Vector2 _absMid = (a.absoluteCenter + b.absoluteCenter) / 2;
+
+  static Vector2 _localFor(Component c, Vector2 absolute) {
+    final p = c.parent;
+    return p is PositionComponent ? p.absoluteToLocal(absolute) : absolute;
+  }
+
+  /// Where each of them has to end up, expressed in its OWN parent's space.
+  late final Vector2 _metA = _localFor(a, _absMid);
+  late final Vector2 _metB = _localFor(b, _absMid);
 
   double get _travel =>
       Curves.easeInCubic.transform(_norm(_t, 0.10, seconds * 0.88));
@@ -423,8 +438,8 @@ class FusionFieldEffect extends PositionComponent {
 
   @override
   Future<void> onLoad() async {
-    position = _core.clone();
-    size = Vector2.all((_homeA - _homeB).length + 160);
+    position = _localFor(this, _absMid);
+    size = Vector2.all((a.absoluteCenter - b.absoluteCenter).length + 160);
     a.priority = 910;
     b.priority = 910;
   }
@@ -439,8 +454,8 @@ class FusionFieldEffect extends PositionComponent {
     final jitter = math.sin(_t * 26) * 3.0 * shudder;
     final grow = 1 + 0.20 * _travel - 0.92 * Curves.easeIn.transform(_consume);
 
-    a.position = (_homeA + (_core - _homeA) * _travel)..x += jitter;
-    b.position = (_homeB + (_core - _homeB) * _travel)..x -= jitter;
+    a.position = (_homeA + (_metA - _homeA) * _travel)..x += jitter;
+    b.position = (_homeB + (_metB - _homeB) * _travel)..x -= jitter;
     a.scale = Vector2(_scaleA.x.sign * grow.abs(), _scaleA.y * grow);
     b.scale = Vector2(_scaleB.x.sign * grow.abs(), _scaleB.y * grow);
 
@@ -479,7 +494,9 @@ class FusionFieldEffect extends PositionComponent {
   @override
   void render(Canvas canvas) {
     final c = (size / 2).toOffset();
-    final r = ((_homeA - _homeB).length / 2 + 40) * (1 - 0.7 * _travel);
+    final r =
+        ((a.absoluteCenter - b.absoluteCenter).length / 2 + 40) *
+        (1 - 0.7 * _travel);
     final mix = Color.lerp(accentA, accentB, 0.5)!;
 
     // The seam between them, brightening as they close.

@@ -196,6 +196,53 @@ void main() {
       expect(a.scale, Vector2.all(1));
     });
   });
+
+  test('a pair in different parents still meets in the middle', () async {
+    // The wild creature hangs off its spawn point and the party one off an
+    // anchor of its own, on a layer with its own offset — they do NOT share a
+    // coordinate system. Averaging their local positions sent them lurching
+    // near their own origins instead of towards each other.
+    final game = FlameGame();
+    // ignore: invalid_use_of_internal_member
+    game.onGameResize(Vector2(400, 800));
+    await game.ready();
+
+    final leftAnchor = PositionComponent(position: Vector2(60, 300));
+    final rightAnchor = PositionComponent(position: Vector2(340, 300));
+    await game.addAll([leftAnchor, rightAnchor]);
+    await game.ready();
+
+    // Both sit at the ORIGIN of their own anchor: identical local positions,
+    // 280 apart on screen.
+    final a = _Target()..position = Vector2.zero();
+    final b = _Target()..position = Vector2.zero();
+    await leftAnchor.add(a);
+    await rightAnchor.add(b);
+    await game.ready();
+    expect(a.position, b.position, reason: 'the trap this test exists for');
+
+    final fx = FusionFieldEffect(
+      a: a,
+      b: b,
+      accentA: const Color(0xFF6FBF73),
+      accentB: const Color(0xFF7AA7E8),
+      seconds: 0.5,
+    );
+    await rightAnchor.add(fx);
+    await game.ready();
+
+    final startGap = (a.absoluteCenter - b.absoluteCenter).length;
+    for (var i = 0; i < 25; i++) {
+      game.update(1 / 60);
+    }
+    final gap = (a.absoluteCenter - b.absoluteCenter).length;
+    expect(
+      gap,
+      lessThan(startGap * 0.7),
+      reason: 'they have to close in SCREEN space, not local space: '
+          '$startGap -> $gap',
+    );
+  });
 }
 
 void unawaited(Future<void> f) {}
