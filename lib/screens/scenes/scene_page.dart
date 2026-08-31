@@ -1381,6 +1381,11 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                           accent: accent,
                           task: task,
                         ),
+                    onFusionInScene: (party, wild) =>
+                        _game.playFusionOnEncounter(
+                          accentParty: party,
+                          accentWild: wild,
+                        ),
                     onPartyCreatureSelected: _onPartyCreatureSelected,
                     onClosedWithResult: (success) async {
                       final id = _usedSpawnPointId;

@@ -450,6 +450,47 @@ class SceneGame extends FlameGame with ScaleDetector {
     return ok;
   }
 
+  /// Haul the party creature and the wild one into each other, in the scene.
+  ///
+  /// Completes once the pair have merged and left the world, so the caller can
+  /// hand over to the burst-and-reveal with nothing left to duplicate. Returns
+  /// false if there was no pair to play on, in which case the caller should
+  /// fall back to drawing them itself.
+  Future<bool> playFusionOnEncounter({
+    required Color accentParty,
+    required Color accentWild,
+  }) async {
+    final id = _currentEncounterSpawnId;
+    final wild = id == null ? null : _wildBySpawnId[id];
+    final party = _partyCreature;
+    final world = _world;
+    if (wild == null ||
+        party == null ||
+        !wild.isMounted ||
+        !party.isMounted ||
+        world == null) {
+      return false;
+    }
+
+    final dim = HarvestDim(fadeIn: 0.4);
+    world.add(dim);
+    final fx = FusionFieldEffect(
+      a: party,
+      b: wild,
+      accentA: accentParty,
+      accentB: accentWild,
+    );
+    (wild.parent ?? world).add(fx);
+    await fx.finished;
+    dim.release();
+
+    _wildRenderVersionBySpawnId[id!] =
+        (_wildRenderVersionBySpawnId[id] ?? 0) + 1;
+    _wildBySpawnId.remove(id);
+    _partyCreature = null;
+    return true;
+  }
+
   void clearWildAt(String spawnId) {
     _wildRenderVersionBySpawnId[spawnId] =
         (_wildRenderVersionBySpawnId[spawnId] ?? 0) + 1;

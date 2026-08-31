@@ -372,3 +372,147 @@ double _norm(double t, double start, double end) {
   if (end <= start) return t >= end ? 1.0 : 0.0;
   return ((t - start) / (end - start)).clamp(0.0, 1.0);
 }
+
+
+/// THE FUSION, PLAYED ON THE TWO CREATURES STANDING IN THE SCENE.
+///
+/// Same problem as the harvest and the same answer: the encounter's breed used
+/// to push a route holding freshly built copies of the party creature and the
+/// wild one, so the pair you were looking at blinked out and two duplicates
+/// did the fusing on a black card. Here the live components are hauled into
+/// each other, overlap, and are consumed — and the route that follows draws
+/// the burst and the reveal with no specimens in it at all.
+class FusionFieldEffect extends PositionComponent {
+  FusionFieldEffect({
+    required this.a,
+    required this.b,
+    required this.accentA,
+    required this.accentB,
+    this.seconds = 1.35,
+  }) : super(anchor: Anchor.center, priority: 900);
+
+  final PositionComponent a;
+  final PositionComponent b;
+  final Color accentA;
+  final Color accentB;
+
+  /// How long the pair take to meet.
+  final double seconds;
+
+  final Completer<void> _done = Completer<void>();
+  Future<void> get finished => _done.future;
+
+  static const _amber = Color(0xFFE4C16A);
+
+  double _t = 0;
+  bool _over = false;
+
+  late final Vector2 _homeA = a.position.clone();
+  late final Vector2 _homeB = b.position.clone();
+  late final Vector2 _scaleA = a.scale.clone();
+  late final Vector2 _scaleB = b.scale.clone();
+  late final int _prioA = a.priority;
+  late final int _prioB = b.priority;
+
+  /// Where they meet: halfway between them, in their shared parent's space.
+  late final Vector2 _core = (_homeA + _homeB) / 2;
+
+  double get _travel =>
+      Curves.easeInCubic.transform(_norm(_t, 0.10, seconds * 0.88));
+  double get _consume => _norm(_t, seconds * 0.82, seconds);
+
+  @override
+  Future<void> onLoad() async {
+    position = _core.clone();
+    size = Vector2.all((_homeA - _homeB).length + 160);
+    a.priority = 910;
+    b.priority = 910;
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (_over) return;
+    _t += dt;
+
+    final shudder = _travel * (1 - _consume);
+    final jitter = math.sin(_t * 26) * 3.0 * shudder;
+    final grow = 1 + 0.20 * _travel - 0.92 * Curves.easeIn.transform(_consume);
+
+    a.position = (_homeA + (_core - _homeA) * _travel)..x += jitter;
+    b.position = (_homeB + (_core - _homeB) * _travel)..x -= jitter;
+    a.scale = Vector2(_scaleA.x.sign * grow.abs(), _scaleA.y * grow);
+    b.scale = Vector2(_scaleB.x.sign * grow.abs(), _scaleB.y * grow);
+
+    if (_t >= seconds) _finish();
+  }
+
+  void _finish() {
+    if (_over) return;
+    _over = true;
+    // Off the update pass — removing here mutates the set being iterated.
+    Future.microtask(() {
+      a.removeFromParent();
+      b.removeFromParent();
+      removeFromParent();
+      if (!_done.isCompleted) _done.complete();
+    });
+  }
+
+  @override
+  void onRemove() {
+    if (!_over) {
+      // Torn down mid-fusion: hand both creatures back intact.
+      a
+        ..position = _homeA.clone()
+        ..scale = _scaleA.clone()
+        ..priority = _prioA;
+      b
+        ..position = _homeB.clone()
+        ..scale = _scaleB.clone()
+        ..priority = _prioB;
+    }
+    if (!_done.isCompleted) _done.complete();
+    super.onRemove();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final c = (size / 2).toOffset();
+    final r = ((_homeA - _homeB).length / 2 + 40) * (1 - 0.7 * _travel);
+    final mix = Color.lerp(accentA, accentB, 0.5)!;
+
+    // The seam between them, brightening as they close.
+    for (var i = 4; i >= 1; i--) {
+      canvas.drawCircle(
+        c,
+        r * (0.35 + i * 0.22) * (1 - 0.5 * _consume),
+        Paint()
+          ..color = Color.lerp(mix, _amber, 0.4)!.withValues(
+            alpha: (0.10 * (0.25 + 0.75 * _travel)) / i,
+          ),
+      );
+    }
+
+    // A ring drawing tight around the pair.
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6 + 2.4 * _travel
+        ..color = _amber.withValues(alpha: 0.22 + 0.6 * _travel),
+    );
+
+    // The strands that pull them in.
+    final strand = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.4
+      ..color = _amber.withValues(alpha: 0.5 * _travel);
+    for (var i = 0; i < 10; i++) {
+      final ang = i * math.pi * 2 / 10 + _t * 1.6;
+      final u = Offset(math.cos(ang), math.sin(ang));
+      canvas.drawLine(c + u * (r * 1.35), c + u * (r * 0.9), strand);
+    }
+  }
+}

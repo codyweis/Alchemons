@@ -65,6 +65,11 @@ class EncounterOverlay extends StatefulWidget {
   /// that has no scene to play in.
   final Future<bool> Function(Color accent, Future<bool> Function() task)?
   onHarvestInScene;
+
+  /// Merges the party creature and the wild one where they stand, answering
+  /// true if it actually played. Null hosts fall back to the route drawing
+  /// the pair itself.
+  final Future<bool> Function(Color party, Color wild)? onFusionInScene;
   final Creature hydratedWildCreature;
   final bool highlightPartyHUD; // 🆕 Tutorial highlighting
   final bool isTutorial; // 🆕 Tutorial mode flag
@@ -88,6 +93,7 @@ class EncounterOverlay extends StatefulWidget {
     this.onPartyCreatureSelected,
     this.onPreRollShake,
     this.onHarvestInScene,
+    this.onFusionInScene,
     required this.hydratedWildCreature,
     this.highlightPartyHUD = false, // 🆕 Default to false
     this.isTutorial = false, // 🆕 Default to false
@@ -659,15 +665,28 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           return _buildWildSprite(speciesB);
         }
 
-        // 🆕 Show cinematic FIRST, then hide overlay
+        // THE PAIR MERGE IN THE SCENE, then the route plays the burst.
+        //
+        // Both creatures are live components standing in the encounter, so
+        // pushing a route with freshly built copies of them meant the two you
+        // were looking at blinked out and two duplicates did the fusing. The
+        // scene hauls the real ones into each other and consumes them; by the
+        // time the route opens there is nothing left to duplicate, so it is
+        // told not to draw any specimens at all.
+        final mergeInScene = widget.onFusionInScene;
+        final merged = mergeInScene == null
+            ? false
+            : await mergeInScene(colorA, colorB);
+
         if (!ctx.mounted) return;
         final didBreed = await showAlchemyFusionCinematic<bool>(
           context: ctx,
           leftSprite: partySprite(),
           rightSprite: wildSprite(),
+          drawSpecimens: !merged,
           leftColor: colorA,
           rightColor: colorB,
-          minDuration: const Duration(milliseconds: 4350),
+          minDuration: Duration(milliseconds: merged ? 2600 : 4350),
           task: () async {
             return _breedWithWild(ctx, instance, speciesB, breedingService);
           },
