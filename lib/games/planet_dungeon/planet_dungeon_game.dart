@@ -1770,6 +1770,22 @@ class PlanetDungeonGame extends FlameGame {
   /// does is context-driven (element-based interactions don't need a family).
   bool get canAct => active != null && _raidDeath == null;
 
+  /// Whether THIS room offers a clean-slate restart.
+  ///
+  /// Two planets author puzzles that can be spent into a dead end without the
+  /// run itself being lost — Steam's molten chambers and Fire's garth — and
+  /// both need a way back to the authored state that is not death.
+  bool get canRestartRoom => _canRestartVaporRoom || _canRestartGarth;
+
+  /// Re-lay the current room's puzzle. Earned stars are untouched.
+  void restartRoom() {
+    if (_canRestartVaporRoom) {
+      _restartVaporRoom();
+    } else if (_canRestartGarth) {
+      _restartGarth();
+    }
+  }
+
   /// Whether the action cluster is worth showing at all.
   ///
   /// A room with no furniture and no live enemy gives the button nothing to

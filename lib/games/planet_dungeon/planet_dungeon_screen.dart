@@ -853,8 +853,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                               : Icons.help_outline_rounded,
                         ),
                       ),
-                      // Restart this molten chamber from scratch (appears only
-                      // in the Steam puzzle rooms; reacts to room changes).
+                      // Re-lay this room's puzzle from scratch. Shows in
+                      // Steam's molten chambers and Fire's garth — the two
+                      // places a run can be spent into a dead end without
+                      // dying. Reacts to room changes.
                       ValueListenableBuilder<int>(
                         valueListenable: _tick,
                         builder: (_, __, ___) {
@@ -864,7 +866,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                           return Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: _pillButton(
-                              'RESTART ROOM',
+                              'RE-LAY ROOM',
                               _C.cyan,
                               () => game.restartRoom(),
                               icon: Icons.restart_alt_rounded,

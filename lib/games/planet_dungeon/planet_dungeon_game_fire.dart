@@ -1124,6 +1124,29 @@ extension CinderCathedral on PlanetDungeonGame {
     return built;
   }
 
+  /// Whether the current room is a garth that can be re-laid.
+  bool get _canRestartGarth => _isCathedral && currentRoom.garth != null;
+
+  /// Wipe the garth back to its authored soil and put the party at the door.
+  ///
+  /// THE BURN NEEDS THIS. Ash takes no vine and the pool now answers to a
+  /// SINGLE chain, so a fire that dies three cells short leaves ground that
+  /// can never carry the route again — without a re-lay that is a dead run in
+  /// a room you can still walk around in, which is the worst kind of stuck.
+  /// Earned stars are untouched.
+  void _restartGarth() {
+    if (!_canRestartGarth) return;
+    burnFields.remove(currentRoomId);
+    final spawn = _roomEntrySpawn(currentRoomId);
+    for (final c in creatures) {
+      c
+        ..position = spawn
+        ..lastSafe = spawn;
+    }
+    _setHint('The garth is turned over — bare soil again');
+    onChanged();
+  }
+
   (double, double) _garthCell(DungeonRoom room, BurnGarth g) =>
       (room.bounds.width / g.cols, room.bounds.height / g.rows);
 

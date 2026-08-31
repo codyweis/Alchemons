@@ -187,6 +187,50 @@ void main() {
       );
     });
 
+    test('the pool answers to ONE chain, not to a lifetime of relights', () {
+      // Playtest change: filling the pool across several fires made the garth
+      // a scratchpad. You must now lay the whole route before striking, which
+      // is what makes the burn a plan rather than a nibble.
+      final f = _field(['vv..', 'vv..'], goal: 3);
+      expect(f.light(0), isTrue);
+      expect(f.step(), BurnStep.advanced);
+      expect(f.burntThisFire, 2);
+      expect(f.poolFull, isFalse);
+      f.step();
+      f.step();
+      expect(f.alight, isFalse, reason: 'it ran out of fuel and died');
+
+      // A second fire on the other row: the LIFETIME total now reaches the
+      // goal, but no single chain has, so the pool must stay unfilled.
+      expect(f.light(4), isTrue);
+      expect(f.step(), BurnStep.advanced);
+      expect(f.burnt, greaterThanOrEqualTo(4), reason: 'lifetime total');
+      expect(f.burntThisFire, 2);
+      expect(
+        f.poolFull,
+        isFalse,
+        reason: 'four cells across two fires is not a chain of three',
+      );
+    });
+
+    test('a single chain of the goal length DOES fill it', () {
+      final f = _field(['vvvv'], goal: 3);
+      expect(f.light(0), isTrue);
+      expect(f.step(), BurnStep.advanced);
+      expect(f.step(), BurnStep.advanced);
+      expect(f.burntThisFire, 3);
+      expect(f.poolFull, isTrue);
+    });
+
+    test('ash takes no vine, so a dead chain spends the ground', () {
+      // The reason the garth needs a re-lay button at all: a fire that dies
+      // short leaves ground the route can never use again.
+      final f = _field(['v.'], goal: 2);
+      expect(f.light(0), isTrue);
+      expect(f.at(0), BurnCell.ash);
+      expect(f.plant(0), isFalse, reason: 'burnt ground is spent');
+    });
+
     test('the garth is a maze, not a lawn', () {
       final garth = kPlanetDungeonLayouts['Fire']!.rooms['cloister']!.garth!;
       final f = BurnField.parse(garth.art);

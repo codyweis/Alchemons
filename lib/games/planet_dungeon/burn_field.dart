@@ -164,6 +164,10 @@ class BurnField {
     }
   }
 
+  /// How much THIS fire has eaten. The pool answers to a single chain, not to
+  /// a lifetime total, so this resets on every ignition.
+  int burntThisFire = 0;
+
   /// LIGHT. Only standing vine on dry ground takes a flame, and only when
   /// nothing else is already burning — one fire at a time is what makes the
   /// route a route.
@@ -172,6 +176,7 @@ class BurnField {
     if (_cells[i] != BurnCell.vine) return false;
     _cells[i] = BurnCell.ash;
     burnt++;
+    burntThisFire = 1;
     head = i;
     smoulder = 0;
     return true;
@@ -181,11 +186,18 @@ class BurnField {
   bool get alight => head != null;
 
   /// Has the pool filled?
-  bool get poolFull => burnt >= coverageGoal && coverageGoal > 0;
+  ///
+  /// ONE CHAIN. This counted the run's lifetime total, so the pool could be
+  /// filled by relighting over and over — which made the garth a scratchpad
+  /// rather than a route, and meant the player never had to commit to a plan
+  /// before striking. A fire that dies short is now a failed attempt, and the
+  /// spent ground it left behind is the cost of it.
+  bool get poolFull => burntThisFire >= coverageGoal && coverageGoal > 0;
 
-  /// Fraction of the pool, for the render.
-  double get poolFraction =>
-      coverageGoal <= 0 ? 0 : (burnt / coverageGoal).clamp(0.0, 1.0);
+  /// Fraction of the pool, for the render — of the CURRENT fire.
+  double get poolFraction => coverageGoal <= 0
+      ? 0
+      : (burntThisFire / coverageGoal).clamp(0.0, 1.0);
 
   /// ONE BEAT of the flame.
   BurnStep step() {
@@ -195,6 +207,7 @@ class BurnField {
     if (next != null && _cells[next] == BurnCell.vine) {
       _cells[next] = BurnCell.ash;
       burnt++;
+      burntThisFire++;
       head = next;
       smoulder = 0;
       return BurnStep.advanced;
@@ -238,7 +251,7 @@ class BurnField {
     if (coverageGoal <= 0) return true;
     final h = head;
     if (h == null) return false;
-    return burnt + reachableCoverage(h) - 1 >= coverageGoal;
+    return burntThisFire + reachableCoverage(h) - 1 >= coverageGoal;
   }
 
   /// Can a perfect player still burn a chain of [target] cells starting at

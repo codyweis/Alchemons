@@ -394,7 +394,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   }
 
   /// Whether the current room is a molten puzzle that can be restarted.
-  bool get canRestartRoom =>
+  /// Dispatched from the core `canRestartRoom` (Fire's garth has one too).
+  bool get _canRestartVaporRoom =>
       _isVapor &&
       ((layout.rooms[currentRoomId]?.molten) != null ||
           (layout.rooms[currentRoomId]?.geysers.isNotEmpty ?? false));
@@ -402,8 +403,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// Wipe the current molten room back to its authored state and return the
   /// party to the chamber entrance — the puzzle's clean-slate button. Earned
   /// stars are untouched (a cleared room has nothing to reset).
-  void restartRoom() {
-    if (!canRestartRoom) return;
+  void _restartVaporRoom() {
+    if (!_canRestartVaporRoom) return;
     moltenCells.remove(currentRoomId);
     freshLava.remove(currentRoomId);
     wokeRooms.remove(currentRoomId); // the flood goes back to sleep
