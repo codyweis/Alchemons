@@ -674,6 +674,14 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         // time the route opens there is nothing left to duplicate, so it is
         // told not to draw any specimens at all.
         final mergeInScene = widget.onFusionInScene;
+        // Same stage-clearing as the extraction: the pair meet in the scene,
+        // and this panel is sitting on top of half of it.
+        if (mergeInScene != null) {
+          _slideController.reverse();
+          _fadeController.reverse();
+          await Future<void>.delayed(const Duration(milliseconds: 260));
+          if (!mounted) return;
+        }
         final merged = mergeInScene == null
             ? false
             : await mergeInScene(colorA, colorB);
@@ -692,7 +700,15 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           },
         );
 
-        if (didBreed != true) return;
+        if (didBreed != true) {
+          // The fusion failed: the panel comes back so the player can try
+          // something else, rather than being left staring at the scene.
+          if (mergeInScene != null && mounted) {
+            _slideController.forward();
+            _fadeController.forward();
+          }
+          return;
+        }
         if (!mounted || !ctx.mounted) return;
 
         // Capture the messenger + message, close the encounter (which
@@ -734,13 +750,30 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       final targetColor = colorOf(wildCreature, Colors.green);
 
-      // Trigger screen shake before the field engages
-      widget.onPreRollShake?.call();
-
       if (!ctx.mounted) return;
       setState(
         () => _status = '${selectedDevice.label} engaged — the field holds.',
       );
+
+      // CLEAR THE STAGE.
+      //
+      // The extraction plays on the creature standing in the scene, and this
+      // panel covers the bottom half of it — so the shot used to be half
+      // hidden behind the thing that started it. The sheet retracts first,
+      // the camera leans in behind it, and only then does the field engage;
+      // three cuts became one move. It comes back if the specimen breaks out.
+      final retracted = widget.onHarvestInScene != null;
+      if (retracted) {
+        _slideController.reverse();
+        _fadeController.reverse();
+        // Long enough to read as the panel getting out of the way, short
+        // enough that it never feels like waiting.
+        await Future<void>.delayed(const Duration(milliseconds: 260));
+        if (!mounted) return;
+      }
+
+      // The shake lands as the field arrives, not before the stage is clear.
+      widget.onPreRollShake?.call();
 
       Future<bool> roll() async {
         final catchService = ctx.read<CatchService>();
@@ -775,6 +808,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       }
 
       if (!mounted) return;
+
+      // Bring the panel back for the aftermath — unless the run is over, in
+      // which case the encounter closes and it would only flash.
+      if (retracted && !success) {
+        _slideController.forward();
+        _fadeController.forward();
+      }
 
       if (success) {
         HapticFeedback.heavyImpact();

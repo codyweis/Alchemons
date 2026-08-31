@@ -410,6 +410,22 @@ class SceneGame extends FlameGame with ScaleDetector {
     _wildBySpawnId[spawnId] = comp;
   }
 
+  /// Push the camera in on whatever the encounter is looking at, and remember
+  /// where it was so it can be handed back.
+  double? _zoomBeforeHarvest;
+
+  void pushInForHarvest() {
+    _zoomBeforeHarvest ??= _targetZoom;
+    _targetZoom = (_targetZoom * 1.26).clamp(minZoom, maxZoom);
+  }
+
+  void releaseHarvestPush() {
+    final z = _zoomBeforeHarvest;
+    if (z == null) return;
+    _zoomBeforeHarvest = null;
+    _targetZoom = z;
+  }
+
   /// Play the harvest ON the creature that is standing in the scene.
   ///
   /// Nothing is pushed and nothing is duplicated: the field closes around the
@@ -430,6 +446,10 @@ class SceneGame extends FlameGame with ScaleDetector {
       return task();
     }
 
+    // The camera leans in while the sheet is getting out of the way, so the
+    // two reads as one move rather than a cut to a different shot.
+    pushInForHarvest();
+
     final dim = HarvestDim(fadeIn: 0.45);
     world.add(dim);
     final field = HarvestFieldEffect(
@@ -442,6 +462,7 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     final ok = await field.result;
     dim.release();
+    releaseHarvestPush();
     if (ok && id != null) {
       _wildRenderVersionBySpawnId[id] =
           (_wildRenderVersionBySpawnId[id] ?? 0) + 1;
@@ -472,6 +493,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       return false;
     }
 
+    pushInForHarvest();
     final dim = HarvestDim(fadeIn: 0.4);
     world.add(dim);
     final fx = FusionFieldEffect(
@@ -483,6 +505,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     (wild.parent ?? world).add(fx);
     await fx.finished;
     dim.release();
+    releaseHarvestPush();
 
     _wildRenderVersionBySpawnId[id!] =
         (_wildRenderVersionBySpawnId[id] ?? 0) + 1;
