@@ -2665,6 +2665,7 @@ extension CinderCathedral on PlanetDungeonGame {
         _drawEmberEpitaph(canvas);
         break;
       case 'choir':
+        _drawBlindArcade(canvas, room);
         _drawChoirStalls(canvas, room);
         _drawChoirFloorMural(canvas, room);
         _drawRiteAshDrift(canvas, room); // the drift lies under everything
@@ -3514,17 +3515,38 @@ extension CinderCathedral on PlanetDungeonGame {
     }
   }
 
+  /// Two facing banks of choir stalls flanking the processional line.
+  ///
+  /// They were six bare horizontal lines, which read as scratches in the
+  /// floor rather than as furniture. A stall is a back rail, a seat, and the
+  /// dividers between the seats — three strokes each, and it becomes a room
+  /// with pews in it.
   void _drawChoirStalls(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
-    final stall = Paint()
+    final rail = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
-      ..color = const Color(0xFF3E2E22).withValues(alpha: 0.55);
-    // Two facing banks of stalls flanking the processional line.
-    for (var i = 0; i < 3; i++) {
-      final y = b.center.dy - 90 + i * 90.0;
-      canvas.drawLine(Offset(b.left + 90, y), Offset(b.left + 240, y), stall);
-      canvas.drawLine(Offset(b.right - 240, y), Offset(b.right - 90, y), stall);
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF443325).withValues(alpha: 0.8);
+    final seat = Paint()..color = const Color(0xFF241A13).withValues(alpha: 0.75);
+    final divide = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = const Color(0xFF5A4633).withValues(alpha: 0.55);
+
+    for (final left in [true, false]) {
+      final x0 = left ? b.left + 90 : b.right - 240;
+      final x1 = left ? b.left + 240 : b.right - 90;
+      for (var i = 0; i < 3; i++) {
+        final y = b.center.dy - 90 + i * 90.0;
+        // The seat block, then the back rail standing behind it.
+        canvas.drawRect(Rect.fromLTRB(x0, y, x1, y + 13), seat);
+        canvas.drawLine(Offset(x0, y), Offset(x1, y), rail);
+        for (var k = 0; k <= 3; k++) {
+          final x = x0 + (x1 - x0) * k / 3;
+          canvas.drawLine(Offset(x, y), Offset(x, y + 13), divide);
+        }
+      }
     }
   }
 
@@ -3537,29 +3559,66 @@ extension CinderCathedral on PlanetDungeonGame {
     final star = room.brazierStarIndex;
     if (star == null || room.braziers.length < 2) return;
     final c = room.bounds.center + const Offset(0, 8);
+    // The flagstone roundel the walk is cut into. Four evenly spaced hairline
+    // circles read as a sonar ping; a worn stone disc with a heavy kerb reads
+    // as something generations have paced.
+    canvas.drawCircle(
+      c,
+      112,
+      Paint()..color = const Color(0xFF17100B).withValues(alpha: 0.55),
+    );
+    canvas.drawCircle(
+      c,
+      112,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = const Color(0xFF4A382C).withValues(alpha: 0.75),
+    );
     final ring = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.3
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFC4A35A).withValues(alpha: 0.11);
-    // Four broken circuits, each opening at a different gate.
-    for (var i = 0; i < 4; i++) {
+      ..color = const Color(0xFFC4A35A).withValues(alpha: 0.16);
+    // Four broken circuits at uneven radii, each opening at a different gate,
+    // and joined at the gates the way a real labyrinth turns back on itself.
+    const radii = [30.0, 52.0, 70.0, 94.0];
+    for (var i = 0; i < radii.length; i++) {
+      ring.strokeWidth = i.isEven ? 2.2 : 1.4;
+      final from = i * 1.35 + 0.4;
       canvas.drawArc(
-        Rect.fromCircle(center: c, radius: 34.0 + i * 22.0),
-        i * 1.35 + 0.4,
+        Rect.fromCircle(center: c, radius: radii[i]),
+        from,
         pi * 1.72,
         false,
         ring,
       );
+      // The turn: a short spur linking this circuit to the next one out.
+      if (i + 1 < radii.length) {
+        final u = Offset(cos(from), sin(from));
+        canvas.drawLine(c + u * radii[i], c + u * radii[i + 1], ring);
+      }
     }
+    // The heart of the walk — scuffed pale where feet have stopped.
     canvas.drawCircle(
       c,
-      104,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFF4A382C).withValues(alpha: 0.35),
+      11,
+      Paint()..color = const Color(0xFF6E5A3E).withValues(alpha: 0.30),
     );
+
+    // A worn processional line out to each brazier, so the six read as one
+    // arrangement rather than as iron scattered about a big floor. Identical
+    // for every brazier — the composition must not hint at the order.
+    final spoke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = const Color(0xFF4A382C).withValues(alpha: 0.42);
+    for (final brz in room.braziers) {
+      final d = brz.position - c;
+      final len = d.distance;
+      if (len < 130) continue;
+      final u = d / len;
+      canvas.drawLine(c + u * 114, brz.position + u * -34, spoke);
+    }
     if (hasStar(star)) return;
     // The pacing ember: one slow turn inward, endlessly.
     final u = (_time % 17.0) / 17.0;
@@ -3590,13 +3649,17 @@ extension CinderCathedral on PlanetDungeonGame {
     final mark = _testimonyMark;
     final streak = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.6
+      ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF7A6249).withValues(alpha: 0.22 + 0.14 * mark);
+      ..color = const Color(0xFF7A6249).withValues(alpha: 0.17 + 0.13 * mark);
     final tail = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
+      ..strokeWidth = 1.0
       ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF9A8168).withValues(alpha: 0.10 + 0.09 * mark);
+    // A grain or two at the head of each streak, so the marks read as ash
+    // that blew and settled rather than as scratches in the floor.
+    final grain = Paint()
       ..color = const Color(0xFF9A8168).withValues(alpha: 0.13 + 0.10 * mark);
     for (var i = 0; i < 12; i++) {
       // Scattered, but a fixed lattice — never re-randomised per frame.
@@ -3607,6 +3670,8 @@ extension CinderCathedral on PlanetDungeonGame {
       final jog = n * (i.isEven ? 6.0 : -6.0);
       canvas.drawLine(p - d * 14 + jog, p + d * 14 + jog, streak);
       canvas.drawLine(p + d * 14 + jog, p + d * 28 + jog, tail);
+      canvas.drawCircle(p + d * 30 + jog + n * 3, 1.3, grain);
+      canvas.drawCircle(p + d * 22 + jog - n * 4, 1.0, grain);
     }
   }
 
@@ -3625,12 +3690,17 @@ extension CinderCathedral on PlanetDungeonGame {
       final brz = room.braziers[i];
       final rank = star == null ? brz.order : riteRankOf(i);
       final lit = done || rank < ritualProgress;
+      final wax = !done && star != null;
+      // The tallow COLUMN goes behind the iron and the MELT LINE in front.
+      // Drawn wholly in front, a full collar hid the bowl completely and the
+      // brazier read as a pale lampshade rather than as iron wearing wax —
+      // but the melt line is the edge the eye measures, so that has to stay
+      // on top whatever tier it has climbed to.
+      if (wax) _drawBrazierWax(canvas, room, i, body: true);
       // Animation phase rides the brazier's PLACE, never its rank — a flicker
       // that beat in rite order would leak the answer through the idle loop.
       _drawBrazier(canvas, brz.position, lit: lit, phase: i * 1.3);
-      // The WAX rides on the iron itself — drawn over the basin so the melt
-      // line reads against the bowl, and eaten by the brazier's own fire.
-      if (!done && star != null) _drawBrazierWax(canvas, room, i);
+      if (wax) _drawBrazierWax(canvas, room, i, body: false);
     }
   }
 
@@ -3692,19 +3762,24 @@ extension CinderCathedral on PlanetDungeonGame {
         Rect.fromCenter(center: const Offset(19, 0), width: 74, height: 26),
         soot,
       );
-      final streak = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(
-          0xFF241A13,
-        ).withValues(alpha: (0.50 + 0.20 * mark) * alive);
+      // The fan, drawn as smudges that thin as they go rather than three
+      // hard black spikes — soot settles, it does not stab.
       for (final fan in const [-0.30, 0.0, 0.30]) {
-        canvas.drawLine(
-          Offset(cos(fan), sin(fan)) * 24,
-          Offset(cos(fan), sin(fan)) * 54,
-          streak,
-        );
+        final u = Offset(cos(fan), sin(fan));
+        for (var seg = 0; seg < 3; seg++) {
+          final t0 = 24.0 + seg * 10.0;
+          canvas.drawLine(
+            u * t0,
+            u * (t0 + 10),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3.0 - seg * 0.7
+              ..strokeCap = StrokeCap.round
+              ..color = const Color(0xFF2A1F17).withValues(
+                alpha: (0.44 + 0.18 * mark) * alive * (1 - seg * 0.28),
+              ),
+          );
+        }
       }
       canvas.restore();
     }
@@ -3746,7 +3821,12 @@ extension CinderCathedral on PlanetDungeonGame {
   /// the wax narrows the rite to eight candidates and never hands it over —
   /// and two braziers of one tier are drawn IDENTICALLY, or the tier would
   /// leak the rank.
-  void _drawBrazierWax(Canvas canvas, DungeonRoom room, int i) {
+  void _drawBrazierWax(
+    Canvas canvas,
+    DungeonRoom room,
+    int i, {
+    required bool body,
+  }) {
     final alive = _testimonyAlive(i);
     if (alive <= 0.01) return;
     final t = testimonyFor(i);
@@ -3754,41 +3834,52 @@ extension CinderCathedral on PlanetDungeonGame {
     final p = room.braziers[i].position;
     final h = 6.0 + 26.0 * t.waxFill; // 10 · 20 · 32 px of set tallow
     final mark = _testimonyMark;
-    final tallow = Paint()
-      ..color = const Color(
-        0xFFD9C7A2,
-      ).withValues(alpha: (0.62 + 0.16 * mark) * alive);
-    // The collar of wax banked round the bowl's foot…
-    final body = Path()
-      ..moveTo(p.dx - 15, p.dy + 22)
-      ..lineTo(p.dx - 11, p.dy + 22 - h)
-      ..quadraticBezierTo(p.dx, p.dy + 16 - h, p.dx + 11, p.dy + 22 - h)
-      ..lineTo(p.dx + 15, p.dy + 22)
-      ..close();
-    canvas.drawPath(body, tallow);
-    // …its melt line, the one edge the eye actually measures…
+
+    if (body) {
+      // The column of wax banked round the bowl's foot. Narrower than it was
+      // (and tallow rather than bone-white), so the iron shows either side of
+      // it — the HEIGHT is the evidence, not the bulk.
+      final tallow = Paint()
+        ..color = const Color(
+          0xFFC6B189,
+        ).withValues(alpha: (0.66 + 0.16 * mark) * alive);
+      canvas.drawPath(
+        Path()
+          ..moveTo(p.dx - 11, p.dy + 24)
+          ..lineTo(p.dx - 8, p.dy + 22 - h)
+          ..quadraticBezierTo(p.dx, p.dy + 17 - h, p.dx + 8, p.dy + 22 - h)
+          ..lineTo(p.dx + 11, p.dy + 24)
+          ..close(),
+        tallow,
+      );
+      // The drips that got that far down before they set.
+      final drip = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFB8A37C).withValues(alpha: 0.5 * alive);
+      for (final dx in const [-6.0, 0.0, 6.0]) {
+        canvas.drawLine(
+          Offset(p.dx + dx, p.dy + 21 - h * 0.72),
+          Offset(p.dx + dx, p.dy + 22),
+          drip,
+        );
+      }
+      return;
+    }
+
+    // THE MELT LINE — the one edge the eye actually measures, so it is drawn
+    // over the iron and left the brightest thing on the brazier.
     canvas.drawLine(
-      Offset(p.dx - 12, p.dy + 21 - h),
-      Offset(p.dx + 12, p.dy + 21 - h),
+      Offset(p.dx - 9, p.dy + 21 - h),
+      Offset(p.dx + 9, p.dy + 21 - h),
       Paint()
-        ..strokeWidth = 1.6
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round
         ..color = const Color(
           0xFFF2E6C8,
-        ).withValues(alpha: (0.55 + 0.25 * mark) * alive),
+        ).withValues(alpha: (0.62 + 0.25 * mark) * alive),
     );
-    // …and the drips that got that far down before they set.
-    final drip = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFC9B48D).withValues(alpha: 0.5 * alive);
-    for (final dx in const [-8.0, 0.0, 8.0]) {
-      canvas.drawLine(
-        Offset(p.dx + dx, p.dy + 21 - h * 0.72),
-        Offset(p.dx + dx, p.dy + 21),
-        drip,
-      );
-    }
   }
 
   /// Insight t2's ONE annotated link: a dotted arc drawn from the fire at the
@@ -3830,6 +3921,13 @@ extension CinderCathedral on PlanetDungeonGame {
     canvas.drawLine(tip, tip - u * 11 - n * 7, ink);
   }
 
+  /// A standing ritual brazier: plinth, tripod, iron basin, fire.
+  ///
+  /// The basin used to be a 16px half-disc sitting at [p], which the tallow
+  /// column banked up its side covered outright — a tier-3 brazier read as a
+  /// pale mushroom rather than as iron wearing wax. The cup is taller now and
+  /// its RIM stands above everything the wax can reach, so the evidence and
+  /// the object can both be seen at once.
   void _drawBrazier(
     Canvas canvas,
     Offset p, {
@@ -3842,45 +3940,86 @@ extension CinderCathedral on PlanetDungeonGame {
         canvas,
         _fx.glow!,
         p,
-        46,
+        50,
         const Color(0xFFFF8A50).withValues(alpha: 0.18),
       );
     }
-    // Tripod legs.
+    // The stone plinth it stands on.
+    canvas.drawOval(
+      Rect.fromCenter(center: p + const Offset(0, 27), width: 40, height: 13),
+      Paint()..color = const Color(0xFF241B14),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: p + const Offset(0, 26), width: 34, height: 11),
+      Paint()..color = const Color(0xFF3A2C20),
+    );
+    // Tripod legs, splaying from the cup's foot onto the plinth.
     final leg = Paint()
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round
       ..color = const Color(0xFF2E211A);
-    canvas.drawLine(p + const Offset(-10, 8), p + const Offset(-16, 22), leg);
-    canvas.drawLine(p + const Offset(10, 8), p + const Offset(16, 22), leg);
-    canvas.drawLine(p + const Offset(0, 10), p + const Offset(0, 24), leg);
-    // Iron basin.
-    canvas.drawArc(
-      Rect.fromCircle(center: p, radius: 16),
-      0,
-      pi,
-      false,
+    canvas.drawLine(p + const Offset(-8, 14), p + const Offset(-15, 25), leg);
+    canvas.drawLine(p + const Offset(8, 14), p + const Offset(15, 25), leg);
+    canvas.drawLine(p + const Offset(0, 14), p + const Offset(0, 26), leg);
+
+    // The basin: a cup tapering from a wide rim down to its foot.
+    const rimY = -13.0;
+    canvas.drawPath(
+      Path()
+        ..moveTo(p.dx - 21, p.dy + rimY)
+        ..lineTo(p.dx + 21, p.dy + rimY)
+        ..lineTo(p.dx + 11, p.dy + 15)
+        ..lineTo(p.dx - 11, p.dy + 15)
+        ..close(),
       Paint()..color = const Color(0xFF241812),
     );
-    canvas.drawArc(
-      Rect.fromCircle(center: p, radius: 16),
-      0,
-      pi,
-      false,
+    // A cold highlight down the near side, so the iron is not a flat cutout.
+    canvas.drawLine(
+      p + const Offset(-19, rimY + 3),
+      p + const Offset(-10, 13),
+      Paint()
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFF4A382C).withValues(alpha: 0.7),
+    );
+    // The rim — the one part the wax can never climb over.
+    final rim = Rect.fromCenter(
+      center: p + const Offset(0, rimY),
+      width: 42,
+      height: 13,
+    );
+    canvas.drawOval(
+      rim,
+      Paint()
+        ..color = (lit ? const Color(0xFF2A1206) : const Color(0xFF1A1009)),
+    );
+    canvas.drawOval(
+      rim,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.4
         ..color = (lit ? const Color(0xFFC4A35A) : const Color(0xFF4A382C))
-            .withValues(alpha: 0.85),
+            .withValues(alpha: 0.9),
     );
+
     if (lit) {
-      _drawFlame(canvas, p + const Offset(0, 2), 30, phase: phase);
+      // Coals in the bowl, then the flame standing out of it.
+      for (final dx in const [-9.0, 0.0, 9.0]) {
+        canvas.drawCircle(
+          p + Offset(dx, rimY + 1),
+          3.2,
+          Paint()
+            ..color = const Color(0xFFFF7A2A).withValues(
+              alpha: 0.55 + 0.3 * (0.5 + 0.5 * sin(_time * 3.1 + dx + phase)),
+            ),
+        );
+      }
+      _drawFlame(canvas, p + const Offset(0, rimY - 2), 32, phase: phase);
     } else if (_fx.ready) {
       // A dormant rim-ember so cold braziers still read as interactable.
       drawGlow(
         canvas,
         _fx.mote!,
-        p + const Offset(5, -2),
+        p + const Offset(6, rimY),
         4,
         const Color(0xFFFF8A50).withValues(
           alpha: 0.16 + 0.12 * (0.5 + 0.5 * sin(_time * 2.0 + phase)),

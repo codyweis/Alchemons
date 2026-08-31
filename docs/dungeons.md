@@ -548,6 +548,22 @@ leaves a lit avenue behind you. Reach (130) is measured ACROSS the nave only
 and lights both stands of a bay at once: a radius around each stand meant
 detouring to the wall and back twice per bay, which is not walking a nave.
 
+**THE CHOIR** (2026-08-31 playtest). Same pass, same rule — the three
+evidence channels say exactly what they said before, they are just drawn as
+objects instead of as marks. The braziers were 16px half-discs that the
+tallow column covered outright, so a tier-3 brazier read as a pale mushroom;
+the basin is a tapered iron cup on a plinth now, and its RIM stands above
+anything the wax can climb. The wax column is narrower and tallow-coloured,
+drawn BEHIND the iron, with the melt line — the one edge the eye measures —
+still on top and still the brightest thing on the object. Soot fans are
+tapering smudges rather than three hard black spikes; drift streaks carry a
+grain or two so they read as blown ash, not as scratches in the floor. Around
+them: blind arcading (as the nave), stalls with backs and dividers instead of
+six bare lines, and the ember-walk redrawn as a worn roundel with uneven
+circuits and turn-spurs, with one processional line out to each brazier so
+the six read as one arrangement. The spokes are identical for all six — the
+composition must never hint at the order.
+
 **THE BARRIERS.** The garth is not an open board — two kinds of obstacle give
 it its shape, and both say what they do by looking like what they are:
   · **Fallen stone** (cloister rubble, toppled columns): vine will not take
