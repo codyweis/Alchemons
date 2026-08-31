@@ -503,16 +503,13 @@ class _BreedingTabState extends State<BreedingTab>
         final shudder = travel * (1 - _spriteFadeAnim.value);
         final jitter = math.sin(travel * math.pi * 22) * 3.0 * shudder;
 
-        final scale =
-            (isEmpty ? 1.0 : 1.0 + (controller.value * 0.03)) +
-            0.18 * travel;
+        // The CARD only breathes; the merge belongs to the sprite alone.
+        final scale = isEmpty ? 1.0 : 1.0 + (controller.value * 0.03);
 
         // Fades only at the very end, once the two are inside each other.
         final spriteOpacity = 1.0 - _spriteFadeAnim.value;
 
-        return Transform.translate(
-          offset: Offset(merge.dx * travel + jitter, merge.dy * travel),
-          child: Transform.scale(
+        return Transform.scale(
           scale: scale,
           child: GestureDetector(
             onTap: () => _showBreedingPicker(targetSlot: slotIndex),
@@ -533,24 +530,43 @@ class _BreedingTabState extends State<BreedingTab>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // SPRITE ZONE
+                      //
+                      // The merge moves THIS and nothing else. Wrapping the
+                      // whole slot in the travel dragged the card with it —
+                      // name, element chip and all — so two labelled panels
+                      // slid into the core instead of two creatures.
                       Center(
                         key: avatarKey,
                         child: isEmpty
                             ? _buildEmptyAvatar(theme)
-                            : Opacity(
-                                opacity: spriteOpacity.clamp(0, 1),
-                                child: _buildCreatureAvatar(
-                                  base,
-                                  inst!,
-                                  genetics,
+                            : Transform.translate(
+                                offset: Offset(
+                                  merge.dx * travel + jitter,
+                                  merge.dy * travel,
+                                ),
+                                child: Transform.scale(
+                                  scale: 1.0 + 0.20 * travel,
+                                  child: Opacity(
+                                    opacity: spriteOpacity.clamp(0, 1),
+                                    child: _buildCreatureAvatar(
+                                      base,
+                                      inst!,
+                                      genetics,
+                                    ),
+                                  ),
                                 ),
                               ),
                       ),
 
                       const SizedBox(height: 18),
 
-                      // NAME + TYPE
+                      // NAME + TYPE — they belong to the chamber, not to the
+                      // specimen, so they stay put and dim as it is drawn out.
                       if (!isEmpty) ...[
+                        Opacity(
+                          opacity: (1.0 - travel).clamp(0.0, 1.0),
+                          child: Column(
+                            children: [
                         Text(
                           base.name.toUpperCase(),
                           style: TextStyle(
@@ -565,6 +581,9 @@ class _BreedingTabState extends State<BreedingTab>
                         ),
                         const SizedBox(height: 6),
                         _buildTypeChip(base.types.first, typeColor),
+                            ],
+                          ),
+                        ),
                       ] else ...[
                         Text(
                           'Tap to select',
@@ -630,7 +649,6 @@ class _BreedingTabState extends State<BreedingTab>
                 ],
               ),
             ),
-          ),
           ),
         );
       },
