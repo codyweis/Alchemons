@@ -2654,6 +2654,57 @@ class PlanetDungeonGame extends FlameGame {
     _statHintCooldown = 3.5;
   }
 
+  /// THE ONE-TIME TEACH.
+  ///
+  /// A room that introduces a verb says so the first time you stand in it,
+  /// once ever, and never again. This is NOT the objective chatter coming
+  /// back: that spoke on every entry and was removed for training players to
+  /// ignore the capsule. A teach fires once per save, for the thing a player
+  /// genuinely cannot deduce by looking at the room.
+  ///
+  /// Persisted through the discovery set (like "the seal remembers"), so it
+  /// survives death and re-entry the way knowledge should.
+  /// The dungeon is now live and visible: teach the planet's rule, then the
+  /// entrance room's verb if it has one.
+  void beginRun() {
+    _teachPrimer();
+    _teachRoom(currentRoom);
+  }
+
+  void _teachRoom(DungeonRoom room) {
+    final line = room.teach;
+    if (line == null) return;
+    final id = 'teach:${room.id}';
+    if (discoveredClouds.contains(id)) return;
+    _discoverCloud(id);
+    _inHintChannel(DungeonHintChannel.insight, () => _forceHint(line, 6.0));
+  }
+
+  /// The planet's world rule, once ever, on the first descent. Called when
+  /// the dungeon goes live (see [beginRun]).
+  void _teachPrimer() {
+    if (layout.primer.isEmpty) return;
+    const id = 'teach:primer';
+    if (discoveredClouds.contains(id)) return;
+    _discoverCloud(id);
+    _inHintChannel(
+      DungeonHintChannel.insight,
+      () => _forceHint(layout.primer.join(' '), 8.0),
+    );
+  }
+
+  /// Speak even though nobody asked. The ONLY callers are the teaches above:
+  /// a line shown once in a lifetime is a different thing from narration, and
+  /// it is the one exception the silence rule makes room for.
+  void _forceHint(String msg, double ttl) {
+    _hintAsked = true;
+    try {
+      _emitHint(msg, DungeonHintChannel.insight, ttl);
+    } finally {
+      _hintAsked = false;
+    }
+  }
+
   void _discoverCloud(String cloudId) {
     if (!discoveredClouds.add(cloudId)) return;
     onCloudDiscovered?.call(cloudId);
@@ -7980,8 +8031,11 @@ class PlanetDungeonGame extends FlameGame {
         // objective is never swallowed by a refusal you already walked away
         // from.
         _clearHints();
+        // The objective line is dropped unasked-for (§ the dungeon does not
+        // narrate) — kept as the call so a HINT press still has it to say.
         final hint = _roomObjectiveHint(currentRoomId);
         if (hint != null) _setObjectiveHint(hint);
+        _teachRoom(currentRoom);
         _maybeSpawnGuardianCombat(currentRoom);
         onChanged();
         return;

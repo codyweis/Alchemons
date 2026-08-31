@@ -783,6 +783,10 @@ const DungeonLayout plantLayout = DungeonLayout(
     'a Light Mask, for I keep no sun and my seed still wants one;',
     'and Mud, because half of me was never built for you.',
   ],
+  primer: [
+    'The crypt is one place at two sizes, and every passage was cut for one of them.',
+    'What you plant becomes a road for the size you were not.',
+  ],
   // §4 budget: TWO hard gates, on two different stars/objects and two
   // different entry slots. Star 0 (the grave-lamps) is deliberately UNGATED
   // and uses all three elements at full power, so any trio of Plant/Light/Mud

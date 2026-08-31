@@ -1009,6 +1009,10 @@ class DungeonRoom {
   final List<Conduit> conduits;
   final GuardianNode? guardian;
   // Fire (Cinder Cathedral) authored interactables:
+  /// A one-line teach for the verb this room INTRODUCES, shown once ever on
+  /// first entry. Null for rooms that teach nothing new.
+  final String? teach;
+
   /// Corner torches that must ALL be lit before the room's mural can be read
   /// (Fire's scriptorium). Element-only: any Fire hand lights one.
   final List<Offset> muralTorches;
@@ -1194,6 +1198,7 @@ class DungeonRoom {
     this.loomStarIndex,
     this.conduits = const [],
     this.guardian,
+    this.teach,
     this.muralTorches = const [],
     this.braziers = const [],
     this.brazierStarIndex,
@@ -1437,6 +1442,15 @@ class DungeonLayout {
   /// Descent intro card, e.g. 'Zephyria Spire'.
   final String descentTitle;
 
+  /// THE PRIMER: the planet's world rule, in one or two lines, shown ONCE
+  /// ever on the first descent and never again.
+  ///
+  /// Not the old objective chatter coming back. That spoke on every room
+  /// entry and was dropped for teaching players to ignore the capsule; this
+  /// fires once per save, for the one thing a player cannot deduce by looking
+  /// — the rule the whole planet runs on.
+  final List<String> primer;
+
   /// Authored star identities, indexed by star index (length 3).
   final List<DungeonStarSpec> stars;
 
@@ -1491,6 +1505,7 @@ class DungeonLayout {
     required this.entranceSpawn,
     this.title = '',
     this.descentTitle = '',
+    this.primer = const [],
     this.stars = const [],
     this.entranceRevealDoor,
     this.finaleDoor,
@@ -1654,6 +1669,10 @@ const DungeonLayout _airLayout = DungeonLayout(
     'Send me Air: my crown is woken, never climbed;',
     'a Lightning Horn, for my storm-walls answer nothing weaker;',
     'and Fire, for my thunder must have somewhere to stay.',
+  ],
+  primer: [
+    'A gale you wake never sleeps again.',
+    'Each one is a ladder somewhere and a wall somewhere else, so the order you wake them in is the whole question.',
   ],
   // The one marquee lock (§4): Storm-Altar conduit A channels only for a
   // Lightning Horn. First refusal stamps ⚡ HORN onto the descent panel.
@@ -2493,6 +2512,10 @@ const DungeonLayout _fireLayout = DungeonLayout(
     'Air, to carry my censer-flame the length of the nave;',
     'and Plant, for my garden greens only where something living has passed.',
   ],
+  primer: [
+    'Fire remembers the order it was lit, and nothing here will tell you that order.',
+    'The iron kept the evidence: wax, soot and ash.',
+  ],
   rooms: {
     // Room A — Narthex. The cathedral's cold porch: the great hearth has not
     // burned in an age. A Fire creature rekindling it parts the inner doors
@@ -2551,6 +2574,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
     // logic; no collidables needed.)
     'scriptorium': DungeonRoom(
       id: 'scriptorium',
+      teach: 'Soot on a dark wall. Light the four corners before you try to read it.',
       bounds: Rect.fromLTWH(0, 0, 640, 520),
       // Four corner torches. The mural is soot on a dark wall in a room with
       // no window: unlit, there is nothing to read, and the panel says so.
@@ -2580,6 +2604,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
     // must point at ONE unmistakable neighbour each.
     'choir': DungeonRoom(
       id: 'choir',
+      teach: 'The rite\'s order is not written anywhere. The iron wears it: wax, soot and drifted ash.',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
       doors: [
         DungeonDoor(
@@ -2610,6 +2635,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
     // lost, only paid for.
     'cloister': DungeonRoom(
       id: 'cloister',
+      teach: 'Lay vine, strike ONCE, and the flame walks itself downwind — burnt ground never takes vine again.',
       bounds: Rect.fromLTWH(0, 0, 820, 740),
       doors: [
         DungeonDoor(
@@ -2866,6 +2892,10 @@ const DungeonLayout _waterLayout = DungeonLayout(
     'Send me a Water Pip: my pipes open only to what is small enough;',
     'Spirit, to go where my drowned currents run;',
     'and Ice, for my moon waits on a cold that will hold.',
+  ],
+  primer: [
+    'One tide runs the whole temple, at three stands.',
+    'A door only answers a tide that has settled.',
   ],
   // The one marquee lock (§4): the moon-well pipe-mouth admits only a Water
   // Pip. First refusal stamps the requirement onto the descent panel.
@@ -3230,6 +3260,10 @@ const DungeonLayout _earthLayout = DungeonLayout(
     'Lightning, to wake the sockets buried in my veins;',
     'and Crystal, for my eye confides in nothing duller.',
   ],
+  primer: [
+    'The map is a body, and the bones are the machinery.',
+    'What a room asks is answered somewhere else in the giant.',
+  ],
   // The one marquee lock (§4): the giant's ribs grind only for an Earth Horn
   // (one logical gate shared by all three ribs on the track).
   familyGates: [
@@ -3558,6 +3592,10 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     'Send me Lightning: my dead iron wakes to nothing weaker;',
     'Air, to herd my high storm-cells down to the iron;',
     'and Fire, to weld wind to flame where my iron runs thin.',
+  ],
+  primer: [
+    'Power is zero-sum: feeding one trunk darkens the others.',
+    'What you do in the dark is half the dungeon.',
   ],
   rooms: {
     // Room A — Arc Gate. The way in is a dead bus; a Lightning Horn charges
@@ -3983,6 +4021,10 @@ const DungeonLayout _steamLayout = DungeonLayout(
     'Send me Steam: my cold breath sets the molten back to stone;',
     'Earth, to raise the walls that dam my flood;',
     'and Fire, to open the rock and let the fire-blood run.',
+  ],
+  primer: [
+    'The main holds forty, and every junction you open costs fifteen.',
+    'Cooling lava condenses back — the flood is also fuel.',
   ],
   rooms: {
     // Boiler Gate — the way in. A Steam creature cracks the relief vent and

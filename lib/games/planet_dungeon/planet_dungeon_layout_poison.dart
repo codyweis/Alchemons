@@ -458,6 +458,10 @@ const DungeonLayout poisonLayout = DungeonLayout(
     'a Lava Horn, to break in where my brick is thickest;',
     'and a Mud Mane, to leave a clean road through foul ground.',
   ],
+  primer: [
+    'A strain is told by how it MOVES, never by its colour.',
+    'There is physic for three wards and the monastery has four.',
+  ],
   familyGates: [
     DungeonFamilyGate(
       objectId: 'ward_charnel_brick',

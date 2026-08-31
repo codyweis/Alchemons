@@ -1102,6 +1102,10 @@ const DungeonLayout bloodLayout = DungeonLayout(
     'Dark, for the roads I have left are inside the wall and unlit;',
     'and Light, because half of what I offer you is rotten.',
   ],
+  primer: [
+    'The heart does not wait for you.',
+    'A vein is a road only while it is being pushed through, and only downstream.',
+  ],
   // §4 budget: ONE hard gate (the cannula's Blood Mane). It was two — a
   // Blood KIN on the rite and a Dark MASK on the collateral cock — until a
   // Kin was judged too rare a thing to hang the terminal planet on.

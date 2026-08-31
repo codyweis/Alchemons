@@ -1016,6 +1016,10 @@ const DungeonLayout kLavaLayout = DungeonLayout(
     'Earth, to read the works\' own manifest off the rock;',
     'and a Ice Mane, for only a cold that paves a road behind it will harden my running metal.',
   ],
+  primer: [
+    'Five pours, never refilled.',
+    'What a pour becomes is decided by where you sent it, and cold metal is both a road and a plug.',
+  ],
   // ONE hard gate (§4 budget: Air 1 · Earth 1 · Water 1 · Lava 1). Star 1 and
   // the guardian stay earnable by ANY correct-element trio; only the hidden
   // mold's crossing asks for a specific hand, and it asks for the one whose

@@ -615,6 +615,10 @@ const DungeonLayout mudLayout = DungeonLayout(
     'Plant, to quicken whatever the peat has kept;',
     'and a Water Mask, for I keep my best beneath black water.',
   ],
+  primer: [
+    'Harden a crossing and its neighbours drown.',
+    'The order you drag in does not matter; the shape you are left in does.',
+  ],
   familyGates: [
     DungeonFamilyGate(
       objectId: 'moor_black',

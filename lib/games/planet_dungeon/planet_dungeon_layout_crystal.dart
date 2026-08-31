@@ -896,6 +896,10 @@ const DungeonLayout crystalLayout = DungeonLayout(
     'a Lightning Horn, to strike a cold shard warm;',
     'and Spirit, with any Pip, to slip the crack behind the keep.',
   ],
+  primer: [
+    'The rooms slide, and you slide with them.',
+    'Every slide solves one adjacency and breaks another.',
+  ],
   // §4 budget: TWO hard gates, on two different entry slots.
   //
   // §6.10 nominally hung a Crystalmask gate on its first star. §4 wins and the

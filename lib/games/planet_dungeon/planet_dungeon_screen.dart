@@ -356,6 +356,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // paused — the thaw only ever undoes the DESCENT'S freeze.
     if (_rewardStars != null || _showRaidReward) return;
     _game?.resumeEngine();
+    // First frame the player can actually act on: the planet states its rule
+    // now, once ever, rather than while the descent still covers the screen.
+    _game?.beginRun();
   }
 
   /// Offers any unclaimed reward as soon as the room is safe. Called on star

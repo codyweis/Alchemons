@@ -669,6 +669,10 @@ const DungeonLayout dustLayout = DungeonLayout(
     'Air, and any Wing at all, for I will take my own bridges away;',
     'and Earth, with any Horn, to shoulder through a wall that was never there.',
   ],
+  primer: [
+    'Nothing is created here. Dig one mound and a neighbour rises.',
+    'How buried a thing is decides which deck you are standing on.',
+  ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. Star 0 (the three seals) is deliberately UNGATED and uses all
   // three elements at full power, so any trio of Dust/Air/Earth progresses on

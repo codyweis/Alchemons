@@ -1089,6 +1089,10 @@ const DungeonLayout lightLayout = DungeonLayout(
     'a Crystal Mask, to split my one shaft in two;',
     'and a Spirit Pip, because everything worth having lies behind my shelves.',
   ],
+  primer: [
+    'Light is the floor on the rim and a wall into the heart.',
+    'The wardens count every lumen you spend.',
+  ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the shadow court) is
   // deliberately UNGATED and uses all three elements at full power, so any

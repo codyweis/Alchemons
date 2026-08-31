@@ -903,6 +903,10 @@ const DungeonLayout darkLayout = DungeonLayout(
     'Poison, and any Pip, for every ring in me is rusted shut and my ways are holes;',
     'and Spirit, because I keep no lamp to find you by.',
   ],
+  primer: [
+    'A turn of a gnomon flips the whole vault at once.',
+    'Every door you open that way closes another somewhere else.',
+  ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the analemma) is
   // deliberately UNGATED and uses all three elements at full power, so any

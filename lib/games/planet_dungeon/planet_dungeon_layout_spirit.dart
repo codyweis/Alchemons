@@ -808,6 +808,10 @@ const DungeonLayout spiritLayout = DungeonLayout(
     'a Water Pip, to set a mark finer than a grave-cutter\'s hand;',
     'and Crystal, for half of my roads are only remembered.',
   ],
+  primer: [
+    'One field, two worlds, and every crossing belongs to only one of them.',
+    'A death finished in the cold world opens a road in the warm one.',
+  ],
   // §4 budget: ONE hard gate (the grave sigil's Water Pip). The rite's name
   // stone was a Spirit MASK and is element-only now — the cold world is
   // what answers there, and any Spirit hand stands in it.
