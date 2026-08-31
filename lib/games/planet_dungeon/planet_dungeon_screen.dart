@@ -1109,9 +1109,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 child: IgnorePointer(
                   child: Center(
                     child: Text(
-                      PlanetDungeonGame.perfSkipNames[PlanetDungeonGame
-                          .perfSkip
-                          .bitLength],
+                      PlanetDungeonGame.perfSkipName,
                       style: const TextStyle(
                         color: _C.ember,
                         fontFamily: 'monospace',

@@ -497,7 +497,13 @@ class PlanetDungeonGame extends FlameGame {
         'worstUpdate=${_puWorst.toStringAsFixed(2)} '
         'worstRender=${_prWorst.toStringAsFixed(2)} '
         'enemies=${combatEnemies.length} proj=${combatProjectiles.length} '
-        'nums=${damageNumbers.length}',
+        'nums=${damageNumbers.length} '
+        // Both particle pools are UNBOUNDED — add() appends and update()
+        // only reaps the dead — so a fight that spawns faster than they die
+        // grows a draw call per particle per frame, for ever. If either of
+        // these is in the thousands, that is the answer.
+        'vfx=${_abilityVfx.length} parts=${_alchemyParticles.length} '
+        'wisp=${_activeWingBeams.length}',
       );
       _puWorst = 0;
       _prWorst = 0;
@@ -8534,37 +8540,42 @@ class PlanetDungeonGame extends FlameGame {
 
   // ── TEMPORARY: raster bisect (delete with the frame probe) ──
   //
-  // GAMEPROBE says recording a frame is 1.3ms and the device says rasterising
-  // one costs 20-140ms during the Simurgh fight, and no Dart-side measurement
-  // can see that split. Neither can an offline rasteriser: the software one
-  // in a widget test rates every sanctum state at a flat 4ms, because the
-  // things it cannot run are exactly the suspects — the sky's runtime shader
-  // never compiles headlessly, and the guardian's sprite never loads.
+  // ROUND 1 (device, profile build) found it: skipping the combat group took
+  // the Simurgh fight from 10-19 slow frames per second to 0.3, while
+  // skipping the sky (13.3/s), the guardian (9.9/s), the beams (1.7/s) and
+  // the vignette (19/s) all left it broken. So the cost is in what combat
+  // DRAWS, and those four are exonerated and out of the rotation.
   //
-  // So: skip one group of draws at a time on the real device, and read the
-  // answer off FRAMESUMMARY. Each step logs what it turned off.
+  // ROUND 2 splits that group. Two neighbours join it, because they are also
+  // attack visuals and were never separately testable: the shared ability
+  // VFX layer and the alchemy burst particles.
   static int perfSkip = 0;
-  static const int kSkipSky = 1 << 0;
-  static const int kSkipGuardian = 1 << 1;
-  static const int kSkipCombat = 1 << 2;
-  static const int kSkipBeams = 1 << 3;
-  static const int kSkipVignette = 1 << 4;
+  static const int kSkipProjectiles = 1 << 0;
+  static const int kSkipEnemies = 1 << 1;
+  static const int kSkipNumbers = 1 << 2;
+  static const int kSkipAbilityVfx = 1 << 3;
+  static const int kSkipParticles = 1 << 4;
 
-  static const List<String> perfSkipNames = [
-    'ALL ON',
-    'no SKY (the full-screen runtime shader)',
-    'no GUARDIAN (the 512px Simurgh sprite + its glow)',
-    'no COMBAT (enemies, projectiles, damage numbers)',
-    'no BEAMS (wing/kin beams, glide trail, door fx)',
-    'no VIGNETTE (the full-screen gradient)',
+  /// The sweep, in order. Index 0 is "nothing skipped".
+  static const List<(String, int)> perfBisectSteps = [
+    ('ALL ON', 0),
+    ('no PROJECTILES', kSkipProjectiles),
+    ('no ENEMIES (wisp + guardian bodies)', kSkipEnemies),
+    ('no DAMAGE NUMBERS', kSkipNumbers),
+    ('no ABILITY VFX (the shared special-effect layer)', kSkipAbilityVfx),
+    ('no ALCHEMY PARTICLES (hit bursts)', kSkipParticles),
   ];
+
+  static int _perfStep = 0;
+
+  static String get perfSkipName => perfBisectSteps[_perfStep].$1;
 
   /// Step to the next single-group skip. One group at a time, so the delta is
   /// attributable to it and nothing else.
   static void perfBisectStep() {
-    final i = perfSkip == 0 ? 1 : (perfSkip.bitLength + 1);
-    perfSkip = i > 5 ? 0 : (1 << (i - 1));
-    debugPrint('PERFMASK ${perfSkipNames[perfSkip == 0 ? 0 : perfSkip.bitLength]}');
+    _perfStep = (_perfStep + 1) % perfBisectSteps.length;
+    perfSkip = perfBisectSteps[_perfStep].$2;
+    debugPrint('PERFMASK $perfSkipName');
   }
 
   static bool _skips(int bit) => (perfSkip & bit) != 0;
@@ -8582,9 +8593,7 @@ class PlanetDungeonGame extends FlameGame {
     final cam = _cameraTopLeft(room, _cameraFocus) + _shakeOffset();
 
     // Screen-space atmosphere. Background = elemental shader, else gradient.
-    if (_skips(kSkipSky)) {
-      canvas.drawRect(Offset.zero & vp, Paint()..color = const Color(0xFF0A0705));
-    } else if (_sky.ready) {
+    if (_sky.ready) {
       _sky.paint(canvas, vp, _time, mood: _skyMood);
     } else if (_isCathedral) {
       _drawCathedralFallbackSky(canvas, vp); // warm gradient fallback
@@ -8674,8 +8683,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isHeart) _renderHeart(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
-    _renderAlchemyParticles(canvas);
-    _abilityVfx.render(canvas);
+    if (!_skips(kSkipParticles)) _renderAlchemyParticles(canvas);
+    if (!_skips(kSkipAbilityVfx)) _abilityVfx.render(canvas);
     _renderHazards(canvas, room);
     _renderWalls(canvas, room);
     _renderDoors(canvas, room);
@@ -8689,15 +8698,11 @@ class PlanetDungeonGame extends FlameGame {
     _renderAnchors(canvas, room);
     _renderConduitsAndGuardian(canvas, room);
     _renderStars(canvas, room);
-    if (!_skips(kSkipBeams)) {
-      _renderGlideTrail(canvas);
-      _renderWingBeams(canvas);
-      _renderKinBeams(canvas);
-    }
-    if (!_skips(kSkipCombat)) {
-      _renderCombatProjectiles(canvas);
-      _renderCombatEnemies(canvas);
-    }
+    _renderGlideTrail(canvas);
+    _renderWingBeams(canvas);
+    _renderKinBeams(canvas);
+    if (!_skips(kSkipProjectiles)) _renderCombatProjectiles(canvas);
+    if (!_skips(kSkipEnemies)) _renderCombatEnemies(canvas);
     _renderRefusalPulse(canvas);
     _renderCreatures(canvas);
     _renderCarriedCloud(canvas);
@@ -8705,14 +8710,14 @@ class PlanetDungeonGame extends FlameGame {
     _renderVaultCacheGlow(canvas, room);
     _renderRaidDeath(canvas);
     // Numbers sit above everything they annotate.
-    if (!_skips(kSkipCombat)) damageNumbers.render(canvas);
+    if (!_skips(kSkipNumbers)) damageNumbers.render(canvas);
 
     canvas.restore();
 
     // Screen-space framing.
     if (_isTemple) _drawTideGauge(canvas, vp);
     if (_isVapor) _drawSteamPhaseHud(canvas, vp);
-    if (!_skips(kSkipVignette)) drawVignette(canvas, vp);
+    drawVignette(canvas, vp);
     _probeAccum(_probeLastUpdateMs, swR.elapsedMicroseconds / 1000.0);
   }
 
@@ -10954,7 +10959,7 @@ class PlanetDungeonGame extends FlameGame {
       _drawGuardianArrival(canvas, g);
       return;
     }
-    if (g != null && (altarOpen || guardianAwake) && !_skips(kSkipGuardian)) {
+    if (g != null && (altarOpen || guardianAwake)) {
       final pos = _guardianPosition(g);
       final col = guardianVulnerable
           ? const Color(0xFFE4C16A)
