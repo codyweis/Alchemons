@@ -409,11 +409,13 @@ class _AlchemyFusionCinematicPageState<T>
                     child: Center(child: _PhaseLabel(t: t, outcome: outcome)),
                   ),
 
-                  // Skip control.
+                  // Skip control — bottom right, where the hatching
+                  // cinematic puts its own. Two ceremonies a minute apart
+                  // should not hide the same control in two places.
                   if (widget.allowSkip)
                     Positioned(
-                      top: MediaQuery.of(context).padding.top + 12,
-                      right: 16,
+                      bottom: 24,
+                      right: 24,
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 200),
                         opacity: _skipped ? 0.0 : 1.0,
@@ -1191,30 +1193,22 @@ class _SkipButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          // The hatching cinematic's chrome, to the pixel.
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: .4),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: .25)),
+            color: const Color(0x14FFFFFF),
+            borderRadius: const BorderRadius.all(Radius.circular(12)),
+            border: Border.all(color: const Color(0x2EFFFFFF)),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Text(
-                'SKIP',
-                style: TextStyle(
-                  color: Color(0xFFE8EAED),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              SizedBox(width: 4),
-              Icon(Icons.fast_forward_rounded,
-                  size: 16, color: Color(0xFFE8EAED)),
-            ],
+          child: const Text(
+            'SKIP',
+            style: TextStyle(
+              color: Color(0xFFE8EAED),
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
           ),
         ),
       ),

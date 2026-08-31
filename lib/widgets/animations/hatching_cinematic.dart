@@ -30,7 +30,7 @@ enum HatchHintType { normal, variant, prismatic }
 /// 0.30–0.55  : Sacred geometry & CORE grow
 /// 0.55–0.65  : Peak → BURST (flash + shockwave ring)
 /// 0.65–0.80  : Explosion aftermath + HINT JOLTS
-/// 0.80–0.92  : Silhouette reveal with explosive scale-in
+/// 0.84–0.95  : Silhouette reveal with explosive scale-in
 /// 0.92–1.00  : Settle & exit
 /// ==============================================
 Future<void> playHatchingCinematicAlchemy({
@@ -188,17 +188,21 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
       ),
     );
 
-    // Earlier silhouette reveal
+    // THE SILHOUETTE, later and shorter. It used to land at 0.80 and then sit
+    // there fully revealed for the last fifth of the run — a second and a
+    // half of a still frame at the end of a cinematic that had just finished
+    // being one. It arrives at 0.84 and the tail after it is a beat, not a
+    // pause.
     _reveal = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.80, 0.92, curve: Curves.easeOut),
+        curve: const Interval(0.84, 0.95, curve: Curves.easeOut),
       ),
     );
     _revealScale = Tween<double>(begin: 1.6, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.80, 0.92, curve: Curves.easeOutBack),
+        curve: const Interval(0.84, 0.95, curve: Curves.easeOutBack),
       ),
     );
 

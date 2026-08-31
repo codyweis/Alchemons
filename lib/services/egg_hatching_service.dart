@@ -584,8 +584,9 @@ class EggHatching {
         parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
         paletteMain: primaryHue,
         creatureSilhouette: silhouette,
-        // Longer, more ceremonial build-up — skippable via the SKIP button.
-        totalDuration: const Duration(milliseconds: 7200),
+        // 6400, down from 7200: the ceremony was carrying a long still tail
+        // after the silhouette landed, and the trim comes out of that.
+        totalDuration: const Duration(milliseconds: 6400),
         hintType: hintType,
         variantColor: variantColor,
         pureElementTypeId: pureElementTypeId,
