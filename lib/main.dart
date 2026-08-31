@@ -1,4 +1,3 @@
-import 'package:alchemons/util_frame_probe.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -100,7 +99,6 @@ class AlchemonsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    installFrameProbe();
     return AppProviders(
       db: db,
       gameDataService: gameDataService,

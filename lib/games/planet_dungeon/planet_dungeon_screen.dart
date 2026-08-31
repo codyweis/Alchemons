@@ -996,17 +996,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                           () => unawaited(_debugResetDungeon()),
                           semantics: 'Debug: reset stars',
                         ),
-                        // TEMPORARY raster bisect — steps through skipping one
-                        // group of draws at a time, and names the one it just
-                        // turned off. Delete with the frame probe.
-                        _iconButton(
-                          Icons.speed_rounded,
-                          PlanetDungeonGame.perfSkip == 0
-                              ? _C.cyan
-                              : _C.ember,
-                          () => setState(PlanetDungeonGame.perfBisectStep),
-                          semantics: 'Debug: raster bisect',
-                        ),
                         // Call the guardian back down, beaten or not: a boss
                         // you can only fight once is a boss you cannot
                         // measure.
@@ -1098,28 +1087,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 ),
               ),
             ),
-
-            // TEMPORARY: what the raster bisect is currently hiding.
-            if (DebugSettingsService.toolsVisible &&
-                PlanetDungeonGame.perfSkip != 0)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 4,
-                child: IgnorePointer(
-                  child: Center(
-                    child: Text(
-                      PlanetDungeonGame.perfSkipName,
-                      style: const TextStyle(
-                        color: _C.ember,
-                        fontFamily: 'monospace',
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
 
             // Death overlay — same chrome language as every other popup
             // occasion (§5.6), same behavior as before (brief, non-blocking).

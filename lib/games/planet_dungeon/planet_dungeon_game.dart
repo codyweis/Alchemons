@@ -13,7 +13,6 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/util_frame_probe.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
@@ -476,104 +475,6 @@ class PlanetDungeonGame extends FlameGame {
   Duration? get raidTimeRemaining => _raidFightRemaining == null
       ? null
       : Duration(milliseconds: (_raidFightRemaining! * 1000).round());
-
-  // TEMPORARY probe: how much of the frame is the dungeon itself?
-  static double _probeLastUpdateMs = 0;
-  static double _pu = 0;
-  static double _pr = 0;
-  static int _pn = 0;
-  static double _puWorst = 0;
-  static double _prWorst = 0;
-
-  /// A frame that cost more than this gets its own line, with the world's
-  /// state AT THAT MOMENT.
-  ///
-  /// The 120-frame summary was too coarse to catch the thing that matters: a
-  /// single frame in the Simurgh fight took 720ms of update and 155ms of
-  /// RECORDING, and 2.2 seconds to rasterise — and by the time the summary
-  /// printed, a second later, everything it could report was back to zero.
-  static const double _kHitchMs = 18.0;
-
-  void _probeHitch(String what, double ms) {
-    var maxScale = 0.0, maxEffect = 0.0, maxSnare = 0.0;
-    var bad = 0; // NaN or infinite geometry — a single such draw is seconds
-    for (final p in combatProjectiles) {
-      if (p.visualScale > maxScale) maxScale = p.visualScale;
-      if (p.effectRadius > maxEffect) maxEffect = p.effectRadius;
-      if (p.snareRadius > maxSnare) maxSnare = p.snareRadius;
-      if (!p.position.dx.isFinite ||
-          !p.position.dy.isFinite ||
-          !p.visualScale.isFinite ||
-          !p.effectRadius.isFinite ||
-          !p.snareRadius.isFinite) {
-        bad++;
-      }
-    }
-    debugPrint(
-      'HITCH $what=${ms.toStringAsFixed(1)}ms room=$currentRoomId '
-      'enemies=${combatEnemies.length} proj=${combatProjectiles.length} '
-      'nums=${damageNumbers.length} vfx=${_abilityVfx.length} '
-      'parts=${_alchemyParticles.length} beams=${_activeWingBeams.length} '
-      'kin=${_kinBeams.length} '
-      'maxScale=${maxScale.toStringAsFixed(1)} '
-      'maxEffectR=${maxEffect.toStringAsFixed(1)} '
-      'maxSnareR=${maxSnare.toStringAsFixed(1)} nonFinite=$bad',
-    );
-  }
-
-  /// Window MAXIMA, not the instantaneous counts.
-  ///
-  /// The summary used to print whatever happened to be alive on the frame it
-  /// fired, once a second — which is how a trap chain that peaked at
-  /// thousands of projectiles kept reporting proj=1, and why four hypotheses
-  /// died before the reproduction found it. A peak that lasted two frames is
-  /// exactly the peak worth seeing.
-  static int _pmProj = 0, _pmEnemies = 0, _pmNums = 0;
-  static int _pmVfx = 0, _pmParts = 0;
-
-  /// Registered with the frame probe so a RASTER-only spike gets a dump too.
-  /// One frame late, which is close enough to name what was on screen.
-  void _installHitchTap() {
-    frameProbeOnSlowFrame = (build, raster) {
-      if (raster < _kHitchMs) return;
-      _probeHitch('raster', raster);
-    };
-  }
-
-  void _probeAccum(double u, double r) {
-    if (u >= _kHitchMs) _probeHitch('update', u);
-    if (r >= _kHitchMs) _probeHitch('render', r);
-    if (combatProjectiles.length > _pmProj) _pmProj = combatProjectiles.length;
-    if (combatEnemies.length > _pmEnemies) _pmEnemies = combatEnemies.length;
-    if (damageNumbers.length > _pmNums) _pmNums = damageNumbers.length;
-    if (_abilityVfx.length > _pmVfx) _pmVfx = _abilityVfx.length;
-    if (_alchemyParticles.length > _pmParts) {
-      _pmParts = _alchemyParticles.length;
-    }
-    _pu += u;
-    _pr += r;
-    if (u > _puWorst) _puWorst = u;
-    if (r > _prWorst) _prWorst = r;
-    _pn++;
-    if (_pn % 120 == 0) {
-      debugPrint(
-        'GAMEPROBE n=$_pn avgUpdate=${(_pu / _pn).toStringAsFixed(2)}ms '
-        'avgRender=${(_pr / _pn).toStringAsFixed(2)}ms '
-        'worstUpdate=${_puWorst.toStringAsFixed(2)} '
-        'worstRender=${_prWorst.toStringAsFixed(2)} '
-        'peakEnemies=$_pmEnemies peakProj=$_pmProj peakNums=$_pmNums '
-        'peakVfx=$_pmVfx peakParts=$_pmParts '
-        'beams=${_activeWingBeams.length}',
-      );
-      _puWorst = 0;
-      _prWorst = 0;
-      _pmProj = 0;
-      _pmEnemies = 0;
-      _pmNums = 0;
-      _pmVfx = 0;
-      _pmParts = 0;
-    }
-  }
 
   void _updateRaidFightTimer(double dt) {
     if (!isRaid || _raidExpiredFired) return;
@@ -2086,7 +1987,6 @@ class PlanetDungeonGame extends FlameGame {
     for (var i = 0; i < 3; i++) {
       if ((starMask & (1 << i)) != 0) _earnedStars.add(i);
     }
-    _installHitchTap();
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
@@ -2404,7 +2304,6 @@ class PlanetDungeonGame extends FlameGame {
 
   @override
   void update(double dt) {
-    final swU = Stopwatch()..start();
     super.update(dt);
     _time += dt;
     if (_doorCooldown > 0) _doorCooldown -= dt;
@@ -2593,7 +2492,6 @@ class PlanetDungeonGame extends FlameGame {
     }
     _doorRevealFx.removeWhere((fx) => fx.ttl <= 0);
     _handleDowns();
-    _probeLastUpdateMs = swU.elapsedMicroseconds / 1000.0;
   }
 
   bool _overGap(Offset p, DungeonRoom room) {
@@ -8632,53 +8530,10 @@ class PlanetDungeonGame extends FlameGame {
     onChanged();
   }
 
-  // ── TEMPORARY: raster bisect (delete with the frame probe) ──
-  //
-  // ROUND 1 (device, profile build) found it: skipping the combat group took
-  // the Simurgh fight from 10-19 slow frames per second to 0.3, while
-  // skipping the sky (13.3/s), the guardian (9.9/s), the beams (1.7/s) and
-  // the vignette (19/s) all left it broken. So the cost is in what combat
-  // DRAWS, and those four are exonerated and out of the rotation.
-  //
-  // ROUND 2 splits that group. Two neighbours join it, because they are also
-  // attack visuals and were never separately testable: the shared ability
-  // VFX layer and the alchemy burst particles.
-  static int perfSkip = 0;
-  static const int kSkipProjectiles = 1 << 0;
-  static const int kSkipEnemies = 1 << 1;
-  static const int kSkipNumbers = 1 << 2;
-  static const int kSkipAbilityVfx = 1 << 3;
-  static const int kSkipParticles = 1 << 4;
-
-  /// The sweep, in order. Index 0 is "nothing skipped".
-  static const List<(String, int)> perfBisectSteps = [
-    ('ALL ON', 0),
-    ('no PROJECTILES', kSkipProjectiles),
-    ('no ENEMIES (wisp + guardian bodies)', kSkipEnemies),
-    ('no DAMAGE NUMBERS', kSkipNumbers),
-    ('no ABILITY VFX (the shared special-effect layer)', kSkipAbilityVfx),
-    ('no ALCHEMY PARTICLES (hit bursts)', kSkipParticles),
-  ];
-
-  static int _perfStep = 0;
-
-  static String get perfSkipName => perfBisectSteps[_perfStep].$1;
-
-  /// Step to the next single-group skip. One group at a time, so the delta is
-  /// attributable to it and nothing else.
-  static void perfBisectStep() {
-    _perfStep = (_perfStep + 1) % perfBisectSteps.length;
-    perfSkip = perfBisectSteps[_perfStep].$2;
-    debugPrint('PERFMASK $perfSkipName');
-  }
-
-  static bool _skips(int bit) => (perfSkip & bit) != 0;
-
   // ── Render ──────────────────────────────────────────────
 
   @override
   void render(Canvas canvas) {
-    final swR = Stopwatch()..start();
     super.render(canvas);
     final vp = Size(size.x, size.y);
     final room = currentRoom;
@@ -8777,8 +8632,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isHeart) _renderHeart(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
-    if (!_skips(kSkipParticles)) _renderAlchemyParticles(canvas);
-    if (!_skips(kSkipAbilityVfx)) _abilityVfx.render(canvas);
+    _renderAlchemyParticles(canvas);
+    _abilityVfx.render(canvas);
     _renderHazards(canvas, room);
     _renderWalls(canvas, room);
     _renderDoors(canvas, room);
@@ -8795,8 +8650,8 @@ class PlanetDungeonGame extends FlameGame {
     _renderGlideTrail(canvas);
     _renderWingBeams(canvas);
     _renderKinBeams(canvas);
-    if (!_skips(kSkipProjectiles)) _renderCombatProjectiles(canvas);
-    if (!_skips(kSkipEnemies)) _renderCombatEnemies(canvas);
+    _renderCombatProjectiles(canvas);
+    _renderCombatEnemies(canvas);
     _renderRefusalPulse(canvas);
     _renderCreatures(canvas);
     _renderCarriedCloud(canvas);
@@ -8804,7 +8659,7 @@ class PlanetDungeonGame extends FlameGame {
     _renderVaultCacheGlow(canvas, room);
     _renderRaidDeath(canvas);
     // Numbers sit above everything they annotate.
-    if (!_skips(kSkipNumbers)) damageNumbers.render(canvas);
+    damageNumbers.render(canvas);
 
     canvas.restore();
 
@@ -8812,7 +8667,6 @@ class PlanetDungeonGame extends FlameGame {
     if (_isTemple) _drawTideGauge(canvas, vp);
     if (_isVapor) _drawSteamPhaseHud(canvas, vp);
     drawVignette(canvas, vp);
-    _probeAccum(_probeLastUpdateMs, swR.elapsedMicroseconds / 1000.0);
   }
 
   /// The guardian relic's victory ceremony: drops from the fallen guardian,
