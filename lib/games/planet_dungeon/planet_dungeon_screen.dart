@@ -19,6 +19,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_reward_popup.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/screens/cosmic/widgets/virtual_joystick.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
@@ -1637,7 +1638,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         // thing the dungeon is actually teaching.
         if (!_isRaid) ...[
           _utilityButton(
-            ability: ability,
+            element: game.active?.member.element ?? widget.element,
             enabled: enabled,
             active: active,
             // While gliding, the rim IS the flight meter — which retires the
@@ -1687,28 +1688,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         ),
       ],
     );
-  }
-
-  /// The glyph for a family's dungeon verb. The utility button wears it, so
-  /// swapping to another creature visibly changes what the button will DO.
-  static IconData _abilityIcon(DungeonAbility a) {
-    switch (a) {
-      case DungeonAbility.smallAccess:
-        return Icons.compress_rounded; // squeeze through
-      case DungeonAbility.terrainTrail:
-        return Icons.terrain_rounded; // lay ground
-      case DungeonAbility.heavyForce:
-        return Icons.fitness_center_rounded; // shove, seat, break
-      case DungeonAbility.insight:
-        return Icons.visibility_rounded; // read the room
-      case DungeonAbility.aerialTraversal:
-        return Icons.paragliding_rounded; // glide
-      case DungeonAbility.ancientStabilize:
-        return Icons.anchor_rounded; // hold the old machine steady
-      case DungeonAbility.guardianRelic:
-      case DungeonAbility.none:
-        return Icons.auto_fix_high_rounded;
-    }
   }
 
   /// The round chassis every action button is built on: rim, dark dome, glyph.
@@ -1818,7 +1797,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   Widget _utilityButton({
-    required DungeonAbility ability,
+    required String element,
     required bool enabled,
     required bool active,
     required double charge,
@@ -1827,13 +1806,16 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     final color = active ? _C.cyan : _C.amberBright;
     return _roundAction(
       diameter: 54,
-      icon: _abilityIcon(ability),
+      // The ACTIVE creature's element, so a swap visibly changes the button.
+      // The glyph stays in the HUD's own amber rather than the element
+      // colour: Dark, Mud and Earth are near-black, and this dome is too.
+      icon: elementIconFor(element),
       color: enabled ? color : _C.border,
       charge: enabled ? charge : 0,
       spent: !enabled,
       teeth: 0, // the verb is not a weapon; it stays smooth
       iconSize: 20,
-      semantics: 'Use ability',
+      semantics: 'Use $element ability',
       onTap: enabled ? onTap : null,
     );
   }

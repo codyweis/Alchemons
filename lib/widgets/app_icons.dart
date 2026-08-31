@@ -411,3 +411,55 @@ class AppIcons {
   static const IconData zoom_in_map_rounded = PhosphorIconsBold.arrowsIn;
   static const IconData zoom_out_map_rounded = PhosphorIconsBold.arrowsOut;
 }
+
+/// The glyph for one of the seventeen elements.
+///
+/// One table, because an element icon that disagrees with itself between two
+/// screens is a bug the player reads as a different element. It is also the
+/// reason this does not route through the Material aliases above: several of
+/// them collapse onto the same Phosphor glyph (`water_drop`, `water_damage`
+/// and `bloodtype` are all `drop`), which is harmless as a rename but useless
+/// as an identity — Water, Mud and Blood would be indistinguishable.
+/// Named `...For` rather than `elementIcon` because [AltarEntry] carries a
+/// getter of that name that now delegates here, and a getter shadows a
+/// top-level function of the same name inside its own class.
+IconData elementIconFor(String element) {
+  switch (element.toLowerCase()) {
+    case 'fire':
+      return PhosphorIconsBold.flame;
+    case 'lava':
+      return PhosphorIconsBold.thermometerHot;
+    case 'lightning':
+      return PhosphorIconsBold.lightning;
+    case 'water':
+      return PhosphorIconsBold.drop;
+    case 'ice':
+      return PhosphorIconsBold.snowflake;
+    case 'steam':
+      return PhosphorIconsBold.cloud;
+    case 'earth':
+      return PhosphorIconsBold.mountains;
+    case 'mud':
+      return PhosphorIconsBold.dropHalfBottom;
+    case 'dust':
+      return PhosphorIconsBold.grains;
+    case 'crystal':
+      return PhosphorIconsBold.diamond;
+    case 'air':
+      return PhosphorIconsBold.wind;
+    case 'plant':
+      return PhosphorIconsBold.leaf;
+    case 'poison':
+      return PhosphorIconsBold.skull;
+    case 'spirit':
+      return PhosphorIconsBold.ghost;
+    case 'dark':
+      return PhosphorIconsBold.moon;
+    case 'light':
+      return PhosphorIconsBold.sun;
+    case 'blood':
+      return PhosphorIconsBold.heartbeat;
+    default:
+      return PhosphorIconsBold.question;
+  }
+}

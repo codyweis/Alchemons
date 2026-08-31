@@ -64,46 +64,7 @@ class AltarEntry {
     }
   }
 
-  IconData get elementIcon {
-    switch (element.toLowerCase()) {
-      case 'fire':
-        return AppIcons.local_fire_department;
-      case 'water':
-        return AppIcons.water_drop;
-      case 'earth':
-        return AppIcons.terrain;
-      case 'air':
-        return AppIcons.air;
-      case 'plant':
-        return AppIcons.eco;
-      case 'ice':
-        return AppIcons.ac_unit;
-      case 'lightning':
-        return AppIcons.bolt;
-      case 'poison':
-        return AppIcons.dangerous;
-      case 'steam':
-        return AppIcons.cloud;
-      case 'lava':
-        return AppIcons.volcano;
-      case 'mud':
-        return AppIcons.water_damage;
-      case 'dust':
-        return AppIcons.grain;
-      case 'crystal':
-        return AppIcons.diamond;
-      case 'spirit':
-        return AppIcons.auto_awesome;
-      case 'dark':
-        return AppIcons.dark_mode;
-      case 'light':
-        return AppIcons.light_mode;
-      case 'blood':
-        return AppIcons.bloodtype;
-      default:
-        return AppIcons.help_outline;
-    }
-  }
+  IconData get elementIcon => elementIconFor(element);
 
   /// Path to the relic image earned from this element's planet guardian.
   String get relicImagePath =>

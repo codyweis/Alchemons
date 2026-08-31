@@ -153,23 +153,14 @@ void main() {
       );
     });
 
-    test('the verb glyph follows the active family', () {
+    test('the utility button wears the active creature\'s element', () {
       // The old label was the literal word UTILITY on all seventeen planets.
-      // Every ability must map to something, or a swap silently blanks it.
-      for (final ability in [
-        'smallAccess',
-        'terrainTrail',
-        'heavyForce',
-        'insight',
-        'aerialTraversal',
-        'ancientStabilize',
-      ]) {
-        expect(
-          source,
-          contains('DungeonAbility.$ability:'),
-          reason: '$ability has no glyph',
-        );
-      }
+      expect(source, contains('icon: elementIconFor(element)'));
+      expect(
+        source,
+        contains("element: game.active?.member.element ?? widget.element"),
+        reason: 'it must follow the ACTIVE creature, not the planet',
+      );
     });
   });
 
@@ -213,3 +204,4 @@ void main() {
     });
   });
 }
+
