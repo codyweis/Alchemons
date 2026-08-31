@@ -772,6 +772,22 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           children: [
             Positioned.fill(child: GameWidget(game: game)),
 
+            // Drag to look around, but only while pulled back. A survey with
+            // no panning is a fixed portrait of wherever the party happens to
+            // stand, which is not much use on the big rooms it exists for.
+            // Off-survey this is absent entirely, so it can never eat a tap.
+            Positioned.fill(
+              child: ValueListenableBuilder<int>(
+                valueListenable: _tick,
+                builder: (_, __, ___) => game.surveying
+                    ? GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onPanUpdate: (d) => game.panSurvey(d.delta),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+
             // Minimap (top-left).
             Positioned(
               top: 0,
@@ -807,29 +823,30 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                         _endRun,
                         icon: Icons.logout_rounded,
                       ),
-                      const SizedBox(height: 6),
-                      _pillButton(
-                        'REGROUP',
+                      const SizedBox(height: 8),
+                      _iconButton(
+                        Icons.workspaces_rounded,
                         _C.amber,
                         () => game.regroup(),
-                        icon: Icons.workspaces_rounded,
+                        semantics: 'Regroup the party',
                       ),
-                      const SizedBox(height: 6),
-                      const SizedBox(height: 6),
-                      // Pull back and read the whole room. Any movement snaps
-                      // it home again, so it is a look rather than a mode.
+                      // Pull back and read the whole room, and drag to look
+                      // around while pulled back. Any movement snaps it home
+                      // again, so it is a look rather than a mode.
                       ValueListenableBuilder<int>(
                         valueListenable: _tick,
-                        builder: (_, __, ___) => _pillButton(
-                          game.surveying ? 'CLOSE IN' : 'SURVEY',
+                        builder: (_, __, ___) => _iconButton(
+                          game.surveying
+                              ? Icons.zoom_in_rounded
+                              : Icons.zoom_out_rounded,
                           game.surveying ? _C.amber : _C.cyan,
                           () {
                             HapticFeedback.selectionClick();
                             game.toggleSurvey();
                           },
-                          icon: game.surveying
-                              ? Icons.zoom_in_map_rounded
-                              : Icons.zoom_out_map_rounded,
+                          semantics: game.surveying
+                              ? 'Close in'
+                              : 'Survey the room',
                         ),
                       ),
                       // The only thing in the dungeon that speaks. It reads
@@ -844,16 +861,16 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                       // nothing else talks.
                       ValueListenableBuilder<int>(
                         valueListenable: _tick,
-                        builder: (_, __, ___) => _pillButton(
-                          'HINT',
+                        builder: (_, __, ___) => _iconButton(
+                          game.hintHasAnswer
+                              ? Icons.help_rounded
+                              : Icons.help_outline_rounded,
                           game.hintHasAnswer ? _C.amber : _C.cyan,
                           () {
                             HapticFeedback.selectionClick();
                             game.askForRoomHint();
                           },
-                          icon: game.hintHasAnswer
-                              ? Icons.help_rounded
-                              : Icons.help_outline_rounded,
+                          semantics: 'Hint',
                         ),
                       ),
                       // Re-lay this room's puzzle from scratch. Shows in
@@ -862,33 +879,25 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                       // dying. Reacts to room changes.
                       ValueListenableBuilder<int>(
                         valueListenable: _tick,
-                        builder: (_, __, ___) {
-                          if (!game.canRestartRoom) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: _pillButton(
-                              'RE-LAY ROOM',
-                              _C.cyan,
-                              () => game.restartRoom(),
-                              icon: Icons.restart_alt_rounded,
-                            ),
-                          );
-                        },
+                        builder: (_, __, ___) => game.canRestartRoom
+                            ? _iconButton(
+                                Icons.restart_alt_rounded,
+                                _C.cyan,
+                                () => game.restartRoom(),
+                                semantics: 'Re-lay this room',
+                              )
+                            : const SizedBox.shrink(),
                       ),
                       // Developer tools: the persisted switch OR a debug
                       // build, so the reset is reachable on the device where
                       // the playtesting actually happens.
-                      if (DebugSettingsService.toolsVisible && !_isRaid) ...[
-                        const SizedBox(height: 6),
-                        _pillButton(
-                          'RESET ★',
+                      if (DebugSettingsService.toolsVisible && !_isRaid)
+                        _iconButton(
+                          Icons.refresh_rounded,
                           _C.cyan,
                           () => unawaited(_debugResetDungeon()),
-                          icon: Icons.refresh_rounded,
+                          semantics: 'Debug: reset stars',
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -1903,6 +1912,56 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// Top-right command buttons in the HUD's bracket-corner chrome (same
   /// language as UTILITY / ATTACK / SPECIAL). Uniform width keeps the
   /// stacked column reading as one control group.
+  /// A round icon-only control, 36px.
+  ///
+  /// The top-right stack used to be six full-width pills — a 112px strip of
+  /// the play field given over to chrome. Only the destructive action needs
+  /// its word; the tools are recognisable by glyph, so they collapse to
+  /// circles and the column narrows to a third of its width.
+  Widget _iconButton(
+    IconData icon,
+    Color color,
+    VoidCallback onTap, {
+    required String semantics,
+  }) {
+    return Semantics(
+      button: true,
+      label: semantics,
+      child: GestureDetector(
+        onTap: onTap,
+        // The circle is 36 but the tap target is padded out to 44, so a
+        // slimmer button is not a harder one to hit.
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _C.bg.withValues(alpha: 0.82),
+              border: Border.all(
+                color: color.withValues(alpha: 0.6),
+                width: 1.1,
+              ),
+              boxShadow: [
+                BoxShadow(color: color.withValues(alpha: 0.10), blurRadius: 9),
+              ],
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 17,
+              shadows: [
+                Shadow(color: color.withValues(alpha: 0.55), blurRadius: 7),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _pillButton(
     String label,
     Color color,
@@ -1918,8 +1977,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           strokeWidth: 1.1,
         ),
         child: Container(
-          width: 112,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          // Sizes to its label. It was a fixed 112 box, which both wasted a
+          // strip of the play field on short words and overflowed on long
+          // ones ("RE-LAY ROOM" ran 8.7px past its own border).
+          constraints: const BoxConstraints(minWidth: 76),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             color: _C.bg.withValues(alpha: 0.82),
             border: Border.all(color: _C.border.withValues(alpha: 0.4)),

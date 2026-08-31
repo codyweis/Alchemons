@@ -949,8 +949,39 @@ class PlanetDungeonGame extends FlameGame {
   /// Seconds a downed creature waits before reviving.
   static const double respawnSeconds = 10.0;
 
+  /// Drag offset applied to the survey, in world units. Cleared with the
+  /// survey, and bounded by [_surveySlack] so a look around can never lose
+  /// the room off the edge of the screen.
+  Offset surveyPan = Offset.zero;
+
+  /// How far past its framing the survey may be dragged: a bit over a third of
+  /// the pulled-back viewport in each direction. Enough to read the corners of
+  /// a room the party is standing in the middle of, not enough to go
+  /// exploring somewhere the run has not been.
+  Offset get _surveySlack =>
+      Offset(size.x / surveyZoom * 0.38, size.y / surveyZoom * 0.38);
+
   Offset get _cameraFocus =>
       _camFocus ?? (active?.position ?? currentRoom.bounds.center);
+
+  /// Nudge the survey. [delta] is in SCREEN pixels, so it divides by the zoom
+  /// to become world units — otherwise a drag would move the room further the
+  /// further back you are, which reads as the camera slipping.
+  ///
+  /// This is applied AFTER the camera clamp rather than to the focus, because
+  /// the clamp ignores the focus entirely in a room small enough to fit the
+  /// pulled-back viewport — which is most of them while surveying, and would
+  /// have made the drag do nothing exactly where it was asked for.
+  void panSurvey(Offset delta) {
+    if (!surveying) return;
+    final slack = _surveySlack;
+    final next = surveyPan - delta / surveyZoom;
+    surveyPan = Offset(
+      next.dx.clamp(-slack.dx, slack.dx),
+      next.dy.clamp(-slack.dy, slack.dy),
+    );
+    onChanged();
+  }
 
   void _updateCamera(double dt) {
     // The raid death is the shot — hold on the guardian, not the player.
@@ -11683,6 +11714,7 @@ class PlanetDungeonGame extends FlameGame {
   /// Toggle the survey. Called by the HUD button.
   void toggleSurvey() {
     surveyZoom = surveying ? 1.0 : kSurveyZoom;
+    surveyPan = Offset.zero;
     onChanged();
   }
 
@@ -11691,6 +11723,7 @@ class PlanetDungeonGame extends FlameGame {
   void endSurvey() {
     if (!surveying) return;
     surveyZoom = 1.0;
+    surveyPan = Offset.zero;
     onChanged();
   }
 
@@ -11711,7 +11744,8 @@ class PlanetDungeonGame extends FlameGame {
     } else {
       camY = (focus.dy - vh / 2).clamp(b.top, b.bottom - vh);
     }
-    return Offset(camX, camY);
+    // The survey's own drag, bounded above. Off-survey this is zero.
+    return Offset(camX, camY) + surveyPan;
   }
 
   void _renderIslandAndVoid(Canvas canvas, DungeonRoom room) {

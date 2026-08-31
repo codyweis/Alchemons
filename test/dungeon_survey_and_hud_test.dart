@@ -87,6 +87,57 @@ void main() {
       expect(far, isNot(near));
     });
 
+    test('a pulled-back view can be dragged, and a close one cannot', () {
+      // The drag exists because the clamp centres any room small enough to fit
+      // the pulled-back viewport, which is most of them — so without the pan
+      // the survey was a fixed portrait of wherever the party stood.
+      final g = _game('Fire');
+      final home = g.worldToScreen(g.currentRoom.bounds.center);
+
+      g.panSurvey(const Offset(-60, 0));
+      expect(g.surveyPan, Offset.zero, reason: 'no dragging while closed in');
+      expect(g.worldToScreen(g.currentRoom.bounds.center), home);
+
+      g.toggleSurvey();
+      final framed = g.worldToScreen(g.currentRoom.bounds.center);
+      g.panSurvey(const Offset(-60, 0));
+      expect(g.surveyPan, isNot(Offset.zero));
+      expect(
+        g.worldToScreen(g.currentRoom.bounds.center).dx,
+        lessThan(framed.dx),
+        reason: 'dragging left carries the room left with the finger',
+      );
+    });
+
+    test('the drag cannot fling the room off the screen', () {
+      final g = _game('Fire')..toggleSurvey();
+      for (var i = 0; i < 200; i++) {
+        g.panSurvey(const Offset(-90, -90));
+      }
+      final far = g.surveyPan;
+      g.panSurvey(const Offset(-90, -90));
+      expect(g.surveyPan, far, reason: 'the slack is bounded, not infinite');
+    });
+
+    test('closing in forgets where the survey was looking', () {
+      // Otherwise the next survey opens somewhere the player did not leave it,
+      // and worse, an ended survey would keep the offset at full zoom.
+      final g = _game('Fire')..toggleSurvey();
+      g.panSurvey(const Offset(-80, 40));
+      expect(g.surveyPan, isNot(Offset.zero));
+
+      g.joystickDirection = const Offset(1, 0);
+      g.update(1 / 60);
+      expect(g.surveying, isFalse);
+      expect(g.surveyPan, Offset.zero);
+
+      g.toggleSurvey();
+      expect(g.surveyPan, Offset.zero);
+      g.panSurvey(const Offset(-80, 40));
+      g.toggleSurvey();
+      expect(g.surveyPan, Offset.zero, reason: 'the toggle clears it too');
+    });
+
     test('every dungeon can survey its entrance without leaving the room', () {
       // The camera clamps in world units; dividing by the zoom is what keeps
       // a pulled-back view from framing empty space outside the bounds.
