@@ -1829,8 +1829,6 @@ class PlanetDungeonGame extends FlameGame {
 
   /// The utility button is intentionally non-spoilery: the world response, not
   /// the label, teaches which specimen qualities and elements matter.
-  String actionLabel() => 'UTILITY';
-
   double get flightFraction =>
       flightMax <= 0 ? 0 : (flightMeter / flightMax).clamp(0.0, 1.0);
 

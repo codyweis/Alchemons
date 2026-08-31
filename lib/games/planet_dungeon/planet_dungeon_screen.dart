@@ -5,6 +5,7 @@
 // death overlay and an instant star-banked toast. Dark / alchemical chrome.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -82,6 +83,102 @@ class _HudBracketPainter extends CustomPainter {
       oldDelegate.color != color ||
       oldDelegate.bracketSize != bracketSize ||
       oldDelegate.strokeWidth != strokeWidth;
+}
+
+/// The rim of a round action button: a charge arc, teeth, and a refusal flare.
+///
+/// The combat pad used to be two soft-cornered boxes whose only state was a
+/// black shade creeping up from the bottom — readable, but it read as a
+/// progress bar wearing a button, which is the opposite of what a weapon
+/// should look like. The rim carries all of it now: the arc unwinds as the
+/// cooldown runs, the teeth make it look like something with an edge, and a
+/// refused press throws a shockwave off the outside.
+///
+/// Strokes only — no MaskFilter anywhere in here. The HUD repaints on the
+/// game's tick, and a blurred rim would be a filter pass per button per frame.
+class _ActionRingPainter extends CustomPainter {
+  const _ActionRingPainter({
+    required this.color,
+    required this.charge,
+    required this.spent,
+    this.denied = 0,
+    this.teeth = 0,
+    this.thickness = 3,
+  });
+
+  /// 0..1 — how much of the rim is lit. 1 is ready to press.
+  final double charge;
+  final Color color;
+  final bool spent;
+  final double denied;
+  final int teeth;
+  final double thickness;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    // The flare needs somewhere to go, so the rim sits in from the edge.
+    final r = math.min(size.width, size.height) / 2 - thickness - 5;
+    if (r <= 0) return;
+
+    final live = color.withValues(alpha: spent ? 0.34 : 0.92);
+    final lit = denied > 0 ? Color.lerp(live, _C.ember, denied)! : live;
+
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = thickness;
+
+    // The unlit track, so a half-charged rim reads as half rather than short.
+    canvas.drawCircle(c, r, stroke..color = color.withValues(alpha: 0.14));
+
+    if (charge > 0.004) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        -math.pi / 2,
+        2 * math.pi * charge.clamp(0.0, 1.0),
+        false,
+        stroke
+          ..color = lit
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    if (teeth > 0) {
+      final tick = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round
+        ..color = lit.withValues(alpha: spent ? 0.2 : 0.5);
+      for (var i = 0; i < teeth; i++) {
+        final a = -math.pi / 2 + i * 2 * math.pi / teeth;
+        final r0 = r + thickness * 0.9;
+        // Every third tooth runs long — an even fringe reads as a dial.
+        final r1 = r0 + (i % 3 == 0 ? 5.0 : 2.4);
+        final d = Offset(math.cos(a), math.sin(a));
+        canvas.drawLine(c + d * r0, c + d * r1, tick);
+      }
+    }
+
+    if (denied > 0) {
+      canvas.drawCircle(
+        c,
+        r + 3 + 7 * denied,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.4 + 1.8 * (1 - denied)
+          ..color = _C.ember.withValues(alpha: 0.55 * (1 - denied)),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ActionRingPainter old) =>
+      old.color != color ||
+      old.charge != charge ||
+      old.spent != spent ||
+      old.denied != denied ||
+      old.teeth != teeth ||
+      old.thickness != thickness;
 }
 
 const _starPrefsKey = 'cosmic_planet_stars';
@@ -944,13 +1041,18 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
             // The hint capsule (top-center, below the star tracker). One
             // capsule, one line, ever — styled by its channel (§5.6).
+            //
+            // It clears the other two things in the top band rather than
+            // lying across them: it starts below the minimap, and stops
+            // short of the tool column on the right. A room primer is
+            // several lines long and was covering both.
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 46, left: 24, right: 24),
+                  padding: const EdgeInsets.only(top: 124, left: 24, right: 64),
                   child: ExcludeSemantics(
                     child: Center(
                       child: ValueListenableBuilder<int>(
@@ -1485,100 +1587,72 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   Widget _actionCluster(PlanetDungeonGame game) {
     final ability = game.activeAbility;
     final enabled = game.canAct;
-    final label = game.actionLabel();
     final glide = ability == DungeonAbility.aerialTraversal;
     final active = glide && game.flightActive;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Carried-echo drop control (only while holding one).
+        // Carried-echo drop control (only while holding one). A stadium
+        // rather than a circle: the cloud's NAME is the point of it, and it
+        // sizes to that name instead of sitting in a fixed 154px box.
         if (game.carriedCloudType != null) ...[
           GestureDetector(
             onTap: game.dropCarriedCloud,
-            child: CustomPaint(
-              painter: _HudBracketPainter(
-                color: _C.cyan.withValues(alpha: 0.7),
-                bracketSize: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: _C.bg.withValues(alpha: 0.86),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: _C.cyan.withValues(alpha: 0.6)),
               ),
-              child: Container(
-                width: 154,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: _C.bg.withValues(alpha: 0.82),
-                  border: Border.all(color: _C.border.withValues(alpha: 0.42)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.outbond_rounded, color: _C.cyan, size: 14),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        'DROP ${game.carriedCloudType!.toUpperCase()}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _C.cyan,
-                          fontFamily: 'monospace',
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.1,
-                          height: 1,
-                        ),
-                      ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.outbond_rounded, color: _C.cyan, size: 14),
+                  const SizedBox(width: 6),
+                  Text(
+                    'DROP ${game.carriedCloudType!.toUpperCase()}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _C.cyan,
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                      height: 1,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 8),
         ],
-        if (glide)
-          Container(
-            width: 90,
-            height: 6,
-            margin: const EdgeInsets.only(bottom: 6),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: _C.border.withValues(alpha: 0.6)),
-            ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: game.flightFraction,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF5BC8E8),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            ),
-          ),
-        // No UTILITY in a raid. The button drives the element verbs that solve
-        // a dungeon's puzzles, and a raid arena is a generated single room
-        // with nothing to solve — it was a dead control taking the best spot
-        // on the pad.
+        // The utility verb, centred over the pair. It used to be a 154px bar
+        // whose label was the literal word "UTILITY" on every planet — a
+        // whole line of chrome spending itself on a word that never changed
+        // and named nothing. The glyph names the VERB instead, which is the
+        // thing the dungeon is actually teaching.
         if (!_isRaid) ...[
           _utilityButton(
-            label: label,
+            ability: ability,
             enabled: enabled,
             active: active,
+            // While gliding, the rim IS the flight meter — which retires the
+            // separate 90x6 bar that used to float above the pad.
+            charge: glide ? game.flightFraction : 1.0,
             onTap: game.activateAbility,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
         ],
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             // CONTROL FEEDBACK lives here, not in the hint capsule (§5.6):
-            // the ring shows the wait, the countdown names it, and a refused
-            // press pulses the button that refused.
+            // the rim shows the wait, the countdown names it, and a refused
+            // press throws a flare off the button that refused.
             _combatButton(
               label: 'ATTACK',
               icon: Icons.gps_fixed_rounded,
@@ -1590,7 +1664,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               color: _C.cyan,
               onTap: game.activateAutoAttack,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             _combatButton(
               label: game.abilityIsPassive ? 'PASSIVE' : 'SPECIAL',
               icon: game.abilityIsPassive
@@ -1600,7 +1674,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                   ? game.abilityCooldownLabel
                   : null,
               // A passive special has no cast: the button reads spent, not
-              // waiting — no ring, permanently dimmed.
+              // waiting — no arc, permanently dimmed.
               cooldownFraction: game.abilityIsPassive
                   ? 0
                   : game.abilityCooldownFraction,
@@ -1615,66 +1689,152 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     );
   }
 
-  Widget _utilityButton({
-    required String label,
-    required bool enabled,
-    required bool active,
-    required VoidCallback onTap,
+  /// The glyph for a family's dungeon verb. The utility button wears it, so
+  /// swapping to another creature visibly changes what the button will DO.
+  static IconData _abilityIcon(DungeonAbility a) {
+    switch (a) {
+      case DungeonAbility.smallAccess:
+        return Icons.compress_rounded; // squeeze through
+      case DungeonAbility.terrainTrail:
+        return Icons.terrain_rounded; // lay ground
+      case DungeonAbility.heavyForce:
+        return Icons.fitness_center_rounded; // shove, seat, break
+      case DungeonAbility.insight:
+        return Icons.visibility_rounded; // read the room
+      case DungeonAbility.aerialTraversal:
+        return Icons.paragliding_rounded; // glide
+      case DungeonAbility.ancientStabilize:
+        return Icons.anchor_rounded; // hold the old machine steady
+      case DungeonAbility.guardianRelic:
+      case DungeonAbility.none:
+        return Icons.auto_fix_high_rounded;
+    }
+  }
+
+  /// The round chassis every action button is built on: rim, dark dome, glyph.
+  Widget _roundAction({
+    required double diameter,
+    required IconData icon,
+    required Color color,
+    required double charge,
+    required bool spent,
+    required String semantics,
+    required VoidCallback? onTap,
+    double denied = 0,
+    String? caption,
+    int teeth = 0,
+    double iconSize = 22,
   }) {
-    final color = active ? _C.cyan : _C.amberBright;
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: CustomPaint(
-        painter: _HudBracketPainter(
-          color: enabled
-              ? color.withValues(alpha: 0.72)
-              : _C.border.withValues(alpha: 0.35),
-          bracketSize: 7,
-        ),
-        child: Container(
-          width: 154,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: _C.bg.withValues(alpha: 0.82),
-            border: Border.all(color: _C.border.withValues(alpha: 0.42)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: enabled ? 0.12 : 0.0),
-                blurRadius: 14,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    // The rim's flare needs room outside the dome, and the extra ring doubles
+    // as slop on the tap target.
+    final box = diameter + 14;
+    final ink = spent ? _C.text.withValues(alpha: 0.42) : color;
+    return Semantics(
+      button: true,
+      label: semantics,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: box,
+          height: box,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.auto_fix_high_rounded,
-                    color: enabled ? color : _C.border,
-                    size: 15,
+              CustomPaint(
+                size: Size.square(box),
+                painter: _ActionRingPainter(
+                  color: color,
+                  charge: charge,
+                  spent: spent,
+                  denied: denied,
+                  teeth: teeth,
+                  thickness: diameter >= 70 ? 3.2 : 2.6,
+                ),
+              ),
+              Container(
+                width: diameter,
+                height: diameter,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // A lit dome rather than a flat panel: the light sits up and
+                  // left, so the button reads as a physical thing to hit.
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.3, -0.4),
+                    radius: 1.05,
+                    colors: [
+                      color.withValues(alpha: spent ? 0.05 : 0.20),
+                      _C.bg2.withValues(alpha: 0.94),
+                      const Color(0xFF04060A),
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
                   ),
-                  const SizedBox(width: 7),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: enabled ? color : _C.border,
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.4,
-                      height: 1,
+                  border: Border.all(
+                    color: color.withValues(alpha: spent ? 0.22 : 0.5),
+                    width: 1,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      color: ink,
+                      size: iconSize,
+                      shadows: spent
+                          ? null
+                          : [
+                              Shadow(
+                                color: color.withValues(alpha: 0.6),
+                                blurRadius: 12,
+                              ),
+                            ],
                     ),
-                  ),
-                ],
+                    if (caption != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        caption,
+                        style: TextStyle(
+                          color: spent
+                              ? _C.text.withValues(alpha: 0.58)
+                              : Colors.white.withValues(alpha: 0.92),
+                          fontFamily: 'monospace',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.05,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _utilityButton({
+    required DungeonAbility ability,
+    required bool enabled,
+    required bool active,
+    required double charge,
+    required VoidCallback onTap,
+  }) {
+    final color = active ? _C.cyan : _C.amberBright;
+    return _roundAction(
+      diameter: 54,
+      icon: _abilityIcon(ability),
+      color: enabled ? color : _C.border,
+      charge: enabled ? charge : 0,
+      spent: !enabled,
+      teeth: 0, // the verb is not a weapon; it stays smooth
+      iconSize: 20,
+      semantics: 'Use ability',
+      onTap: enabled ? onTap : null,
     );
   }
 
@@ -1690,121 +1850,21 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }) {
     final cooling = cooldownFraction > 0.02;
     final spent = cooling || dimmed;
-    // A refused press: the bracket flares warm for a beat and settles. This
-    // is the whole of the feedback — no prose, no capsule.
-    final denied = deniedPulse.clamp(0.0, 1.0);
-    final bracketColor = denied > 0
-        ? Color.lerp(
-            color.withValues(alpha: spent ? 0.38 : 0.78),
-            _C.ember,
-            denied,
-          )!
-        : color.withValues(alpha: spent ? 0.38 : 0.78);
-    return GestureDetector(
+    return _roundAction(
+      diameter: 74,
+      icon: icon,
+      color: color,
+      // The rim fills as the wait runs out, so "ready" is a whole circle.
+      charge: dimmed ? 0 : 1 - cooldownFraction.clamp(0.0, 1.0),
+      spent: spent,
+      denied: deniedPulse.clamp(0.0, 1.0),
+      teeth: 12,
+      iconSize: 24,
+      // While cooling the caption IS the countdown — same slot, so the button
+      // never grows a badge that overlaps its own rim.
+      caption: cooldownText ?? label,
+      semantics: label,
       onTap: onTap,
-      child: CustomPaint(
-        painter: _HudBracketPainter(
-          color: bracketColor,
-          bracketSize: 8 + 2 * denied,
-          strokeWidth: (spent ? 1.0 : 1.35) + 0.8 * denied,
-        ),
-        child: ClipRect(
-          child: Stack(
-            children: [
-              Container(
-                width: 72,
-                height: 68,
-                decoration: BoxDecoration(
-                  color: _C.bg2.withValues(alpha: 0.88),
-                  border: Border.all(
-                    color: color.withValues(alpha: spent ? 0.28 : 0.55),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: spent ? 0.04 : 0.18),
-                      blurRadius: 18,
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      color: spent ? _C.text.withValues(alpha: 0.42) : color,
-                      size: 22,
-                      shadows: spent
-                          ? null
-                          : [
-                              Shadow(
-                                color: color.withValues(alpha: 0.6),
-                                blurRadius: 12,
-                              ),
-                            ],
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: spent
-                            ? _C.text.withValues(alpha: 0.52)
-                            : Colors.white.withValues(alpha: 0.92),
-                        fontFamily: 'monospace',
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.15,
-                        height: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (cooling)
-                Positioned.fill(
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: FractionallySizedBox(
-                      heightFactor: cooldownFraction.clamp(0.0, 1.0),
-                      child: ColoredBox(
-                        color: Colors.black.withValues(alpha: 0.48),
-                      ),
-                    ),
-                  ),
-                ),
-              if (cooldownText != null)
-                Positioned(
-                  top: 5,
-                  right: 5,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.84),
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: color.withValues(alpha: 0.75),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      cooldownText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 

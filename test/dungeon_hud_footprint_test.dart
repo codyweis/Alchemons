@@ -88,6 +88,124 @@ void main() {
     });
   });
 
+  group('the action pad', () {
+    test('is round, and the weapons are the big ones', () {
+      // "More attacky" is mostly size and shape: two heavy discs with the
+      // verb tucked above them, instead of three stacked rectangles.
+      expect(source, contains('Widget _roundAction('));
+      expect(
+        RegExp(r'diameter: 74').hasMatch(source),
+        isTrue,
+        reason: 'ATTACK and SPECIAL are the 74px discs',
+      );
+      expect(
+        RegExp(r'diameter: 54').hasMatch(source),
+        isTrue,
+        reason: 'the utility verb is the smaller disc above them',
+      );
+      expect(
+        source.contains('BoxShape.circle'),
+        isTrue,
+        reason: 'the chassis is a circle, not a rounded box',
+      );
+    });
+
+    test('the utility button sits above the pair, not beside it', () {
+      // Column order is the layout: utility, gap, then the weapons Row.
+      final util = source.indexOf('_utilityButton(');
+      final row = source.indexOf("label: 'ATTACK'");
+      expect(util, greaterThan(0));
+      expect(util, lessThan(row));
+    });
+
+    test('nothing on the pad is pinned to 154px any more', () {
+      expect(
+        RegExp(r'width: 154').hasMatch(source),
+        isFalse,
+        reason: 'the old utility/drop bars were fixed 154px slabs',
+      );
+    });
+
+    test('the cooldown is a rim arc, not a rising shade', () {
+      // The old spent-state was a black rectangle creeping up the button,
+      // which read as a progress bar wearing a button.
+      expect(source, contains('_ActionRingPainter'));
+      expect(source, contains('charge: dimmed ? 0 : 1 - cooldownFraction'));
+      expect(
+        source.contains('heightFactor: cooldownFraction'),
+        isFalse,
+        reason: 'the rising black shade is retired',
+      );
+    });
+
+    test('the countdown reuses the label slot', () {
+      // A badge pinned to a corner would sit on top of the rim now.
+      expect(source, contains('caption: cooldownText ?? label'));
+    });
+
+    test('the glide meter moved onto the utility rim', () {
+      // One control showing flight, not a control plus a floating 90x6 bar.
+      expect(source, contains('charge: glide ? game.flightFraction : 1.0'));
+      expect(
+        RegExp(r'width: 90,\s*\n\s*height: 6').hasMatch(source),
+        isFalse,
+        reason: 'the separate flight bar is retired',
+      );
+    });
+
+    test('the verb glyph follows the active family', () {
+      // The old label was the literal word UTILITY on all seventeen planets.
+      // Every ability must map to something, or a swap silently blanks it.
+      for (final ability in [
+        'smallAccess',
+        'terrainTrail',
+        'heavyForce',
+        'insight',
+        'aerialTraversal',
+        'ancientStabilize',
+      ]) {
+        expect(
+          source,
+          contains('DungeonAbility.$ability:'),
+          reason: '$ability has no glyph',
+        );
+      }
+    });
+  });
+
+  group('the ring painter', () {
+    test('draws with strokes only', () {
+      // The HUD repaints on the game tick; a blurred rim would be a filter
+      // pass per button per frame, which is the jank this codebase fights.
+      final painter = source.substring(
+        source.indexOf('class _ActionRingPainter'),
+        source.indexOf('const _starPrefsKey'),
+      );
+      expect(painter.contains('MaskFilter'), isFalse);
+    });
+
+    test('repaints when any of its state changes', () {
+      final painter = source.substring(
+        source.indexOf('class _ActionRingPainter'),
+        source.indexOf('const _starPrefsKey'),
+      );
+      for (final field in [
+        'charge',
+        'spent',
+        'denied',
+        'teeth',
+        'color',
+        'thickness',
+      ]) {
+        expect(
+          painter.contains('old.$field != $field'),
+          isTrue,
+          reason: 'shouldRepaint ignores $field',
+        );
+      }
+    });
+  });
+
   group('the hint', () {
     test('is a circled question mark, filled when it has an answer', () {
       expect(source, contains('Icons.help_rounded'));
