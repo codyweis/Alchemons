@@ -17,9 +17,7 @@ class ExtractionDialog extends StatefulWidget {
   final IncubatorSlot slot;
   final Color primaryColor;
   final bool isUndiscovered;
-  /// Called with the vial's own screen rect, so the transition out of this
-  /// dialog can start from the thing that was tapped.
-  final void Function(Rect? vialRect) onExtract;
+  final VoidCallback onExtract;
   final VoidCallback onDiscard;
   final VoidCallback onCancel;
   final bool isTutorial;
@@ -41,17 +39,6 @@ class ExtractionDialog extends StatefulWidget {
 
 class ExtractionDialogState extends State<ExtractionDialog>
     with SingleTickerProviderStateMixin {
-  /// The vial art at the head of the dialog — the thing the player is
-  /// looking at when they press Extract, and where the veil should close in
-  /// from.
-  final GlobalKey _vialKey = GlobalKey();
-
-  Rect? _vialRect() {
-    final box = _vialKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached) return null;
-    return box.localToGlobal(Offset.zero) & box.size;
-  }
-
   late AnimationController _enterCtrl;
   late Animation<double> _slideAnim;
   late Animation<double> _fadeAnim;
@@ -151,7 +138,6 @@ class ExtractionDialogState extends State<ExtractionDialog>
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _ParticleBanner(
-                        key: _vialKey,
                         parentTypes: parentTypes,
                         rarityColor: rarityColor,
                         rarity: rarity,
@@ -211,7 +197,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                         large: true,
                         onTap: () {
                           HapticFeedback.heavyImpact();
-                          widget.onExtract(_vialRect());
+                          widget.onExtract();
                         },
                       ),
                       if (!widget.isTutorial) ...[
@@ -340,7 +326,6 @@ class _DialogTextLink extends StatelessWidget {
 
 class _ParticleBanner extends StatelessWidget {
   const _ParticleBanner({
-    super.key,
     required this.parentTypes,
     required this.rarityColor,
     required this.rarity,

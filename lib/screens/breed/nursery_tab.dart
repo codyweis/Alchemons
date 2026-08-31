@@ -11,7 +11,6 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
-import 'package:alchemons/widgets/animations/extraction_veil.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
 import 'package:alchemons/widgets/nursery/non_ready_hatch_widget.dart';
 import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
@@ -534,38 +533,11 @@ class _NurseryTabState extends State<NurseryTab> {
     }
   }
 
-  /// Extract → cinematic, as one continuous plunge.
-  ///
-  /// This was a pop, a hardcoded 140ms of nothing, and then however long the
-  /// database took — an instance insert, a discovery mark, a constellation
-  /// tick, an unlock check, a recipe registration, a settings read — all of
-  /// it playing out on a nursery screen with nothing happening on it, before
-  /// the cinematic finally faded up over black.
-  ///
-  /// The veil goes up first, closing out of the vial that was tapped, and all
-  /// of that happens behind it. The cinematic then opens on a screen that is
-  /// already dark, so its own fade has nothing to cross, and the veil stays
-  /// as the floor under the whole ceremony rather than flashing the nursery
-  /// between the cinematic and the result.
-  Future<void> _startHatchFromReadyPopup(
-    IncubatorSlot slot,
-    Rect? vialRect,
-  ) async {
+  Future<void> _startHatchFromReadyPopup(IncubatorSlot slot) async {
+    // Let the extraction dialog close animation finish before cinematic starts.
+    await Future<void>.delayed(const Duration(milliseconds: 140));
     if (!mounted) return;
-    final accent = BreedConstants.getRarityColor(
-      (slot.rarity ?? 'common').toLowerCase(),
-    );
-    final veil = await showExtractionVeil(
-      context,
-      from: vialRect,
-      accent: accent,
-    );
-    try {
-      if (!mounted) return;
-      await _hatchFromSlot(slot);
-    } finally {
-      await veil.dismiss();
-    }
+    await _hatchFromSlot(slot);
   }
 
   Future<void> _showExtractionDialog(
@@ -584,9 +556,9 @@ class _NurseryTabState extends State<NurseryTab> {
         primaryColor: primaryColor,
         isUndiscovered: isUndiscovered,
         isTutorial: !extractionDone,
-        onExtract: (vialRect) {
+        onExtract: () {
           Navigator.pop(context);
-          unawaited(_startHatchFromReadyPopup(slot, vialRect));
+          unawaited(_startHatchFromReadyPopup(slot));
         },
         onDiscard: () {
           Navigator.pop(context);
