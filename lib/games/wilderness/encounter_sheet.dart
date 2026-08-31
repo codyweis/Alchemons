@@ -67,9 +67,10 @@ class EncounterOverlay extends StatefulWidget {
   onHarvestInScene;
 
   /// Merges the party creature and the wild one where they stand, answering
-  /// true if it actually played. Null hosts fall back to the route drawing
-  /// the pair itself.
-  final Future<bool> Function(Color party, Color wild)? onFusionInScene;
+  /// the SCREEN rect they met in — so what plays next can play there — or
+  /// null if there was no pair to play on. Null hosts fall back to the route
+  /// drawing the pair itself.
+  final Future<Rect?> Function(Color party, Color wild)? onFusionInScene;
   final Creature hydratedWildCreature;
   final bool highlightPartyHUD; // 🆕 Tutorial highlighting
   final bool isTutorial; // 🆕 Tutorial mode flag
@@ -682,9 +683,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           await Future<void>.delayed(const Duration(milliseconds: 260));
           if (!mounted) return;
         }
-        final merged = mergeInScene == null
-            ? false
+        final mergedAt = mergeInScene == null
+            ? null
             : await mergeInScene(colorA, colorB);
+        final merged = mergedAt != null;
 
         if (!ctx.mounted) return;
         final didBreed = await showAlchemyFusionCinematic<bool>(
@@ -692,6 +694,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           leftSprite: partySprite(),
           rightSprite: wildSprite(),
           drawSpecimens: !merged,
+          // Put the core where the two actually came together. Left to its
+          // default it lands in the middle of the display, so the alchemy
+          // played somewhere the fusion had not happened.
+          coreRect: mergedAt,
           leftColor: colorA,
           rightColor: colorB,
           minDuration: Duration(milliseconds: merged ? 2600 : 4350),

@@ -402,6 +402,10 @@ class FusionFieldEffect extends PositionComponent {
   final Completer<void> _done = Completer<void>();
   Future<void> get finished => _done.future;
 
+  /// Where the two actually met, in the world's own coordinates. The caller
+  /// needs it to put what happens next in the same place.
+  Vector2 get meetingPoint => _absMid;
+
   static const _amber = Color(0xFFE4C16A);
 
   double _t = 0;

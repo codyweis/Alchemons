@@ -474,10 +474,14 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// Haul the party creature and the wild one into each other, in the scene.
   ///
   /// Completes once the pair have merged and left the world, so the caller can
-  /// hand over to the burst-and-reveal with nothing left to duplicate. Returns
-  /// false if there was no pair to play on, in which case the caller should
-  /// fall back to drawing them itself.
-  Future<bool> playFusionOnEncounter({
+  /// hand over to the burst-and-reveal with nothing left to duplicate.
+  ///
+  /// Answers with the SCREEN rect the two met in, so whatever plays next can
+  /// play there: the fusion route defaults its core to the middle of the
+  /// display, which is not where two creatures standing in a scene happen to
+  /// come together. Null means there was no pair to play on and the caller
+  /// should draw them itself.
+  Future<Rect?> playFusionOnEncounter({
     required Color accentParty,
     required Color accentWild,
   }) async {
@@ -490,7 +494,7 @@ class SceneGame extends FlameGame with ScaleDetector {
         !wild.isMounted ||
         !party.isMounted ||
         world == null) {
-      return false;
+      return null;
     }
 
     pushInForHarvest();
@@ -503,15 +507,25 @@ class SceneGame extends FlameGame with ScaleDetector {
       accentB: accentWild,
     );
     (wild.parent ?? world).add(fx);
+    final meeting = fx.meetingPoint.clone();
     await fx.finished;
     dim.release();
-    releaseHarvestPush();
 
     _wildRenderVersionBySpawnId[id!] =
         (_wildRenderVersionBySpawnId[id] ?? 0) + 1;
     _wildBySpawnId.remove(id);
     _partyCreature = null;
-    return true;
+
+    // World point → screen point, through the camera as it is RIGHT NOW —
+    // before the push is released, or the answer describes a camera the
+    // player is not looking through yet.
+    final onScreen = cam.localToGlobal(meeting);
+    releaseHarvestPush();
+    return Rect.fromCenter(
+      center: Offset(onScreen.x, onScreen.y),
+      width: 1,
+      height: 1,
+    );
   }
 
   void clearWildAt(String spawnId) {
