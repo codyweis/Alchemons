@@ -2358,62 +2358,239 @@ extension BuriedGiant on PlanetDungeonGame {
     }
   }
 
-  void _drawGiantsPalm(Canvas canvas) {
-    const c = kGiantsPalm;
-    final won = discoveredClouds.contains(kEarthGiantsPalmEggId);
-    // The open fossil hand: a palm arc and five finger strokes.
-    final bone = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFB8A070).withValues(alpha: 0.5);
-    canvas.drawArc(
-      Rect.fromCircle(center: c + const Offset(0, 26), radius: 52),
-      pi * 1.05,
-      pi * 0.9,
-      false,
-      bone,
-    );
-    for (var i = 0; i < 5; i++) {
-      final a = pi * 1.12 + i * pi * 0.19;
-      final base = c + const Offset(0, 26) + Offset(cos(a), sin(a)) * 52;
-      final tip =
-          c +
-          const Offset(0, 26) +
-          Offset(cos(a), sin(a)) * (86 + (i == 2 ? 12 : 0));
-      canvas.drawLine(base, tip, bone);
-    }
-    if (won) {
-      // The crystal taken root, forever.
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          c,
-          44,
-          const Color(
-            0xFFB8E0D8,
-          ).withValues(alpha: 0.22 + 0.07 * sin(_time * 1.7)),
-        );
-      }
-      final shard = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8
-        ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.9);
-      for (final (dx, h) in const [(-10.0, 18.0), (0.0, 28.0), (10.0, 16.0)]) {
-        final base = c + Offset(dx, 10);
-        canvas.drawPath(
-          Path()
-            ..moveTo(base.dx - 5, base.dy)
-            ..lineTo(base.dx, base.dy - h)
-            ..lineTo(base.dx + 5, base.dy)
-            ..close(),
-          shard,
-        );
-      }
+  // ── THE GIANT'S PALM (the lost maxim) ─────────────────────
+  //
+  // WHAT THIS REPLACES. An arc with five spokes in 5px hairlines — it read as
+  // a sunrise, not a hand — and, once found, a twenty-pixel crystal glyph
+  // sitting in it. Compare what the other three planets leave behind: Fire
+  // burns Epicurus into the floor and it stays lit, Air's compass ring knits
+  // shut and the hub turns forever, Water freezes a moon into the pool. Earth
+  // appeared an icon.
+  //
+  // Two separate faults, fixed separately. The hand was a DIAGRAM of a hand,
+  // so it is built out of the barrow's own bone material now with real
+  // fingers, joints, a thumb and a palm you could stand in, half-sunk in the
+  // strata at a scale that says the rest of the body is under your feet. And
+  // "the crystal takes root" was a promise nothing kept, so what grows there
+  // has clearly been growing for an age.
+
+  /// One finger of the giant, at [a] radians from the wrist, [len] long.
+  void _drawGiantFinger(Canvas canvas, Offset wrist, double a, double len) {
+    // Three phalanges, each shorter and thinner than the last, with the joint
+    // knuckles between them — a finger is a chain of bones, and drawing it as
+    // one stroke is what made the hand a fan.
+    var at = wrist;
+    var ang = a;
+    const share = [0.44, 0.33, 0.23];
+    for (var i = 0; i < 3; i++) {
+      // Fingers curl: each joint bends a little further toward the palm.
+      ang += 0.13 * (i + 1) * (a < -pi / 2 ? -1 : 1);
+      final seg = len * share[i];
+      final end = at + Offset(cos(ang), sin(ang)) * seg;
+      _drawBuriedBone(
+        canvas,
+        at,
+        Offset.lerp(at, end, 0.5)!,
+        end,
+        thick: 21.0 - i * 4.5,
+        alpha: 0.95,
+      );
+      // The knuckle — SMALL. Sized to the bone it joins, it read as a bead on
+      // a string and the fingers came out looking threaded rather than
+      // jointed. It only has to interrupt the taper, not announce itself.
+      canvas.drawCircle(
+        end,
+        6.0 - i * 1.6,
+        Paint()..color = const Color(0xFF7A6440).withValues(alpha: 0.5),
+      );
+      at = end;
+      ang = a;
     }
   }
 
+  void _drawGiantsPalm(Canvas canvas) {
+    const c = kGiantsPalm;
+    final won = discoveredClouds.contains(kEarthGiantsPalmEggId);
+    final wrist = c + const Offset(0, 96);
+
+    // THE HAND, half-sunk. The dirt it is lying in first, so the bone comes
+    // up OUT of the ground rather than sitting on top of it.
+    canvas.drawOval(
+      Rect.fromCenter(center: c + const Offset(0, 34), width: 300, height: 150),
+      Paint()..color = const Color(0xFF0E0A06).withValues(alpha: 0.5),
+    );
+
+    // The forearm, running off the bottom of the hollow — the hand belongs to
+    // something, and the something is not in the room.
+    _drawBuriedBone(
+      canvas,
+      wrist + const Offset(6, 150),
+      wrist + const Offset(2, 70),
+      wrist,
+      thick: 54,
+      alpha: 0.8,
+    );
+
+    // The palm: a broad plate of bone, wider at the knuckles than the wrist.
+    final palm = Path()
+      ..moveTo(wrist.dx - 34, wrist.dy)
+      ..quadraticBezierTo(c.dx - 96, c.dy + 40, c.dx - 84, c.dy - 20)
+      ..quadraticBezierTo(c.dx, c.dy - 44, c.dx + 84, c.dy - 20)
+      ..quadraticBezierTo(c.dx + 96, c.dy + 40, wrist.dx + 34, wrist.dy)
+      ..close();
+    canvas.drawPath(
+      palm,
+      Paint()..color = const Color(0xFF6B5636).withValues(alpha: 0.62),
+    );
+    canvas.drawPath(
+      palm,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..color = const Color(0xFFC6AC78).withValues(alpha: 0.34),
+    );
+    // The creases across it — a hand has lines in it, and they are where the
+    // crystal will find its way in.
+    final crease = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF2A2014).withValues(alpha: 0.6);
+    canvas.drawPath(
+      Path()
+        ..moveTo(c.dx - 66, c.dy + 6)
+        ..quadraticBezierTo(c.dx - 6, c.dy + 26, c.dx + 58, c.dy - 4),
+      crease,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(c.dx - 58, c.dy + 34)
+        ..quadraticBezierTo(c.dx, c.dy + 46, c.dx + 50, c.dy + 24),
+      crease,
+    );
+
+    // Four fingers off the knuckle line, and a thumb off the side. The thumb
+    // is the whole difference between a hand and a fan.
+    for (var i = 0; i < 4; i++) {
+      final t = i / 3;
+      final base = Offset(c.dx - 66 + t * 132, c.dy - 24 - sin(t * pi) * 12);
+      final spread = -pi / 2 + (t - 0.5) * 0.62;
+      _drawGiantFinger(canvas, base, spread, 104 + sin(t * pi) * 26);
+    }
+    // The thumb comes off the SIDE of the palm and angles up across it.
+    // Hung low and level it read as a second forearm leaving the room.
+    _drawGiantFinger(canvas, Offset(c.dx - 82, c.dy + 12), -pi * 0.74, 76);
+
+    if (!won) {
+      // Empty, and open. A single grain of crystal light down in the crease,
+      // so a player standing here has one reason to wonder — the room's only
+      // tell, and it says nothing about what to bring.
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.mote!,
+          c + const Offset(-4, 16),
+          5,
+          const Color(
+            0xFFB8E0D8,
+          ).withValues(alpha: 0.10 + 0.06 * sin(_time * 0.9)),
+        );
+      }
+      return;
+    }
+
+    // ── TAKEN ROOT, AND IT HAS BEEN GROWING FOR AN AGE ──
+    //
+    // Not a glyph placed in the hand: a formation that came UP through it.
+    // The crystal follows the creases out to the fingers, stains the bone
+    // where it met it, and stands in a cluster of blades of three sizes.
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c + const Offset(0, 6),
+        86,
+        const Color(
+          0xFFB8E0D8,
+        ).withValues(alpha: 0.16 + 0.05 * sin(_time * 1.3)),
+      );
+    }
+    // The stain: where crystal met bone, the bone went green-white.
+    canvas.drawPath(
+      palm,
+      Paint()..color = const Color(0xFFB8E0D8).withValues(alpha: 0.09),
+    );
+    // Veins running the creases out into the fingers.
+    final vein = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.34);
+    for (var i = 0; i < 4; i++) {
+      final t = i / 3;
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.dx, c.dy + 10)
+          ..quadraticBezierTo(
+            c.dx - 40 + t * 80,
+            c.dy - 6,
+            c.dx - 66 + t * 132,
+            c.dy - 30,
+          ),
+        vein,
+      );
+    }
+    // The cluster. Blades of three heights, each a solid body with a lit
+    // facet, leaning off one another the way crystal actually grows.
+    const blades = [
+      (-34.0, 46.0, -0.22),
+      (-16.0, 74.0, -0.08),
+      (2.0, 104.0, 0.02),
+      (20.0, 66.0, 0.14),
+      (38.0, 38.0, 0.26),
+    ];
+    for (final (dx, h, lean) in blades) {
+      final base = c + Offset(dx, 18);
+      final tip = base + Offset(sin(lean) * h, -cos(lean) * h);
+      final w = 7.0 + h * 0.075;
+      final body = Path()
+        ..moveTo(base.dx - w, base.dy)
+        ..lineTo(tip.dx - w * 0.22, tip.dy)
+        ..lineTo(tip.dx + w * 0.22, tip.dy)
+        ..lineTo(base.dx + w, base.dy)
+        ..close();
+      canvas.drawPath(
+        body,
+        Paint()..color = const Color(0xFF2E5A56).withValues(alpha: 0.85),
+      );
+      // The lit facet down one side — this is what makes it read as faceted
+      // rather than as a triangle.
+      canvas.drawPath(
+        Path()
+          ..moveTo(base.dx - w, base.dy)
+          ..lineTo(tip.dx - w * 0.22, tip.dy)
+          ..lineTo(tip.dx, tip.dy)
+          ..lineTo(base.dx, base.dy)
+          ..close(),
+        Paint()..color = const Color(0xFFB8E0D8).withValues(alpha: 0.55),
+      );
+      canvas.drawPath(
+        body,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.75),
+      );
+      // A slow gleam travelling the blade, so the thing is alive and not a
+      // decal — one moving highlight per blade, no blur.
+      final g = (sin(_time * 0.7 + dx * 0.05) * 0.5 + 0.5);
+      canvas.drawCircle(
+        Offset.lerp(base, tip, 0.25 + g * 0.5)!,
+        1.8,
+        Paint()..color = Colors.white.withValues(alpha: 0.35 + 0.3 * g),
+      );
+    }
+  }
   void _drawBoneMural(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     final panel = Rect.fromCenter(

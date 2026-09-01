@@ -1883,8 +1883,19 @@ The rest were diagrams of their own mechanics.
   · ✅ **`pillar_crypt` is the spine.** The four sockets are vertebrae, so
     there is now a backbone for them to be vertebrae OF, with transverse
     processes reaching to the walls.
-  · ⬜ `eye_chamber`, `palm_hollow`, `skull_antechamber`, `marrow_vault`,
-    `heart_chamber`, `barrow_gate` still owe their anatomy.
+  · ✅ **`palm_hollow` is a hand.** It was an arc and five 5px spokes — a
+    sunrise, not a hand — and the maxim's permanent mark was a 20px crystal
+    glyph appearing in it, against Fire burning Epicurus into the floor and
+    Air's compass ring knitting shut forever. It is a giant's hand now, palm
+    up and half-sunk in the strata with the forearm running off the bottom of
+    the room: fingers of three phalanges that curl at each joint, small
+    knuckles, and a THUMB across the palm, which is the whole difference
+    between a hand and a fan. And the crystal has been growing for an age —
+    it comes up THROUGH the palm, stains the bone where it met it, runs the
+    creases out into the fingers, and stands in five faceted blades with a
+    gleam travelling each one.
+  · ⬜ `eye_chamber`, `skull_antechamber`, `marrow_vault`, `heart_chamber`,
+    `barrow_gate` still owe their anatomy.
   · ⬜ Device playtest.
 
 ### EARTH STARS 1 AND 2 — REWORKED 2026-09-01
