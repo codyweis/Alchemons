@@ -1607,6 +1607,21 @@ The reference. What "complete" meant, so the next planet has a target:
   · ⬜ Device playtest.
   · The floating islands themselves are good and should be left alone.
 
+### HUD OCCLUSION — the minimap owns the screen's north-west corner
+
+It is pinned top-left and the player cannot move it. In a room WIDER and
+TALLER than the viewport the camera clamps to the room's own edges, so the
+room's north-west corner lands exactly under it.
+
+Water's canal gallery was the one offender: the SPRING — the basin that always
+answers a hand, and the reason a lost lantern can never end a run — sat at
+(100, 110) in a 1000x720 room, under the panel. The gallery is padded: every
+authored point inset by (96, 64) and the bounds grown to 1096x784, so the
+corner the HUD occupies is empty floor. `dungeon_hud_occlusion_test.dart`
+walks every room on every planet against a 412x915 portrait viewport and the
+panel's real box, so the next one is caught before a playtest rather than
+during one.
+
 ## 8. Build status
 
 - ✅ Overworld gate flow: a gated planet's recipe is a ONE-TIME element

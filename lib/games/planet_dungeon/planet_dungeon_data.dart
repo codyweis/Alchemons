@@ -3016,7 +3016,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(936, 305, 24, 90),
           targetRoomId: 'ghost_gallery',
-          targetSpawn: Offset(110, 360),
+          targetSpawn: Offset(110, 424),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(425, 676, 110, 24),
@@ -3099,16 +3099,21 @@ const DungeonLayout _waterLayout = DungeonLayout(
     // ends in the blind sump, which is the puzzle's whole thesis).
     'ghost_gallery': DungeonRoom(
       id: 'ghost_gallery',
-      bounds: Rect.fromLTWH(0, 0, 1000, 720),
+      // PADDED (2026-08-31). The minimap sits in the screen's top-left, and with
+      // the camera clamped to this room's west end it covered the SPRING — the
+      // one basin that always answers a hand, and the reason a lost lantern can
+      // never end a run. Everything in the gallery is inset by (96, 64) and the
+      // bounds grown to match, so the corner the HUD occupies is empty floor.
+      bounds: Rect.fromLTWH(0, 0, 1096, 784),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 315, 24, 90),
+          rect: Rect.fromLTWH(0, 379, 24, 90),
           targetRoomId: 'drowned_court',
           targetSpawn: Offset(880, 350),
         ),
         // The pearl vault's passage drowns above low tide.
         DungeonDoor(
-          rect: Rect.fromLTWH(976, 315, 24, 90),
+          rect: Rect.fromLTWH(1072, 379, 24, 90),
           targetRoomId: 'pearl_vault',
           targetSpawn: Offset(110, 280),
         ),
@@ -3120,25 +3125,25 @@ const DungeonLayout _waterLayout = DungeonLayout(
       // the steering wheel, so it has to be IN the room — but far enough from
       // the water's forks that every change is a committed walk.
       tideValves: [
-        TideValve(position: Offset(80, 470), level: 0),
-        TideValve(position: Offset(80, 560), level: 1),
-        TideValve(position: Offset(80, 650), level: 2),
+        TideValve(position: Offset(176, 534), level: 0),
+        TideValve(position: Offset(176, 624), level: 1),
+        TideValve(position: Offset(176, 714), level: 2),
       ],
       canalNodes: [
         // The spring: a carved lion-mouth high in the north-west wall. It is
         // the one basin that always answers a hand, so a lost lantern can
         // never end a run (§ no-softlock, structural).
-        CanalNode(id: 'spring', position: Offset(100, 110), isSpring: true),
-        CanalNode(id: 'north_lock', position: Offset(330, 165)),
-        CanalNode(id: 'east_shelf', position: Offset(800, 210)),
-        CanalNode(id: 'heart_basin', position: Offset(545, 330)),
+        CanalNode(id: 'spring', position: Offset(196, 174), isSpring: true),
+        CanalNode(id: 'north_lock', position: Offset(426, 229)),
+        CanalNode(id: 'east_shelf', position: Offset(896, 274)),
+        CanalNode(id: 'heart_basin', position: Offset(641, 394)),
         // The blind sump: a throatless basin — no groove leaves it, and the
         // temple's natural fall runs straight into it. Visibly a dead end.
-        CanalNode(id: 'blind_sump', position: Offset(215, 495)),
-        CanalNode(id: 'south_race', position: Offset(600, 540)),
+        CanalNode(id: 'blind_sump', position: Offset(311, 559)),
+        CanalNode(id: 'south_race', position: Offset(696, 604)),
         // The sea drain, low in the south-east corner: the lantern reaching
         // it banks the Current Star.
-        CanalNode(id: 'sea', position: Offset(885, 645), isSea: true),
+        CanalNode(id: 'sea', position: Offset(981, 709), isSea: true),
       ],
       canalChannels: [
         CanalChannel('spring', 'north_lock', CanalSill.low),
@@ -3155,7 +3160,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
       tideZones: [
         // The gallery's own flooded middle: from the middle water up it is
         // swum, so a high stand is not free — it slows every walk to a valve.
-        TideZone(rect: Rect.fromLTWH(300, 290, 420, 210), floodedAt: 1),
+        TideZone(rect: Rect.fromLTWH(396, 354, 420, 210), floodedAt: 1),
       ],
       canalStarIndex: 1,
     ),
@@ -3169,7 +3174,7 @@ const DungeonLayout _waterLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(0, 235, 24, 90),
           targetRoomId: 'ghost_gallery',
-          targetSpawn: Offset(880, 360),
+          targetSpawn: Offset(1010, 424),
         ),
       ],
       vaultCache: Offset(320, 280),
