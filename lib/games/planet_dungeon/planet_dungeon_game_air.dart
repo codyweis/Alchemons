@@ -1409,24 +1409,102 @@ extension WindCrownSpire on PlanetDungeonGame {
     _drawStormCellAndLeader(canvas, room);
   }
 
+  /// The chalk on a walkway, and the wind that scours it off.
+  ///
+  /// This used to draw each route as a rounded-rect OUTLINE the size of the
+  /// whole path — a big empty box hanging over the terrain, five or six per
+  /// room, which read as UI cards laid on the sky rather than as anything
+  /// marked on the rock. The information is the same and it belongs on the
+  /// SURFACE: a dashed chalk line down the middle of the walk, chevrons
+  /// pointing the way it is walked, and both eaten away where a woken gale
+  /// has scoured them.
   void _drawWindLedgeMarks(Canvas canvas, DungeonRoom room) {
     if (room.windRoutes.isEmpty) return;
-    // A scoured walk reads as scoured: the walkway's own chalk fades out under
-    // the wind that owns it. This is the "read the ledges BEFORE you wake it"
-    // channel, drawn rather than spoken.
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
     for (final r in room.windRoutes) {
       if (r.ridesGale != null) continue;
       final swept = r.sweptBy.any(wokenGales.contains);
-      paint.color = (swept ? const Color(0xFF6B5330) : const Color(0xFFCBB27A))
-          .withValues(alpha: swept ? 0.22 : 0.4);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r.path.deflate(3), const Radius.circular(5)),
-        paint,
-      );
+      final col = swept ? const Color(0xFF6B5330) : const Color(0xFFCBB27A);
+      final alpha = swept ? 0.30 : 0.62;
+
+      // The walk itself: the top band of the path, where feet would go.
+      final path = r.path;
+      final y = path.top + path.height * 0.34;
+      final chalk = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = swept ? 1.4 : 2.2
+        ..color = col.withValues(alpha: alpha);
+
+      // Dashes, scuffed and uneven — chalk, not a border.
+      const dash = 15.0;
+      const gap = 11.0;
+      for (var x = path.left + 10; x < path.right - 10; x += dash + gap) {
+        final end = (x + dash).clamp(path.left, path.right - 10);
+        // A swept walk loses whole segments rather than fading evenly.
+        if (swept && ((x ~/ 26) % 3 == 0)) continue;
+        final wobble = sin(x * 0.07) * 1.4;
+        canvas.drawLine(
+          Offset(x, y + wobble),
+          Offset(end.toDouble(), y + wobble),
+          chalk,
+        );
+      }
+
+      // Chevrons: which way this walk is walked.
+      final toRight = _routeRunsRight(room, r);
+      final nib = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = swept ? 1.2 : 1.8
+        ..color = col.withValues(alpha: alpha * 0.85);
+      for (var i = 0; i < 3; i++) {
+        final t = 0.28 + i * 0.22;
+        final cx = path.left + path.width * t;
+        final d = toRight ? 1.0 : -1.0;
+        canvas.drawLine(
+          Offset(cx - 5 * d, y - 12),
+          Offset(cx + 5 * d, y - 6),
+          nib,
+        );
+        canvas.drawLine(
+          Offset(cx + 5 * d, y - 6),
+          Offset(cx - 5 * d, y),
+          nib,
+        );
+      }
+
+      // Scoured: the gale's own streaks run across what is left of the chalk.
+      if (!swept) continue;
+      final scour = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 1.1
+        ..color = const Color(0xFF8FE6FF).withValues(alpha: 0.22);
+      for (var i = 0; i < 5; i++) {
+        final sy = path.top + 8 + i * (path.height - 16) / 4;
+        final sx = path.left + ((_time * 90 + i * 61) % (path.width + 60)) - 30;
+        canvas.drawLine(
+          Offset(sx, sy),
+          Offset((sx + 34).clamp(path.left, path.right), sy - 3),
+          scour,
+        );
+      }
     }
+  }
+
+  /// Which way a route reads, from the ledges it joins.
+  bool _routeRunsRight(DungeonRoom room, WindRoute r) {
+    Rect? ledge(String id) {
+      for (final l in room.windLedges) {
+        if (l.id == id) return l.rect;
+      }
+      return null;
+    }
+
+    final a = ledge(r.from);
+    final b = ledge(r.to);
+    if (a == null || b == null) return true;
+    return b.center.dx >= a.center.dx;
   }
 
   void _drawGustShrines(Canvas canvas, DungeonRoom room) {

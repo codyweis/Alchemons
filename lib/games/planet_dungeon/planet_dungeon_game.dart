@@ -12012,8 +12012,40 @@ class PlanetDungeonGame extends FlameGame {
       }
 
       final radius = min(24.0, rect.height * 0.34);
-      final top = Path()
-        ..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)));
+      // THE TOP IS ROCK, NOT A CARD.
+      //
+      // This was a plain RRect, so every island wore a clean rounded
+      // rectangle over a jagged underside — two objects, and the light one on
+      // top read as a UI panel laid on the sky. The crown is broken up now:
+      // the same rounded body, with the upper edge stepped by a few
+      // millimetres of noise so its silhouette belongs to the same stone that
+      // hangs beneath it.
+      final top = Path()..moveTo(rect.left, rect.top + radius);
+      const crownSteps = 7;
+      for (var i = 0; i <= crownSteps; i++) {
+        final u = i / crownSteps;
+        final x = rect.left + rect.width * u;
+        // Flat-ish in the middle where feet go, rougher at the shoulders.
+        final shoulder = (1 - sin(u * pi)) * 0.9 + 0.1;
+        final y = rect.top + (n(100 + i) - 0.5) * rect.height * 0.10 * shoulder;
+        if (i == 0) {
+          top.lineTo(rect.left, y + radius * 0.2);
+        } else {
+          top.lineTo(x, y);
+        }
+      }
+      top
+        ..lineTo(rect.right, rect.top + radius)
+        ..lineTo(rect.right, rect.bottom - radius)
+        ..quadraticBezierTo(
+          rect.right,
+          rect.bottom,
+          rect.right - radius,
+          rect.bottom,
+        )
+        ..lineTo(rect.left + radius, rect.bottom)
+        ..quadraticBezierTo(rect.left, rect.bottom, rect.left, rect.bottom - radius)
+        ..close();
 
       final underside = Path()
         ..moveTo(rect.left + radius * 0.4, rect.top + rect.height * 0.48)
@@ -12086,9 +12118,11 @@ class PlanetDungeonGame extends FlameGame {
         ..shader = ui.Gradient.linear(
           rect.topCenter,
           rect.bottomCenter,
+          // Darker, and in the same value range as the underside — the old
+          // top started at a light slate that floated off the rock below it.
           stormVariant
-              ? const [Color(0xFF26303F), Color(0xFF151B27), Color(0xFF080A11)]
-              : const [Color(0xFF35465A), Color(0xFF202B3A), Color(0xFF101722)],
+              ? const [Color(0xFF1E2733), Color(0xFF111621), Color(0xFF06080D)]
+              : const [Color(0xFF2A3848), Color(0xFF18212D), Color(0xFF0B1017)],
           const [0.0, 0.4, 1.0],
         ),
     );
@@ -12114,10 +12148,11 @@ class PlanetDungeonGame extends FlameGame {
       geom.top,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
+        ..strokeWidth = 1.3
+        // Light catching stone, not a border round a panel.
         ..color =
             (stormVariant ? const Color(0xFF5BC8E8) : const Color(0xFFBFD2E6))
-                .withValues(alpha: stormVariant ? 0.42 : 0.35),
+                .withValues(alpha: stormVariant ? 0.30 : 0.24),
     );
 
     final runePaint = Paint()
