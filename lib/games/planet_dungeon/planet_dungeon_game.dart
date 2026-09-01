@@ -992,6 +992,14 @@ class PlanetDungeonGame extends FlameGame {
   /// deaf, and pressing it costs nothing.
   final Map<String, int> poolWants = {};
 
+  /// The stand each basin's moon called for BEFORE any ice went into the
+  /// well. Fixed at the roll; the well is what moves. See `basinDrowned`.
+  final Map<String, int> poolWantStand = {};
+
+  /// Set once the fourth basin has been taken, so breaking one open and
+  /// re-freezing it cannot summon the wardens twice.
+  bool wardensSent = false;
+
   /// Render pulses: the dial answering a press, and the moon's own breath.
   double _moonDialFx = 0;
   double _moonWaxFx = 0;

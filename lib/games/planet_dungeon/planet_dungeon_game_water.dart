@@ -3097,7 +3097,31 @@ extension MirrorTide on PlanetDungeonGame {
       // black water and never pretends otherwise.
       if (want != null) {
         final wantPhase = want / (kMoonNotches - 1);
-        _drawTheMoon(canvas, p, 13, wantPhase);
+        final drowned = basinDrowned(pool.id);
+        _drawTheMoon(canvas, p, 13, wantPhase, opacity: drowned ? 0.28 : 1.0);
+        if (drowned) {
+          // DROWNED: the moon it wants, gone dim under water, with the well's
+          // line struck across it. The state is on the basin, not in a
+          // sentence — and it is plainly undoable, because the thing that
+          // caused it is the ice you can see standing in the other basins.
+          canvas.drawCircle(
+            p,
+            24,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.2
+              ..color = const Color(0xFF2A4453).withValues(alpha: 0.8),
+          );
+          canvas.drawLine(
+            p + const Offset(-20, 9),
+            p + const Offset(20, -9),
+            Paint()
+              ..strokeWidth = 1.6
+              ..strokeCap = StrokeCap.round
+              ..color = const Color(0xFF4A7080).withValues(alpha: 0.75),
+          );
+          continue;
+        }
         // And how close the sky is to it: a ring that closes as the moon
         // approaches, complete and bright the moment the basin would take it.
         final off = (moonNotch - want).abs();
@@ -3346,6 +3370,29 @@ const List<int> kMoonWantable = [1, 2, 4, 5];
 /// moon is the fine one — you cannot solve the room off the water alone.
 int moonStandFor(int notch) => notch <= 1 ? 0 : (notch <= 4 ? 1 : 2);
 
+/// Locked basins before the ice starts to displace the water.
+const int kMoonRiseAfterLocks = 2;
+
+/// THE ICE RAISES THE WELL, and that is what makes the ORDER the puzzle.
+///
+/// Every basin you freeze is a slab of ice taking up room in a closed well,
+/// so once [kMoonRiseAfterLocks] of them stand the water rides a notch higher
+/// for the same moon: the thresholds slide down and every notch calls for
+/// more water than it used to.
+///
+/// A basin wants the stand its own moon called for BEFORE any of that — so
+/// the two basins whose notches sit at the top of their band are DROWNED by
+/// the rise and can no longer be taken. They have to be taken first, and
+/// working out which two those are is the whole decision the room asks for.
+///
+/// It cannot strand: Ice on a frozen basin BREAKS it open again, the count
+/// falls, the water drops back, and every basin is reachable once more. A
+/// wrong order costs the walk, never the run.
+int moonStandForLocks(int notch, int locks) {
+  if (locks < kMoonRiseAfterLocks) return moonStandFor(notch);
+  return notch <= 0 ? 0 : (notch <= 3 ? 1 : 2);
+}
+
 extension PlanetDungeonMoonWell on PlanetDungeonGame {
   DungeonRoom? get _wellRoom {
     for (final r in layout.rooms.values) {
@@ -3369,6 +3416,8 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
   /// re-rolled on death: the stone is unchanged, the reading is not.
   void _rollMoonWell() {
     poolWants.clear();
+    poolWantStand.clear();
+    wardensSent = false;
     moonNotch = 3;
     moonWaxT = 0;
     moonHoldT = 0;
@@ -3389,7 +3438,26 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     final notches = [...kMoonWantable]..shuffle(rng);
     for (var i = 0; i < pools.length && i < notches.length; i++) {
       poolWants[pools[i].id] = notches[i];
+      // The stand this basin's moon called for before any ice went in. It
+      // never changes; the WELL does, which is how a basin drowns.
+      poolWantStand[pools[i].id] = moonStandFor(notches[i]);
     }
+  }
+
+  /// Basins standing frozen right now.
+  int get lockedBasinCount =>
+      poolWants.keys.where((id) => (poolStates[id] ?? 0) == 1).length;
+
+  /// Has the ice displaced enough water to move the thresholds?
+  bool get wellHasRisen => lockedBasinCount >= kMoonRiseAfterLocks;
+
+  /// Is [id] still takeable, or has the rise put its stand out of reach?
+  bool basinDrowned(String id) {
+    final want = poolWants[id];
+    final stand = poolWantStand[id];
+    if (want == null || stand == null) return false;
+    if ((poolStates[id] ?? 0) == 1) return false;
+    return moonStandForLocks(want, lockedBasinCount) != stand;
   }
 
   /// The moon's own turning. Runs only in the well: the sky does not wax
@@ -3479,14 +3547,16 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
   /// The stand the well actually holds. The moon calls it — and the broken
   /// main overrides it upward while it runs, which is the pip's whole job.
   int get wellStand {
-    final called = moonStandFor(moonNotch);
+    final called = moonStandForLocks(moonNotch, lockedBasinCount);
     return spoutPlugged ? called : min(2, called + 1);
   }
 
   /// Does the water agree with the sky right now? A basin will not take a
   /// moon the well is not actually holding.
   bool get wellAgreesWithMoon =>
-      spoutPlugged && tideSettled && tideLevel == moonStandFor(moonNotch);
+      spoutPlugged &&
+      tideSettled &&
+      tideLevel == moonStandForLocks(moonNotch, lockedBasinCount);
 
   /// The water follows the moon, easing exactly as it does everywhere else.
   void _syncTideToMoon() {
@@ -3556,7 +3626,26 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         return true;
       }
       if ((poolStates[pool.id] ?? 0) == 1) {
-        _setHint('This basin holds its moon already');
+        // BREAKING THE ICE. This is the whole reason the ordering puzzle is
+        // allowed to exist: freeze the wrong two first and the rise drowns
+        // the two you needed, so there has to be a way back. Ice on a frozen
+        // basin cracks it open, the well drops, and everything is reachable
+        // again. A wrong order costs the walk, never the run.
+        poolStates.remove(pool.id);
+        _poolFx[pool.id] = 1.0;
+        _spawnAlchemyBurst(
+          pool.position,
+          producedElement: 'Water',
+          reagentElements: const ['Ice'],
+          particleCount: 14,
+          intensity: 0.7,
+        );
+        _setHint(
+          wellHasRisen
+              ? 'The ice gives, and the well drops with it'
+              : 'The ice gives — the basin lets its moon go',
+          3.0,
+        );
         return true;
       }
       final r = evaluateInteraction(
@@ -3569,6 +3658,14 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         _setBlockedHint(
           'Ice would take this basin — or Spirit standing in the water',
         );
+        return true;
+      }
+      // DROWNED. The rise has put this basin's water out of reach. Say what
+      // is true — the well is too high for it — and never how to fix it; the
+      // player can see which basins are frozen and can see the water.
+      if (basinDrowned(pool.id)) {
+        _poolFx[pool.id] = 0.7;
+        _setBlockedHint('The well stands too high for this basin now');
         return true;
       }
       final want = poolWants[pool.id];
@@ -3628,7 +3725,8 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
           announce: false,
         );
       }
-      if (moonBridgeWhole) {
+      if (moonBridgeWhole && !wardensSent) {
+        wardensSent = true;
         guardianAwake = true;
         guardianHp = PlanetDungeonGame.maxGuardianHp;
         _setHint(
@@ -3642,8 +3740,15 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         // be put down before the bridge is yours. The room earns its finale
         // rather than simply opening a door.
         _spawnBrineWardens(room);
+      } else if (moonBridgeWhole) {
+        _setHint('The bridge stands again', 2.4);
       } else {
-        _setHint('The basin takes the moon and holds it', 3.0);
+        _setHint(
+          wellHasRisen
+              ? 'The basin takes it — and the ice pushes the well up'
+              : 'The basin takes the moon and holds it',
+          3.0,
+        );
       }
       return true;
     }
@@ -3709,6 +3814,12 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         .where((e) => (poolStates[e.key] ?? 0) != 1)
         .toList();
     if (open.isEmpty) return 'Every basin holds its moon';
+    final drowned = open.where((e) => basinDrowned(e.key)).length;
+    if (drowned > 0) {
+      // The thing standing in the way outranks the phases again.
+      return 'The ice has pushed the well up past $drowned of these — break '
+          'one open and it will come back down';
+    }
     return switch (tier) {
       <= 0 =>
         'All four basins are listening, and no two want the same moon',
@@ -3716,7 +3827,8 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         '${open.length} basins are still empty, and the nearest of them wants '
             '${phase(open.map((e) => e.value).reduce((x, y) => (x - moonNotch).abs() <= (y - moonNotch).abs() ? x : y))}',
       _ =>
-        'Still wanting: ${(open.map((e) => phase(e.value)).toList()..sort()).join(", ")}',
+        'Still wanting: ${(open.map((e) => phase(e.value)).toList()..sort()).join(", ")}'
+            '${wellHasRisen ? "" : " — and ice takes up room in a closed well"}',
     };
   }
 

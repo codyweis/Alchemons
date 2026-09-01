@@ -1284,6 +1284,29 @@ anyone has done in this temple. It does not merely open a door: three BRINE
 WARDENS come up out of the well — elites, not the harassing wisps every other
 rite throws — and they have to be put down before the bridge is yours.
 
+**THE ICE RAISES THE WELL, AND THAT IS THE DECISION.** Every basin you freeze
+is a slab of ice taking up room in a closed well: once **two** stand, the
+water rides a notch higher for the same moon and the thresholds slide down. A
+basin wants the stand its own moon called for BEFORE any of that — so the two
+whose notches sit at the top of their band are DROWNED by the rise and can no
+longer be taken. **They have to be locks #1 and #2**, and working out which
+two those are is the question the room asks. Exactly two of the four are
+fragile for every roll (pinned by test), so the answer is never trivial and
+never impossible: 4 of the 24 orders work.
+
+WITHOUT THIS THE ROOM WAS A ROUTINE. Four basins, no failure state, nothing
+consumed, no irreversibility — the drift was a wait rather than a pressure and
+the order was a weak preference about walking distance. The rise turns it into
+something to work out.
+
+**AND IT CANNOT STRAND, WHICH IS WHY THE RISE IS ALLOWED TO EXIST.** ICE ON A
+FROZEN BASIN BREAKS IT OPEN. The count falls, the well drops, and everything
+is reachable again. Freeze the free pair first and the fragile pair drowns —
+recoverable, but you must unwind BOTH, because the fragile pair can only ever
+be locks #1 and #2. A wrong order costs the walk; it never costs the run. A
+drowned basin says so on its own face: its moon goes dim under water with the
+well's line struck across it.
+
 **THE COUPLING THAT MAKES IT A PUZZLE.** The notch you have to hit also
 decides how hard it is to reach the pool that wants it. Drive the moon to 5 to
 serve a fat-moon pool and the room floods — the water is swimmable at high,
@@ -1346,8 +1369,8 @@ temple-wide and set three rooms away, so a moon that disagreed with the
 standing water dragged the tide to a new stand on its first wax with nobody
 touching anything; the moon reconciles to the water on entry now.
 
-**STILL OWED: the tuning playtest.** Whether 4.5s of wax and 6s of calm make
-both walks possible is the one thing the design cannot settle on paper.
+**STILL OWED: the tuning playtest.** Whether 4.5s of wax makes the walk to a
+basin tense or tedious is the one thing the design cannot settle on paper.
 
 ### Mystic guardian roster (Star-3 boss + raid boss per planet)
 Verified against `assets/data/alchemons_creatures.json`; spritesheets in
@@ -1731,7 +1754,7 @@ The reference. What "complete" meant, so the next planet has a target:
   · **Feel.** Flame crawls at 15px/s and holds 4.0s; the gust glides rather
     than teleports; the boss fight runs inside the frame budget again.
 
-### ▶ AIR — in progress
+### ✅ AIR — complete (2026-09-01)
 
   · ✅ **The long gold diagonals** across crosswind_hall were not a wind
     effect at all: `_drawBrokenBridgeLines` walked `platforms` in AUTHORING
@@ -1748,10 +1771,14 @@ The reference. What "complete" meant, so the next planet has a target:
   · ✅ **THE FOUR WINDS** — the hub secret rebuilt to Fire's template, and the
     hub made actionable at all (it declared no furniture, so it had no action
     pad). See §7 lost maxims, entry 2.
-  · ⬜ **The gale columns are translucent rectangles.** lower_spire's updrafts
-    are plain pale slabs — they read as UI panels standing in the room.
-  · ⬜ Device playtest.
-  · The floating islands themselves are good and should be left alone.
+  · ✅ **Device playtest passed (2026-09-01).** The gale columns — flagged
+    from a whole-room render as "translucent rectangles that read as UI
+    panels" — read fine in motion on the device, which is the reason that
+    call belongs to a playtest and not to a static render.
+  · The floating islands themselves are good and were left alone.
+  · ⬜ Not chased: `storm_rune_hall` and `storm_altar` came up verb-less in
+    the action-pad sweep. They are probably a reading room and a landing, but
+    nobody has confirmed it.
 
 ### THE ACTION PAD READS ONLY ROOM DATA — and several planets don't use it
 

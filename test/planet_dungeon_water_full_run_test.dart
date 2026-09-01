@@ -520,9 +520,20 @@ void main() {
       reason: 'a wrong moon is not a punishment',
     );
 
-    // All four, each at the moon it asked for. The pip never leaves the
-    // mouth of the main; Spirit and Ice do the walking.
-    for (final id in ids) {
+    // All four, each at the moon it asked for — and IN ORDER. The ice
+    // displaces water, so once two basins stand the well rides higher and the
+    // two whose stand sat at the top of their band are out of reach. Those go
+    // first. The pip never leaves the mouth of the main; Spirit and Ice walk.
+    bool fragile(String id) =>
+        moonStandForLocks(wants[id]!, kMoonRiseAfterLocks) !=
+        moonStandFor(wants[id]!);
+    final ordered = [...ids.where(fragile), ...ids.where((i) => !fragile(i))];
+    expect(
+      ids.where(fragile).length,
+      2,
+      reason: 'two of the four are drowned by the rise',
+    );
+    for (final id in ordered) {
       moonTo(wants[id]!);
       game.setActive(2);
       teleport('moon_well', poolAt(id));

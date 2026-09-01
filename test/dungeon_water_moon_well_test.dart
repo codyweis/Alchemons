@@ -77,8 +77,8 @@ void plugSpout(PlanetDungeonGame g) {
 
 /// Settle the water where the moon is calling it, the way waiting does.
 void settleWell(PlanetDungeonGame g) {
-  for (var i = 0; i < 60 * 6; i++) {
-    if (g.tideSettled && g.tideLevel == moonStandFor(g.moonNotch)) return;
+  for (var i = 0; i < 60 * 8; i++) {
+    if (g.wellAgreesWithMoon) return;
     g.update(1 / 60);
     g.moonWaxT = 0; // hold the sky still while the water catches up
   }
@@ -94,6 +94,31 @@ void _pressAt(PlanetDungeonGame g, String element, Offset at) {
     ..position = at
     ..lastSafe = at;
   g.activateAbility();
+}
+
+/// A working order: the basins the RISE will drown, first.
+///
+/// Two of the four sit at the top of their band, so once the ice displaces
+/// enough water their stand is out of reach. Those two have to be taken while
+/// the well is still low; the other two are safe at any point.
+List<String> validOrder(PlanetDungeonGame g) {
+  final ids = g.poolWants.keys.toList();
+  bool fragile(String id) =>
+      moonStandForLocks(g.poolWants[id]!, kMoonRiseAfterLocks) !=
+      moonStandFor(g.poolWants[id]!);
+  return [
+    ...ids.where(fragile),
+    ...ids.where((id) => !fragile(id)),
+  ];
+}
+
+/// Freeze [id]: bring the moon to it, let the well settle, and lay the ice.
+void takeBasin(PlanetDungeonGame g, String id) {
+  g.moonNotch = g.poolWants[id]!;
+  plugSpout(g);
+  settleWell(g);
+  g.moonHoldT = 99;
+  _pressAt(g, 'Ice', _poolAt(g, id));
 }
 
 Offset _poolAt(PlanetDungeonGame g, String id) => g.currentRoom.moonPools
@@ -218,13 +243,9 @@ void main() {
 
     test('all four locked wakes the deep, and it sends something up', () {
       final g = _well();
-      for (final e in g.poolWants.entries) {
-        g.moonNotch = e.value;
-        plugSpout(g);
-        settleWell(g);
-        g.moonHoldT = 99;
-        _pressAt(g, 'Ice', _poolAt(g, e.key));
-        expect(g.poolStates[e.key], 1, reason: 'basin ${e.key}');
+      for (final id in validOrder(g)) {
+        takeBasin(g, id);
+        expect(g.poolStates[id], 1, reason: 'basin $id');
       }
       expect(g.moonBridgeWhole, isTrue);
       expect(g.guardianAwake, isTrue);
@@ -459,6 +480,106 @@ void main() {
         g.update(1 / 60);
       }
       expect(g.mirrorIsGlass, isFalse);
+    });
+  });
+
+
+  group('the ice raises the well, and that is the puzzle', () {
+    test('exactly two of the four are drowned by the rise', () {
+      // The shape of the decision. One would be trivial, three would leave
+      // nothing free, and four would be unsolvable.
+      for (var run = 0; run < 40; run++) {
+        final g = _well();
+        final fragile = g.poolWants.entries
+            .where(
+              (e) =>
+                  moonStandForLocks(e.value, kMoonRiseAfterLocks) !=
+                  moonStandFor(e.value),
+            )
+            .length;
+        expect(fragile, 2, reason: 'two constrained, two free');
+      }
+    });
+
+    test('taking the fragile pair first always works', () {
+      for (var run = 0; run < 20; run++) {
+        final g = _well();
+        for (final id in validOrder(g)) {
+          takeBasin(g, id);
+          expect(g.poolStates[id], 1, reason: 'run $run, basin $id');
+        }
+        expect(g.moonBridgeWhole, isTrue);
+      }
+    });
+
+    test('taking the free pair first drowns the other two', () {
+      final g = _well();
+      final order = validOrder(g);
+      final free = order.sublist(2);
+      final fragile = order.sublist(0, 2);
+      for (final id in free) {
+        takeBasin(g, id);
+        expect(g.poolStates[id], 1);
+      }
+      expect(g.wellHasRisen, isTrue);
+      for (final id in fragile) {
+        expect(g.basinDrowned(id), isTrue, reason: '$id is out of reach now');
+        takeBasin(g, id);
+        expect(g.poolStates[id] ?? 0, 0, reason: 'and it refuses');
+      }
+      // …and it costs nothing but the walk.
+      expect(g.combatEnemies.where((e) => !e.isDead), isEmpty);
+      expect(g.creatures.every((c) => c.alive), isTrue);
+    });
+
+    test('breaking the ice brings the well back down — nothing can strand',
+        () {
+      // The anti-strand argument, walked: get it wrong, undo, get it right.
+      final g = _well();
+      final order = validOrder(g);
+      for (final id in order.sublist(2)) {
+        takeBasin(g, id);
+      }
+      expect(g.basinDrowned(order.first), isTrue);
+
+      // Break them open. Ice on frozen ice cracks it, and the well drops.
+      //
+      // BOTH have to go: the fragile pair can only be locks #1 and #2, so a
+      // run that froze the free pair first has to unwind all the way. That is
+      // the cost of the wrong order, and it is a walk rather than a run.
+      for (final id in order.sublist(2)) {
+        _pressAt(g, 'Ice', _poolAt(g, id));
+        expect(g.poolStates[id] ?? 0, 0, reason: 'the ice gives on $id');
+      }
+      expect(g.wellHasRisen, isFalse);
+      expect(g.basinDrowned(order.first), isFalse, reason: 'reachable again');
+
+      // And now the whole rite completes from here.
+      for (final id in order) {
+        takeBasin(g, id);
+        expect(g.poolStates[id], 1, reason: 'basin $id after the recovery');
+      }
+      expect(g.moonBridgeWhole, isTrue);
+    });
+
+    test('the wardens come up once, however many times you re-freeze', () {
+      final g = _well();
+      for (final id in validOrder(g)) {
+        takeBasin(g, id);
+      }
+      expect(
+        g.combatEnemies.where((e) => e.isElite).length,
+        greaterThanOrEqualTo(3),
+      );
+      final before = g.combatEnemies.length;
+      final id = validOrder(g).last;
+      _pressAt(g, 'Ice', _poolAt(g, id)); // break
+      takeBasin(g, id); // and re-freeze
+      expect(
+        g.combatEnemies.length,
+        lessThanOrEqualTo(before),
+        reason: 'the deep does not send a second escort',
+      );
     });
   });
 
