@@ -9857,17 +9857,69 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
+  /// The bridges that used to cross this hall, and don't any more.
+  ///
+  /// THE BUG THIS FIXES: it walked `platforms` in AUTHORING order and joined
+  /// each to the next, so it strung two-hundred-pixel lines between ledges
+  /// that are not neighbours — straight through the islands, out past the
+  /// room edges, at every shallow angle. That tangle of gold diagonals across
+  /// the spire was this, and nothing else.
+  ///
+  /// Neighbours are decided by POSITION now, and only a pair with a real gap
+  /// between them ever had a bridge. And it is drawn broken: the ropes sag
+  /// out from each stump and stop, because the span is gone — two taut lines
+  /// crossing the void said the opposite.
   void _drawBrokenBridgeLines(Canvas canvas, List<Rect> platforms) {
-    final p = Paint()
+    if (platforms.length < 2) return;
+    final ordered = [...platforms]
+      ..sort((a, b) => a.center.dx.compareTo(b.center.dx));
+
+    final rope = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF74613A).withValues(alpha: 0.28);
-    for (var i = 0; i < platforms.length - 1; i++) {
-      final a = platforms[i].centerRight;
-      final b = platforms[i + 1].centerLeft;
-      canvas.drawLine(a + const Offset(-12, -22), b + const Offset(12, -22), p);
-      canvas.drawLine(a + const Offset(-12, 24), b + const Offset(12, 24), p);
+      ..color = const Color(0xFF74613A).withValues(alpha: 0.34);
+    final plank = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF5A4633).withValues(alpha: 0.42);
+
+    for (var i = 0; i < ordered.length - 1; i++) {
+      final a = ordered[i];
+      final b = ordered[i + 1];
+      final gap = b.left - a.right;
+      // Touching or overlapping ledges never had a bridge; ledges half a room
+      // apart never had one either.
+      if (gap < 24 || gap > 300) continue;
+
+      final ay = a.top + 16;
+      final by = b.top + 16;
+      // How far each stump reaches before the missing span: a third, never
+      // meeting in the middle.
+      final reach = gap * 0.3;
+      for (final side in [true, false]) {
+        final from = side ? Offset(a.right, ay) : Offset(b.left, by);
+        final dir = side ? 1.0 : -1.0;
+        for (final off in [-9.0, 9.0]) {
+          final end = Offset(from.dx + dir * reach, from.dy + off.abs() * 0.7);
+          final path = Path()
+            ..moveTo(from.dx, from.dy + off * 0.5)
+            ..quadraticBezierTo(
+              from.dx + dir * reach * 0.6,
+              from.dy + off * 0.5 + 9,
+              end.dx,
+              end.dy + off * 0.4,
+            );
+          canvas.drawPath(path, rope);
+        }
+        // Two planks still hanging off the stump.
+        for (var k = 1; k <= 2; k++) {
+          final x = from.dx + dir * reach * (k / 3);
+          final y = from.dy + 4 + k * 2.0;
+          canvas.drawLine(Offset(x, y - 6), Offset(x, y + 6), plank);
+        }
+      }
     }
   }
 
