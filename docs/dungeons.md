@@ -1472,6 +1472,45 @@ are *modifiers*, not extra required steps. e.g. Air Star 3 = "sync the conduits
 Lightninghorn/Airwing/Firemask making it smoother — NOT
 rune-order+conduits+stabilize+recipe+guardian+wave all mandatory at once.
 
+## 7.9 Polish status — which planets have had the pass
+
+BUILT is not POLISHED. All 17 are built and proved; this tracks which have
+been through a device playtest and had their art, chrome and feel worked on
+afterwards.
+
+### ✅ FIRE — complete (2026-08-31)
+
+The reference. What "complete" meant, so the next planet has a target:
+
+  · **Rooms drawn as places.** The nave got an aisle runner, blind arcading,
+    piers with capitals and bases, and candle stands that CATCH as the party
+    walks the bay. The choir's braziers became iron cups on plinths whose rims
+    stand clear of the tallow, its ember-walk a worn labyrinth rather than
+    four hairline circles, its stalls actual stalls. The bell gallery hangs
+    from roof beams with a hanger to every censer and bell.
+  · **Puzzle legibility.** The garth is a 60px board that fits a 390pt screen
+    (it was 137x148 squares, three columns of six visible); burnt ground grew
+    a crust so it cannot be mistaken for soil; coverage reads off a toothed
+    ring on the vane, one tooth per square owed.
+  · **Rules that hold.** A dead fire turns the board over. A trap cannot lay
+    another trap. The projectile pool has survival's ceiling.
+  · **Feel.** Flame crawls at 15px/s and holds 4.0s; the gust glides rather
+    than teleports; the boss fight runs inside the frame budget again.
+
+### ▶ AIR — next
+
+Observed from whole-room renders before the playtest, to be confirmed on the
+device:
+
+  · **The currents are straight hairlines.** crosswind_hall is criss-crossed
+    with long thin gold diagonals that read as scratches or debug geometry
+    rather than moving air. This is Air's version of Fire's "cobweb chains".
+  · **The gale columns are translucent rectangles.** lower_spire's updrafts
+    are plain pale slabs — they read as UI panels standing in the room.
+  · **Platform glyphs look pasted on.** The small amber marks on the ledges
+    read as icons rather than as anything carved into or resting on the rock.
+  · The floating islands themselves are good and should be left alone.
+
 ## 8. Build status
 
 - ✅ Overworld gate flow: a gated planet's recipe is a ONE-TIME element
