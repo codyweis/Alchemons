@@ -600,8 +600,8 @@ const double _kGustGlideSpeed = 260.0;
 // (Air's `kAirFirstWindEggId` moved to planet_dungeon_game_air.dart with the
 // rest of the spire's own content — §9.1 item 4.)
 
-/// Fire's maxim — the EMBER EPITAPH. Mask insight in the scriptorium WRITES
-/// the maxim into the floor (an ember-quill animates it stroke by stroke) and
+/// Fire's maxim — the EMBER EPITAPH. Lighting the fourth corner torch in the
+/// scriptorium WRITES the maxim into the floor (an ember-quill animates it stroke by stroke) and
 /// bares a garden planter beside it; Plant fills the planter, Fire lights it,
 /// and three gusts of Air swell the blaze until a burn-front sweeps the
 /// script and the words stay lit in fire. Entirely wordless — no hint popups.
@@ -2211,7 +2211,11 @@ extension CinderCathedral on PlanetDungeonGame {
     }
   }
 
-  // ── Mask insight ────────────────────────────────────────
+  // ── The room's reading (the HINT button, not a family verb) ──
+  //
+  // Insight stopped being a Mask verb in the §9.0 refit: it was the one verb
+  // that dispensed INFORMATION, and information must not depend on who you
+  // brought. Intelligence still buys the TIER where a room has tiers.
 
   void _cathedralReveal(DungeonCreature a, DungeonRoom room) {
     revealFlash = 0.6;

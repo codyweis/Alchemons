@@ -1539,8 +1539,10 @@ quotation constants are deleted from the code — nothing left to drift.
 7. **Earth — The Giant's Palm (BUILT):** the giant's open fossil hand lies
    in the palm hollow, far off the puzzle path; a Crystal creature laying a
    crystal in it earns the maxim — the crystal takes root in the palm
-   forever. One oblique hint (Mask in the room: "the hand lies open… and
-   misses it").
+   forever. One oblique line, on the HINT button and so available to everyone:
+   "the hand lies open… and misses it". (Not a Mask reading — insight stopped
+   being a family verb in the §9.0 refit; information must never depend on who
+   you brought.)
 8. **Lava — Black Glass:** quench the casting font mid-pour three times —
    the spoiled keys cool into a black-glass mirror.
 9. **Mud — No Mud, No Lotus:** plant a seed in the DEEPEST sink-pit, water

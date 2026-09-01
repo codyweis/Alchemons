@@ -896,7 +896,14 @@ extension BuriedGiant on PlanetDungeonGame {
     return true;
   }
 
-  // ── Mask insight ────────────────────────────────────────
+  // ── The room's reading (the HINT button) ────────────────
+  //
+  // NOT "Mask insight" any more, whatever the old header said: insight
+  // stopped being a family verb in the §9.0 refit, because it was the one
+  // verb that dispensed INFORMATION and information must never depend on who
+  // you brought. Everyone presses HINT and everyone gets this. What the
+  // active creature's INTELLIGENCE still buys is the TIER in the rooms that
+  // have tiers — how much is said, never whether.
 
   void _barrowReveal(DungeonCreature a, DungeonRoom room) {
     revealFlash = 0.6;
