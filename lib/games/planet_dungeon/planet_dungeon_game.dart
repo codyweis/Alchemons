@@ -987,9 +987,6 @@ class PlanetDungeonGame extends FlameGame {
   double moonWaxT = 0;
   double moonHoldT = 0;
 
-  /// Seconds of calm left on the well — the pip's still, halving the wax.
-  double moonCalmLeft = 0;
-
   /// This run's listening basins: pool id → the notch it wants. Rolled fresh
   /// every run, so the answer cannot be looked up. A basin not in here is
   /// deaf, and pressing it costs nothing.
@@ -1002,6 +999,28 @@ class PlanetDungeonGame extends FlameGame {
   /// Whether the moon has been reconciled with the standing water since the
   /// party walked in. See `_updateMoonWell`.
   bool _moonSynced = false;
+
+  /// Is the well's broken main plugged — a Water pip standing in its mouth?
+  /// While it runs, the well stands one water above the moon's call and no
+  /// basin will agree with the sky.
+  bool spoutPlugged = false;
+
+  /// Eased 0→1 for the render: the jet dying back as the pip settles into it.
+  double _spoutChoke = 0;
+
+  /// The moon's CONTINUOUS phase, 0 (dark) → 1 (full). The notch is the
+  /// mechanic; this is what is drawn, and it slides.
+  double moonPhaseAnim = 0.5;
+
+  // ── THE STILLED MIRROR · Water's lost secret ──
+  /// Seconds a Water creature has stood MOTIONLESS in the reflection pool.
+  /// At [kMirrorStillSeconds] the surface goes to glass and the moon's
+  /// reflection stops running away.
+  double mirrorStillT = 0;
+  Offset? _mirrorWatchedAt;
+
+  /// Eased 0→1: how flat the pool is. Render only.
+  double mirrorGlass = 0;
   final Map<String, double> _poolFx = {}; // freeze/shatter pulses
 
   bool get _isTemple => layout.element == 'Water';

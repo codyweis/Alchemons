@@ -3268,10 +3268,13 @@ const DungeonLayout _waterLayout = DungeonLayout(
       // THE MOON DIAL — Spirit's station, under the oculus. One press wanes
       // the moon a notch; the sky waxes it back on its own, forever.
       moonDial: Offset(450, 470),
-      // THE STILL — the pip's pipe-mouth, re-purposed. It calms the well and
-      // halves the wax for a few seconds: it buys the walk, and it cannot
-      // move the moon, so it never substitutes for Spirit.
-      tideValves: [TideValve(position: Offset(450, 640), pipOnly: true)],
+      // THE SPOUT — a broken main in the south wall, running the whole time.
+      // While it runs the well stands one water ABOVE what the moon calls
+      // for, so no basin can ever agree with the sky. A Water PIP is the only
+      // thing that fits the mouth, and it plugs it by STANDING there: the pip
+      // is not pressing a button, it is holding a place, and it cannot leave
+      // while the other two work the moon.
+      tideValves: [TideValve(position: Offset(450, 630), pipOnly: true)],
       tideZones: [
         TideZone(rect: Rect.fromLTWH(330, 270, 240, 200), floodedAt: 1),
       ],

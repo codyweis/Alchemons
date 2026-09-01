@@ -58,8 +58,30 @@ PlanetDungeonGame _well() {
     g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
   }
   g.onGameResize(Vector2(412, 915));
+  // The pip holds the broken main. Nothing in this room agrees with the sky
+  // until it does, so every test that is not ABOUT the spout starts plugged.
+  plugSpout(g);
   g.update(1 / 60); // the moon reconciles with the standing water
   return g;
+}
+
+/// Stand the Water pip in the mouth of the broken main.
+void plugSpout(PlanetDungeonGame g) {
+  final valve = g.layout.rooms['moon_well']!.tideValves
+      .firstWhere((v) => v.pipOnly);
+  final pip = g.creatures.firstWhere((c) => c.member.element == 'Water');
+  pip
+    ..position = valve.position
+    ..lastSafe = valve.position;
+}
+
+/// Settle the water where the moon is calling it, the way waiting does.
+void settleWell(PlanetDungeonGame g) {
+  for (var i = 0; i < 60 * 6; i++) {
+    if (g.tideSettled && g.tideLevel == moonStandFor(g.moonNotch)) return;
+    g.update(1 / 60);
+    g.moonWaxT = 0; // hold the sky still while the water catches up
+  }
 }
 
 DungeonCreature _of(PlanetDungeonGame g, String element) =>
@@ -80,17 +102,16 @@ Offset _poolAt(PlanetDungeonGame g, String id) => g.currentRoom.moonPools
 
 void main() {
   group('the roll', () {
-    test('two basins listen, and they pull opposite ways', () {
+    test('all four basins listen, and no two want the same moon', () {
       for (var run = 0; run < 60; run++) {
         final g = _well();
-        expect(g.poolWants, hasLength(2));
-        final v = g.poolWants.values.toList();
+        expect(g.poolWants, hasLength(4));
         expect(
-          (v.first - v.last).abs(),
-          greaterThanOrEqualTo(2),
-          reason: 'a pair one notch apart is one target held twice',
+          g.poolWants.values.toSet(),
+          hasLength(4),
+          reason: 'four basins asking for the same moon is one basin',
         );
-        for (final n in v) {
+        for (final n in g.poolWants.values) {
           expect(
             n,
             inInclusiveRange(1, 5),
@@ -101,10 +122,10 @@ void main() {
       }
     });
 
-    test('it is not the same two basins every run', () {
+    test('which basin wants which is not the same every run', () {
       final seen = {
         for (var i = 0; i < 60; i++)
-          (_well().poolWants.keys.toList()..sort()).join(),
+          _well().poolWants.entries.map((e) => '${e.key}=${e.value}').join(),
       };
       expect(seen.length, greaterThan(1), reason: 'rolled, not authored');
     });
@@ -165,50 +186,54 @@ void main() {
   });
 
   group('the basins', () {
-    test('a deaf basin costs nothing at all', () {
+    test('the wrong moon costs nothing at all', () {
       // The cruelty this design removed: the old false pool SHATTERED and
       // threw fury wisps, which made a wrong guess in a finale expensive.
-      final g = _well();
-      final deaf = g.currentRoom.moonPools
-          .map((p) => p.id)
-          .firstWhere((id) => !g.poolWants.containsKey(id));
-      _pressAt(g, 'Ice', _poolAt(g, deaf));
-      expect(g.poolStates[deaf] ?? 0, 0);
-      expect(g.combatEnemies.where((e) => !e.isDead), isEmpty);
-      expect(g.creatures.every((c) => c.alive), isTrue);
-    });
-
-    test('the wrong moon is refused, and costs nothing either', () {
+      // Every basin listens now, so the only wrong answer is the wrong moon,
+      // and it must still be free.
       final g = _well();
       final id = g.poolWants.keys.first;
-      g.moonNotch = (g.poolWants[id]! + 2).clamp(0, 6);
+      g.moonNotch = g.poolWants.values.firstWhere((n) => n != g.poolWants[id]);
       g.moonHoldT = 99;
+      settleWell(g);
       _pressAt(g, 'Ice', _poolAt(g, id));
       expect(g.poolStates[id] ?? 0, 0);
       expect(g.combatEnemies.where((e) => !e.isDead), isEmpty);
+      expect(g.creatures.every((c) => c.alive), isTrue);
     });
 
     test('a moon still in motion is refused — it must SIT', () {
       final g = _well();
       final id = g.poolWants.keys.first;
       g.moonNotch = g.poolWants[id]!;
+      settleWell(g);
       g.moonHoldT = 0;
       _pressAt(g, 'Ice', _poolAt(g, id));
       expect(g.poolStates[id] ?? 0, 0);
       g.moonHoldT = 99;
+      plugSpout(g);
       _pressAt(g, 'Ice', _poolAt(g, id));
       expect(g.poolStates[id], 1);
     });
 
-    test('both locked wakes the deep', () {
+    test('all four locked wakes the deep, and it sends something up', () {
       final g = _well();
       for (final e in g.poolWants.entries) {
         g.moonNotch = e.value;
+        plugSpout(g);
+        settleWell(g);
         g.moonHoldT = 99;
         _pressAt(g, 'Ice', _poolAt(g, e.key));
+        expect(g.poolStates[e.key], 1, reason: 'basin ${e.key}');
       }
       expect(g.moonBridgeWhole, isTrue);
       expect(g.guardianAwake, isTrue);
+      final wardens = g.combatEnemies.where((e) => !e.isDead && e.isElite);
+      expect(
+        wardens.length,
+        greaterThanOrEqualTo(3),
+        reason: 'the fourth basin brings the deep up, not three more wisps',
+      );
     });
   });
 
@@ -280,6 +305,160 @@ void main() {
       g.tideAnim = 0.0;
       expect(g.frozenMoonGlint(), isNull);
       expect(g.tideMidness, lessThan(0.1));
+    });
+  });
+
+
+  group('the broken main', () {
+    test('only a Water pip plugs it, and only by standing there', () {
+      final g = _well();
+      final mouth = g.currentRoom.tideValves.firstWhere((v) => v.pipOnly);
+      // Everyone else standing in the mouth does nothing at all.
+      for (final e in ['Spirit', 'Ice']) {
+        final c = _of(g, e);
+        c.position = mouth.position;
+        _of(g, 'Water').position = g.currentRoom.bounds.center;
+        g.update(1 / 60);
+        expect(g.spoutPlugged, isFalse, reason: '$e does not fit the mouth');
+        c.position = g.currentRoom.bounds.center;
+      }
+      plugSpout(g);
+      g.update(1 / 60);
+      expect(g.spoutPlugged, isTrue);
+    });
+
+    test('it opens the moment the pip walks away', () {
+      // A PLACE, not a switch. The pip is pinned for the whole rite, which
+      // is the point: two creatures do the walking, not three.
+      final g = _well();
+      g.update(1 / 60);
+      expect(g.spoutPlugged, isTrue);
+      _of(g, 'Water').position = g.currentRoom.bounds.center;
+      g.update(1 / 60);
+      expect(g.spoutPlugged, isFalse);
+    });
+
+    test('while it runs the well stands above the moon', () {
+      final g = _well();
+      _of(g, 'Water').position = g.currentRoom.bounds.center;
+      g.update(1 / 60);
+      for (var n = 0; n <= 4; n++) {
+        g.moonNotch = n;
+        expect(
+          g.wellStand,
+          greaterThan(moonStandFor(n)),
+          reason: 'the running main holds the water a stand high',
+        );
+      }
+      plugSpout(g);
+      g.update(1 / 60);
+      for (var n = 0; n <= 6; n++) {
+        g.moonNotch = n;
+        expect(g.wellStand, moonStandFor(n));
+      }
+    });
+  });
+
+  group('the moon is drawn continuously', () {
+    test('the phase slides toward the notch instead of snapping to it', () {
+      final g = _well();
+      g.moonNotch = 6;
+      final start = g.moonPhaseAnim;
+      expect(start, lessThan(0.9), reason: 'it begins where it was');
+      g.update(1 / 60);
+      final oneFrame = g.moonPhaseAnim;
+      expect(oneFrame, greaterThan(start));
+      expect(
+        oneFrame,
+        lessThan(1.0),
+        reason: 'one frame must not arrive — that is the snap this removed',
+      );
+      for (var i = 0; i < 60 * 3; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.moonPhaseAnim, closeTo(1.0, 0.02));
+    });
+
+    test('it keeps sliding between notches, not only at them', () {
+      // The face must move while the sky is waxing, or the moon reads as a
+      // dial with seven pictures on it.
+      final g = _well();
+      g.moonNotch = 2;
+      for (var i = 0; i < 120; i++) {
+        g.update(1 / 60);
+      }
+      final held = g.moonNotch;
+      final a = g.moonPhaseAnim;
+      for (var i = 0; i < 30; i++) {
+        g.update(1 / 60);
+      }
+      if (g.moonNotch == held) {
+        expect(
+          g.moonPhaseAnim,
+          isNot(closeTo(a, 0.0005)),
+          reason: 'the face moves between notches too',
+        );
+      }
+    });
+  });
+
+  group('the stilled mirror', () {
+    PlanetDungeonGame mirrorAtMid() {
+      final g = _well();
+      g.currentRoomId = 'reflection_court';
+      g.tideLevel = 1;
+      g.tideAnim = 0.5;
+      for (final c in g.creatures) {
+        c.position = const Offset(320, 330);
+      }
+      return g;
+    }
+
+    test('a moving moon cannot be frozen', () {
+      final g = mirrorAtMid();
+      g.update(1 / 60);
+      expect(g.mirrorIsGlass, isFalse);
+      final glint = g.frozenMoonGlint()!;
+      _pressAt(g, 'Ice', glint);
+      expect(g.discoveredClouds, isNot(contains(kWaterFrozenMoonEggId)));
+      expect(g.riteActive, isFalse);
+    });
+
+    test('standing still in the pool flattens it, and the moon comes to rest',
+        () {
+      final g = mirrorAtMid();
+      for (var i = 0; i < 60 * 5; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.mirrorIsGlass, isTrue);
+      expect(
+        (g.frozenMoonGlint()! - const Offset(320, 330)).distance,
+        lessThan(6),
+        reason: 'on glass the moon stops running',
+      );
+      _pressAt(g, 'Ice', g.frozenMoonGlint()!);
+      expect(g.riteActive, isTrue, reason: 'and now it can be taken');
+    });
+
+    test('moving breaks it — the water has to be LEFT alone', () {
+      final g = mirrorAtMid();
+      for (var i = 0; i < 60 * 2; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.mirrorStillT, greaterThan(1.0));
+      _of(g, 'Water').position = const Offset(300, 330);
+      g.update(1 / 60);
+      expect(g.mirrorStillT, 0, reason: 'a step resets the stilling');
+    });
+
+    test('and it only stills at the middle water', () {
+      final g = mirrorAtMid();
+      g.tideLevel = 0;
+      g.tideAnim = 0.0;
+      for (var i = 0; i < 60 * 5; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.mirrorIsGlass, isFalse);
     });
   });
 

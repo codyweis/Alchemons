@@ -1257,19 +1257,32 @@ it does everywhere else (`tideAnim`, ~2.3s a stand — no engine change):
 | stand | low | low | mid | mid | mid | high | high |
 
 **THREE STATIONS, ONE PER ELEMENT.** The room is a balancing act because the
-three controls are three different creatures standing in three different
-places, and swap-control means only one of them is ever in your hands:
+three controls are three different creatures in three different places, and
+swap-control means only one of them is ever in your hands:
 
   · **SPIRIT — the moon dial.** One press WANES the moon a notch. The sky
     pushes it forward, Spirit pulls it back; that is the whole loop, and it is
     one button, which is what keeps a three-system room legible. This is also
-    the Spiritmask's first verb on this planet — today it only ever reads.
-  · **WATER (pip) — the still.** The existing pipe-mouth, re-purposed: it
-    CALMS the well, halving the wax rate for `_kCalmSeconds` (6s). It buys the
-    walk. It does not move the moon, so it can never substitute for Spirit.
-  · **ICE — the pools.** A true pool wants ONE notch. When the moon sits at it
-    and has held for `_kPoolHold` (1.2s), Ice at the pool locks it — frozen
-    forever, one of the two bridges.
+    the Spiritmask's first verb on this planet — it only ever read before.
+  · **WATER (pip) — THE BROKEN MAIN.** A spout in the south wall, running the
+    whole time. While it runs the well stands one water ABOVE what the moon
+    calls for, so **no basin can agree with the sky at all**. Only a Water pip
+    fits the mouth, and it plugs it by **STANDING** there — it is a place, not
+    a press, so the pip is pinned for the whole rite and the other two do all
+    the walking. Step away and the main opens again.
+  · **ICE — the basins.** ALL FOUR listen, and no two want the same moon. When
+    the moon sits at a basin's notch, has held for `_kPoolHold` (1.2s), AND
+    the well is actually holding that water, Ice locks it — frozen forever.
+
+**THE MOON IS DRAWN CONTINUOUSLY.** `moonNotch` is the mechanic; `moonPhaseAnim`
+is the sky, and it slides — easing toward the notch and running on ahead of it
+while the sky waxes, so the face is never still while the well is turning. A
+moon that snapped between seven poses read as a dial with moon pictures on it.
+
+**AND THE DEEP ANSWERS THE FOURTH.** Four locked basins is the loudest thing
+anyone has done in this temple. It does not merely open a door: three BRINE
+WARDENS come up out of the well — elites, not the harassing wisps every other
+rite throws — and they have to be put down before the bridge is yours.
 
 **THE COUPLING THAT MAKES IT A PUZZLE.** The notch you have to hit also
 decides how hard it is to reach the pool that wants it. Drive the moon to 5 to
@@ -1280,16 +1293,17 @@ the floor and the walk is quick, but the moon is waxing away from you the
 whole time. **Neither pool is hard on its own; the pair is hard because they
 pull in opposite directions.**
 
-**ROLLED PER RUN.** The two wanted notches are drawn from {1, 2, 4, 5} with at
-least 2 between them, so the answer cannot be looked up — the same rule as the
-choir's brazier order. Spirit's reading is tiered and never hands over both:
-t0 "one pool wants a thin moon, one a fat one" · t1 names one notch · t2 names
-both. The other two pools are simply not listening; pressing one says so and
-costs nothing.
+**ROLLED PER RUN.** The four wantable notches are {1, 2, 4, 5} — never 0 or 6,
+because the drift PARKS at full and waning bottoms out at dark, so a basin
+asking for either could be served by doing nothing. The SET is fixed and only
+which basin wants which is rolled, which is enough: the room is a walk between
+basins and the walk is what changes. Spirit's reading is tiered and answers
+the thing in the way first — while the main is running it says so, and only
+once the well can hold a moon at all does it start naming phases.
 
-**NOTHING IS CONSUMED, SO NOTHING CAN STRAND.** The current version SHATTERS a
-false pool and throws fury wisps — a consumed attempt in a finale, which is
-cruel and which this drops. The moon always waxes and Spirit can always wane,
+**NOTHING IS CONSUMED, SO NOTHING CAN STRAND.** The version this replaced
+SHATTERED a false pool and threw fury wisps — a consumed attempt in a finale,
+which is cruel and which this drops; the wrong moon simply refuses. The moon always waxes and Spirit can always wane,
 so every notch is reachable forever from every state. The mercy shrine is
 already this room, so a wipe here is a reset rather than a run.
 
@@ -1465,9 +1479,20 @@ quotation constants are deleted from the code — nothing left to drift.
    which fixes the pad as a side effect. Not star-gated any more: a secret you
    can only find after finishing the dungeon is a secret nobody finds.
 
-3. **Water — Frozen Moon (BUILT):** at the settled MID tide only, a faint
-   glint drifts on the reflection-court pool; Ice laid exactly on it freezes
-   the moon's reflection — a permanent ice disc with frost cracks, forever.
+3. **Water — THE STILLED MIRROR (BUILT; REWORKED 2026-08-31):** what it was
+   is one press on a drifting dot — at settled mid tide a glint wandered the
+   pool and Ice laid on it took the moon. A reflex check, and the only
+   interesting thing about it was noticing the tide.
+   **The reason it was hard is the puzzle now: YOU CANNOT FREEZE A MOON THAT
+   IS MOVING.** The reflection runs because the water runs, so still the
+   water — a Water creature standing MOTIONLESS in the pool flattens it, over
+   `kMirrorStillSeconds` (3.2s), to glass; the moon stops dead in the middle
+   of it; and only then will Ice take it. A single step resets the stilling.
+   Standing still is the one thing this game never asks for anywhere else,
+   and in a temple built entirely out of moving water it is the right thing to
+   ask for. It rhymes with the moon well one door away, where the moon must
+   SIT before a basin will hold it. Two creatures, no timer, no text — and
+   the result is still a permanent ice disc with frost cracks, forever.
    **THE ROOM SAYS THE MIDDLE WATER MATTERS (2026-08-31).** The glint is
    deliberately faint — it is a secret — so walking in at mid used to look
    almost identical to walking in at low, and the tide's significance was

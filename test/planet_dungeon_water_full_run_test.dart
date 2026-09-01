@@ -106,7 +106,32 @@ PlanetDungeonGame _moonWellReady(CosmicPartyMember m) {
       ..position = at
       ..lastSafe = at;
   }
+  // Nothing in the well agrees with the sky until the broken main is plugged,
+  // and the pip plugs it by STANDING in the mouth.
+  _plugSpout(game);
   return game;
+}
+
+/// Stand the Water pip in the mouth of the well's broken main.
+void _plugSpout(PlanetDungeonGame g) {
+  final valve = g.layout.rooms['moon_well']!.tideValves.firstWhere(
+    (v) => v.pipOnly,
+  );
+  final pip = g.creatures.firstWhere(
+    (c) => c.member.element == 'Water' && c.member.family == 'pip',
+  );
+  pip
+    ..position = valve.position
+    ..lastSafe = valve.position;
+}
+
+/// Let the well's water come to the stand the moon is calling for.
+void _settleWell(PlanetDungeonGame g) {
+  for (var i = 0; i < 60 * 8; i++) {
+    if (g.wellAgreesWithMoon) return;
+    g.update(1 / 60);
+    g.moonWaxT = 0; // hold the sky while the water catches up
+  }
 }
 
 /// The id of a basin that is listening this run, and the notch it wants.
@@ -117,8 +142,13 @@ PlanetDungeonGame _moonWellReady(CosmicPartyMember m) {
 
 /// Stand the moon at [notch] and let it settle there.
 void _parkMoon(PlanetDungeonGame g, int notch) {
+  // One frame first: walking in, the moon reconciles itself to the standing
+  // water, and it would overwrite anything parked before that had happened.
+  _plugSpout(g);
+  g.update(1 / 60);
   g.moonNotch = notch;
   g.moonWaxT = 0;
+  _settleWell(g);
   g.moonHoldT = 99;
 }
 
@@ -401,27 +431,25 @@ void main() {
         well.moonPools.firstWhere((p) => p.id == id).position;
     final pipMouth = well.tideValves.single.position;
 
-    // THE STILL refuses a non-Pip…
+    // THE BROKEN MAIN is plugged by STANDING in it, and only by a Water pip.
     game.setActive(2); // Ice mane
     teleport('moon_well', pipMouth);
-    game.activateAbility();
+    game.update(1 / 60);
     expect(
-      game.moonCalmLeft,
-      0,
-      reason: 'the pipe-mouth answers only a Water pip, still or no still',
+      game.spoutPlugged,
+      isFalse,
+      reason: 'an Ice mane in the mouth is not a plug',
     );
-    // …and calms the well for the Water pip. It does NOT cycle the tide any
-    // more: up here the moon owns the water.
     game.setActive(0);
     teleport('moon_well', pipMouth);
-    final standBefore = game.tideLevel;
-    game.activateAbility();
-    expect(game.moonCalmLeft, greaterThan(0), reason: 'the well goes glassy');
-    expect(
-      game.tideLevel,
-      standBefore,
-      reason: 'the still does not fight the moon for the water',
-    );
+    game.update(1 / 60);
+    expect(game.spoutPlugged, isTrue, reason: 'the pip fits the mouth');
+    // And stepping away opens it again — it is a place, not a switch.
+    teleport('moon_well', room('moon_well').bounds.center);
+    game.update(1 / 60);
+    expect(game.spoutPlugged, isFalse);
+    teleport('moon_well', pipMouth);
+    game.update(1 / 60);
 
     // The pearl passage is bared from the wheels, as everywhere else.
     game.setActive(0);
@@ -447,11 +475,11 @@ void main() {
     // ── THE MOON WELL. Three hands: Spirit wanes the moon, the pip calms
     // the well, Ice locks a basin when the moon stands where it wants. ──
     final wants = Map<String, int>.from(game.poolWants);
-    expect(wants.length, 2, reason: 'two basins listen, rolled per run');
+    expect(wants.length, 4, reason: 'all four basins listen');
     expect(
-      (wants.values.first - wants.values.last).abs(),
-      greaterThanOrEqualTo(2),
-      reason: 'and they pull the moon in opposite directions',
+      wants.values.toSet(),
+      hasLength(4),
+      reason: 'and no two want the same moon',
     );
 
     /// Walk the moon to [notch] with Spirit, and let it settle there.
@@ -470,61 +498,51 @@ void main() {
         }
       }
       expect(game.moonNotch, notch, reason: 'the moon comes to $notch');
+      _plugSpout(game);
+      _settleWell(game);
       game.moonHoldT = _kPoolHoldForTest;
     }
 
     // A basin refuses a moon that is not its own.
-    final firstId = wants.keys.first;
-    final firstWant = wants[firstId]!;
-    moonTo(firstWant);
-    final otherId = wants.keys.last;
+    final ids = wants.keys.toList();
+    moonTo(wants[ids[0]]!);
     game.setActive(2); // Ice
-    teleport('moon_well', poolAt(otherId));
+    teleport('moon_well', poolAt(ids[1]));
     game.activateAbility();
     expect(
-      game.poolStates[otherId] ?? 0,
+      game.poolStates[ids[1]] ?? 0,
       0,
       reason: 'this basin is waiting for a different moon',
     );
-
-    // A DEAF basin costs nothing — no shatter, no wisps. That is the whole
-    // difference from the quiz this replaced.
-    final deaf = well.moonPools
-        .map((p) => p.id)
-        .firstWhere((id) => !wants.containsKey(id));
-    teleport('moon_well', poolAt(deaf));
-    game.activateAbility();
-    expect(game.poolStates[deaf] ?? 0, 0);
     expect(
       game.combatEnemies.where((e) => !e.isDead),
       isEmpty,
-      reason: 'a deaf basin is not a punishment',
+      reason: 'a wrong moon is not a punishment',
     );
 
-    // The right moon, and Ice takes it.
-    teleport('moon_well', poolAt(firstId));
-    game.activateAbility();
-    expect(
-      game.poolStates[firstId],
-      1,
-      reason: 'the basin holds the moon it asked for',
-    );
-
-    // PARITY: Spirit standing in the water braids the same ice (recipe).
-    moonTo(wants[otherId]!);
-    game.setActive(1);
-    teleport('moon_well', poolAt(otherId));
-    game.activateAbility();
-    expect(
-      game.poolStates[otherId],
-      1,
-      reason: 'Spirit+Water→Ice locks the second basin',
-    );
+    // All four, each at the moon it asked for. The pip never leaves the
+    // mouth of the main; Spirit and Ice do the walking.
+    for (final id in ids) {
+      moonTo(wants[id]!);
+      game.setActive(2);
+      teleport('moon_well', poolAt(id));
+      game.activateAbility();
+      expect(game.poolStates[id], 1, reason: 'basin $id takes its moon');
+    }
+    expect(game.moonBridgeWhole, isTrue);
     expect(
       game.guardianAwake,
       isTrue,
       reason: 'the bridged well wakes the deep',
     );
+    expect(
+      game.combatEnemies.where((e) => !e.isDead && e.isElite).length,
+      greaterThanOrEqualTo(3),
+      reason: 'and the deep sends its wardens up',
+    );
+    for (final e in game.combatEnemies) {
+      e.hp = 0;
+    }
     clearWisps();
 
     // The maxim wants the settled MID water, and the moon has been moved all
@@ -534,11 +552,28 @@ void main() {
     game.activateAbility();
     settleTide();
 
-    // ── The Lost Maxim: freeze the moon's drifting reflection (mid tide) ──
+    // ── The Lost Maxim: STILL the water, then take the moon out of it ──
+    //
+    // The reflection runs because the water runs. Ice on a moving moon is
+    // refused; a Water creature standing motionless in the pool flattens it
+    // to glass and the moon comes to rest in the middle of it.
+    game.currentRoomId = 'reflection_court';
+    game.setActive(0); // the Water pip stands in the pool and does not move
+    teleport('reflection_court', const Offset(320, 330));
+    for (var i = 0; i < 60 * 5; i++) {
+      game.update(1 / 60);
+    }
+    expect(
+      game.mirrorIsGlass,
+      isTrue,
+      reason: 'standing still in the pool flattens it',
+    );
     game.setActive(2); // Ice
     final glint = game.frozenMoonGlint();
     expect(glint, isNotNull, reason: 'mid tide floats the moon glint');
-    teleport('reflection_court', glint!);
+    game.creatures[2]
+      ..position = glint!
+      ..lastSafe = glint;
     game.activateAbility();
     // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
     for (var tick = 0; tick < 200; tick++) {
@@ -1149,14 +1184,13 @@ void main() {
       game.creatures.single
         ..position = mouth.position
         ..lastSafe = mouth.position;
-      game.activateAbility();
-      // The mouth's verb is the STILL now, and the tide up here answers the
-      // moon rather than the wheel — so what the gate protects, and what this
-      // asserts, is the calm.
+      game.update(1 / 60);
+      // The mouth is plugged by standing in it now, and only a Water PIP
+      // fits — so what the gate protects, and what this asserts, is the plug.
       expect(
-        game.moonCalmLeft,
-        0,
-        reason: 'a Water $family must never reach down the pipe-mouth',
+        game.spoutPlugged,
+        isFalse,
+        reason: 'a Water $family must never fit the pipe-mouth',
       );
       for (var i = 0; i < 400; i++) {
         game.update(1 / 60);
@@ -1176,11 +1210,11 @@ void main() {
     pip.creatures.single
       ..position = mouth.position
       ..lastSafe = mouth.position;
-    pip.activateAbility();
+    pip.update(1 / 60);
     expect(
-      pip.moonCalmLeft,
-      greaterThan(0),
-      reason: 'the Pip rides the pipes and the well goes glassy',
+      pip.spoutPlugged,
+      isTrue,
+      reason: 'the Pip fits the mouth and the main chokes',
     );
     expect(
       pip.combatEnemies.where((e) => !e.isDead),
@@ -1189,33 +1223,47 @@ void main() {
     );
   });
 
-  test('the still buys time — it never buys the moon', () {
-    // The pip's job in the finale. It halves the wax, so the walk to a basin
-    // is possible; it must not become a second dial, or Spirit stops
-    // mattering and the three-hand room collapses to two.
+  test('the broken main is what makes the pip load-bearing', () {
+    // While it runs the well stands ABOVE the moon, so no basin will agree
+    // with the sky — which is what pins the pip in place while the other two
+    // work the moon. If this ever stops being true the pip is decoration.
     final g = _moonWellReady(_member(1, 'Ice', 'mane'));
-    g.update(1 / 60); // let the moon reconcile with the standing water
-    final notch = g.moonNotch;
-    final mouth = g.layout.rooms['moon_well']!.tideValves.single;
-    g.setActive(0);
-    g.creatures[0]
-      ..position = mouth.position
-      ..lastSafe = mouth.position;
-    g.activateAbility();
-    expect(g.moonCalmLeft, greaterThan(0));
-    expect(g.moonNotch, notch, reason: 'the still does not move the moon');
+    g.update(1 / 60);
+    expect(g.spoutPlugged, isTrue, reason: 'the harness parks the pip in it');
+    _settleWell(g);
+    expect(g.wellAgreesWithMoon, isTrue);
 
-    // Calmed, the moon takes about twice as long to turn over.
-    var t = 0.0;
-    while (g.moonNotch == notch && t < 20) {
+    // Walk the pip out of the mouth and the main opens.
+    g.creatures[0].position = g.currentRoom.bounds.center;
+    g.update(1 / 60);
+    expect(g.spoutPlugged, isFalse);
+    expect(
+      g.wellStand,
+      greaterThan(moonStandFor(g.moonNotch)),
+      reason: 'the running main holds the well above the moon',
+    );
+    for (var i = 0; i < 60 * 6; i++) {
       g.update(1 / 60);
-      t += 1 / 60;
+      g.moonWaxT = 0;
     }
     expect(
-      t,
-      greaterThan(6.0),
-      reason: 'six seconds at half speed is most of a notch bought',
+      g.wellAgreesWithMoon,
+      isFalse,
+      reason: 'and nothing in the room will agree with the sky while it runs',
     );
+
+    // A basin refuses outright, and costs nothing for it.
+    final e = g.poolWants.entries.first;
+    g.moonNotch = e.value;
+    g.moonHoldT = 99;
+    final pool = g.currentRoom.moonPools.firstWhere((p) => p.id == e.key);
+    g.setActive(1);
+    g.creatures[1]
+      ..position = pool.position
+      ..lastSafe = pool.position;
+    g.activateAbility();
+    expect(g.poolStates[e.key] ?? 0, 0);
+    expect(g.combatEnemies.where((x) => !x.isDead), isEmpty);
   });
 
   test('the basin is element-only, but the recipe keeps its downside', () {
@@ -1227,6 +1275,7 @@ void main() {
       final pool = game.layout.rooms['moon_well']!.moonPools.firstWhere(
         (p) => p.id == id,
       );
+      _plugSpout(game);
       game.creatures[1]
         ..position = pool.position
         ..lastSafe = pool.position;
@@ -1252,6 +1301,7 @@ void main() {
     final pool = spirit.layout.rooms['moon_well']!.moonPools.firstWhere(
       (p) => p.id == id,
     );
+    _plugSpout(spirit);
     spirit.creatures[1]
       ..position = pool.position
       ..lastSafe = pool.position;
