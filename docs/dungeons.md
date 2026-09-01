@@ -1568,6 +1568,14 @@ quotation constants are deleted from the code — nothing left to drift.
    The tell is wordless: three wrong moons under one right one. Nothing is
    consumed — walking the Water creature out breaks the glass and costs the
    stillness, never the shards you have already turned.
+   **AND WHAT IS LEFT BEHIND IS A REFLECTION, CAUGHT.** The permanent mark
+   used to be a bright disc with two cracks on it, which is a coin lying in a
+   pool. It is drawn the way the moon well draws its own reflection now —
+   inverted, broken across three horizontal slices, each offset from the next
+   — with one difference: the slices DO NOT MOVE. The well's wobble runs off
+   `_time` because that water is alive; this one is locked at the offsets it
+   had on the instant the ice took it, so the pool is visibly holding one
+   moment rather than merely sitting still.
 4. **Ice — Star-Walker:** align every telescope on the unmarked 13th star —
    visible only in reflection.
 5. **Lightning — Thunderbolt (BUILT · first planet on the RITE OF THREE):**

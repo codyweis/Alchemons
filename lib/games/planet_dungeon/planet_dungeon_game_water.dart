@@ -2692,42 +2692,78 @@ extension MirrorTide on PlanetDungeonGame {
         ..color = const Color(0xFF4A7080).withValues(alpha: 0.6),
     );
     if (won) {
-      // The frozen moon, forever: a bright ice disc in the pool.
+      // THE FROZEN MOON, FOREVER — and it is a REFLECTION, caught.
+      //
+      // It used to be a bright disc with two cracks on it, which is a coin
+      // lying in a pool. What is actually held here is the moon's image on
+      // water, so it is drawn the way the moon well draws its own: inverted,
+      // broken across three horizontal slices, each offset from the next.
+      //
+      // The difference is that these slices DO NOT MOVE. The well's wobble
+      // runs off `_time` because that water is alive; this one is locked at
+      // the offsets it happened to have on the instant the ice took it, so
+      // the pool is visibly holding one moment rather than sitting still.
       final c = _kMoonPoolCentre;
       if (_fx.ready) {
         drawGlow(
           canvas,
           _fx.glow!,
           c,
-          54,
+          58,
           const Color(
             0xFFDCE8F0,
-          ).withValues(alpha: 0.22 + 0.06 * sin(_time * 1.6)),
+          ).withValues(alpha: 0.20 + 0.05 * sin(_time * 1.6)),
         );
       }
+      // The ice itself: a pane over the water, not a disc on it.
       canvas.drawCircle(
         c,
-        26,
-        Paint()..color = const Color(0xFFCfe4ee).withValues(alpha: 0.65),
+        30,
+        Paint()..color = const Color(0xFF0B1C24).withValues(alpha: 0.85),
       );
+      canvas.save();
+      canvas.clipPath(Path()..addOval(Rect.fromCircle(center: c, radius: 30)));
+      // Three slices of an upside-down moon, frozen out of true.
+      const locked = [-3.4, 2.6, -1.2];
+      for (var i = 0; i < 3; i++) {
+        canvas.save();
+        canvas.clipRect(
+          Rect.fromLTWH(c.dx - 32, c.dy - 30 + i * 20.0, 64, 20),
+        );
+        canvas.save();
+        canvas.translate(c.dx + locked[i], c.dy);
+        canvas.scale(1, -1);
+        canvas.translate(-c.dx, -c.dy);
+        _drawTheMoon(canvas, c, 25, 1.0, opacity: 0.92);
+        canvas.restore();
+        canvas.restore();
+      }
+      canvas.restore();
+      // The rim of the pane, and the frost that took it.
       canvas.drawCircle(
         c,
-        26,
+        30,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = Colors.white.withValues(alpha: 0.7),
+          ..strokeWidth = 1.8
+          ..color = Colors.white.withValues(alpha: 0.75),
       );
-      // Frost cracks across the disc.
       final crack = Paint()
         ..strokeWidth = 1
-        ..color = Colors.white.withValues(alpha: 0.45);
+        ..strokeCap = StrokeCap.round
+        ..color = Colors.white.withValues(alpha: 0.4);
       canvas.drawLine(
-        c + const Offset(-14, -6),
-        c + const Offset(8, 10),
+        c + const Offset(-26, -10),
+        c + const Offset(-6, 4),
         crack,
       );
-      canvas.drawLine(c + const Offset(4, -16), c + const Offset(10, 6), crack);
+      canvas.drawLine(c + const Offset(-6, 4), c + const Offset(14, -2), crack);
+      canvas.drawLine(c + const Offset(-6, 4), c + const Offset(2, 26), crack);
+      canvas.drawLine(
+        c + const Offset(10, -24),
+        c + const Offset(16, -8),
+        crack,
+      );
       return;
     }
     // THE SURFACE GOING TO GLASS under a Water creature holding still: the
